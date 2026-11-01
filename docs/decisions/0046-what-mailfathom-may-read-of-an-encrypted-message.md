@@ -9,7 +9,7 @@ informed:
 
 # Keep the ciphertext the server delivered, open a message in flight wherever a key addressed to it is held, let the deployment's ring make it ordinary mail for the accounts the key names and a device key make it the client's alone, and encrypt only to keys configuration or a verified signature supplied
 
-<!-- describes: backend/src/Infrastructure/Mail/Mime/**, backend/src/Application/Emails/Extraction/**, backend/src/Application/EmailContent/Rendering/**, backend/src/Application/Emails/GetEmailContent/**, backend/src/Application/Mail/Delivery/**, backend/src/Infrastructure/Persistence/Emails/StoredEmailSignerKeyWriter.cs, backend/src/Infrastructure/Persistence/Entities/StoredEmailSignerKeyEntity.cs, frontend/src/Client.Backend/src/** -->
+<!-- describes: backend/src/Infrastructure/Mail/Mime/**, backend/src/Application/Emails/Extraction/**, backend/src/Application/EmailContent/Rendering/**, backend/src/Application/Emails/GetEmailContent/**, backend/src/Application/Mail/Delivery/**, backend/src/Infrastructure/Persistence/Emails/StoredEmailSignerKeyWriter.cs, backend/src/Infrastructure/Persistence/Entities/StoredEmailSignerKeyEntity.cs, frontend/src/Client.Backend/src/**, frontend/src-tauri/** -->
 
 ## Context and Problem Statement
 
@@ -36,8 +36,8 @@ signatures with no network discovery. The questions it answers are:
 - whether headers protected inside an envelope reach the stored metadata;
 - how the capability meets access, export, and erasure;
 - what a device-held key costs the client, and which of [ADR 0024](0024-rendering-mail-in-the-client-as-a-closed-document-tree.md)'s
-  guarantees the device reproduces;
-- where outbound key material comes from, and what happens when some is missing.
+  guarantees the device reproduces, and where the device keeps the key;
+- where outbound key material comes from, who may encrypt to it, and what happens when some is missing.
 
 ## Decision Drivers
 
@@ -111,9 +111,24 @@ signatures with no network discovery. The questions it answers are:
 - **G2.** G1 plus network discovery: WKD, DANE, key servers, LDAP.
 - **G3.** G1 plus any key or certificate any incoming message carried.
 
+**H — where a device key is kept:**
+
+- **H1.** A wrapping key in the operating system's protected store, with the key sealed under it in the application's
+  data directory on the desktop and Android heads, and the page's memory alone on the web head.
+- **H2.** The key itself in the keychain or the Android Keystore, and in the session's or the browser's store on the web
+  head, exactly where ADR 0023 keeps the session.
+- **H3.** Nowhere durable on any head: imported each time the application starts.
+
+**I — who may encrypt to a recipient key:**
+
+- **I1.** A configured key by every account on the deployment; a learned key by the people who may read the message it
+  came from.
+- **I2.** Every key by every account on the deployment.
+- **I3.** Every key by the members of the organization that holds the account it was configured for or learned in.
+
 ## Decision Outcome
 
-Chosen options: **A1**, **B1**, **C2**, **D1**, **E3**, **F1**, and **G1**.
+Chosen options: **A1**, **B1**, **C2**, **D1**, **E3**, **F1**, **G1**, **H1**, and **I1**.
 
 ### The stored bytes are the bytes that arrived
 
@@ -232,7 +247,8 @@ that dropped it would be the silent degradation the drivers refuse. So:
   on the device, the device seals it before the drafts routes see it. Reopening a draft, including the outbox handing a
   refused send back to its draft, decrypts it in flight with that same key. A ring-path draft for an account the ring
   holds no key for cannot be sealed. It is refused rather than saved in the clear, so sending encrypted through the
-  service needs a ring key for the sending account.
+  service needs a ring key for the sending account. The device path needs none, because the device seals the draft
+  with the person's own device key.
 - **A subject decrypted under E3 is decrypted content under this rule**, even though it is stored as the message's
   subject. A sealed message or a sealed draft carries a subject derived from it — `Re:` and all — only inside protected
   headers (RFC 9788), behind a placeholder outer `Subject`. A send that is not sealed and concerns such a message, such
@@ -323,10 +339,47 @@ is never sent back. For a message no key opens, the outer headers are all there 
 
 `Client.Backend` holds no MIME parser and no cryptography today. The device row gives it both: an OpenPGP and CMS
 implementation to decrypt with, and a MIME parser to read what comes out. Each is a new client dependency that issue
-1596 brings with its licence review under [ADR 0016](0016-third-party-licence-obligations-per-artifact.md); the key
-itself is kept where issue 1595 decides per head, in the store
-[ADR 0023](0023-where-the-client-keeps-the-credential-it-signs-in-with.md) and
-[ADR 0027](0027-an-android-head-built-every-night-and-supported-by-nothing.md) already chose for the session credential.
+1596 brings with its licence review under [ADR 0016](0016-third-party-licence-obligations-per-artifact.md). Where the key
+itself is kept is the next section, and issue 1595 builds it.
+
+### Where the device keeps the key (H)
+
+A device key is the person's correspondence identity, not a credential the deployment minted, and it is worth more than
+any session. A session expires and the deployment can revoke it. A private key that leaks opens every message ever
+sealed to it, past and future, and nothing revokes that. So it is held to a stricter rule than
+[ADR 0023](0023-where-the-client-keeps-the-credential-it-signs-in-with.md)'s session. It is still reached the way
+ADR 0023 reaches its store: through operations the shell resolves once at the composition root, never by a screen
+asking the platform.
+
+- **It arrives from a file the person imports.** That is an OpenPGP secret key or an S/MIME PKCS #12 bundle. MailFathom
+  generates no key and exports none. It sends neither the key nor anything derived from it to the service.
+- **On the desktop head, the keychain holds a wrapping key, not the key itself.** The keychain ADR 0023 reaches through
+  `keyring` holds one random 256-bit wrapping key per imported key. The key material is sealed under it with AES-256-GCM
+  and written to a file in the application's own data directory. It does not go into the keychain directly because
+  Windows Credential Manager refuses a secret larger than 2,560 bytes, and an RSA OpenPGP key or a PKCS #12 bundle with
+  its chain is larger than that. A Linux machine with no Secret Service, which ADR 0023 already names, keeps the key
+  for the run only and says so.
+- **The Android head takes the same shape**, under [ADR 0027](0027-an-android-head-built-every-night-and-supported-by-nothing.md).
+  The wrapping key is an AES key in the Android Keystore, and the sealed file sits in the application's private
+  storage. Where that protected storage cannot be reached, nothing is kept.
+- **The web head keeps it in the page's memory and nowhere else.** It never goes to `sessionStorage`, `localStorage`, or
+  IndexedDB, whatever the person ticked on the sign-in screen. Each of those is readable by any script on the origin.
+  ADR 0023 accepted that exposure for a session only because a session expires and can be revoked, and neither is true
+  of a key. The person imports the key in each tab that needs it, and closing or reloading the tab forgets it.
+- **Its passphrase is never stored.** A passphrase-protected key stays protected by its passphrase at rest, under the
+  wrapping key as well. The passphrase is asked the first time the key is needed after the application starts. The
+  unlocked key then lives in memory until the application closes, the person signs out, or they lock it. On every
+  head the decryption runs in the WebView, so a script running in the page while the key is unlocked can reach it.
+  That exposure is the same on all three heads. It is why the unlocked form lives no longer than this, and why the web
+  head keeps nothing longer than the page.
+- **An entry belongs to one person on the device.** It is bound to the deployment address and the MailFathom user it
+  was imported under, as ADR 0023's session is, so another user signing in on the same machine profile does not reach
+  it. Signing out drops the unlocked key from memory and keeps the stored entry, because the key is the person's and
+  not the deployment's. Removing it is an explicit act on the device, and it deletes the sealed file and the wrapping
+  key together.
+- **Several keys sit side by side**, and choosing among them is automatic exactly as it is in the ring.
+- **Nothing about it reaches a log or telemetry**: not the wrapping key, not the sealed material, not the passphrase,
+  and not the key's own identifiers.
 
 **The device builds the closed document tree itself (F1).** A message only the device opens has no service-composed
 `MailDocument` and never will, so the reduction is built a second time in `Client.Backend`, emitting the same
@@ -384,6 +437,23 @@ to the displayed author, because a valid key for one address can sign a message 
 the `From` would let anybody holding a valid key make MailFathom encrypt somebody else's mail to them, which is the
 planted key G3 was refused for. A key that names no address is learned for none.
 
+**Who may encrypt to a recipient key follows where the key came from (I).**
+
+- **A configured recipient key belongs to the deployment.** It is the operator's statement that a key belongs to an
+  address, held in configuration beside the ring. Any send from any account on the deployment may encrypt to it,
+  because it says nothing about who writes to whom.
+- **A learned key belongs to the message it came from.** It is derived from one stored message, so it inherits that
+  message's access, as every derived row does. The people who may read that message may encrypt to it, from any
+  account they send from. Nobody else may, and that includes another user or another organization on the same
+  deployment who writes to the same address. It is erased with the message, through the cascade that already removes
+  `stored_email_signer_keys` with its email.
+- **No key is shared at the organization level automatically.** Making a correspondent's key available to every
+  member is a configured recipient key. Pooling learned keys across an organization would tell every colleague who
+  receives signed mail from whom.
+
+Where both kinds are held for one address, the configured key is used. It is the operator's deliberate statement, and
+a learned one is a fact observed in one mailbox.
+
 **No network discovery is performed** (G2 is refused): no WKD, no DANE, no key server, no LDAP directory, and no fetch of
 a certificate an incoming message points at. Each of those turns composing a message into a request to a third party
 saying who the sender is writing to, and that is a decision of its own rather than a detail of this one.
@@ -402,10 +472,21 @@ the `To` and `Cc` recipients who was blind-copied, which is exactly what a blind
 message is sealed to the visible recipients and the sender, and each blind-copied recipient receives a separately
 sealed copy.
 
-Sealing happens where the key is. Where the deployment's ring holds the sending account's keys, the service signs and
-encrypts. Where the key is on the device, the device seals the message before it leaves, using recipient public keys it
-reads from the service — which are not secret — so the service receives ciphertext it cannot read and is a courier, as
-it is on the way in. Issues 1597, 1598, and 1599 build the three halves.
+**Sealing happens where the sender's own key is, and there are two paths, each complete on its own.**
+
+- **The service path.** The deployment's ring holds a key for the sending account. The service seals the draft to that
+  key, and seals the message to the recipients and to that key when it is sent.
+- **The device path.** The person's own key is on the device. The device seals the draft to that key, and seals the
+  message to the recipients and to that key before it leaves. It uses recipient public keys it reads from the service,
+  which are not secret. The service receives ciphertext it cannot read and is a courier, as it is on the way in. This
+  path needs nothing in the ring.
+
+Which path applies is decided by where the key is, never by a choice the person makes. A person whose own key is
+nowhere, neither in the ring for that account nor on the device they are writing from, cannot send encrypted. Their
+draft could not be sealed to anybody they can read it back with, and the send refuses with that reason before
+anything leaves. On the device path the service still answers which recipients have a key. A deployment that served a
+substituted key could therefore read what the device seals, so the device trusts the service for recipient keys
+exactly as far as it trusts the deployment it signed in to. Issues 1597, 1598, and 1599 build the three halves.
 
 ### What reaches a log, a metric, or a trace
 
@@ -439,9 +520,15 @@ valid configuration.
 - Neutral, because every read decrypts again. That is CPU spent per read in exchange for no plaintext held anywhere
   between reads. The concurrency limits every read already runs under bound it, and so do the plaintext, decompression,
   nesting, and structure limits above, which hold memory to what a stored message could already occupy.
-- Bad, because sending encrypted through the service needs a ring key for the sending account even when every
-  recipient's key is known, since that key is what seals the draft. Without one, the draft would reach the mail server
-  in the clear.
+- Bad, because sending encrypted needs the sender's own key somewhere, even when every recipient's key is known. That
+  key is either a ring key for the sending account or a key on the device being written from, and it is what seals the
+  draft. Without one, the draft would reach the mail server in the clear.
+- Bad, because the web head forgets a device key with the tab, so somebody reading device-only mail in a browser
+  imports the key every time they open one.
+- Bad, because on the device path the device takes recipient keys from the deployment it signed in to, so a deployment
+  that substitutes a key can read what the device seals to it.
+- Bad, because a key learned in one mailbox is not offered to a colleague. An organization that wants a correspondent
+  reachable by everybody configures that key.
 - Bad, because a recipient certificate revoked after the last signature received from it is still encrypted to until
   it expires or a newer signature reveals the revocation, since sending makes no revocation request.
 - Bad, because S/MIME without integrity protection is opened, so its malleability is answered by withholding remote
@@ -475,7 +562,13 @@ valid configuration.
 - **Send-time revocation is held by unit tests**: an OpenPGP key carrying a revocation signature and a learned S/MIME
   certificate recorded as revoked at its latest verification are both refused, and a send makes no request to any host.
 - **Recipient key provenance is held by unit tests**: a key from a verified signature whose own address differs from the
-  message's `From` is filed under the key's address and is never offered for the `From`.
+  message's `From` is filed under the key's address and is never offered for the `From`. A learned key is offered to
+  a sender who may read the message it came from, and refused to one who may not. A configured key wins over a learned
+  one for the same address.
+- **The device store is held by the client's unit tests and the desktop suite**: an imported key reaches neither
+  `sessionStorage`, `localStorage`, nor IndexedDB on any head. On the desktop the keychain holds only the wrapping key,
+  and the data directory holds only sealed material. A passphrase is never written anywhere. An entry imported under
+  one user is not offered to another user signing in on the same machine.
 - **Blind copies are held by unit tests**: the visible message's recipient identifiers name no blind-copied recipient,
   and each blind-copied recipient's copy names that recipient alone.
 - **Decrypted content leaving only sealed is held by unit tests**: an answer, forward, or draft that quotes a decrypted
@@ -634,6 +727,44 @@ valid configuration.
 - Good, because more recipients become reachable.
 - Bad, because a forged message would plant a key MailFathom then encrypts to, which turns encryption into a way to
   deliver a message to an attacker.
+
+### H1 — a wrapping key in protected storage, and the page's memory alone on the web
+
+- Good, because the key at rest is sealed under a key the operating system guards, and the web head leaves nothing a
+  later script on the origin could read.
+- Good, because key material of any size fits, since only 32 bytes go into the keychain.
+- Bad, because it is a sealed file and a keychain entry to keep consistent, and the web head asks for the key in every
+  tab.
+
+### H2 — the key itself where ADR 0023 keeps the session
+
+- Good, because it reuses one store and adds nothing.
+- Bad, because Windows Credential Manager refuses secrets of that size, so the desktop answer does not work on a
+  supported target.
+- Bad, because on the web head it puts a key that can never be revoked where any script on the origin reads it, and
+  that is a trade ADR 0023 made only for something that expires.
+
+### H3 — nowhere durable on any head
+
+- Good, because nothing is at rest anywhere.
+- Bad, because the desktop and Android heads would ask for the key file at every start, which is a cost the
+  operating system's protected storage exists to remove.
+
+### I1 — configured keys for the deployment, learned keys for whoever reads their message
+
+- Good, because a learned key reveals nothing to anybody who could not already read the message it came from.
+- Good, because erasing the message erases the key, with no lifecycle of its own.
+- Bad, because a colleague cannot reach a correspondent somebody else heard from until the key is configured.
+
+### I2 — every key for every account
+
+- Good, because the most recipients are reachable.
+- Bad, because a learned key tells every user on the deployment who receives signed mail from whom.
+
+### I3 — every key for the organization
+
+- Good, because colleagues reach each other's correspondents.
+- Bad, because it pools what one mailbox observed across an organization's members without anybody choosing to.
 
 ## More Information
 
