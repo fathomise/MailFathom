@@ -5,6 +5,22 @@
 // Who is signed in, and the build the About screen names.
 MailFathomDesign.data.me = { name: "Karolina Kowalska", address: "k.kowalska@company.example" };
 MailFathomDesign.data.app = { version: "2.4.2", build: "build 20260907" };
+// The footer MailFathom appends to what the signed-in person sends, per account, line by line as it went out: `strong`
+// is the name line, `small` the fine print. A message of their own that carries `footer: true` (threads.js) names it,
+// and the simplified view folds it to one line; one without the flag was sent before the footer existed and is whole.
+MailFathomDesign.data.footers = {
+  acc1: [
+    { text: "Karolina Kowalska", strong: true },
+    { text: "Head of Procurement · Nordwind" },
+    { text: "+48 22 555 0143 · k.kowalska@nordwind.example" },
+    { text: "Nordwind S.A. · 12 Harbour Street, 00-950 Warsaw · nordwind.example" },
+    { text: "This message and its attachments are confidential and meant only for the people it is addressed to. If it reached you by mistake, tell the sender and delete it.", small: true },
+  ],
+  acc2: [
+    { text: "Karolina Kowalska", strong: true },
+    { text: "+48 600 555 012" },
+  ],
+};
 // The domains whose links open at once, without asking first: the person's own list, which the service keeps per
 // person. A domain covers its subdomains too, so files.nordwind.example opens and northwind-billing.example asks.
 // No screen edits it yet.

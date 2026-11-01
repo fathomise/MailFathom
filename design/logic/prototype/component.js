@@ -4,7 +4,7 @@
 
 MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   const {
-    me: { name: ME, address: MY_MAIL },
+    me: { name: ME, address: MY_MAIL }, footers: FOOTERS,
     app: { version: APP_VERSION, build: APP_BUILD },
     avatars: AVATARS, contacts: CONTACTS, contactInsights: CONTACT_AI, organization: ORGANIZATION,
     threads: THREADS, earlierMessages, threadMailBodies, conversationTitles: CONV_TITLES, newInThread: NEW_IN_THREAD, sentLast: SENT_LAST, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
@@ -259,7 +259,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
   const segStyle = (on) => "flex:1;text-align:center;padding:6px 8px;border-radius:8px;font-size:13px;white-space:nowrap;" + (on ? "background:var(--accent);color:var(--onaccent)" : "color:var(--muted)");
 
-  const M = (from, when, paras, atts, html) => ({ from, when, initials: initialsOf(from), mine: from === ME, paras, atts: atts || [], html: html || "" });
+  /* `footer` says the message names the footer MailFathom appended to it; `quoted` is the conversation it quoted. */
+  const M = (from, when, paras, atts, html, extra) => Object.assign({ from, when, initials: initialsOf(from), mine: from === ME, paras, atts: atts || [], html: html || "", footer: false, quoted: [] }, extra);
 
   /* The originals wrapped in the document shell they arrive in, and the earlier messages built as the newest one is. */
   const MAIL_HTML = {};
@@ -268,7 +269,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   Object.keys(threadMailBodies).forEach(t => { THREAD_HTML[t] = MAIL_HTML[threadMailBodies[t]]; });
   const HERO_MSGS = {};
   Object.keys(earlierMessages).forEach(t => {
-    HERO_MSGS[t] = earlierMessages[t].map(m => M(m.from, m.when, m.paras, m.attachments, m.html && MAIL_HTML[m.html]));
+    HERO_MSGS[t] = earlierMessages[t].map(m => M(m.from, m.when, m.paras, m.attachments, m.html && MAIL_HTML[m.html], { footer: !!m.footer, quoted: m.quoted || [] }));
   });
 
   const msgsFor = (t) => {
@@ -281,13 +282,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     const s1 = ((t.state || [])[0] || {}).value;
     const s2 = ((t.state || [])[1] || {}).value;
     const prior = [M(t.from || "Sender", "earlier", [{ text: "Following up on what we agreed earlier: " + lowerFirst(s1 || "the thread topic") + "." }])];
-    if (s2 && s2 !== "None") prior.push(M(ME, "earlier", [{ text: "Thank you. Still open: " + lowerFirst(s2) + "." }]));
+    if (s2 && s2 !== "None") prior.push(M(ME, "earlier", [{ text: "Thank you. Still open: " + lowerFirst(s2) + "." }], null, null, { footer: true }));
     return prior.concat([last]);
   };
   /* Read by thread, a thread may end in the user's own reply (`sentLast`). */
   const convMsgsFor = (t) => {
     const own = SENT_LAST[t.id];
-    return own ? msgsFor(t).concat([M(ME, own.when, [{ text: own.text }])]) : msgsFor(t);
+    return own ? msgsFor(t).concat([M(ME, own.when, [{ text: own.text }], null, null, { footer: !!own.footer })]) : msgsFor(t);
   };
 
   /* THE SENDER MARK — what the service publishes about who sent a received message (data/prototype/sender-marks.js),
@@ -4196,6 +4197,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : m.mine || thread.report ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
         const remoteOn = !!(st.remoteLoaded || {})[k];
         const folding = st.histFolding === thread.id;
+        /* The original is what went out, footer and quoted conversation included, so nothing in it is folded. */
+        const original = Object.assign({}, m, { paras: m.paras
+          .concat(m.mine && m.footer ? (FOOTERS[thread.acc || "acc1"] || []).map(l => ({ text: l.text })) : [], m.quoted) });
         /* A mailbox change the server never took, on the message it was asked for, until it is asked again or let go. */
         const chg = i === lastIdx && !(st.changeDecided || {})[thread.id] ? CHANGE_NOTICES[thread.id] : null;
         const chgUnknown = !!chg && chg.fate === "unknown";
@@ -4264,13 +4268,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           simpleView: !htmlViewMode || threadSpam.spam,
           htmlView: htmlViewMode && !threadSpam.spam,
           htmlFrameId: "fit:" + thread.id + ":" + i,
-          htmlEmbedSrc: htmlViewMode && !threadSpam.spam ? embedHtml(m.html || htmlFallback(m, thread.subject), "fit:" + thread.id + ":" + i) : "",
+          htmlEmbedSrc: htmlViewMode && !threadSpam.spam ? embedHtml(m.html || htmlFallback(original, thread.subject), "fit:" + thread.id + ":" + i) : "",
           htmlFrameRef: this.htmlFrameRef,
           htmlRich: !!m.html,
           htmlTitle: m.html ? "Show the original message (rich content)" : "Show the original message",
           openHtml: () => {
             if (this.refuseSpam(thread.id, "Its original does not open.")) return;
-            const doc = { title: thread.subject, from: m.from, when: m.when, rich: !!m.html, src: m.html || htmlFallback(m, thread.subject) };
+            const doc = { title: thread.subject, from: m.from, when: m.when, rich: !!m.html, src: m.html || htmlFallback(original, thread.subject) };
             this.setState({ htmlAsk: { key: "html:" + thread.id + ":" + i, doc } });
           },
           preview: (m.paras[0] || {}).text || mdPlain((m.paras[0] || {}).md || ""),
@@ -4290,12 +4294,39 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           avatarStyle:
             "width:30px;height:30px;flex:0 0 30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;letter-spacing:0.02em;" +
             (m.mine ? "background:var(--accent);color:var(--onaccent);" : "background:var(--border2);color:var(--text2);"),
+          /* The reader's own footer, named by the message, folds to one quiet line under their words; the conversation
+             it quoted folds under that, behind a line of its own. A message naming no footer is drawn whole. */
+          ...(() => {
+            const lines = m.mine && m.footer ? FOOTERS[thread.acc || "acc1"] || [] : [];
+            const footOpen = !!(st.footerOpen || {})[k];
+            const quoteOpen = !!(st.quotedOpen || {})[k];
+            const flip = (key) => () => this.setState(s2 => ({ [key]: Object.assign({}, s2[key], { [k]: !(s2[key] || {})[k] }) }));
+            const foldLine = "display:inline-flex;align-self:flex-start;align-items:center;gap:4px;box-sizing:border-box;min-height:" + (touch ? 44 : 28) +
+              "px;padding:0 10px 0 4px;margin-left:-4px;border-radius:8px;font-size:13px;line-height:1.3;color:var(--muted)";
+            return {
+              foldsShown: lines.length > 0 || m.quoted.length > 0,
+              footerShown: lines.length > 0, footerOpen: footOpen, toggleFooter: flip("footerOpen"),
+              footerLabel: footOpen ? "Hide your footer" : "Your footer is hidden",
+              footerGlyph: footOpen ? "expand_more" : "chevron_right",
+              footerLines: lines.map(l => ({
+                text: l.text,
+                style: l.strong ? "font-size:14px;line-height:1.5;font-weight:600;color:var(--text)"
+                  : l.small ? "font-size:12px;line-height:1.5;color:var(--muted);margin-top:6px;text-wrap:pretty"
+                  : "font-size:14px;line-height:1.5;color:var(--text2)",
+              })),
+              quotedShown: m.quoted.length > 0, quotedOpen: quoteOpen, toggleQuoted: flip("quotedOpen"),
+              quotedGlyph: quoteOpen ? "expand_more" : "chevron_right",
+              quotedParas: m.quoted.map(q => ({ text: q.text, style: "font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty" })),
+              foldLineStyle: foldLine,
+              foldGlyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1",
+            };
+          })(),
           paras: m.paras.reduce((acc, bb) => bb.md ? acc.concat(threadSpam.spam ? unlinked(mdView(bb.md)) : mdView(bb.md)) : acc.concat([{
             isText: true,
             runs: [{ text: bb.text, plain: true, isLink: false, href: "", style: "" }],
             style: bb.hl && st.cameFrom
               ? "font-size:16px;line-height:1.55;background:var(--hl);border-left:3px solid var(--hl-line);padding:13px 16px;text-wrap:pretty"
-              : MDTXT,
+              : MDTXT + (bb.text.indexOf("\n") >= 0 ? ";white-space:pre-line" : ""),
           }]), []),
         });
       });

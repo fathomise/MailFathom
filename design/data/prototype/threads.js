@@ -921,6 +921,7 @@ MailFathomDesign.data.earlierMessages = {
     {
       from: "Karolina Kowalska",
       when: "25.08, 11:15",
+      footer: true,
       paras: [
         {
           text: "Thank you. Let me know when the calendar mappings are done - that decides when we can invite users to test.",
@@ -947,6 +948,7 @@ MailFathomDesign.data.earlierMessages = {
     {
       from: "Karolina Kowalska",
       when: "27.08, 08:20",
+      footer: true,
       paras: [
         {
           text: "You will have the list of test users on Thursday. Does the time-zone problem need a separate acceptance?",
@@ -971,6 +973,8 @@ MailFathomDesign.data.earlierMessages = {
         {
           text: "Thank you. Please send a version with changes marked against the current contract - otherwise it is hard for us to judge the cost impact.",
         },
+        // Sent before the footer existed, so the sign-off is the one she typed and nothing folds it.
+        { text: "Best regards,\nKarolina Kowalska\nNordwind" },
       ],
     },
     {
@@ -998,10 +1002,16 @@ MailFathomDesign.data.earlierMessages = {
     {
       from: "Karolina Kowalska",
       when: "26.08, 08:30",
+      footer: true,
       paras: [
         {
           text: "Are the indexation rules negotiable? We would accept the 2 h SLA on condition that an upper CPI cap is introduced.",
         },
+      ],
+      // The conversation the reply quoted under the footer, folded behind its own line in a thread.
+      quoted: [
+        { text: "On 22.08.2026 Anna Kowalska wrote:" },
+        { text: "Attached is the comparison version. The changes affect clause 4 (response time) and the price schedule." },
       ],
     },
   ],
@@ -1063,11 +1073,11 @@ MailFathomDesign.data.newInThread = { contoso: 2, piotr: 2, marta: 1, finanse: 1
    carries what came back for that reply (receipts.js), as a Sent row does. */
 MailFathomDesign.data.sentLast = {
   north1: {
-    when: "today 07:40", time: "07:40",
+    when: "today 07:40", time: "07:40", footer: true,
     text: "Thank you, Robert. Before we decide, could you send a revised quote with the export to Power BI included and the licence priced per user?",
   },
   fabrikam1: {
-    when: "yesterday 17:30", time: "yest.",
+    when: "yesterday 17:30", time: "yest.", footer: true,
     text: "Tomasz, November does not work for our rollout. Please confirm which items can still ship in October and the new dates for the rest.",
   },
 };
