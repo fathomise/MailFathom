@@ -27,6 +27,11 @@ namespace MailFathom.Application.Mail.Delivery.Footers;
 /// It asks no grant. It is reached from the outbox, which already admitted whoever asked, and from the reading of a
 /// user's own footers, which asks its own.
 /// </para>
+/// <para>
+/// <see cref="HasFooterAsync" /> asks neither a grant nor whether the account is the user's, so each of its callers
+/// decides both first: the reply drafting asks only about an account assigned to the user drafting, and the Agent's
+/// tools only about the accounts the person's own scope reads, on a run admitted to propose mail.
+/// </para>
 /// </remarks>
 /// <param name="store">Holds the footers and templates.</param>
 /// <param name="members">Reads the member a template is filled for.</param>
