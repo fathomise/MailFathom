@@ -82,7 +82,7 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `GET /api/client/messages/{storedEmailId}/body/cleaned` | `mailfathom.assistant.use` with `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}/attachments/{position}` | `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}/source` | `mailfathom.mail.read` |
-| `POST /api/client/messages/{storedEmailId}/read-receipt` | `mailfathom.mail.send` |
+| `POST /api/client/messages/{storedEmailId}/read-receipt` | `mailfathom.mail.send` with `mailfathom.mail.read` |
 | `POST /api/client/citations/resolution` | `mailfathom.mail.read` |
 | `GET /api/client/mutations` | `mailfathom.mail.read` |
 | `POST /api/client/mutations/flags` | `mailfathom.mail.flags.write` |
@@ -2217,7 +2217,8 @@ mirrored, held, or being restored.
 `POST /api/client/messages/{storedEmailId}/read-receipt` sends the read receipt a message asked for, once, and only
 because the person asked: nothing else on this surface — opening the message, marking it read — sends one.
 [Delivery and read receipts](../features/delivery-and-read-receipts.md#answering-a-read-receipt) describes what the
-receipt is and how it travels. It takes no body.
+receipt is and how it travels. It takes no body, and the use case asks for `mailfathom.mail.read` beside the route's
+`mailfathom.mail.send`, because a receipt answers mail the caller read.
 
 A sent receipt is answered `200` with `{ "sentAt": <timestamp> }`. A message this user does not hold is `404`, as
 everywhere on this surface. A refusal is `409` with a `reason` the client reads:

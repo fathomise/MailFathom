@@ -1525,7 +1525,7 @@ records the decision.
 | `sentAs` | Preview only. The `From` address the message is sent as, with its `role`, `address`, and `displayName` as `get_email_content` publishes a participant |
 | `text` | Preview only. The message's plain text as `get_email_content` publishes one representation of a body — `text`, `originalCharacterCount`, and `truncatedBy` — under the same character bound; absent when the stored message could not be read or is encrypted |
 | `attachments` | Preview only. One entry per file, with `fileName`, `wasFileNameNormalized`, `mediaType`, and `sizeBytes`; the outbox serves no link to fetch one |
-| `receipts` | Both answers. What the message asked to be told and each recipient's recorded delivery and read outcome, as [`list_emails`](#result-1) describes it; absent where it asked for neither and got no report |
+| `receipts` | Preview only, since when a recipient read the message is personal data a send-only answer does not carry. What the message asked to be told and each recipient's recorded delivery and read outcome, as [`list_emails`](#result-1) describes it; absent where it asked for neither and got no report |
 
 Every preview member is absent from the send-only answer rather than empty, so a caller tells a message with no
 subject from an answer that carries none. The subject, the sender, and the text pass the deployment's sensitive-content

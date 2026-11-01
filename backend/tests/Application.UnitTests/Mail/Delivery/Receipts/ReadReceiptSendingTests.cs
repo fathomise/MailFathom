@@ -14,7 +14,10 @@ using MailFathom.Application.Mail.Delivery.Governance;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Receipts;
+using MailFathom.Application.Mail.Delivery.Signing;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.SensitiveContent;
+using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -149,6 +152,121 @@ public sealed class ReadReceiptSendingTests
         Assert.Equal(ReadReceiptSendingOutcome.NotFound, result.Outcome);
     }
 
+    /// <summary>A message in an account the reader is not assigned is answered exactly as one that does not exist.</summary>
+    [Fact]
+    public async Task SendAsync_AMessageInAnAccountTheReaderIsNotAssigned_IsNotFound()
+    {
+        // Arrange
+        var answered = Requesting();
+        var sending = this.SendingOver(answered, catalog: CatalogServing(MailAccountId.Create("elsewhere")));
+
+        // Act
+        var result = await sending.SendAsync(answered.StoredEmailId, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ReadReceiptSendingOutcome.NotFound, result.Outcome);
+        await this.store.DidNotReceiveWithAnyArgs().ClaimReadReceiptAsync(default, default, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>A receipt answers mail the caller read, so a credential that may only send learns nothing about the message.</summary>
+    [Fact]
+    public async Task SendAsync_ACallerThatMayOnlySend_IsRefusedBeforeTheMessageIsRead()
+    {
+        // Arrange
+        var answered = Requesting();
+        var summaries = Substitute.For<IStoredEmailSummaryReader>();
+        var sending = this.SendingOver(
+            answered,
+            summaryReader: summaries,
+            authorization: AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend));
+
+        // Act
+        await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(
+            () => sending.SendAsync(answered.StoredEmailId, TestContext.Current.CancellationToken));
+
+        // Assert
+        await summaries.DidNotReceiveWithAnyArgs().FindAsync(default, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>An account with no address to send from cannot answer, and says so before anything is claimed.</summary>
+    [Fact]
+    public async Task SendAsync_AnAccountWithNoSendingIdentity_IsRefusedAsSenderUnconfigured()
+    {
+        // Arrange
+        var answered = Requesting();
+        var sending = this.SendingOver(answered, senderIdentities: Substitute.For<IOutgoingSenderIdentityReader>());
+
+        // Act
+        var result = await sending.SendAsync(answered.StoredEmailId, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ReadReceiptSendingOutcome.SenderUnconfigured, result.Outcome);
+        await this.store.DidNotReceiveWithAnyArgs().ClaimReadReceiptAsync(default, default, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>A receipt the composer refuses is reported by why: an account it cannot send as, or an address it cannot reach.</summary>
+    [Theory]
+    [InlineData(AuthoredEmailRefusalReason.SenderUnconfigured, ReadReceiptSendingOutcome.SenderUnconfigured)]
+    [InlineData(AuthoredEmailRefusalReason.FieldUnusable, ReadReceiptSendingOutcome.Unaddressable)]
+    [InlineData(AuthoredEmailRefusalReason.InternationalizationUnsupported, ReadReceiptSendingOutcome.Unaddressable)]
+    public async Task SendAsync_AReceiptTheComposerRefuses_IsRefusedByItsReasonWithoutAClaim(
+        AuthoredEmailRefusalReason reason,
+        ReadReceiptSendingOutcome expected)
+    {
+        // Arrange
+        var answered = Requesting();
+        this.composer
+            .ComposeReadReceipt(
+                Arg.Any<MailAccountId>(),
+                Arg.Any<UserId>(),
+                Arg.Any<OutgoingEmailRequester>(),
+                Arg.Any<ReadReceiptAnswer>(),
+                Arg.Any<MailDeliveryCapabilities>())
+            .Returns(AuthoredEmailComposition.Refused(reason, AuthoredEmailField.To));
+        var sending = this.SendingOver(answered);
+
+        // Act
+        var result = await sending.SendAsync(answered.StoredEmailId, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(expected, result.Outcome);
+        await this.store.DidNotReceiveWithAnyArgs().ClaimReadReceiptAsync(default, default, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>A scanner that could not be reached wrote nothing down, so the reader may ask again.</summary>
+    [Fact]
+    public async Task SendAsync_AReceiptTheScannerCouldNotJudge_ReleasesTheClaim()
+    {
+        // Arrange
+        var answered = Requesting();
+        var sending = this.SendingOver(
+            answered,
+            signer: SignerFailingWith(SensitiveContentScannerUnavailableException.DidNotAnswerInTime(SensitiveContentScannerKind.Secrets, TimeSpan.FromSeconds(5))));
+
+        // Act
+        await Assert.ThrowsAsync<SensitiveContentScannerUnavailableException>(
+            () => sending.SendAsync(answered.StoredEmailId, TestContext.Current.CancellationToken));
+
+        // Assert
+        await this.store.Received(1).ReleaseReadReceiptAsync(answered.StoredEmailId, Now, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Any other failure may have left the receipt on its way, so the claim stands rather than risk a second.</summary>
+    [Fact]
+    public async Task SendAsync_AReceiptThatFailsForAnyOtherReason_KeepsTheClaim()
+    {
+        // Arrange
+        var answered = Requesting();
+        var sending = this.SendingOver(answered, signer: SignerFailingWith(new InvalidOperationException("The key could not be opened.")));
+
+        // Act
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sending.SendAsync(answered.StoredEmailId, TestContext.Current.CancellationToken));
+
+        // Assert
+        await this.store.DidNotReceiveWithAnyArgs().ReleaseReadReceiptAsync(default, default, TestContext.Current.CancellationToken);
+    }
+
     private static EmailSummary Requesting() => SyntheticEmailSummaries.Create(subject: "Lunch", senderAddress: RequestedAddress) with
     {
         InternetMessageId = "lunch@elsewhere.test",
@@ -157,6 +275,15 @@ public sealed class ReadReceiptSendingTests
 
     private static AccessAuthorization Granted() =>
         AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend, MailFathomPermission.MailRead);
+
+    private static IOrganizationMailSigner SignerFailingWith(Exception failure)
+    {
+        var signer = Substitute.For<IOrganizationMailSigner>();
+        signer.SignAsync(Arg.Any<MailAccountId>(), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<ReadOnlyMemory<byte>>(failure));
+
+        return signer;
+    }
 
     private static IAuthoredEmailComposer ComposerThatComposesReceipts()
     {
@@ -183,9 +310,13 @@ public sealed class ReadReceiptSendingTests
     private ReadReceiptSending SendingOver(
         EmailSummary answered,
         AuthoredSendGovernor? governor = null,
-        IStoredEmailSummaryReader? summaryReader = null)
+        IStoredEmailSummaryReader? summaryReader = null,
+        ICallerMailAccountCatalog? catalog = null,
+        IOutgoingSenderIdentityReader? senderIdentities = null,
+        IOrganizationMailSigner? signer = null,
+        AccessAuthorization? authorization = null)
     {
-        var granted = Granted();
+        var granted = authorization ?? Granted();
         var participation = StubMailFolderParticipation.Mapping(new MailFolderIdentity(answered.Account, answered.Folder.Alias!.Value));
         var summaries = summaryReader ?? Substitute.For<IStoredEmailSummaryReader>();
 
@@ -200,21 +331,21 @@ public sealed class ReadReceiptSendingTests
         return new ReadReceiptSending(
             summaries,
             new MailboxScopeResolver(
-                CatalogServing(answered.Account),
+                catalog ?? CatalogServing(answered.Account),
                 participation,
                 StubDeploymentMailFolders.Of(participation),
                 StubMailFolderMappings.ResolvingNothing),
-            SenderIdentitiesFor(answered.Account),
+            senderIdentities ?? SenderIdentitiesFor(answered.Account),
             this.store,
             this.composer,
             governor ?? AuthoredSendGovernors.Permitting(granted),
-            OutboxOver(granted),
+            OutboxOver(granted, signer ?? OrganizationMailSigners.SigningNothing()),
             languages,
             granted,
             new FakeTimeProvider(Now));
     }
 
-    private static MailOutbox OutboxOver(AccessAuthorization granted)
+    private static MailOutbox OutboxOver(AccessAuthorization granted, IOrganizationMailSigner signer)
     {
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
         sessionFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ =>
@@ -235,7 +366,7 @@ public sealed class ReadReceiptSendingTests
             granted,
             OutgoingMailGovernors.Permitting(),
             OutgoingMailScreenings.Inactive(),
-            OrganizationMailSigners.SigningNothing(),
+            signer,
             new FakeTimeProvider(Now),
             ClientSignalPublishers.ReachingNobody);
     }

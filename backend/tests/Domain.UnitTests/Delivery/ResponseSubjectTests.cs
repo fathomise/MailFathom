@@ -27,6 +27,26 @@ public sealed class ResponseSubjectTests
         Assert.Equal(expected, subject);
     }
 
+    /// <summary>
+    /// A read receipt opens its subject with <c>Read:</c> once, however the original spelled one, carries nothing a header
+    /// could not, and still has a subject where the original had none.
+    /// </summary>
+    [Theory]
+    [InlineData("Lunch", "Read: Lunch")]
+    [InlineData("READ: Lunch", "READ: Lunch")]
+    [InlineData("read:Lunch", "read:Lunch")]
+    [InlineData("Lunch\r\nBcc: elsewhere@example.test", "Read: LunchBcc: elsewhere@example.test")]
+    [InlineData(null, "Read:")]
+    [InlineData("   ", "Read:")]
+    public void ForReadReceipt_AnySubject_OpensWithOneReadPrefix(string? answered, string expected)
+    {
+        // Act
+        var subject = ResponseSubject.ForReadReceipt(answered);
+
+        // Assert
+        Assert.Equal(expected, subject);
+    }
+
     /// <summary>A subject carrying no prefix takes this system's own.</summary>
     [Fact]
     public void ForReply_SubjectWithoutAPrefix_TakesTheReplyPrefix()

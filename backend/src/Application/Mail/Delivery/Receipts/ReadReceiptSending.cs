@@ -41,7 +41,7 @@ namespace MailFathom.Application.Mail.Delivery.Receipts;
 /// <param name="governor">Admits and records the send as the caller's own.</param>
 /// <param name="outbox">Writes the receipt down to be sent.</param>
 /// <param name="languages">Reads the language the reader chose, which the receipt's words are written in.</param>
-/// <param name="authorization">Establishes who asked and that they may send mail.</param>
+/// <param name="authorization">Establishes who asked and that they may both read the message and send mail.</param>
 /// <param name="timeProvider">Supplies the time the receipt is recorded as sent at.</param>
 public sealed class ReadReceiptSending(
     IStoredEmailSummaryReader summaries,
@@ -59,11 +59,13 @@ public sealed class ReadReceiptSending(
     /// <param name="answered">The message the reader is answering.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>How the request ended, with the time the receipt was sent where one was.</returns>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold both <see cref="MailFathomPermission.MailSend" /> and <see cref="MailFathomPermission.MailRead" />, so a send-only credential learns nothing about a stored message.</exception>
     /// <exception cref="OutgoingMailRefusedException">Thrown when the deployment's sending rules refuse the receipt.</exception>
     /// <exception cref="SensitiveContentScannerUnavailableException">Thrown when what screens outgoing mail could not be reached.</exception>
     public async Task<ReadReceiptSendingResult> SendAsync(StoredEmailId answered, CancellationToken cancellationToken)
     {
         authorization.RequirePermission(MailFathomPermission.MailSend);
+        authorization.RequirePermission(MailFathomPermission.MailRead);
 
         var user = authorization.RequireUser();
         var summary = await summaries.FindAsync(answered, cancellationToken);

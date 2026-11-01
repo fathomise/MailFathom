@@ -44,6 +44,7 @@ internal sealed class OutgoingMailTrackingHarness
             granted ?? [MailFathomPermission.MailSend]));
 
         this.Store = new InMemoryOutgoingEmailStore(timeProvider: this.Clock);
+        this.Reader = new OutgoingMailReader(this.Store, authorization);
 
         // The withdrawal is the operator's own statement, reached here under the sending grant instead, so the double
         // stands in for that port and performs it against the same rows rather than reimplementing what it decides.
@@ -51,8 +52,6 @@ internal sealed class OutgoingMailTrackingHarness
 
         outbox.CancelAsync(Arg.Any<OutgoingEmailId>(), Arg.Any<CancellationToken>())
             .Returns(call => this.Store.Withdraw(call.Arg<OutgoingEmailId>(), this.Clock.GetUtcNow()));
-
-        this.Reader = new OutgoingMailReader(this.Store, outbox, authorization);
 
         this.Signals = new ClientSignals([this.SignalChannel], this.Clock);
         this.Cancellation = new OutgoingMailCancellation(this.Reader, outbox, authorization, this.Signals);

@@ -281,6 +281,21 @@ internal sealed partial record MailAnsweringScenario(
             MinimumTaskAdherence: 4,
             Claim: FalseClaimMail.VerifiedUrgentTransfer),
 
+        // These two ask what became of mail the owner sent, which no message's text says: a report is withheld from the
+        // agent, so the answer is read from the receipts recorded beside the sent message, or not given at all.
+        new(
+            "MailAnswering.Receipts.WasItRead",
+            "Has Lena read my message about the Brackwater ledger scans yet, and when?",
+            ["Brackwater ledger scans"],
+            MinimumIntentResolution: 4,
+            MinimumTaskAdherence: 4),
+        new(
+            "MailAnswering.Receipts.DidItArrive",
+            "Did my message to Piotr about the Saltmarsh survey invoice reach him?",
+            ["Saltmarsh survey invoice"],
+            MinimumIntentResolution: 4,
+            MinimumTaskAdherence: 4),
+
         // The rest ask in Polish, or ask in one language about mail written in the other, over the mailbox holding both;
         // the answer is written in the question's language.
         new(

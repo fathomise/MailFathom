@@ -468,7 +468,7 @@
           "type": "string"
         },
         "receipts": {
-          "description": "What the message asked to be told — a delivery notification, a read receipt — and the delivery and read outcome recorded for each recipient from the reports that came back. Absent when the message asked for neither and no report came back. A report is information somebody's server or mail app chose to send, not proof.",
+          "description": "What the message asked to be told — a delivery notification, a read receipt — and the delivery and read outcome recorded for each recipient from the reports that came back. Present only in the outbox preview, and absent there when the message asked for neither and no report came back. A report is information somebody's server or mail app chose to send, not proof.",
           "properties": {
             "deliveryRequested": {
               "description": "Whether the message asked for a delivery notification (RFC 3461).",
@@ -2223,7 +2223,7 @@
           "type": "string"
         },
         "receipts": {
-          "description": "What the message asked to be told — a delivery notification, a read receipt — and the delivery and read outcome recorded for each recipient from the reports that came back. Absent when the message asked for neither and no report came back. A report is information somebody's server or mail app chose to send, not proof.",
+          "description": "What the message asked to be told — a delivery notification, a read receipt — and the delivery and read outcome recorded for each recipient from the reports that came back. Present only in the outbox preview, and absent there when the message asked for neither and no report came back. A report is information somebody's server or mail app chose to send, not proof.",
           "properties": {
             "deliveryRequested": {
               "description": "Whether the message asked for a delivery notification (RFC 3461).",

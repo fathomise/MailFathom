@@ -97,7 +97,11 @@ internal sealed record OutgoingEmailToolResult
     public IReadOnlyList<OutgoingEmailAttachment>? Attachments { get; init; }
 
     /// <summary>Gets what the message asked to be told and what each recipient's delivery and read reports said.</summary>
-    [Description("What the message asked to be told — a delivery notification, a read receipt — and the delivery and read outcome recorded for each recipient from the reports that came back. Absent when the message asked for neither and no report came back. A report is information somebody's server or mail app chose to send, not proof.")]
+    /// <remarks>
+    /// Present only in the outbox preview: when a named recipient read the message is personal data about that message,
+    /// so it is withheld from an answer bounded by what a send-only caller supplied, exactly as the recipients are.
+    /// </remarks>
+    [Description("What the message asked to be told — a delivery notification, a read receipt — and the delivery and read outcome recorded for each recipient from the reports that came back. Present only in the outbox preview, and absent there when the message asked for neither and no report came back. A report is information somebody's server or mail app chose to send, not proof.")]
     public SentEmailReceipts? Receipts { get; init; }
 
     /// <summary>Publishes the outbox preview of one send.</summary>

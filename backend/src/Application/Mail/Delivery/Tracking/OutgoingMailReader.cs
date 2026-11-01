@@ -3,10 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
-using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Delivery;
-using MailFathom.Domain.Delivery.Receipts;
 
 namespace MailFathom.Application.Mail.Delivery.Tracking;
 
@@ -30,11 +28,9 @@ namespace MailFathom.Application.Mail.Delivery.Tracking;
 /// </para>
 /// </remarks>
 /// <param name="outgoingEmails">Holds the durable record of every send.</param>
-/// <param name="outbox">Reads what a send asked to be told and what its recipients' reports said.</param>
 /// <param name="authorization">Answers whether the caller holds the grant that lets it send, and says who it is.</param>
 public sealed class OutgoingMailReader(
     IOutgoingEmailStore outgoingEmails,
-    IOutboxOperationStore outbox,
     AccessAuthorization authorization)
 {
     /// <summary>Reads back the send one identifier names, for the caller that asked for it.</summary>
@@ -58,25 +54,6 @@ public sealed class OutgoingMailReader(
 
         return record is not null && this.WasQueuedByTheCaller(record)
             ? record
-            : throw QueuedSendRefusedException.NotFound();
-    }
-
-    /// <summary>Reads what one send the caller queued asked to be told and what its recipients' reports said.</summary>
-    /// <param name="record">The send, as <see cref="ReadAsync" /> answered it.</param>
-    /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>Its receipts, or <see langword="null" /> where it asked for no report and got none.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="record" /> is <see langword="null" />.</exception>
-    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the work was not reached by a caller granted <see cref="MailFathomPermission.MailSend" />.</exception>
-    /// <exception cref="QueuedSendRefusedException">Thrown when the send is not one this caller queued.</exception>
-    public async Task<OutgoingEmailReceipts?> ReadReceiptsAsync(
-        OutgoingEmailRecord record,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(record);
-        authorization.RequirePermission(MailFathomPermission.MailSend);
-
-        return this.WasQueuedByTheCaller(record)
-            ? await outbox.ReadReceiptsAsync(record.Id, cancellationToken)
             : throw QueuedSendRefusedException.NotFound();
     }
 

@@ -337,11 +337,6 @@ internal sealed record StoredEmailSummaryRow(
                 cancellationToken);
     }
 
-    /// <summary>Reads the classification columns back into the verdict a screen draws, or reports that none is recorded.</summary>
-    /// <remarks>
-    /// The verdict and the deciding stage are columns of one row, absent together exactly when the message has no
-    /// classification, which is the only case read as none.
-    /// </remarks>
     /// <summary>Reads the report mark back from its two arrays, position by position.</summary>
     /// <remarks>A position whose outcome names no declared value is dropped rather than read as a neighbouring one.</remarks>
     private EmailReportMark? StoredReportMark() =>
@@ -359,6 +354,11 @@ internal sealed record StoredEmailSummaryRow(
                 this.ReportOwnMessageSubject)
             : null;
 
+    /// <summary>Reads the classification columns back into the verdict a screen draws, or reports that none is recorded.</summary>
+    /// <remarks>
+    /// The verdict and the deciding stage are columns of one row, absent together exactly when the message has no
+    /// classification, which is the only case read as none.
+    /// </remarks>
     private EmailSpamVerdict? StoredSpamVerdict() =>
         this is { SpamVerdict: { } verdict, SpamDecidedBy: { } decidedBy }
             ? new EmailSpamVerdict(

@@ -314,13 +314,12 @@ public sealed class OutgoingEmailToolTests
                 [MailFathomPermission.MailRead, MailFathomPermission.MailSend]));
 
         return new GetOutgoingEmailTool(
-            new OutgoingMailReader(store, Substitute.For<IOutboxOperationStore>(), authorization),
+            new OutgoingMailReader(store, authorization),
             UserOutboxes.Over(new StubMailAccountCatalog(assignedAccount), authorization, store));
     }
 
     private static OutgoingMailReader ReaderOver(IOutgoingEmailStore store) => new(
         store,
-        Substitute.For<IOutboxOperationStore>(),
         AccessAuthorizations.ForPrincipal(
             AuthorizedPrincipal.CallerActingFor(SyntheticUser.Deployment, CallerIdentity, [MailFathomPermission.MailSend])));
 

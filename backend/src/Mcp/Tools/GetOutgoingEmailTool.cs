@@ -8,7 +8,6 @@ using MailFathom.Application.Mail.Delivery.Tracking;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Failures;
 using MailFathom.Mcp.Tools.Categories;
-using MailFathom.Mcp.Tools.Outgoing;
 using MailFathom.Mcp.Tools.Results;
 using ModelContextProtocol.Server;
 
@@ -99,12 +98,7 @@ internal sealed class GetOutgoingEmailTool(
 
         if (!outbox.MayReadOutbox)
         {
-            var record = await reader.ReadAsync(send, cancellationToken);
-
-            return OutgoingEmailToolResult.From(record) with
-            {
-                Receipts = SentEmailReceipts.From(await reader.ReadReceiptsAsync(record, cancellationToken)),
-            };
+            return OutgoingEmailToolResult.From(await reader.ReadAsync(send, cancellationToken));
         }
 
         return await outbox.ReadPreviewAsync(send, cancellationToken) is { } preview

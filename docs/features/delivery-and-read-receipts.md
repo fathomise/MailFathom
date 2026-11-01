@@ -80,7 +80,9 @@ reader never wrote to — and when a receipt was already sent. Nothing is offere
 copy of the account's own send, or on a message the account itself wrote.
 
 **A receipt is sent only when the person asks for it**, through `POST /api/client/messages/{storedEmailId}/read-receipt`.
-Opening a message, a rule, the `\Seen` flag, an agent, and an MCP caller never send one. It is refused — with a reason
+Opening a message, a rule, the `\Seen` flag, an agent, and an MCP caller never send one. The caller needs
+`mailfathom.mail.read` beside `mailfathom.mail.send`, because a receipt answers mail it read: a send-only credential
+learns nothing about a stored message from the route, not even whether it exists. It is refused — with a reason
 the client reads — where the message asked for none, where one was already sent (with when), where the message is held
 as spam, where it is the account's own, and where the account has no sending identity.
 
@@ -113,6 +115,6 @@ were asked for, and per recipient the delivery and read outcome, when each was r
 that asked for nothing and got nothing carries none. The recipient addresses pass the sensitive-content guard like a
 sender's. So *was my message delivered?* and *has she read it?* are answered from the same rows the client draws.
 
-The MCP tools that return a sent message — `get_outgoing_email`, `list_outgoing_emails`, `get_email_content`,
+The MCP tools that return a sent message — `get_outgoing_email` in its outbox preview, `list_outgoing_emails`, `get_email_content`,
 `list_emails`, and `search_emails` — carry the same reading as a `receipts` field;
 [the MCP tools](mcp-tools.md) describe it.

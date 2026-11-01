@@ -8,6 +8,7 @@ using MailFathom.Application.Emails.Embeddings.Limits;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Provenance;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Infrastructure.Mail.Mime;
@@ -74,6 +75,10 @@ internal sealed record CorpusMessage(
     /// came from, and an answer about it is graded on what it says rather than on a doubt its sender never earned.
     /// </remarks>
     public EmailProvenance Provenance { get; init; } = StubEmailProvenanceReader.KnownCorrespondent;
+
+    /// <summary>Gets what came back about the message from its recipients, for a message the owner sent.</summary>
+    /// <remarks>None unless the mail it belongs to states one: the corpus asked nobody for a report.</remarks>
+    public OutgoingEmailReceipts? Receipts { get; init; }
 
     /// <summary>Gets whether it carries an attachment.</summary>
     public bool HasAttachments => this.Attachments.Count > 0;
