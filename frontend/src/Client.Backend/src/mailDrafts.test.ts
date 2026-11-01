@@ -74,6 +74,8 @@ function draftBody(fields: Readonly<Record<string, unknown>> = {}): Answer {
             sizeOctets: 812,
             composedAt: '2026-09-03T08:00:00+00:00',
             revisedAt: '2026-09-03T08:00:00+00:00',
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: false,
             ...fields,
         }),
     };
@@ -178,6 +180,8 @@ describe('writeMailDraft', () => {
         ['a divergence this client does not name', { divergence: 'Vanished' }],
         ['a failure code that is not a whole number', { lastFailureCode: 1.5 }],
         ['a request that is neither on nor off', { requestsReadReceipt: 'yes' }],
+        ['no delivery notification request at all', { requestsDeliveryNotification: undefined }],
+        ['a read receipt request that is null', { requestsReadReceipt: null }],
         ['no instant it was last revised at', { revisedAt: undefined }],
     ])('refuses a draft carrying %s as unreadable', async (_named, fields) => {
         const answer = await writeMailDraft(session, answering(draftBody(fields)), composition);

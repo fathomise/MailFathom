@@ -641,8 +641,8 @@ function parseDraft(body: Readonly<Record<string, unknown>> | null): MailDraft |
     const serverCopy = record['serverCopy'];
     const divergence = record['divergence'] ?? null;
     const lastFailureCode = record['lastFailureCode'] ?? null;
-    const requestsDeliveryNotification = record['requestsDeliveryNotification'] ?? false;
-    const requestsReadReceipt = record['requestsReadReceipt'] ?? false;
+    const requestsDeliveryNotification = record['requestsDeliveryNotification'];
+    const requestsReadReceipt = record['requestsReadReceipt'];
     const revisedAt = record['revisedAt'];
 
     if (

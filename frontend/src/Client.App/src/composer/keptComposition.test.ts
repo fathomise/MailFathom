@@ -93,6 +93,7 @@ describe('rememberedComposition', () => {
         ],
         ['an answer that is a list', JSON.stringify({ ...written, answering: [] })],
         ['a request that is neither on nor off', JSON.stringify({ ...written, requestsReadReceipt: 'yes' })],
+        ['a request kept as null', JSON.stringify({ ...written, requestsDeliveryNotification: null })],
         ['a draft carried on from something that is not text', JSON.stringify({ ...written, continuing: 7 })],
         [
             'a draft carried on from an identifier longer than one',

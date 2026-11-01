@@ -91,8 +91,9 @@ function compositionIn(value: unknown): Composition | null {
     const bcc = addressesIn(record['bcc']);
 
     // Absent reads as off, as it does on the wire; anything but a yes or a no is a shape this client did not write.
-    const requestsDeliveryNotification = record['requestsDeliveryNotification'] ?? false;
-    const requestsReadReceipt = record['requestsReadReceipt'] ?? false;
+    const requestsDeliveryNotification =
+        record['requestsDeliveryNotification'] === undefined ? false : record['requestsDeliveryNotification'];
+    const requestsReadReceipt = record['requestsReadReceipt'] === undefined ? false : record['requestsReadReceipt'];
 
     if (typeof requestsDeliveryNotification !== 'boolean' || typeof requestsReadReceipt !== 'boolean') {
         return null;

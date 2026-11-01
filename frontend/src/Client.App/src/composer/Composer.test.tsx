@@ -58,6 +58,8 @@ function draftBody(overrides: Readonly<Record<string, unknown>> = {}): string {
         sentAs: null,
         divergence: null,
         lastFailureCode: null,
+        requestsDeliveryNotification: false,
+        requestsReadReceipt: false,
         ...overrides,
     });
 }
