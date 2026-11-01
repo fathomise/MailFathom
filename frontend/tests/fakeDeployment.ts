@@ -2401,6 +2401,8 @@ export class FakeDeployment {
             attachments: held?.files.map(stagedRecord) ?? [],
             revision,
             sizeOctets: typeof written['plainTextBody'] === 'string' ? written['plainTextBody'].length : 0,
+            requestsDeliveryNotification: written['requestsDeliveryNotification'] === true,
+            requestsReadReceipt: written['requestsReadReceipt'] === true,
         };
 
         // The first save files the stored message in the drafts folder, and every later one replaces it where it stands.

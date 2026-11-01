@@ -52,6 +52,7 @@ import { AbsentRecipients } from './AbsentRecipients';
 import { RecipientField } from './RecipientField';
 import { SendConfirmation } from './SendConfirmation';
 import { useDraftAtDeployment, type AttachedFile, type DraftStanding } from './useDraftAtDeployment';
+import { useSendingOptions } from './useSendingOptions';
 import { WrittenMessage } from './WrittenMessage';
 import type { WrittenNode } from './writtenText';
 
@@ -747,6 +748,14 @@ export function Composer({
         },
     });
 
+    const sendingOptions = useSendingOptions({
+        requested: {
+            requestsDeliveryNotification: composition?.requestsDeliveryNotification ?? false,
+            requestsReadReceipt: composition?.requestsReadReceipt ?? false,
+        },
+        onTurned: revise,
+    });
+
     const title = translate(titles[opening.kind === 'answer' ? opening.answers : opening.kind]);
 
     function subjectSaid(storedEmailId: string): string {
@@ -1035,73 +1044,77 @@ export function Composer({
 
                     <WhatIsHappening standing={draft.standing} online={online} />
 
-                    <div
-                        className={`sticky z-10 flex shrink-0 flex-wrap items-center gap-2 border-t border-line bg-panel px-4.25 py-3 ${
-                            wide ? 'bottom-0' : 'bottom-safe-bottom'
-                        }`}
-                    >
-                        <SendConfirmation
-                            asked={asked}
-                            composition={sentAs(composition, copiesShown)}
-                            draftUnaccepted={beforeDrafting !== null}
-                            disabled={!sendable}
-                            refused={sendRefused}
-                            onSend={() => {
-                                sendAndReport(sentAs(composition, copiesShown), composition);
-                            }}
-                        />
+                    {/* The line saying what the message asks for stands with the foot, so a long message scrolled to its
+                        start still says it beside the control that sends it. */}
+                    <div className={`sticky z-10 shrink-0 ${wide ? 'bottom-0' : 'bottom-safe-bottom'}`}>
+                        {sendingOptions.line}
 
-                        <button
-                            {...(wide ? { onClick: attachName.anchor.onClick } : attachName.anchor)}
-                            type="button"
-                            disabled={!stillBeingWritten}
-                            className="flex items-center justify-center gap-1.75 rounded-md border border-line-strong px-3 py-2 text-sm text-text-soft transition hover:bg-hover disabled:opacity-60 max-workspace:px-2 pointer-coarse:text-md"
-                        >
-                            <Icon name="attach_file" className="size-icon-md" />
-                            <span className="max-workspace:sr-only">{translate('compose.attach')}</span>
-                        </button>
-                        {wide ? null : attachName.tip}
+                        <div className="flex flex-wrap items-center gap-2.5 border-t border-line bg-sunken px-3.75 py-2.75">
+                            <SendConfirmation
+                                asked={asked}
+                                composition={sentAs(composition, copiesShown)}
+                                draftUnaccepted={beforeDrafting !== null}
+                                disabled={!sendable}
+                                refused={sendRefused}
+                                onSend={() => {
+                                    sendAndReport(sentAs(composition, copiesShown), composition);
+                                }}
+                            />
 
-                        {/* The platform's own file picker, kept out of the accessible tree because the control above is
+                            <button
+                                {...(wide ? { onClick: attachName.anchor.onClick } : attachName.anchor)}
+                                type="button"
+                                disabled={!stillBeingWritten}
+                                className="flex items-center justify-center gap-1.5 rounded-md border border-line-strong px-3.25 py-2.25 text-base text-text-soft transition hover:bg-hover disabled:opacity-60 max-workspace:px-2 pointer-coarse:text-md"
+                            >
+                                <Icon name="attach_file" className="size-icon-md" />
+                                <span className="max-workspace:sr-only">{translate('compose.attach')}</span>
+                            </button>
+                            {wide ? null : attachName.tip}
+
+                            {/* The platform's own file picker, kept out of the accessible tree because the control above is
                             what carries the name and the keyboard path. */}
-                        <input
-                            ref={files}
-                            type="file"
-                            multiple
-                            tabIndex={-1}
-                            aria-hidden="true"
-                            className="hidden"
-                            onChange={(event) => {
-                                const chosen = [...(event.target.files ?? [])];
+                            <input
+                                ref={files}
+                                type="file"
+                                multiple
+                                tabIndex={-1}
+                                aria-hidden="true"
+                                className="hidden"
+                                onChange={(event) => {
+                                    const chosen = [...(event.target.files ?? [])];
 
-                                event.target.value = '';
+                                    event.target.value = '';
 
-                                for (const file of chosen) {
-                                    draft.attach(file);
-                                }
-                            }}
-                        />
+                                    for (const file of chosen) {
+                                        draft.attach(file);
+                                    }
+                                }}
+                            />
 
-                        <button
-                            {...(saveRefused === null
-                                ? {
-                                      onClick: () => {
-                                          void draft.save(sentAs(composition, copiesShown));
-                                      },
-                                  }
-                                : saveName.anchor)}
-                            type="button"
-                            disabled={!sendable && saveRefused === null}
-                            aria-disabled={saveRefused === null ? undefined : true}
-                            className="rounded-md px-2 py-2 text-sm text-muted transition hover:bg-hover hover:text-text disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:text-base"
-                        >
-                            {translate('compose.saveDraft')}
-                        </button>
-                        {saveRefused === null ? null : saveName.tip}
+                            <button
+                                {...(saveRefused === null
+                                    ? {
+                                          onClick: () => {
+                                              void draft.save(sentAs(composition, copiesShown));
+                                          },
+                                      }
+                                    : saveName.anchor)}
+                                type="button"
+                                disabled={!sendable && saveRefused === null}
+                                aria-disabled={saveRefused === null ? undefined : true}
+                                className="rounded-md py-2 text-sm text-muted pointer-coarse:px-1.5 transition hover:bg-hover hover:text-text disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:text-base"
+                            >
+                                {translate('compose.saveDraft')}
+                            </button>
+                            {saveRefused === null ? null : saveName.tip}
 
-                        <p className="ms-auto text-xs text-faint pointer-coarse:hidden">
-                            {translate('compose.shortcutSends')}
-                        </p>
+                            <p className="ms-auto text-xs text-faint pointer-coarse:hidden">
+                                {translate('compose.shortcutSends')}
+                            </p>
+
+                            {sendingOptions.control}
+                        </div>
                     </div>
                 </>
             )}

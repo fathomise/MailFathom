@@ -47,6 +47,23 @@ describe('rememberedComposition', () => {
         expect(rememberedComposition()).toBeNull();
     });
 
+    it('reads back the requests the message makes', () => {
+        const asking = { ...written, requestsDeliveryNotification: true, requestsReadReceipt: true };
+
+        rememberComposition(asking);
+
+        expect(rememberedComposition()).toEqual(asking);
+    });
+
+    it('reads a kept message that states no request as asking for neither', () => {
+        window.sessionStorage.setItem(
+            storageKey,
+            JSON.stringify({ ...written, requestsDeliveryNotification: undefined, requestsReadReceipt: undefined }),
+        );
+
+        expect(rememberedComposition()).toEqual(written);
+    });
+
     it('drops what was being written, which is what signing out does', () => {
         rememberComposition(written);
         forgetComposition();
@@ -75,6 +92,7 @@ describe('rememberedComposition', () => {
             JSON.stringify({ ...written, answering: { storedEmailId: 'e1', answers: 'shout' } }),
         ],
         ['an answer that is a list', JSON.stringify({ ...written, answering: [] })],
+        ['a request that is neither on nor off', JSON.stringify({ ...written, requestsReadReceipt: 'yes' })],
         ['a draft carried on from something that is not text', JSON.stringify({ ...written, continuing: 7 })],
         [
             'a draft carried on from an identifier longer than one',

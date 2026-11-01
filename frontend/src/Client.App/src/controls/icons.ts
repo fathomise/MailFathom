@@ -103,6 +103,7 @@ export const iconNames = [
     'search',
     'more_horiz',
     'more_vert',
+    'move_to_inbox',
     'notifications',
     'notifications_active',
     'notifications_off',

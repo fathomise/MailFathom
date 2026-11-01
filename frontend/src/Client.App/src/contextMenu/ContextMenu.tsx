@@ -42,17 +42,26 @@ export interface ContextMenuItem {
      */
     readonly refused?: string | null;
 
+    /**
+     * Whether the item is on, where it is one that is turned over rather than taken — a request the composer's sending
+     * options make. Such an item announces its state, and pressing it leaves the menu standing, so several are set in
+     * one visit.
+     */
+    readonly checked?: boolean;
+
     readonly choose: () => void;
 }
 
 const menuItem =
-    'flex min-h-9 cursor-pointer items-center gap-2.75 rounded-md px-3 text-start text-base transition hover:bg-hover pointer-coarse:min-h-12 pointer-coarse:text-md';
+    'flex min-h-9 cursor-pointer items-center gap-2.75 rounded-md px-3 text-start text-md transition hover:bg-hover pointer-coarse:min-h-12 pointer-coarse:text-lg';
 
 export function ContextMenu({
     header,
     detail,
     at,
     endsAt = false,
+    opensAbove = false,
+    broad = false,
     items,
     onClose,
 }: {
@@ -74,6 +83,15 @@ export function ContextMenu({
      * at the end of a bar is drawn: under the control, aligned to its far edge, rather than running past it.
      */
     readonly endsAt?: boolean;
+
+    /**
+     * Whether `at` is where the menu's foot stands rather than its head, which is how a menu opened from a control on the
+     * last row of a surface is drawn: above the control, since there is nothing below it to open into.
+     */
+    readonly opensAbove?: boolean;
+
+    /** Whether the menu is drawn wide enough for items whose names are sentences rather than verbs. */
+    readonly broad?: boolean;
 
     readonly items: readonly ContextMenuItem[];
 
@@ -110,12 +128,15 @@ export function ContextMenu({
 
         setPlaced(
             placedWithin(
-                { x: at.x - bounds.left - (endsAt ? menu.offsetWidth : 0), y: at.y - bounds.top },
+                {
+                    x: at.x - bounds.left - (endsAt ? menu.offsetWidth : 0),
+                    y: at.y - bounds.top - (opensAbove ? menu.offsetHeight : 0),
+                },
                 { width: menu.offsetWidth, height: menu.offsetHeight },
                 { width: box.clientWidth, height: box.clientHeight },
             ),
         );
-    }, [at, endsAt, wide]);
+    }, [at, endsAt, opensAbove, wide]);
 
     // Focus moves into the menu whichever opener asked for it, because a menu that opened somewhere else on the screen
     // is one a reader working from the keyboard would have to hunt for — and because Escape has to reach it.
@@ -213,12 +234,12 @@ export function ContextMenu({
                 added to every number below. */}
             <div
                 ref={within}
-                className="pointer-events-none fixed top-safe-top right-safe-right bottom-safe-bottom left-safe-left z-70 flex items-center justify-center p-4.5 workspace:block workspace:p-0"
+                className={`pointer-events-none fixed top-safe-top right-safe-right bottom-safe-bottom left-safe-left z-70 flex items-center justify-center workspace:block workspace:p-0 ${broad ? 'p-3' : 'p-4.5'}`}
             >
                 <div
                     ref={panel}
                     style={placed === null ? undefined : { left: placed.x, top: placed.y }}
-                    className={`pointer-events-auto flex max-h-full w-75 max-w-full flex-col overflow-y-auto rounded-lg border border-line bg-panel pt-1.75 pr-1.5 pb-2 pl-1.5 text-text shadow-dialog workspace:absolute workspace:w-59 workspace:pointer-coarse:w-65.5 ${
+                    className={`pointer-events-auto flex max-h-full max-w-full flex-col overflow-y-auto rounded-lg border border-line bg-panel pt-1.75 pr-1.5 pb-2 pl-1.5 text-text shadow-dialog workspace:absolute ${breadth(broad)} ${
                         wide && placed === null ? 'invisible' : ''
                     } ${leaving ? 'animate-pop-out' : 'animate-pop-in'}`}
                     onKeyDown={onKeyDown}
@@ -243,7 +264,8 @@ export function ContextMenu({
                             <button
                                 key={item.label}
                                 type="button"
-                                role="menuitem"
+                                role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+                                aria-checked={item.checked}
                                 // Focus is moved by the arrow keys rather than by Tab, which is what a menu is: one
                                 // stop on the way in, and the items reached from there.
                                 tabIndex={-1}
@@ -254,7 +276,10 @@ export function ContextMenu({
                                         return;
                                     }
 
-                                    onClose();
+                                    if (item.checked === undefined) {
+                                        onClose();
+                                    }
+
                                     item.choose();
                                 }}
                             >
@@ -269,6 +294,10 @@ export function ContextMenu({
                                 ) : (
                                     <span className="truncate">{item.label}</span>
                                 )}
+
+                                {item.checked === true ? (
+                                    <Icon name="check" className="ms-auto size-icon-lg shrink-0 text-accent-deep" />
+                                ) : null}
                             </button>
                         ))}
                     </div>
@@ -285,5 +314,17 @@ function refusedItem(item: ContextMenuItem): boolean {
 
 /** The items as the keyboard reaches them, read out of the document so nothing here holds a second list of them. */
 function walkable(panel: HTMLElement | null): readonly HTMLElement[] {
-    return panel === null ? [] : Array.from(panel.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+    return panel === null
+        ? []
+        : Array.from(panel.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]'));
+}
+
+/**
+ * How wide the menu is drawn: the design's two widths, each a little wider under a finger, and on the phone as wide as
+ * the screen less its margin allows. The broad one is the width the design draws, its padding and border included.
+ */
+function breadth(broad: boolean): string {
+    return broad
+        ? 'w-91.5 workspace:w-87.5 workspace:pointer-coarse:w-91.5'
+        : 'w-75 workspace:w-59 workspace:pointer-coarse:w-65.5';
 }

@@ -1331,6 +1331,46 @@
           }
         }
       ]
+    },
+    {
+      "id": "composer-sending-options",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "New message",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "role": "textbox",
+            "name": "Message"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Sending options",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "role": "menuitemcheckbox",
+            "name": "Request read receipt"
+          }
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Sending options - asks for a read receipt",
+            "exact": true
+          }
+        }
+      ]
     }
   ]
 }

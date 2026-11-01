@@ -103,6 +103,12 @@ export interface MailDraft {
     /** The code of the failure the last attempt on the mailbox ended in, or `null` while none has failed. */
     readonly lastFailureCode: number | null;
 
+    /** Whether a send of it asks to be told when each recipient's server delivers it or cannot. */
+    readonly requestsDeliveryNotification: boolean;
+
+    /** Whether it asks each recipient's mail client for a read receipt. */
+    readonly requestsReadReceipt: boolean;
+
     /** When it last changed, as the instant the deployment stated, which is what a list sorts and dates by. */
     readonly revisedAt: string;
 }
@@ -146,6 +152,16 @@ export type MailDraftComposition = {
     readonly to: readonly string[];
     readonly cc: readonly string[];
     readonly bcc: readonly string[];
+
+    /**
+     * Whether the message asks to be told when each recipient's server delivers it or cannot, and whether it asks each
+     * recipient's mail client for a read receipt.
+     *
+     * Both are stated on every save, because a revision states the whole draft again: one that left either out would
+     * switch it off rather than keep what the revision before it asked for.
+     */
+    readonly requestsDeliveryNotification: boolean;
+    readonly requestsReadReceipt: boolean;
 } & (
     | { readonly account: string; readonly subject: string; readonly answeredEmailId?: undefined }
     | { readonly answeredEmailId: string; readonly answers: MailDraftAnswer; readonly account?: undefined }
@@ -496,6 +512,8 @@ function stated(composition: MailDraftComposition): Readonly<Record<string, unkn
         to: composition.to,
         cc: composition.cc,
         bcc: composition.bcc,
+        requestsDeliveryNotification: composition.requestsDeliveryNotification,
+        requestsReadReceipt: composition.requestsReadReceipt,
     };
 
     return composition.answeredEmailId === undefined
@@ -623,6 +641,8 @@ function parseDraft(body: Readonly<Record<string, unknown>> | null): MailDraft |
     const serverCopy = record['serverCopy'];
     const divergence = record['divergence'] ?? null;
     const lastFailureCode = record['lastFailureCode'] ?? null;
+    const requestsDeliveryNotification = record['requestsDeliveryNotification'] ?? false;
+    const requestsReadReceipt = record['requestsReadReceipt'] ?? false;
     const revisedAt = record['revisedAt'];
 
     if (
@@ -632,6 +652,8 @@ function parseDraft(body: Readonly<Record<string, unknown>> | null): MailDraft |
         typeof revision !== 'number' ||
         typeof sizeOctets !== 'number' ||
         typeof revisedAt !== 'string' ||
+        typeof requestsDeliveryNotification !== 'boolean' ||
+        typeof requestsReadReceipt !== 'boolean' ||
         !isOneOf(serverCopy, serverCopies) ||
         (divergence !== null && !isOneOf(divergence, divergences)) ||
         (lastFailureCode !== null && !isWholeNumber(lastFailureCode))
@@ -655,6 +677,8 @@ function parseDraft(body: Readonly<Record<string, unknown>> | null): MailDraft |
               serverCopy,
               divergence,
               lastFailureCode,
+              requestsDeliveryNotification,
+              requestsReadReceipt,
               revisedAt,
           };
 }

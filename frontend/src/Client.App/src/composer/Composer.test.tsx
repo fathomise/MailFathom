@@ -551,6 +551,8 @@ describe('Composer, a message of its own', () => {
             cc: [],
             bcc: [],
             words: [{ text: 'Half a sentence' }],
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: false,
         });
 
         drawComposer();
@@ -578,6 +580,8 @@ describe('Composer, a message of its own', () => {
             cc: [],
             bcc: [],
             words: [{ text: 'Half a sentence' }],
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: false,
         });
 
         drawComposer({ kind: 'new', to: ['bo@example.invalid'] });
@@ -597,6 +601,8 @@ describe('Composer, a message of its own', () => {
             cc: [],
             bcc: [],
             words: [],
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: false,
         });
 
         drawComposer({ kind: 'new', to: ['ada@example.invalid'] });
@@ -1792,6 +1798,146 @@ describe('Composer, a draft', () => {
     });
 });
 
+describe('Composer, sending options', () => {
+    function openSendingOptions(name = 'Sending options'): void {
+        fireEvent.click(screen.getByRole('button', { name }));
+    }
+
+    function turn(name: string): void {
+        fireEvent.click(screen.getByRole('menuitemcheckbox', { name }));
+    }
+
+    it('opens a new message asking for neither request, each one a checkable item under the foot’s three dots', () => {
+        drawComposer();
+        openSendingOptions();
+
+        expect(screen.getByRole('menu', { name: 'Sending options' })).toBeDefined();
+        expect(
+            screen
+                .getByRole('menuitemcheckbox', { name: 'Request delivery notification' })
+                .getAttribute('aria-checked'),
+        ).toBe('false');
+        expect(
+            screen.getByRole('menuitemcheckbox', { name: 'Request read receipt' }).getAttribute('aria-checked'),
+        ).toBe('false');
+        expect(screen.queryByRole('button', { name: /^This message asks for/u })).toBeNull();
+    });
+
+    it('turns a request over and leaves the menu standing, so both are set in one visit', () => {
+        drawComposer();
+        openSendingOptions();
+        turn('Request read receipt');
+
+        expect(
+            screen.getByRole('menuitemcheckbox', { name: 'Request read receipt' }).getAttribute('aria-checked'),
+        ).toBe('true');
+
+        turn('Request delivery notification');
+
+        expect(
+            screen
+                .getByRole('menuitemcheckbox', { name: 'Request delivery notification' })
+                .getAttribute('aria-checked'),
+        ).toBe('true');
+    });
+
+    it('says a request that is on while the menu is closed, on the control and in a line above the foot', () => {
+        drawComposer();
+        openSendingOptions();
+        turn('Request read receipt');
+        fireEvent.keyDown(screen.getByRole('menuitemcheckbox', { name: 'Request read receipt' }), { key: 'Escape' });
+
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Sending options - asks for a read receipt' })).toBeDefined();
+        expect(
+            screen.getByRole('button', {
+                name: "This message asks for a read receipt. A read receipt comes back only if the recipient's mail app sends one.",
+            }),
+        ).toBeDefined();
+    });
+
+    it('opens the same menu from the line, and puts focus on the control once turning both off took the line away', () => {
+        drawComposer();
+        openSendingOptions();
+        turn('Request delivery notification');
+        fireEvent.keyDown(screen.getByRole('menuitemcheckbox', { name: 'Request delivery notification' }), {
+            key: 'Escape',
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'This message asks for a delivery notification.' }));
+        turn('Request delivery notification');
+        fireEvent.keyDown(screen.getByRole('menuitemcheckbox', { name: 'Request delivery notification' }), {
+            key: 'Escape',
+        });
+
+        expect(screen.queryByRole('button', { name: /^This message asks for/u })).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Sending options' }));
+    });
+
+    it('sends the requests with the draft when it is written and when it is revised', async () => {
+        const { asked } = drawComposer();
+
+        openSendingOptions();
+        turn('Request delivery notification');
+        turn('Request read receipt');
+        fireEvent.keyDown(screen.getByRole('menuitemcheckbox', { name: 'Request read receipt' }), { key: 'Escape' });
+        fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+        expect(await screen.findByText('Draft filed in your own drafts.')).toBeDefined();
+        expect(JSON.parse(lastDraftRequest(asked)?.body ?? '{}')).toMatchObject({
+            requestsDeliveryNotification: true,
+            requestsReadReceipt: true,
+        });
+
+        openSendingOptions('Sending options - asks for a delivery notification and a read receipt');
+        turn('Request delivery notification');
+        fireEvent.keyDown(screen.getByRole('menuitemcheckbox', { name: 'Request delivery notification' }), {
+            key: 'Escape',
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+        await waitFor(() => {
+            expect(lastDraftRequest(asked)?.method).toBe('PUT');
+        });
+        expect(JSON.parse(lastDraftRequest(asked)?.body ?? '{}')).toMatchObject({
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: true,
+        });
+    });
+
+    it('keeps the requests with what this tab is writing', async () => {
+        drawComposer();
+        openSendingOptions();
+        turn('Request read receipt');
+
+        await waitFor(() => {
+            expect(rememberedComposition()).toMatchObject({
+                requestsDeliveryNotification: false,
+                requestsReadReceipt: true,
+            });
+        });
+    });
+
+    it('reopens a kept draft with the requests it asked for', async () => {
+        drawComposer(
+            { kind: 'held', draftId: 'd9' },
+            { held: { status: 200, body: heldReading({ requestsReadReceipt: true }) } },
+        );
+
+        expect(await screen.findByRole('button', { name: 'Sending options - asks for a read receipt' })).toBeDefined();
+
+        openSendingOptions('Sending options - asks for a read receipt');
+
+        expect(
+            screen.getByRole('menuitemcheckbox', { name: 'Request read receipt' }).getAttribute('aria-checked'),
+        ).toBe('true');
+        expect(
+            screen
+                .getByRole('menuitemcheckbox', { name: 'Request delivery notification' })
+                .getAttribute('aria-checked'),
+        ).toBe('false');
+    });
+});
+
 describe('Composer, a draft MailFathom keeps', () => {
     const held: ComposerOpening = { kind: 'held', draftId: 'd9' };
 
@@ -1969,6 +2115,8 @@ describe('Composer, an answer', () => {
             cc: [],
             bcc: [],
             words: [{ text: 'Half an answer' }],
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: false,
         });
 
         drawComposer(replying);
@@ -2177,6 +2325,8 @@ describe('Composer drafting', () => {
             cc: [],
             bcc: [],
             words: [{ text: 'What I had written' }],
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: false,
         });
 
         drawComposer(

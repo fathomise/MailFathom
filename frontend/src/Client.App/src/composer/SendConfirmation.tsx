@@ -4,7 +4,6 @@
 
 import { type RefObject } from 'react';
 import { Confirmation } from '../confirmation/Confirmation';
-import { Icon } from '../controls/Icon';
 import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
@@ -100,9 +99,8 @@ export function SendConfirmation({
                 type="button"
                 disabled={disabled && refused === null}
                 aria-disabled={refused === null ? undefined : true}
-                className="flex items-center gap-1.75 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition hover:opacity-90 disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:px-5 pointer-coarse:text-md"
+                className="flex items-center rounded-md bg-accent px-4.5 py-2.25 text-base font-semibold text-on-accent transition hover:opacity-90 disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:px-5 pointer-coarse:text-md"
             >
-                <Icon name="send" className="size-icon-md" />
                 {translate('compose.send')}
             </button>
             {refused === null ? null : refusal.tip}
