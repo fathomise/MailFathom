@@ -40,6 +40,7 @@ using MailFathom.Application.Emails.AttachmentText.Administration;
 using MailFathom.Application.Emails.AttachmentText.Limits;
 using MailFathom.Application.Emails.BrowseSearch;
 using MailFathom.Application.Emails.BrowseThread;
+using MailFathom.Application.Emails.BrowseThreadList;
 using MailFathom.Application.Emails.BrowseTimeline;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.DownloadAttachment;
@@ -936,6 +937,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStoredEmailPreviewReader, StoredEmailPreviewReader>();
         services.AddScoped<IEmailProvenanceReader, StoredEmailProvenanceReader>();
         services.AddScoped<IEmailThreadReader, StoredEmailThreadReader>();
+        services.AddScoped<IEmailThreadListReader, StoredEmailThreadListReader>();
         services.AddScoped<IStoredThreadStateReader, StoredThreadStateReader>();
         // Registered whatever the deployment decided about drafting, because it reads stored mail and nothing else:
         // what the switch decides is whether anything asks it, and the use case that would is registered with the agent.
@@ -1205,6 +1207,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MailboxTimelineReader>();
         services.AddScoped<MailTimelineBrowser>();
         services.AddScoped<MailThreadBrowser>();
+        services.AddScoped<MailThreadListBrowser>();
         services.AddScoped<MailThreadStateBrowser>();
         services.AddScoped<EmailContentReader>();
         // Beside the content read rather than with the answering run that produces the citations, because what it does

@@ -1,6 +1,6 @@
 # Mailbox queries
 
-<!-- describes: backend/src/Application/Accounts/**, backend/src/Application/Emails/BrowseThread/**, backend/src/Application/Emails/BrowseTimeline/**, backend/src/Application/Emails/ListEmails/**, backend/src/Application/Emails/Mailboxes/**, backend/src/Application/Emails/Summaries/**, backend/src/Application/Emails/Threads/**, backend/src/Application/Folders/**, backend/src/Application/Synchronization/Checkpoints/**, backend/src/Infrastructure/Persistence/Emails/**, backend/src/Infrastructure/Persistence/Synchronization/** -->
+<!-- describes: backend/src/Application/Accounts/**, backend/src/Application/Emails/BrowseThread/**, backend/src/Application/Emails/BrowseThreadList/**, backend/src/Application/Emails/BrowseTimeline/**, backend/src/Application/Emails/ListEmails/**, backend/src/Application/Emails/Mailboxes/**, backend/src/Application/Emails/Summaries/**, backend/src/Application/Emails/Threads/**, backend/src/Application/Folders/**, backend/src/Application/Synchronization/Checkpoints/**, backend/src/Infrastructure/Persistence/Emails/**, backend/src/Infrastructure/Persistence/Synchronization/** -->
 
 MailFathom answers a mailbox listing from its local copy. `ListEmails` is the first read use case: it takes structured
 filters, returns a bounded page of email summaries, issues the cursor that continues the walk, and reports how current
@@ -573,6 +573,36 @@ The subjects, the sender display names, the previews and the participants' displ
 `ClientMailListing`, the same egress point the list above publishes through and for the same reasons; a header naming
 somebody the rows beneath it had redacted would leave the two disagreeing about who wrote what.
 
+## Listing conversations
+
+A person who reads by conversation sees a list of conversations rather than of messages. `MailThreadListBrowser` is
+that read — [`GET /api/client/threads`](../operations/client-endpoint.md#the-conversation-list-route) publishes it —
+and it takes an account or none, and never a folder: a conversation gathers its messages from every folder, so a list
+narrowed to one would list the half of an exchange that happened to land there. The scope is the person's, through the
+same `MailboxScopeResolver`, with the junk folder taking part as it does when one conversation is read.
+
+**A conversation is listed while at least one of its messages is neither judged spam nor in Trash.** A message in a
+folder beneath Trash is in Trash, the folders in Trash being read the way the rest of the deployment reads them, and
+Archive is an ordinary folder. A conversation that is entirely spam, entirely in Trash, or some of each is not listed,
+because there is nothing in it the person kept; one that is listed is counted whole, so its message count and its
+unread count include the messages that alone would not have listed it.
+
+**Who the reader is decides what counts as received.** The addresses the person sends as are the sending identities of
+every account they are assigned, the same reading that decides which correspondents a person has vouched for, so a
+message any of those addresses wrote is never unread and marks its author as the reader. A row names at most eight
+authors in the order they first wrote, quotes its newest message by author, time, subject and
+[preview](#the-preview-a-list-row-shows), carries the sender verdict of the newest message somebody else wrote, and the
+title [a derivation](thread-state.md) gave the conversation with the revision it was derived from.
+
+**The order is the newest arrival in each conversation, newest first, settled by the conversation's identity**, and a
+page is bounded by `MailboxQueryPageSize` and continued by a keyset cursor over that pair, with the account the list
+was narrowed to in its fingerprint. A conversation whose messages carry no arrival time sorts after every dated one.
+Grouping, filtering and ordering are done by PostgreSQL in one statement; what a row quotes is read for the page's
+conversations alone afterwards, and a row whose newest message went in between is left out of the page.
+
+The participants' display names, the title, the quoted subject, author and preview are guarded at `ClientMailListing`,
+as every list row is.
+
 ## Freshness reporting
 
 Every result carries one `MailboxFolderFreshness` entry per folder in the request's scope, each reporting when
@@ -665,6 +695,9 @@ list, mirrored or not and withheld or not, is [the administrative status route](
   participant a header names, and `EmailThreadCursor`, whose boundary is a message rather than a position. It owns none
   of the threading: membership, the bound and the order come from `MailFathom.Application.Emails.Threads`, which the MCP
   content read publishes a conversation through as well.
+- `MailFathom.Application.Emails.BrowseThreadList` — `MailThreadListBrowser`, the list of conversations a screen read
+  by conversation is drawn from, with `IEmailThreadListReader`, the port that groups, filters, counts and orders them,
+  the row it answers, and `EmailThreadListCursor`, whose boundary is a conversation's newest arrival.
 - `MailFathom.Application.Emails.Mailboxes` — `MailboxEmailSelection`, `EmailMarkSelection` beside it, the timeline filter that wraps them, the cursor,
   the page size, and the query failures shared with the other read models. `MailboxScopeResolver` is here too: it
   resolves the accounts a read runs against and refuses one this deployment does not serve, and it is a collaborator

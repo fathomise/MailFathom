@@ -42,10 +42,10 @@ namespace MailFathom.Host.Api;
 /// be a worse answer than the second device winning.
 /// </para>
 /// <para>
-/// <b>One of the nine may be held by a settings policy, and it is the telemetry switch.</b> Where the deployment's
+/// <b>One of the ten may be held by a settings policy, and it is the telemetry switch.</b> Where the deployment's
 /// policy or the person's organization's forces it, the read answers the forced value and names who holds it, and a
 /// write stating the other answer is refused in a sentence naming both. What the person stored as their own answer is
-/// neither applied nor replaced while the switch is held — a write that passes commits the other eight and carries
+/// neither applied nor replaced while the switch is held — a write that passes commits the other nine and carries
 /// it forward — so it is in force again the moment no policy forces it. A write for somebody this replica holds no
 /// composition of carries it forward as well, since whether a policy holds their switch cannot be known here.
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0037-a-settings-policy-at-the-deployment-and-at-each-organization.md">ADR 0037</see>
@@ -59,7 +59,7 @@ internal static class ClientPreferencesEndpoint
 
     /// <summary>The greatest request body the write route reads before refusing it.</summary>
     /// <remarks>
-    /// Above eight scalars and the longest list of trusted link domains — fifty names of 253 characters with their JSON
+    /// Above nine scalars and the longest list of trusted link domains — fifty names of 253 characters with their JSON
     /// escaping — and far below anything worth an allocation. The document is closed, so what the bound guards against is
     /// not a large record but a body that was never a preferences document at all; it is answered <c>413</c> before the
     /// handler is reached, as every other write on this surface is.
@@ -150,7 +150,7 @@ internal static class ClientPreferencesEndpoint
     /// <para>
     /// A write for somebody this replica holds no composition of does not write the switch either. Whether a policy
     /// holds it cannot be known here, and the body may be stating a forced answer another replica read to their
-    /// client, so the other eight are committed and the stored answer is left as it was.
+    /// client, so the other nine are committed and the stored answer is left as it was.
     /// </para>
     /// <para>
     /// A body stating no answer to the switch never writes it, whoever sends it and whether or not a policy holds it.
@@ -268,11 +268,12 @@ internal static class ClientPreferencesEndpoint
 /// <param name="AiFiltersShown">Whether the folder tree carries the standing views of what a derivation read, or nothing for the unset answer.</param>
 /// <param name="NotificationSeconds">How long one of the client's own notifications stands, in whole seconds, or nothing for the unset answer.</param>
 /// <param name="TrustedLinkDomains">The domains whose links open without the client asking first, each a bare domain name, or nothing to leave the list they stored as it is.</param>
+/// <param name="ListMode">The name of whether the mail list shows one message or one conversation per row, or nothing for the unset answer.</param>
 /// <remarks>
 /// <para>
 /// Bound strictly: a key nothing here binds fails the bind rather than being stored, which is what keeps the document
-/// closed — it holds nine preferences because nine is what a client can state, not because a writer happened to send
-/// nine. Every one of them is optional, and an omitted one is committed as its unset answer rather than left at
+/// closed — it holds ten preferences because ten is what a client can state, not because a writer happened to send
+/// ten. Every one of them is optional, and an omitted one is committed as its unset answer rather than left at
 /// whatever the row held. The telemetry switch and the trusted link domains are the exceptions, for the reasons
 /// <see cref="ClientPreferencesEndpoint.SaveAsync" /> gives: stating nothing about either leaves the stored answer
 /// alone.
@@ -294,7 +295,8 @@ internal sealed record ClientPreferencesRequest(
     string? MessageView = null,
     bool? AiFiltersShown = null,
     int? NotificationSeconds = null,
-    IReadOnlyList<string>? TrustedLinkDomains = null)
+    IReadOnlyList<string>? TrustedLinkDomains = null,
+    string? ListMode = null)
 {
     /// <summary>Says why the trusted link domains the body states cannot be stored, or nothing where every one of them can.</summary>
     /// <returns>The refusal's detail, naming the entry by its position and what is wrong with it, or <see langword="null" />.</returns>
@@ -320,7 +322,7 @@ internal sealed record ClientPreferencesRequest(
     }
 
     /// <summary>Reads the request as the whole set the write commits.</summary>
-    /// <returns>The preferences, with every one the body omitted answered as unset — the telemetry switch and the trusted list included, which the write then replaces with what is stored — or <see langword="null" /> when the body names a theme or a message view this build does not publish.</returns>
+    /// <returns>The preferences, with every one the body omitted answered as unset — the telemetry switch and the trusted list included, which the write then replaces with what is stored — or <see langword="null" /> when the body names a theme, a message view, or a list mode this build does not publish.</returns>
     internal ClientPreferences? Stated()
     {
         var theme = ClientPreferences.Unset.Theme;
@@ -337,6 +339,13 @@ internal sealed record ClientPreferencesRequest(
             return null;
         }
 
+        var listMode = ClientPreferences.Unset.ListMode;
+
+        if (this.ListMode is not null && !ClientMailListMode.TryParse(this.ListMode, out listMode))
+        {
+            return null;
+        }
+
         return new ClientPreferences(
             this.TelemetryEnabled ?? ClientPreferences.Unset.TelemetryEnabled,
             theme,
@@ -346,7 +355,8 @@ internal sealed record ClientPreferencesRequest(
             messageView,
             this.AiFiltersShown ?? ClientPreferences.Unset.AiFiltersShown,
             this.NotificationSeconds ?? ClientPreferences.Unset.NotificationSeconds,
-            this.StatedTrustedLinkDomains());
+            this.StatedTrustedLinkDomains(),
+            listMode);
     }
 
     // Each entry already passed TrustedLinkDomainRefusal, so a refused one cannot reach here; the same domain written
@@ -367,13 +377,21 @@ internal sealed record ClientPreferencesRequest(
     /// <summary>Says what is on offer for whichever name <see cref="Stated" /> refused.</summary>
     /// <returns>The refusal's detail, naming the published set the body missed.</returns>
     /// <remarks>
-    /// Two names travel as names rather than as their own types, so a refusal has to say which of the two was the one
+    /// Three names travel as names rather than as their own types, so a refusal has to say which of them was the one
     /// this build does not publish — a body naming a rendering that does not exist, answered with the three themes, is a
     /// refusal a client cannot act on.
     /// </remarks>
-    internal string Unpublished() => this.Theme is not null && !ClientThemeChoice.TryParse(this.Theme, out _)
-        ? $"A theme is one of {string.Join(", ", ClientThemeChoice.All.Select(choice => choice.Name))}."
-        : $"A message view is one of {string.Join(", ", ClientMessageView.All.Select(view => view.Name))}.";
+    internal string Unpublished()
+    {
+        if (this.Theme is not null && !ClientThemeChoice.TryParse(this.Theme, out _))
+        {
+            return $"A theme is one of {string.Join(", ", ClientThemeChoice.All.Select(choice => choice.Name))}.";
+        }
+
+        return this.MessageView is not null && !ClientMessageView.TryParse(this.MessageView, out _)
+            ? $"A message view is one of {string.Join(", ", ClientMessageView.All.Select(view => view.Name))}."
+            : $"A list mode is one of {string.Join(", ", ClientMailListMode.All.Select(mode => mode.Name))}.";
+    }
 }
 
 /// <summary>What the client endpoint reports about one person's own client preferences.</summary>
@@ -386,6 +404,7 @@ internal sealed record ClientPreferencesRequest(
 /// <param name="AiFiltersShown">Whether the folder tree carries the standing views of what a derivation read in the mail.</param>
 /// <param name="NotificationSeconds">How long one of the client's own notifications stands before it takes itself away.</param>
 /// <param name="TrustedLinkDomains">The domains whose links, and their subdomains' links, the client opens without asking first, as lowercase ASCII names.</param>
+/// <param name="ListMode">The name of whether the mail list shows one message or one conversation per row, <c>messages</c> or <c>threads</c>.</param>
 /// <param name="TelemetryHeldBy">Whose settings policy forces <paramref name="TelemetryEnabled" /> — <c>Deployment</c> or <c>Organization</c> — or <see langword="null" /> where the answer is the person's own.</param>
 /// <remarks>
 /// <para>
@@ -413,6 +432,7 @@ internal sealed record ClientPreferencesResponse(
     bool AiFiltersShown,
     int NotificationSeconds,
     IReadOnlyList<string> TrustedLinkDomains,
+    string ListMode,
     string? TelemetryHeldBy = null)
 {
     /// <summary>Describes one person's preferences on the wire.</summary>
@@ -434,6 +454,7 @@ internal sealed record ClientPreferencesResponse(
             preferences.AiFiltersShown,
             preferences.NotificationSeconds,
             [.. preferences.TrustedLinkDomains.Select(static domain => domain.Name)],
+            preferences.ListMode.Name,
             heldTelemetry?.HeldBy.Name);
     }
 }

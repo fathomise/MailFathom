@@ -469,6 +469,7 @@ entrypoint over the same use case is work of the same kind:
 | `search_mailbox` | One window of a ranking over the stored emails |
 | `read_email_content` | The stored content of the emails one call named |
 | `read_email_thread` | One bounded page of the conversation one call named |
+| `list_email_threads` | One bounded page of the conversation list the client endpoint serves |
 | `correlate_contact_mail` | The conversations and the documents the local copy holds about one contact's addresses |
 | `answer_mail_question` | One answering run, described in full [below](#what-a-run-records) |
 

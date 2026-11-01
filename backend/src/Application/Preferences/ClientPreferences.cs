@@ -14,9 +14,10 @@ namespace MailFathom.Application.Preferences;
 /// <param name="AiFiltersShown">Whether the folder tree carries the standing views of what a derivation read in the mail.</param>
 /// <param name="NotificationSeconds">How long one of the client's own notifications stands before it takes itself away.</param>
 /// <param name="TrustedLinkDomains">The domains whose links, and the links of every subdomain of them, the client opens without asking first.</param>
+/// <param name="ListMode">Whether the mail list shows one message or one conversation per row.</param>
 /// <remarks>
 /// <para>
-/// A closed set of nine rather than a settings service. Each of them says how somebody wants to work rather than what
+/// A closed set of ten rather than a settings service. Each of them says how somebody wants to work rather than what
 /// the screen in front of them is like, which is why they belong to the person and not to the browser profile or the
 /// desktop install they happened to set them in — and why a tenth is added when there is a tenth to add.
 /// </para>
@@ -40,7 +41,7 @@ namespace MailFathom.Application.Preferences;
 /// That decision is theirs unless a settings policy takes it. The deployment's policy, or the policy of the
 /// organization they belong to, may force <see cref="TelemetryEnabled" /> on or off, and while one does the value
 /// held here is their own answer rather than the one applied: it is kept as they gave it, it decides nothing, and it
-/// applies again when no policy forces the switch. The other eight are never governed.
+/// applies again when no policy forces the switch. The other nine are never governed.
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0037-a-settings-policy-at-the-deployment-and-at-each-organization.md">ADR 0037</see>
 /// records the exception and what forcing the switch on owes the person it is about.
 /// </para>
@@ -54,7 +55,8 @@ public sealed record ClientPreferences(
     ClientMessageView MessageView,
     bool AiFiltersShown,
     int NotificationSeconds,
-    IReadOnlyList<TrustedLinkDomain> TrustedLinkDomains)
+    IReadOnlyList<TrustedLinkDomain> TrustedLinkDomains,
+    ClientMailListMode ListMode)
 {
     /// <summary>The most domains one person's list of trusted link domains may hold.</summary>
     /// <remarks>
@@ -96,8 +98,9 @@ public sealed record ClientPreferences(
     /// go looking for, and a deployment deriving nothing answers each of them as a list with nothing in it.
     /// A notification stands for five seconds, which is what the client's own toast has always stood for — so a
     /// deployment nobody has asked behaves as it did before this preference existed. No link domain is trusted, so
-    /// every link that leaves the client asks first until the person says which sites they open all day.
+    /// every link that leaves the client asks first until the person says which sites they open all day. The list
+    /// shows one message per row, which is how this client has always listed mail.
     /// </remarks>
     public static ClientPreferences Unset { get; } =
-        new(true, ClientThemeChoice.System, false, true, false, ClientMessageView.Reduced, true, 5, []);
+        new(true, ClientThemeChoice.System, false, true, false, ClientMessageView.Reduced, true, 5, [], ClientMailListMode.Messages);
 }

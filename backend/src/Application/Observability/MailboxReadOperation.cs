@@ -40,4 +40,12 @@ public enum MailboxReadOperation
     /// already resolved. Sharing a name would average a ranking's cost into a bounded walk's.
     /// </remarks>
     CorrelateContactMail = 5,
+
+    /// <summary>Reading one bounded page of the person's conversations, newest first.</summary>
+    /// <remarks>
+    /// Apart from the timeline because a page of conversations groups every message the person may read by the
+    /// conversation it belongs to, where a timeline page is a keyset walk that stops at the page. Sharing a name would
+    /// average a grouping's cost into a walk's.
+    /// </remarks>
+    ListEmailThreads = 6,
 }
