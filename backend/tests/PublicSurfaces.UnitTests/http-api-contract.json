@@ -2091,6 +2091,7 @@
         "type": "object"
       },
       "ClientDraftSendRequest": {
+        "additionalProperties": false,
         "properties": {
           "dueAt": {
             "format": "date-time",

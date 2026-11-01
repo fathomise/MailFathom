@@ -177,6 +177,10 @@ export type MailDraftComposition = {
  * which a loaded host can produce with nothing wrong with the message: a read that ran out of time is one of the
  * outcomes behind both. So a retry is the first thing offered for either, ahead of shortening the message or sending
  * without the file, and a screen built from this comment offers one.
+ *
+ * `dueTimePassed` is not a rule about the message at all: it refuses the time the request named to send at, which had
+ * already gone when the deployment read it, so nothing was queued and the draft stands. What a screen offers is a later
+ * time.
  */
 export type MailSendRefusal =
     | 'sendingNotEnabled'
@@ -608,13 +612,15 @@ function outcomeOf(response: ClientResponse | null): ClientResult<MailSendOutcom
             : failed('unreadable', response.status);
     }
 
-    // A `409` is a rule of this deployment about the message that was written and a `503` is the one temporary refusal
-    // here, so both are outcomes of the send. Every other status is a failure of the request, which the four reasons
-    // already say everything about.
+    // A `400` is a failure of the request, except the one naming a time to send at that has already gone: that is the
+    // author's own choice refused, which a screen answers by asking for a later time rather than as a broken request.
     if (response.status === 400 && bodyIn(response)?.['errorCode'] === dueTimePassedCode) {
         return read({ queued: false, refusal: 'dueTimePassed' });
     }
 
+    // A `409` is a rule of this deployment about the message that was written and a `503` is the one temporary refusal
+    // here, so both are outcomes of the send. Every other status is a failure of the request, which the four reasons
+    // already say everything about.
     if (response.status !== 409 && response.status !== 503) {
         return failed(failureReasonForStatus(response.status), response.status);
     }

@@ -4,7 +4,7 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useState, type ReactNode } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientSession, MailAccount, MailFathomTransport } from '@mailfathom/client-backend';
 import {
     AttachmentExchangeContext,
@@ -14,6 +14,7 @@ import {
 import { AttachmentUploadContext, type AttachmentUpload } from '../deployment/attachmentUpload';
 import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { LocalizationProvider } from '../localization/Localization';
+import { ReadingZoneContext } from '../localization/useReadingZone';
 import { TelemetryContext, noTelemetry, type ClientTelemetry } from '../telemetry/clientTelemetry';
 import { recordingTelemetry, recordsOf } from '../telemetry/telemetry.harness';
 import { ToastsProvider } from '../toasts/Toasts';
@@ -341,6 +342,7 @@ function drawComposer(
     exchange: AttachmentExchange = takesNothing,
     showsOutbox = false,
     status: ConnectionStatus | null = null,
+    zone: string | null = null,
 ): {
     closed: ReturnType<typeof vi.fn>;
     asked: ClientRequest[];
@@ -383,20 +385,22 @@ function drawComposer(
                             <AttachmentUploadContext value={upload}>
                                 <Pointing />
                                 <ConnectionStatusContext value={status ?? defaultStatus}>
-                                    <Framed>
-                                        {(onClosed) => (
-                                            <Composer
-                                                session={session}
-                                                transport={transport}
-                                                accounts={accounts}
-                                                opening={opening}
-                                                online={online}
-                                                drafts={drafts}
-                                                showsOutbox={showsOutbox}
-                                                onClosed={onClosed}
-                                            />
-                                        )}
-                                    </Framed>
+                                    <ReadingZoneContext value={zone}>
+                                        <Framed>
+                                            {(onClosed) => (
+                                                <Composer
+                                                    session={session}
+                                                    transport={transport}
+                                                    accounts={accounts}
+                                                    opening={opening}
+                                                    online={online}
+                                                    drafts={drafts}
+                                                    showsOutbox={showsOutbox}
+                                                    onClosed={onClosed}
+                                                />
+                                            )}
+                                        </Framed>
+                                    </ReadingZoneContext>
                                 </ConnectionStatusContext>
                             </AttachmentUploadContext>
                         </AttachmentExchangeContext>
@@ -2560,6 +2564,36 @@ describe('Composer, while the connection is in question', () => {
 });
 
 describe('Composer, sending later', () => {
+    // Thursday 27 August 2026 at 10:47 in Warsaw, the moment the design's own sample stands at, read in the zone the
+    // reader's record states rather than in whichever one the machine running the suite is in.
+    const thursdayMorning = Date.parse('2026-08-27T08:47:00Z');
+    const zone = 'Europe/Warsaw';
+
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(thursdayMorning);
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    function drawScheduling(answers: Answers = {}): { asked: ClientRequest[] } {
+        return drawComposer(
+            { kind: 'new' },
+            answers,
+            [work],
+            true,
+            uploadsOneFile,
+            false,
+            noTelemetry,
+            takesNothing,
+            false,
+            null,
+            zone,
+        );
+    }
+
     function openSendingOptions(name: string | RegExp = 'Sending options'): void {
         fireEvent.click(screen.getByRole('button', { name }));
     }
@@ -2574,42 +2608,127 @@ describe('Composer, sending later', () => {
         return asked.find((request) => request.path.endsWith('/send'));
     }
 
-    it('takes a ready time from the menu, says it on Send and above the foot, and sends the message to leave then', async () => {
-        const { asked } = drawComposer();
+    function picker(): HTMLElement {
+        return screen.getByRole('dialog', { name: 'Send later' });
+    }
 
-        addressed();
-        openSendingOptions();
-        fireEvent.click(screen.getByRole('menuitemradio', { name: /^Tomorrow morning/u }));
+    function pick(date: string, time: string): void {
+        fireEvent.change(within(picker()).getByLabelText('Date'), { target: { value: date } });
+        fireEvent.change(within(picker()).getByLabelText('Time'), { target: { value: time } });
+        fireEvent.click(within(picker()).getByRole('button', { name: /^Schedule for /u }));
+    }
 
-        expect(screen.queryByRole('menu')).toBeNull();
-        expect(screen.getByText(/^This message leaves .+, not when you press Send\.$/u)).toBeDefined();
-        expect(screen.getByText('Ctrl+Enter schedules')).toBeDefined();
-
+    function schedule(): void {
         fireEvent.click(screen.getByRole('button', { name: /^Send .+ at /u }));
         fireEvent.click(
             within(screen.getByRole('dialog', { name: 'Schedule this message?' })).getByRole('button', {
                 name: 'Schedule',
             }),
         );
+    }
+
+    it('takes a ready time from the menu, says it on Send and above the foot, and sends the message to leave then', async () => {
+        const { asked } = drawScheduling();
+
+        addressed();
+        openSendingOptions();
+        fireEvent.click(screen.getByRole('menuitemradio', { name: /^Tomorrow morning/u }));
+
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(screen.getByText('This message leaves Fri 08/28 at 8:00 AM, not when you press Send.')).toBeDefined();
+        expect(screen.getByText('Ctrl+Enter schedules')).toBeDefined();
+
+        schedule();
 
         await waitFor(() => {
             expect(sendRequest(asked)).toBeDefined();
         });
-
-        const tomorrow = new Date();
-
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(8, 0, 0, 0);
-
         expect(JSON.parse(sendRequest(asked)?.body ?? '{}')).toStrictEqual({
-            dueAt: tomorrow.toISOString(),
-            dueTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            dueAt: '2026-08-28T06:00:00.000Z',
+            dueTimeZone: 'Europe/Warsaw',
         });
         expect(await screen.findByText('Message scheduled')).toBeDefined();
     });
 
+    it('schedules a picked date and time, and takes one matching a ready time as that ready time', async () => {
+        const { asked } = drawScheduling();
+
+        addressed();
+        openSendingOptions();
+        fireEvent.click(screen.getByRole('menuitemradio', { name: /^Pick a date and time/u }));
+        pick('2026-08-31', '08:00');
+
+        expect(screen.queryByRole('dialog', { name: 'Send later' })).toBeNull();
+        expect(screen.getByText('This message leaves Mon 08/31 at 8:00 AM, not when you press Send.')).toBeDefined();
+
+        openSendingOptions(/^Sending options - leaves /u);
+
+        expect(screen.getByRole('menuitemradio', { name: /^Monday morning/u }).getAttribute('aria-checked')).toBe(
+            'true',
+        );
+
+        fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+        schedule();
+
+        await waitFor(() => {
+            expect(sendRequest(asked)).toBeDefined();
+        });
+        expect(JSON.parse(sendRequest(asked)?.body ?? '{}')).toStrictEqual({
+            dueAt: '2026-08-31T06:00:00.000Z',
+            dueTimeZone: 'Europe/Warsaw',
+        });
+    });
+
+    it('reopens the picker on the chosen time from Change, with the keyboard in its first field', () => {
+        drawScheduling();
+
+        addressed();
+        openSendingOptions();
+        fireEvent.click(screen.getByRole('menuitemradio', { name: /^Pick a date and time/u }));
+        pick('2026-08-29', '09:30');
+        fireEvent.click(screen.getByRole('button', { name: 'Change' }));
+
+        const date = within(picker()).getByLabelText<HTMLInputElement>('Date');
+
+        expect(date.value).toBe('2026-08-29');
+        expect(within(picker()).getByLabelText<HTMLInputElement>('Time').value).toBe('09:30');
+        expect(document.activeElement).toBe(date);
+    });
+
+    it('opens the picker on a chosen time that went by before Send was answered, and asks nothing of the server', () => {
+        const { asked } = drawScheduling();
+
+        addressed();
+        openSendingOptions();
+        fireEvent.click(screen.getByRole('menuitemradio', { name: /^Tomorrow morning/u }));
+        vi.setSystemTime(Date.parse('2026-08-28T06:30:00Z'));
+        schedule();
+
+        expect(within(picker()).getByRole('alert').textContent).toMatch(/^That time has already passed/u);
+        expect(sendRequest(asked)).toBeUndefined();
+    });
+
+    it('opens the picker again when the server finds the time already gone, and says nothing was sent', async () => {
+        drawScheduling({
+            send: { status: 400, body: JSON.stringify({ errorCode: 51_015, detail: 'The due time has passed.' }) },
+        });
+
+        addressed();
+        openSendingOptions();
+        fireEvent.click(screen.getByRole('menuitemradio', { name: /^Tomorrow morning/u }));
+        schedule();
+
+        // Said twice, in the toast and on the line at the composer's foot, which both stand over a refused send.
+        expect(
+            await screen.findAllByText(
+                'The time you chose has already passed, so nothing was sent. Choose a later time.',
+            ),
+        ).not.toHaveLength(0);
+        expect(picker()).toBeDefined();
+    });
+
     it('clears a chosen time back to sending at once', async () => {
-        const { asked } = drawComposer();
+        const { asked } = drawScheduling();
 
         addressed();
         openSendingOptions();
@@ -2628,17 +2747,14 @@ describe('Composer, sending later', () => {
     });
 
     it('refuses a picked time that has already passed before anything is asked of the server', () => {
-        drawComposer();
+        drawScheduling();
         openSendingOptions();
         fireEvent.click(screen.getByRole('menuitemradio', { name: /^Pick a date and time/u }));
+        fireEvent.change(within(picker()).getByLabelText('Date'), { target: { value: '2020-01-01' } });
 
-        const picker = screen.getByRole('dialog', { name: 'Send later' });
-
-        fireEvent.change(within(picker).getByLabelText('Date'), { target: { value: '2020-01-01' } });
-
-        expect(within(picker).getByRole('alert').textContent).toMatch(/^That time has already passed/u);
+        expect(within(picker()).getByRole('alert').textContent).toMatch(/^That time has already passed/u);
         expect(
-            within(picker)
+            within(picker())
                 .getByRole('button', { name: 'Schedule - choose a time that has not passed yet.' })
                 .getAttribute('aria-disabled'),
         ).toBe('true');

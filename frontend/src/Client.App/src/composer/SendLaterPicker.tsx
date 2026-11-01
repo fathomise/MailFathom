@@ -28,6 +28,7 @@ export function SendLaterPicker({
     zone,
     onAsking,
     onSchedule,
+    onClosed,
 }: {
     /** The dialog itself, held by the composer so that the menu and the line above the foot reach the same one. */
     readonly asked: RefObject<HTMLDialogElement | null>;
@@ -46,6 +47,9 @@ export function SendLaterPicker({
 
     /** Takes the time onto the composer, run once the dialog has closed. */
     readonly onSchedule: (chosen: SendTime) => void;
+
+    /** Ends the picking however the dialog closed, so the fields are drawn afresh, focus first, on the next opening. */
+    readonly onClosed: () => void;
 }) {
     const { locale, translate } = useLocalization();
     const closesOnBack = useTopLayerSurface();
@@ -84,6 +88,8 @@ export function SendLaterPicker({
                 if (answer === 'schedule' && asking !== null && schedulable) {
                     onSchedule(asking);
                 }
+
+                onClosed();
             }}
         >
             {asking === null ? null : (

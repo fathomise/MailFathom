@@ -14,8 +14,10 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
+using MailFathom.Domain.Failures;
 using MailFathom.Host.Api;
 using MailFathom.Host.Configuration.Mail;
+using MailFathom.Host.Security.Endpoints;
 using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Builder;
@@ -449,7 +451,6 @@ public sealed class ClientDraftEndpointTests
         Assert.Empty(drafts.Peek(draft.Id)!.Attachments);
     }
 
-    /// <summary>Builds the request an upload arrives as, whose body is the file and whose header is what it declares.</summary>
     /// <summary>
     /// A send naming a time without the zone it was named in, a zone without a time, or a zone this deployment does not
     /// know is refused before the draft is read, because no reading of it says when the message would leave.
@@ -475,6 +476,52 @@ public sealed class ClientDraftEndpointTests
         Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
     }
 
+    /// <summary>A send naming a time and the zone it was named in leaves at that instant, kept beside the zone it was named in.</summary>
+    [Fact]
+    public void TryReadDueTime_ATimeAndAZoneThatResolves_ReadsAsThatInstantInThatZone()
+    {
+        // Arrange
+        var leavesAt = new DateTimeOffset(2026, 3, 5, 8, 0, 0, TimeSpan.FromHours(1));
+
+        // Act
+        var read = ClientDraftEndpoints.TryReadDueTime(new ClientDraftSendRequest(leavesAt, "Europe/Warsaw"), out var dueAt);
+
+        // Assert
+        Assert.True(read);
+        Assert.Equal(leavesAt, dueAt?.Instant);
+        Assert.Equal("Europe/Warsaw", dueAt?.ZoneId);
+    }
+
+    /// <summary>A send stating no time, by sending no body or a body naming neither half, leaves as soon as it can.</summary>
+    [Fact]
+    public void TryReadDueTime_NoBodyOrABodyNamingNeitherHalf_ReadsAsLeavingAtOnce()
+    {
+        // Act
+        var readWithoutBody = ClientDraftEndpoints.TryReadDueTime(null, out var withoutBody);
+        var readEmptyBody = ClientDraftEndpoints.TryReadDueTime(new ClientDraftSendRequest(null, null), out var emptyBody);
+
+        // Assert
+        Assert.True(readWithoutBody);
+        Assert.Null(withoutBody);
+        Assert.True(readEmptyBody);
+        Assert.Null(emptyBody);
+    }
+
+    /// <summary>A time that has gone by the time the send is asked for is a refusal the author can change, carrying its own code.</summary>
+    [Fact]
+    public void Refused_ADueTimeAlreadyPassed_AnswersBadRequestWithItsCode()
+    {
+        // Act
+        var answer = ClientDraftEndpoints.Refused(MailDraftRefusedException.DueTimeAlreadyPassed());
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, answer.StatusCode);
+        Assert.Equal(
+            MailFathomErrorCode.AuthoredMailScheduleRefused.Value,
+            answer.ProblemDetails.Extensions[RouteAuthorization.ErrorCodeExtension]);
+    }
+
+    /// <summary>Builds the request an upload arrives as, whose body is the file and whose header is what it declares.</summary>
     private static DefaultHttpContext Upload(byte[] octets, string? contentType)
     {
         var context = new DefaultHttpContext();

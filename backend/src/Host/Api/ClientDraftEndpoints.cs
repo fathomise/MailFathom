@@ -505,7 +505,7 @@ internal static class ClientDraftEndpoints
     }
 
     /// <summary>Reads when a send is to leave: at once where the request states neither half, later where it states both and the zone resolves.</summary>
-    private static bool TryReadDueTime(ClientDraftSendRequest? request, out ZonedInstant? dueAt)
+    internal static bool TryReadDueTime(ClientDraftSendRequest? request, out ZonedInstant? dueAt)
     {
         dueAt = null;
 
@@ -660,7 +660,7 @@ internal static class ClientDraftEndpoints
     /// else is something the author can change, so it is <c>400</c>. The code travels beside every one of them, so a
     /// client matches the failure rather than parsing the sentence.
     /// </remarks>
-    private static ProblemHttpResult Refused(MailDraftRefusedException refusal) => Coded(
+    internal static ProblemHttpResult Refused(MailDraftRefusedException refusal) => Coded(
         refusal,
         refusal.ErrorCode == MailFathomErrorCode.MailDraftNotFound
             ? StatusCodes.Status404NotFound

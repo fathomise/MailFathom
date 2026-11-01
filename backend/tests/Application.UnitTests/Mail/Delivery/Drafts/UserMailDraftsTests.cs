@@ -18,6 +18,7 @@ using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Scheduling;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -99,6 +100,23 @@ public sealed class UserMailDraftsTests
 
         // Assert
         Assert.Equal(queued.Id, harness.Drafts.Peek(draft.Id)!.PromotedTo);
+    }
+
+    /// <summary>A time the user named for the send reaches the record it is queued as, so the message is held until then.</summary>
+    [Fact]
+    public async Task SendAsync_ADueTimeNamed_QueuesTheSendHeldUntilThen()
+    {
+        // Arrange
+        var harness = Harness();
+        var draft = await SaveAsync(harness, Account);
+        var drafts = UserDraftsOver(harness);
+        var dueAt = ZonedInstant.Restore(Moment.AddHours(23), "Europe/Warsaw");
+
+        // Act
+        var queued = await drafts.SendAsync(draft.Id, dueAt, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(dueAt, queued.DueAt);
     }
 
     /// <summary>A draft another user wrote in the mailbox both are assigned is refused, and nothing is queued.</summary>

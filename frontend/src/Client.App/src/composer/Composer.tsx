@@ -607,20 +607,6 @@ export function Composer({
         return holder === null || holder === document.body || (frame.current?.contains(holder) ?? false);
     }
 
-    // Sending, said where the design says it: a toast stands over whatever the person turned to next and
-    // follows the send until the deployment has answered it. **The composer closes once the deployment has the
-    // message** — queued, or taken back into the drafts folder by a stop — rather than on the press, which is one round
-    // trip later on a deployment that answers and the whole difference on one that refuses. A send can fail before it
-    // files anything: the write it performs first can be refused by screening, or never answered, and a composer that
-    // had closed on the press would have taken the only copy of the words with it while the toast said they were kept.
-    // Left open, it holds everything written, every file, and the draft it did file, with the line at its foot saying
-    // why — so the corrected message is a revision of that draft rather than a second one beside it.
-    //
-    // Closing it while the send is still in flight is the design's own order, and asks nothing: the toast is already
-    // following the send and says what became of it. A message in flight is not the tab's composition, so a composer
-    // opened meanwhile opens empty rather than on a copy of what is already on its way; only a send refused or failed
-    // after the window closed hands the words back to the tab, for the next composer to open on — unless the tab is
-    // keeping something written since.
     // The picker, opened on a time: the one already chosen, the first ready time, or one the deployment refused.
     function pickOn(asking: SendTime | null): void {
         const openedAt = Date.now();
@@ -648,6 +634,20 @@ export function Composer({
         );
     }
 
+    // Sending, said where the design says it: a toast stands over whatever the person turned to next and
+    // follows the send until the deployment has answered it. **The composer closes once the deployment has the
+    // message** — queued, or taken back into the drafts folder by a stop — rather than on the press, which is one round
+    // trip later on a deployment that answers and the whole difference on one that refuses. A send can fail before it
+    // files anything: the write it performs first can be refused by screening, or never answered, and a composer that
+    // had closed on the press would have taken the only copy of the words with it while the toast said they were kept.
+    // Left open, it holds everything written, every file, and the draft it did file, with the line at its foot saying
+    // why — so the corrected message is a revision of that draft rather than a second one beside it.
+    //
+    // Closing it while the send is still in flight is the design's own order, and asks nothing: the toast is already
+    // following the send and says what became of it. A message in flight is not the tab's composition, so a composer
+    // opened meanwhile opens empty rather than on a copy of what is already on its way; only a send refused or failed
+    // after the window closed hands the words back to the tab, for the next composer to open on — unless the tab is
+    // keeping something written since.
     function sendAndReport(sending: Composition, written: Composition, dueAt: MailSendDueTime | null): void {
         // Whether somebody stopped it, which takes the toast following it away. What the stop came to — taken back, or
         // already on its way — is then said by a toast of its own, because the one it would have settled has gone.
@@ -1208,6 +1208,9 @@ export function Composer({
                                 ...chosen,
                                 readyTime: readyTimeOf(chosen, picking?.openedAt ?? shownAt, zone),
                             });
+                        }}
+                        onClosed={() => {
+                            setPicking(null);
                         }}
                     />
                 </>
