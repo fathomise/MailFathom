@@ -7,7 +7,7 @@ namespace MailFathom.Application.Mail.Delivery.Governance;
 /// <summary>Names what a caller asked for when it asked this deployment to send something.</summary>
 /// <remarks>
 /// It is the act rather than the name of whatever published it, because a use case has no business knowing which
-/// protocol reached it. On the MCP surface each value is exactly one tool — a new message is <c>send_email</c>, the two
+/// protocol reached it. On the MCP surface each value an MCP tool publishes is exactly one tool — a new message is <c>send_email</c>, the two
 /// replies are <c>reply_to_email</c>, a forward is <c>forward_email</c>, and a draft dispatched as it stands is
 /// <c>send_draft</c> — so a record naming the act names the tool call for anybody reading it, and stays correct for the
 /// entrypoint added next.
@@ -35,5 +35,10 @@ public enum AuthoredSendAct
     PromotedDraft = 4,
 
     /// <summary>A read receipt the reader asked to send in answer to a message that requested one.</summary>
+    /// <remarks>
+    /// The one act no MCP tool publishes: only the client's read-receipt route sends one, because a receipt answers what
+    /// a person read and no caller acting for them may decide that. A record naming it names that route rather than a
+    /// tool call.
+    /// </remarks>
     ReadReceipt = 5,
 }
