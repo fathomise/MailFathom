@@ -19,6 +19,7 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Mail.Delivery.Authoring;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent;
@@ -175,6 +176,73 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
 
         // Assert
         Assert.Equal([Primary], named);
+    }
+
+    /// <summary>A run that proposes mail is told which of the person's accounts close a message with their footer, and nothing of the footer itself.</summary>
+    [Fact]
+    public async Task NameAccountsAsync_AGrantThatProposesMailFromAnAccountWithAFooter_NamesItAsClosingWithTheFooter()
+    {
+        // Arrange
+        var tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead, MailFathomPermission.MailDraftsWrite, MailFathomPermission.MailSend),
+            SensitiveContentEgressGuards.Inactive(),
+            footers: await FooterOnPrimaryAsync());
+
+        // Act
+        var named = await tools.NameAccountsAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([new AgentNamedAccount(Primary, ClosesWithFooter: true)], named);
+    }
+
+    [Fact]
+    public async Task NameAccountsAsync_AGrantThatProposesMailFromAnAccountWithNoFooter_NamesItAsClosingAsThePersonDoes()
+    {
+        // Arrange
+        var tools = this.Tools(MailFathomPermission.MailRead, MailFathomPermission.MailDraftsWrite, MailFathomPermission.MailSend);
+
+        // Act
+        var named = await tools.NameAccountsAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([new AgentNamedAccount(Primary, ClosesWithFooter: false)], named);
+    }
+
+    /// <summary>A run that proposes nothing writes nothing, so whether the person signs with a footer is not read for it.</summary>
+    [Fact]
+    public async Task NameAccountsAsync_AGrantThatReadsButProposesNoMail_DoesNotReadTheFooter()
+    {
+        // Arrange
+        var tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            footers: await FooterOnPrimaryAsync());
+
+        // Act
+        var named = await tools.NameAccountsAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([new AgentNamedAccount(Primary, ClosesWithFooter: false)], named);
+    }
+
+    /// <summary>A reply goes out from the account holding the message it answers, so a reading marks a message held in an account with a footer.</summary>
+    [Fact]
+    public async Task GuardedReadingOf_AMessageInAnAccountWithAFooterOnARunThatProposesMail_MarksItAnsweredWithTheFooter()
+    {
+        // Arrange
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead, MailFathomPermission.MailDraftsWrite, MailFathomPermission.MailSend),
+            SensitiveContentEgressGuards.Inactive(),
+            footers: await FooterOnPrimaryAsync());
+
+        // Act
+        var reading = await this.tools.GuardedReadingOfAsync(
+            MessageReading("ada@example.org", "Visitor parking", "Park on Quay Street."),
+            StubEmailProvenanceReader.KnownCorrespondent,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(reading.AnsweredWithFooter);
     }
 
     /// <summary>A grant that drafts and sends but reads nothing may propose a new message and cannot answer one it could not read.</summary>
@@ -963,6 +1031,19 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
     };
 
+    /// <summary>Gives the acting user a footer of their own on the one account the tools are handed.</summary>
+    private static async Task<MailFootersInForce> FooterOnPrimaryAsync()
+    {
+        var store = new InMemoryMailFooterStore().Assigning(SyntheticUser.Deployment, Primary);
+        await store.SaveOwnAsync(
+            SyntheticUser.Deployment,
+            Primary,
+            new MailFooterContent("<p>Anna Kowalska</p>", []),
+            TestContext.Current.CancellationToken);
+
+        return MailFootings.Over(store);
+    }
+
     private AIFunction CreatedTool(string name) =>
         Assert.IsType<AIFunction>(Assert.Single(this.tools.Create(), tool => tool.Name == name), exactMatch: false);
 
@@ -976,7 +1057,8 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         OwnTasks? tasks = null,
         IEmailProvenanceReader? provenanceReader = null,
         UserClock? clock = null,
-        StoredEmailResponseAuthoring? responseAuthoring = null)
+        StoredEmailResponseAuthoring? responseAuthoring = null,
+        MailFootersInForce? footers = null)
     {
         var retrieval = new ScopedMailKnowledgeRetrieval(
             this.knowledgeSearch,
@@ -994,7 +1076,8 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             tasks!,
             ResponseAuthoring: responseAuthoring!,
             authorization,
-            clock ?? UserClocks.Reading(Now, "Europe/Warsaw"));
+            clock ?? UserClocks.Reading(Now, "Europe/Warsaw"),
+            footers ?? MailFootings.SendingNone());
 
         return new AgentConversationTools(this.journal, retrieval, readers, egressGuard, [Primary]);
     }

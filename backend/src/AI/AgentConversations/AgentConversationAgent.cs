@@ -20,7 +20,6 @@ using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
-using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using Microsoft.Extensions.DependencyInjection;
@@ -120,7 +119,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             this.egressGuard,
             brief.Question.AskedAt);
         var tools = new AgentConversationTools(journal, retrieval, this.readers, this.egressGuard, scope.AccountIds);
-        var accounts = tools.NamedAccounts;
+        var accounts = await tools.NameAccountsAsync(cancellationToken);
         var zone = this.readers.Clock.Zone();
         var stickySession = StickySessionOf(brief.Question.Conversation);
 
@@ -191,14 +190,14 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     /// <returns>The conversation, oldest turn first.</returns>
     internal static IReadOnlyList<ChatMessage> ComposeMessages(
         AgentAnswerBrief brief,
-        IReadOnlyList<MailAccountId> accounts,
+        IReadOnlyList<AgentNamedAccount> accounts,
         UserTimeZone zone) =>
         ComposeMessages(brief, accounts, zone, brief.History, brief.Question.Text.Value);
 
     /// <summary>Composes the conversation from a history and a question standing in for the ones the brief carries.</summary>
     private static IReadOnlyList<ChatMessage> ComposeMessages(
         AgentAnswerBrief brief,
-        IReadOnlyList<MailAccountId> accounts,
+        IReadOnlyList<AgentNamedAccount> accounts,
         UserTimeZone zone,
         IReadOnlyList<AgentHistoryTurn> history,
         string question) =>
@@ -241,7 +240,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     /// </remarks>
     private async Task<IReadOnlyList<ChatMessage>> GuardAsync(
         AgentAnswerBrief brief,
-        IReadOnlyList<MailAccountId> accounts,
+        IReadOnlyList<AgentNamedAccount> accounts,
         UserTimeZone zone,
         CancellationToken cancellationToken)
     {
@@ -257,7 +256,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     private async Task<PresentationText> AskAsync(
         ChatGenerationPlan model,
         AgentAnswerBrief brief,
-        IReadOnlyList<MailAccountId> accounts,
+        IReadOnlyList<AgentNamedAccount> accounts,
         UserTimeZone zone,
         AgentConversationTools tools,
         AgentAnswerJournal journal,

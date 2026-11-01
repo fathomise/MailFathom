@@ -83,6 +83,7 @@ internal sealed class AgentConversationTools
     private readonly IReadOnlyList<MailAccountId> accounts;
     private readonly Dictionary<StoredEmailId, PresentationCitation> cited = [];
     private readonly List<string> readBodies = [];
+    private IReadOnlySet<MailAccountId>? footedAccounts;
 
     /// <summary>Initializes the tools of one run.</summary>
     /// <param name="journal">Where every status, block, and proposal is written the moment it exists.</param>
@@ -130,6 +131,16 @@ internal sealed class AgentConversationTools
     /// </remarks>
     internal IReadOnlyList<MailAccountId> NamedAccounts =>
         this.readers.Authorization.Permits(MailFathomPermission.MailRead) || this.ProposesMail ? this.accounts : [];
+
+    /// <summary>Names the accounts the model is told of, each with whether a message sent from it closes with the person's footer.</summary>
+    /// <param name="cancellationToken">Cancels the reads.</param>
+    /// <returns>The accounts <see cref="NamedAccounts" /> holds, in its order.</returns>
+    internal async Task<IReadOnlyList<AgentNamedAccount>> NameAccountsAsync(CancellationToken cancellationToken)
+    {
+        var footed = await this.FootedAccountsAsync(cancellationToken);
+
+        return [.. this.NamedAccounts.Select(account => new AgentNamedAccount(account, footed.Contains(account)))];
+    }
 
     private bool ProposesMail =>
         this.readers.Authorization.Permits(MailFathomPermission.MailDraftsWrite)
@@ -303,6 +314,7 @@ internal sealed class AgentConversationTools
         var subject = await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, message.Headers.Subject, cancellationToken);
         var guardedBody = await this.egressGuard.GuardWithOmissionAsync(SensitiveContentEgressPoint.ChatPrompt, bounded, cancellationToken);
         var citation = await this.CiteAsync(message.StoredEmailId, message.Headers.Subject, cancellationToken);
+        var footed = await this.FootedAccountsAsync(cancellationToken);
 
         return new GuardedThreadReading(
             message.StoredEmailId,
@@ -313,7 +325,38 @@ internal sealed class AgentConversationTools
             subject,
             guardedBody.Text,
             bounded.Length < body.Length || guardedBody.WasCutAtAnalyzedCeiling,
-            await AgentReceiptReadings.GuardedAsync(this.egressGuard, message.Receipts, cancellationToken));
+            await AgentReceiptReadings.GuardedAsync(this.egressGuard, message.Receipts, cancellationToken),
+            footed.Contains(message.AccountId));
+    }
+
+    /// <summary>Reads, once per run, which of the person's accounts append their footer to what they send.</summary>
+    /// <remarks>
+    /// Read only where the run may propose mail, because it is a proposal's wording the answer shapes, and never the
+    /// footer itself: what the model is told is that the closing is taken care of, not who it names.
+    /// </remarks>
+    private async Task<IReadOnlySet<MailAccountId>> FootedAccountsAsync(CancellationToken cancellationToken)
+    {
+        if (this.footedAccounts is null)
+        {
+            HashSet<MailAccountId> footed = [];
+
+            if (this.ProposesMail)
+            {
+                var user = this.readers.Authorization.RequireUser();
+
+                foreach (var account in this.accounts)
+                {
+                    if (await this.readers.Footers.HasFooterAsync(user, account, cancellationToken))
+                    {
+                        footed.Add(account);
+                    }
+                }
+            }
+
+            this.footedAccounts = footed;
+        }
+
+        return this.footedAccounts;
     }
 
     [Description("Shows the person the state of one conversation.")]
@@ -464,7 +507,7 @@ internal sealed class AgentConversationTools
         [Description("The account it is sent from, one of the account names the turn lists.")] string account,
         [Description("Every recipient's email address.")] string[] recipients,
         [Description("The subject.")] string subject,
-        [Description("The body, as plain text, in the language its recipients read.")] string body,
+        [Description("The body, as plain text, in the language its recipients read. From an account the turn says closes with the person's footer, it ends at its own last sentence, with no closing phrase and no sign-off.")] string body,
         [Description(SendAtDescription)] string? sendAt,
         CancellationToken cancellationToken)
     {
@@ -509,7 +552,7 @@ internal sealed class AgentConversationTools
     private async Task<string> ProposeReplyAsync(
         [Description("The id of the message being answered.")] string messageId,
         [Description("reply, replyToAll, or forward.")] string act,
-        [Description("The body, as plain text, in the language the conversation is written in.")] string body,
+        [Description("The body, as plain text, in the language the conversation is written in. Answering a message a conversation reading marks footer=\"true\", it ends at its own last sentence, with no closing phrase and no sign-off.")] string body,
         [Description("For a forward, every recipient's email address; for a reply, leave empty to answer whoever the message came from.")] string[]? recipients,
         [Description(SendAtDescription)] string? sendAt,
         CancellationToken cancellationToken)

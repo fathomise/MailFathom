@@ -35,13 +35,45 @@ public sealed class AgentConversationInstructionsTests
         var askedAt = new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero);
 
         // Act
-        var naming = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [MailAccountId.Create("primary")], AgentMessageScope.Mailbox(), [], "What is due?");
+        var naming = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [new AgentNamedAccount(MailAccountId.Create("primary"), ClosesWithFooter: false)], AgentMessageScope.Mailbox(), [], "What is due?");
         var silent = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [], AgentMessageScope.Mailbox(), [], "What is due?");
 
         // Assert
         Assert.Contains("The person's accounts: primary.", naming, StringComparison.Ordinal);
         Assert.DoesNotContain("accounts", silent, StringComparison.OrdinalIgnoreCase);
         Assert.EndsWith($"<{AgentTurnDocument.AskElementName}>What is due?</{AgentTurnDocument.AskElementName}>", silent, StringComparison.Ordinal);
+        Assert.DoesNotContain("footer", naming, StringComparison.Ordinal);
+    }
+
+    /// <summary>A turn names which accounts close a message with the person's footer, and nothing of what the footer says, because the turn is never handed it.</summary>
+    [Fact]
+    public void ComposeTurn_AnAccountThatAppendsAFooter_NamesItAmongThoseClosingWithOne()
+    {
+        // Arrange
+        var askedAt = new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero);
+        AgentNamedAccount[] accounts =
+        [
+            new(MailAccountId.Create("primary"), ClosesWithFooter: true),
+            new(MailAccountId.Create("private"), ClosesWithFooter: false),
+        ];
+
+        // Act
+        var turn = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, accounts, AgentMessageScope.Mailbox(), [], "Write to Karolina.");
+
+        // Assert
+        Assert.Contains("The person's accounts: primary, private.", turn, StringComparison.Ordinal);
+        Assert.Contains("Messages sent from these accounts close with the person's footer: primary.", turn, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TextFor_AnyLanguage_LeavesTheClosingOfAMessageFromAFootedAccountToItsFooter()
+    {
+        // Act
+        var text = AgentConversationInstructions.TextFor(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("Some accounts close every message sent from them with the person's footer", text, StringComparison.Ordinal);
+        Assert.Contains("footer=\"true\"", text, StringComparison.Ordinal);
     }
 
     /// <summary>A turn names the person's zone and its offset, and states now on their clock, so a time they name is read where they are.</summary>

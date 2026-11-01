@@ -463,6 +463,7 @@ function lastDrafting(asked: readonly ClientRequest[]): {
     contextEmailIds: string[];
     selection: string | null;
     instruction: string;
+    account: string | null;
 } {
     const drafting = asked.filter((request) => request.path.endsWith('/replies/drafting')).at(-1);
 
@@ -470,6 +471,7 @@ function lastDrafting(asked: readonly ClientRequest[]): {
         contextEmailIds: string[];
         selection: string | null;
         instruction: string;
+        account: string | null;
     };
 }
 
@@ -2194,6 +2196,21 @@ describe('Composer drafting', () => {
         });
 
         expect(lastDrafting(asked).contextEmailIds).toStrictEqual([]);
+    });
+
+    it('names the account the message is sent from, so the draft knows whether its footer closes it', async () => {
+        const { asked } = drawComposer({ kind: 'new' }, {}, [work], true, uploadsOneFile, true);
+
+        fireEvent.change(await screen.findByRole('textbox', { name: 'What the draft should say' }), {
+            target: { value: 'tell Contoso we are ready' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Write a draft' }));
+
+        await waitFor(() => {
+            expect(asked.some((request) => request.path.endsWith('/replies/drafting'))).toBe(true);
+        });
+
+        expect(lastDrafting(asked).account).toBe(work.id);
     });
 
     it('puts the draft in the message being written, and offers the way back to what was there', async () => {

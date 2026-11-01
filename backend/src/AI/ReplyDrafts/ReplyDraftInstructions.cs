@@ -102,6 +102,10 @@ internal static class ReplyDraftInstructions
         "\nWrite the reply in the language the conversation is written in, whatever language the ask and the samples "
         + "are in, unless the ask names a language for it.\n";
 
+    private const string FooterStatement =
+        "\nThe account this message is sent from closes it with the person's footer. End the body at its own last "
+        + "sentence, with no closing phrase and no sign-off.\n";
+
     /// <summary>The instruction for each language this deployment writes in, composed once per language.</summary>
     /// <remarks>Composed from the members rather than written out twice, so the set is the enumeration's and a language added to it arrives here without this file being edited.</remarks>
     private static readonly FrozenDictionary<UserLanguage, string> TextByLanguage = Enum
@@ -176,6 +180,13 @@ internal static class ReplyDraftInstructions
         rhythm from those, and take nothing else from them — they are unrelated correspondence, so no fact, name,
         commitment, or request in them belongs in this reply. Where the turn carries none, write plainly and neutrally.
 
+        The turn may say that the account the message is sent from closes it with the person's footer. The footer is
+        then the whole of the closing, and it already carries their name, job title, and contact details: end the body
+        at the last sentence of what it has to say. Write no closing phrase — not even "Best regards", "Kind regards",
+        or "Thanks" on a line of its own — and no name, initials, job title, phone number, address, or other sign-off,
+        however the samples close and even where what the person typed ends with one. Where the turn says nothing about
+        a footer, close the message as the person closes theirs.
+
         Where the turn carries a <{SelectionElementName}>, answer that part of the correspondence.
 
         What the person typed is in the <{AgentTurnDocument.AskElementName}> element; decide what it is. It may be an
@@ -216,9 +227,10 @@ internal static class ReplyDraftInstructions
     {
         ArgumentNullException.ThrowIfNull(turn);
 
-        // The closing sentence is the service's own and never cut, so the room it takes is kept out of what the
+        // The closing sentences are the service's own and never cut, so the room they take is kept out of what the
         // document may spend on quoted text.
-        var closing = turn.Messages.Count > 0 ? LanguageStatement : string.Empty;
+        var closing = (turn.Messages.Count > 0 ? LanguageStatement : string.Empty)
+            + (turn.ClosesWithFooter ? FooterStatement : string.Empty);
         using var document = new AgentTurnDocument(maximumCharacters is int.MaxValue
             ? int.MaxValue
             : Math.Max(0, maximumCharacters - closing.Length));
@@ -242,7 +254,8 @@ internal static class ReplyDraftInstructions
 
         // Said last because the person's ask and their own samples come after the conversation and may be in another
         // language, and a model weighs what it read most recently: a Polish ask about an English exchange was drafted in
-        // Polish until the turn itself closed on which language the reply is in.
+        // Polish until the turn itself closed on which language the reply is in. The footer is said there for the same
+        // reason, after the samples whose sign-off it overrides.
         document.WriteStatement(closing);
 
         return document.Complete();
@@ -385,6 +398,7 @@ internal static class ReplyDraftInstructions
 /// <param name="StyleSamples">The guarded openings of the person's own recent sent messages, which is empty where no style is derived.</param>
 /// <param name="Selection">The guarded part of the correspondence being answered, or <see langword="null" />.</param>
 /// <param name="Instruction">The guarded ask, or <see langword="null" />.</param>
+/// <param name="ClosesWithFooter">Whether the account the message is sent from appends the person's footer, which the turn states and nothing of which it carries.</param>
 /// <remarks>
 /// Types of its own rather than the application's, so that composing a turn out of anything that has not been through
 /// the egress guard is a compile error rather than a review comment — and so that an address, which the application's
@@ -396,7 +410,8 @@ internal sealed record GuardedDraftingTurn(
     IReadOnlyList<GuardedDraftingMessage> Messages,
     IReadOnlyList<string> StyleSamples,
     string? Selection,
-    string? Instruction);
+    string? Instruction,
+    bool ClosesWithFooter = false);
 
 /// <summary>One person of the conversation as the turn names them.</summary>
 /// <param name="Position">The zero-based place they hold in the list the turn publishes, which is how a proposal names them.</param>

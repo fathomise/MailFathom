@@ -60,7 +60,7 @@ function recording(response: Answer): { transport: MailFathomTransport; requests
 }
 
 function request(overrides: Readonly<Record<string, unknown>> = {}) {
-    return { contextEmailIds: [answered], selection: null, instruction: null, ...overrides };
+    return { contextEmailIds: [answered], selection: null, instruction: null, account: null, ...overrides };
 }
 
 describe('draftsMailReplies', () => {
@@ -133,7 +133,18 @@ describe('draftMailReply', () => {
             contextEmailIds: [answered],
             selection: 'the 2 h SLA',
             instruction: 'Ask for a 5% cap.',
+            account: null,
         });
+    });
+
+    it('names the account the message is sent from', async () => {
+        const { transport, requests } = recording({ status: 200, body: draftBody() });
+
+        await draftMailReply(session, transport, request({ account: 'work' }));
+
+        const sent = JSON.parse(requests[0]?.body ?? '') as { account: string | null };
+
+        expect(sent.account).toBe('work');
     });
 
     it('names no message where the composer is written from none', async () => {
@@ -149,6 +160,7 @@ describe('draftMailReply', () => {
             contextEmailIds: [],
             selection: null,
             instruction: 'Ask Contoso for a 5% cap.',
+            account: null,
         });
     });
 
@@ -190,6 +202,7 @@ describe('draftMailReply', () => {
             contextEmailIds: [answered],
             selection: null,
             instruction: null,
+            account: null,
         });
     });
 

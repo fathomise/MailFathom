@@ -45,6 +45,9 @@ internal static class AgentConversationReadings
     /// <summary>Names the attribute carrying when a message was sent.</summary>
     internal const string SentAttributeName = "sent";
 
+    /// <summary>Names the attribute marking a message held in an account that closes what the person sends from it with their footer.</summary>
+    internal const string FooterAttributeName = "footer";
+
     /// <summary>Names the element carrying a message's subject.</summary>
     internal const string SubjectElementName = "subject";
 
@@ -115,6 +118,12 @@ internal static class AgentConversationReadings
             WriteOptional(document, FromAttributeName, message.SenderAddress);
             WriteOptional(document, SentAttributeName, Instant(message.SentAt));
             document.WriteProvenance(message.Provenance);
+
+            if (message.AnsweredWithFooter)
+            {
+                document.WriteAttribute(FooterAttributeName, "true");
+            }
+
             AgentReceiptReadings.Write(document, message.Receipts);
 
             if (message.Subject is { } subject)
@@ -210,6 +219,7 @@ internal static class AgentConversationReadings
 /// <param name="Body">The guarded body, already cut to what a reading shows.</param>
 /// <param name="BodyCut">Whether the body was cut, which the reading states.</param>
 /// <param name="Receipts">What the message asked to be told and what its recipients' reports said, every address guarded, where it is one the account sent.</param>
+/// <param name="AnsweredWithFooter">Whether the account holding it appends the person's footer, so an answer to it closes with that footer.</param>
 internal sealed record GuardedThreadReading(
     StoredEmailId Id,
     PresentationCitationId Source,
@@ -219,7 +229,8 @@ internal sealed record GuardedThreadReading(
     string? Subject,
     string Body,
     bool BodyCut,
-    OutgoingEmailReceipts? Receipts = null);
+    OutgoingEmailReceipts? Receipts = null,
+    bool AnsweredWithFooter = false);
 
 /// <summary>One calendar event as the Agent is shown it, its title already guarded.</summary>
 /// <param name="Start">When it begins.</param>

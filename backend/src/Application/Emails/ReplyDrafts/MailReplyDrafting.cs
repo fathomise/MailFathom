@@ -3,11 +3,14 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 
@@ -88,6 +91,8 @@ public sealed class MailReplyDrafting
     private readonly SensitiveContentEgressGuard egressGuard;
     private readonly AccessAuthorization authorization;
     private readonly IUserLanguages languages;
+    private readonly IMailAccountAssignments assignments;
+    private readonly MailFootersInForce footers;
     private readonly bool derivesStyleFromSentMail;
 
     /// <summary>Initializes the drafting.</summary>
@@ -97,6 +102,8 @@ public sealed class MailReplyDrafting
     /// <param name="egressGuard">Scans what the draft publishes to a client, where this deployment scans anything.</param>
     /// <param name="authorization">Enforces the permission this drafting is behind.</param>
     /// <param name="languages">Answers which language this deployment writes for a person in, which is the language a draft answering no correspondence comes out in.</param>
+    /// <param name="assignments">Answers whether the account the message is to be sent from is one of the user's.</param>
+    /// <param name="footers">Answers whether a message from that account closes with the user's footer.</param>
     /// <param name="derivesStyleFromSentMail">Whether the deployment derives a manner from the account's own sent mail at all.</param>
     /// <exception cref="ArgumentNullException">Thrown when any dependency is <see langword="null" />.</exception>
     public MailReplyDrafting(
@@ -106,6 +113,8 @@ public sealed class MailReplyDrafting
         SensitiveContentEgressGuard egressGuard,
         AccessAuthorization authorization,
         IUserLanguages languages,
+        IMailAccountAssignments assignments,
+        MailFootersInForce footers,
         bool derivesStyleFromSentMail)
     {
         ArgumentNullException.ThrowIfNull(sourceReader);
@@ -114,6 +123,8 @@ public sealed class MailReplyDrafting
         ArgumentNullException.ThrowIfNull(egressGuard);
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(languages);
+        ArgumentNullException.ThrowIfNull(assignments);
+        ArgumentNullException.ThrowIfNull(footers);
 
         this.sourceReader = sourceReader;
         this.writer = writer;
@@ -121,6 +132,8 @@ public sealed class MailReplyDrafting
         this.egressGuard = egressGuard;
         this.authorization = authorization;
         this.languages = languages;
+        this.assignments = assignments;
+        this.footers = footers;
         this.derivesStyleFromSentMail = derivesStyleFromSentMail;
     }
 
@@ -189,7 +202,11 @@ public sealed class MailReplyDrafting
             sources = ReplyDraftSources.Nothing;
         }
 
-        var brief = BriefOf(sources, request, this.languages.LanguageOf(user));
+        var brief = BriefOf(
+            sources,
+            request,
+            this.languages.LanguageOf(user),
+            await this.ClosesWithFooterAsync(user, request.SendingAccount, cancellationToken));
 
         var draft = await this.writer.WriteAsync(brief, cancellationToken);
 
@@ -234,17 +251,36 @@ public sealed class MailReplyDrafting
         return ReplyDraftSources.Merged(reads, MaximumMessages);
     }
 
+    /// <summary>Reads whether the message closes with the user's footer, which only an account of theirs can say.</summary>
+    /// <remarks>
+    /// An account that is not the user's is answered as one without a footer rather than refused, so the draft says
+    /// nothing about whether somebody else's account appends one.
+    /// </remarks>
+    private async Task<bool> ClosesWithFooterAsync(
+        UserId user,
+        MailAccountId? sendingAccount,
+        CancellationToken cancellationToken) =>
+        sendingAccount is { } account
+        && (await this.assignments.ReadAccountsAssignedToAsync(user, cancellationToken)).Contains(account)
+        && await this.footers.HasFooterAsync(user, account, cancellationToken);
+
     /// <summary>States what a drafting is asked: the sources, and what the person selected and typed, each cut to what a drafting may carry.</summary>
     /// <param name="sources">What the reply is grounded in.</param>
     /// <param name="request">What the person selected and typed.</param>
     /// <param name="language">The language the person reads.</param>
+    /// <param name="closesWithFooter">Whether the account the message is sent from appends the person's footer.</param>
     /// <returns>The brief.</returns>
-    internal static ReplyDraftBrief BriefOf(ReplyDraftSources sources, ReplyDraftRequest request, UserLanguage language) =>
+    internal static ReplyDraftBrief BriefOf(
+        ReplyDraftSources sources,
+        ReplyDraftRequest request,
+        UserLanguage language,
+        bool closesWithFooter) =>
         new(
             sources,
             Bounded(request.Selection, ReplyDraftRequest.MaximumSelectionLength),
             Bounded(request.Instruction, ReplyDraftRequest.MaximumInstructionLength),
-            language);
+            language,
+            closesWithFooter);
 
     /// <summary>States how much of the mailbox one read of a drafting's context reads.</summary>
     /// <param name="derivesStyleFromSentMail">Whether the deployment draws a reply's manner from the person's own sent mail.</param>

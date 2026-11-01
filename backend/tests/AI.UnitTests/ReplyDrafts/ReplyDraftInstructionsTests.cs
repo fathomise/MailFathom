@@ -120,6 +120,71 @@ public sealed class ReplyDraftInstructionsTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>The footer is the closing where the account appends one, and the turn says so after the samples whose sign-off it overrides.</summary>
+    [Fact]
+    public void ComposeDraftingTurn_SentFromAnAccountThatAppendsAFooter_ClosesOnLeavingTheSignOffToTheFooter()
+    {
+        // Act
+        var turn = ReplyDraftInstructions.ComposeDraftingTurn(
+            new GuardedDraftingTurn(
+                "The racking quotation",
+                [new GuardedDraftingPerson(0, "Karolina")],
+                [Message(0, "The quotation is 4,200 euros.", isChosen: true)],
+                ["Hi Karolina, thanks. Best regards, Anna"],
+                Selection: null,
+                "Thank Karolina for the quotation.",
+                ClosesWithFooter: true));
+
+        // Assert
+        Assert.EndsWith(
+            "The account this message is sent from closes it with the person's footer. End the body at its own last sentence, with no closing phrase and no sign-off.\n",
+            turn,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>A message from an account without a footer closes as the person closes theirs, and the turn says nothing of a footer.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ComposeDraftingTurn_SentFromAnAccountWithNoFooter_SaysNothingOfAFooter(bool answersAConversation)
+    {
+        // Act
+        var turn = ReplyDraftInstructions.ComposeDraftingTurn(
+            new GuardedDraftingTurn(
+                Subject: null,
+                [],
+                answersAConversation ? [Message(0, "The quotation is 4,200 euros.", isChosen: true)] : [],
+                [],
+                Selection: null,
+                "Thank Karolina for the quotation.",
+                ClosesWithFooter: false));
+
+        // Assert
+        Assert.DoesNotContain("footer", turn, StringComparison.Ordinal);
+    }
+
+    /// <summary>A message answering nothing still closes for its footer, because the account it is sent from is what decides it.</summary>
+    [Fact]
+    public void ComposeDraftingTurn_NoMessagesFromAnAccountThatAppendsAFooter_StillLeavesTheSignOffToTheFooter()
+    {
+        // Act
+        var turn = ReplyDraftInstructions.ComposeDraftingTurn(
+            new GuardedDraftingTurn(Subject: null, [], [], [], Selection: null, "Tell Contoso we are ready.", ClosesWithFooter: true));
+
+        // Assert
+        Assert.Contains("closes it with the person's footer", turn, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TextFor_AnyLanguage_LeavesTheWholeClosingToAFooterTheTurnNames()
+    {
+        // Act
+        var text = ReplyDraftInstructions.TextFor(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("the closing, and it already carries their name, job title, and contact details", text, StringComparison.Ordinal);
+    }
+
     /// <summary>A conversation reaches the turn in the elements a citation and a proposal are numbered against.</summary>
     [Fact]
     public void ComposeDraftingTurn_AConversation_WritesItInTheElementsThatNumberIt()

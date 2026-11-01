@@ -120,6 +120,23 @@ public sealed class ReplyDraftScenarioTests : IDisposable
         Assert.Equal(expected, verdict.Get<BooleanMetric>(WrittenLanguage.MetricName).Value);
     }
 
+    [Theory]
+    [InlineData("ReplyDraft.LeavesTheClosingToTheFooter", """{"body":"Thank you, Zofia, for checking the corrected invoice.\nWe now consider INV-4827 closed.","claims":[],"recipients":[0]}""", true)]
+    [InlineData("ReplyDraft.LeavesTheClosingToTheFooter", """{"body":"Thank you, Zofia, for checking the corrected invoice.\nWe now consider INV-4827 closed.\nBest regards,\nMara","claims":[],"recipients":[0]}""", false)]
+    [InlineData("ReplyDraft.ClosesWithoutAFooter", """{"body":"Thank you, Zofia, for checking the corrected invoice.\nWe now consider INV-4827 closed.\nBest regards,\nMara","claims":[],"recipients":[0]}""", true)]
+    [InlineData("ReplyDraft.ClosesWithoutAFooter", """{"body":"Thank you, Zofia, for checking the corrected invoice.\nWe now consider INV-4827 closed.","claims":[],"recipients":[0]}""", false)]
+    public async Task RunAsync_ADraftFromAnAccountWithOrWithoutAFooter_PassesOnlyWhereItClosesAsThatAccountRequires(string name, string answer, bool expected)
+    {
+        // Arrange
+        using var model = Model(answer);
+
+        // Act
+        var verdict = await this.RunAsync(Named(name), model);
+
+        // Assert
+        Assert.Equal(expected, verdict.Get<BooleanMetric>(SignOff.MetricName).Value);
+    }
+
     [Fact]
     public void Sources_EveryScenario_AnswersACorrespondentAndNumbersEveryoneWhoWroteButTheMailbox()
     {

@@ -79,6 +79,13 @@ together into one correspondence; with a single message that is exactly the one 
   much of its wording as reads well while correcting and completing it, follows an instruction over its own reading of
   what the reply should be about, and never carries an instruction itself into the body. A request carrying neither is
   the ordinary one — *reply to this*.
+- **Whether the message closes with a footer** — the one thing about it the composer states, by naming the account it
+  sends from. Where that account is one of the person's and a message sent from it carries their
+  [footer](mail-footers.md), their own or their organization's, the draft ends at its own last sentence with no
+  closing phrase, no name, and no contact details, however the person's own sent mail closes, because the footer
+  appended on sending carries all of them; anywhere else it closes as the person closes their mail. The provider is
+  told only that a footer exists, in a sentence the service writes at the close of the turn, and never what it says:
+  a footer carries a person's name, title, and phone number, and a draft's wording needs none of them.
 
 The correspondence is read across every account this user holds, with no folder narrowing and junk included, as the
 conversation screen reads it: a reply is answered across an exchange rather than inside a folder. One thing differs,

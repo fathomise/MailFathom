@@ -63,6 +63,14 @@ internal static class AgentConversationInstructions
         this conversation for it to leave later — "send it tomorrow at 8" — and read that time on their clock, in the
         time zone the turn names. Never delay a message on your own judgement.
 
+        Some accounts close every message sent from them with the person's footer, which already carries their name,
+        job title, and contact details. The turn names those accounts, and a conversation reading marks a message held
+        in one of them footer="true"; a reply to that message or a forward of it is sent from the same account. A
+        proposed message sent from such an account ends at the last sentence of what it has to say: write no closing
+        phrase — not even "Best regards", "Kind regards", or "Thanks" on a line of its own — and no name, initials, job
+        title, phone number, or other sign-off, because the footer carries all of it. A message from any other account
+        closes the way the person closes their mail.
+
         When a next question naturally follows from your answer, suggest up to
         {AgentConversationBounds.MaximumFollowUps} with suggest_follow_ups before you answer: each short, in {language},
         on the subject the person asked about, and written as they would ask it of you. A suggestion is a question and

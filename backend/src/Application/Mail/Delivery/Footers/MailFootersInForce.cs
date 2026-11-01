@@ -63,6 +63,22 @@ public sealed class MailFootersInForce(
             : null;
     }
 
+    /// <summary>Reads whether a message one user sends now from one account carries a footer, without filling or reading what it says.</summary>
+    /// <param name="user">The user sending.</param>
+    /// <param name="account">The account sent from.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns><see langword="true" /> where the message carries the user's own footer or the organization's template.</returns>
+    /// <remarks>
+    /// This is what an agent drafting for the user is told in place of the footer: whether the message closes with one
+    /// is all its wording needs, and the footer itself carries the person's name, title, and number.
+    /// </remarks>
+    public async Task<bool> HasFooterAsync(UserId user, MailAccountId account, CancellationToken cancellationToken)
+    {
+        var sources = await store.ReadSourcesAsync(user, account, cancellationToken);
+
+        return sources.IsSetByOrganization || sources.Own is not null;
+    }
+
     /// <summary>Appends the footer in force to a message about to be written down for sending.</summary>
     /// <param name="request">The send that was asked for, naming who asked and from which account.</param>
     /// <param name="rawMime">The message as it was composed.</param>

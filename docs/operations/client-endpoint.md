@@ -3542,7 +3542,8 @@ Content-Type: application/json
 {
   "contextEmailIds": [ "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90" ],
   "selection": "Could you confirm the racking is still 4 200 net?",
-  "instruction": "Confirm the price and offer Tuesday at ten."
+  "instruction": "Confirm the price and offer Tuesday at ten.",
+  "account": "work"
 }
 ```
 
@@ -3588,6 +3589,13 @@ old it is beside the most recent messages of its conversation, so the draft answ
 typed about the reply — what it should say, the person's own rough version of it, or both, which the drafting tells
 apart itself — at most 4 000 characters as well; both are optional beside a context, and a request carrying neither is
 the ordinary one.
+
+**`account` is the one thing about the message a client states**, because it is the account the composer sends from,
+which is the person's choice rather than a fact of the mail. It decides only how the draft closes: where a message sent
+from that account carries the person's [footer](../features/mail-footers.md) — their own or their organization's — the
+draft ends at its own words and leaves the closing, the name, and the contact details to the footer; elsewhere it closes
+as the person closes their mail. It is optional, and an account that is not this user's, or none, is read as one
+appending no footer rather than refused, so the answer says nothing about somebody else's account.
 
 **`contextEmailIds` is empty for a message that answers nothing**, which is the composer somebody opened with nothing
 in front of it. There is then no conversation to read, so `instruction` is what the message is written from and is

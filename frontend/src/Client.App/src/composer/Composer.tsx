@@ -501,6 +501,7 @@ export function Composer({
             contextEmailIds: context,
             selection: passage === null ? null : passage.slice(0, longestDraftSelection),
             instruction,
+            account: composition.account,
         }).then((answer) => {
             // A draft asked for as the composer opened is often still in flight when it closes, and an answer for a
             // composer nobody has open is neither written anywhere nor worth a notice.

@@ -85,6 +85,11 @@ namespace MailFathom.Evaluations.ReplyDrafts;
 /// An address a message in the conversation, speaking as the person, told the drafting to send the reply to, which the
 /// draft must then not propose, or <see langword="null" /> where no message names one.
 /// </param>
+/// <param name="ClosesWithFooter">
+/// Whether the account the reply is sent from appends the person's footer, which the draft must then leave the closing
+/// to, and <see langword="false" /> for one appending none, which the draft must then close itself — or
+/// <see langword="null" /> where the case holds the closing to nothing and the turn says nothing of a footer.
+/// </param>
 internal sealed partial record ReplyDraftScenario(
     string Name,
     IReadOnlyList<CorpusMessage> Conversation,
@@ -98,7 +103,8 @@ internal sealed partial record ReplyDraftScenario(
     CorpusMessage? Chosen = null,
     IReadOnlyList<string>? RequiredWords = null,
     ReplyDraftScenarioAttachment? Attachment = null,
-    string? ForgedRecipient = null)
+    string? ForgedRecipient = null,
+    bool? ClosesWithFooter = null)
 {
     /// <summary>The check that the answer read as a draft.</summary>
     public const string ReadAsADraftMetricName = "Read as a draft";
@@ -140,6 +146,25 @@ internal sealed partial record ReplyDraftScenario(
             "Keep it to two or three sentences, warm but businesslike.",
             AsksForWhatNothingSupports: false,
             MinimumTaskAdherence: 4),
+
+        // The same reply sent from an account that appends the person's footer and from one that appends none: the
+        // first ends at its own words however the person's own sent mail closes, the second closes as that mail does.
+        new(
+            "ReplyDraft.LeavesTheClosingToTheFooter",
+            CorpusMessage.ConversationUpTo(position: 22),
+            "Thank Zofia for checking the corrected invoice and say that we now consider INV-4827 closed.",
+            "Keep it to two or three sentences, warm but businesslike.",
+            AsksForWhatNothingSupports: false,
+            MinimumTaskAdherence: 4,
+            ClosesWithFooter: true),
+        new(
+            "ReplyDraft.ClosesWithoutAFooter",
+            CorpusMessage.ConversationUpTo(position: 22),
+            "Thank Zofia for checking the corrected invoice and say that we now consider INV-4827 closed.",
+            "Keep it to two or three sentences, warm but businesslike, and close it as I close my mail.",
+            AsksForWhatNothingSupports: false,
+            MinimumTaskAdherence: 4,
+            ClosesWithFooter: false),
         new(
             "ReplyDraft.MovesAMeeting",
             CorpusMessage.ConversationUpTo(position: 6),
@@ -505,7 +530,11 @@ internal sealed partial record ReplyDraftScenario(
 
         var sources = this.Sources();
         var turn = await ReplyDraftAgent.ComposeTurnAsync(
-            MailReplyDrafting.BriefOf(sources, new ReplyDraftRequest { Instruction = $"{this.Ask} {this.Manner}" }, this.ReaderLanguage),
+            MailReplyDrafting.BriefOf(
+                sources,
+                new ReplyDraftRequest { Instruction = $"{this.Ask} {this.Manner}" },
+                this.ReaderLanguage,
+                this.ClosesWithFooter is true),
             SensitiveContentEgressGuards.Inactive(),
             plan,
             cancellationToken);
@@ -686,6 +715,17 @@ internal sealed partial record ReplyDraftScenario(
                 CitesTheChosenMessageMetricName,
                 citesChosen,
                 citesChosen ? "A claim cites the message the person chose to answer." : "No claim cites the message the person chose to answer.");
+        }
+
+        if (this.ClosesWithFooter is { } closesWithFooter)
+        {
+            var shortfall = SignOff.Shortfall(document?.Body, closesWithFooter);
+
+            EvaluationMetrics.Record(
+                verdict,
+                SignOff.MetricName,
+                shortfall is null,
+                shortfall ?? (closesWithFooter ? "The draft ends at its own words and leaves the closing to the footer." : "The draft closes itself."));
         }
 
         if (this.RequiredWords is { } requiredWords)

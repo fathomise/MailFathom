@@ -96,6 +96,17 @@ a message the person sent, in Sent and in a conversation alike, draws the blocks
 that one line under their words and above the conversation they quoted. A message whose document names no footer is
 drawn whole, and the sender's own markup, which is the message exactly as it went out, folds nothing.
 
+## What an agent drafting for the person is told
+
+The two agents that write a message for somebody to send — [the reply drafter](reply-drafting.md) and the Agent's
+message and reply proposals — are told, for the account the message goes out from, whether the person's footer or the
+organization's will close it, and nothing else about it. Where one will, the draft ends at its own words, with no
+closing phrase, name, job title, or contact details, so the message closes once rather than twice; where none will, it
+closes as before. The drafter learns it from the account the composer sends from, and the Agent from the accounts its
+turn names and, for a reply or a forward, from the account holding the message answered. The footer's own text never
+reaches a model provider: it is a person's name, title, and phone number, and a yes or a no is all a draft's wording
+needs.
+
 ## Personal data
 
 A footer usually names its writer and carries their phone number, so it is personal data about them. It is never
