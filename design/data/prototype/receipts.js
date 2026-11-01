@@ -5,8 +5,8 @@
 // What came back for a message the account sent, keyed by thread: the reports for the thread's newest own message.
 // `asked` is what that message requested - `dsn`, a delivery status notification (RFC 3461), and `mdn`, a read receipt
 // (RFC 8098). Per recipient, `dsn` is the outcome a delivery status notification reported - `delivered`, `failed` or
-// `delayed`, null where none came back - with `dsnAt` when it arrived, `by` the server that reported it and `why` the
-// reason a failure or a delay gives; `read` is when a read receipt reported the message displayed, null where none
+// `delayed`, null where none came back - with `dsnAt` when it arrived, `by` the server that reported it and `status` the
+// status code a failure or a delay gives; `read` is when a read receipt reported the message displayed, null where none
 // came back. `internal` marks a colleague's account of the same organization on this deployment, whose delivery and
 // opening MailFathom records itself, with no request and no report. Every name, address and server is made up.
 MailFathomDesign.data.receipts = {
@@ -34,7 +34,7 @@ MailFathomDesign.data.receipts = {
     asked: { dsn: true, mdn: false },
     to: [
       { name: "Robert Lis", addr: "r.lis@northwind.example", dsn: "failed", dsnAt: "25.08 10:15", by: "mx2.northwind.example",
-        why: "The mailbox does not exist (5.1.1)." },
+        status: "5.1.1" },
     ],
   },
   audyt1: {
@@ -42,14 +42,14 @@ MailFathomDesign.data.receipts = {
     to: [
       { name: "Internal Audit", addr: "audit@company.example", dsn: "delivered", dsnAt: "24.08 09:12", by: "mx.company.example", read: "24.08 09:30" },
       { name: "Ola Krawiec", addr: "o.krawiec@company.example", dsn: "failed", dsnAt: "24.08 09:13", by: "mx.company.example",
-        why: "The mailbox is full (5.2.2)." },
+        status: "5.2.2" },
     ],
   },
   fabrikam1: {
     asked: { dsn: true, mdn: false },
     to: [
       { name: "Tomasz Bąk", addr: "t.bak@fabrikam.example", dsn: "delayed", dsnAt: "26.08 14:40", by: "relay.fabrikam.example",
-        why: "Their server has not accepted it yet and is still being tried, until 28.08 14:10." },
+        status: "4.4.1" },
     ],
   },
   klient3: {

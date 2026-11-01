@@ -6,8 +6,6 @@ import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } fr
 import { flushSync } from 'react-dom';
 import {
     addAuthorToContacts,
-    readMailMessage,
-    type ClientFailure,
     type ClientFailureReason,
     type ClientSession,
     type MailFathomTransport,
@@ -22,10 +20,9 @@ import type { MessageKey } from '../localization/en';
 import { wordInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
-import { useTopLayerSurface } from '../shell/screenLayers';
-import { pressedOutside } from '../shell/usePressOutsideSurface';
-import { useDesktopComposition } from '../shell/useWideWorkspace';
-import { detailsPlacement } from './detailsPlacement';
+import { senderDetailsShape, type MarkAnchor } from '../markDetails/detailsPlacement';
+import { MarkDetailsDialog } from '../markDetails/MarkDetailsDialog';
+import { useAskedMessage } from '../markDetails/useAskedMessage';
 import { listedSenderOf, senderMarkInk, senderMarkOf, senderMarkPill, senderMarksDrawn } from './senderMarks';
 import { senderVerificationOf, type Said, type VerificationStep } from './verificationSteps';
 
@@ -34,10 +31,7 @@ import { senderVerificationOf, type Said, type VerificationStep } from './verifi
 // offers on the message: writing its author down in the reader's own contacts, said before it is done, and leaving the
 // mark as it stands until the mail is judged again.
 //
-// **Anchored under the mark at the desktop, a sheet rising from the foot of the window below it**, which is the design's
-// own: a popup beside a list row reads as about that row where there is room for both, and a finger wants the whole
-// width. One `dialog` either way, so the platform traps focus, answers Escape, and hands focus back to whatever opened
-// it.
+// They stand in the surface every mark on a message opens its details in, `markDetails/MarkDetailsDialog.tsx`.
 //
 // **A row carries the four facts and the details need the evidence**, so details opened from a row read the message
 // when they open, and say so while they do; details opened from a message already read are drawn from it at once.
@@ -50,7 +44,7 @@ export interface AskedSender {
     readonly message: MailMessage | null;
 
     /** Where the mark that opened them stands, or `null` where nothing on the screen did. */
-    readonly anchor: { readonly left: number; readonly top: number; readonly bottom: number } | null;
+    readonly anchor: MarkAnchor | null;
 }
 
 const failureLabels: Readonly<Record<ClientFailureReason, MessageKey>> = {
@@ -193,57 +187,17 @@ function DetailsDialog({
     readonly onOpened?: () => void;
     readonly children: ReactNode;
 }) {
-    const closesOnBack = useTopLayerSurface();
-    const desktop = useDesktopComposition();
-
-    // The one value here a token cannot hold: where the mark that asked happens to stand.
-    const placed =
-        desktop && anchor !== null
-            ? detailsPlacement(anchor, { width: window.innerWidth, height: window.innerHeight })
-            : null;
-
     return (
-        <dialog
-            ref={dialog}
-            onToggle={(event) => {
-                closesOnBack(event);
-
-                if (event.newState === 'open') {
-                    onOpened?.();
-                }
-            }}
-            aria-labelledby={names}
-            data-pull="down"
-            onClick={(event) => {
-                // Below the desktop a press beside the sheet is the frame's to answer, as for every sheet; at the
-                // desktop nothing dims the screen behind the details, so a press beside them is a press elsewhere.
-                const surface = event.currentTarget;
-
-                if (desktop && event.target === surface && pressedOutside(surface, event.clientX, event.clientY)) {
-                    surface.close();
-                }
-            }}
-            style={
-                placed === null
-                    ? undefined
-                    : {
-                          left: placed.left,
-                          top: placed.top ?? 'auto',
-                          bottom: placed.bottom ?? 'auto',
-                          maxHeight: placed.maxHeight,
-                      }
-            }
-            className={`max-desktop:surface-sheet desktop:surface-pop fixed m-0 hidden flex-col overflow-hidden bg-panel p-0 text-text open:flex max-desktop:inset-x-0 max-desktop:top-auto max-desktop:bottom-0 max-desktop:mx-auto max-desktop:max-h-sheet-height max-desktop:w-full max-desktop:max-w-150 max-desktop:rounded-t-xl max-desktop:border-0 max-desktop:pb-safe-bottom max-desktop:shadow-dialog max-desktop:backdrop:bg-scrim desktop:w-98 desktop:max-w-full desktop:rounded-lg desktop:border desktop:border-line desktop:shadow-dialog desktop:backdrop:bg-transparent ${
-                placed === null ? 'desktop:m-auto' : ''
-            }`}
+        <MarkDetailsDialog
+            dialog={dialog}
+            anchor={anchor}
+            shape={senderDetailsShape}
+            widthClass="desktop:w-98"
+            names={names}
+            {...(onOpened === undefined ? {} : { onOpened })}
         >
-            {/* The handle the design draws at the head of the sheet, which says a finger can push it away. */}
-            <span aria-hidden="true" className="flex shrink-0 justify-center py-2 desktop:hidden">
-                <span className="h-1 w-9.5 rounded-xs bg-line-strong" />
-            </span>
-
             {children}
-        </dialog>
+        </MarkDetailsDialog>
     );
 }
 
@@ -261,7 +215,7 @@ function AskedSenderDetails({
     readonly onClose: () => void;
 }) {
     const { translate } = useLocalization();
-    const read = useAskedMessage(session, transport, asked);
+    const read = useAskedMessage(session, transport, asked.storedEmailId, asked.message);
     const close = <SurfaceControl label={translate('senderMark.close')} icon="close" onActivate={onClose} />;
 
     if (read.message === null) {
@@ -655,57 +609,4 @@ function Step({ step, keyDetails }: { readonly step: VerificationStep; readonly 
             )}
         </li>
     );
-}
-
-interface AskedMessageRead {
-    readonly message: MailMessage | null;
-    readonly failure: ClientFailure | null;
-    readonly readAgain: () => void;
-}
-
-/** What one answer was to, so an answer for a sender nobody is asking about any more is not drawn as this one. */
-interface MessageAnswer {
-    readonly attempt: number;
-    readonly message: MailMessage | null;
-    readonly failure: ClientFailure | null;
-}
-
-// The message in hand where the surface that asked had already read it, and one read of it otherwise — made when the
-// details open, since a row publishes the four facts its mark is chosen from and none of the evidence behind them.
-function useAskedMessage(session: ClientSession, transport: MailFathomTransport, asked: AskedSender): AskedMessageRead {
-    const [attempt, setAttempt] = useState(0);
-    const [answer, setAnswer] = useState<MessageAnswer | null>(null);
-    const inHand = asked.message;
-
-    useEffect(() => {
-        if (inHand !== null) {
-            return;
-        }
-
-        let listening = true;
-
-        void readMailMessage(session, transport, asked.storedEmailId).then((result) => {
-            if (listening) {
-                setAnswer({
-                    attempt,
-                    message: result.outcome === 'read' ? result.value : null,
-                    failure: result.outcome === 'failed' ? result.failure : null,
-                });
-            }
-        });
-
-        return () => {
-            listening = false;
-        };
-    }, [session, transport, asked.storedEmailId, inHand, attempt]);
-
-    const standing = answer?.attempt === attempt ? answer : null;
-
-    return {
-        message: inHand ?? standing?.message ?? null,
-        failure: inHand === null ? (standing?.failure ?? null) : null,
-        readAgain: () => {
-            setAttempt(attempt + 1);
-        },
-    };
 }

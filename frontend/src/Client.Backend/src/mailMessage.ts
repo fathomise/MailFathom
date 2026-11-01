@@ -3,6 +3,14 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
+import {
+    parseReadReceiptRequest,
+    parseReceipts,
+    parseReport,
+    type MailReadReceiptRequest,
+    type MailReceipts,
+    type MailReport,
+} from './mailReceipts';
 import { parseSpamVerdict, type MailSpamVerdict } from './mailSpam';
 import { parsePersonPhoto, type PersonPhotoReference } from './personPhotos';
 import {
@@ -274,6 +282,15 @@ export interface MailMessage {
 
     /** The photo the author the message displays — its first `From` mailbox — is drawn by, or `null` for their initials. */
     readonly senderPhoto: PersonPhotoReference | null;
+
+    /** The delivery report or read receipt the message was recognized as, or `null` for every other message. */
+    readonly report: MailReport | null;
+
+    /** What the account's own message asked to be told and what came back for each recipient, or `null` where it asked for nothing and nothing came. */
+    readonly receipts: MailReceipts | null;
+
+    /** A received message's request for a read receipt and whether it was answered, or `null` where it asked for none or is spam. */
+    readonly readReceiptRequest: MailReadReceiptRequest | null;
 }
 
 // A description composes to a stated size, so the backstop written for a stranger is far looser than this answer ever
@@ -461,6 +478,13 @@ export function parseMailMessage(value: unknown): MailMessage | null {
         return null;
     }
 
+    const report = parseReport(record['report']);
+    const receipts = parseReceipts(record['receipts']);
+    const readReceiptRequest = parseReadReceiptRequest(record['readReceiptRequest']);
+    if (report === undefined || receipts === undefined || readReceiptRequest === undefined) {
+        return null;
+    }
+
     return {
         storedEmailId,
         account,
@@ -478,6 +502,9 @@ export function parseMailMessage(value: unknown): MailMessage | null {
         answered,
         spam: judged.spam,
         senderPhoto: drawnBy.photo,
+        report,
+        receipts,
+        readReceiptRequest,
     };
 }
 

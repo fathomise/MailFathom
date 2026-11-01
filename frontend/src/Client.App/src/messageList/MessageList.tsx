@@ -46,6 +46,8 @@ import { MessageRow } from '../messageRows/MessageRow';
 import { MessageRowMenu, type ActAsked } from '../messageRows/MessageRowMenu';
 import { ReadingsAsked, type AskedReadings } from '../messageRows/ReadingsAsked';
 import { SenderDetails, type AskedSender } from '../senderMark/SenderDetails';
+import { ReceiptDetails, type AskedReceipts } from '../receipts/ReceiptDetails';
+import { standingOfSummary } from '../receipts/receiptMarks';
 import { marksSender, senderMarkOf } from '../senderMark/senderMarks';
 import { rowMark, rowWithFlags, type RowContents } from '../messageRows/rowContents';
 import {
@@ -261,6 +263,7 @@ export function MessageList({
 
     // Whose sender is being explained, which outlives the menu it may have been asked from for the same reason.
     const [askedSender, setAskedSender] = useState<AskedSender | null>(null);
+    const [askedReceipts, setAskedReceipts] = useState<AskedReceipts | null>(null);
 
     // Whether the reader has been put back where they were. State rather than a ref, because what depends on it is what
     // the list asks the deployment for, and that is worked out during render: a list restored into a page it opened
@@ -274,6 +277,7 @@ export function MessageList({
     const filing = useRef<HTMLDialogElement>(null);
     const checking = useRef<HTMLDialogElement>(null);
     const explaining = useRef<HTMLDialogElement>(null);
+    const receiptsExplained = useRef<HTMLDialogElement>(null);
     const elements = useRef(new Map<number, HTMLLIElement>());
     const wantsFocus = useRef(false);
 
@@ -745,11 +749,45 @@ export function MessageList({
             setAskedSender({
                 storedEmailId: email.id,
                 message: null,
-                anchor: anchor === null ? null : { left: anchor.left, top: anchor.top, bottom: anchor.bottom },
+                anchor:
+                    anchor === null
+                        ? null
+                        : { left: anchor.left, right: anchor.right, top: anchor.top, bottom: anchor.bottom },
             });
         });
         closeMenu();
         explaining.current?.showModal();
+    }
+
+    // What came back for one message the account sent, which only a Sent folder marks on its rows — and only where
+    // something came back.
+    function marksReceiptsOf(email: MailTimelineEntry): boolean {
+        return (
+            standingOfSummary(email.receipts) !== null &&
+            acts.folderRoleOf({
+                storedEmailId: email.id,
+                account: email.account,
+                folder: email.folder,
+                unread: email.unread,
+                flagged: email.flagged,
+                spam: email.spam,
+            }) === 'Sent'
+        );
+    }
+
+    function explainReceipts(email: MailTimelineEntry, anchor: DOMRect | null): void {
+        flushSync(() => {
+            setAskedReceipts({
+                storedEmailId: email.id,
+                message: null,
+                anchor:
+                    anchor === null
+                        ? null
+                        : { left: anchor.left, right: anchor.right, top: anchor.top, bottom: anchor.bottom },
+            });
+        });
+        closeMenu();
+        receiptsExplained.current?.showModal();
     }
 
     function hasReadings(email: MailTimelineEntry): boolean {
@@ -1137,6 +1175,13 @@ export function MessageList({
                                                   }
                                                 : undefined
                                         }
+                                        onReceiptDetails={
+                                            marksReceiptsOf(email)
+                                                ? (anchor) => {
+                                                      explainReceipts(email, anchor);
+                                                  }
+                                                : undefined
+                                        }
                                         onOpen={() => {
                                             open(row);
                                         }}
@@ -1206,6 +1251,10 @@ export function MessageList({
                         onSenderDetails={() => {
                             explainSender(row, null);
                         }}
+                        receipt={marksReceiptsOf(row) ? standingOfSummary(row.receipts) : null}
+                        onReceiptDetails={() => {
+                            explainReceipts(row, null);
+                        }}
                         onClose={closeMenu}
                     />
                 )}
@@ -1220,6 +1269,8 @@ export function MessageList({
             <ReadingsAsked asked={askedReadings} session={session} transport={transport} dialog={checking} />
 
             <SenderDetails asked={askedSender} session={session} transport={transport} dialog={explaining} />
+
+            <ReceiptDetails asked={askedReceipts} session={session} transport={transport} dialog={receiptsExplained} />
         </div>
     );
 }

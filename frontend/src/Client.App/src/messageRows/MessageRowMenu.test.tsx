@@ -17,6 +17,7 @@ import {
 } from '../mailboxActs/useMailboxActs';
 import { AgentHandOverContext, type AgentHandOver } from '../routing/agentHandOver';
 import { ToastContext, type Toast } from '../toasts/useToasts';
+import type { ReceiptStanding } from '../receipts/receiptMarks';
 import { MessageRowMenu } from './MessageRowMenu';
 import type { SenderMark } from '../senderMark/senderMarks';
 import { listedSender } from '../../../../tests/fixtures/senders';
@@ -77,6 +78,8 @@ function menuUnder({
     raise = vi.fn(),
     senderMark = null,
     onSenderDetails,
+    receipt = null,
+    onReceiptDetails,
 }: {
     acts?: MailboxActs;
     composing?: Composing;
@@ -89,6 +92,8 @@ function menuUnder({
     raise?: (toast: Toast) => void;
     senderMark?: SenderMark | null;
     onSenderDetails?: () => void;
+    receipt?: ReceiptStanding | null;
+    onReceiptDetails?: () => void;
 } = {}): void {
     render(
         <LocalizationProvider>
@@ -105,6 +110,8 @@ function menuUnder({
                                 onCheckReadings={onCheckReadings}
                                 senderMark={senderMark}
                                 onSenderDetails={onSenderDetails}
+                                receipt={receipt}
+                                onReceiptDetails={onReceiptDetails}
                                 onClose={vi.fn()}
                             />
                         </MailboxActsContext>
@@ -176,6 +183,30 @@ describe('MessageRowMenu', () => {
         menuUnder({ senderMark: null, onSenderDetails: vi.fn() });
 
         expect(screen.queryByRole('menuitem', { name: 'Sender details' })).toBeNull();
+    });
+
+    it('names what came back beside who the message is from, since a finger cannot rest on the row’s mark', () => {
+        menuUnder({ receipt: { mark: 'read', count: 2, of: 3 }, onReceiptDetails: vi.fn() });
+
+        expect(screen.getByText('Anna Kowalska - Read by 2 of 3')).toBeDefined();
+    });
+
+    it('offers the receipt details last, which is the keyboard’s way to them from a row', () => {
+        const onReceiptDetails = vi.fn();
+
+        menuUnder({ receipt: { mark: 'delivered', count: 1, of: 1 }, onReceiptDetails });
+
+        expect(drawn().at(-1)).toBe('Receipt details');
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Receipt details' }));
+
+        expect(onReceiptDetails).toHaveBeenCalledOnce();
+    });
+
+    it('offers no receipt details for a row that draws no mark', () => {
+        menuUnder({ receipt: null, onReceiptDetails: vi.fn() });
+
+        expect(screen.queryByRole('menuitem', { name: 'Receipt details' })).toBeNull();
     });
 
     // The design draws the row's context menu with *Remove the flag* over a flagged message, so the menu reads the flag

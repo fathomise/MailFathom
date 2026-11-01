@@ -20,10 +20,12 @@ import type { ArrivalMark } from './threadOpening';
 // One message of a conversation, drawn out in full — which is the whole of what this component decides, because what a
 // message looks like is `readingPane/OpenedMessage.tsx`'s and is the same drawing wherever a message is drawn.
 //
-// **Nothing here collapses.** The design draws a conversation as one document with every message in it written
-// out, and it hands the mail screen `showExpandAll: false` — so there is no per-message control, and what a reader
-// decides is how much of the correspondence stands in front of them rather than which message of it is open. The
-// conversation's own head is where that decision is made, and this is what it reveals.
+// **Nothing here collapses but a report.** The design draws a conversation as one document with every message in it
+// written out, and it hands the mail screen `showExpandAll: false` — so there is no per-message control, and what a
+// reader decides is how much of the correspondence stands in front of them rather than which message of it is open. The
+// conversation's own head is where that decision is made, and this is what it reveals. The one exception is a delivery
+// report or a read receipt that came back as mail, which `readingPane/OpenedMessage.tsx` folds to the one line naming
+// what it reports until a press unfolds it, wherever it is drawn.
 //
 // The body comes with the conversation rather than from a read of its own: one request carries every message of the
 // correspondence, so revealing the history costs nothing on the wire. A message whose local copy the deployment could
@@ -64,6 +66,8 @@ export function ThreadMessage({
     mark,
     fresh = false,
     summarized = false,
+    receiptsShown = false,
+    answersReadReceipt = false,
     motion,
     online,
     onShowFullHtml,
@@ -84,6 +88,12 @@ export function ThreadMessage({
 
     /** Whether this is the newest message somebody else wrote, whose head carries the conversation's AI summary. */
     readonly summarized?: boolean;
+
+    /** Whether this is the newest message the account sent, whose head carries what came back for it. */
+    readonly receiptsShown?: boolean;
+
+    /** Whether this is the newest message somebody else wrote, which offers a read receipt it asks for. */
+    readonly answersReadReceipt?: boolean;
 
     /** How this message moves as the history is shown or hidden, or `null` where it stands still. */
     readonly motion: HistoryMotion | null;
@@ -155,6 +165,8 @@ export function ThreadMessage({
                             message={message.message}
                             body={body}
                             onShowFullHtml={onShowFullHtml}
+                            receiptsShown={receiptsShown}
+                            answersReadReceipt={answersReadReceipt}
                             marks={
                                 fresh ? (
                                     <span className="shrink-0 rounded-sm bg-accent px-1.75 py-px text-xs/4 font-semibold whitespace-nowrap text-on-accent">

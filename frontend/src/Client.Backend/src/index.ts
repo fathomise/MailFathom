@@ -398,6 +398,21 @@ export {
 } from './mailAttachment';
 export { longestMailSource, mailSourceRoute, readMailSource, type MailSource } from './mailSource';
 export {
+    mailReadReceiptRoute,
+    sendReadReceipt,
+    type MailReadReceiptRequest,
+    type MailReadReceiptSending,
+    type MailReceiptOutcome,
+    type MailReceipts,
+    type MailReceiptSource,
+    type MailReceiptSummary,
+    type MailRecipientReceipts,
+    type MailRecordedReceipt,
+    type MailReport,
+    type MailReportKind,
+    type MailReportRecipient,
+} from './mailReceipts';
+export {
     mailMessageRoute,
     readMailMessage,
     type MailAttachment,

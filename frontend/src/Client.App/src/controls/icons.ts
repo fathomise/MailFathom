@@ -58,6 +58,8 @@ export const iconNames = [
     'description',
     'dns',
     'do_not_disturb_on',
+    'done',
+    'done_all',
     'download',
     'draft',
     'drive_file_move',

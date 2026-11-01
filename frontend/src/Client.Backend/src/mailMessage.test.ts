@@ -342,6 +342,32 @@ describe('readMailMessage', () => {
         expect([drawn?.senderPhoto, initials?.senderPhoto]).toEqual([senderPhoto, null]);
     });
 
+    it('reads what came back for the account’s own message, a report it is, and a read receipt it asks for', async () => {
+        const receipts = {
+            deliveryRequested: false,
+            readRequested: true,
+            recipients: [{ address: 'marta.nowak@example.invalid', delivery: null, read: null }],
+        };
+        const report = {
+            kind: 'Read',
+            recipients: [{ address: 'marta.nowak@example.invalid', outcome: 'Displayed' }],
+            reportedAt: '2026-08-25T17:40:00+00:00',
+            namesOwnMessage: true,
+            ownMessageSubject: 'CPI calculation 2027',
+        };
+        const readReceiptRequest = { address: 'j.wrona@example.invalid', namesAnotherAddress: false, sentAt: null };
+
+        const drawn = await readingOf(described({ receipts, report, readReceiptRequest }));
+        const plain = await readingOf(described());
+
+        expect([drawn?.receipts, drawn?.report, drawn?.readReceiptRequest]).toEqual([
+            receipts,
+            report,
+            readReceiptRequest,
+        ]);
+        expect([plain?.receipts, plain?.report, plain?.readReceiptRequest]).toEqual([null, null, null]);
+    });
+
     it('reads a message whose parts nothing has ever read as one carrying no counts', async () => {
         const message = await readingOf(described({ carried: null }));
 
@@ -436,6 +462,7 @@ describe('readMailMessage', () => {
             described({ senderPhoto: { book: 'Collected', id: 'x', photo: 'y' } }),
         ],
         ['more attachments than a message may carry', tooManyAttachments()],
+        ['a read receipt request naming no address', described({ readReceiptRequest: { namesAnotherAddress: false } })],
     ])('refuses %s rather than reading part of it', async (_shape, body) => {
         const result = await readMailMessage(session, answering({ status: 200, body }), messageId);
 

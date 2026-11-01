@@ -40,6 +40,7 @@ import {
     type Arrival,
     type FreshMessages,
 } from './threadOpening';
+import { reportHeadlineOf } from '../receipts/reportWords';
 import { ThreadMessage, type HistoryMotion } from './ThreadMessage';
 import { ThreadState } from './ThreadState';
 
@@ -255,6 +256,11 @@ export function Thread({
                 received(message) && !isSpam(drawnSpam(acts, { id: message.email.id, spam: message.email.spam })),
         )?.email.id ?? null;
     const standsOnSpam = opened !== null && isSpam(drawnSpam(acts, { id: opened.email.id, spam: opened.email.spam }));
+
+    // What came back belongs to the newest message the account sent, and a read receipt asked of the reader is offered
+    // on the newest message somebody else wrote — each on that one message and no earlier one.
+    const newestOwnId = held.findLast((message) => !received(message))?.email.id ?? null;
+    const newestReceivedId = held.findLast(received)?.email.id ?? null;
 
     // What stands first in the column under the head, which is what decides whether arriving has anywhere to scroll to.
     const firstDrawnId = drawn[0]?.email.id ?? null;
@@ -531,7 +537,9 @@ export function Thread({
     // neither the absence nor the reason. What a read that answered with nothing draws is the absence itself, which is
     // a state the block says in a sentence.
     const derived = derivation?.outcome === 'read' ? derivation.value : null;
-    const subject = held[0]?.email.subject ?? translate('message.noSubject');
+    // A conversation that is a report come back as mail is named by what it reports, as its row is.
+    const first = held[0]?.email ?? null;
+    const subject = reportHeadlineOf(first, translate, locale) ?? first?.subject ?? translate('message.noSubject');
     const handOver = { scope: { kind: 'thread', subject: conversation.threadId }, title: subject } as const;
     const stateBlock =
         derivation?.outcome === 'failed' || (panelsHidden && twoPanes) || standsOnSpam ? undefined : (
@@ -668,6 +676,8 @@ export function Thread({
                                 }
                                 fresh={fresh?.news.has(message.email.id) === true}
                                 summarized={message.email.id === summarizedId}
+                                receiptsShown={message.email.id === newestOwnId}
+                                answersReadReceipt={message.email.id === newestReceivedId}
                                 // A rule pointing at the only message on the screen points at nothing, so the mark
                                 // waits for the rest of the correspondence to stand beside it. Asked here rather than
                                 // where the arrival is decided, because it is a question about what is drawn: showing

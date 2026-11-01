@@ -360,7 +360,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     const lines = [];
     if (r.read) lines.push("Displayed " + r.read + " · their read receipt");
     if (r.dsn === "delivered") lines.push("Delivered " + r.dsnAt + " · " + r.by);
-    if (r.dsn === "failed" || r.dsn === "delayed") lines.push(r.why, "Reported " + r.dsnAt + " · " + r.by);
+    if (r.dsn === "failed" || r.dsn === "delayed") lines.push("The server reported status " + r.status + ".", "Reported " + r.dsnAt + " · " + r.by);
     if (asked.dsn && !r.dsn) lines.push("No delivery notification back yet.");
     if (asked.mdn && !r.read && r.dsn !== "failed") lines.push("No read receipt back yet.");
     return lines;
@@ -4000,14 +4000,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
       /* The receipt mark: on a Sent row the glyph alone among the row's markers before the flag, beside an own
          message's head a badge naming the outcome. Either opens the same details. A row draws nothing for a request
-         nothing came back for; the opened message does. */
+         nothing came back for; the opened message does. A row is named by the word alone: what a list carries for a
+         row is the counts, so each recipient's own outcome is named by the badge and the details. */
       const inSent = /·Sent$/.test(st.folderKey || "");
       const rcptOpen = (id) => !!(st.receiptPop && st.receiptPop.id === id);
       const withReceipt = (t, row) => {
         const R = convMail ? (convMsgsFor(t).slice(-1)[0].mine ? receiptOf(t.id) : null) : inSent ? receiptOf(t.id) : null;
         if (!R || R.k === "waiting") return Object.assign(row, { rcptShown: false });
         return Object.assign(row, {
-          rcptShown: true, rcptGlyph: R.glyph, rcptName: R.name, rcptOpen: rcptOpen(t.id),
+          rcptShown: true, rcptGlyph: R.glyph, rcptName: R.word, rcptOpen: rcptOpen(t.id),
           openRcpt: (e) => this.openReceipt(t.id, e),
           rcptBtnStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:" + RECEIPT_INK[R.tone] + ";" +
             (touch ? "width:44px;height:44px;margin:-12px -10px;" : "width:24px;height:24px;margin:-4px -3px;"),
@@ -4042,6 +4043,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           mdnAskShown: true, mdnSentShown: false,
           mdnAskText: from + " asked for a read receipt" + (rq.to === fromAddr ? "." : ", to be sent to " + rq.to + " rather than to them."),
           mdnAskNote: "Sending one tells them you opened this message. Nothing is sent unless you send it.",
+          /* The server refused or could not take it: nothing in the prototype fails a send, so this is reached only
+             with `mdnFailed` set for the thread by hand. The offer stays, so it can be sent again. */
+          mdnFailShown: !busy && !!(st.mdnFailed || {})[th.id],
+          mdnFailText: "The read receipt was not sent: " + ((st.mdnFailed || {})[th.id] || "") + ".",
           mdnBtnLabel: busy ? "Sending…" : "Send read receipt",
           mdnBtnTitle: this.writeRefusedTitle("send", "Send read receipt"),
           mdnBtnOff: busy || refused,

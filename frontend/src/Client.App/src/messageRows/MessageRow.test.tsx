@@ -26,6 +26,8 @@ const email: MailTimelineEntry = {
     senderAddress: 'writer@nordwind.example',
     senderDisplayName: 'Writer',
     senderPhoto: null,
+    report: null,
+    receipts: null,
     toAddresses: ['user@example.invalid'],
     unread: false,
     flagged: false,
@@ -1130,6 +1132,137 @@ describe('MessageRow, the mark on who sent the message', () => {
 
         expect(pointed).not.toHaveBeenCalled();
         expect(opened).not.toHaveBeenCalled();
+    });
+});
+
+describe('MessageRow, the mark on what came back for a sent message', () => {
+    const counted: NonNullable<MailTimelineEntry['receipts']> = {
+        recipients: 3,
+        delivery: { requested: true, delivered: 3, delayed: 0, failed: 0 },
+        read: { requested: true, read: 2 },
+    };
+
+    function receiptRow(
+        receipts: MailTimelineEntry['receipts'],
+        onReceiptDetails?: (anchor: DOMRect) => void,
+        onOpen: () => void = vi.fn(),
+    ): HTMLElement {
+        render(
+            <LocalizationProvider>
+                <ul>
+                    <MessageRow
+                        email={{ ...email, folder: 'Sent', receipts }}
+                        position={1}
+                        open={false}
+                        selected={false}
+                        focusable
+                        onReceiptDetails={onReceiptDetails}
+                        onOpen={onOpen}
+                        onPoint={() => undefined}
+                        onElement={() => undefined}
+                    />
+                </ul>
+            </LocalizationProvider>,
+        );
+
+        return screen.getByRole('option');
+    }
+
+    it('says what came back in words, counted over the recipients, inside the row a screen reader reads', () => {
+        expect(receiptRow(counted, () => undefined).textContent).toContain('Read by 2 of 3');
+    });
+
+    it('marks a failure over the reads, a failure being what asks something of the sender', () => {
+        const row = receiptRow(
+            { ...counted, delivery: { ...counted.delivery, delivered: 2, failed: 1 } },
+            () => undefined,
+        );
+
+        expect(row.textContent).toContain('Not delivered to 1 of 3');
+    });
+
+    it('opens the details anchored under itself, and neither opens nor selects the message', () => {
+        const asked = vi.fn();
+        const opened = vi.fn();
+
+        receiptRow(counted, asked, opened);
+        fireEvent.click(senderMark('Read by 2 of 3'));
+
+        expect(asked).toHaveBeenCalledOnce();
+        expect(opened).not.toHaveBeenCalled();
+    });
+
+    it('is drawn on no row nothing came back for yet', () => {
+        const row = receiptRow(
+            { ...counted, delivery: { ...counted.delivery, delivered: 0 }, read: { requested: true, read: 0 } },
+            () => undefined,
+        );
+
+        expect(row.textContent).not.toMatch(/Read by|Delivered/u);
+    });
+
+    it('is drawn on no row of a list that marks none', () => {
+        expect(receiptRow(counted).textContent).not.toContain('Read by');
+    });
+});
+
+describe('MessageRow, a report that came back as mail', () => {
+    function reportRow(report: MailTimelineEntry['report']): HTMLElement {
+        render(
+            <LocalizationProvider>
+                <ul>
+                    <MessageRow
+                        email={{ ...email, subject: 'Undeliverable: Quote', report }}
+                        position={1}
+                        open={false}
+                        selected={false}
+                        focusable
+                        onOpen={() => undefined}
+                        onPoint={() => undefined}
+                        onElement={() => undefined}
+                    />
+                </ul>
+            </LocalizationProvider>,
+        );
+
+        return screen.getByRole('option');
+    }
+
+    it('heads the row with what the report says in place of the subject its server wrote', () => {
+        const row = reportRow({
+            kind: 'Delivery',
+            recipients: [{ address: 'r.lis@example.invalid', outcome: 'Failed' }],
+            reportedAt: null,
+            namesOwnMessage: true,
+            ownMessageSubject: 'Quote',
+        });
+
+        expect(within(row).getByText('Not delivered to r.lis@example.invalid: “Quote”')).toBeDefined();
+        expect(within(row).queryByText('Undeliverable: Quote')).toBeNull();
+    });
+
+    it('heads a report naming no message in this mailbox by what it says', () => {
+        const row = reportRow({
+            kind: 'Read',
+            recipients: [{ address: 'writer@nordwind.example', outcome: 'Displayed' }],
+            reportedAt: null,
+            namesOwnMessage: false,
+            ownMessageSubject: null,
+        });
+
+        expect(within(row).getByText('Read receipt from Writer · for a message not in this mailbox')).toBeDefined();
+    });
+
+    it('keeps the subject of a report it cannot word', () => {
+        const row = reportRow({
+            kind: 'Read',
+            recipients: [{ address: 'writer@nordwind.example', outcome: 'Deleted' }],
+            reportedAt: null,
+            namesOwnMessage: true,
+            ownMessageSubject: 'Quote',
+        });
+
+        expect(within(row).getByText('Undeliverable: Quote')).toBeDefined();
     });
 });
 
