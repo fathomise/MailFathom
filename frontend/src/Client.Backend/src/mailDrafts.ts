@@ -186,6 +186,7 @@ export type MailSendRefusal =
     | 'notFullyScanned'
     | 'attachmentNotRead'
     | 'screeningUnavailable'
+    | 'dueTimePassed'
     | 'refusedForAnotherReason';
 
 // The codes the deployment answers a refused send with, beside the failure each of them is. They are matched rather
@@ -202,6 +203,10 @@ const refusalsByCode: Readonly<Record<number, MailSendRefusal>> = {
     81_001: 'screeningUnavailable',
 };
 
+// The one refusal a send answers with `400` rather than as a rule of the deployment: the time it was asked to leave at
+// had already gone when the deployment read it. Nothing was queued, and the draft stands as it was.
+const dueTimePassedCode = 51_015;
+
 /**
  * What became of a draft write: the draft the deployment now holds, or a rule of this deployment refusing it.
  *
@@ -213,6 +218,14 @@ const refusalsByCode: Readonly<Record<number, MailSendRefusal>> = {
 export type MailDraftWriteOutcome =
     | { readonly written: true; readonly draft: MailDraft }
     | { readonly written: false; readonly refusal: MailSendRefusal };
+
+/**
+ * When a message is to leave: the instant, and the IANA zone it was named in, which the Outbox says the time back in.
+ */
+export interface MailSendDueTime {
+    readonly instant: string;
+    readonly timeZone: string;
+}
 
 /** What became of a send: a message queued, or a rule of this deployment refusing the one the author wrote. */
 export type MailSendOutcome =
@@ -432,8 +445,10 @@ export function unstageMailDraftAttachment(
  * Queues the message one draft holds, which is the one act here that reaches anybody else.
  *
  * Nothing has been transmitted when this answers: the message is queued, and cancelling it while it is still queued is
- * the closest thing to unsending that is honest.
+ * the closest thing to unsending that is honest. A message given a time to leave at is queued the same way and held
+ * until then; a send at once states no body at all.
  *
+ * @param dueAt When the message is to leave, or `null` for as soon as it can.
  * @returns The queued send, the rule that refused it, or an expected failure as a value — a refusal being an outcome
  * of the send rather than a failure of the request, for the reason {@link MailSendRefusal} gives.
  */
@@ -441,13 +456,19 @@ export function sendMailDraft(
     session: ClientSession,
     transport: MailFathomTransport,
     draftId: string,
+    dueAt: MailSendDueTime | null = null,
 ): Promise<ClientResult<MailSendOutcome>> {
     return spanned('POST /drafts/{draftId}/send', async () =>
         outcomeOf(
             await send(transport, {
                 method: 'POST',
                 path: routeFor(session, mailDraftSendRoute(draftId)),
-                headers: headersFor(session),
+                ...(dueAt === null
+                    ? { headers: headersFor(session) }
+                    : {
+                          headers: { ...headersFor(session), 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ dueAt: dueAt.instant, dueTimeZone: dueAt.timeZone }),
+                      }),
                 longestAnswer: longestDraftAnswer,
             }),
         ),
@@ -590,6 +611,10 @@ function outcomeOf(response: ClientResponse | null): ClientResult<MailSendOutcom
     // A `409` is a rule of this deployment about the message that was written and a `503` is the one temporary refusal
     // here, so both are outcomes of the send. Every other status is a failure of the request, which the four reasons
     // already say everything about.
+    if (response.status === 400 && bodyIn(response)?.['errorCode'] === dueTimePassedCode) {
+        return read({ queued: false, refusal: 'dueTimePassed' });
+    }
+
     if (response.status !== 409 && response.status !== 503) {
         return failed(failureReasonForStatus(response.status), response.status);
     }

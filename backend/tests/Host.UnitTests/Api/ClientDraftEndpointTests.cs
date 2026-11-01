@@ -450,6 +450,31 @@ public sealed class ClientDraftEndpointTests
     }
 
     /// <summary>Builds the request an upload arrives as, whose body is the file and whose header is what it declares.</summary>
+    /// <summary>
+    /// A send naming a time without the zone it was named in, a zone without a time, or a zone this deployment does not
+    /// know is refused before the draft is read, because no reading of it says when the message would leave.
+    /// </summary>
+    [Theory]
+    [InlineData(true, null)]
+    [InlineData(false, "Europe/Warsaw")]
+    [InlineData(true, "Europe/Nowhere")]
+    public async Task SendDraftAsync_ADueTimeThatDoesNotSayWhen_IsRefusedBeforeAnythingIsSent(bool statesTime, string? zone)
+    {
+        // Arrange
+        var request = new ClientDraftSendRequest(statesTime ? Moment.AddDays(1) : null, zone);
+
+        // Act
+        var result = await ClientDraftEndpoints.SendDraftAsync(
+            Guid.CreateVersion7(Moment),
+            request,
+            new UserMailDrafts(null!, null!, null!, null!),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+    }
+
     private static DefaultHttpContext Upload(byte[] octets, string? contentType)
     {
         var context = new DefaultHttpContext();

@@ -264,6 +264,11 @@ internal sealed record ClientDraftDiscardResponse(
     }
 }
 
+/// <summary>When a draft being sent is to leave, which a send at once states nothing about.</summary>
+/// <param name="DueAt">The instant the message leaves at, or <see langword="null" /> for as soon as it can.</param>
+/// <param name="DueTimeZone">The IANA zone the time was named in, stated exactly when <paramref name="DueAt" /> is.</param>
+internal sealed record ClientDraftSendRequest(DateTimeOffset? DueAt, string? DueTimeZone);
+
 /// <summary>What one draft became when it was sent, which is an ordinary queued send.</summary>
 /// <param name="DraftId">The draft the send was written from.</param>
 /// <param name="OutgoingEmail">The queued send, which the outbox routes name it by.</param>

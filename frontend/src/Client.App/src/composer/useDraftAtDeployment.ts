@@ -20,6 +20,7 @@ import {
     type MailAttachment,
     type MailDraft,
     type MailFathomTransport,
+    type MailSendDueTime,
     type MailSendRefusal,
     type MailSendWithdrawal,
 } from '@mailfathom/client-backend';
@@ -143,8 +144,10 @@ export interface DraftAtDeployment {
      * says it — in a toast, which stands over whatever the person moved on to rather than at the foot of the composer.
      * A toast is raised at the moment of the outcome rather than watched for, so what is owed to the caller is the
      * outcome itself; reading it back out of state afterwards would raise a second toast on every later render.
+     *
+     * A message given a time to leave at is queued the same way and held until then.
      */
-    readonly send: (composition: Composition) => Promise<DraftStanding>;
+    readonly send: (composition: Composition, dueAt?: MailSendDueTime | null) => Promise<DraftStanding>;
 
     /**
      * Takes a queued send back while it has not begun transmitting, and answers what that came to.
@@ -367,7 +370,7 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
         return hold(answer.outcome === 'failed' ? failedOn(answer.failure) : whenRead(answer.value));
     }
 
-    async function send(composition: Composition): Promise<DraftStanding> {
+    async function send(composition: Composition, dueAt: MailSendDueTime | null = null): Promise<DraftStanding> {
         hold({ kind: 'sending' });
 
         const draft = await saved(composition, 'send');
@@ -391,7 +394,7 @@ export function useDraftAtDeployment(session: ClientSession, transport: MailFath
 
         hold({ kind: 'sending' });
 
-        const posted = await sendMailDraft(session, transport, draft);
+        const posted = await sendMailDraft(session, transport, draft, dueAt);
 
         // Nothing answered the send itself, so the message may be queued already: it is not said to have failed, and
         // nothing here offers to send it again.

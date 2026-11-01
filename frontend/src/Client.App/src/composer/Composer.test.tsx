@@ -2558,3 +2558,89 @@ describe('Composer, while the connection is in question', () => {
         expect(send.hasAttribute('disabled') || send.getAttribute('aria-disabled') === 'true').toBe(true);
     });
 });
+
+describe('Composer, sending later', () => {
+    function openSendingOptions(name: string | RegExp = 'Sending options'): void {
+        fireEvent.click(screen.getByRole('button', { name }));
+    }
+
+    function addressed(): void {
+        address('ada@example.invalid');
+        write('Subject', 'The quarterly figures');
+        writeWords('They are attached.');
+    }
+
+    function sendRequest(asked: readonly ClientRequest[]): ClientRequest | undefined {
+        return asked.find((request) => request.path.endsWith('/send'));
+    }
+
+    it('takes a ready time from the menu, says it on Send and above the foot, and sends the message to leave then', async () => {
+        const { asked } = drawComposer();
+
+        addressed();
+        openSendingOptions();
+        fireEvent.click(screen.getByRole('menuitemradio', { name: /^Tomorrow morning/u }));
+
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(screen.getByText(/^This message leaves .+, not when you press Send\.$/u)).toBeDefined();
+        expect(screen.getByText('Ctrl+Enter schedules')).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: /^Send .+ at /u }));
+        fireEvent.click(
+            within(screen.getByRole('dialog', { name: 'Schedule this message?' })).getByRole('button', {
+                name: 'Schedule',
+            }),
+        );
+
+        await waitFor(() => {
+            expect(sendRequest(asked)).toBeDefined();
+        });
+
+        const tomorrow = new Date();
+
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(8, 0, 0, 0);
+
+        expect(JSON.parse(sendRequest(asked)?.body ?? '{}')).toStrictEqual({
+            dueAt: tomorrow.toISOString(),
+            dueTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
+        expect(await screen.findByText('Message scheduled')).toBeDefined();
+    });
+
+    it('clears a chosen time back to sending at once', async () => {
+        const { asked } = drawComposer();
+
+        addressed();
+        openSendingOptions();
+        fireEvent.click(screen.getByRole('menuitemradio', { name: /^Monday morning/u }));
+        fireEvent.click(screen.getByRole('button', { name: 'Clear time' }));
+
+        expect(screen.queryByText(/^This message leaves /u)).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Sending options' }));
+
+        confirmSend();
+
+        await waitFor(() => {
+            expect(sendRequest(asked)).toBeDefined();
+        });
+        expect(sendRequest(asked)?.body).toBeUndefined();
+    });
+
+    it('refuses a picked time that has already passed before anything is asked of the server', () => {
+        drawComposer();
+        openSendingOptions();
+        fireEvent.click(screen.getByRole('menuitemradio', { name: /^Pick a date and time/u }));
+
+        const picker = screen.getByRole('dialog', { name: 'Send later' });
+
+        fireEvent.change(within(picker).getByLabelText('Date'), { target: { value: '2020-01-01' } });
+
+        expect(within(picker).getByRole('alert').textContent).toMatch(/^That time has already passed/u);
+        expect(
+            within(picker)
+                .getByRole('button', { name: 'Schedule - choose a time that has not passed yet.' })
+                .getAttribute('aria-disabled'),
+        ).toBe('true');
+    });
+});

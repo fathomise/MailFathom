@@ -162,7 +162,8 @@ internal sealed class DraftedMailDeployment
             commitPolicy,
             Bounds,
             AuthoredSendGovernors.Permitting(authorization),
-            authorization);
+            authorization,
+            this.clock);
 
         // Both acts go through the user-scoped door the client surface uses, because that is what hands the book and
         // the promotion the user a draft is judged against.

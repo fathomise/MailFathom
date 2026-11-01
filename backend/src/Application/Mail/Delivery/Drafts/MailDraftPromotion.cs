@@ -10,6 +10,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
+using MailFathom.Domain.Scheduling;
 
 namespace MailFathom.Application.Mail.Delivery.Drafts;
 
@@ -57,6 +58,7 @@ public sealed class MailDraftPromotion
     private readonly OutgoingEmailBounds bounds;
     private readonly AuthoredSendGovernor governor;
     private readonly AccessAuthorization authorization;
+    private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the promotion from the draft it reads and the outbox it writes the send into.</summary>
     /// <param name="drafts">Holds the draft and the record of what it was promoted to.</param>
@@ -67,6 +69,7 @@ public sealed class MailDraftPromotion
     /// <param name="bounds">States how large a message this deployment sends.</param>
     /// <param name="governor">Answers what this caller may be talked into sending, and records the send once it is durable.</param>
     /// <param name="authorization">Answers whether the caller that reached this holds the grant that lets it send.</param>
+    /// <param name="timeProvider">Says whether a time the author named is still one a message can be held until.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public MailDraftPromotion(
         IMailDraftStore drafts,
@@ -76,7 +79,8 @@ public sealed class MailDraftPromotion
         OptimisticConcurrencyRetryPolicy retryPolicy,
         OutgoingEmailBounds bounds,
         AuthoredSendGovernor governor,
-        AccessAuthorization authorization)
+        AccessAuthorization authorization,
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(drafts);
         ArgumentNullException.ThrowIfNull(contentStore);
@@ -86,6 +90,7 @@ public sealed class MailDraftPromotion
         ArgumentNullException.ThrowIfNull(bounds);
         ArgumentNullException.ThrowIfNull(governor);
         ArgumentNullException.ThrowIfNull(authorization);
+        ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.drafts = drafts;
         this.contentStore = contentStore;
@@ -95,15 +100,17 @@ public sealed class MailDraftPromotion
         this.bounds = bounds;
         this.governor = governor;
         this.authorization = authorization;
+        this.timeProvider = timeProvider;
     }
 
     /// <summary>Queues one draft for delivery, or refuses it naming what stopped it.</summary>
     /// <param name="draftId">The draft to send.</param>
     /// <param name="writtenBy">The user sending it, who has to be the one the draft was written by.</param>
+    /// <param name="dueAt">The time the message is to leave at, or <see langword="null" /> for as soon as it can.</param>
     /// <param name="cancellationToken">Cancels the reads and the write.</param>
     /// <returns>The durable record the message was written down as.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold <see cref="MailFathomPermission.MailSend" />.</exception>
-    /// <exception cref="MailDraftRefusedException">Thrown when no draft of <paramref name="writtenBy" />'s is held under that identifier, when the draft names nobody to send it to, or when the stored message exceeds what this deployment sends.</exception>
+    /// <exception cref="MailDraftRefusedException">Thrown when no draft of <paramref name="writtenBy" />'s is held under that identifier, when the draft names nobody to send it to, when the stored message exceeds what this deployment sends, or when <paramref name="dueAt" /> has already passed.</exception>
     /// <exception cref="OutgoingMailRefusedException">Thrown when sending is not enabled for the account, a recipient is one the recipient policy refuses, the period has reached a ceiling, this caller has reached a ceiling of its own, or the draft names a recipient nothing here vouches for.</exception>
     /// <remarks>
     /// <para>
@@ -126,10 +133,15 @@ public sealed class MailDraftPromotion
     /// draft. A key somebody supplied would make the two asks two requests and put the message in the recipient's
     /// mailbox twice, which nothing downstream can withdraw.
     /// </para>
+    /// <para>
+    /// The due time is not part of that identity either, so a retry naming a different time is still the send the first
+    /// ask opened and does not move it: cancelling the send in the outbox is how a time is changed.
+    /// </para>
     /// </remarks>
     public async Task<OutgoingEmailRecord> PromoteAsync(
         MailDraftId draftId,
         UserId writtenBy,
+        ZonedInstant? dueAt,
         CancellationToken cancellationToken)
     {
         this.authorization.RequirePermission(MailFathomPermission.MailSend);
@@ -157,6 +169,15 @@ public sealed class MailDraftPromotion
         if (draft.IsDiscarded)
         {
             throw MailDraftRefusedException.NotFound();
+        }
+
+        // After the promotion is read back rather than before, so a retry whose time has gone meanwhile is still told
+        // which record carries the message it already asked for. Before anything is written, so a refusal leaves the
+        // draft as it was: a record held until a moment in the past is one the next delivery pass takes immediately,
+        // which is the opposite of what somebody naming a time asked for.
+        if (dueAt is { } due && due.Instant <= this.timeProvider.GetUtcNow())
+        {
+            throw MailDraftRefusedException.DueTimeAlreadyPassed();
         }
 
         if (!draft.IsAddressed)
@@ -188,7 +209,8 @@ public sealed class MailDraftPromotion
             draft.AccountId,
             draft.User,
             OutgoingEmailRequester.Draft(draftId),
-            [.. draft.Recipients.Select(recipient => recipient.Recipient)]) with
+            [.. draft.Recipients.Select(recipient => recipient.Recipient)],
+            dueAt) with
         {
             Subject = draft.Subject,
             ReceiptRequests = draft.ReceiptRequests,

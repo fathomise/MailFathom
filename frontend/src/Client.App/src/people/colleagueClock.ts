@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { wordInstant } from '../localization/instants';
+import { wordInstant, zoneOffsetAt } from '../localization/instants';
 import type { Locale } from '../localization/locale';
 
 // What a colleague's clock reads now, and how far it stands from the reader's: *09:41, 1 h behind you*. The member
@@ -33,8 +33,8 @@ export function colleagueClock(
     now: number,
     locale: Locale,
 ): ColleagueClock | null {
-    const theirs = offsetAt(zone, now);
-    const yours = offsetAt(readerZone, now);
+    const theirs = zoneOffsetAt(zone, now);
+    const yours = zoneOffsetAt(readerZone, now);
     const time = wordInstant(new Date(now).toISOString(), locale, 'time', zone);
 
     return theirs === null || yours === null || time === null ? null : { time, minutesAhead: theirs - yours };
@@ -68,7 +68,7 @@ export interface WallClock {
 
 /** A zone's wall clock at an instant, or `null` where this runtime does not know the zone. */
 export function wallClockAt(zone: string, at: number): WallClock | null {
-    const offset = offsetAt(zone, at);
+    const offset = zoneOffsetAt(zone, at);
 
     if (offset === null) {
         return null;
@@ -77,34 +77,4 @@ export function wallClockAt(zone: string, at: number): WallClock | null {
     const wall = new Date(Math.floor(at / 60_000) * 60_000 + offset * 60_000);
 
     return { weekday: wall.getUTCDay(), minute: wall.getUTCHours() * 60 + wall.getUTCMinutes() };
-}
-
-// The zone's offset from UTC at an instant, in minutes: the wall clock it reads there, taken as if it were UTC, less the
-// instant itself. Read in a fixed numbering because these are numbers to compute with rather than words to show.
-function offsetAt(zone: string | null, at: number): number | null {
-    const fields: Intl.DateTimeFormatOptions = {
-        hourCycle: 'h23',
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-    };
-
-    let parts: Intl.DateTimeFormatPart[];
-
-    try {
-        parts = new Intl.DateTimeFormat('en-US', zone === null ? fields : { ...fields, timeZone: zone }).formatToParts(
-            at,
-        );
-    } catch {
-        return null;
-    }
-
-    const field = (type: Intl.DateTimeFormatPartTypes): number =>
-        Number(parts.find((part) => part.type === type)?.value);
-    const wall = Date.UTC(field('year'), field('month') - 1, field('day'), field('hour'), field('minute'));
-    const minute = Math.floor(at / 60_000) * 60_000;
-
-    return Number.isNaN(wall) ? null : Math.round((wall - minute) / 60_000);
 }

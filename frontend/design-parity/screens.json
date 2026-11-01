@@ -1405,6 +1405,46 @@
           }
         }
       ]
+    },
+    {
+      "id": "composer-send-later",
+      "route": "/#/mail",
+      "signIn": true,
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "New message",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "role": "textbox",
+            "name": "Message"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Sending options",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "role": "menuitemradio",
+            "name": "Tomorrow morning"
+          }
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Clear time",
+            "exact": true
+          }
+        }
+      ]
     }
   ]
 }

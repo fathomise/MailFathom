@@ -95,7 +95,7 @@ public sealed class UserMailDraftsTests
         var drafts = UserDraftsOver(harness, outgoingEmails: outgoingEmails);
 
         // Act
-        var queued = await drafts.SendAsync(draft.Id, TestContext.Current.CancellationToken);
+        var queued = await drafts.SendAsync(draft.Id, dueAt: null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(queued.Id, harness.Drafts.Peek(draft.Id)!.PromotedTo);
@@ -113,7 +113,7 @@ public sealed class UserMailDraftsTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<MailDraftRefusedException>(
-            () => drafts.SendAsync(theirs.Id, TestContext.Current.CancellationToken));
+            () => drafts.SendAsync(theirs.Id, dueAt: null, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomErrorCode.MailDraftNotFound, refusal.ErrorCode);
@@ -173,7 +173,8 @@ public sealed class UserMailDraftsTests
                 MaxMessageBytes = 1_000_000,
             },
             AuthoredSendGovernors.Permitting(),
-            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend));
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend),
+            new FakeTimeProvider(Moment));
     }
 
     /// <summary>Builds a commit policy whose every attempt commits.</summary>

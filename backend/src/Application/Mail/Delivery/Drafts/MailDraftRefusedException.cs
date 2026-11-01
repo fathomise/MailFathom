@@ -71,6 +71,15 @@ public sealed class MailDraftRefusedException : MailFathomException
     public static MailDraftRefusedException TooManyRecipients() =>
         new(AuthoredMailRefusalPublication.TooManyRecipients());
 
+    /// <summary>Reports a draft asked to leave at a time that has already gone.</summary>
+    /// <returns>The failure to raise.</returns>
+    /// <remarks>
+    /// The code and the sentence are the submission's, because the remedy is the same one: name a time still to come,
+    /// or send at once. The draft is left as it was, so choosing again sends the message the author already wrote.
+    /// </remarks>
+    public static MailDraftRefusedException DueTimeAlreadyPassed() =>
+        new(AuthoredMailRefusalPublication.DueTimeAlreadyPassed());
+
     /// <summary>Reports text that names no account this deployment could look for.</summary>
     /// <returns>The failure to raise.</returns>
     public static MailDraftRefusedException AccountNotNamed() =>

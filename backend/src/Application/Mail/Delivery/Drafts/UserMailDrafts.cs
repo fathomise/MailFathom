@@ -7,6 +7,7 @@ using MailFathom.Application.Accounts;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
+using MailFathom.Domain.Scheduling;
 
 namespace MailFathom.Application.Mail.Delivery.Drafts;
 
@@ -58,17 +59,19 @@ public sealed class UserMailDrafts(
 
     /// <summary>Queues one of this user's drafts for delivery, which is the only act here that reaches anybody else.</summary>
     /// <param name="draftId">The draft to send.</param>
+    /// <param name="dueAt">The time the message is to leave at, or <see langword="null" /> for as soon as it can.</param>
     /// <param name="cancellationToken">Cancels the reads and the write.</param>
     /// <returns>The durable record the message was written down as.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold <see cref="MailFathomPermission.MailSend" />, or is acting for no user.</exception>
-    /// <exception cref="MailDraftRefusedException">Thrown when this user holds no draft under that identifier, when the draft names nobody to send it to, or when the stored message exceeds what this deployment sends.</exception>
+    /// <exception cref="MailDraftRefusedException">Thrown when this user holds no draft under that identifier, when the draft names nobody to send it to, when the stored message exceeds what this deployment sends, or when <paramref name="dueAt" /> has already passed.</exception>
     /// <exception cref="Governance.OutgoingMailRefusedException">Thrown when a recipient, a ceiling, or the account's own posture refuses the send.</exception>
     public async Task<OutgoingEmailRecord> SendAsync(
         MailDraftId draftId,
+        ZonedInstant? dueAt,
         CancellationToken cancellationToken)
     {
         authorization.RequirePermission(MailFathomPermission.MailSend);
 
-        return await promotion.PromoteAsync(draftId, accountCatalog.User, cancellationToken);
+        return await promotion.PromoteAsync(draftId, accountCatalog.User, dueAt, cancellationToken);
     }
 }

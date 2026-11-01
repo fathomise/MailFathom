@@ -21,6 +21,7 @@ using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Delivery.Governance;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Scheduling;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -47,7 +48,7 @@ public sealed class MailDraftPromotionTests
         var promotion = PromotionOver(harness, contentStore: contentStore);
 
         // Act
-        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Assert
         Assert.Equal(OutgoingEmailStage.Recorded, record.Stage);
@@ -72,7 +73,7 @@ public sealed class MailDraftPromotionTests
         var promotion = PromotionOver(harness);
 
         // Act
-        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Assert
         Assert.Equal(both, record.ReceiptRequests);
@@ -96,7 +97,7 @@ public sealed class MailDraftPromotionTests
         byte[] signed = [.. Encoding.ASCII.GetBytes(signature), .. stored];
 
         // Act
-        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Assert
         var (account, handedOver) = Assert.Single(signer.Requests);
@@ -127,7 +128,7 @@ public sealed class MailDraftPromotionTests
         var storedDraft = harness.Contents.Peek(draft.Id).ToArray();
 
         // Act
-        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Assert
         Assert.Equal(0, requestsWhileOnlyStored);
@@ -150,10 +151,10 @@ public sealed class MailDraftPromotionTests
         var draft = await SaveAsync(harness, "the message as written");
         var outgoingEmails = new InMemoryOutgoingEmailStore();
         var promotion = PromotionOver(harness, outgoingEmails);
-        var first = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var first = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Act
-        var second = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var second = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Assert
         Assert.Equal(first.Id, second.Id);
@@ -171,7 +172,7 @@ public sealed class MailDraftPromotionTests
         var harness = Harness();
         var draft = await SaveAsync(harness, "the message as written");
         var promotion = PromotionOver(harness);
-        var first = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var first = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
         await harness.Drafts.RecordDiscardedAsync(
             Substitute.For<IPersistenceSession>(),
             draft.Id,
@@ -179,7 +180,7 @@ public sealed class MailDraftPromotionTests
             CancellationToken.None);
 
         // Act
-        var retried = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var retried = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Assert
         Assert.Equal(first.Id, retried.Id);
@@ -197,17 +198,93 @@ public sealed class MailDraftPromotionTests
         var draft = await SaveAsync(harness, "the message as written");
         var outgoingEmails = new InMemoryOutgoingEmailStore();
         var promotion = PromotionOver(harness, outgoingEmails);
-        var first = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var first = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
         harness.Drafts.ForgetPromotion(draft.Id);
 
         // Act
-        var second = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var second = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Assert
         Assert.Equal(first.Id, second.Id);
         Assert.Equal(
             [OutgoingEmailRequester.Draft(draft.Id), OutgoingEmailRequester.Draft(draft.Id)],
             outgoingEmails.OpenRequests.Select(request => request.Requester));
+    }
+
+    /// <summary>A draft sent later is queued as an ordinary send held until the time its author named, in the zone they named it in.</summary>
+    [Fact]
+    public async Task PromoteAsync_DueTimeStillToCome_QueuesTheSendHeldUntilThen()
+    {
+        // Arrange
+        var harness = Harness();
+        var draft = await SaveAsync(harness, "the message as written");
+        var promotion = PromotionOver(harness);
+        var dueAt = ZonedInstant.Restore(Moment.AddHours(23), "Europe/Warsaw");
+
+        // Act
+        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(dueAt, record.DueAt);
+        Assert.Equal(record.Id, harness.Drafts.Peek(draft.Id)!.PromotedTo);
+    }
+
+    /// <summary>A time that has already gone is refused before anything is queued, and the draft is left as it was.</summary>
+    [Fact]
+    public async Task PromoteAsync_DueTimeAlreadyGone_IsRefusedAndLeavesTheDraftStanding()
+    {
+        // Arrange
+        var harness = Harness();
+        var draft = await SaveAsync(harness, "the message as written");
+        var outgoingEmails = new InMemoryOutgoingEmailStore();
+        var promotion = PromotionOver(harness, outgoingEmails);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailDraftRefusedException>(
+            () => promotion.PromoteAsync(
+                draft.Id,
+                SyntheticUser.Deployment,
+                ZonedInstant.Restore(Moment, "Europe/Warsaw"),
+                CancellationToken.None));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.AuthoredMailScheduleRefused, refusal.ErrorCode);
+        Assert.Null(harness.Drafts.Peek(draft.Id)!.PromotedTo);
+        Assert.Empty(outgoingEmails.OpenRequests);
+    }
+
+    /// <summary>
+    /// A retry of a draft already sent answers with the send the first ask opened and does not move it, whatever time
+    /// the retry names — one that has since gone included, because the message it asks about is already on its way.
+    /// </summary>
+    [Fact]
+    public async Task PromoteAsync_RetryNamingAnotherTime_AnswersWithTheFirstSendUnmoved()
+    {
+        // Arrange
+        var harness = Harness();
+        var draft = await SaveAsync(harness, "the message as written");
+        var promotion = PromotionOver(harness);
+        var firstDueAt = ZonedInstant.Restore(Moment.AddHours(23), "Europe/Warsaw");
+        var first = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, firstDueAt, CancellationToken.None);
+
+        // Act
+        var later = await promotion.PromoteAsync(
+            draft.Id,
+            SyntheticUser.Deployment,
+            ZonedInstant.Restore(Moment.AddDays(5), "Europe/Warsaw"),
+            CancellationToken.None);
+        var gone = await promotion.PromoteAsync(
+            draft.Id,
+            SyntheticUser.Deployment,
+            ZonedInstant.Restore(Moment.AddDays(-1), "Europe/Warsaw"),
+            CancellationToken.None);
+
+        // Assert
+        Assert.All([later, gone], answered =>
+        {
+            Assert.Equal(first.Id, answered.Id);
+            Assert.Equal(firstDueAt, answered.DueAt);
+        });
     }
 
     /// <summary>A draft addressed to nobody has no envelope to build, so it is refused rather than queued.</summary>
@@ -221,7 +298,7 @@ public sealed class MailDraftPromotionTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<MailDraftRefusedException>(
-            () => promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None));
+            () => promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None));
 
         // Assert
         Assert.Equal(MailFathomErrorCode.MailDraftNotAddressed, refusal.ErrorCode);
@@ -242,7 +319,7 @@ public sealed class MailDraftPromotionTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<MailDraftRefusedException>(
-            () => promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None));
+            () => promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None));
 
         // Assert
         Assert.Equal(MailFathomErrorCode.AuthoredMailBoundExceeded, refusal.ErrorCode);
@@ -267,7 +344,7 @@ public sealed class MailDraftPromotionTests
                 recipientPolicy: OutgoingRecipientPolicy.Create([], [denied])));
 
         // Act
-        var refusal = () => promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var refusal = () => promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Assert
         await Assert.ThrowsAsync<OutgoingMailRefusedException>(refusal);
@@ -287,7 +364,7 @@ public sealed class MailDraftPromotionTests
             governor: OutgoingMailGovernors.Governing(refusal: OutgoingSendRefusalReason.DeploymentIsReadOnly));
 
         // Act
-        var refusal = () => promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var refusal = () => promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Assert
         await Assert.ThrowsAsync<OutgoingMailRefusedException>(refusal);
@@ -310,11 +387,11 @@ public sealed class MailDraftPromotionTests
             AuthoredSendCeilings.Create(TimeSpan.FromDays(1), maxMessagesPerCaller: 1, maxRecipientsPerCaller: 0),
             new FakeTimeProvider(Moment));
         var promotion = PromotionOver(harness, sendGovernor: AuthoredSendGovernors.Governing(ledger: ledger));
-        await promotion.PromoteAsync(first.Id, SyntheticUser.Deployment, CancellationToken.None);
+        await promotion.PromoteAsync(first.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Act
         var refusal = await Assert.ThrowsAsync<OutgoingMailRefusedException>(
-            () => promotion.PromoteAsync(second.Id, SyntheticUser.Deployment, CancellationToken.None));
+            () => promotion.PromoteAsync(second.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None));
 
         // Assert
         Assert.Equal(MailFathomErrorCode.OutgoingMailCeilingReached, refusal.ErrorCode);
@@ -340,7 +417,7 @@ public sealed class MailDraftPromotionTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<OutgoingMailRefusedException>(
-            () => promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None));
+            () => promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None));
 
         // Assert
         Assert.Equal(MailFathomErrorCode.OutgoingRecipientUnvouched, refusal.ErrorCode);
@@ -369,7 +446,7 @@ public sealed class MailDraftPromotionTests
                 settings: new AuthoredSendSettings(UnvouchedRecipientPosture.Refuse)));
 
         // Act
-        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Assert
         Assert.Equal(OutgoingEmailStage.Recorded, record.Stage);
@@ -390,7 +467,7 @@ public sealed class MailDraftPromotionTests
         var promotion = PromotionOver(harness, sendGovernor: AuthoredSendGovernors.Governing(auditor: auditor));
 
         // Act
-        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Assert
         await auditor.Received(1).RecordAuthoredSendAsync(
@@ -416,11 +493,11 @@ public sealed class MailDraftPromotionTests
         var draft = await SaveAsync(harness, "the message as written");
         var auditor = Substitute.For<IAuthoredSendAuditor>();
         var promotion = PromotionOver(harness, sendGovernor: AuthoredSendGovernors.Governing(auditor: auditor));
-        await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
         harness.Drafts.ForgetPromotion(draft.Id);
 
         // Act
-        await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
 
         // Assert
         await auditor.Received(1).RecordAuthoredSendAsync(
@@ -448,7 +525,7 @@ public sealed class MailDraftPromotionTests
 
         // Act
         await Assert.ThrowsAsync<PersistenceConcurrencyConflictException>(
-            () => promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None));
+            () => promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None));
 
         // Assert
         await auditor.Received(1).RecordAuthoredSendAsync(
@@ -469,6 +546,7 @@ public sealed class MailDraftPromotionTests
             () => promotion.PromoteAsync(
                 MailDraftId.Create(Guid.CreateVersion7(Moment)),
                 SyntheticUser.Deployment,
+                dueAt: null,
                 CancellationToken.None));
 
         // Assert
@@ -502,7 +580,7 @@ public sealed class MailDraftPromotionTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<MailDraftRefusedException>(
-            () => promotion.PromoteAsync(theirs.Id, SyntheticUser.Deployment, CancellationToken.None));
+            () => promotion.PromoteAsync(theirs.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None));
 
         // Assert
         Assert.Equal(MailFathomErrorCode.MailDraftNotFound, refusal.ErrorCode);
@@ -524,7 +602,7 @@ public sealed class MailDraftPromotionTests
         var harness = Harness(outgoingEmails);
         var draft = await SaveAsync(harness, "the message as written");
         var promotion = PromotionOver(harness, outgoingEmails);
-        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+        var record = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
         outgoingEmails.Arrange(record.Id, stage);
 
         // Act
@@ -563,8 +641,10 @@ public sealed class MailDraftPromotionTests
         OutgoingMailGovernor? governor = null,
         AuthoredSendGovernor? sendGovernor = null,
         OptimisticConcurrencyRetryPolicy? draftMarkPolicy = null,
-        IOrganizationMailSigner? signer = null)
+        IOrganizationMailSigner? signer = null,
+        TimeProvider? clock = null)
     {
+        var now = clock ?? new FakeTimeProvider(Moment);
         var store = outgoingEmails ?? new InMemoryOutgoingEmailStore();
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
         sessionFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ =>
@@ -591,7 +671,7 @@ public sealed class MailDraftPromotionTests
             governor ?? OutgoingMailGovernors.Permitting(),
             OutgoingMailScreenings.Inactive(),
             signer ?? OrganizationMailSigners.SigningNothing(),
-            new FakeTimeProvider(Moment),
+            now,
             ClientSignalPublishers.ReachingNobody);
 
         return new MailDraftPromotion(
@@ -602,7 +682,8 @@ public sealed class MailDraftPromotionTests
             draftMarkPolicy ?? retryPolicy,
             bounds ?? Bounds(),
             sendGovernor ?? AuthoredSendGovernors.Permitting(),
-            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend));
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend),
+            now);
     }
 
     private static OutgoingEmailBounds Bounds(long maxMessageBytes = 1_000_000) => new()
