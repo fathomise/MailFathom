@@ -701,3 +701,122 @@ export const spamFolderPage = {
     previousCursor: null,
     pageSize: rowsPerPage,
 };
+
+/** Who writes in the listed conversations, the reader among them. */
+const reader = { address: 'iris.marlow@example.invalid', displayName: 'Iris Marlow', reader: true };
+const anna = { address: 'anna.kowalska@contoso.example', displayName: 'Anna Kowalska', reader: false };
+const piotr = { address: 'piotr.zielinski@example.invalid', displayName: 'Piotr Zieliński', reader: false };
+const billing = { address: 'billing@hosting.example', displayName: 'Hosting Billing', reader: false };
+
+type Correspondent = typeof reader;
+
+/** One conversation as the thread list publishes it, with what a test does not name left as an ordinary read one. */
+function listedThread(threadId: string, said: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+    return {
+        threadId,
+        account: workAccount.id,
+        messageCount: 3,
+        unreadCount: 0,
+        hasAttachments: false,
+        moreParticipantsNotNamed: false,
+        newestReceivedSender: listedSender('verified'),
+        ...said,
+    };
+}
+
+/** The newest message of a listed conversation, written by `from` at `receivedAt`. */
+function newestOf(
+    id: string,
+    from: Correspondent,
+    subject: string,
+    receivedAt: string,
+    preview: string,
+): Readonly<Record<string, unknown>> {
+    return {
+        id,
+        subject,
+        receivedAt,
+        senderAddress: from.address,
+        senderDisplayName: from.displayName,
+        preview,
+        own: from.reader,
+        senderPhoto: null,
+    };
+}
+
+/**
+ * The work account's conversations as the list read by conversation draws them: one row of each of its variants — a
+ * title with where it stands, one whose standing is held back for a message that arrived since, a topic with nothing
+ * left open ending in the reader's own reply, and one no derivation has named yet.
+ */
+export const threadList = {
+    threads: [
+        listedThread('00000000-0000-4000-8000-0000000000d1', {
+            unreadCount: 2,
+            hasAttachments: true,
+            participants: [anna, reader],
+            newest: newestOf(
+                '00000000-0000-4000-8000-0000000000e1',
+                anna,
+                'Re: Contoso SLA addendum',
+                '2026-08-31T09:12:00+00:00',
+                'Legal signed off on everything except the CPI cap. Can we keep it at 3% and close this week?',
+            ),
+            title: {
+                topic: 'Contoso SLA addendum',
+                standing: 'Sign by 28.08 · CPI cap still open',
+                derivedFromMessageCount: 3,
+                derivedFromLatestArrival: '2026-08-31T09:12:00+00:00',
+            },
+        }),
+        listedThread('00000000-0000-4000-8000-0000000000d2', {
+            messageCount: 4,
+            unreadCount: 1,
+            participants: [piotr, reader],
+            newest: newestOf(
+                '00000000-0000-4000-8000-0000000000e2',
+                piotr,
+                'Re: Phase two rollout',
+                '2026-08-31T08:40:00+00:00',
+                'The test users are set up on staging; I still need the list for the finance team.',
+            ),
+            title: {
+                topic: 'Phase two rollout',
+                standing: 'UAT test users owed by Thursday',
+                derivedFromMessageCount: 3,
+                derivedFromLatestArrival: '2026-08-30T16:05:00+00:00',
+            },
+        }),
+        listedThread('00000000-0000-4000-8000-0000000000d3', {
+            messageCount: 2,
+            participants: [billing, reader],
+            newest: newestOf(
+                '00000000-0000-4000-8000-0000000000e3',
+                reader,
+                'Re: August hosting invoice',
+                '2026-08-30T15:20:00+00:00',
+                'Thanks, paid today — the transfer reference is the invoice number.',
+            ),
+            title: {
+                topic: 'August hosting invoice',
+                standing: '',
+                derivedFromMessageCount: 2,
+                derivedFromLatestArrival: '2026-08-30T15:20:00+00:00',
+            },
+        }),
+        listedThread('00000000-0000-4000-8000-0000000000d4', {
+            messageCount: 1,
+            participants: [anna],
+            newest: newestOf(
+                '00000000-0000-4000-8000-0000000000e4',
+                anna,
+                'Contoso 2027 terms',
+                '2026-08-29T11:02:00+00:00',
+                'Attached is our proposal for next year. Happy to walk through it on a call.',
+            ),
+            title: null,
+        }),
+    ],
+    nextCursor: null,
+    pageSize: 25,
+};

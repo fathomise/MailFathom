@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import {
     isSpam,
@@ -33,6 +33,7 @@ import { useSpamRefusal } from '../spamMarking/useSpamRefusal';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { Attachments } from './Attachments';
 import { ChangeNotice } from './ChangeNotice';
+import { MessagePlace } from './MessagePlace';
 
 // One message drawn out in full, which is the same drawing wherever a message is drawn: who wrote it, the mark on who
 // sent it, and what the copy holds on one line, the words themselves, and the files the message carries.
@@ -62,6 +63,8 @@ export function OpenedMessage({
     message,
     body,
     onShowFullHtml,
+    marks = null,
+    summary = null,
 }: {
     readonly session: ClientSession;
     readonly transport: MailFathomTransport;
@@ -74,6 +77,12 @@ export function OpenedMessage({
 
     /** Opens the surface drawing this message's own markup, which the line above the words offers. */
     readonly onShowFullHtml: () => void;
+
+    /** What a conversation says about this message beside who wrote it — that it is new — or `null` where it says nothing. */
+    readonly marks?: ReactNode;
+
+    /** The control opening what MailFathom read from the conversation, which only its newest received message carries. */
+    readonly summary?: ReactNode;
 }) {
     const { locale, translate } = useLocalization();
     const embeddedHtml = useMessageView() === 'embeddedHtml';
@@ -165,7 +174,11 @@ export function OpenedMessage({
                         />
                     ) : null}
 
+                    {marks}
+
                     <span className="flex-1" />
+
+                    {summary}
 
                     {message.attachments.length === 0 ? null : (
                         <span className="flex shrink-0 items-center gap-0.75 text-xs text-faint">
@@ -230,6 +243,8 @@ export function OpenedMessage({
                         readOnly={readOnly}
                     />
                 )}
+
+                <MessagePlace message={message} />
             </div>
 
             {message.carried === null ? null : <Carried carried={message.carried} />}

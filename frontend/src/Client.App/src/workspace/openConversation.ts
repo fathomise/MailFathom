@@ -28,6 +28,15 @@ export interface OpenConversation {
      * to the message and not to the landing.
      */
     readonly fromResult?: boolean;
+
+    /**
+     * Whether the conversation was opened from a row of the list read by conversation, which opens it at what arrived
+     * since it was last read rather than at the one message a row of the message list stands for.
+     *
+     * Absent everywhere else, and not read back out of the store for the reason `fromResult` is not: what was new is
+     * marked once, on opening, and a reload finds it read.
+     */
+    readonly byThread?: boolean;
 }
 
 /**

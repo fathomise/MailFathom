@@ -113,3 +113,41 @@ export function leadingRow(scrollTop: number, rowHeight: number): number {
 export function offsetKeptAcross(scrollTop: number, fromRowHeight: number, toRowHeight: number): number {
     return fromRowHeight <= 0 ? scrollTop : Math.round((Math.max(scrollTop, 0) * toRowHeight) / fromRowHeight);
 }
+
+/**
+ * The rows a scroller shows at this offset where the rows are not all one height, with the overscan either side.
+ *
+ * The conversation list is the case: a row is as tall as what its title says, and each variant is measured rather than
+ * assumed. A walk rather than a search, because the heights arrive a page at a time and a list somebody has scrolled
+ * through holds hundreds of rows rather than a mailbox — so the arithmetic costs the scroll handler, not the render.
+ *
+ * @param heights What each row measures, in pixels, in the order they are drawn.
+ * @param scrollTop How far the scroller has been scrolled, in pixels.
+ * @param viewportHeight How tall the scroller is, in pixels.
+ * @returns The window of rows to draw and the space standing in for the rest.
+ */
+export function windowOfHeights(heights: readonly number[], scrollTop: number, viewportHeight: number): RowWindow {
+    const reached = Math.max(scrollTop, 0);
+    let top = 0;
+    let visible = 0;
+
+    while (visible < heights.length - 1 && top + (heights[visible] ?? 0) <= reached) {
+        top += heights[visible] ?? 0;
+        visible += 1;
+    }
+
+    let bottom = top;
+    let past = visible;
+
+    while (past < heights.length && bottom < reached + viewportHeight) {
+        bottom += heights[past] ?? 0;
+        past += 1;
+    }
+
+    const first = Math.max(visible - overscanRows, 0);
+    const end = Math.min(past + overscanRows, heights.length);
+    const sum = (from: number, to: number): number =>
+        heights.slice(from, to).reduce((total, height) => total + height, 0);
+
+    return { first, count: end - first, above: sum(0, first), below: sum(end, heights.length) };
+}

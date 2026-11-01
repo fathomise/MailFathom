@@ -18,6 +18,7 @@ export function Space({
     space,
     readingFooted,
     status,
+    listMode = null,
     folders,
     list,
     mail,
@@ -45,6 +46,9 @@ export function Space({
      * no other space draws: how current the mailboxes are is said where mail is read.
      */
     readonly status: ReactNode;
+
+    /** The control choosing whether the list is read by message or by conversation, at the head of the folder column. */
+    readonly listMode?: ReactNode;
 
     readonly folders: ReactNode;
     readonly list: ReactNode;
@@ -179,6 +183,7 @@ export function Space({
                                    else: the AI button is only pressed in the space in front, and two connections would
                                    be two live copies of one region saying what the deployment is doing. */
                                 <MailSpace
+                                    listMode={listMode}
                                     folders={folders}
                                     list={list}
                                     mail={mail}

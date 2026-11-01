@@ -59,6 +59,7 @@ import { FullHtmlSurface } from './fullHtml/FullHtmlSurface';
 import type { MessageKey } from './localization/en';
 import { ReadingZoneContext } from './localization/useReadingZone';
 import { useLocalization } from './localization/useLocalization';
+import { ListModeSwitch } from './mailSpace/ListModeSwitch';
 import { NothingOpen } from './mailSpace/NothingOpen';
 import { SurfaceWindow } from './mailSpace/SurfaceWindow';
 import { TabStrip } from './mailSpace/TabStrip';
@@ -67,6 +68,9 @@ import { FolderMaintenanceProvider } from './folders/FolderMaintenance';
 import { MailboxActsProvider } from './mailboxActs/MailboxActs';
 import { ListedMailProvider } from './messageList/ListedMail';
 import { MessageList } from './messageList/MessageList';
+import { ThreadAccounts } from './threadList/ThreadAccounts';
+import { ThreadList } from './threadList/ThreadList';
+import { threadListAccountIn } from './threadList/threadRows';
 import { forgetListings } from './messageList/rememberedListings';
 import { NotificationBell } from './notifications/NotificationBell';
 import { failureOf } from './notifications/failures';
@@ -138,7 +142,7 @@ import { OutboxPane } from './outbox/OutboxPane';
 import { attachmentKey, OpenAttachmentContext, type OpenedAttachment } from './workspace/openAttachment';
 import { MessageSourceReadingContext, type MessageSourceReading } from './messageSource/messageSourceReading';
 import { conversationKey, type OpenConversation } from './workspace/openConversation';
-import { scopeKey } from './workspace/mailScope';
+import { scopeKey, scopeOfAccount } from './workspace/mailScope';
 import { emptyWorkspace, useWorkspace, type Workspace } from './workspace/useWorkspace';
 
 // The frame every space is held in, and the only thing in the client that survives moving between them.
@@ -1452,10 +1456,31 @@ export function App({
                                                                                                                 />
                                                                                                             )
                                                                                                         }
-                                                                                                        folders={
+                                                                                                        listMode={
                                                                                                             session ===
                                                                                                                 null ||
                                                                                                             !readsMail ? null : (
+                                                                                                                <ListModeSwitch
+                                                                                                                    mode={
+                                                                                                                        preferences.listMode
+                                                                                                                    }
+                                                                                                                    onChoose={
+                                                                                                                        preferences.chooseListMode
+                                                                                                                    }
+                                                                                                                />
+                                                                                                            )
+                                                                                                        }
+                                                                                                        folders={
+                                                                                                            session ===
+                                                                                                                null ||
+                                                                                                            !readsMail ? null : preferences.listMode ===
+                                                                                                              'threads' ? (
+                                                                                                                <ThreadAccounts
+                                                                                                                    accounts={
+                                                                                                                        mailAccounts
+                                                                                                                    }
+                                                                                                                />
+                                                                                                            ) : (
                                                                                                                 <FolderTree
                                                                                                                     session={
                                                                                                                         session
@@ -1485,6 +1510,91 @@ export function App({
                                                                                                                         }
                                                                                                                     />
                                                                                                                 </MailAccountsContext>
+                                                                                                            ) : preferences.listMode ===
+                                                                                                              'threads' ? (
+                                                                                                                // Read by conversation, the list is narrowed by an account alone, and searching from it searches that
+                                                                                                                // account's mail — the results are messages, drawn as the message list draws them.
+                                                                                                                <MailSearch
+                                                                                                                    key={
+                                                                                                                        threadListAccountIn(
+                                                                                                                            mailAccounts,
+                                                                                                                            workspace.threadListAccount,
+                                                                                                                        ) ??
+                                                                                                                        ''
+                                                                                                                    }
+                                                                                                                    session={
+                                                                                                                        session
+                                                                                                                    }
+                                                                                                                    transport={
+                                                                                                                        readMail
+                                                                                                                    }
+                                                                                                                    scope={scopeOfAccount(
+                                                                                                                        threadListAccountIn(
+                                                                                                                            mailAccounts,
+                                                                                                                            workspace.threadListAccount,
+                                                                                                                        ),
+                                                                                                                    )}
+                                                                                                                    accounts={
+                                                                                                                        mailAccounts
+                                                                                                                    }
+                                                                                                                    online={
+                                                                                                                        connection.online
+                                                                                                                    }
+                                                                                                                    onOpen={
+                                                                                                                        openTabs.openMail
+                                                                                                                    }
+                                                                                                                    onOpenDraft={
+                                                                                                                        writesMail
+                                                                                                                            ? (
+                                                                                                                                  storedEmailId,
+                                                                                                                              ) => {
+                                                                                                                                  composing.compose(
+                                                                                                                                      {
+                                                                                                                                          kind: 'draft',
+                                                                                                                                          storedEmailId,
+                                                                                                                                      },
+                                                                                                                                  );
+                                                                                                                              }
+                                                                                                                            : null
+                                                                                                                    }
+                                                                                                                >
+                                                                                                                    <ThreadList
+                                                                                                                        key={
+                                                                                                                            threadListAccountIn(
+                                                                                                                                mailAccounts,
+                                                                                                                                workspace.threadListAccount,
+                                                                                                                            ) ??
+                                                                                                                            ''
+                                                                                                                        }
+                                                                                                                        session={
+                                                                                                                            session
+                                                                                                                        }
+                                                                                                                        transport={
+                                                                                                                            readMail
+                                                                                                                        }
+                                                                                                                        account={threadListAccountIn(
+                                                                                                                            mailAccounts,
+                                                                                                                            workspace.threadListAccount,
+                                                                                                                        )}
+                                                                                                                        online={
+                                                                                                                            connection.online
+                                                                                                                        }
+                                                                                                                        onOpen={(
+                                                                                                                            thread,
+                                                                                                                        ) => {
+                                                                                                                            openTabs.openMail(
+                                                                                                                                thread
+                                                                                                                                    .newest
+                                                                                                                                    .id,
+                                                                                                                                thread
+                                                                                                                                    .newest
+                                                                                                                                    .subject,
+                                                                                                                                thread.threadId,
+                                                                                                                                true,
+                                                                                                                            );
+                                                                                                                        }}
+                                                                                                                    />
+                                                                                                                </MailSearch>
                                                                                                             ) : (
                                                                                                                 // Both keyed by the scope, so pointing at another mailbox starts a list and a search
                                                                                                                 // rather than resetting either: every value below belongs to one mailbox read one way,

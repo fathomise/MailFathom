@@ -705,6 +705,8 @@ export class FakeDeployment {
                 return this.folderDeleted(request.body);
             case 'GET /emails':
                 return answering(this.folderPage(request.query));
+            case 'GET /threads':
+                return answering(mail.threadList);
             case 'GET /emails/search': {
                 const found = this.findingAcrossTheFolder ? mail.searchResultsAcrossTheFolder : mail.searchResults;
 

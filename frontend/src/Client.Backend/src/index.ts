@@ -48,6 +48,7 @@ export {
     shortestNotificationSeconds,
     unsetClientPreferences,
     writeClientPreferences,
+    type ClientMailListMode,
     type ClientMessageView,
     type ClientPreferences,
     type ClientThemePreference,
@@ -509,6 +510,16 @@ export {
     type MailThreadPage,
     type MailThreadParticipant,
 } from './mailThread';
+export {
+    mailThreadListRoute,
+    readMailThreadList,
+    threadListPageSize,
+    type ListedMailThread,
+    type ListedThreadNewest,
+    type ListedThreadParticipant,
+    type ListedThreadTitle,
+    type MailThreadListPage,
+} from './mailThreadList';
 export {
     mailThreadStateRoute,
     readMailThreadState,

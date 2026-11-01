@@ -30,6 +30,7 @@ const settings: ClientPreferencesInForce = {
     telemetryEnabled: true,
     expandWholeThread: false,
     aiFiltersShown: true,
+    listMode: 'messages',
     messageView: 'reduced',
     notificationSeconds: 5,
     trustedLinkDomains: [],
@@ -42,6 +43,7 @@ const settings: ClientPreferencesInForce = {
     chooseMessageView: () => undefined,
     chooseAiFilters: () => undefined,
     chooseNotificationSeconds: () => undefined,
+    chooseListMode: () => undefined,
 };
 
 const named: OwnProfileInForce = {

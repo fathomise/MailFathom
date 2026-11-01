@@ -23,7 +23,7 @@ const anna = 'anna';
 const bartek = 'bartek';
 
 // The whole document, because the route answers with nothing less and the package refuses an answer missing a field.
-// The four preferences no control in this hook's own tests moves are defaulted rather than named at each call, so
+// The five preferences no control in this hook's own tests moves are defaulted rather than named at each call, so
 // only the tests that are about one of them say anything about it.
 function stored(preferences: {
     telemetryEnabled: boolean;
@@ -34,6 +34,7 @@ function stored(preferences: {
     aiFiltersShown?: boolean;
     messageView?: string;
     notificationSeconds?: number;
+    listMode?: string;
 }): string {
     return JSON.stringify({
         markReadOnOpen: true,
@@ -42,6 +43,7 @@ function stored(preferences: {
         messageView: 'reduced',
         notificationSeconds: 5,
         trustedLinkDomains: [],
+        listMode: 'messages',
         ...preferences,
     });
 }
@@ -303,6 +305,7 @@ describe('useClientPreferences', () => {
             aiFiltersShown: true,
             messageView: 'reduced',
             notificationSeconds: 5,
+            listMode: 'messages',
         });
     });
 
@@ -351,6 +354,57 @@ describe('useClientPreferences', () => {
             aiFiltersShown: false,
             messageView: 'reduced',
             notificationSeconds: 5,
+            listMode: 'messages',
+        });
+    });
+
+    it('answers the list read by message before anything has been read, which is what an unset preference reads as', () => {
+        const { transport } = recording(stored({ telemetryEnabled: true, theme: 'dark', openMailInTabs: true }));
+        const { result } = reading(transport);
+
+        expect(result.current.preferences.listMode).toBe('messages');
+    });
+
+    it('answers the list read by conversation once the person has chosen it, so the client opens in it', async () => {
+        const { transport } = recording(
+            stored({ telemetryEnabled: true, theme: 'system', openMailInTabs: false, listMode: 'threads' }),
+        );
+        const { result } = reading(transport);
+
+        await waitFor(() => {
+            expect(result.current.preferences.listMode).toBe('threads');
+        });
+    });
+
+    it('states the whole document when the way the list is read is the decision that changed', async () => {
+        const { transport, requests } = recording(
+            stored({ telemetryEnabled: false, theme: 'light', openMailInTabs: false }),
+        );
+        const { result } = reading(transport);
+
+        await waitFor(() => {
+            expect(result.current.theme.choice).toBe('light');
+        });
+
+        act(() => {
+            result.current.preferences.chooseListMode('threads');
+        });
+
+        await waitFor(() => {
+            expect(requests).toHaveLength(2);
+        });
+
+        expect(result.current.preferences.listMode).toBe('threads');
+        expect(JSON.parse(requests[1]?.body ?? '')).toStrictEqual({
+            telemetryEnabled: null,
+            theme: 'light',
+            openMailInTabs: false,
+            markReadOnOpen: true,
+            expandWholeThread: false,
+            aiFiltersShown: true,
+            messageView: 'reduced',
+            notificationSeconds: 5,
+            listMode: 'threads',
         });
     });
 
@@ -381,6 +435,7 @@ describe('useClientPreferences', () => {
             aiFiltersShown: true,
             messageView: 'reduced',
             notificationSeconds: 12,
+            listMode: 'messages',
         });
     });
 
@@ -438,6 +493,7 @@ describe('useClientPreferences', () => {
                 aiFiltersShown: true,
                 messageView: 'reduced',
                 notificationSeconds: 5,
+                listMode: 'messages',
             });
         });
     });
@@ -711,6 +767,7 @@ describe('useClientPreferences', () => {
             aiFiltersShown: true,
             messageView: 'reduced',
             notificationSeconds: 5,
+            listMode: 'messages',
         });
     });
 
@@ -780,6 +837,7 @@ describe('useClientPreferences', () => {
             aiFiltersShown: true,
             messageView: 'reduced',
             notificationSeconds: 5,
+            listMode: 'messages',
         });
     });
 
@@ -816,6 +874,7 @@ describe('useClientPreferences', () => {
             aiFiltersShown: true,
             messageView: 'reduced',
             notificationSeconds: 5,
+            listMode: 'messages',
         });
         expect(window.localStorage.getItem(telemetryKey(anna))).toBe('false');
     });

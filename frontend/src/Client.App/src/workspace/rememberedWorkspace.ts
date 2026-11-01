@@ -156,6 +156,7 @@ function workspaceIn(value: unknown): Workspace | null {
     // pressed a control to open.
     return {
         scope,
+        threadListAccount: null,
         foldsToggled,
         mailboxesFolded,
         panelsHidden,

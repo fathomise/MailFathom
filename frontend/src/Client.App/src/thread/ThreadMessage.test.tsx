@@ -11,10 +11,12 @@ import type {
     MailAccount,
     MailBody,
     MailFathomTransport,
+    MailFolder,
     MailMessage,
     MailThreadMessage,
 } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { MailboxActsContext, nothingActed } from '../mailboxActs/useMailboxActs';
 import { ToastsProvider } from '../toasts/Toasts';
 import { ReadMarkingContext, nothingMarkedRead, type ReadMarking } from '../readMarking/useReadMarking';
 import { MailAccountsContext } from '../shell/accountNames';
@@ -164,6 +166,18 @@ function message(overrides: Partial<MailThreadMessage> = {}): MailThreadMessage 
     };
 }
 
+/** The folder every message here is stored in, as the folder tree names it: by its role, under a path of its own. */
+const sent: MailFolder = {
+    id: 'Sent',
+    role: 'Sent',
+    path: ['Sent Items'],
+    storedEmailCount: 3,
+    unreadEmailCount: 0,
+    synchronizationState: 'Synchronized',
+    lastSynchronizedAt: null,
+    behind: false,
+};
+
 /** The same message with nothing the deployment could open, which is the gap a correspondence is still drawn with. */
 function unopened(): MailThreadMessage {
     return message({ message: null, body: null });
@@ -179,6 +193,7 @@ function drawing(
     mark: ArrivalMark | null = null,
     motion: HistoryMotion | null = null,
     accounts: readonly MailAccount[] = [work],
+    folder: MailFolder | null = sent,
 ): void {
     render(
         <LocalizationProvider>
@@ -187,18 +202,20 @@ function drawing(
                     <LinkOpenerContext value={() => Promise.resolve()}>
                         <ReadMarkingContext value={marking}>
                             <MailAccountsContext value={accounts}>
-                                <ul>
-                                    <ThreadMessage
-                                        session={session}
-                                        transport={answersNothing}
-                                        message={held}
-                                        mark={mark}
-                                        motion={motion}
-                                        online
-                                        onShowFullHtml={handlers.onShowFullHtml ?? (() => undefined)}
-                                        onRegion={handlers.onRegion ?? (() => undefined)}
-                                    />
-                                </ul>
+                                <MailboxActsContext value={{ ...nothingActed, folderOf: () => folder }}>
+                                    <ul>
+                                        <ThreadMessage
+                                            session={session}
+                                            transport={answersNothing}
+                                            message={held}
+                                            mark={mark}
+                                            motion={motion}
+                                            online
+                                            onShowFullHtml={handlers.onShowFullHtml ?? (() => undefined)}
+                                            onRegion={handlers.onRegion ?? (() => undefined)}
+                                        />
+                                    </ul>
+                                </MailboxActsContext>
                             </MailAccountsContext>
                         </ReadMarkingContext>
                     </LinkOpenerContext>
@@ -231,7 +248,23 @@ describe('ThreadMessage', () => {
 
         expect(screen.getByText('The auditor')).toBeDefined();
         expect(screen.getByText('The figures you asked for are attached.')).toBeDefined();
-        expect(screen.getByText('In Work, Sent')).toBeDefined();
+        expect(screen.getByText('Sent · Work')).toBeDefined();
+    });
+
+    it('names a folder with no role by the last part of its path', () => {
+        drawing(message(), {}, nothingMarkedRead, null, null, [work], {
+            ...sent,
+            role: null,
+            path: ['Projects', 'Audit'],
+        });
+
+        expect(screen.getByText('Audit · Work')).toBeDefined();
+    });
+
+    it('draws no place where the client knows neither the folder nor the account by name', () => {
+        drawing(message(), {}, nothingMarkedRead, null, null, [], null);
+
+        expect(document.querySelector('[data-message-place]')).toBeNull();
     });
 
     // An identifier is how the deployment is asked, never what a reader knows a mailbox by — so an account the client
@@ -239,8 +272,8 @@ describe('ThreadMessage', () => {
     it('leaves out an account the client holds no name for, rather than showing its identifier', () => {
         drawing(message(), {}, nothingMarkedRead, null, null, []);
 
-        expect(screen.getByText('In Sent')).toBeDefined();
-        expect(screen.queryByText(/work/)).toBeNull();
+        expect(screen.getByText('Sent')).toBeDefined();
+        expect(screen.queryByText(/work/i)).toBeNull();
     });
 
     it('answers nothing while the history it belongs to folds away', () => {

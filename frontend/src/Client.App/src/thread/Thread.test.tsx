@@ -7,6 +7,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientResponse, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { MailboxActsContext, nothingActed, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { ToastsProvider } from '../toasts/Toasts';
 import {
     ReadMarkingContext,
@@ -1426,3 +1427,158 @@ function conversationReadAgainAs(again: string): { transport: MailFathomTranspor
         },
     };
 }
+
+// Read by conversation, a conversation is opened at its newest message from a row of that list, and what arrived since
+// it was last read is what it opens on. Which messages are somebody else's is read from the folder each is kept in, so
+// these tests say which folder is the reader's Sent folder through the acts that answer it.
+describe('Thread opened from the list read by conversation', () => {
+    const fromTheList: OpenConversation = { threadId, openAt: 'three', byThread: true };
+    const mine = { folder: 'SENT' };
+    const actsKnowingSent: MailboxActs = {
+        ...nothingActed,
+        folderRoleOf: (message) => (message.folder === 'SENT' ? 'Sent' : 'Inbox'),
+    };
+
+    const summarized = {
+        enrichment: {
+            derivedAt: '2026-08-31T09:41:00+00:00',
+            marks: [
+                {
+                    aspect: 'Commitment',
+                    text: 'An answer is owed by Friday.',
+                    reason: 'The sender asks for confirmation before the end of the week.',
+                    dueAt: '2026-09-04T16:00:00+00:00',
+                    source: 'Model',
+                    origin: 'agents/reader',
+                    evidence: ['fragment-1'],
+                },
+            ],
+        },
+    };
+
+    function openedFromTheList(
+        transport: MailFathomTransport,
+        conversation: OpenConversation = fromTheList,
+        marking: ReadMarking = nothingMarkedRead,
+    ): void {
+        render(
+            <MailboxActsContext value={actsKnowingSent}>
+                {inTheFrame(transport, conversation, true, marking)}
+            </MailboxActsContext>,
+        );
+    }
+
+    it('opens with every new message unfolded, each marked new, and only what was read before folded away', async () => {
+        openedFromTheList(deploymentAnswering(pageOf(['one', 'two', 'three'], {}, { two: unread, three: unread })));
+
+        expect(await screen.findByText('The whole of what two says.')).toBeDefined();
+        expect(screen.getByText('The whole of what three says.')).toBeDefined();
+        expect(screen.queryByText('The whole of what one says.')).toBeNull();
+        expect(screen.getAllByText('New')).toHaveLength(2);
+        expect(screen.getByRole('button', { name: 'Show 1 earlier message' })).toBeDefined();
+    });
+
+    it('marks none of the reader’s own replies new, although they stand among the news', async () => {
+        openedFromTheList(
+            deploymentAnswering(pageOf(['one', 'two', 'three'], {}, { two: unread, three: { ...unread, ...mine } })),
+        );
+
+        expect(await screen.findByText('The whole of what three says.')).toBeDefined();
+
+        const marked = screen.getAllByText('New');
+
+        expect(marked).toHaveLength(1);
+        expect(marked[0]?.closest('li')?.textContent).toContain('The whole of what two says.');
+    });
+
+    it('marks read every new message it opened on, so the conversation stands read', async () => {
+        const { marking, opened } = recordingMarkings();
+
+        openedFromTheList(
+            deploymentAnswering(pageOf(['one', 'two', 'three'], {}, { two: unread, three: unread })),
+            fromTheList,
+            marking,
+        );
+
+        await waitFor(() => {
+            expect(opened.map((message) => message.storedEmailId).toSorted()).toStrictEqual(['three', 'two']);
+        });
+    });
+
+    it('marks nothing new that this client already marked read, so the marks are shown once', async () => {
+        const marking: ReadMarking = {
+            ...nothingMarkedRead,
+            marked: new Map([
+                ['two', { account: 'work', folder: 'INBOX' }],
+                ['three', { account: 'work', folder: 'INBOX' }],
+            ]),
+        };
+
+        openedFromTheList(
+            deploymentAnswering(pageOf(['one', 'two', 'three'], {}, { two: unread, three: unread })),
+            fromTheList,
+            marking,
+        );
+
+        expect(await screen.findByText('The whole of what three says.')).toBeDefined();
+        expect(screen.queryByText('New')).toBeNull();
+        expect(screen.queryByText('The whole of what two says.')).toBeNull();
+    });
+
+    it('marks the newest message as the one opened from the list wherever more than it stands open', async () => {
+        openedFromTheList(deploymentAnswering(pageOf(['one', 'two', 'three'], {}, { two: unread, three: unread })));
+
+        expect(await screen.findByText('The whole of what two says.')).toBeDefined();
+
+        const marked = screen.getAllByText('Opened from the list');
+
+        expect(marked).toHaveLength(1);
+        expect(marked[0]?.closest('li')?.textContent).toContain('The whole of what three says.');
+    });
+
+    it('opens a conversation with nothing new in it at its newest message alone, as any read one opens', async () => {
+        openedFromTheList(deploymentAnswering(pageOf(['one', 'two', 'three'])));
+
+        expect(await screen.findByText('The whole of what three says.')).toBeDefined();
+        expect(screen.queryByText('The whole of what two says.')).toBeNull();
+        expect(screen.queryByText('New')).toBeNull();
+        expect(screen.queryByText('Opened from the list')).toBeNull();
+    });
+
+    it('marks nothing new in a conversation opened from the list read by message', async () => {
+        openedFromTheList(deploymentAnswering(pageOf(['one', 'two', 'three'], {}, { two: unread, three: unread })), {
+            threadId,
+            openAt: 'three',
+        });
+
+        expect(await screen.findByText('The whole of what three says.')).toBeDefined();
+        expect(screen.queryByText('New')).toBeNull();
+    });
+
+    it('offers the AI summary in the head of the newest message somebody else wrote, and on no other', async () => {
+        openedFromTheList(
+            deploymentAnswering(
+                pageOf(
+                    ['one', 'two', 'three'],
+                    {},
+                    { one: summarized, two: summarized, three: { ...summarized, ...mine } },
+                ),
+            ),
+            { threadId, openAt: 'three' },
+        );
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Show 2 earlier messages' }));
+
+        const offered = screen.getAllByRole('button', { name: 'AI summary' });
+
+        expect(offered).toHaveLength(1);
+        expect(offered[0]?.closest('li')?.textContent).toContain('The whole of what two says.');
+    });
+
+    it('offers no AI summary on a message nothing was read from', async () => {
+        openedFromTheList(deploymentAnswering(pageOf(['one'])), { threadId, openAt: null });
+
+        expect(await screen.findByText('The whole of what one says.')).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'AI summary' })).toBeNull();
+    });
+});

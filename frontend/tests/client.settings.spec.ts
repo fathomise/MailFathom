@@ -122,6 +122,7 @@ test('states the whole preferences document to the deployment when one of them i
         messageView: 'reduced',
         aiFiltersShown: true,
         notificationSeconds: 5,
+        listMode: 'messages',
     });
 });
 

@@ -14,7 +14,7 @@ import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useMessageBody } from '../messageBody/useMessageBody';
 import { OpenedMessage } from '../readingPane/OpenedMessage';
-import { useAccountName } from '../shell/accountNames';
+import { SummaryControl } from './SummaryControl';
 import type { ArrivalMark } from './threadOpening';
 
 // One message of a conversation, drawn out in full — which is the whole of what this component decides, because what a
@@ -62,6 +62,8 @@ export function ThreadMessage({
     transport,
     message,
     mark,
+    fresh = false,
+    summarized = false,
     motion,
     online,
     onShowFullHtml,
@@ -74,6 +76,15 @@ export function ThreadMessage({
     /** What marks this message out as the one the conversation arrived at, or `null` where nothing does. */
     readonly mark: ArrivalMark | null;
 
+    /**
+     * Whether the message arrived since the conversation was last read, which is said once — on the opening that read
+     * it — beside who wrote it. A conversation opened from anywhere but a row of the list read by conversation marks none.
+     */
+    readonly fresh?: boolean;
+
+    /** Whether this is the newest message somebody else wrote, whose head carries the conversation's AI summary. */
+    readonly summarized?: boolean;
+
     /** How this message moves as the history is shown or hidden, or `null` where it stands still. */
     readonly motion: HistoryMotion | null;
 
@@ -85,7 +96,6 @@ export function ThreadMessage({
 }) {
     const { translate } = useLocalization();
     const email = message.email;
-    const accountName = useAccountName(email.account);
     const sender = email.senderDisplayName ?? email.senderAddress ?? translate('list.senderUnknown');
 
     // The body the conversation already answered with, which is what makes revealing the history cost no request. The
@@ -145,14 +155,20 @@ export function ThreadMessage({
                             message={message.message}
                             body={body}
                             onShowFullHtml={onShowFullHtml}
+                            marks={
+                                fresh ? (
+                                    <span className="shrink-0 rounded-sm bg-accent px-1.75 py-px text-xs/4 font-semibold whitespace-nowrap text-on-accent">
+                                        {translate('thread.new')}
+                                    </span>
+                                ) : null
+                            }
+                            summary={
+                                summarized ? (
+                                    <SummaryControl email={email} session={session} transport={transport} />
+                                ) : null
+                            }
                         />
                     )}
-
-                    <p className="text-sm text-muted">
-                        {accountName === null
-                            ? translate('thread.storedInFolder', { folder: email.folder })
-                            : translate('thread.storedIn', { account: accountName, folder: email.folder })}
-                    </p>
                 </div>
             </article>
         </li>

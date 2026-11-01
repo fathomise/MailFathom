@@ -12242,6 +12242,7 @@ mail.ts conversationState GET /api/client/threads/{threadId}/state
 mail.ts spamRow GET /api/client/emails
 mail.ts spamRows GET /api/client/emails
 mail.ts spamFolderPage GET /api/client/emails
+mail.ts threadList GET /api/client/threads
 messages.ts run GET /api/client/messages/{storedEmailId}/body
 messages.ts cell GET /api/client/messages/{storedEmailId}/body
 messages.ts newsletterBlocks GET /api/client/messages/{storedEmailId}/body

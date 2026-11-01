@@ -3,7 +3,15 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import { leadingRow, offsetKeptAcross, offsetOfRow, overscanRows, rowsDrawnAtOnce, windowOf } from './rowWindow';
+import {
+    leadingRow,
+    offsetKeptAcross,
+    offsetOfRow,
+    overscanRows,
+    rowsDrawnAtOnce,
+    windowOf,
+    windowOfHeights,
+} from './rowWindow';
 
 // Ten rows of a hundred pixels each, so a number in an expectation reads as the row it stands for.
 const rowHeight = 100;
@@ -107,5 +115,40 @@ describe('rowsDrawnAtOnce', () => {
 
     it('answers no rows before one has been measured, there being no height to divide by', () => {
         expect(rowsDrawnAtOnce(0, 500)).toBe(0);
+    });
+});
+
+describe('windowOfHeights', () => {
+    // Forty rows alternating a hundred and eighty pixels, so every pair of them is 180 pixels.
+    const heights = Array.from({ length: 40 }, (_, row) => (row % 2 === 0 ? 100 : 80));
+    const total = (from: number, to: number): number => heights.slice(from, to).reduce((sum, row) => sum + row, 0);
+
+    it('draws nothing for a list holding nothing', () => {
+        expect(windowOfHeights([], 0, viewport)).toStrictEqual({ first: 0, count: 0, above: 0, below: 0 });
+    });
+
+    it('draws the rows in view and the overscan after them, at the top of the list', () => {
+        // Six rows fill 540 pixels, which is the viewport, and the overscan draws as many again after them.
+        expect(windowOfHeights(heights, 0, 540)).toStrictEqual({
+            first: 0,
+            count: 6 + overscanRows,
+            above: 0,
+            below: total(6 + overscanRows, 40),
+        });
+    });
+
+    it('starts the window the overscan before the first row in view, and reserves what it does not draw', () => {
+        // Row 20 starts at 1 800 pixels, so it is the first row in view.
+        const drawn = windowOfHeights(heights, 1_800, 360);
+
+        expect(drawn.first).toBe(20 - overscanRows);
+        expect(drawn.above).toBe(total(0, drawn.first));
+        expect(drawn.above + total(drawn.first, drawn.first + drawn.count) + drawn.below).toBe(total(0, 40));
+    });
+
+    it('keeps the last row drawn when the scroller stands past the end of the list', () => {
+        const drawn = windowOfHeights([100, 100, 100], 5_000, 400);
+
+        expect(drawn.first + drawn.count).toBe(3);
     });
 });

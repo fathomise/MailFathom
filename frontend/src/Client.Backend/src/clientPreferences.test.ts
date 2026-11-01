@@ -30,6 +30,7 @@ const stored = {
     aiFiltersShown: false,
     notificationSeconds: 12,
     trustedLinkDomains: [],
+    listMode: 'threads',
 } as const;
 const storedBody = JSON.stringify(stored);
 
@@ -71,7 +72,7 @@ describe('readClientPreferences', () => {
         expect(requests[0]?.headers['Authorization']).toBe('Basic dGVzdA==');
     });
 
-    it('reads the nine preferences the deployment answered', async () => {
+    it('reads the ten preferences the deployment answered', async () => {
         const answer = await readClientPreferences(session, answering({ status: 200, body: storedBody }));
 
         expect(answer).toStrictEqual({ outcome: 'read', value: stored });
@@ -214,6 +215,29 @@ describe('readClientPreferences', () => {
         );
 
         expect(answer).toStrictEqual({ outcome: 'read', value: { ...stored, trustedLinkDomains: [] } });
+    });
+
+    it('reads an answer with no list mode, from a replica built before it, as one message per row', async () => {
+        const answer = await readClientPreferences(
+            session,
+            answering({
+                status: 200,
+                body: JSON.stringify(
+                    Object.fromEntries(Object.entries(stored).filter(([preference]) => preference !== 'listMode')),
+                ),
+            }),
+        );
+
+        expect(answer).toStrictEqual({ outcome: 'read', value: { ...stored, listMode: 'messages' } });
+    });
+
+    it('refuses a list mode the deployment does not publish', async () => {
+        const answer = await readClientPreferences(
+            session,
+            answering({ status: 200, body: JSON.stringify({ ...stored, listMode: 'conversations' }) }),
+        );
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
     // An entry in any form but the one a link's host is compared in would match nothing while the list said it trusted

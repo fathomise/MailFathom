@@ -27,6 +27,11 @@ export type ClientMessageView = 'reduced' | 'cleaned' | 'embeddedHtml';
 
 const messageViews: readonly ClientMessageView[] = ['reduced', 'cleaned', 'embeddedHtml'];
 
+/** Whether the mail list draws one message or one conversation per row, as the deployment names it. */
+export type ClientMailListMode = 'messages' | 'threads';
+
+const listModes: readonly ClientMailListMode[] = ['messages', 'threads'];
+
 /**
  * What one person set about their own client, held on the deployment so it follows them between machines.
  *
@@ -68,6 +73,9 @@ export interface ClientPreferences {
      * being converted. No screen edits it yet; the deployment's own route is where it is set.
      */
     readonly trustedLinkDomains: readonly string[];
+
+    /** Whether the mail list draws one message or one conversation per row. */
+    readonly listMode: ClientMailListMode;
 }
 
 /** The most domains a list of trusted link domains holds, which is the deployment's own bound. */
@@ -98,12 +106,13 @@ export const unsetClientPreferences: ClientPreferences = {
     aiFiltersShown: true,
     notificationSeconds: 5,
     trustedLinkDomains: [],
+    listMode: 'messages',
 };
 
 /**
  * The most of one preferences answer this package reads before refusing it.
  *
- * The document is eight scalars and a list of at most fifty domain names, so this is above anything the deployment
+ * The document is nine scalars and a list of at most fifty domain names, so this is above anything the deployment
  * will legitimately send and far below anything worth buffering. It is the bound the write route reads its request
  * body to, for the same reason: what the bound guards against is an answer that was never a preferences document.
  */
@@ -218,6 +227,9 @@ function parsePreferences(body: string): ClientPreferences | null {
     // after it. It holds no list to report, so it reads as the unset one; refusing it would leave the screen on a
     // document of nothing but defaults for every other preference too.
     const trustedLinkDomains = record['trustedLinkDomains'] ?? unsetClientPreferences.trustedLinkDomains;
+    // Absent for the same reason: a replica built before the list could be read by conversation stores a document
+    // without it, and the deployment reads that as one message per row until the person chooses again.
+    const listMode = record['listMode'] ?? unsetClientPreferences.listMode;
 
     if (!isNotificationTime(notificationSeconds) || !isTrustedLinkDomainList(trustedLinkDomains)) {
         return null;
@@ -233,7 +245,7 @@ function parsePreferences(body: string): ClientPreferences | null {
         return null;
     }
 
-    if (!isThemePreference(theme) || !isMessageView(messageView)) {
+    if (!isThemePreference(theme) || !isMessageView(messageView) || !isListMode(listMode)) {
         return null;
     }
 
@@ -247,6 +259,7 @@ function parsePreferences(body: string): ClientPreferences | null {
         aiFiltersShown,
         notificationSeconds,
         trustedLinkDomains,
+        listMode,
     };
 }
 
@@ -273,6 +286,10 @@ function isThemePreference(value: unknown): value is ClientThemePreference {
 
 function isMessageView(value: unknown): value is ClientMessageView {
     return typeof value === 'string' && messageViews.includes(value as ClientMessageView);
+}
+
+function isListMode(value: unknown): value is ClientMailListMode {
+    return typeof value === 'string' && listModes.includes(value as ClientMailListMode);
 }
 
 /**

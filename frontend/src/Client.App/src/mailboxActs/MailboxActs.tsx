@@ -16,6 +16,7 @@ import {
     type ClientResult,
     type ClientSession,
     type MailFathomTransport,
+    type MailFolder,
     type MailFolderDirectory,
     type MailFolderRole,
     type MailMutationResult,
@@ -811,12 +812,16 @@ export function MailboxActsProvider({
     }
 
     // Which role a message's own folder plays, read out of the same tree the destinations are read from.
-    function folderRoleOf(message: ActedMessage): MailFolderRole | null {
+    function folderOf(message: ActedMessage): MailFolder | null {
         return (
             held.directory?.accounts
                 .find((entry) => entry.account.id === message.account)
-                ?.folders.find((folder) => folder.id === message.folder)?.role ?? null
+                ?.folders.find((folder) => folder.id === message.folder) ?? null
         );
+    }
+
+    function folderRoleOf(message: ActedMessage): MailFolderRole | null {
+        return folderOf(message)?.role ?? null;
     }
 
     function perform(act: MailboxAct, messages: readonly ActedMessage[], destination?: MoveDestination): void {
@@ -964,11 +969,12 @@ export function MailboxActsProvider({
         session === null
             ? nothingActed
             : !(flags || moves || deletes)
-              ? { ...nothingActed, folderRoleOf }
+              ? { ...nothingActed, folderRoleOf, folderOf }
               : {
                     asked: held.asked,
                     refusalOf,
                     folderRoleOf,
+                    folderOf,
                     destinationsOf: (messages) => destinationsFor(held.directory, messages),
                     deletesPermanently: destroys,
                     perform,
