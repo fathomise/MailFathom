@@ -546,9 +546,43 @@ would arrive unreadable to the person it was written for, and nobody would have 
   message from that account goes unsigned, and the composer says so before it is sent. Signing is never the reason a
   send refuses, because an unsigned message claims nothing false.
 
+**What MailFathom adds to an outgoing message goes in before the message is signed and encrypted.** A message is
+footed, screened, and given the organization's signature when it is queued. On the service path, the footer is
+appended and the outgoing screening reads the message first. The S/MIME or OpenPGP signature then covers the message
+with its footer, and the encryption seals that signed message.
+[ADR 0042](0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md)'s organization signature
+is applied last, to the message as it is transmitted, because that is the form a receiving deployment verifies before
+it opens anything.
+
+On the device path the service cannot reach inside what it receives. So the device appends the footer the account has
+in force, which the client already reads per account, before it signs and seals, and the service appends nothing
+inside the ciphertext. Outgoing screening cannot read a device-sealed message either. An account whose outgoing mail
+is screened therefore does not offer the device path for sending, for the same reason a reader whose reads are
+redacted does not get it for reading.
+
 **Both choices are made wherever a message is composed**: in the composer, and in the draft an agent prepares in the
 agent view. The two surfaces offer the same two choices with the same defaults. Drafting and sending stay separate
 acts there, as ADR 0013 requires. Where on each surface the choices sit is the design's to draw.
+
+### Rotation: a new key joins the list, and the old one stays
+
+Every place a key is held here is a list, never a single slot: the ring's entries for an account, an account's
+configured recipient keys, and the keys on a device. Rotating a key means adding the new one beside the old one.
+
+- **Reading never needs to know which key is current.** A message is opened by the key its own envelope names, so mail
+  sealed to the old key keeps opening with the old key, and mail sealed to the new one opens with the new one. The
+  envelope keeps the two sets of mail apart without anybody stating which key is active, which is why the ring has no
+  `ActiveKeyId` of the kind [ADR 0005](0005-data-encryption-key-ring-and-provisioning.md) needs.
+- **Sealing and signing use the newest valid key.** Where an account holds several keys with the usage an act needs,
+  the act takes the newest one that is neither expired nor revoked: by creation time for OpenPGP, and by the start of
+  the validity period for S/MIME. That covers sealing a draft or a sent copy to the author, and signing. After a
+  rotation, new mail therefore goes out under the new key without anything else changing.
+- **Choosing a recipient key follows the same rule.** A configured key wins over a learned one for the same address
+  on the same account. Among keys of one kind, the newest valid one is used. Expired and revoked keys are passed
+  over, never treated as the last resort.
+- **Retiring the old key is a separate act, taken when nothing that matters is sealed only to it.** Removing it is the
+  removal described above: mail sealed only to it stops opening, and its derived rows go at their next re-derivation.
+  Keeping an old key costs nothing but its place in the list, so the safe default after a rotation is to keep it.
 
 ### What reaches a log, a metric, or a trace
 
@@ -631,6 +665,12 @@ valid configuration.
   offered for sends from its own account and refused for every other account, including another account of the same
   person. A configured key wins over a learned one for the same address. An account with learning switched off is
   offered no learned key. A signing-only certificate is learned for nothing.
+- **Rotation is held by unit tests**: with an old and a new key held for one account, mail sealed to each opens with
+  its own key. A new draft, a sent copy, and a signature use the new key. An expired newest key is passed over for the
+  next valid one.
+- **The order of what is added is held by unit tests**: on the service path the footer is inside the signed and
+  sealed content, and the organization signature covers the transmitted form. On the device path the device appends
+  the footer before sealing, and an account whose outgoing mail is screened is not offered the device path.
 - **Signing and encrypting are held apart by unit tests**: a signed message that is not encrypted refuses for no
   recipient. An encryption key never signs, and a signing key never decrypts or seals. The sign-everything setting
   signs every message from an account with a signing key and leaves one from an account without one unsigned. An
