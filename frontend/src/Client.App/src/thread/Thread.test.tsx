@@ -1478,6 +1478,15 @@ describe('Thread opened from the list read by conversation', () => {
         expect(screen.getByRole('button', { name: 'Show 1 earlier message' })).toBeDefined();
     });
 
+    it('lands the reader on the first new message rather than on the newest one it was opened at', async () => {
+        openedFromTheList(deploymentAnswering(pageOf(['one', 'two', 'three'], {}, { two: unread, three: unread })));
+
+        await waitFor(() => {
+            expect(document.activeElement?.textContent).toContain('The whole of what two says.');
+        });
+        expect(document.activeElement?.textContent).not.toContain('The whole of what three says.');
+    });
+
     it('marks none of the reader’s own replies new, although they stand among the news', async () => {
         openedFromTheList(
             deploymentAnswering(pageOf(['one', 'two', 'three'], {}, { two: unread, three: { ...unread, ...mine } })),

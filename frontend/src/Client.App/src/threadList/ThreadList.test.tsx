@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientSession, ListedMailThread, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
@@ -151,6 +151,25 @@ describe('ThreadList', () => {
         expect(asked[1]?.path).toContain('cursor=onwards');
     });
 
+    it('keeps what it holds when a later page fails, says which part is missing, and reads that page when asked', async () => {
+        const { transport, asked } = deploymentAnswering(
+            answered(pageOf([listed('one', 'The quarterly figures')], 'onwards')),
+            { status: 503, body: '' },
+            answered(pageOf([listed('two', 'The audit')])),
+        );
+
+        drawing(transport);
+
+        expect((await screen.findByRole('alert')).textContent).toMatch(/^Some of the conversations could not be read/u);
+        expect(screen.getByText('The quarterly figures')).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+        expect(await screen.findByText('The audit')).toBeDefined();
+        expect(screen.getByText('The quarterly figures')).toBeDefined();
+        expect(asked[2]?.path).toContain('cursor=onwards');
+    });
+
     it('opens the conversation pressed', async () => {
         const onOpen = vi.fn();
 
@@ -190,5 +209,40 @@ describe('ThreadList', () => {
         });
 
         expect(await screen.findByText('The audit')).toBeDefined();
+    });
+
+    it('keeps the list it holds when reading it again after a change fails', async () => {
+        let say: SignalListener = () => undefined;
+        const { transport, asked } = deploymentAnswering(answered(pageOf([listed('one', 'The quarterly figures')])), {
+            status: 503,
+            body: '',
+        });
+
+        drawing(
+            transport,
+            true,
+            () => undefined,
+            (listener) => {
+                say = listener;
+
+                return () => undefined;
+            },
+        );
+
+        await screen.findByText('The quarterly figures');
+
+        act(() => {
+            say({ kind: 'mail.changed', account: 'work', folder: null, emails: ['two'] });
+        });
+
+        await waitFor(() => {
+            expect(asked).toHaveLength(2);
+        });
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        expect(screen.getByText('The quarterly figures')).toBeDefined();
+        expect(screen.queryByRole('alert')).toBeNull();
     });
 });
