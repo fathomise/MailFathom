@@ -1634,7 +1634,19 @@ Project repository: https://github.com/fathomise/MailFathom
                   <span onClick="{{ acceptDraft }}" style="font-size:12px;color:var(--muted)" style-hover="cursor:pointer;color:var(--text)">Accept</span>
                 </div>
               </sc-if>
+              <div data-compose-writing style="{{ composeWritingStyle }}">
               <div contentEditable="true" suppressContentEditableWarning="{{ true }}" ref="{{ bodyRef }}" onKeyDown="{{ composeKeyDown }}" style="{{ composeEditorStyle }}"></div>
+              <sc-if value="{{ composeFooterShown }}" hint-placeholder-val="{{ true }}">
+                <div data-compose-footer role="group" aria-label="Footer added when you send" style="{{ composeFooterStyle }}">
+                  <div role="button" tabindex="0" aria-expanded="{{ composeFooterOpen }}" onClick="{{ toggleComposeFooter }}" style="{{ composeFooterToggleStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text2)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">{{ composeFooterGlyph }}</span><span>{{ composeFooterLabel }}</span></div>
+                  <sc-if value="{{ composeFooterOpen }}" hint-placeholder-val="{{ false }}">
+                    <div data-motion="disclose" style="display:flex;flex-direction:column;gap:1px">
+                      <sc-for list="{{ composeFooterLines }}" as="fl" hint-placeholder-count="4"><div style="{{ fl.style }}">{{ fl.text }}</div></sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+              </div>
               </div>
               <sc-if value="{{ composeRefused }}" hint-placeholder-val="{{ false }}">
                 <div role="status" style="display:flex;align-items:flex-start;gap:8px;padding:9px 15px;border-top:1px solid var(--line);background:var(--warn-soft);font-size:13px;line-height:1.5;color:var(--warn-text);text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:20px;flex-shrink:0">cloud_off</span><span>{{ composeRefusedNote }}</span></div>
@@ -2066,6 +2078,16 @@ Project repository: https://github.com/fathomise/MailFathom
                               <sc-if value="{{ bk.notEditing }}" hint-placeholder-val="{{ true }}">
                                 <div style="{{ bk.letterStyle }}">
                                   <sc-for list="{{ bk.paras }}" as="p" hint-placeholder-count="3"><div style="{{ p.style }}">{{ p.t }}</div></sc-for>
+                                </div>
+                              </sc-if>
+                              <sc-if value="{{ bk.hasFooter }}" hint-placeholder-val="{{ false }}">
+                                <div data-draft-footer style="display:flex;flex-direction:column;gap:6px">
+                                  <div role="button" tabindex="0" aria-expanded="{{ bk.footerOpen }}" onClick="{{ bk.footerToggle }}" onKeyDown="{{ bk.footerKey }}" style="{{ bk.footerToggleStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text2)"><span aria-hidden="true" style="{{ bk.footerGlyphStyle }}">{{ bk.footerGlyph }}</span><span>{{ bk.footerLabel }}</span></div>
+                                  <sc-if value="{{ bk.footerOpen }}" hint-placeholder-val="{{ false }}">
+                                    <div data-motion="disclose" style="display:flex;flex-direction:column;gap:1px">
+                                      <sc-for list="{{ bk.footerLines }}" as="fl" hint-placeholder-count="4"><div style="{{ fl.style }}">{{ fl.text }}</div></sc-for>
+                                    </div>
+                                  </sc-if>
                                 </div>
                               </sc-if>
                               <sc-if value="{{ bk.hasSendAt }}" hint-placeholder-val="{{ false }}">
