@@ -41,8 +41,9 @@ tree whose indentation, spacing, and final newlines are already repaired. Then
 everything that compiles or checks: the Release build, and the client's lint and
 type check — a compile error in either stack, an unnecessary using, a missing
 licensing header, or an analyzer finding stops the run before any suite starts.
-Then the unit suites the change can have broken, `--no-build` against the
-binaries that build produced, so nothing is built twice. No pass in the loop
+Then every unit suite, in one `dotnet test --solution` that runs the test modules
+side by side, `--no-build` against the binaries that build produced, so nothing is
+built twice. No pass in the loop
 loads the MSBuild workspace to format.
 
 A rewrite that reaches the end of a passing run is the repairs' own, so the run
@@ -92,29 +93,12 @@ that hands one of the departures to either. Because the two gates build with
 different properties, switching between them in one worktree rebuilds the solution
 once.
 
-Which suites run is
-[`scripts/resolve-changed-unit-suites.sh`](https://github.com/fathomise/MailFathom/blob/main/scripts/resolve-changed-unit-suites.sh)'s
-answer, read out of what each test project names in its own `Include`
-attributes — a `ProjectReference` to the project under test, or a `Compile`
-linking one of its files in, which is how `AppHost.UnitTests` reaches its subject
-while holding no project reference at all. A unit-test project is one whose name
-ends `.UnitTests`, the same rule `backend/Directory.Build.props` sets
-`IsUnitTestProject` by, which is what keeps `Benchmarks` and `IntegrationTests`
-out of the selection exactly as a solution-wide `dotnet test` keeps them out of
-its own run.
+The unit suites always run whole, in one parallel run that takes about eighty
+seconds on the owner's machine. `Infrastructure.UnitTests` alone sets most of that
+floor, so running only the suites a change names would save little even for a
+change to one project, and a run never has to say which suites it left out.
 
-The relation is direct rather than transitive, and that is what the narrowing
-costs: a change to `Domain` runs `Domain.UnitTests` and not the
-`Application.UnitTests` that exercises the same types one layer up. A change
-reaching a path under `backend/` that no test project names — a package pin, a
-shared build property, the solution file — is not narrowed at all and runs the
-whole solution, because each of those can move the verdict on a project nothing
-in the change touched. The run prints how many suites it ran of how many there
-are and names them, so a run that tested a quarter of the suite never reads as a
-run that tested all of it; `CI` runs every suite on the pull request, which is
-where the rest of that verdict arrives.
-
-The client is narrowed the same way, in its three slowest checks. ESLint runs
+The client is narrowed, in its three slowest checks. ESLint runs
 over the client files the branch changed rather than `eslint .`, with the
 configuration's own ignores still deciding what is linted; Vitest runs
 `vitest related` over them, which finds the test files whose imports reach a
@@ -377,12 +361,11 @@ composite actions a workflow runs. The workflow entries are in the filters
 because in the pipeline a changed workflow runs itself, so building a stack is how
 its edit is verified. No gate here runs a workflow, so a Release build and a unit
 suite over a solution the change did not touch would prove nothing about it, and
-an edit to `ci.yml` would otherwise run both flows in full — no unit-test project
-names it, so `resolve_changed_unit_suites` could not narrow either. What reads a
+an edit to `ci.yml` would otherwise run both flows in full. What reads a
 workflow locally is the contract suite, which the full gate runs for every change
 that is not C# alone. The skip sits in the matcher rather than in the lists, so the
 lists stay copies of `ci.yml`'s filters for the contract above, and it holds for
-both gates and for the unit-suite resolver from one place.
+both gates from one place.
 
 Four files sit above both stacks and belong to one filter anyway, which is the
 same argument read the other way. `scripts/read-declared-version.sh` is the
