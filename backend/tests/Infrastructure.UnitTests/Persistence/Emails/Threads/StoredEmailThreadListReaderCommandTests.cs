@@ -68,34 +68,83 @@ public sealed class StoredEmailThreadListReaderCommandTests
         Assert.Contains("@boundaryId", command, StringComparison.Ordinal);
     }
 
-    /// <summary>The grouped walk translates in both directions, from either end and from either shape of boundary, and decides listing on spam and Trash.</summary>
+    /// <summary>
+    /// The first page of the grouped walk is one grouped, bounded read that decides listing on spam and Trash and orders
+    /// the conversations by their newest passing arrival, undated last, then by that message's identifier — newest
+    /// first or oldest first as the walk asked, which is the timeline's own order.
+    /// </summary>
     [Theory]
-    [InlineData(EmailTimelineDirection.NewestFirst, null)]
-    [InlineData(EmailTimelineDirection.NewestFirst, true)]
-    [InlineData(EmailTimelineDirection.NewestFirst, false)]
-    [InlineData(EmailTimelineDirection.OldestFirst, null)]
-    [InlineData(EmailTimelineDirection.OldestFirst, true)]
-    [InlineData(EmailTimelineDirection.OldestFirst, false)]
-    public void GroupedPage_EitherDirectionFromEitherBoundary_IsOneGroupedOrderedBoundedRead(
+    [InlineData(
+        EmailTimelineDirection.NewestFirst,
+        "ORDER BY max(s.\"ReceivedAt\") IS NULL, max(s.\"ReceivedAt\") DESC, (",
+        "LIMIT 1) DESC\nLIMIT @p")]
+    [InlineData(
+        EmailTimelineDirection.OldestFirst,
+        "ORDER BY max(s.\"ReceivedAt\") IS NULL DESC, max(s.\"ReceivedAt\"), (",
+        "LIMIT 1)\nLIMIT @p")]
+    public void GroupedPage_TheFirstPageInEitherDirection_OrdersByTheNewestPassingArrivalThenItsMessage(
         EmailTimelineDirection direction,
-        bool? datedBoundary)
+        string arrivalOrder,
+        string messageOrderAndLimit)
+    {
+        // Act
+        var command = GroupedPageCommand(Filter(direction, mark: null), continueAfter: null);
+
+        // Assert
+        Assert.Contains("GROUP BY", command, StringComparison.Ordinal);
+        Assert.Contains("@trashedFolderIds", command, StringComparison.Ordinal);
+        Assert.Contains("Verdict", command, StringComparison.Ordinal);
+        Assert.DoesNotContain("HAVING", command, StringComparison.Ordinal);
+        Assert.Contains(arrivalOrder, OuterOrder(command), StringComparison.Ordinal);
+        Assert.EndsWith(messageOrderAndLimit, OuterOrder(command), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A continued page keeps the conversations beyond the boundary in the walk's direction: past its arrival, or at
+    /// that arrival past its message, with an undated boundary reaching only the undated conversations when walking
+    /// newest first and every dated one besides when walking oldest first.
+    /// </summary>
+    [Theory]
+    [InlineData(
+        EmailTimelineDirection.NewestFirst,
+        true,
+        "HAVING max(s.\"ReceivedAt\") IS NULL OR max(s.\"ReceivedAt\") < @arrival OR (max(s.\"ReceivedAt\") = @arrival AND (",
+        "LIMIT 1) < @")]
+    [InlineData(
+        EmailTimelineDirection.NewestFirst,
+        false,
+        "HAVING max(s.\"ReceivedAt\") IS NULL AND (",
+        "LIMIT 1) < @")]
+    [InlineData(
+        EmailTimelineDirection.OldestFirst,
+        true,
+        "HAVING max(s.\"ReceivedAt\") IS NOT NULL AND (max(s.\"ReceivedAt\") > @arrival OR (max(s.\"ReceivedAt\") = @arrival AND (",
+        "LIMIT 1) > @")]
+    [InlineData(
+        EmailTimelineDirection.OldestFirst,
+        false,
+        "HAVING max(s.\"ReceivedAt\") IS NOT NULL OR (",
+        "LIMIT 1) > @")]
+    public void GroupedPage_AContinuedPage_KeepsOnlyTheConversationsBeyondTheBoundaryInTheWalksDirection(
+        EmailTimelineDirection direction,
+        bool datedBoundary,
+        string arrivalComparison,
+        string messageComparison)
     {
         // Arrange
-        EmailTimelinePosition? boundary = datedBoundary is { } dated
-            ? new EmailTimelinePosition(
-                dated ? DateTimeOffset.Parse("2026-10-30T09:00:00Z", null) : null,
-                StoredEmailId.Create(Guid.Parse("33333333-3333-3333-3333-333333333333")))
-            : null;
+        var boundary = new EmailTimelinePosition(
+            datedBoundary ? DateTimeOffset.Parse("2026-10-30T09:00:00Z", null) : null,
+            StoredEmailId.Create(Guid.Parse("33333333-3333-3333-3333-333333333333")));
 
         // Act
         var command = GroupedPageCommand(Filter(direction, mark: null), boundary);
 
         // Assert
-        Assert.Contains("GROUP BY", command, StringComparison.Ordinal);
-        Assert.Contains("LIMIT", command, StringComparison.Ordinal);
-        Assert.Contains("@trashedFolderIds", command, StringComparison.Ordinal);
-        Assert.Contains("Verdict", command, StringComparison.Ordinal);
-        Assert.Equal(boundary is not null, command.Contains("boundaryId", StringComparison.Ordinal));
+        var keyset = command[command.IndexOf("HAVING", StringComparison.Ordinal)..command.LastIndexOf("ORDER BY max(", StringComparison.Ordinal)];
+
+        Assert.StartsWith(arrivalComparison, keyset, StringComparison.Ordinal);
+        Assert.Contains(messageComparison, keyset, StringComparison.Ordinal);
+        Assert.Equal(datedBoundary, keyset.Contains("@arrival", StringComparison.Ordinal));
     }
 
     /// <summary>The list's filters reach the grouped walk through the shared predicate, an AI filter's mark criteria among them.</summary>
@@ -207,6 +256,9 @@ public sealed class StoredEmailThreadListReaderCommandTests
                 PageLimit)
             .ToQueryString();
     }
+
+    private static string OuterOrder(string command) =>
+        command[command.LastIndexOf("ORDER BY max(", StringComparison.Ordinal)..].ReplaceLineEndings("\n").TrimEnd();
 
     private static EmailTimelineFilter Filter(
         EmailTimelineDirection direction,
