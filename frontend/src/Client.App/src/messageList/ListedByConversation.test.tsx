@@ -369,6 +369,32 @@ describe('MessageList read by conversation', () => {
         expect(searchOf(asked[2]).get('cursor')).toBe('onwards');
     });
 
+    // A row names only a conversation's newest message, while reading or flagging any of the others changes the unread
+    // count it draws — so the statement cannot be matched to a page, and every page on the screen is read again.
+    it('reads its pages again when the flags of a message older than any it names change', async () => {
+        const { transport, asked } = deploymentServing({
+            '': pageOf([listed('one', 'The quarterly figures')], 'onwards'),
+            onwards: pageOf([listed('two', 'The audit')]),
+        });
+
+        const { say } = drawing(transport);
+
+        await screen.findByText('The audit');
+        say({
+            kind: 'mail.flags.changed',
+            account: 'work',
+            folder: 'INBOX',
+            flags: [{ email: 'two-earlier', isSeen: true, isFlagged: false }],
+        });
+
+        await waitFor(() => {
+            expect(asked).toHaveLength(4);
+        });
+        expect(asked.slice(2).map((request) => searchOf(request).get('cursor'))).toEqual(
+            expect.arrayContaining([null, 'onwards']),
+        );
+    });
+
     it('reads a list scrolled deep in again page by page from each page’s own cursor on a refresh', async () => {
         const { transport, asked } = deploymentServing({
             '': pageOf([listed('one', 'The quarterly figures')], 'onwards'),

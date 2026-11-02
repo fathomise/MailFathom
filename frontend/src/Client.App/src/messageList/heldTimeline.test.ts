@@ -263,8 +263,31 @@ describe('trimmedAround', () => {
         const leaving = new Set(['message-0', 'message-1', 'message-2', 'message-3']);
         const trimmed = trimmedAround(held, 20, 23, (all) => withoutLeaving(all, (email) => leaving.has(email.id)));
 
-        expect(rowAt(trimmed, 32)?.id).toBe('message-32');
-        expect(rowAt(trimmed, 12)).toBeNull();
+        expect(rowAt(trimmed, 12)?.id).toBe('message-16');
+        expect(rowAt(trimmed, 8)).toBeNull();
+    });
+
+    // A page that drew fewer rows than it was read with — a conversation it held stands higher up — cannot say which of
+    // them it left out once its rows are gone, so it keeps the count it was drawn at and the list stays the height it was.
+    it('keeps the count a page was drawn at when it drops one holding a repeat', () => {
+        const conversationOf = (email: MailTimelineEntry): string => email.subject ?? '';
+        const drawn = (all: HeldTimeline<MailTimelineEntry>) => withoutRepeats(all, conversationOf);
+        const leading = page(0);
+        let held = answered(
+            nothingHeld,
+            { ...leading, rows: [{ ...message(99), subject: 'Message 5' }, ...leading.rows] },
+            forward,
+        );
+
+        for (let at = 1; at < 6; at += 1) {
+            held = answered(held, page(at * rowsPerPage), extending(`after-${String(at * rowsPerPage)}`));
+        }
+
+        const tall = rowCountOf(drawn(held));
+        const trimmed = trimmedAround(held, tall - rowsPerPage, tall - 1, drawn);
+
+        expect(trimmed.slots[1]?.rows).toBeNull();
+        expect(rowCountOf(drawn(trimmed))).toBe(tall);
     });
 });
 

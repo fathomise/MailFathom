@@ -538,8 +538,12 @@ export function trimmedAround<Row>(
     const keptFrom = nearest - pagesKeptEitherSide;
     const keptTo = furthest + pagesKeptEitherSide;
 
+    // A page let go of keeps the count it was drawn at rather than the count it was read at: once its rows are gone
+    // nothing can tell which of them were not drawn, and a page that grew by them would move everything under it.
     const slots = held.slots.map((slot, at) =>
-        slot.rows === null || (at >= keptFrom && at <= keptTo) ? slot : { ...slot, rows: null },
+        slot.rows === null || (at >= keptFrom && at <= keptTo)
+            ? slot
+            : { ...slot, rows: null, rowCount: measured.slots[at]?.rowCount ?? slot.rowCount },
     );
 
     // The list it was given where nothing was far enough to drop, so a scroll that changes nothing renders nothing.

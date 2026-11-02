@@ -15,7 +15,6 @@ import { flushSync } from 'react-dom';
 import {
     isSpam,
     type ClientFailure,
-    type ClientFailureReason,
     type ClientMailListMode,
     type ClientSession,
     type MailAccount,
@@ -23,9 +22,7 @@ import {
     type MailTimelineEntry,
 } from '@mailfathom/client-backend';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
-import { SecondaryButton } from '../controls/SecondaryButton';
 import { Skeleton } from '../controls/Skeleton';
-import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { ActQuestions } from '../mailboxActs/ActQuestions';
 import {
@@ -79,6 +76,7 @@ import {
 } from './heldTimeline';
 import { ListedByConversation } from './ListedByConversation';
 import { ListPull } from './ListPull';
+import { ListFailed, ListNote } from './ListNotices';
 import { ListSettings } from './ListSettings';
 import { emptyReason, narrowedToView, type MailListing } from './listing';
 import { extendedTo, inReadingOrder, withToggled } from '../contextMenu/rowSelection';
@@ -106,14 +104,6 @@ import { Departing } from '../shell/Departing';
 // window of pages and the same rule for reading them again, with a conversation's row drawn where a message's is —
 // `ListedByConversation.tsx`. What the two readings share is `heldTimeline.ts` and `timelinePages.ts`; what is here is
 // what only a list of messages has, which is a selection, the acts on it, and a row's own menu.
-
-const failureLabels: Readonly<Record<ClientFailureReason, MessageKey>> = {
-    unauthenticated: 'failure.unauthenticated',
-    unauthorized: 'failure.unauthorized',
-    unavailable: 'failure.unavailable',
-    unreadable: 'failure.unreadable',
-    missing: 'failure.missing',
-};
 
 // How long after scrolling stops before where the reader is is written down. Long enough that a flick through a folder
 // writes once rather than per frame, short enough that leaving immediately afterwards keeps the position.
@@ -1000,26 +990,11 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
     // Offline is said here only where there is nothing to draw instead, which is the reading pane's rule: rows already
     // on the screen are the truest thing anybody has, and the frame above them already says the machine is offline.
     if (!online && rowCount === 0) {
-        return <Note>{translate('connection.offline')}</Note>;
+        return <ListNote>{translate('connection.offline')}</ListNote>;
     }
 
     if (rowCount === 0 && failure !== null) {
-        return (
-            <div className="flex flex-col items-start gap-2 px-3 py-3">
-                {/* Announced rather than merely drawn, for the reason the reading pane's failure is: a reader who
-                    heard the list say it was reading hears nothing at all when it stops, and the way out sits under a
-                    sentence they were never told about. */}
-                <p className="text-sm text-warning" role="alert">
-                    {translate('list.failed', { reason: translate(failureLabels[failure.reason]) })}
-                </p>
-
-                {/* Reading again is the way out of exactly one of the five failures, for the reason
-                    `shell/ConnectionSummary.tsx` gives: the other four repeat identically on a second attempt. */}
-                {failure.reason === 'unavailable' ? (
-                    <SecondaryButton label={translate('connection.retry')} onActivate={tryAgain} />
-                ) : null}
-            </div>
-        );
+        return <ListFailed failure={failure} said="list.failed" partial={false} onRetry={tryAgain} />;
     }
 
     if (rowCount === 0 && wanted !== null) {
@@ -1053,22 +1028,14 @@ function ListedByMessage({ session, transport, scope, accounts, online, onOpen }
             {/* A read that failed with rows already drawn is the partial state: what is on the screen stays, and what
                 is missing is said above it rather than replacing it. */}
             {failure === null ? null : (
-                <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-3 py-1.5">
-                    <p className="text-sm text-warning" role="alert">
-                        {translate('list.partiallyFailed', { reason: translate(failureLabels[failure.reason]) })}
-                    </p>
-
-                    {failure.reason === 'unavailable' ? (
-                        <SecondaryButton label={translate('connection.retry')} onActivate={tryAgain} />
-                    ) : null}
-                </div>
+                <ListFailed failure={failure} said="list.partiallyFailed" partial onRetry={tryAgain} />
             )}
 
             {/* A folder whose every drawn row has been asked to leave is empty from where the reader stands, and says so
                 rather than waiting to: nothing reads it again once the act lands, so a state kept for "not yet" would be
                 one no act ever ends. A refusal brings the rows back, exactly as it brings one back. */}
             {rowCount === 0 ? (
-                <Note>{translate(emptyReason(accounts, scope, listing, 'list.emptyFolder'))}</Note>
+                <ListNote>{translate(emptyReason(accounts, scope, listing, 'list.emptyFolder'))}</ListNote>
             ) : (
                 <ListPull scroller={scroller} enabled={coarse}>
                     <div
@@ -1290,13 +1257,5 @@ function ListWaiting() {
                 </div>
             ))}
         </div>
-    );
-}
-
-function Note({ announced = false, children }: { readonly announced?: boolean; readonly children: ReactNode }) {
-    return (
-        <p className="px-3 py-3 text-sm text-muted" role={announced ? 'status' : undefined}>
-            {children}
-        </p>
     );
 }

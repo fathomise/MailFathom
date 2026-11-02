@@ -2,19 +2,16 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
     ClientFailure,
-    ClientFailureReason,
     ClientSession,
     ListedMailThread,
     MailAccount,
     MailFathomTransport,
     MailTimelinePageDirection,
 } from '@mailfathom/client-backend';
-import { SecondaryButton } from '../controls/SecondaryButton';
 import { Skeleton } from '../controls/Skeleton';
-import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { windowOfHeights } from '../messageRows/rowWindow';
 import { useSignalledChanges } from '../signals/signalledChanges';
@@ -23,10 +20,10 @@ import { ThreadRow } from '../threadList/ThreadRow';
 import { scopeReaches, type MailScope } from '../workspace/mailScope';
 import { useWorkspace } from '../workspace/useWorkspace';
 import {
-    changeNoticed,
     cursorAfter,
     nothingHeld,
     refillsHeldRows,
+    refreshAsked,
     rowAt,
     trimmedAround,
     wantedFor,
@@ -34,6 +31,7 @@ import {
     type HeldTimeline,
     type TimelineRead,
 } from './heldTimeline';
+import { ListFailed, ListNote } from './ListNotices';
 import { ListSettings } from './ListSettings';
 import { emptyReason, narrowedToView, type MailListing } from './listing';
 import { rememberedListing, rememberListing } from './rememberedListings';
@@ -52,14 +50,6 @@ import { useListedMail } from './useListedMail';
 //
 // It names no folder, because a conversation belongs to none: what narrows it is the account and the filters, and the
 // list is keyed by that account where it is drawn, so picking another one starts a list rather than adjusting this one.
-
-const failureLabels: Readonly<Record<ClientFailureReason, MessageKey>> = {
-    unauthenticated: 'failure.unauthenticated',
-    unauthorized: 'failure.unauthorized',
-    unavailable: 'failure.unavailable',
-    unreadable: 'failure.unreadable',
-    missing: 'failure.missing',
-};
 
 // What a row of each variant is laid out at before one of it has been drawn to measure. It only has to be close: the
 // first row of the variant drawn replaces it.
@@ -90,25 +80,41 @@ function pageKey(cursor: string | null, readAs: MailTimelinePageDirection): stri
     return `${readAs}\n${cursor ?? ''}`;
 }
 
+// One row of a page as it answered: the conversation it stood for, and the variant it was drawn as.
+interface DrawnRow {
+    readonly threadId: string;
+    readonly variant: ThreadRowVariant;
+}
+
+function drawnRowOf(thread: ListedMailThread): DrawnRow {
+    return { threadId: conversationOf(thread), variant: variantOf(thread) };
+}
+
 /**
  * How tall each row of the list stands, held or not: a held row by its variant, and a row of a page the list has let go
  * of by the variant it was drawn as when that page last answered, so letting a page go moves nothing on the screen.
+ *
+ * A page let go of keeps the count it was drawn at, which leaves out a conversation standing higher up, so its rows are
+ * laid out from what it answered less the conversations already laid out above it — the same rule it was drawn by.
  */
 function heightsOf(
     shown: HeldTimeline<ListedMailThread>,
-    drawnAs: ReadonlyMap<string, readonly ThreadRowVariant[]>,
+    drawnAs: ReadonlyMap<string, readonly DrawnRow[]>,
     measured: ReadonlyMap<ThreadRowVariant, number>,
 ): readonly number[] {
     const heightOf = (variant: ThreadRowVariant): number => measured.get(variant) ?? estimatedHeights[variant];
+    const above = new Set<string>();
 
     return shown.slots.flatMap((slot) => {
-        if (slot.rows !== null) {
-            return slot.rows.map((thread) => heightOf(variantOf(thread)));
+        const rows =
+            slot.rows?.map(drawnRowOf) ??
+            (drawnAs.get(pageKey(slot.askedWith, slot.readAs)) ?? []).filter((row) => !above.has(row.threadId));
+
+        for (const row of rows) {
+            above.add(row.threadId);
         }
 
-        const variants = drawnAs.get(pageKey(slot.askedWith, slot.readAs)) ?? [];
-
-        return Array.from({ length: slot.rowCount }, (_, at) => heightOf(variants[at] ?? 'subject'));
+        return Array.from({ length: slot.rowCount }, (_, at) => heightOf(rows[at]?.variant ?? 'subject'));
     });
 }
 
@@ -153,9 +159,10 @@ export function ListedByConversation({
     const [held, setHeld] = useState<HeldTimeline<ListedMailThread>>(nothingHeld);
     const [failure, setFailure] = useState<ClientFailure | null>(null);
 
-    // The variants each page's rows were drawn as when it last answered, by the page, which is what a page the list has
-    // let go of is laid out from. One entry per page read, replaced when the page is read again.
-    const [drawnAs, setDrawnAs] = useState<ReadonlyMap<string, readonly ThreadRowVariant[]>>(() => new Map());
+    // The conversations each page answered with when it last answered, and the variants they were drawn as, by the
+    // page, which is what a page the list has let go of is laid out from. One entry per page read, replaced when the
+    // page is read again.
+    const [drawnAs, setDrawnAs] = useState<ReadonlyMap<string, readonly DrawnRow[]>>(() => new Map());
     const [measured, setMeasured] = useState<ReadonlyMap<ThreadRowVariant, number>>(() => new Map());
     const [scrollTop, setScrollTop] = useState(0);
     const [viewport, setViewport] = useState(0);
@@ -191,26 +198,21 @@ export function ListedByConversation({
         setFailure,
         onPage: (threads, _askedAt, asked) => {
             setDrawnAs((current) =>
-                new Map(current).set(pageKey(asked.cursor, asked.direction), threads.map(variantOf)),
+                new Map(current).set(pageKey(asked.cursor, asked.direction), threads.map(drawnRowOf)),
             );
         },
     });
 
     useSignalledPages({ scope, setHeld, setFailure, messageOf: newestOf });
 
-    // A message read or unread changes how many of a conversation's messages are unread, which its row draws. So a
-    // statement about flags reads again the page holding the conversation it names, by the rule a change follows.
+    // A message read or unread changes how many of a conversation's messages are unread, which its row draws — and the
+    // message can be any of them, while a row names only its newest. So a statement about flags marks every page held,
+    // as a refresh does, and what is read again is only the pages on the screen.
     useEffect(
         () =>
             signalledChanges.listen((signal) => {
                 if (signal.kind === 'mail.flags.changed' && scopeReaches(scope, signal.account, signal.folder)) {
-                    setHeld((current) =>
-                        changeNoticed(
-                            current,
-                            signal.flags.map((stated) => stated.email),
-                            newestOf,
-                        ),
-                    );
+                    setHeld(refreshAsked);
                 }
             }),
         [signalledChanges, scope],
@@ -331,11 +333,11 @@ export function ListedByConversation({
     }
 
     if (!online && rowCount === 0) {
-        return <Note>{translate('connection.offline')}</Note>;
+        return <ListNote>{translate('connection.offline')}</ListNote>;
     }
 
     if (rowCount === 0 && failure !== null) {
-        return <Failed failure={failure} said="threadList.failed" onRetry={tryAgain} />;
+        return <ListFailed failure={failure} said="threadList.failed" partial={false} onRetry={tryAgain} />;
     }
 
     if (rowCount === 0 && wanted !== null) {
@@ -353,11 +355,11 @@ export function ListedByConversation({
             />
 
             {failure === null ? null : (
-                <Failed failure={failure} said="threadList.partiallyFailed" onRetry={tryAgain} />
+                <ListFailed failure={failure} said="threadList.partiallyFailed" partial onRetry={tryAgain} />
             )}
 
             {rowCount === 0 ? (
-                <Note announced>{translate(emptyReason(accounts, scope, listing, 'threadList.empty'))}</Note>
+                <ListNote announced>{translate(emptyReason(accounts, scope, listing, 'threadList.empty'))}</ListNote>
             ) : (
                 <div
                     ref={scroller}
@@ -397,9 +399,9 @@ export function ListedByConversation({
                     <div aria-hidden="true" style={{ height: `${String(drawn.below)}px` }} />
 
                     {wanted !== null ? (
-                        <Note announced>{translate('list.readingMore')}</Note>
+                        <ListNote announced>{translate('list.readingMore')}</ListNote>
                     ) : cursorAfter(shown) === null ? (
-                        <Note>{translate('threadList.wholeListRead')}</Note>
+                        <ListNote>{translate('threadList.wholeListRead')}</ListNote>
                     ) : null}
                 </div>
             )}
@@ -409,32 +411,6 @@ export function ListedByConversation({
 
 function variantNamed(value: string | undefined): ThreadRowVariant | null {
     return rowVariants.find((variant) => variant === value) ?? null;
-}
-
-function Failed({
-    failure,
-    said,
-    onRetry,
-}: {
-    readonly failure: ClientFailure;
-    readonly said: MessageKey;
-    readonly onRetry: () => void;
-}) {
-    const { translate } = useLocalization();
-
-    return (
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-3 py-1.5">
-            <p className="text-sm text-warning" role="alert">
-                {translate(said, { reason: translate(failureLabels[failure.reason]) })}
-            </p>
-
-            {/* Reading again is the way out of exactly one of the five failures, for the reason
-                `shell/ConnectionSummary.tsx` gives: the other four repeat identically on a second attempt. */}
-            {failure.reason === 'unavailable' ? (
-                <SecondaryButton label={translate('connection.retry')} onActivate={onRetry} />
-            ) : null}
-        </div>
-    );
 }
 
 // A row standing where a page the list let go of used to be, at the height the conversation stood at, so the space is
@@ -482,13 +458,5 @@ function ListWaiting() {
                 </div>
             ))}
         </div>
-    );
-}
-
-function Note({ announced = false, children }: { readonly announced?: boolean; readonly children: ReactNode }) {
-    return (
-        <p className="px-3 py-3 text-sm text-muted" role={announced ? 'status' : undefined}>
-            {children}
-        </p>
     );
 }
