@@ -111,38 +111,28 @@ if [[ -z "${VERIFY_FORCE:-}" ]]; then
   done
 fi
 
-# The loop runs in three phases rather than one stack after another, so a failure ends the run as
-# early as it can: everything that compiles or checks, in every stack the change reaches, then the
-# unit suites, then the repairing formatting passes. A build, lint, or type error
-# fails in seconds rather than behind somebody else's suite. Nothing builds twice: the suites run
-# `--no-build` against the binaries the first phase produced, and the formatter loads a workspace
-# rather than building one.
+# The loop runs in four phases rather than one stack after another, so a failure ends the run as early
+# as it can and nothing the loop can repair fails it. First the repairs that need no compilation:
+# whitespace and the final newline in the changed C# files, and Prettier over the changed client
+# files. Then everything that compiles or checks, in every stack the change reaches, judging the tree
+# those repairs left — so a misplaced indent is repaired rather than reported, while a build, lint,
+# or type error still fails in seconds rather than behind somebody else's suite. Then the unit
+# suites, and last the one repair that needs the MSBuild workspace, the order of using directives.
+# Nothing builds twice: the suites run `--no-build` against the binaries the build produced, and the
+# last repair loads a workspace rather than building one.
 
-# The service build. Locked mode here and not only in the final gate: a pin moved without
-# regenerating the lock files fails restore with NU1004, and discovering that after the whole coverage
-# collection has already run wastes the loop this script exists to shorten. Regenerate with
+# Locked mode here and not only in the final gate: a pin moved without regenerating the lock files
+# fails restore with NU1004, and discovering that after the whole coverage collection has already run
+# wastes the loop this script exists to shorten. Regenerate with
 # `dotnet restore backend/MailFathom.slnx --force-evaluate` as part of the change that moves the pin.
-#
-# The build departs from the full gate's in three properties, and the full gate and `CI` keep all
-# three. The SDK stamps the HEAD commit into every assembly's informational version and every
-# project's Source Link file, so a new commit would recompile the whole solution and re-run every
-# analyzer whatever it touched; without the stamp a commit recompiles what it reached and what
-# depends on it. `AnalyzeDisposal=false` leaves out `CA2000`, which is two fifths of every analyzer
-# second the solution spends; `backend/Directory.Build.props` says how. Because the two gates build
-# with different properties, switching between them in one worktree rebuilds the solution once.
 if [[ -n "$run_service_stack" ]]; then
   dotnet restore backend/MailFathom.slnx --locked-mode
-  dotnet build backend/MailFathom.slnx --configuration Release --no-restore \
-    -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:AnalyzeDisposal=false
 fi
 
-# The client's checks. `frontend/` is a pnpm workspace, so every step runs from that directory and
-# resolves against `frontend/pnpm-lock.yaml`; `--frozen-lockfile` fails rather than rewriting it, which
-# is what locked mode is to the service restore above.
-#
-# The lint is the client's `TreatWarningsAsErrors`: every rule reports as an error and `--max-warnings 0`
-# refuses a warning too, so there is no severity below failing. The type check is the closest thing the
-# client has to the Release build, because Vite's build strips types rather than checking them.
+# `frontend/` is a pnpm workspace, so every client step runs from that directory and resolves against
+# `frontend/pnpm-lock.yaml`; `--frozen-lockfile` fails rather than rewriting it, which is what locked
+# mode is to the service restore above. The install comes before the repairs because Prettier is one
+# of the workspace's own packages.
 if [[ -n "$run_client_stack" ]]; then
   if ! command -v pnpm > /dev/null 2>&1; then
     printf 'This change reaches the client stack, which needs Node and pnpm on the path. See docs/operations/local-development.md.\n' >&2
@@ -163,7 +153,61 @@ if [[ -n "$run_client_stack" ]]; then
       "${#changed_client_files[@]}"
     printf '  frontend/%s\n' "${changed_client_files[@]}"
   fi
+fi
 
+# The repairs, one per stack, and the only steps in either gate that rewrite a file rather than
+# report on it. Each runs over what the branch changed and needs no compilation: `dotnet format
+# whitespace --folder` reads the C# files alone, without loading the MSBuild workspace, and repairs
+# whitespace and a missing final newline. Ahead of the build, a whitespace slip the build would have
+# failed on as `IDE0055` is repaired before anything judges it, rather than costing a second run.
+#
+# What the build then judges is everything a text pass cannot repair: `backend/Directory.Build.props`
+# sets `EnforceCodeStyleInBuild` beside `TreatWarningsAsErrors` and `.editorconfig` gives the IDE rules
+# severity `warning`, so an unnecessary using, a missing licensing header, an analyzer finding, and a
+# compile error each fail it with the file and line. A plain `dotnet format` would run every code-style
+# and analyzer diagnostic over each project holding a changed file — minutes on a change reaching
+# several projects, to repair what the build judges anyway. What no repair here acts on — a
+# diagnostic with no code fix, `IDE0060` the one that reaches this repository, or a change never run
+# through this loop — is the full gate's and `CI`'s to name, since they verify the whole formatting
+# instead of repairing it.
+#
+# `--folder` reads an `--include` path against the folder it was given rather than the working
+# directory, and a path it cannot resolve repairs nothing and reports nothing, so the paths lose their
+# `backend/` prefix here.
+digest_before_repair="$(resolve_verification_digest)"
+
+if [[ -n "$run_service_stack" ]] && ((${#changed_service_csharp_files[@]} > 0)); then
+  dotnet format whitespace backend --folder --include "${changed_service_csharp_files[@]#backend/}"
+fi
+
+# The cache Prettier keeps sits under `frontend/node_modules/`, never in the tree.
+if [[ -n "$run_client_stack" ]]; then
+  if ((${#changed_client_files[@]} > 0)); then
+    pnpm --dir frontend exec prettier --write --cache --ignore-unknown "${changed_client_files[@]}"
+  else
+    pnpm --dir frontend run format
+  fi
+fi
+
+digest_after_repair="$(resolve_verification_digest)"
+
+# The service build. It departs from the full gate's in three properties, and the full gate and `CI`
+# keep all three. The SDK stamps the HEAD commit into every assembly's informational version and
+# every project's Source Link file, so a new commit would recompile the whole solution and re-run
+# every analyzer whatever it touched; without the stamp a commit recompiles what it reached and what
+# depends on it. `AnalyzeDisposal=false` leaves out `CA2000`, which is two fifths of every analyzer
+# second the solution spends; `backend/Directory.Build.props` says how. Because the two gates build
+# with different properties, switching between them in one worktree rebuilds the solution once.
+if [[ -n "$run_service_stack" ]]; then
+  dotnet build backend/MailFathom.slnx --configuration Release --no-restore \
+    -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:AnalyzeDisposal=false
+fi
+
+# The client's checks. The lint is the client's `TreatWarningsAsErrors`: every rule reports as an error
+# and `--max-warnings 0` refuses a warning too, so there is no severity below failing. The type check
+# is the closest thing the client has to the Release build, because Vite's build strips types rather
+# than checking them.
+if [[ -n "$run_client_stack" ]]; then
   # Narrowed, the configuration's own ignores still decide what is linted, so a changed path ESLint
   # does not lint is passed over rather than reported.
   if ((${#changed_client_files[@]} > 0)); then
@@ -214,55 +258,29 @@ if [[ -n "$run_client_stack" ]]; then
   fi
 fi
 
-# One formatting pass per stack, and a repairing one, because this is the only step in either gate
-# that rewrites a file rather than reporting on it. What the service pass repairs is the part of
-# formatting the build cannot see: `backend/Directory.Build.props` sets `EnforceCodeStyleInBuild`
-# beside `TreatWarningsAsErrors` and `.editorconfig` gives the IDE rules severity `warning`, so the
-# Release build above already fails on `IDE0055`, `IDE0005`, and `IDE0073` with the file and line —
-# while the ordering of using directives and a missing final newline are `dotnet format`'s own passes
-# and appear nowhere in a build.
-#
-# So the pass repairs exactly those two and asks nothing else. A plain `dotnet format` would run every
-# code-style and analyzer diagnostic over each project holding a changed file — minutes on a change
-# reaching several projects, to repair what the build had already judged. Instead `whitespace
-# --folder` repairs whitespace and the final newline from the files alone, without loading the
-# workspace, and `style --diagnostics IDE0055` loads it once to order the using directives, which no
-# build reports and no whitespace pass sorts. What either leaves unrepaired — a diagnostic with no code
-# fix, `IDE0060` the one that reaches this repository, or a change never run through this loop — is
-# the full gate's and `CI`'s to name, since they verify the whole formatting instead of repairing it.
-#
-# `--folder` reads an `--include` path against the folder it was given rather than the working
-# directory, and a path it cannot resolve repairs nothing and reports nothing, so the paths lose their
-# `backend/` prefix there and keep it for the solution.
-digest_before_formatting="$(resolve_verification_digest)"
+# The order of using directives is the one repair that needs the MSBuild workspace, and no build
+# reports it and no whitespace pass sorts it, so `style --diagnostics IDE0055` loads the workspace
+# once, after the suites, to order the changed files' usings and apply nothing else.
+digest_before_ordering="$(resolve_verification_digest)"
 
 if [[ -n "$run_service_stack" ]] && ((${#changed_service_csharp_files[@]} > 0)); then
-  dotnet format whitespace backend --folder --include "${changed_service_csharp_files[@]#backend/}"
   dotnet format style backend/MailFathom.slnx --no-restore --diagnostics IDE0055 --include "${changed_service_csharp_files[@]}"
 fi
 
-# The cache Prettier keeps sits under `frontend/node_modules/`, never in the tree.
-if [[ -n "$run_client_stack" ]]; then
-  if ((${#changed_client_files[@]} > 0)); then
-    pnpm --dir frontend exec prettier --write --cache --ignore-unknown "${changed_client_files[@]}"
-  else
-    pnpm --dir frontend run format
-  fi
-fi
-
-# A rewrite by the formatters is their own repair: whitespace, the order of using directives, a final
-# newline, the fixes an analyzer's code fix applies. A second run over the formatted files would
-# rebuild and retest only to say what this one said, so the run records the formatted tree instead of
-# the one it built — provided nothing moved it before they started. A tree that changed while the
-# build or the suites ran still records nothing, below; an edit landing while the formatters
-# themselves run is indistinguishable from their rewrite and is recorded with it. The record settles no more than a run that rewrote
-# nothing does: a diagnostic with no code fix, which the build passes over and this pass cannot act
-# on, is still left to the full gate and `CI`, as the comment above the formatting passes says.
+# A rewrite by the repairs is their own: whitespace, a final newline, Prettier's layout, the order of
+# using directives. A second run over the repaired files would rebuild and retest only to say what
+# this one said, so the run records the repaired tree instead of the one it started from — provided
+# nothing else moved it: not before the first repair, and not while the build or the suites ran
+# between the two. A tree that changed then records nothing; an edit landing while a repair itself
+# runs is indistinguishable from its rewrite and is recorded with it. The record settles no more than
+# a run that rewrote nothing does: a diagnostic with no code fix, which the build passes over and no
+# repair acts on, is still left to the full gate and `CI`, as the comment above the repairs says.
 digest_after_formatting="$(resolve_verification_digest)"
 formatters_rewrote_the_tree=''
 
-if [[ -n "$digest_before_formatting" && "$digest_after_formatting" != "$digest_before_formatting" ]]; then
-  if [[ "$verification_digest" == "$digest_before_formatting" ]]; then
+if [[ -n "$digest_before_repair" && -n "$digest_before_ordering" ]] \
+  && [[ "$digest_after_repair" != "$digest_before_repair" || "$digest_after_formatting" != "$digest_before_ordering" ]]; then
+  if [[ "$verification_digest" == "$digest_before_repair" && "$digest_after_repair" == "$digest_before_ordering" ]]; then
     formatters_rewrote_the_tree='yes'
     verification_digest="$digest_after_formatting"
   else

@@ -94,15 +94,14 @@ the open pull requests with `gh`, so it needs read access to GitHub and nothing
 more; it reads at most 100 of them, its own `--limit`, and `gh` returns at most
 100 files of each, and it says so on stderr when a reply reaches either ceiling. Like the obligations report it never gates.
 
-The fast script restores the solution, builds it whole in Release configuration —
-without the commit stamp, Source Link, or `CA2000`, which the full script and `CI`
-keep, so a commit recompiles only what it reached and switching between the two
-scripts in one worktree rebuilds the solution once —
-runs without rebuilding the unit suites the change can have broken, and formats
-the C# files the branch changed — each against whichever of the two solutions
-holds it, which
-[Building and testing the client](#building-and-testing-the-client) describes for
-the client half. It is the only one that rewrites source files, and every
+The fast script restores the solution, repairs the whitespace of the C# files the
+branch changed, builds the solution whole in Release configuration — without the
+commit stamp, Source Link, or `CA2000`, which the full script and `CI` keep, so a
+commit recompiles only what it reached and switching between the two scripts in
+one worktree rebuilds the solution once — runs without rebuilding the unit suites
+the change can have broken, and last orders the changed files' using directives;
+[Building and testing the client](#building-and-testing-the-client) describes the
+client half. It is the only one that rewrites source files, and every
 `dotnet format` pass it runs is a repairing one — a run whose build and suites
 passed records the tree the formatters left, so a rewrite is committed rather than
 verified a second time. Where a change reaches
@@ -128,9 +127,10 @@ apply, and the Release build passes over it despite the same `warning` severity,
 so only a verifying pass ever names it. What the repairing pass adds is what no
 build sees: the ordering of using directives and a missing final newline are
 `dotnet format`'s own passes rather than analyzer rules, and both have code
-fixes, so rewriting them is the whole answer — which is all the pass asks for:
-`dotnet format whitespace --folder` over the changed files without loading the
-workspace, then `dotnet format style --diagnostics IDE0055` to order their using
+fixes, so rewriting them is the whole answer — which is all the passes ask for:
+`dotnet format whitespace --folder` over the changed files ahead of the build,
+without loading the workspace, so the build judges an already formatted tree, and
+`dotnet format style --diagnostics IDE0055` after the suites to order their using
 directives, and no other diagnostic.
 [Entry points](agent-workflow.md#entry-points) carries what each costs.
 
@@ -1309,8 +1309,8 @@ lock file being regenerated fails here rather than resolving to something nobody
 Seven things around those commands are worth knowing before they are discovered:
 
 - **Both verification gates run this flow**, through `scripts/resolve-changed-stacks.sh`, for any change that reaches
-  the client stack. The fast loop restores, lints, type-checks, runs the suite, and formats — repairing, the way
-  `dotnet format` does there — with the lint, the suite, and the formatting narrowed to the client files the change
+  the client stack. The fast loop restores, formats — repairing, the way
+  `dotnet format` does there, and ahead of the checks so they judge a formatted tree — lints, type-checks, and runs the suite, with the lint, the suite, and the formatting narrowed to the client files the change
   touched unless it reached a shared client input or removed a client file, and the full gate runs the same steps over
   the whole workspace with the formatting pass verifying instead, and the build after them.
   [Which stack a gate runs](agent-workflow.md#which-stack-a-gate-runs) carries how that is decided and what keeps it in

@@ -28,21 +28,29 @@ destination refspec, and lists what arrived when the branch has fallen behind.
 is why that check is here rather than only in the full gate, and why no workflow
 has one.
 
-Then it runs in three phases across every stack the change reaches, rather than
+Then it runs in four phases across every stack the change reaches, rather than
 one stack's whole flow after the other's, so a failure ends the run as early as
-it can. First everything that compiles or checks: the restore and the Release
-build, and the client's install, lint, and type check — a build error in either
-stack stops the run before any suite starts. Then the unit suites the change can
-have broken, `--no-build` against the binaries that first phase produced, so
-nothing is built twice. Last the repairing formatting passes: `dotnet format`
-over the C# files the branch changed — everything committed since `origin/main`,
-staged, modified, or newly added — and Prettier over the client files it changed. It is
-the only workflow script that rewrites source files. The C# files go through two
-passes, `dotnet format whitespace backend --folder` and then
-`dotnet format style backend/MailFathom.slnx --diagnostics IDE0055`, and both are
-skipped where the branch touched no C#. A rewrite that reaches the end of
-a passing run is the formatters' own repair, so the run records the tree they
-left rather than the one it built: the rewrite is staged and committed with the
+it can and nothing the loop can repair fails it. After the restore and the
+client's install come the repairs that need no compilation:
+`dotnet format whitespace backend --folder` over the C# files the branch changed —
+everything committed since `origin/main`, staged, modified, or newly added — and
+Prettier over the client files it changed. They are the only steps in any
+workflow script that rewrite source files, and they run first so that what the
+build judges is a tree whose indentation and final newlines are already repaired,
+rather than a whitespace slip failing the build as `IDE0055` and costing a second
+run. Then everything that compiles or checks: the Release build, and the client's
+lint and type check — a build error in either stack, an unnecessary using, a
+missing licensing header, or an analyzer finding stops the run before any suite
+starts. Then the unit suites the change can have broken, `--no-build` against the
+binaries that build produced, so nothing is built twice. Last
+`dotnet format style backend/MailFathom.slnx --diagnostics IDE0055` orders the
+changed files' using directives, the one repair that needs the MSBuild workspace.
+Both C# passes are skipped where the branch touched no C#.
+
+A rewrite that reaches the end of a passing run is the repairs' own, so the run
+records the tree they left rather than the one it started from, provided nothing
+else moved it — not before the first repair, and not while the build and the
+suites ran between the two. The rewrite is staged and committed with the
 change, and the gate is not run a second time to say what it already said —
 staging changes the digest, so a run after it would be a whole one. Such a record
 settles exactly what a run that rewrote nothing settles: a diagnostic with no code
@@ -142,12 +150,14 @@ rather than from whoever started it;
 [Which stack a gate runs](#which-stack-a-gate-runs) carries how that is decided
 and what it costs.
 
-There is no verifying pass behind it, because the build in front of it has
-already made that report. `backend/Directory.Build.props` sets `EnforceCodeStyleInBuild`
-beside `TreatWarningsAsErrors`, and `.editorconfig` gives the IDE rules severity
+There is no verifying pass behind it, because the build makes that report.
+`backend/Directory.Build.props` sets `EnforceCodeStyleInBuild` beside
+`TreatWarningsAsErrors`, and `.editorconfig` gives the IDE rules severity
 `warning`, so a file with an unnecessary using, a missing licensing header, or
 formatting the rules reject fails the Release build with `error IDE0005`,
-`error IDE0073`, and `error IDE0055`, each naming its file and line.
+`error IDE0073`, and `error IDE0055`, each naming its file and line — and the last
+of those only for what the whitespace pass in front of the build could not
+repair.
 
 One rule sits outside both halves of that. `IDE0060` has no code fix, so the
 repairing pass cannot act on it, and the Release build passes over it despite
@@ -170,7 +180,8 @@ workspace; it reads an `--include` path against the folder rather than the worki
 directory and silently repairs nothing for a path it cannot resolve, which is why
 the loop hands it the paths without their `backend/` prefix. It does not sort using
 directives, so `dotnet format style backend/MailFathom.slnx --diagnostics IDE0055`
-follows it, loading the workspace once to order them — about 41 seconds for one file.
+runs after the suites, loading the workspace once to order them — about 41 seconds
+for one file.
 The `--folder` pass parses without the projects' language version; over the whole of
 `backend/` on the tree this was measured against it rewrites nothing the full
 verifying pass accepts.
