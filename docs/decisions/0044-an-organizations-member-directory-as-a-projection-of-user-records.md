@@ -161,7 +161,7 @@ order gains one step, directly after the organization signature:
 
 - **It counts exactly as an administrator-written address counts.** It makes a sender `Trusted` where the author was
   established by `DmarcPass` or `AlignedDkim`, or by a verified author signature naming that address, and `Known` on a
-  relaxed account where nothing established it — under every rule ADR 0043 states for steps 2 to 5, including the
+  relaxed account where nothing established it — under every rule ADR 0043 states for the steps below the organization member, including the
   `p=none` exception. It never stands in for the organization signature: a member who sends through an account the
   signature does not cover is recognized here, under authentication, and nowhere above.
 - **Where it recognizes**: on every receiving account that belongs to the organization, the same reach ADR 0043 gives
@@ -304,7 +304,7 @@ Each is named in its implementing pull request with the operator's action, for t
 - Unit tests in issue 2789 cover the projection's membership rules — organization, type, the reader left out — the
   address rules including the shared mailbox, the preferred address, the precedence, the refusals,
   and departure with nothing written. The trust tests cover the new step against every row ADR 0043's tables state for
-  steps 2 to 5, and that each act above is reflected on the next read.
+  the steps below the organization member, and that each act above is reflected on the next read.
 - `docs/features/contacts.md`, `docs/features/sender-authentication.md`, `docs/operations/client-endpoint.md`, and
   `docs/operations/admin-endpoint.md` describe the result as each part lands.
 

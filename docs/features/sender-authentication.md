@@ -482,6 +482,7 @@ hand-kept one.
 of the organization's mail is a member of it, so the sender details name the colleague by the name on their record as
 it reads then; a member erased between the verdict and the name leaves the source standing with no name beside it.
 
+### A user's own addresses
 
 Mail whose author writes as exactly one of a user's own addresses is trusted, with the source *own account address*,
 on every account of that user rather than only on the account the address belongs to, and with nothing to configure.

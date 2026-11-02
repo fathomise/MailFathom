@@ -468,6 +468,28 @@ describe('senderVerificationOf', () => {
         expect(stepNamed(monitored, 'senderMark.step.authorDomain')).toMatchObject({ result: 'Failed' });
     });
 
+    it('adds that the domain only monitors where a colleague the member directory knew failed its DMARC checks', () => {
+        const monitored = message({
+            ...notEstablished,
+            authorAuthentication: 'Failed',
+            dmarc: 'Fail',
+            deploymentTrust: 'Known',
+            trustSource: 'OrganizationDirectory',
+            trustMember: 'Marta Nowak',
+        });
+
+        expect(senderVerificationOf(monitored, asSent).why).toEqual({
+            key: 'senderMark.why.knownColleagueMonitoringOnly',
+            values: { address: 'a.kowalska@contoso.example', domain: 'contoso.example', member: 'Marta Nowak' },
+        });
+    });
+
+    it('leaves a known colleague erased since the read unnamed rather than naming nobody', () => {
+        const read = message({ ...notEstablished, deploymentTrust: 'Known', trustSource: 'OrganizationDirectory' });
+
+        expect(senderVerificationOf(read, asSent).why.key).toBe('senderMark.why.knownUnnamed');
+    });
+
     it('adds no known step for a sender nothing knew', () => {
         expect(stepNamed(message(notEstablished), 'senderMark.step.knownSender')).toBeUndefined();
     });

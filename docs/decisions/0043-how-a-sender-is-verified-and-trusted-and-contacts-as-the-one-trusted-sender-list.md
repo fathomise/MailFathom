@@ -302,12 +302,13 @@ promises.
 Highest first. Each step is asked only where the one above did not recognize the author:
 
 1. **Organization member** (ADR 0042). Needs no authenticated author, and is never `Known`.
-2. **Organization contact.**
-3. **The owner's own address.**
-4. **The owner's own domain**, where the account set `TrustOwnAccountDomains`.
-5. **Personal contact.**
+2. **Organization directory** (ADR 0044): the author's address is a member's of the receiving account's organization.
+3. **Organization contact.**
+4. **The owner's own address.**
+5. **The owner's own domain**, where the account set `TrustOwnAccountDomains`.
+6. **Personal contact.**
 
-Steps 2 to 5 recognize an author established by `DmarcPass` or `AlignedDkim`, or an address a verified author signature
+Steps 2 to 6 recognize an author established by `DmarcPass` or `AlignedDkim`, or an address a verified author signature
 established. A sender matching several steps is reported under the highest one. Within those steps, authentication is
 asked first, and the verdict records **which established the author: authentication, or the author's signature**. The
 signature is recorded only where authentication did not hold, so the record names what the mark actually rested on.

@@ -106,7 +106,7 @@ public sealed class OrchestratedSenderTrustBooksTests(MailFathomOrchestrationFix
     /// <summary>
     /// Each act that changes who the member directory names for an address changes the next read's verdict, with
     /// nothing written to stored mail: the member is found while the account is theirs alone, and lost when it is
-    /// shared, retyped, moved, readdressed, or unassigned.
+    /// shared, retyped, moved, readdressed, unassigned, or erased, and when the member is erased.
     /// </summary>
     [Fact]
     public async Task RecognizeAsync_EachActChangingWhoTheDirectoryNames_ChangesTheNextRead()
@@ -123,6 +123,7 @@ public sealed class OrchestratedSenderTrustBooksTests(MailFathomOrchestrationFix
         var address = $"marta@{domain}";
         await CreateOrganizationAsync(services, organization, cancellationToken);
         await RecordAccountAsync(services, receivingAccount, organization, cancellationToken);
+        var memberErased = false;
 
         try
         {
@@ -183,11 +184,22 @@ public sealed class OrchestratedSenderTrustBooksTests(MailFathomOrchestrationFix
                 .Where(assignment => assignment.MailAccountId == memberAccount)
                 .ExecuteDeleteAsync(token));
             await ReadAsync();
+            await ChangeAsync((context, token) => AssignAsync(context, memberAccount, member, token));
+            await ReadAsync();
+            await ChangeAsync((context, token) => context.MailAccountRecords
+                .Where(account => account.Id == memberAccount)
+                .ExecuteDeleteAsync(token));
+            await ReadAsync();
+            await RecordMemberAccountAsync(services, memberAccount, organization, address, member, cancellationToken);
+            await ReadAsync();
+            await OrchestratedForeignUser.EraseAsync(services, member);
+            memberErased = true;
+            await ReadAsync();
 
             // Assert
             (SenderTrustSource GrantedBy, UserId? Member) found = (SenderTrustSource.OrganizationDirectory, UserId.Create(member));
             (SenderTrustSource GrantedBy, UserId? Member) lost = (SenderTrustSource.None, null);
-            (SenderTrustSource GrantedBy, UserId? Member)[] expected = [found, lost, found, lost, lost, lost, lost, found, lost];
+            (SenderTrustSource GrantedBy, UserId? Member)[] expected = [found, lost, found, lost, lost, lost, lost, found, lost, found, lost, found, lost];
             Assert.Equal(expected, readings);
         }
         finally
@@ -202,7 +214,11 @@ public sealed class OrchestratedSenderTrustBooksTests(MailFathomOrchestrationFix
                         + await context.MailAccountRecords.Where(record => accounts.Contains(record.Id)).ExecuteDeleteAsync(token);
                 },
                 CancellationToken.None);
-            await OrchestratedForeignUser.EraseAsync(services, member);
+            if (!memberErased)
+            {
+                await OrchestratedForeignUser.EraseAsync(services, member);
+            }
+
             await OrchestratedForeignUser.EraseAsync(services, colleague);
             await services.InScopeAsync(
                 (scope, token) => scope.GetRequiredService<IOrganizationStore>().DeleteAsync(organization, token),
