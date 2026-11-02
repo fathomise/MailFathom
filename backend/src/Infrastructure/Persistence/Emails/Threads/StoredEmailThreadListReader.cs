@@ -13,18 +13,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Emails.Threads;
 
-/// <summary>Reads a page of conversations out of stored mail, newest first.</summary>
+/// <summary>Reads a walk of the mail list grouped by conversation out of stored mail.</summary>
 /// <remarks>
 /// <para>
-/// Four reads per page, none of them per row: the page itself, grouped and ordered by the database; the messages each
+/// Five reads per walk, none of them per row: the walk itself, which chooses the conversations from what the filters
+/// let through and orders them in the database; a second grouping that counts the chosen ones whole; the messages each
 /// listed conversation is quoted by; who wrote into each; and the title a derivation stored for each. The first is the
-/// one that grows with the mailbox, because it groups every readable message to find the newest conversations. A
-/// stored newest arrival per conversation is the index that would bound it, and is worth adding once a measured page
-/// says so.
-/// </para>
-/// <para>
-/// A walk of the mail list grouped by conversation is one read more: the walk chooses the conversations from what the
-/// filters let through, and a second grouping counts the chosen ones whole before the same three describe them.
+/// one that grows with the mailbox, because it groups every message the filters let through.
 /// </para>
 /// <para>
 /// Every message-reading clause composes <see cref="StoredEmailSelectionPredicate" /> and states no narrowing of its
@@ -36,35 +31,6 @@ namespace MailFathom.Infrastructure.Persistence.Emails.Threads;
 [RequiresIntegrationCoverage]
 internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext) : IEmailThreadListReader
 {
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<ListedEmailThread>> ReadPageAsync(
-        MailboxScope scope,
-        IReadOnlySet<EmailAddress> readerAddresses,
-        EmailThreadListPosition? continueAfter,
-        int limit,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(scope);
-        ArgumentNullException.ThrowIfNull(readerAddresses);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
-
-        if (scope.AccountIds.Count is 0)
-        {
-            return [];
-        }
-
-        var trashedFolderIds = await StoredTrashedFolders.ReadAsync(
-            dbContext.MailFolders,
-            [.. scope.AccountIds.Select(static accountId => accountId.Value)],
-            cancellationToken);
-        string[] readerForms = [.. readerAddresses.Select(static address => address.NormalizedAddress).Distinct(StringComparer.Ordinal)];
-
-        var threads = await Page(dbContext.StoredEmails.AsNoTracking(), scope, trashedFolderIds, readerForms, continueAfter, limit)
-            .ToArrayAsync(cancellationToken);
-
-        return await this.DescribedAsync(threads, scope, readerForms, readerAddresses, cancellationToken);
-    }
-
     /// <inheritdoc />
     public async Task<IReadOnlyList<GroupedEmailThread>> ReadGroupedPageAsync(
         EmailTimelineFilter filter,
@@ -155,69 +121,6 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
         ];
     }
 
-    /// <summary>Groups the readable mail by conversation and reads one page of the conversations still listed.</summary>
-    /// <param name="emails">The stored mail.</param>
-    /// <param name="scope">What the reader may read, junk included.</param>
-    /// <param name="trashedFolderIds">The folders in Trash of every account in the scope.</param>
-    /// <param name="readerForms">The comparison forms of the addresses the reader sends as.</param>
-    /// <param name="continueAfter">The position the previous page ended on, or <see langword="null" />.</param>
-    /// <param name="limit">How many conversations to read at most.</param>
-    /// <returns>The query, which PostgreSQL evaluates in full.</returns>
-    /// <remarks>
-    /// The grouping, the keyset, and the order are applied to an anonymous projection and the row is constructed last,
-    /// because the provider cannot reduce a member of a constructed row back to the grouped column it came from.
-    /// </remarks>
-    internal static IQueryable<StoredThreadListRow> Page(
-        IQueryable<StoredEmailEntity> emails,
-        MailboxScope scope,
-        Guid[] trashedFolderIds,
-        string[] readerForms,
-        EmailThreadListPosition? continueAfter,
-        int limit)
-    {
-        var readable = Readable(emails, scope);
-        var kept = StoredEmailSelectionPredicate.WithoutMailJudgedSpam(readable, scope.JunkFolders)
-            .Where(email => !trashedFolderIds.Contains(email.FolderId))
-            .Select(static email => email.EmailThreadId);
-
-        var conversations = readable
-            .Where(email => kept.Contains(email.EmailThreadId))
-            .GroupBy(static email => email.EmailThreadId!.Value)
-            .Select(conversation => new
-            {
-                EmailThreadId = conversation.Key,
-                NewestArrival = conversation.Max(email => email.ReceivedAt),
-                MessageCount = conversation.Count(),
-                UnreadCount = conversation.Count(email => !email.IsRemotelySeen
-                    && (email.SenderNormalizedAddress == null || !readerForms.Contains(email.SenderNormalizedAddress))),
-                AttachedCount = conversation.Count(email => email.AttachmentCount > 0),
-            });
-
-        if (continueAfter is { } boundary)
-        {
-            var boundaryId = boundary.ThreadId.Value;
-
-            conversations = boundary.NewestArrival is { } arrival
-                ? conversations.Where(conversation => conversation.NewestArrival == null
-                    || conversation.NewestArrival < arrival
-                    || (conversation.NewestArrival == arrival && conversation.EmailThreadId < boundaryId))
-                : conversations.Where(conversation => conversation.NewestArrival == null
-                    && conversation.EmailThreadId < boundaryId);
-        }
-
-        return conversations
-            .OrderBy(static conversation => conversation.NewestArrival == null)
-            .ThenByDescending(static conversation => conversation.NewestArrival)
-            .ThenByDescending(static conversation => conversation.EmailThreadId)
-            .Take(limit)
-            .Select(static conversation => new StoredThreadListRow(
-                conversation.EmailThreadId,
-                conversation.NewestArrival,
-                conversation.MessageCount,
-                conversation.UnreadCount,
-                conversation.AttachedCount > 0));
-    }
-
     /// <summary>Groups the mail a filter lets through by conversation and reads one walk of the conversations it keeps listed.</summary>
     /// <param name="emails">The stored mail.</param>
     /// <param name="filter">The list's filters and account scope, junk included, and the direction the walk reads in.</param>
@@ -234,8 +137,8 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
     /// the timeline's own over that pair, which is what lets a grouped page carry a message list's cursor.
     /// </para>
     /// <para>
-    /// It groups every message the filter lets through before the keyset narrows the groups, for the reason
-    /// <see cref="Page" /> does, and the newest message of each group is picked by a correlated subquery that the
+    /// It groups every message the filter lets through before the keyset narrows the groups, because the provider
+    /// cannot reduce a member of a constructed row back to the grouped column it came from, and the newest message of each group is picked by a correlated subquery that the
     /// statement repeats wherever the keyset and the order read it. A stored newest passing message per conversation
     /// cannot exist, since what passes depends on the filters; measuring a page against a large mailbox decides whether
     /// a window function ranking each group once is worth the raw SQL it would take.
@@ -306,7 +209,11 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
     }
 
     /// <summary>Counts each named conversation whole, over every message of it the scope admits.</summary>
-    /// <remarks>The counts are <see cref="Page" />'s, read for conversations a grouped walk already chose rather than for a page this query orders.</remarks>
+    /// <remarks>
+    /// A message counts as unread while the server has not seen it and somebody other than the reader sent it. The row
+    /// is constructed from an anonymous projection, because the provider cannot reduce a member of a constructed row
+    /// back to the grouped column it came from.
+    /// </remarks>
     internal static IQueryable<StoredThreadListRow> Counted(
         IQueryable<StoredEmailEntity> emails,
         MailboxScope scope,
@@ -318,7 +225,6 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
             .Select(conversation => new
             {
                 EmailThreadId = conversation.Key,
-                NewestArrival = conversation.Max(email => email.ReceivedAt),
                 MessageCount = conversation.Count(),
                 UnreadCount = conversation.Count(email => !email.IsRemotelySeen
                     && (email.SenderNormalizedAddress == null || !readerForms.Contains(email.SenderNormalizedAddress))),
@@ -326,7 +232,6 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
             })
             .Select(static conversation => new StoredThreadListRow(
                 conversation.EmailThreadId,
-                conversation.NewestArrival,
                 conversation.MessageCount,
                 conversation.UnreadCount,
                 conversation.AttachedCount > 0));
@@ -410,7 +315,6 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
         IReadOnlySet<EmailAddress> readerAddresses) => new()
         {
             ThreadId = EmailThreadId.Create(thread.EmailThreadId),
-            NewestArrival = thread.NewestArrival,
             MessageCount = thread.MessageCount,
             UnreadCount = thread.UnreadCount,
             HasAttachments = thread.HasAttachments,
@@ -437,7 +341,6 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
 
     internal sealed record StoredThreadListRow(
         Guid EmailThreadId,
-        DateTimeOffset? NewestArrival,
         int MessageCount,
         int UnreadCount,
         bool HasAttachments);

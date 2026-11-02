@@ -75,7 +75,6 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `GET /api/client/emails/search` | `mailfathom.mail.read` |
 | `GET /api/client/emails/search/phrasing` | `mailfathom.assistant.use` |
 | `POST /api/client/emails/search/phrasing` | `mailfathom.assistant.use` |
-| `GET /api/client/threads` | `mailfathom.mail.read` |
 | `GET /api/client/threads/{threadId}` | `mailfathom.mail.read` |
 | `GET /api/client/threads/{threadId}/state` | `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}` | `mailfathom.mail.read` |
@@ -1098,9 +1097,9 @@ that does not carry it, so a page read by message has no `conversations` member 
 }
 ```
 
-- **A row is the row of [the conversation list route](#the-conversation-list-route)** and describes the whole
-  conversation, whichever folders hold its messages and whichever of them the filters let through: every count, the
-  participants, `newest`, and `title` read exactly as that route documents them. `newest` is the conversation's own
+- **A row describes the whole conversation**, whichever folders hold its messages and whichever of them the filters let
+  through: every count, the participants, `newest`, and `title` read as [a conversation row](#a-conversation-row) sets
+  out below. `newest` is the conversation's own
   newest message, so it can be a message no filter would have kept — a reply in Trash, say — while the row stands in the
   list where its newest *passing* message does.
 - **A conversation is listed when one of its messages passes the filters and is neither spam nor in Trash** — judged
@@ -1120,74 +1119,55 @@ that does not carry it, so a page read by message has no `conversations` member 
 reading a folder cannot set the remote `\Seen` flag. How current that copy is, per folder, is what
 [the folders route](#the-folders-route) answers; it is not repeated on every page.
 
-**A user with no mail account reads an empty `emails` list**, and a credential whose grant does not carry
+**A user with no mail account reads an empty `emails` list**, or an empty `conversations` list read by conversation,
+and a credential whose grant does not carry
 `mailfathom.mail.read` is answered `403`.
 
-### The conversation list route
+#### A conversation row
 
-```http
-GET /api/client/threads?account=work&pageSize=25
-```
-
-It answers with one page of the user's conversations, newest first by the arrival of each one's newest message, and
-with the cursor that continues the list in one direction only. The client no longer reads it: a person who reads by
-conversation rather than by message, which [`listMode`](#the-preferences-routes) records, is drawn
-[the mail list grouped by conversation](#the-mail-list-route) instead, whose rows are this route's rows and whose filters
-and two cursors are the message list's. The route answers:
+A row of the list grouped by conversation describes one conversation whole, across every folder of its account, and
+reads like this:
 
 ```jsonc
 {
-  "threads": [
-    {
-      "threadId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91",
-      "account": "work",
-      "messageCount": 4,
-      "unreadCount": 1,
-      "hasAttachments": true,
-      "participants": [
-        { "address": "releases@example.test", "displayName": "Example Releases", "reader": false },
-        { "address": "somebody@example.test", "displayName": "Somebody", "reader": true }
-      ],
-      "moreParticipantsNotNamed": false,
-      "newest": {
-        "id": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90",
-        "subject": "Re: Release 0.8.0 is out",
-        "receivedAt": "2026-08-15T11:20:00+00:00",
-        "senderAddress": "somebody@example.test",
-        "senderDisplayName": "Somebody",
-        "preview": "Thanks, the notes read well.",
-        "own": true,
-        "senderPhoto": null,
-        "receipts": null
-      },
-      "newestReceivedSender": {
-        "authorAuthentication": "Authenticated",
-        "deploymentTrust": "Unknown",
-        "signatureOutcome": "NotSigned",
-        "signerMatchesAuthor": false
-      },
-      "title": {
-        "topic": "The 0.8.0 release",
-        "standing": "Waiting on the notes review.",
-        "derivedFromMessageCount": 4,
-        "derivedFromLatestArrival": "2026-08-15T11:20:00+00:00"
-      }
-    }
+  "threadId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91",
+  "account": "work",
+  "messageCount": 4,
+  "unreadCount": 1,
+  "hasAttachments": true,
+  "participants": [
+    { "address": "releases@example.test", "displayName": "Example Releases", "reader": false },
+    { "address": "somebody@example.test", "displayName": "Somebody", "reader": true }
   ],
-  "nextCursor": "AbCd...",
-  "pageSize": 25
+  "moreParticipantsNotNamed": false,
+  "newest": {
+    "id": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90",
+    "subject": "Re: Release 0.8.0 is out",
+    "receivedAt": "2026-08-15T11:20:00+00:00",
+    "senderAddress": "somebody@example.test",
+    "senderDisplayName": "Somebody",
+    "preview": "Thanks, the notes read well.",
+    "own": true,
+    "senderPhoto": null,
+    "receipts": null
+  },
+  "newestReceivedSender": {
+    "authorAuthentication": "Authenticated",
+    "deploymentTrust": "Unknown",
+    "signatureOutcome": "NotSigned",
+    "signerMatchesAuthor": false
+  },
+  "title": {
+    "topic": "The 0.8.0 release",
+    "standing": "Waiting on the notes review.",
+    "derivedFromMessageCount": 4,
+    "derivedFromLatestArrival": "2026-08-15T11:20:00+00:00"
+  }
 }
 ```
 
-**The list has no folders.** A conversation gathers its messages from every folder the user may read, junk and Trash
-included, under one account. `account` narrows the list to the conversations of one account, by its identifier or its
-display name exactly as on [the mail list route](#the-mail-list-route); without it the list spans every account the
-user is assigned.
-
-**A conversation is listed while at least one of its messages is neither judged spam nor in Trash.** A message in a
-folder beneath Trash is in Trash; Archive is an ordinary folder and keeps a conversation listed. A conversation whose
-every message is spam, in Trash, or some of each is left out of the list — and once listed, it is counted whole:
-`messageCount` counts every message the user may read in it, the spam and the trashed ones included.
+**Once listed, a conversation is counted whole**: `messageCount` counts every message the user may read in it, the spam
+and the trashed ones included, whatever the filters let through.
 
 **`unreadCount` counts the received messages nobody has read**: a message the user sent is never unread, whichever
 of their accounts sent it. Who the user is comes from the sending identities of the accounts they are assigned, and
@@ -1208,13 +1188,7 @@ mail list row reads, and is `null` where the user wrote every message in the con
 since leaves a title naming the conversation as it stood, and the next derivation moves them on.
 
 **Marking a conversation read is one request** to [the mutation routes](#the-mutation-routes): one flag change per
-unread message, in a single `POST /api/client/mutations/flags` batch. No route here writes anything.
-
-**`pageSize` defaults to 25 and is refused outside 1 to 100**, and a cursor this deployment never issued, a cursor
-issued for a different `account`, an account the deployment does not issue, and an account the user is not assigned
-are each refused with `400`. The page is served from the local copy, as the mail list is, and a user with no mail
-account reads an empty `threads` list. A credential whose grant does not carry `mailfathom.mail.read` is answered
-`403`.
+unread message, in a single `POST /api/client/mutations/flags` batch. The mail list route writes nothing.
 
 ### The mail search route
 
@@ -3186,8 +3160,8 @@ naming the range rather than clamped to it: a person who asked for a minute woul
 without being told, and the one screen that writes this offers nothing outside it.
 
 **`listMode` decides whether the mail list is read by message or by conversation.** `messages`, which is what an unset
-document answers, draws [the mail list](#the-mail-list-route) one message per row; `threads` draws
-[the conversation list](#the-conversation-list-route) one conversation per row. It is the person's choice and never a
+document answers, draws [the mail list](#the-mail-list-route) one message per row; `threads` draws the same list
+grouped by conversation, [one conversation per row](#a-conversation-row). It is the person's choice and never a
 deployment's: no settings policy governs it, and a value this deployment does not publish is refused naming the two
 that are. While a rolling upgrade runs a build without it beside one with it, a replica of the older build refuses a
 write naming it and stores a document without it, which reads as `messages` until the person chooses again.

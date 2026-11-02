@@ -6,7 +6,7 @@ using MailFathom.Application.Emails.Summaries;
 
 namespace MailFathom.Application.Emails.BrowseThreadList;
 
-/// <summary>One row of the conversation list, with the messages it quotes described.</summary>
+/// <summary>One row of the mail list grouped by conversation, with the messages it quotes described.</summary>
 /// <param name="Thread">The conversation as the list read it, its participants cut to the named bound and its title guarded.</param>
 /// <param name="MoreParticipantsNotNamed">Whether more people wrote into it than <see cref="IEmailThreadListReader.MaximumNamedParticipants" />.</param>
 /// <param name="Newest">Its newest message, which the row quotes.</param>

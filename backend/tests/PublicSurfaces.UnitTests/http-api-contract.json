@@ -4655,36 +4655,6 @@
         ],
         "type": "object"
       },
-      "ClientMailThreadListResponse": {
-        "properties": {
-          "nextCursor": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "pageSize": {
-            "format": "int32",
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ]
-          },
-          "threads": {
-            "items": {
-              "$ref": "#/components/schemas/ClientMailThreadListEntryResponse"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "threads",
-          "nextCursor",
-          "pageSize"
-        ],
-        "type": "object"
-      },
       "ClientMailThreadListTitleResponse": {
         "properties": {
           "derivedFromLatestArrival": {
@@ -24926,58 +24896,6 @@
           },
           "404": {
             "description": "Not Found"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "tags": [
-          "Client"
-        ]
-      }
-    },
-    "/api/client/threads": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "account",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "pageSize",
-            "schema": {
-              "format": "int32",
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": [
-                "integer",
-                "string"
-              ]
-            }
-          },
-          {
-            "in": "query",
-            "name": "cursor",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClientMailThreadListResponse"
-                }
-              }
-            },
-            "description": "OK"
           }
         },
         "security": [

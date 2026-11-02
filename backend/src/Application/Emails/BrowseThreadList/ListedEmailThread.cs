@@ -16,9 +16,6 @@ public sealed record ListedEmailThread
     /// <summary>Gets the conversation.</summary>
     public required EmailThreadId ThreadId { get; init; }
 
-    /// <summary>Gets when its newest message arrived, which is what the list is ordered by, or <see langword="null" /> where none carried a usable date.</summary>
-    public required DateTimeOffset? NewestArrival { get; init; }
-
     /// <summary>Gets how many messages it holds that the reader may read.</summary>
     public required int MessageCount { get; init; }
 
@@ -39,7 +36,4 @@ public sealed record ListedEmailThread
 
     /// <summary>Gets what a derivation called it, or <see langword="null" /> where nothing has titled it.</summary>
     public required ListedThreadTitle? Title { get; init; }
-
-    /// <summary>Gets the position a page ending on this conversation continues after.</summary>
-    public EmailThreadListPosition Position => new(this.NewestArrival, this.ThreadId);
 }

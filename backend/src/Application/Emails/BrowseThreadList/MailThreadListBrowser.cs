@@ -17,17 +17,14 @@ using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.BrowseThreadList;
 
-/// <summary>Serves one page of a person's conversations, which is what a mail screen reading by thread draws.</summary>
+/// <summary>Serves one page of a person's mail list grouped by conversation, which is what a mail screen reading by thread draws.</summary>
 /// <remarks>
 /// <para>
-/// A conversation is read across every folder the person may read, junk included, and narrowed by account alone: it
-/// is listed under the account that holds it, or under all of the person's accounts. What it is quoted by — its
-/// newest message, the sender mark of its newest received one, who wrote into it, and what a derivation called it — is
-/// read for the page rather than per row, so a page of fifty costs a handful of reads rather than fifty.
-/// </para>
-/// <para>
-/// The same conversations are also served as a message list grouped by conversation, which the message list's filters,
-/// order, and cursors narrow and page as they do the messages; a row there is described exactly as a row here.
+/// It is the message list read with one row kept per conversation: the message list's account scope, filters, order,
+/// and cursors narrow and page the conversations as they do the messages. A conversation is described across every
+/// folder the person may read, junk included. What it is quoted by — its newest message, the sender mark of its newest
+/// received one, who wrote into it, and what a derivation called it — is read for the page rather than per row, so a
+/// page of fifty costs a handful of reads rather than fifty.
 /// </para>
 /// <para>
 /// Who the reader is comes from the addresses their assigned accounts send as, which is the same answer outgoing mail
@@ -88,66 +85,6 @@ public sealed class MailThreadListBrowser
         this.egressGuard = egressGuard;
         this.readTelemetry = readTelemetry;
         this.authorization = authorization;
-    }
-
-    /// <summary>Reads one page of the caller's conversations.</summary>
-    /// <param name="request">The account, the page size, and the cursor.</param>
-    /// <param name="cancellationToken">Propagates caller cancellation.</param>
-    /// <returns>The page, empty where the caller is assigned no account.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="request" /> is <see langword="null" />.</exception>
-    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller's grant does not carry <c>mailfathom.mail.read</c>.</exception>
-    /// <exception cref="MailboxQueryPageSizeOutOfRangeException">Thrown when the page size is outside the bound.</exception>
-    /// <exception cref="MailboxQueryCursorMalformedException">Thrown when the cursor is not one this deployment issues.</exception>
-    /// <exception cref="MailboxQueryCursorFilterMismatchException">Thrown when the cursor was issued for another account's list.</exception>
-    /// <exception cref="MailAccountNotAccessibleException">Thrown when the account is not one the caller is assigned.</exception>
-    public async Task<BrowsedThreadList> BrowsePageAsync(
-        BrowseThreadListRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        this.authorization.RequirePermission(MailFathomPermission.MailRead);
-
-        using var read = this.readTelemetry.BeginRead(MailboxReadOperation.ListEmailThreads, cancellationToken);
-
-        using var actingFor = this.egressGuard.ActingFor(
-            await this.egressGuard.ReadPostureAcrossAccountsOfAsync(this.scopeResolver.User, cancellationToken));
-
-        var pageSize = MailboxQueryPageSize.FromRequested(request.PageSize);
-        var fingerprint = EmailThreadListCursor.FingerprintOf(request.Account);
-        var boundary = ContinuationBoundary(request.Cursor, fingerprint);
-
-        var scope = await this.scopeResolver.ReadableScopeAsync(
-            MailboxReaderKind.Person,
-            request.Account is { } account ? [account] : [],
-            [],
-            JunkMailInclusion.Included,
-            cancellationToken);
-
-        if (scope.AccountIds.Count is 0)
-        {
-            read.Completed(0);
-
-            return new BrowsedThreadList([], NextCursor: null, pageSize.Value);
-        }
-
-        var walked = await this.listReader.ReadPageAsync(
-            scope,
-            await this.ReaderAddressesAsync(cancellationToken),
-            boundary,
-            pageSize.Value + 1,
-            cancellationToken);
-
-        var page = walked.Take(pageSize.Value).ToArray();
-        var rows = await this.GuardedAsync(await this.DescribedAsync(page, cancellationToken), cancellationToken);
-
-        read.Completed(rows.Count);
-
-        var nextCursor = walked.Count > pageSize.Value
-            ? EmailThreadListCursor.After(page[^1].Position, fingerprint).Encode()
-            : null;
-
-        return new BrowsedThreadList(rows, nextCursor, pageSize.Value);
     }
 
     /// <summary>Reads one page of the caller's mail list grouped by conversation, in either direction.</summary>
@@ -243,26 +180,6 @@ public sealed class MailThreadListBrowser
         {
             throw MailboxQueryFilterInvalidException.NotReadByConversation("junk mail");
         }
-    }
-
-    private static EmailThreadListPosition? ContinuationBoundary(string? cursor, string fingerprint)
-    {
-        if (string.IsNullOrWhiteSpace(cursor))
-        {
-            return null;
-        }
-
-        if (!EmailThreadListCursor.TryDecode(cursor, out var decodedCursor))
-        {
-            throw new MailboxQueryCursorMalformedException();
-        }
-
-        if (!string.Equals(decodedCursor.FilterFingerprint, fingerprint, StringComparison.Ordinal))
-        {
-            throw new MailboxQueryCursorFilterMismatchException();
-        }
-
-        return decodedCursor.Position;
     }
 
     private async Task<IReadOnlySet<EmailAddress>> ReaderAddressesAsync(CancellationToken cancellationToken) =>
