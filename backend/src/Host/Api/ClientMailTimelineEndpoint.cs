@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.Json.Serialization;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Emails.BrowseThreadList;
@@ -127,7 +128,7 @@ internal static class ClientMailTimelineEndpoint
     /// grouping is refused rather than ignored, and so is asking for junk mail, which a conversation counts whole anyway.
     /// </para>
     /// </remarks>
-    internal static async Task<Results<Ok<ClientMailTimelineResponse>, Ok<ClientMailConversationPageResponse>, ProblemHttpResult>> ReadTimelineAsync(
+    internal static async Task<Results<Ok<ClientMailTimelineResponse>, ProblemHttpResult>> ReadTimelineAsync(
         [FromQuery] string? account,
         [FromQuery] string? folder,
         [FromQuery] bool? includeJunk,
@@ -212,7 +213,7 @@ internal static class ClientMailTimelineEndpoint
                     PersonPhotoResponse.AddressesOf(grouped.Conversations.Select(row => row.Newest.SenderAddress)),
                     cancellationToken);
 
-                return TypedResults.Ok(ClientMailConversationPageResponse.For(grouped, authorPhotos));
+                return TypedResults.Ok(ClientMailTimelineResponse.For(grouped, authorPhotos));
             }
 
             var page = await timeline.BrowsePageAsync(request, cancellationToken);
@@ -345,23 +346,33 @@ internal static class ClientMailTimelineEndpoint
 }
 
 /// <summary>One page of the user's mail, as the client endpoint serves it.</summary>
-/// <param name="Emails">The rows, in the order the request asked the list to be sorted in.</param>
 /// <param name="NextCursor">The cursor the following page is asked with, or <see langword="null" /> at the end of the list.</param>
 /// <param name="PreviousCursor">The cursor the preceding page is asked with, or <see langword="null" /> at the beginning of the list.</param>
 /// <param name="PageSize">How many rows the read ran under, which is what the request asked for or the default it took.</param>
+/// <param name="Emails">The rows of a page read one message at a time, in the order the request asked the list to be sorted in, or <see langword="null" /> on a page grouped by conversation, which leaves the member out of the body and out of the schema's required members.</param>
+/// <param name="Conversations">The rows of a page grouped by conversation, in the same order, each standing at its newest message the read let through, or <see langword="null" /> on a page read one message at a time, which leaves the member out of the body and out of the schema's required members.</param>
 /// <remarks>
+/// <para>
 /// The two cursors are what makes a list scrollable in both directions from one request. Each is opaque and holdable —
 /// it names a row of this page together with the list it was read under, and nothing on the server remembers it — so a
 /// client may keep one while the screen is closed and continue from it afterwards. An absent one is that end of the
 /// list having been reached, never a hint to try again.
+/// </para>
+/// <para>
+/// Exactly one of the two lists is present, and which one follows from the grouping the request named. They are two
+/// members of one body rather than two bodies because they are one list read two ways under one paging model, and a
+/// route declares one body per status code; a grouped row is the conversation list's row, because it describes the
+/// same thing.
+/// </para>
 /// </remarks>
 internal sealed record ClientMailTimelineResponse(
-    IReadOnlyList<ClientMailTimelineEntryResponse> Emails,
     string? NextCursor,
     string? PreviousCursor,
-    int PageSize)
+    int PageSize,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ClientMailTimelineEntryResponse>? Emails = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ClientMailThreadListEntryResponse>? Conversations = null)
 {
-    /// <summary>Describes one page for the wire.</summary>
+    /// <summary>Describes one page of messages for the wire.</summary>
     /// <param name="page">The page the use case read.</param>
     /// <param name="senderPhotos">The photo each sender on the page is drawn by, keyed by their address.</param>
     /// <returns>The response body.</returns>
@@ -374,46 +385,29 @@ internal sealed record ClientMailTimelineResponse(
         ArgumentNullException.ThrowIfNull(senderPhotos);
 
         return new ClientMailTimelineResponse(
-            [.. page.Emails.Select(row => ClientMailTimelineEntryResponse.For(row, senderPhotos))],
             page.NextCursor,
             page.PreviousCursor,
-            page.PageSize);
+            page.PageSize,
+            Emails: [.. page.Emails.Select(row => ClientMailTimelineEntryResponse.For(row, senderPhotos))]);
     }
-}
 
-/// <summary>One page of the user's mail grouped by conversation, as the client endpoint serves it.</summary>
-/// <param name="Conversations">The conversations, in the order the request asked the list to be sorted in, each standing at its newest message the read let through.</param>
-/// <param name="NextCursor">The cursor the following page is asked with, or <see langword="null" /> at the end of the list.</param>
-/// <param name="PreviousCursor">The cursor the preceding page is asked with, or <see langword="null" /> at the beginning of the list.</param>
-/// <param name="PageSize">How many conversations the read ran under, which is what the request asked for or the default it took.</param>
-/// <remarks>
-/// A row is the conversation list's row, because it describes the same thing: the whole conversation, whichever folders
-/// hold its messages and whichever of them the filters let through. The cursors are held and handed back exactly as a
-/// message page's are, and belong to the grouped list alone.
-/// </remarks>
-internal sealed record ClientMailConversationPageResponse(
-    IReadOnlyList<ClientMailThreadListEntryResponse> Conversations,
-    string? NextCursor,
-    string? PreviousCursor,
-    int PageSize)
-{
-    /// <summary>Describes one page for the wire.</summary>
+    /// <summary>Describes one page of conversations for the wire.</summary>
     /// <param name="page">The page the use case read.</param>
     /// <param name="authorPhotos">The photo each quoted author is drawn by, keyed by their address.</param>
     /// <returns>The response body.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
-    internal static ClientMailConversationPageResponse For(
+    internal static ClientMailTimelineResponse For(
         BrowsedConversationPage page,
         IReadOnlyDictionary<EmailAddress, PersonPhoto> authorPhotos)
     {
         ArgumentNullException.ThrowIfNull(page);
         ArgumentNullException.ThrowIfNull(authorPhotos);
 
-        return new ClientMailConversationPageResponse(
-            [.. page.Conversations.Select(row => ClientMailThreadListEntryResponse.For(row, authorPhotos))],
+        return new ClientMailTimelineResponse(
             page.NextCursor,
             page.PreviousCursor,
-            page.PageSize);
+            page.PageSize,
+            Conversations: [.. page.Conversations.Select(row => ClientMailThreadListEntryResponse.For(row, authorPhotos))]);
     }
 }
 

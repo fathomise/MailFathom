@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.Json;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts.Photos;
 using MailFathom.Application.Emails.BrowseThreadList;
@@ -226,8 +227,11 @@ public sealed class ClientMailTimelineEndpointTests
         var result = await this.ReadAsync(grouping: ClientMailTimelineEndpoint.ConversationGrouping, pageSize: 1);
 
         // Assert
-        var page = Assert.IsType<Ok<ClientMailConversationPageResponse>>(result.Result).Value!;
-        var row = Assert.Single(page.Conversations);
+        var page = Assert.IsType<Ok<ClientMailTimelineResponse>>(result.Result).Value!;
+        var row = Assert.Single(page.Conversations!);
+        using var body = JsonDocument.Parse(JsonSerializer.Serialize(page, JsonSerializerOptions.Web));
+
+        Assert.False(body.RootElement.TryGetProperty("emails", out _));
 
         Assert.Equal((ConversationId.Value, 3, ReadersReplyId.Value, true), (row.ThreadId, row.MessageCount, row.Newest.Id, row.Newest.Own));
         Assert.Equal(2, row.Newest.Receipts?.Delivery.Delivered);
@@ -637,7 +641,7 @@ public sealed class ClientMailTimelineEndpointTests
         Assert.Equal(new ClientMailListedSenderResponse("NotEstablished", "Unknown", "NotSigned", false), response.Sender);
     }
 
-    /// <summary>Both cursors reach the wire, because a list a screen can only scroll one way is half a list.</summary>
+    /// <summary>Both cursors reach the wire, because a list a screen can only scroll one way is half a list, and a page of messages leaves the grouped list out of its body.</summary>
     [Fact]
     public void For_APageInTheMiddleOfTheList_CarriesTheCursorAtBothEnds()
     {
@@ -652,10 +656,13 @@ public sealed class ClientMailTimelineEndpointTests
         var response = ClientMailTimelineResponse.For(page, NoPhotos);
 
         // Assert
+        using var body = JsonDocument.Parse(JsonSerializer.Serialize(response, JsonSerializerOptions.Web));
+
         Assert.Equal("after", response.NextCursor);
         Assert.Equal("before", response.PreviousCursor);
         Assert.Equal(25, response.PageSize);
-        Assert.Single(response.Emails);
+        Assert.Single(response.Emails!);
+        Assert.False(body.RootElement.TryGetProperty("conversations", out _));
     }
 
     private static EmailSummary SyntheticListedEmail(
@@ -693,7 +700,7 @@ public sealed class ClientMailTimelineEndpointTests
                 RemoteEmailKeywords.None),
         };
 
-    private Task<Results<Ok<ClientMailTimelineResponse>, Ok<ClientMailConversationPageResponse>, ProblemHttpResult>> ReadAsync(
+    private Task<Results<Ok<ClientMailTimelineResponse>, ProblemHttpResult>> ReadAsync(
         string? grouping = null,
         string? account = null,
         string? folder = null,

@@ -1073,7 +1073,8 @@ before the change belong to a different list. Changing `pageSize` alone does not
 **`grouping=conversation` reads the same list one conversation at a time.** The scope, every filter, the `order`, the
 page size, and both cursors work exactly as they do without it; what changes is that the read keeps one row per
 conversation, standing at the conversation's newest message that passed them, and the page carries those rows under
-`conversations` instead of `emails`:
+`conversations` instead of `emails`. It is the same body either way, and each of the two lists is left out of the page
+that does not carry it, so a page read by message has no `conversations` member and a grouped page has no `emails`:
 
 ```jsonc
 {

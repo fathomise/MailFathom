@@ -2623,43 +2623,6 @@
         ],
         "type": "object"
       },
-      "ClientMailConversationPageResponse": {
-        "properties": {
-          "conversations": {
-            "items": {
-              "$ref": "#/components/schemas/ClientMailThreadListEntryResponse"
-            },
-            "type": "array"
-          },
-          "nextCursor": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "pageSize": {
-            "format": "int32",
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ]
-          },
-          "previousCursor": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        },
-        "required": [
-          "conversations",
-          "nextCursor",
-          "previousCursor",
-          "pageSize"
-        ],
-        "type": "object"
-      },
       "ClientMailDeleteRequest": {
         "properties": {
           "storedEmailId": {
@@ -5114,6 +5077,54 @@
           "senderPhoto",
           "report",
           "receipts"
+        ],
+        "type": "object"
+      },
+      "ClientMailTimelineResponse": {
+        "properties": {
+          "conversations": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailThreadListEntryResponse"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "emails": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailTimelineEntryResponse"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pageSize": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "previousCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "nextCursor",
+          "previousCursor",
+          "pageSize"
         ],
         "type": "object"
       },
@@ -22255,7 +22266,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ClientMailConversationPageResponse"
+                  "$ref": "#/components/schemas/ClientMailTimelineResponse"
                 }
               }
             },
