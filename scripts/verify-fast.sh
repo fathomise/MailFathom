@@ -111,15 +111,14 @@ if [[ -z "${VERIFY_FORCE:-}" ]]; then
   done
 fi
 
-# The loop runs in four phases rather than one stack after another, so a failure ends the run as early
-# as it can and nothing the loop can repair fails it. First the repairs that need no compilation:
-# whitespace and the final newline in the changed C# files, and Prettier over the changed client
-# files. Then everything that compiles or checks, in every stack the change reaches, judging the tree
-# those repairs left — so a misplaced indent is repaired rather than reported, while a build, lint,
-# or type error still fails in seconds rather than behind somebody else's suite. Then the unit
-# suites, and last the one repair that needs the MSBuild workspace, the order of using directives.
-# Nothing builds twice: the suites run `--no-build` against the binaries the build produced, and the
-# last repair loads a workspace rather than building one.
+# The loop runs in three phases rather than one stack after another, so a failure ends the run as
+# early as it can and nothing the loop can repair fails it. First the repairs, which need no
+# compilation: whitespace and the final newline in the changed C# files, and Prettier over the changed
+# client files. Then everything that compiles or checks, in every stack the change reaches, judging
+# the tree those repairs left — so a misplaced indent is repaired rather than reported, while a build,
+# lint, or type error still fails in seconds rather than behind somebody else's suite. Then the unit
+# suites, `--no-build` against the binaries the build produced, so nothing builds twice. No pass here
+# loads the MSBuild workspace to format.
 
 # Locked mode here and not only in the final gate: a pin moved without regenerating the lock files
 # fails restore with NU1004, and discovering that after the whole coverage collection has already run
@@ -158,18 +157,17 @@ fi
 # The repairs, one per stack, and the only steps in either gate that rewrite a file rather than
 # report on it. Each runs over what the branch changed and needs no compilation: `dotnet format
 # whitespace --folder` reads the C# files alone, without loading the MSBuild workspace, and repairs
-# whitespace and a missing final newline. Ahead of the build, a whitespace slip the build would have
-# failed on as `IDE0055` is repaired before anything judges it, rather than costing a second run.
+# indentation, spacing, line endings, and a missing final newline in about three seconds, so a change
+# reaches the pipeline formatted and the build below judges an already formatted tree.
 #
-# What the build then judges is everything a text pass cannot repair: `backend/Directory.Build.props`
-# sets `EnforceCodeStyleInBuild` beside `TreatWarningsAsErrors` and `.editorconfig` gives the IDE rules
+# What the build judges is everything a text pass cannot repair: `backend/Directory.Build.props` sets
+# `EnforceCodeStyleInBuild` beside `TreatWarningsAsErrors` and `.editorconfig` gives the IDE rules
 # severity `warning`, so an unnecessary using, a missing licensing header, an analyzer finding, and a
-# compile error each fail it with the file and line. A plain `dotnet format` would run every code-style
-# and analyzer diagnostic over each project holding a changed file — minutes on a change reaching
-# several projects, to repair what the build judges anyway. What no repair here acts on — a
-# diagnostic with no code fix, `IDE0060` the one that reaches this repository, or a change never run
-# through this loop — is the full gate's and `CI`'s to name, since they verify the whole formatting
-# instead of repairing it.
+# compile error each fail it with the file and line. The order of using directives is the one
+# formatting rule nothing here repairs or reports: sorting them needs the workspace, which costs more
+# than the rule has ever cost the loop, so the full gate and `CI` are what report it, together with a
+# diagnostic with no code fix — `IDE0060` the one that reaches this repository — and any change never
+# run through this loop, since they verify the whole formatting instead of repairing it.
 #
 # `--folder` reads an `--include` path against the folder it was given rather than the working
 # directory, and a path it cannot resolve repairs nothing and reports nothing, so the paths lose their
@@ -195,12 +193,13 @@ digest_after_repair="$(resolve_verification_digest)"
 # keep all three. The SDK stamps the HEAD commit into every assembly's informational version and
 # every project's Source Link file, so a new commit would recompile the whole solution and re-run
 # every analyzer whatever it touched; without the stamp a commit recompiles what it reached and what
-# depends on it. `AnalyzeDisposal=false` leaves out `CA2000`, which is two fifths of every analyzer
-# second the solution spends; `backend/Directory.Build.props` says how. Because the two gates build
-# with different properties, switching between them in one worktree rebuilds the solution once.
+# depends on it. `RunPipelineOnlyAnalyzers=false` leaves out `CA2000`, two fifths of every analyzer
+# second the solution spends, and `IDE0055`, whose whitespace the repair above has already made;
+# `backend/Directory.Build.props` says how. Because the two gates build with different properties,
+# switching between them in one worktree rebuilds the solution once.
 if [[ -n "$run_service_stack" ]]; then
   dotnet build backend/MailFathom.slnx --configuration Release --no-restore \
-    -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:AnalyzeDisposal=false
+    -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:RunPipelineOnlyAnalyzers=false
 fi
 
 # The client's checks. The lint is the client's `TreatWarningsAsErrors`: every rule reports as an error
@@ -258,31 +257,20 @@ if [[ -n "$run_client_stack" ]]; then
   fi
 fi
 
-# The order of using directives is the one repair that needs the MSBuild workspace, and no build
-# reports it and no whitespace pass sorts it, so `style --diagnostics IDE0055` loads the workspace
-# once, after the suites, to order the changed files' usings and apply nothing else.
-digest_before_ordering="$(resolve_verification_digest)"
-
-if [[ -n "$run_service_stack" ]] && ((${#changed_service_csharp_files[@]} > 0)); then
-  dotnet format style backend/MailFathom.slnx --no-restore --diagnostics IDE0055 --include "${changed_service_csharp_files[@]}"
-fi
-
-# A rewrite by the repairs is their own: whitespace, a final newline, Prettier's layout, the order of
-# using directives. A second run over the repaired files would rebuild and retest only to say what
-# this one said, so the run records the repaired tree instead of the one it started from — provided
-# nothing else moved it: not before the first repair, and not while the build or the suites ran
-# between the two. A tree that changed then records nothing; an edit landing while a repair itself
-# runs is indistinguishable from its rewrite and is recorded with it. The record settles no more than
-# a run that rewrote nothing does: a diagnostic with no code fix, which the build passes over and no
-# repair acts on, is still left to the full gate and `CI`, as the comment above the repairs says.
-digest_after_formatting="$(resolve_verification_digest)"
+# A rewrite by the repairs is their own: whitespace, a final newline, Prettier's layout. A second run
+# over the repaired files would rebuild and retest only to say what this one said, so the run records
+# the repaired tree instead of the one it started from — provided nothing else moved it: not before
+# the repairs, and not while the build or the suites ran after them. A tree that changed then records
+# nothing; an edit landing while a repair itself runs is indistinguishable from its rewrite and is
+# recorded with it. The record settles no more than a run that rewrote nothing does: what no repair
+# acts on is still left to the full gate and `CI`, as the comment above the repairs says.
+digest_after_judging="$(resolve_verification_digest)"
 formatters_rewrote_the_tree=''
 
-if [[ -n "$digest_before_repair" && -n "$digest_before_ordering" ]] \
-  && [[ "$digest_after_repair" != "$digest_before_repair" || "$digest_after_formatting" != "$digest_before_ordering" ]]; then
-  if [[ "$verification_digest" == "$digest_before_repair" && "$digest_after_repair" == "$digest_before_ordering" ]]; then
+if [[ -n "$digest_before_repair" && "$digest_after_repair" != "$digest_before_repair" ]]; then
+  if [[ "$verification_digest" == "$digest_before_repair" && "$digest_after_judging" == "$digest_after_repair" ]]; then
     formatters_rewrote_the_tree='yes'
-    verification_digest="$digest_after_formatting"
+    verification_digest="$digest_after_repair"
   else
     printf 'The formatting pass rewrote files, but the tree also changed while the gate ran, so nothing is recorded: run the gate again.\n'
   fi

@@ -191,21 +191,10 @@ else
       if names_shared_style_input "${touched_other_paths[@]}"; then
         dotnet format backend/MailFathom.slnx --no-restore --verify-no-changes --verbosity diagnostic
       elif ((${#changed_service_csharp_files[@]} > 0)); then
-        # The one case the loop settles for this gate. Its repairing pass covers the same file set
-        # from the same `list_changed_paths`, and a record names the tree that pass left behind,
-        # whether it rewrote a file or not. What this pass could still report there is either a
-        # diagnostic the build above fails on — this gate's build runs every analyzer the loop's
-        # leaves out — or whitespace, a final newline, or the order of using directives, which that
-        # pass repaired. The whole-solution branch above is never settled this way, because the loop
-        # never formatted that scope.
-        if [[ -z "${VERIFY_FORCE:-}" ]] \
-          && verification_already_recorded 'verify-fast' "$verification_digest"; then
-          printf 'Formatting: the fast loop recorded exactly this content, as its repairing pass left it, at %s, so the verifying pass over the same files is skipped.\n' \
-            "$(verification_recorded_at 'verify-fast')"
-        else
-          dotnet format backend/MailFathom.slnx --no-restore --verify-no-changes --verbosity diagnostic \
-            --include "${changed_service_csharp_files[@]}"
-        fi
+        # Never settled by a fast-loop record, however exactly it names this tree: the loop neither
+        # orders using directives nor runs `IDE0055`, so this pass is the first to ask either.
+        dotnet format backend/MailFathom.slnx --no-restore --verify-no-changes --verbosity diagnostic \
+          --include "${changed_service_csharp_files[@]}"
       fi
     fi
 

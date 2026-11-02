@@ -48,13 +48,14 @@
     <NoWarn>$(NoWarn);IDE0290;IDE0079</NoWarn>
   </PropertyGroup>
 
-  <!-- CA2000 is two fifths of every analyzer second the solution spends, so scripts/verify-fast.sh builds with
-       AnalyzeDisposal=false and leaves the rule to the full gate and CI, which never set it. Appending the rule to NoWarn
-       would leave its analyzer running, because .editorconfig names the rule's severity for every C# file; the
-       analyzer configuration file beside this one sits nearer the sources, outranks .editorconfig, and stops the
-       analyzer altogether. -->
-  <ItemGroup Condition="'$(AnalyzeDisposal)' == 'false'">
-    <EditorConfigFiles Include="$(MSBuildThisFileDirectory)without-disposal-analysis.editorconfig" />
+  <!-- scripts/verify-fast.sh builds with RunPipelineOnlyAnalyzers=false and leaves two rules to the full gate and CI,
+       which never set it: CA2000, two fifths of every analyzer second the solution spends, and IDE0055, whose
+       whitespace the loop repairs before it builds. Appending the
+       rules to NoWarn would leave their analyzers running, because .editorconfig names their severity for every C#
+       file; the analyzer configuration file beside this one sits nearer the sources, outranks .editorconfig, and stops
+       the analyzers altogether. -->
+  <ItemGroup Condition="'$(RunPipelineOnlyAnalyzers)' == 'false'">
+    <EditorConfigFiles Include="$(MSBuildThisFileDirectory)without-pipeline-only-analyzers.editorconfig" />
   </ItemGroup>
 
   <ItemGroup>

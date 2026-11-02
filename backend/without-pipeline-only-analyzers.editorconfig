@@ -4,3 +4,4 @@
 
 [*.cs]
 dotnet_diagnostic.CA2000.severity = none
+dotnet_diagnostic.IDE0055.severity = none

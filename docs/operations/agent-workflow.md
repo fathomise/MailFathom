@@ -28,34 +28,32 @@ destination refspec, and lists what arrived when the branch has fallen behind.
 is why that check is here rather than only in the full gate, and why no workflow
 has one.
 
-Then it runs in four phases across every stack the change reaches, rather than
+Then it runs in three phases across every stack the change reaches, rather than
 one stack's whole flow after the other's, so a failure ends the run as early as
 it can and nothing the loop can repair fails it. After the restore and the
-client's install come the repairs that need no compilation:
+client's install come the repairs, which need no compilation:
 `dotnet format whitespace backend --folder` over the C# files the branch changed —
 everything committed since `origin/main`, staged, modified, or newly added — and
 Prettier over the client files it changed. They are the only steps in any
-workflow script that rewrite source files, and they run first so that what the
-build judges is a tree whose indentation and final newlines are already repaired,
-rather than a whitespace slip failing the build as `IDE0055` and costing a second
-run. Then everything that compiles or checks: the Release build, and the client's
-lint and type check — a build error in either stack, an unnecessary using, a
-missing licensing header, or an analyzer finding stops the run before any suite
-starts. Then the unit suites the change can have broken, `--no-build` against the
-binaries that build produced, so nothing is built twice. Last
-`dotnet format style backend/MailFathom.slnx --diagnostics IDE0055` orders the
-changed files' using directives, the one repair that needs the MSBuild workspace.
-Both C# passes are skipped where the branch touched no C#.
+workflow script that rewrite source files, they are skipped for a stack the
+branch changed no file of, and they run first so that what the build judges is a
+tree whose indentation, spacing, and final newlines are already repaired. Then
+everything that compiles or checks: the Release build, and the client's lint and
+type check — a compile error in either stack, an unnecessary using, a missing
+licensing header, or an analyzer finding stops the run before any suite starts.
+Then the unit suites the change can have broken, `--no-build` against the
+binaries that build produced, so nothing is built twice. No pass in the loop
+loads the MSBuild workspace to format.
 
 A rewrite that reaches the end of a passing run is the repairs' own, so the run
 records the tree they left rather than the one it started from, provided nothing
-else moved it — not before the first repair, and not while the build and the
-suites ran between the two. The rewrite is staged and committed with the
+else moved it — not before the repairs, and not while the build and the suites
+ran after them. The rewrite is staged and committed with the
 change, and the gate is not run a second time to say what it already said —
 staging changes the digest, so a run after it would be a whole one. Such a record
-settles exactly what a run that rewrote nothing settles: a diagnostic with no code
-fix, which the Release build passes over and a repairing pass cannot act on, is
-still the full gate's and `CI`'s to report.
+settles exactly what a run that rewrote nothing settles: what no repair acts on —
+the order of using directives, `IDE0055`, a diagnostic with no code fix — is still
+the full gate's and `CI`'s to report.
 It ends on the same whitespace checks the full gate makes, over the staged and
 unstaged diffs and — where the base resolved — over the branch's committed range,
 because a whitespace error in a page, a workflow, or a Helm template is read by
@@ -78,15 +76,17 @@ built in 238 seconds and recompiled all 28 projects after a commit, against 25
 seconds and two projects without one. The loop therefore builds with
 `-p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false`,
 and a commit recompiles what it reached and what depends on it. It also builds with
-`-p:AnalyzeDisposal=false`, which leaves out `CA2000` — 830 of the 2 062 CPU seconds
-the analyzers spend on the solution, measured with `-p:ReportAnalyzer=true`.
-`backend/Directory.Build.props` reads the property and adds
-`backend/without-disposal-analysis.editorconfig` to the analyzer configuration: the
-rule's severity is named in `.editorconfig` for every C# file, which a `NoWarn`
-entry does not outrank and under which the analyzer keeps running, while a
-configuration file nearer the sources outranks it and stops the analyzer. The full
-gate and `CI` set none of the three, so a build carrying a commit, Source Link, and a
-`CA2000` violation is still what they verify, and
+`-p:RunPipelineOnlyAnalyzers=false`, which leaves out two rules: `CA2000` — 830 of the
+2 062 CPU seconds the analyzers spend on the solution, measured with
+`-p:ReportAnalyzer=true` — and `IDE0055`, whose whitespace the repair in front
+of the build has already made, and which in 371 fast-loop runs, 192 of them reaching
+the build, failed one. `backend/Directory.Build.props` reads the property and adds
+`backend/without-pipeline-only-analyzers.editorconfig` to the analyzer
+configuration: the rules' severity is named in `.editorconfig` for every C# file,
+which a `NoWarn` entry does not outrank and under which the analyzers keep running,
+while a configuration file nearer the sources outranks it and stops them. The full
+gate and `CI` set none of the three properties, so a build carrying a commit, Source
+Link, a `CA2000` violation, and an `IDE0055` violation is still what they verify, and
 `the_fast_loop_alone_departs_from_the_full_service_build_and_format` fails a change
 that hands one of the departures to either. Because the two gates build with
 different properties, switching between them in one worktree rebuilds the solution
@@ -150,47 +150,40 @@ rather than from whoever started it;
 [Which stack a gate runs](#which-stack-a-gate-runs) carries how that is decided
 and what it costs.
 
-There is no verifying pass behind it, because the build makes that report.
-`backend/Directory.Build.props` sets `EnforceCodeStyleInBuild` beside
+There is no verifying pass behind it, because the build makes most of that
+report. `backend/Directory.Build.props` sets `EnforceCodeStyleInBuild` beside
 `TreatWarningsAsErrors`, and `.editorconfig` gives the IDE rules severity
-`warning`, so a file with an unnecessary using, a missing licensing header, or
-formatting the rules reject fails the Release build with `error IDE0005`,
-`error IDE0073`, and `error IDE0055`, each naming its file and line — and the last
-of those only for what the whitespace pass in front of the build could not
-repair.
+`warning`, so a file with an unnecessary using or a missing licensing header fails
+the Release build with `error IDE0005` or `error IDE0073`, naming its file and
+line.
 
-One rule sits outside both halves of that. `IDE0060` has no code fix, so the
-repairing pass cannot act on it, and the Release build passes over it despite
-`.editorconfig` setting it to `warning`. What names it is the verifying pass in
-`scripts/verify-full.sh`.
+What the loop leaves to `scripts/verify-full.sh` and `CI`, whose verifying pass is
+the first to ask, is three things. The order of using directives is one: no build
+reports it, the whitespace pass does not sort it, and sorting it would mean loading
+the workspace — `dotnet format style --diagnostics IDE0055` costs about 41 seconds
+for one file, for a rule that failed the loop's build once in 371 runs. `IDE0055`
+itself is another, since the loop's build leaves it out. `IDE0060` is the third: it
+has no code fix, so no repair can act on it, and the Release build passes over it
+despite `.editorconfig` setting it to `warning`.
 
-What the repairing pass is for is the remainder, which is real and is invisible
-to a build: the ordering of using directives and a missing final newline are
-`dotnet format`'s own passes rather than analyzer rules, and no build reports
-either. They also have code fixes, which is why repairing them is the whole
-answer and verifying them again afterwards adds nothing.
-
-So the pass asks for those two and nothing else. A plain `dotnet format` runs about
-twenty-five code-style and three hundred and fifty analyzer diagnostics over every
-project holding a changed file — 51 seconds for one file and 203 for eleven files in
-seven projects on the owner's machine, repairing nothing the build had not already
-judged. `dotnet format whitespace backend --folder` repairs whitespace and the final
-newline from the files alone, in about three seconds, without loading the
-workspace; it reads an `--include` path against the folder rather than the working
-directory and silently repairs nothing for a path it cannot resolve, which is why
-the loop hands it the paths without their `backend/` prefix. It does not sort using
-directives, so `dotnet format style backend/MailFathom.slnx --diagnostics IDE0055`
-runs after the suites, loading the workspace once to order them — about 41 seconds
-for one file.
-The `--folder` pass parses without the projects' language version; over the whole of
+The repair is `dotnet format whitespace backend --folder` alone. A plain
+`dotnet format` runs about twenty-five code-style and three hundred and fifty
+analyzer diagnostics over every project holding a changed file — 51 seconds for one
+file and 203 for eleven files in seven projects on the owner's machine, repairing
+nothing the build had not already judged. The `--folder` pass repairs indentation,
+spacing, and the final newline from the files alone, in about three seconds,
+without loading the workspace. It reads an `--include` path against the folder
+rather than the working directory and silently repairs nothing for a path it
+cannot resolve, which is why the loop hands it the paths without their `backend/`
+prefix. It parses without the projects' language version; over the whole of
 `backend/` on the tree this was measured against it rewrites nothing the full
 verifying pass accepts.
 
 Nobody runs `dotnet format` by hand. Both of its modes already run where they
 belong, so a hand-run pass either repeats a full workspace load to reproduce
-what the build named, or, over the whole solution, costs several times that and
-can rewrite files the change never touched. Fix what the build named and run the
-loop again.
+what the build or the full gate named, or, over the whole solution, costs several
+times that and can rewrite files the change never touched. Fix what was named and
+run the loop again.
 
 Scoping is what makes the verifying pass affordable at all. Each invocation reloads
 the MSBuild workspace, which costs the same regardless of scope, and the analysis
@@ -550,16 +543,9 @@ Four things bound what a record claims.
 - **The full gate's record answers for the fast loop, and never the reverse.**
   Both run the flow of whichever stacks the change reaches, and the full gate's is
   the loop's plus coverage and the verifying formatting pass; passing the loop says
-  nothing about coverage or the contract suite. The one step the loop does settle
-  for the full gate is the scoped formatting pass over the service solution. The
-  repairing pass covers the same file set, and a record names the tree it left, so
-  what `--verify-no-changes` could still report there is either a diagnostic the full
-  gate's own build fails on — that build runs every analyzer the loop's leaves out —
-  or whitespace, a final newline, or using order, which the repairing pass
-  repaired.
-  Neither whole-solution pass is settled that way — the client's, and the service's
-  where a shared style input triggered it — because the loop never formatted that
-  scope.
+  nothing about coverage, the contract suite, or the formatting, which the loop
+  repairs only in part — it neither orders using directives nor runs `IDE0055` — so
+  the full gate asks all of them again over a tree the loop recorded.
 - **The base is deliberately not in the digest.** Whether the branch still
   contains the current `origin/main` is asked afresh on every run of either gate,
   before any record is consulted, so a record cannot stand in for it. Folding the
