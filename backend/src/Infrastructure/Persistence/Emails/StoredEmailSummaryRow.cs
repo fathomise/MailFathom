@@ -5,6 +5,7 @@
 using System.Linq.Expressions;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.CodeCoverage;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
@@ -204,9 +205,9 @@ internal sealed record StoredEmailSummaryRow(
             email.ReadReceiptSentAt,
             email.FiledFromOutgoingEmailId);
 
-    /// <summary>Rebuilds the summaries of a set of rows, naming each one's folder by its path and the organization that recognized its author by its current name.</summary>
+    /// <summary>Rebuilds the summaries of a set of rows, naming each one's folder by its path and the organization or the member that recognized its author by its current name.</summary>
     /// <param name="rows">The rows, in the order the summaries are wanted in.</param>
-    /// <param name="dbContext">The context the folder paths and the organization names are read through, untracked.</param>
+    /// <param name="dbContext">The context the folder paths and the organization and member names are read through, untracked.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>One summary per row, in the same order.</returns>
     /// <remarks>
@@ -215,11 +216,12 @@ internal sealed record StoredEmailSummaryRow(
     /// summary projection: a path is a walk up a parent chain of any depth, which no single translated expression reads.
     /// </para>
     /// <para>
-    /// Each sender is recognized by the contact books as they stand now, through <see cref="SenderTrustBooks" />, so a
-    /// contact written or erased since the message was stored changes its mark on this read. The organization names are
-    /// read after that, asked only where a verdict names an organization, so a page of mail nobody's organization signed
-    /// costs nothing more. The name is read live rather than copied onto the message, which is what lets a rename reach
-    /// mail already stored and a deletion leave the reason standing without one.
+    /// Each sender is recognized by the member directory and the contact books as they stand now, through
+    /// <see cref="SenderTrustBooks" />, so a contact written or erased, or an account assigned or unassigned, since the
+    /// message was stored changes its mark on this read. The organization and member names are read after that, each
+    /// asked only where a verdict names an organization or a member, so a page of mail nobody's organization signed and
+    /// no colleague sent costs nothing more. A name is read live rather than copied onto the message, which is what lets
+    /// a rename reach mail already stored and a deletion leave the reason standing without one.
     /// </para>
     /// </remarks>
     public static async Task<IReadOnlyList<EmailSummary>> ToSummariesAsync(
@@ -239,12 +241,13 @@ internal sealed record StoredEmailSummaryRow(
             [.. rows.Select(static row => row.StoredSenderTrust)],
             cancellationToken);
         var organizationNames = await ReadOrganizationNamesAsync(dbContext.Organizations, verdicts, cancellationToken);
+        var memberNames = await ReadMemberNamesAsync(dbContext.UserAccounts, verdicts, cancellationToken);
         var receipts = await StoredOutgoingEmailReceipts.ReadAsync(
             dbContext,
             [.. rows.Select(static row => row.FiledFromOutgoingEmailId).OfType<Guid>()],
             cancellationToken);
 
-        return [.. rows.Zip(verdicts).Select(pair => pair.First.ToSummary(paths, pair.Second, organizationNames) with
+        return [.. rows.Zip(verdicts).Select(pair => pair.First.ToSummary(paths, pair.Second, organizationNames, memberNames) with
         {
             Receipts = pair.First.FiledFromOutgoingEmailId is { } outgoingEmailId
                 ? receipts.GetValueOrDefault(outgoingEmailId)
@@ -256,11 +259,13 @@ internal sealed record StoredEmailSummaryRow(
     /// <param name="folderPaths">The path of every folder of the row's account, keyed by folder identity, which names the row's folder.</param>
     /// <param name="senderTrust">The verdict the reader sees, which the stored half and the books combined into.</param>
     /// <param name="organizationNames">The current display name of every organization the rows name, keyed by its identity; one deleted since is absent.</param>
+    /// <param name="memberNames">The current display name of every member the verdicts name, keyed by the member's user; one erased since is absent.</param>
     /// <returns>The summary, with every domain value object built by its own factory.</returns>
     internal EmailSummary ToSummary(
         IReadOnlyDictionary<Guid, IReadOnlyList<string>> folderPaths,
         SenderTrust senderTrust,
-        IReadOnlyDictionary<Guid, string> organizationNames) => new()
+        IReadOnlyDictionary<Guid, string> organizationNames,
+        IReadOnlyDictionary<UserId, string> memberNames) => new()
         {
             StoredEmailId = StoredEmailId.Create(this.Id),
             Account = MailAccountId.Create(this.MailboxAccountId),
@@ -303,6 +308,9 @@ internal sealed record StoredEmailSummaryRow(
                 RecognizingContactId = senderTrust.RecognizingContactId,
                 RecognizingOrganizationName = senderTrust.RecognizingOrganizationId is { } organizationId
                     ? organizationNames.GetValueOrDefault(organizationId)
+                    : null,
+                RecognizingMemberName = senderTrust.RecognizingMemberId is { } memberId
+                    ? memberNames.GetValueOrDefault(memberId)
                     : null,
                 Signature = this.Signature.ToSignature(),
             },
@@ -351,6 +359,33 @@ internal sealed record StoredEmailSummaryRow(
             .ToDictionaryAsync(
                 static organization => organization.Id,
                 static organization => organization.DisplayName,
+                cancellationToken);
+    }
+
+    /// <summary>Reads the current display name of every member the verdicts name.</summary>
+    private static async Task<IReadOnlyDictionary<UserId, string>> ReadMemberNamesAsync(
+        IQueryable<UserAccountEntity> users,
+        IReadOnlyCollection<SenderTrust> verdicts,
+        CancellationToken cancellationToken)
+    {
+        Guid[] memberIds = [.. verdicts
+            .Select(static verdict => verdict.RecognizingMemberId)
+            .OfType<UserId>()
+            .Select(static member => member.Value)
+            .Distinct()];
+
+        if (memberIds.Length == 0)
+        {
+            return new Dictionary<UserId, string>();
+        }
+
+        return await users
+            .AsNoTracking()
+            .Where(user => memberIds.Contains(user.Id))
+            .Select(static user => new { user.Id, user.DisplayName })
+            .ToDictionaryAsync(
+                static user => UserId.Create(user.Id),
+                static user => user.DisplayName,
                 cancellationToken);
     }
 

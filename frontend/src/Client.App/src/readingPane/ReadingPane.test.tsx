@@ -85,6 +85,7 @@ function description(overrides: Readonly<Record<string, unknown>> = {}): string 
             dmarc: 'NotReported',
             trustSource: null,
             trustOrganization: null,
+            trustMember: null,
         },
         signature: {
             outcome: 'NotSigned',

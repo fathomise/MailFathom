@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails.Authentication;
 using Xunit;
@@ -12,6 +13,8 @@ namespace MailFathom.Domain.UnitTests.Emails.Authentication;
 public sealed class SenderTrustTests
 {
     private static readonly ContactId Contact = ContactId.Create(Guid.Parse("0199f000-0000-7000-8000-0000000000c1"));
+
+    private static readonly UserId Member = UserId.Create(Guid.Parse("0199f000-0000-7000-8000-0000000000a1"));
 
     /// <summary>A reading no policy has spoken over claims nothing and says that no policy reached it.</summary>
     [Fact]
@@ -76,11 +79,13 @@ public sealed class SenderTrustTests
 
     /// <summary>
     /// A known verdict is named by a contact or the owner's own address or domain, never by the organization signature,
-    /// which proves the address itself, and a contact source names its contact while an own source names none.
+    /// which proves the address itself, nor by the directory without its member, and a contact source names its contact
+    /// while an own source names none.
     /// </summary>
     [Theory]
     [InlineData(SenderTrustSource.None, false)]
     [InlineData(SenderTrustSource.OrganizationMember, false)]
+    [InlineData(SenderTrustSource.OrganizationDirectory, false)]
     [InlineData(SenderTrustSource.PersonalContact, false)]
     [InlineData(SenderTrustSource.OwnAccountAddress, true)]
     public void Known_NamingASourceItCannotCarry_IsRefused(SenderTrustSource source, bool withContact)
@@ -125,6 +130,36 @@ public sealed class SenderTrustTests
         Assert.Equal(Contact, trust.RecognizingContactId);
         Assert.Equal(TrustedAuthorEvidence.AuthorSignature, trust.AuthorEvidence);
         Assert.Null(trust.RecognizingOrganizationId);
+    }
+
+    /// <summary>A verdict the directory reached says what tied the message to the member's address, so it is not reached by nothing.</summary>
+    [Fact]
+    public void TrustedByMember_WithoutEvidence_IsRefused()
+    {
+        // Act
+        var refusal = Assert.Throws<ArgumentException>(() => SenderTrust.TrustedByMember(
+            Member,
+            TrustedAuthorEvidence.None,
+            SenderTrustPolicyRevision.None));
+
+        // Assert
+        Assert.Equal("authorEvidence", refusal.ParamName);
+    }
+
+    /// <summary>A verdict the directory reached names the member and nothing a contact or the signature would.</summary>
+    [Fact]
+    public void KnownMember_ByTheDirectory_RecordsTheMemberAndIsNotTrusted()
+    {
+        // Act
+        var trust = SenderTrust.KnownMember(Member, SenderTrustPolicyRevision.None);
+
+        // Assert
+        Assert.Equal(SenderTrustLevel.Known, trust.Level);
+        Assert.Equal(SenderTrustSource.OrganizationDirectory, trust.GrantedBy);
+        Assert.Equal(Member, trust.RecognizingMemberId);
+        Assert.Null(trust.RecognizingContactId);
+        Assert.Null(trust.RecognizingOrganizationId);
+        Assert.False(trust.IsTrusted);
     }
 
     /// <summary>The same list always names itself the same way, including in another process.</summary>

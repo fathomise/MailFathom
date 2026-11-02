@@ -115,6 +115,7 @@ const authenticated = {
     dmarc: 'Pass',
     trustSource: null,
     trustOrganization: null,
+    trustMember: null,
     authorRoute: 'DmarcPass',
     trustEvidence: null,
     trustContact: null,

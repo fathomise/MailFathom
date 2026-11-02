@@ -436,6 +436,9 @@ one sender. What else the message has to prove before a contact counts — an au
 aligned DKIM signature, or the author's own verified signature, never SPF alone — and in which order a contact ranks
 against the owner's own addresses and an organization's signature is [sender authentication § Whether the author is
 one this deployment recognizes](sender-authentication.md#whether-the-author-is-one-this-deployment-recognizes).
+A colleague needs nobody to write them down: on an account of their organization, an address [the member
+directory](#the-organizations-member-directory) gives a member recognizes its sender as an address an administrator
+wrote does, ranking above the organization's book, and as the directory stands when the mail is read.
 
 **Every address records who wrote it, and only a person or an administrator grants trust.** Each address row carries
 the surface its write came through, the user, the credential the write was admitted by, and when:

@@ -141,6 +141,7 @@ function describing(id: string, unread: boolean): Readonly<Record<string, unknow
             dmarc: 'NotReported',
             trustSource: null,
             trustOrganization: null,
+            trustMember: null,
         },
         signature: {
             outcome: 'NotSigned',

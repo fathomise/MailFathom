@@ -64,6 +64,7 @@ const authenticated: MailSenderVerdict = {
     dmarc: 'Pass',
     trustSource: null,
     trustOrganization: null,
+    trustMember: null,
     authorRoute: 'DmarcPass',
     trustEvidence: null,
     trustContact: null,
@@ -246,6 +247,53 @@ describe('senderVerificationOf', () => {
         );
     });
 
+    it('names the colleague the member directory recognized, by the name on their record', () => {
+        const trusted = message({
+            ...yourContact,
+            trustSource: 'OrganizationDirectory',
+            trustContact: null,
+            trustMember: 'Marta Nowak',
+        });
+
+        expect(senderVerificationOf(trusted, asSent).why).toEqual({
+            key: 'senderMark.why.trustedColleague',
+            values: {
+                authenticated: 'contoso.example',
+                address: 'a.kowalska@contoso.example',
+                domain: 'contoso.example',
+                member: 'Marta Nowak',
+            },
+        });
+        expect(stepNamed(trusted, 'senderMark.step.trustedSender')?.detail).toEqual({
+            key: 'senderMark.trust.colleague',
+            values: { address: 'a.kowalska@contoso.example', domain: 'contoso.example', member: 'Marta Nowak' },
+        });
+    });
+
+    it('says a colleague’s own verified signature is why the member directory made them trusted', () => {
+        const trusted = message(
+            {
+                ...yourContact,
+                authorAuthentication: 'Failed',
+                authorRoute: null,
+                trustSource: 'OrganizationDirectory',
+                trustContact: null,
+                trustMember: 'Marta Nowak',
+                trustEvidence: 'AuthorSignature',
+            },
+            signedByAuthor,
+        );
+
+        expect(senderVerificationOf(trusted, asSent).why.key).toBe('senderMark.why.signedColleague');
+    });
+
+    it('leaves a colleague erased since the read unnamed rather than naming nobody', () => {
+        const trusted = message({ ...yourContact, trustSource: 'OrganizationDirectory', trustContact: null });
+
+        expect(senderVerificationOf(trusted, asSent).why.key).toBe('senderMark.why.trustedUnnamed');
+        expect(stepNamed(trusted, 'senderMark.step.trustedSender')?.detail.key).toBe('senderMark.trust.recognized');
+    });
+
     it('leaves a personal contact unnamed where the service did not say whose book holds it', () => {
         const trusted = message({ ...yourContact, trustContact: null });
 
@@ -382,6 +430,25 @@ describe('senderVerificationOf', () => {
         },
     );
 
+    it('says the member directory knew a colleague by address alone, naming them, and that nothing confirmed the domain', () => {
+        const read = message({
+            ...notEstablished,
+            deploymentTrust: 'Known',
+            trustSource: 'OrganizationDirectory',
+            trustMember: 'Marta Nowak',
+        });
+        const named = { address: 'a.kowalska@contoso.example', domain: 'contoso.example', member: 'Marta Nowak' };
+
+        expect(senderVerificationOf(read, asSent)).toMatchObject({
+            mark: 'known',
+            why: { key: 'senderMark.why.knownColleague', values: named },
+        });
+        expect(stepNamed(read, 'senderMark.step.knownSender')?.detail).toEqual({
+            key: 'senderMark.known.colleague',
+            values: named,
+        });
+    });
+
     it('adds that the domain only monitors where a known sender failed its DMARC checks', () => {
         const monitored = message({
             ...notEstablished,
@@ -399,6 +466,28 @@ describe('senderVerificationOf', () => {
             detail: { key: 'senderMark.dmarc.failMonitoringOnly', values: { domain: 'contoso.example' } },
         });
         expect(stepNamed(monitored, 'senderMark.step.authorDomain')).toMatchObject({ result: 'Failed' });
+    });
+
+    it('adds that the domain only monitors where a colleague the member directory knew failed its DMARC checks', () => {
+        const monitored = message({
+            ...notEstablished,
+            authorAuthentication: 'Failed',
+            dmarc: 'Fail',
+            deploymentTrust: 'Known',
+            trustSource: 'OrganizationDirectory',
+            trustMember: 'Marta Nowak',
+        });
+
+        expect(senderVerificationOf(monitored, asSent).why).toEqual({
+            key: 'senderMark.why.knownColleagueMonitoringOnly',
+            values: { address: 'a.kowalska@contoso.example', domain: 'contoso.example', member: 'Marta Nowak' },
+        });
+    });
+
+    it('leaves a known colleague erased since the read unnamed rather than naming nobody', () => {
+        const read = message({ ...notEstablished, deploymentTrust: 'Known', trustSource: 'OrganizationDirectory' });
+
+        expect(senderVerificationOf(read, asSent).why.key).toBe('senderMark.why.knownUnnamed');
     });
 
     it('adds no known step for a sender nothing knew', () => {

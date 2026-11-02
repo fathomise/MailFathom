@@ -24,6 +24,7 @@ const verdict = {
     dmarc: 'Pass',
     trustSource: 'PersonalContact',
     trustOrganization: null,
+    trustMember: null,
 };
 
 const unsigned = {
@@ -255,14 +256,18 @@ describe('readMailMessage', () => {
         expect(message?.sender).toMatchObject({ deploymentTrust: 'Known', trustSource: 'PersonalContact' });
     });
 
-    it.each(['OwnAccountDomain', 'OrganizationMember', 'OwnAccountAddress', 'OrganizationContact', 'PersonalContact'])(
-        'reads a sender %s recognized',
-        async (trustSource) => {
-            const message = await readingOf(described({ sender: { ...verdict, trustSource } }));
+    it.each([
+        'OwnAccountDomain',
+        'OrganizationMember',
+        'OrganizationDirectory',
+        'OwnAccountAddress',
+        'OrganizationContact',
+        'PersonalContact',
+    ])('reads a sender %s recognized', async (trustSource) => {
+        const message = await readingOf(described({ sender: { ...verdict, trustSource } }));
 
-            expect(message?.sender.trustSource).toBe(trustSource);
-        },
-    );
+        expect(message?.sender.trustSource).toBe(trustSource);
+    });
 
     it.each([
         ['its organization by the name it carries now', 'Nordwind', 'Nordwind'],
@@ -274,6 +279,18 @@ describe('readMailMessage', () => {
         );
 
         expect(message?.sender).toMatchObject({ trustSource: 'OrganizationMember', trustOrganization: read });
+    });
+
+    it.each([
+        ['the colleague by the name on their record now', 'Marta Nowak', 'Marta Nowak'],
+        ['no colleague where they have since been erased', null, null],
+        ['no colleague where the verdict leaves them out', undefined, null],
+    ])('reads a colleague the member directory names with %s', async (_shape, trustMember, read) => {
+        const message = await readingOf(
+            described({ sender: { ...verdict, trustSource: 'OrganizationDirectory', trustMember } }),
+        );
+
+        expect(message?.sender).toMatchObject({ trustSource: 'OrganizationDirectory', trustMember: read });
     });
 
     it('reads what established the author, what tied it to the contact, and whose contact that is', async () => {
@@ -428,6 +445,11 @@ describe('readMailMessage', () => {
             senderWith({ trustSource: 'OrganizationMember', trustOrganization: ['Nordwind'] }),
         ],
         ['an organization named beside another trust source', senderWith({ trustOrganization: 'Nordwind' })],
+        [
+            'a colleague name that is not text',
+            senderWith({ trustSource: 'OrganizationDirectory', trustMember: ['Marta Nowak'] }),
+        ],
+        ['a colleague named beside another trust source', senderWith({ trustMember: 'Marta Nowak' })],
         ['an author route this build does not publish', senderWith({ authorRoute: 'Spf' })],
         ['trust evidence this build does not publish', senderWith({ trustEvidence: 'Signature' })],
         ['a contact holder this build does not publish', senderWith({ trustContact: 'Mine' })],

@@ -45,6 +45,7 @@ const description = JSON.stringify({
         dmarc: 'NotReported',
         trustSource: null,
         trustOrganization: null,
+        trustMember: null,
     },
     signature: {
         outcome: 'NotSigned',

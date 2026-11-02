@@ -323,13 +323,15 @@ this order, each only where every one above it recognized nobody:
 
 1. [a signature of the receiving account's organization](#a-colleague-in-the-receiving-accounts-organization) proves
    the author a member of it — *organization member*;
-2. [a contact in the receiving account's organization's book](#a-contact-somebody-wrote-down) holds the author's
+2. the author's address is [the address of a member of the receiving account's
+   organization](#a-colleague-the-member-directory-names) — *organization directory*;
+3. [a contact in the receiving account's organization's book](#a-contact-somebody-wrote-down) holds the author's
    address — *organization contact*;
-3. the author writes as [one of the receiving account owner's own addresses](#a-users-own-addresses) — *own account
+4. the author writes as [one of the receiving account owner's own addresses](#a-users-own-addresses) — *own account
    address*;
-4. the receiving account [opted into its owner's domains](#a-users-own-domains-on-an-account-that-opts-in) and the
+5. the receiving account [opted into its owner's domains](#a-users-own-domains-on-an-account-that-opts-in) and the
    author's is one of them — *own account domain*;
-5. [a contact in the own book of a user the account is assigned to](#a-contact-somebody-wrote-down) holds the author's
+6. [a contact in the own book of a user the account is assigned to](#a-contact-somebody-wrote-down) holds the author's
    address — *personal contact*.
 
 So a sender several sources recognize is reported under the highest. Everything else is unknown — including most
@@ -375,11 +377,11 @@ because what it proves is the author's address rather than a domain.
 
 **Every account is relaxed unless it sets [`Strict`](../operations/configuration-mail.md#one-account--a-mailbox-in-a-users-record)**,
 and a relaxed account recognizes one more thing: a message nothing tied to its address, whose first `From` mailbox
-matches an organization contact, one of the owner's own addresses, one of the owner's domains where the account opted
-in, or a personal contact, is **known**. The sources are asked in the same order and compared the same way, without
-regard to case, and only an address a person or an administrator wrote counts — a collected contact, an address an
-agent wrote, and one recorded before writers were never do. The verdict names the source and, for a contact, the
-contact, exactly as a trusted one does. The organization signature is never known: it proves the address, so it is
+is a member's in the organization's directory, or matches an organization contact, one of the owner's own addresses,
+one of the owner's domains where the account opted in, or a personal contact, is **known**. The sources are asked in
+the same order and compared the same way, without regard to case, and only an address a person or an administrator
+wrote counts — a collected contact, an address an agent wrote, and one recorded before writers were never do. The
+verdict names the source and, for a member or a contact, the member or the contact, exactly as a trusted one does. The organization signature is never known: it proves the address, so it is
 trusted or nothing.
 
 It is on by default because the marks are otherwise empty for most real correspondents: a company on a hosted suite
@@ -456,6 +458,30 @@ revocation, or a member leaving; [re-deriving stored mail](#re-deriving-what-is-
 keys, the membership, and the send records as they stand then, so a re-derivation after a revocation leaves no verdict
 that key reached.
 
+### A colleague the member directory names
+
+A receiving account that belongs to an organization also recognizes the organization's people by address, through
+[the member directory](contacts.md#the-organizations-member-directory): an author whose address is a member's is
+recognized as the source *organization directory*. A member's addresses are the addresses of the accounts in the same
+organization an administrator assigned to that person and to nobody else, so a shared mailbox is never one person's,
+and a user whose type is `ServiceAccount` is nobody's. The whole directory is read, the users the receiving account is
+assigned to included.
+[ADR 0044](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0044-an-organizations-member-directory-as-a-projection-of-user-records.md)
+is the decision.
+
+**It counts exactly as an address an administrator wrote down counts.** It is trusted only where something tied the
+message to the address, as [what ties a message to the address it
+displays](#what-ties-a-message-to-the-address-it-displays) states, and known by address alone on an account that is not
+strict, under [the same rules](#known-by-address-alone-on-an-account-that-is-not-strict). It never stands in for the
+organization's signature, which ranks above it: a colleague who sends through an account the signature does not cover
+is recognized here, under authentication, and nowhere above. It ranks above the organization's contacts, because a
+member's record is the authoritative description of a colleague and a contact naming the same address is a second,
+hand-kept one.
+
+**The verdict names the member as found when the message is read**, and nothing about them is stored with it. A reader
+of the organization's mail is a member of it, so the sender details name the colleague by the name on their record as
+it reads then; a member erased between the verdict and the name leaves the source standing with no name beside it.
+
 ### A user's own addresses
 
 Mail whose author writes as exactly one of a user's own addresses is trusted, with the source *own account address*,
@@ -519,13 +545,14 @@ who wrote it.
 
 What a message stores is the half configuration and the organization
 signature answered — an organization member, the owner's own address, the owner's own domain — together with whether
-the account was strict and everything a contact is held against: the route that established the author, the
-authenticated domain, the signature checks, and the policy `Known` reads. No book is read when the message is stored.
-Every read of a message — the client's list, conversation, and message reads, the MCP tools, the agent, spam
-classification, the automatic reply, and rule evaluation — then asks the books its account reaches as they stand and
-combines the two halves in the order above, with three bounded queries over a whole page of messages — the
-accounts' organizations, the users they are assigned to, and the senders' addresses in those books — rather than any
-per message. Every path that stores a verdict still goes through one step: synchronization, the extraction backfill,
+the account was strict and everything a contact or a member is held against: the route that established the author,
+the authenticated domain, the signature checks, and the policy `Known` reads. No book and no directory is read when the
+message is stored. Every read of a message — the client's list, conversation, and message reads, the MCP tools, the
+agent, spam classification, the automatic reply, and rule evaluation — then asks the member directory and the books its
+account reaches as they stand and combines the two halves in the order above, with four bounded queries over a whole
+page of messages — the accounts' organizations, the users they are assigned to, the senders' addresses in those books,
+and the senders' addresses among those organizations' members, on the index on the accounts' comparison form — rather
+than any per message. Every path that stores a verdict still goes through one step: synchronization, the extraction backfill,
 `mfctl mailbox rederive`, and a local copy of a message. A message MailFathom itself files into Drafts or Sent is
 stored without a trust verdict, because nobody but the owner wrote it.
 
@@ -533,21 +560,25 @@ stored without a trust verdict, because nobody but the owner wrote it.
 read, wherever it is stored and however long ago; removing the address, erasing the contact, erasing the user whose
 book holds it, deleting the organization whose book holds it, and unassigning the account each take the trust away on
 the next read the same way. Nothing is written to stored mail by any of those acts, and nothing a contact granted is
-ever kept, so no trusted mark outlives the person who granted it. The client reads its open list and conversation
-again when it is told the contacts changed. What already acted on a message's arrival — a rule, the spam verdict, the
+ever kept, so no trusted mark outlives the person who granted it. **A change to who the directory names moves them the
+same way**: assigning or unassigning an account, changing an account's address, an account becoming shared or unshared,
+moving an account or a user into or out of an organization, changing a user's type, and erasing a user or an account
+are each seen by the next read, because the directory query no longer finds, or newly finds, the member; nothing is
+enqueued, locked, or reset. The client reads its open list and conversation again when it is told the contacts
+changed, and an act that changes who the directory names shows on the next read of the list or conversation. What already acted on a message's arrival — a rule, the spam verdict, the
 automatic reply — keeps what it did.
 
 ### The verdict outlives the configuration
 
 What configuration and the organization signature answered is stored on the message rather than decided when the
 message is read, so a reader and a rule can ask whether an author is trusted without re-evaluating anything that may
-since have changed — only the contact books are asked as they stand. What makes that legible is
+since have changed — only the member directory and the contact books are asked as they stand. What makes that legible is
 the **policy revision** recorded beside it: a digest of what configuration states — the owner's addresses, the owner's
 domains where the account opted in, whether the account is strict, and the receiving account's organization — so two verdicts carrying different
 revisions were reached under different configuration, and one carrying none was never put to a policy at all.
 Reordering is not a change and produces the same revision; an address or a domain added, or the account joining or
-leaving an organization, produces a different one. The contacts are not in the digest: they are not part of what is
-stored, and a contact's verdict names the contact found when it is read instead.
+leaving an organization, produces a different one. The contacts and the members are not in the digest: they are not
+part of what is stored, and a verdict names the contact or the member found when it is read instead.
 
 Beside the verdict the message stores the comparison form of its first `From` mailbox, so the mail one address sent
 can be found without re-reading any header. Mail stored before the release that added it carries none until it is

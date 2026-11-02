@@ -1653,6 +1653,7 @@ of its body exist to be asked for:
     "dmarc": "Pass",
     "trustSource": "PersonalContact",
     "trustOrganization": null,
+    "trustMember": null,
     "authorRoute": "DmarcPass",
     "trustEvidence": "Authentication",
     "trustContact": "Reader",
@@ -1762,8 +1763,9 @@ combined into them here.
 | `dkimDomain` | The domain whose DKIM signature passed, or `null` where none did |
 | `spfDomain` | The domain whose SPF check passed, or `null` where none did or none was evaluated |
 | `dmarc` | `NotReported`, `Pass`, `Fail`, `NoPolicyPublished`, `TemporaryError`, `PermanentError` |
-| `trustSource` | `OrganizationMember`, `OrganizationContact`, `OwnAccountAddress`, `OwnAccountDomain`, `PersonalContact`, or `null` where nothing recognized the author |
+| `trustSource` | `OrganizationMember`, `OrganizationDirectory`, `OrganizationContact`, `OwnAccountAddress`, `OwnAccountDomain`, `PersonalContact`, or `null` where nothing recognized the author |
 | `trustOrganization` | The current display name of the organization whose signature recognized the author, present only where `trustSource` is `OrganizationMember` and that organization still exists; `null` otherwise |
+| `trustMember` | The current display name of the colleague whose address the author's is, present only where `trustSource` is `OrganizationDirectory` and that member still exists; `null` otherwise |
 | `authorRoute` | `DmarcPass`, `AlignedDkim`, `AlignedSpf`, or `null` where nothing established the author |
 | `trustEvidence` | `Authentication`, `AuthorSignature`, or `null` where nothing was asked of the message |
 | `trustContact` | `Reader` or `AnotherUser`, present only where `trustSource` is `PersonalContact`; `null` otherwise |
@@ -1778,14 +1780,18 @@ ASCII with an internationalized name in its ASCII encoding, so a screen that wan
 
 **`trustSource` names what recognized the author, never which contact or entry matched.** `OrganizationMember` is a
 signature of the receiving account's organization proving the author a member of it, which holds whatever
-`authorAuthentication` says; `OrganizationContact` a contact in that organization's book; `OwnAccountAddress` one of the
+`authorAuthentication` says; `OrganizationDirectory` the address of a member of that organization, as [the member
+directory](../features/contacts.md#the-organizations-member-directory) reads it, named in `trustMember` by the name on
+their record — only a member of the organization reads its mail, so the name reaches nobody outside it;
+`OrganizationContact` a contact in that organization's book; `OwnAccountAddress` one of the
 addresses the receiving account's owner holds; `OwnAccountDomain` a domain of one of the owner's accounts on an account
 that opted into those; and `PersonalContact` a contact in the own book of a user the account is assigned to. Where
 several recognize the author the first of those is reported ([Sender
 authentication](../features/sender-authentication.md#whether-the-author-is-one-this-deployment-recognizes)). Which
-contact matched is not published: `trustContact` says only whether it is the reader's own. A contact source is found in
-the books as they stand when the message is read, so a contact written or erased moves the mark on the next read, and
-nothing stored is reset; every other source is the one in force when the message was stored.
+contact matched is not published: `trustContact` says only whether it is the reader's own. The directory and a contact
+source are found as they stand when the message is read, so a contact written or erased, or an account assigned,
+unassigned, or shared, moves the mark on the next read, and nothing stored is reset; every other source is the one in
+force when the message was stored.
 
 **`authorRoute` is what established an `Authenticated` author**: `DmarcPass` where the receiving server reported a DMARC
 `pass` for the domain of the first `From` mailbox, `AlignedDkim` where a verified DKIM signature aligns with that domain

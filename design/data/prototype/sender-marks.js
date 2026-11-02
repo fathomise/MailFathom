@@ -10,12 +10,14 @@
 // it; `route` is what established an authenticated author where it is SPF alone (`spf`), the domain's DMARC pass or an
 // aligned DKIM signature otherwise; `trust` says why this account recognizes the author - a contact (`contact`, `mine`
 // true where it is in the reader's own book and false where it is in another user of this mailbox's), a contact of
-// the account's organization (`orgContact`), one of the owner's own addresses (`ownAddress`), a domain of the owner's
+// the account's organization (`orgContact`), a colleague the organization's member directory names (`colleague`, with
+// `member` the name on their record), one of the owner's own addresses (`ownAddress`), a domain of the owner's
 // own accounts on an account that opted into them (`own`), or a member of the account's organization proven by the
 // organization's signature (`org`, naming the organization's display name, null where that organization has since
 // been deleted), with `via: "signature"` where the author's own verified signature rather than the domain's checks tied
 // the message to that address; `known` says where an author whose authentication did not hold was found by their From
-// address alone on a relaxed account - in a contact (`contact`), the organization's contacts (`orgContact`), the
+// address alone on a relaxed account - in a contact (`contact`), the member directory (`colleague`, with `member`),
+// the organization's contacts (`orgContact`), the
 // owner's own addresses (`ownAddress`) or domains (`own`) - and beside a DMARC fail it means the domain publishes a
 // monitoring-only policy; `add` is whether the details offer Add to contacts - `new` for a contact recorded afresh,
 // `restate` where a contact of the reader's already holds the address but they did not write it down themselves,
@@ -72,7 +74,7 @@ MailFathomDesign.data.senderMarks = {
     },
     marta: {
       from: "m.nowak@company.example", checker: "server", dkim: "company.example", spf: "company.example", dmarc: "pass",
-      author: "authenticated", authDomain: "company.example", trust: null,
+      author: "authenticated", authDomain: "company.example", trust: { source: "colleague", member: "Marta Nowak" },
       sig: {
         format: "smime-detached", signedAt: "26.08.2026 11:18", content: "pass", signer: "m.nowak@company.example",
         ca: { result: "public", name: "Harbourline Public Email CA R4" }, validity: "pass",

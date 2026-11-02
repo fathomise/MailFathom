@@ -420,8 +420,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     return { from: addr, checker: "server", dkim: domainOf(addr), spf: domainOf(addr), dmarc: "pass", author: "authenticated", authDomain: domainOf(addr), trust: null, sig: null };
   };
   /* What a written-down source says about the address it holds. A contact names whose book it is in only as far as
-     ADR 0043 lets it: the reader's own, or another user of this mailbox's, and nothing from that record. */
+     ADR 0043 lets it: the reader's own, or another user of this mailbox's, and nothing from that record. A colleague the
+     organization's member directory names is named by the name on their record, which only members read (ADR 0044). */
   const trustedAs = (t) => t.source === "contact" ? (t.mine ? "is your contact" : "is a contact of another user of this mailbox")
+    : t.source === "colleague" ? "belongs to " + t.member + ", a colleague in your organization"
     : t.source === "orgContact" ? "is a contact of your organization"
     : "is one of your own addresses";
   /* SPF alone says which server handed a message over, so it establishes the author for the steps and makes nobody

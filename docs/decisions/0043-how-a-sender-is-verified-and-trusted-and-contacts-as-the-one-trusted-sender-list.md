@@ -302,12 +302,13 @@ promises.
 Highest first. Each step is asked only where the one above did not recognize the author:
 
 1. **Organization member** (ADR 0042). Needs no authenticated author, and is never `Known`.
-2. **Organization contact.**
-3. **The owner's own address.**
-4. **The owner's own domain**, where the account set `TrustOwnAccountDomains`.
-5. **Personal contact.**
+2. **Organization directory** (ADR 0044): the author's address is a member's of the receiving account's organization.
+3. **Organization contact.**
+4. **The owner's own address.**
+5. **The owner's own domain**, where the account set `TrustOwnAccountDomains`.
+6. **Personal contact.**
 
-Steps 2 to 5 recognize an author established by `DmarcPass` or `AlignedDkim`, or an address a verified author signature
+Steps 2 to 6 recognize an author established by `DmarcPass` or `AlignedDkim`, or an address a verified author signature
 established. A sender matching several steps is reported under the highest one. Within those steps, authentication is
 asked first, and the verdict records **which established the author: authentication, or the author's signature**. The
 signature is recorded only where authentication did not hold, so the record names what the mark actually rested on.
@@ -396,7 +397,7 @@ contact's and the verdict's identifiers do, and no address or domain does.
 ### A contact that changes, and mail already stored
 
 **A message stores what configuration and the organization signature answered, and its contacts are found when it is
-read.** Extraction stores the verdict steps 1, 3, and 4 reach — organization member, the owner's own address, the
+read.** Extraction stores the verdict steps 1, 4, and 5 reach — organization member, the owner's own address, the
 owner's own domain — together with whether the account was strict, the comparison form of the first `From` mailbox,
 and everything the contact steps are held against: the authentication verdict and the route that established the
 author, the authenticated author domain, the signature verification, and for `Known` the policy read at extraction.
@@ -404,14 +405,18 @@ It reads no contact book and stores no contact. Every read of a message then ask
 combines the two halves in the order above, under the same authentication and `Known` rules:
 
 - The organization member's verdict stands whatever the books hold.
+- Otherwise a member of the organization whose address the author's is recognizes the author, through the member
+  directory [ADR 0044](0044-an-organizations-member-directory-as-a-projection-of-user-records.md) adds as this order's
+  second step.
 - Otherwise an organization contact holding the address recognizes the author, above the owner's own address and
   domain.
 - Otherwise a stored verdict from the owner's own address or domain stands.
 - Otherwise a personal contact of a user the account is assigned to recognizes the author.
 
 The combination is one domain rule, `SenderTrust.RecognizedBy`, and one read of the books does it for every message a
-read returns: three bounded queries whatever the number of rows — the organizations its accounts belong to, the users
-they are assigned to, and its senders' addresses in the books those name, on the index the book and the address make. Every surface reads its verdict through that one place — the client's
+read returns: bounded queries whatever the number of rows — the organizations its accounts belong to, the users
+they are assigned to, and its senders' addresses in the books those name, on the index the book and the address make,
+beside the one ADR 0044 adds for the member directory. Every surface reads its verdict through that one place — the client's
 message, conversation, and list reads, MCP sender verification, the agent's turn document, spam evidence, the
 automatic reply, and rule evaluation — so none of them can disagree about a mark.
 
@@ -427,7 +432,7 @@ agent each read the message from the store after it is committed, through the sa
 as they stand when they run. What they already did is kept: a contact written later reaches the mark, not a rule that
 already ran.
 
-**What it costs.** Each read adds the same three short queries for the whole page, never one per message. The account identifier
+**What it costs.** Each read adds the same few short queries for the whole page, never one per message. The account identifier
 that is not a stored record's — an account declared only in configuration — reaches no book, because no assignment
 names it. Nothing about an address, a domain, or a contact reaches a log or a metric from either half.
 

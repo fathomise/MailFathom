@@ -75,6 +75,7 @@ const described = {
         dmarc: 'NotReported',
         trustSource: null,
         trustOrganization: null,
+        trustMember: null,
         authorRoute: null,
         trustEvidence: null,
         trustContact: null,

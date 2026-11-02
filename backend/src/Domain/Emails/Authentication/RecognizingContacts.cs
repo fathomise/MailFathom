@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 
 namespace MailFathom.Domain.Emails.Authentication;
@@ -16,6 +17,14 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// </remarks>
 public sealed record RecognizingContacts(ContactId? OrganizationContact, ContactId? PersonalContact)
 {
+    /// <summary>Gets the member of the receiving account's organization whose address the author's is, if the member directory names one.</summary>
+    /// <remarks>
+    /// A member contact is read from the member's user record rather than written down, and its addresses are the
+    /// accounts an administrator assigned to that member alone, so it is named by the member's user rather than by a
+    /// contact.
+    /// </remarks>
+    public UserId? DirectoryMember { get; init; }
+
     /// <summary>Gets the answer for an author no contact that grants trust holds.</summary>
     public static RecognizingContacts None { get; } = new(OrganizationContact: null, PersonalContact: null);
 }

@@ -2,12 +2,13 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails.Signatures;
 
 namespace MailFathom.Domain.Emails.Authentication;
 
-/// <summary>What recognizing the address a message's <c>From</c> displays grants that message, whichever source below organization membership recognizes it.</summary>
+/// <summary>What recognizing the address a message's <c>From</c> displays grants that message, whichever source below the organization's signature recognizes it.</summary>
 /// <remarks>
 /// <para>
 /// Every one of those sources is held to the same rule, so the answer depends on the message and on whether the account
@@ -19,7 +20,7 @@ namespace MailFathom.Domain.Emails.Authentication;
 /// </para>
 /// <para>
 /// It is reached from what the message stores, so the same answer is asked of the owner's own address and domain when the
-/// message is stored and of the contacts that hold the address whenever it is read.
+/// message is stored and of the member and the contacts that hold the address whenever it is read.
 /// </para>
 /// </remarks>
 public sealed record SenderAddressRecognition
@@ -115,4 +116,10 @@ public sealed record SenderAddressRecognition
 
         return this.KnowsByAddressAlone ? SenderTrust.Known(source, contact, revision) : null;
     }
+
+    /// <summary>States what the member directory naming the address makes of the author, or <see langword="null" /> where it makes nothing of them.</summary>
+    internal SenderTrust? GrantByMember(UserId member, SenderTrustPolicyRevision revision, bool isStrict) =>
+        this.Evidence != TrustedAuthorEvidence.None ? SenderTrust.TrustedByMember(member, this.Evidence, revision, isStrict)
+            : this.KnowsByAddressAlone ? SenderTrust.KnownMember(member, revision)
+            : null;
 }

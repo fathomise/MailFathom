@@ -275,6 +275,7 @@ export const newsletterMessage = {
         dmarc: 'NotReported',
         trustSource: null,
         trustOrganization: null,
+        trustMember: null,
     },
     signature: {
         outcome: 'NotSigned',

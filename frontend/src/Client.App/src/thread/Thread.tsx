@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode, type Ref } from 'react';
 import {
     isSpam,
     readMailThread,
@@ -21,7 +21,7 @@ import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { drawnSpam, useMailboxActs, type ActedMessage } from '../mailboxActs/useMailboxActs';
-import { useSignalledChanges } from '../signals/signalledChanges';
+import { useSignalledChanges, type SignalledChange } from '../signals/signalledChanges';
 import { MessageWaiting } from '../messageBody/Message';
 import { MessageHeaders } from '../readingPane/MessageHeaders';
 import { drawnUnread, useReadMarking } from '../readMarking/useReadMarking';
@@ -388,20 +388,27 @@ export function Thread({
     // about any message this conversation holds — a verdict, or the state derived from it — and a change to the contact
     // books, which every sender's mark is read against. A change about other mail is the list's business, and reads
     // nothing here.
+    //
+    // What the conversation holds is taken when the signal arrives rather than when the listener was made, so a signal
+    // landing between a page arriving and a re-subscription is judged against the pages now drawn.
+    const readAgainWhereChanged = useEffectEvent((signal: SignalledChange) => {
+        const holding = new Set(messagesOf(pages).map((message) => message.email.id));
+
+        if (
+            signal.kind === 'refresh' ||
+            signal.kind === 'contacts.changed' ||
+            (signal.kind === 'mail.changed' && signal.emails.some((email) => holding.has(email)))
+        ) {
+            setReread((current) => ({ attempt: current.attempt + 1, pages: pages.length }));
+        }
+    });
+
     useEffect(
         () =>
             signalledChanges.listen((signal) => {
-                const holding = new Set(messagesOf(pages).map((message) => message.email.id));
-
-                if (
-                    signal.kind === 'refresh' ||
-                    signal.kind === 'contacts.changed' ||
-                    (signal.kind === 'mail.changed' && signal.emails.some((email) => holding.has(email)))
-                ) {
-                    setReread((current) => ({ attempt: current.attempt + 1, pages: pages.length }));
-                }
+                readAgainWhereChanged(signal);
             }),
-        [signalledChanges, pages],
+        [signalledChanges],
     );
 
     // Following a statement's source is a view change, so focus goes to the message it named. It is placed here rather

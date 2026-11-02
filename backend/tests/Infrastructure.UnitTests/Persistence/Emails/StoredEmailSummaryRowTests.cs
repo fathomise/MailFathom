@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Emails.Summaries;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
@@ -352,16 +353,42 @@ public sealed class StoredEmailSummaryRowTests
         Assert.Null(summary.SenderVerification.RecognizingOrganizationName);
     }
 
+    /// <summary>A row the member directory recognized reads back the colleague's current name, and one whose member was erased since keeps the reason without a name.</summary>
+    /// <param name="memberStillExists">Whether the names still hold the member.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ToSummary_ARowTheDirectoryRecognized_CarriesTheMembersCurrentName(bool memberStillExists)
+    {
+        // Arrange
+        var member = UserId.Create(Guid.CreateVersion7());
+        var row = RowWith(MachineAuthorshipBand.NotAssessed, 0);
+        var verdict = SenderTrust.TrustedByMember(member, TrustedAuthorEvidence.Authentication, Revision);
+        var names = memberStillExists
+            ? new Dictionary<UserId, string> { [member] = "Marta Nowak" }
+            : new Dictionary<UserId, string>();
+
+        // Act
+        var summary = Summarize(row, verdict, memberNames: names);
+
+        // Assert
+        Assert.Equal(SenderTrustSource.OrganizationDirectory, summary.SenderVerification.DeploymentTrustGrantedBy);
+        Assert.Equal(memberStillExists ? "Marta Nowak" : null, summary.SenderVerification.RecognizingMemberName);
+        Assert.Null(summary.SenderVerification.RecognizingContactId);
+    }
+
     private static SenderTrustPolicyRevision Revision { get; } = SenderTrustPolicyRevision.Of(["own:ME@WORK.EXAMPLE"]);
 
     private static EmailSummary Summarize(
         StoredEmailSummaryRow row,
         SenderTrust? senderTrust = null,
-        IReadOnlyDictionary<Guid, string>? organizationNames = null) =>
+        IReadOnlyDictionary<Guid, string>? organizationNames = null,
+        IReadOnlyDictionary<UserId, string>? memberNames = null) =>
         row.ToSummary(
             new Dictionary<Guid, IReadOnlyList<string>>(),
             senderTrust ?? SenderTrust.NotEvaluated,
-            organizationNames ?? new Dictionary<Guid, string>());
+            organizationNames ?? new Dictionary<Guid, string>(),
+            memberNames ?? new Dictionary<UserId, string>());
 
     private static StoredEmailSignatureRow NotSignedRow() => new(
         Format: null,

@@ -1691,6 +1691,8 @@ export const pl: Catalogue = {
         '{authenticated} uwierzytelniła tę wiadomość, a {address} to jeden z Twoich własnych adresów.',
     'senderMark.why.trustedOwnDomain':
         '{authenticated} uwierzytelniła tę wiadomość, a {domain} to domena Twoich własnych kont.',
+    'senderMark.why.trustedColleague':
+        '{authenticated} uwierzytelniła tę wiadomość, a {address} to adres osoby z Twojej organizacji ({member}).',
     'senderMark.why.trustedOrganizationContact':
         '{authenticated} uwierzytelniła tę wiadomość, a {address} to kontakt Twojej organizacji.',
     'senderMark.why.trustedYourContact': '{authenticated} uwierzytelniła tę wiadomość, a {address} to Twój kontakt.',
@@ -1702,6 +1704,8 @@ export const pl: Catalogue = {
         'Jej podpis się zweryfikował, złożony przez {address} – adres, z którego pochodzi – a ten adres to jeden z Twoich własnych adresów.',
     'senderMark.why.signedOwnDomain':
         'Jej podpis się zweryfikował, złożony przez {address} – adres, z którego pochodzi – a {domain} to domena Twoich własnych kont.',
+    'senderMark.why.signedColleague':
+        'Jej podpis się zweryfikował, złożony przez {address} – adres, z którego pochodzi – a ten adres należy do osoby z Twojej organizacji ({member}).',
     'senderMark.why.signedOrganizationContact':
         'Jej podpis się zweryfikował, złożony przez {address} – adres, z którego pochodzi – a ten adres to kontakt Twojej organizacji.',
     'senderMark.why.signedYourContact':
@@ -1729,6 +1733,8 @@ export const pl: Catalogue = {
         '{address} to kontakt innego użytkownika tej skrzynki, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
     'senderMark.why.knownUnnamed':
         'To konto rozpoznaje adres {address}, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
+    'senderMark.why.knownColleague':
+        '{address} to adres osoby z Twojej organizacji ({member}), ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
     'senderMark.why.knownOrganizationContact':
         '{address} jest w kontaktach Twojej organizacji, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}.',
     'senderMark.why.knownOwnAddress':
@@ -1741,6 +1747,8 @@ export const pl: Catalogue = {
         '{address} to kontakt innego użytkownika tej skrzynki, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
     'senderMark.why.knownUnnamedMonitoringOnly':
         'To konto rozpoznaje adres {address}, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
+    'senderMark.why.knownColleagueMonitoringOnly':
+        '{address} to adres osoby z Twojej organizacji ({member}), ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
     'senderMark.why.knownOrganizationContactMonitoringOnly':
         '{address} jest w kontaktach Twojej organizacji, ale nic nie potwierdziło, że tę wiadomość wysłała {domain}. Jej sprawdzenia nie powiodły się, a {domain} publikuje politykę, która tylko monitoruje.',
     'senderMark.why.knownOwnAddressMonitoringOnly':
@@ -1807,6 +1815,8 @@ export const pl: Catalogue = {
     'senderMark.known.anotherUsersContact':
         '{address} to kontakt innego użytkownika tej skrzynki. Nadawca jest znany tylko z tego adresu.',
     'senderMark.known.recognized': 'To konto rozpoznaje adres {address}. Nadawca jest znany tylko z tego adresu.',
+    'senderMark.known.colleague':
+        '{address} to adres osoby z Twojej organizacji ({member}). Nadawca jest znany tylko z tego adresu.',
     'senderMark.known.organizationContact':
         '{address} jest w kontaktach Twojej organizacji. Nadawca jest znany tylko z tego adresu.',
     'senderMark.known.ownAddress':
@@ -1816,6 +1826,7 @@ export const pl: Catalogue = {
     'senderMark.trust.spfAlone': 'Pominięte, bo autora ustalił wyłącznie SPF, a sam SPF nikogo nie czyni zaufanym.',
     'senderMark.trust.ownAddress': '{address} to jeden z Twoich własnych adresów.',
     'senderMark.trust.ownDomain': '{domain} to domena Twoich własnych kont.',
+    'senderMark.trust.colleague': '{address} to adres osoby z Twojej organizacji ({member}).',
     'senderMark.trust.organizationContact': '{address} to kontakt Twojej organizacji.',
     'senderMark.trust.yourContact': '{address} to Twój kontakt.',
     'senderMark.trust.anotherUsersContact': '{address} to kontakt innego użytkownika tej skrzynki.',
