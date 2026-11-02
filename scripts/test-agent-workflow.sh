@@ -16,7 +16,7 @@ if [[ "$(basename "$0")" == 'dotnet' ]]; then
   # The repairing formatting pass is the one invocation in either gate that rewrites the tree, and
   # what it rewrites decides whether the run may record anything. A contract asks for that by naming
   # the file this stands in for.
-  if [[ -n "${FAKE_DOTNET_REWRITE:-}" && "$*" == *'format'* ]]; then
+  if [[ -n "${FAKE_DOTNET_REWRITE:-}" && "$*" == 'format '* ]]; then
     printf 'rewritten\n' >> "$FAKE_DOTNET_REWRITE"
   fi
 
@@ -421,12 +421,11 @@ verify_full_runs_no_stack_flow_for_a_change_no_build_reads() {
   assert_contains 'This change reaches neither stack' "$gate_output"
 }
 
-# One repairing pass and no verifying one. The verifying pass would restate the Release build two
-# lines above it: `EnforceCodeStyleInBuild` and `TreatWarningsAsErrors` turn every IDE rule the
-# `.editorconfig` sets to `warning` into a build error, so a diagnostic with no code fix has already
-# failed the run before formatting is reached. What the repairing pass is here for is the part no
-# build reports — the ordering of using directives, a missing final newline — and repairing it is
-# something only this script does.
+# One repairing pass and no verifying one, and the repair comes first. `dotnet format whitespace
+# --folder` repairs indentation, spacing, and the final newline without loading the workspace, so the
+# build judges an already formatted tree; `EnforceCodeStyleInBuild` and `TreatWarningsAsErrors` turn
+# every other IDE rule the `.editorconfig` sets to `warning` into a build error. The order of using
+# directives is left to the full gate and `CI`.
 #
 # The whole log is asserted rather than a line of it, and that is what states the client's cost: a
 # branch that changed no file under `frontend/` reaches nothing of that stack at all, so the run this
@@ -445,7 +444,7 @@ verify_fast_runs_restore_build_tests_and_formatting() {
   )
 
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\nformat backend/MailFathom.slnx --no-restore --include backend/src/Sample.cs' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
     "$invocation_log"
 }
 
@@ -683,16 +682,17 @@ verify_fast_runs_the_client_flow_for_a_change_under_frontend() {
 
   remove_client_change
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\nformat backend/MailFathom.slnx --no-restore --include backend/src/Sample.cs' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
     "$invocation_log"
   assert_file_content \
-    $'--dir frontend install --frozen-lockfile\n--dir frontend exec eslint --max-warnings 0 --no-warn-ignored src/Sample.txt\n--dir frontend run typecheck\n--dir frontend exec vitest related --run --coverage.enabled=false src/Sample.txt\n--dir frontend exec prettier --write --cache --ignore-unknown src/Sample.txt' \
+    $'--dir frontend install --frozen-lockfile\n--dir frontend exec prettier --write --cache --ignore-unknown src/Sample.txt\n--dir frontend exec eslint --max-warnings 0 --no-warn-ignored src/Sample.txt\n--dir frontend run typecheck\n--dir frontend exec vitest related --run --coverage.enabled=false src/Sample.txt' \
     "$client_invocation_log"
 }
 
 # The same branch through one log shared by both shims, which is the only place the order between the
-# two stacks shows: every build and check comes first, then every suite, then every formatting pass,
-# so a lint error in the client ends the run before the service suite starts rather than after it.
+# two stacks shows: the repairs come first, then every build and check over the tree they left, then
+# every suite, so a lint error in the client ends the run before the service suite starts rather than
+# after it.
 verify_fast_builds_every_stack_before_testing_either() {
   local shared_invocation_log="$test_directory/shared-invocations.log"
   add_client_change
@@ -707,7 +707,7 @@ verify_fast_builds_every_stack_before_testing_either() {
 
   remove_client_change
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore\n--dir frontend install --frozen-lockfile\n--dir frontend exec eslint --max-warnings 0 --no-warn-ignored src/Sample.txt\n--dir frontend run typecheck\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\n--dir frontend exec vitest related --run --coverage.enabled=false src/Sample.txt\nformat backend/MailFathom.slnx --no-restore --include backend/src/Sample.cs\n--dir frontend exec prettier --write --cache --ignore-unknown src/Sample.txt' \
+    $'restore backend/MailFathom.slnx --locked-mode\n--dir frontend install --frozen-lockfile\nformat whitespace backend --folder --include src/Sample.cs\n--dir frontend exec prettier --write --cache --ignore-unknown src/Sample.txt\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\n--dir frontend exec eslint --max-warnings 0 --no-warn-ignored src/Sample.txt\n--dir frontend run typecheck\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\n--dir frontend exec vitest related --run --coverage.enabled=false src/Sample.txt' \
     "$shared_invocation_log"
 }
 
@@ -761,7 +761,7 @@ verify_fast_checks_the_whole_client_workspace_when_a_shared_client_input_changed
     rm -f "$repository_root/$shared_client_input"
 
     if ! assert_file_content \
-      $'--dir frontend install --frozen-lockfile\n--dir frontend run lint\n--dir frontend run typecheck\n--dir frontend run test\n--dir frontend run format' \
+      $'--dir frontend install --frozen-lockfile\n--dir frontend run format\n--dir frontend run lint\n--dir frontend run typecheck\n--dir frontend run test' \
       "$client_invocation_log" ||
       ! assert_contains "run over the whole workspace, because $shared_client_input decides how every client file is checked" \
         "$fallback_output"; then
@@ -794,9 +794,73 @@ verify_fast_checks_the_whole_client_workspace_when_a_client_file_was_removed() {
   git -C "$repository_root" reset --quiet --hard HEAD~1
 
   assert_file_content \
-    $'--dir frontend install --frozen-lockfile\n--dir frontend run lint\n--dir frontend run typecheck\n--dir frontend run test\n--dir frontend run format' \
+    $'--dir frontend install --frozen-lockfile\n--dir frontend run format\n--dir frontend run lint\n--dir frontend run typecheck\n--dir frontend run test' \
     "$client_invocation_log"
   assert_contains 'because frontend/src/Removed.ts was removed or renamed' "$fallback_output"
+}
+
+# The fast loop's service build leaves out the commit stamp, Source Link, `CA2000`, and `IDE0055`, and
+# its one formatting pass repairs whitespace without loading the workspace. Each of those withholds a
+# verdict the full gate and the pipeline still give, so neither may take any of them over: they build
+# with the stamped version and every analyzer, and verify the whole of `dotnet format`.
+the_fast_loop_alone_departs_from_the_full_service_build_and_format() {
+  local failures=0 departure gate
+
+  for departure in '-p:IncludeSourceRevisionInInformationalVersion=false' '-p:EnableSourceLink=false' \
+    '-p:SkipPipelineOnlyAnalyzers=true' 'format whitespace backend --folder'; do
+    grep -qF -e "$departure" "$source_repository_root/scripts/verify-fast.sh" || {
+      printf 'scripts/verify-fast.sh no longer passes %s\n' "$departure" >&2
+      failures=$((failures + 1))
+    }
+  done
+
+  if grep -nE 'dotnet format (style|analyzers|backend/MailFathom\.slnx)' "$source_repository_root/scripts/verify-fast.sh" >&2; then
+    printf 'scripts/verify-fast.sh loads the MSBuild workspace to format again\n' >&2
+    failures=$((failures + 1))
+  fi
+
+  if grep -nE 'IncludeSourceRevisionInInformationalVersion|EnableSourceLink|SkipPipelineOnlyAnalyzers|dotnet format whitespace' \
+    "$source_repository_root/scripts/verify-full.sh" "$source_repository_root"/.github/workflows/*.yml >&2; then
+    printf 'The full gate or a workflow takes over one of the fast loop'\''s departures\n' >&2
+    failures=$((failures + 1))
+  fi
+
+  for gate in scripts/verify-full.sh .github/workflows/build-test-format-and-migrations.yml; do
+    grep -qE '^[[:space:]]+(run: )?dotnet build backend/MailFathom\.slnx --configuration Release --no-restore$' \
+      "$source_repository_root/$gate" || {
+      printf '%s no longer builds the solution with the stamped version and every analyzer\n' "$gate" >&2
+      failures=$((failures + 1))
+    }
+  done
+
+  grep -qE '^[[:space:]]+dotnet format backend/MailFathom\.slnx --no-restore --verify-no-changes --verbosity diagnostic( \\)?$' \
+    "$source_repository_root/scripts/verify-full.sh" || {
+    printf 'scripts/verify-full.sh no longer verifies the whole of dotnet format\n' >&2
+    failures=$((failures + 1))
+  }
+  grep -qxE '[[:space:]]+run: dotnet format backend/MailFathom\.slnx --verify-no-changes --verbosity diagnostic' \
+    "$source_repository_root/.github/workflows/build-test-format-and-migrations.yml" || {
+    printf 'build-test-format-and-migrations.yml no longer verifies the whole of dotnet format\n' >&2
+    failures=$((failures + 1))
+  }
+
+  ((failures == 0))
+}
+
+# A script a gate sources decides part of its verdict, so an edit to one has to retire the recorded
+# digest; one missing from the list lets a gate report an earlier run over a rule it never ran.
+every_script_a_gate_sources_is_in_the_verification_digest() {
+  local sourced failures=0
+
+  while IFS= read -r sourced; do
+    grep -qF "\"\$verification_record_scripts_directory/$sourced\"" "$source_repository_root/scripts/verification-record.sh" || {
+      printf '%s is sourced by a gate but missing from verification_input_scripts\n' "$sourced" >&2
+      failures=$((failures + 1))
+    }
+  done < <(sed -n 's#^source "$(dirname "${BASH_SOURCE\[0\]}")/\([^"]*\)"$#\1#p' \
+    "$source_repository_root/scripts/verify-fast.sh" "$source_repository_root/scripts/verify-full.sh" | sort --unique)
+
+  ((failures == 0))
 }
 
 # The full gate over the same branch. The service solution is verified with the files the branch
@@ -888,7 +952,7 @@ verify_fast_passes_over_a_workflow_when_it_decides_the_stacks() {
 
   discard_workflow_change
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\nformat backend/MailFathom.slnx --no-restore --include backend/src/Sample.cs' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
     "$invocation_log"
   assert_file_content '' "$client_invocation_log"
 }
@@ -1161,11 +1225,10 @@ verify_fast_accepts_the_full_gate_record_for_a_client_change() {
   assert_file_content '' "$invocation_log"
 }
 
-# And never the other way round — with one exception, which is why both halves are asserted from one
-# run. Passing the loop says nothing about coverage or the contract suite, so those are asked again;
-# it does settle the formatting, because the repairing pass is the same tool over the same file set
-# and a record names the tree it left, which leaves the verifying pass one possible answer.
-verify_full_refuses_the_fast_loop_record_except_for_the_formatting_pass() {
+# And never the other way round. Passing the loop says nothing about coverage or the contract suite,
+# and nothing about the order of using directives or `IDE0055`, which the loop neither repairs nor
+# runs, so all of them are asked again — the formatting over the same files the loop repaired.
+verify_full_refuses_the_fast_loop_record() {
   (
     cd "$repository_root"
     "$scripts_directory/verify-fast.sh"
@@ -1179,7 +1242,8 @@ verify_full_refuses_the_fast_loop_record_except_for_the_formatting_pass() {
   )
 
   assert_contains 'msbuild .config/CodeCoverage.proj' "$invocation_log"
-  assert_excludes 'format backend/MailFathom.slnx' "$invocation_log"
+  assert_contains 'format backend/MailFathom.slnx --no-restore --verify-no-changes --verbosity diagnostic --include backend/src/Sample.cs' \
+    "$invocation_log"
 }
 
 # A formatting pass that only repairs — rewrites a file and reports nothing a person has to fix — asks
@@ -1635,7 +1699,7 @@ verify_fast_accepts_a_detached_head() {
   fi
 
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\nformat backend/MailFathom.slnx --no-restore --include backend/src/Sample.cs' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
     "$invocation_log"
 }
 
@@ -1664,7 +1728,7 @@ verify_fast_skips_formatting_when_no_csharp_file_changed() {
   fi
 
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
+    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
     "$invocation_log"
 }
 
@@ -1681,7 +1745,7 @@ verification_stops_after_first_failure() {
   fi
 
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true' \
     "$invocation_log"
 }
 
@@ -1931,7 +1995,7 @@ verify_fast_runs_in_a_fork_with_no_upstream_remote() {
     "$scripts_directory/verify-fast.sh"
   )
 
-  assert_contains 'format backend/MailFathom.slnx --no-restore --include backend/src/ForkSample.cs' "$invocation_log"
+  assert_contains 'format whitespace backend --folder --include src/ForkSample.cs' "$invocation_log"
 }
 
 # The `Protected paths` workflow checks out nothing but `.github/protected-paths/` from the base
@@ -12796,6 +12860,8 @@ run_test verify_fast_builds_every_stack_before_testing_either
 run_test verify_fast_names_the_client_files_it_narrowed_to
 run_test verify_fast_checks_the_whole_client_workspace_when_a_shared_client_input_changed
 run_test verify_fast_checks_the_whole_client_workspace_when_a_client_file_was_removed
+run_test the_fast_loop_alone_departs_from_the_full_service_build_and_format
+run_test every_script_a_gate_sources_is_in_the_verification_digest
 run_test verify_fast_runs_no_stack_flow_for_a_change_no_build_reads
 run_test verify_full_runs_no_stack_flow_for_a_change_no_build_reads
 run_test verify_full_runs_both_flows_for_a_change_above_both_stacks
@@ -12814,7 +12880,7 @@ run_test verify_full_leaves_the_record_alone_when_it_skips
 run_test verify_fast_runs_again_once_the_tree_changed
 run_test verify_fast_accepts_the_record_the_full_gate_wrote
 run_test verify_fast_accepts_the_full_gate_record_for_a_client_change
-run_test verify_full_refuses_the_fast_loop_record_except_for_the_formatting_pass
+run_test verify_full_refuses_the_fast_loop_record
 run_test verify_fast_records_the_formatted_tree_when_formatting_only_repaired
 run_test verify_fast_records_the_formatted_tree_when_prettier_only_repaired
 run_test verify_fast_records_nothing_when_the_tree_moved_beside_a_formatter_rewrite

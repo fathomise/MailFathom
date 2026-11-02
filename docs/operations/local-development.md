@@ -94,15 +94,17 @@ the open pull requests with `gh`, so it needs read access to GitHub and nothing
 more; it reads at most 100 of them, its own `--limit`, and `gh` returns at most
 100 files of each, and it says so on stderr when a reply reaches either ceiling. Like the obligations report it never gates.
 
-The fast script restores the solution, builds it whole in Release configuration,
-runs without rebuilding the unit suites the change can have broken, and formats
-the C# files the branch changed — each against whichever of the two solutions
-holds it, which
-[Building and testing the client](#building-and-testing-the-client) describes for
-the client half. It is the only one that rewrites source files, and every
-`dotnet format` pass it runs is a repairing one — a run whose build and suites
-passed records the tree the formatters left, so a rewrite is committed rather than
-verified a second time. Where a change reaches
+The fast script restores the solution, repairs the whitespace of the C# files the
+branch changed, builds the solution whole in Release configuration — without the
+commit stamp, Source Link, `CA2000`, or `IDE0055`, which the full script and `CI`
+keep, so a commit recompiles only what it reached and switching between the two
+scripts in one worktree rebuilds the solution once — and runs without rebuilding
+the unit suites the change can have broken;
+[Building and testing the client](#building-and-testing-the-client) describes the
+client half. It is the only one that rewrites source files, and its one
+`dotnet format` pass is a repairing one — a run whose build and suites passed
+records the tree the repair left, so a rewrite is committed rather than verified a
+second time. Where a change reaches
 both stacks, both are built and checked before either one's suite starts.
 
 Which suites those are is read from what each test project names in its own
@@ -115,22 +117,17 @@ The run prints how many it ran of how many there are and names them, and `CI` ru
 all of them on the pull request.
 [Entry points](agent-workflow.md#entry-points) carries the whole rule.
 
-Nothing behind it verifies, because the build in front of it has already reported
-most of what there is to report. `backend/Directory.Build.props` sets
-`EnforceCodeStyleInBuild` beside `TreatWarningsAsErrors` and `.editorconfig` gives
-the IDE rules severity `warning`, so `IDE0005`, `IDE0055`, and `IDE0073` are build
-errors naming their file and line, several steps before formatting is reached.
-`IDE0060` is the one that is neither: it has no code fix for the repairing pass to
-apply, and the Release build passes over it despite the same `warning` severity,
-so only a verifying pass ever names it. What the repairing pass adds is what no
-build sees: the ordering of using directives and a missing final newline are
-`dotnet format`'s own passes rather than analyzer rules, and both have code
-fixes, so rewriting them is the whole answer.
-
-Restricting the pass to the changed files is what keeps the loop usable.
-`dotnet format` reloads the MSBuild workspace on every invocation at a cost that
-does not depend on scope, and the analysis after it does: the whole solution
-costs several times what a handful of files costs, on any machine.
+Nothing behind it verifies, because the build has already reported most of what
+there is to report. `backend/Directory.Build.props` sets `EnforceCodeStyleInBuild`
+beside `TreatWarningsAsErrors` and `.editorconfig` gives the IDE rules severity
+`warning`, so `IDE0005` and `IDE0073` are build errors naming their file and line.
+The repair, `dotnet format whitespace --folder` over the changed files, runs ahead
+of the build without loading the workspace, so the build judges an already
+formatted tree. What the loop leaves to the full script and `CI` is the order of
+using directives, which no build reports and the whitespace pass does not sort,
+`IDE0055`, which its build leaves out, and `IDE0060`, which has no code fix and
+which the Release build passes over despite its `warning` severity.
+[Entry points](agent-workflow.md#entry-points) carries what each costs.
 
 The full script additionally restores repository tools, runs the workflow
 contract suite unless every path the branch touched is a C# file it added or
@@ -1307,8 +1304,8 @@ lock file being regenerated fails here rather than resolving to something nobody
 Seven things around those commands are worth knowing before they are discovered:
 
 - **Both verification gates run this flow**, through `scripts/resolve-changed-stacks.sh`, for any change that reaches
-  the client stack. The fast loop restores, lints, type-checks, runs the suite, and formats — repairing, the way
-  `dotnet format` does there — with the lint, the suite, and the formatting narrowed to the client files the change
+  the client stack. The fast loop restores, formats — repairing, the way
+  `dotnet format whitespace` does there, and ahead of the checks so they judge a formatted tree — lints, type-checks, and runs the suite, with the lint, the suite, and the formatting narrowed to the client files the change
   touched unless it reached a shared client input or removed a client file, and the full gate runs the same steps over
   the whole workspace with the formatting pass verifying instead, and the build after them.
   [Which stack a gate runs](agent-workflow.md#which-stack-a-gate-runs) carries how that is decided and what keeps it in

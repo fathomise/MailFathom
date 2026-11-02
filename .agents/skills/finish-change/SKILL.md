@@ -30,9 +30,11 @@ where it came from.
    replace a successful one, and a run that failed records nothing, so the rerun is a real run. An
    *unchanged* tree is the one case that answers in under a second, because the script records what
    it verified and a second run over identical content would reprove it rather than prove it. A
-   formatting failure is repaired by this same script, which rewrites the changed files, rather than
-   by a hand-run `dotnet format` over the whole solution; a diagnostic no rewrite fixes is a build
-   error and names its own file and line. A passing run that says its formatting pass rewrote files
+   whitespace slip is repaired by this same script, which rewrites the changed files' whitespace
+   before it builds, rather than by a hand-run `dotnet format` over the whole solution; a diagnostic
+   the repair does not fix is a build error and names its own file and line. The order of using
+   directives and `IDE0055` are not this script's to report: the full gate and `CI` verify the whole
+   formatting. A passing run that says its formatting pass rewrote files
    and `no second run is needed` has recorded the formatted tree: stage the rewrite with the task files and go on to the commit and
    the push without running the gate again — staging changes the digest, so a run after it would
    rebuild for nothing. A diagnostic with no code fix stays the pull request's to report, exactly as
