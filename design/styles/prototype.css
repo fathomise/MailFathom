@@ -37,3 +37,22 @@ input { font-family: inherit; }
 @keyframes mfrowarc { 0% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } 28% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 100% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } }
 @keyframes mfrowmoved { 0% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } 14% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 62% { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 40px var(--warn-soft) } 100% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 0 var(--warn-soft) } }
 @keyframes mfrowedit { 0% { box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 40px var(--accent-soft) } 55% { box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 40px var(--accent-soft) } 100% { box-shadow: inset 3px 0 0 transparent, inset 0 0 0 40px transparent } }
+
+/* Settings answer a press at once: a control sinks a little while it is held, and a switch, a segment, a chip or a
+   row eases into its new state rather than jumping to it. A block a press opens rises in, and a setting a reference
+   leads to flashes once, so the eye lands on it. */
+[data-settings] [data-press] { transition: transform 120ms ease, background-color 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease; }
+[data-settings] [data-press]:not([aria-disabled="true"]):active { transform: scale(0.97); }
+[data-settings] [data-reveal] { animation: mf-reveal 200ms cubic-bezier(0.3, 0.7, 0.4, 1) both; }
+[data-settings] [data-flash="on"] { animation: mf-flash 1500ms ease; border-radius: 10px; }
+@keyframes mf-reveal { from { opacity: 0; translate: 0 -6px; } }
+@keyframes mf-flash {
+  15%, 50% { background-color: color-mix(in oklch, var(--accent) 22%, transparent); box-shadow: 0 0 0 6px color-mix(in oklch, var(--accent) 22%, transparent); }
+  32% { background-color: color-mix(in oklch, var(--accent) 6%, transparent); box-shadow: 0 0 0 6px color-mix(in oklch, var(--accent) 6%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-settings] [data-press], [data-settings] [data-press] * { transition: none; }
+  [data-settings] [data-press]:active { transform: none; }
+  [data-settings] [data-reveal] { animation: none; }
+  [data-settings] [data-flash="on"] { animation-duration: 1ms; outline: 2px solid var(--accent); }
+}

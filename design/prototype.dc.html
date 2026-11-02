@@ -26,8 +26,10 @@ Project repository: https://github.com/fathomise/MailFathom
 <script src="data/prototype/notifications.js"></script>
 <script src="data/prototype/sample-text.js"></script>
 <script src="data/prototype/message-sources.js"></script>
+<script src="data/prototype/settings.js"></script>
 <script src="logic/prototype/markdown.js"></script>
 <script src="logic/prototype/mail-html.js"></script>
+<script src="logic/prototype/settings.js"></script>
 <script src="logic/prototype/component.js"></script>
 </head>
 <body>
@@ -800,6 +802,7 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
           </div>
           <div style="{{ sideScrollStyle }}">
+          <sc-if value="{{ aiFiltersShown }}" hint-placeholder-val="{{ true }}">
           <div style="{{ filtersWrapStyle }}">
             <sc-if value="{{ sideExpanded }}" hint-placeholder-val="{{ true }}">
               <div onClick="{{ toggleAiFilters }}" title="{{ aiFiltersTitle }}" style="display:flex;align-items:center;gap:8px;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);padding:5px 9px;border-radius:6px;font-weight:600" style-hover="cursor:pointer;background:var(--hover)">
@@ -820,6 +823,7 @@ Project repository: https://github.com/fathomise/MailFathom
               </sc-for>
             </sc-if>
           </div>
+          </sc-if>
           <sc-for list="{{ sideGroups }}" as="g" hint-placeholder-count="3">
             <div style="{{ g.wrapStyle }}">
               <sc-if value="{{ g.showHeader }}" hint-placeholder-val="{{ true }}">
@@ -1292,7 +1296,7 @@ Project repository: https://github.com/fathomise/MailFathom
                         </div>
                       </sc-if>
                       <sc-if value="{{ m.remoteLoaded }}" hint-placeholder-val="{{ false }}">
-                        <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">image</span><span>Images from the sender are loaded for this message.</span></div>
+                        <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">image</span><span>{{ m.remoteLoadedText }}</span></div>
                       </sc-if>
                       <sc-if value="{{ m.mdnAskShown }}" hint-placeholder-val="{{ false }}">
                         <div data-mdn-ask style="{{ m.mdnBoxStyle }}">
@@ -2652,6 +2656,23 @@ Project repository: https://github.com/fathomise/MailFathom
     </div>
   </sc-if>
 
+  <sc-if value="{{ leaveAskOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-motion="scrim" onClick="{{ leaveStay }}" style="{{ ovAsk99 }}">
+      <div data-motion="pop" role="alertdialog" aria-label="Unsaved changes" onClick="{{ stopProp }}" style="{{ dlgAsk }}">
+        <div style="display:flex;align-items:flex-start;gap:11px">
+          <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--warn);padding-top:1px">edit_note</span>
+          <div style="flex:1;min-width:0;font-size:16px;font-weight:600;text-wrap:pretty">Leave without saving?</div>
+        </div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.5;text-wrap:pretty">{{ leaveAskText }}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:9px;justify-content:flex-end;margin-top:2px">
+          <div onClick="{{ leaveStay }}" style="{{ leaveBtnQuiet }}" style-hover="{{ sRowHover }}">Stay</div>
+          <div onClick="{{ leaveDiscard }}" style="{{ leaveBtnDanger }}" style-hover="{{ sRowHover }}">Leave without saving</div>
+          <div onClick="{{ leaveSave }}" title="{{ leaveSaveTip }}" aria-disabled="{{ leaveCantSave }}" style="{{ leaveSaveStyle }}" style-hover="cursor:pointer">Save and leave</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
   <sc-if value="{{ remModalOpen }}" hint-placeholder-val="{{ false }}">
     <div data-motion="scrim" data-phase="{{ mo.remFor }}" onClick="{{ closeRemModal }}" style="{{ ovZ97 }}">
       <div data-motion="{{ moDialog }}" data-phase="{{ mo.remFor }}" onClick="{{ stopProp }}" style="{{ dlgForm }}">
@@ -3451,17 +3472,17 @@ Project repository: https://github.com/fathomise/MailFathom
   </sc-if>
   <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
     <div data-motion="{{ moSettingsScrim }}" data-phase="{{ mo.settings }}" style="{{ settingsScrimStyle }}">
-      <div data-motion="{{ moSettings }}" data-phase="{{ mo.settings }}" style="{{ settingsCardStyle }}">
+      <div data-settings data-motion="{{ moSettings }}" data-phase="{{ mo.settings }}" style="{{ settingsCardStyle }}">
         <sc-if value="{{ settingsGrabber }}" hint-placeholder-val="{{ false }}"><div style="{{ grabberStyle }}background-color:var(--sub)"></div></sc-if>
         <div style="{{ settingsHeadStyle }}">
           <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--muted)">settings</span>
           <div style="{{ settingsTitleStyle }}">Settings</div>
-          <div onClick="{{ closeSettings }}" title="Close settings" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
+          <div data-press onClick="{{ closeSettings }}" title="Close settings" style="{{ closeBtnAutoStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="{{ closeIconStyle }}">close</span></div>
         </div>
         <sc-if value="{{ settingsStripShown }}" hint-placeholder-val="{{ false }}">
           <div style="flex:0 0 auto;display:flex;align-items:stretch;gap:18px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--sub);overflow-x:auto;scrollbar-width:none">
             <sc-for list="{{ settingsTabs }}" as="tab" hint-placeholder-count="2">
-              <div onClick="{{ tab.pick }}" style="{{ tab.style }}" style-hover="cursor:pointer;color:var(--text)">{{ tab.label }}</div>
+              <div data-press onClick="{{ tab.pick }}" style="{{ tab.style }}" style-hover="cursor:pointer;color:var(--text)">{{ tab.label }}</div>
             </sc-for>
           </div>
         </sc-if>
@@ -3472,17 +3493,14 @@ Project repository: https://github.com/fathomise/MailFathom
               <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--faint)">search</span>
               <input value="{{ settingsQuery }}" onChange="{{ onSettingsQuery }}" placeholder="Find a setting" style="flex:1;min-width:0;border:none;outline:none;font-size:14px;color:var(--text);background:transparent" />
             </div>
-            <sc-for list="{{ settingsNavGroups }}" as="sg" hint-placeholder-count="3">
-              <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:12px">
-                <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;color:var(--faint);padding:4px 12px 6px">{{ sg.label }}</div>
-                <sc-for list="{{ sg.items }}" as="tab" hint-placeholder-count="2">
-                  <div onClick="{{ tab.pick }}" style="{{ tab.navStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">
-                    <span style="{{ tab.iconStyle }}">{{ tab.icon }}</span>
-                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ tab.label }}</span>
-                  </div>
-                </sc-for>
-              </div>
-            </sc-for>
+            <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:12px">
+              <sc-for list="{{ settingsNavItems }}" as="tab" hint-placeholder-count="8">
+                <div data-press onClick="{{ tab.pick }}" style="{{ tab.navStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">
+                  <span style="{{ tab.iconStyle }}">{{ tab.icon }}</span>
+                  <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ tab.label }}</span>
+                </div>
+              </sc-for>
+            </div>
             <sc-if value="{{ settingsNavEmpty }}" hint-placeholder-val="{{ false }}">
               <div style="font-size:13px;color:var(--muted);padding:6px 12px">No section matches.</div>
             </sc-if>
@@ -3503,221 +3521,621 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
           </sc-if>
           <sc-if value="{{ tabProfil }}" hint-placeholder-val="{{ true }}">
-          <div style="display:flex;align-items:center;gap:11px">
-            <div style="{{ mePreviewStyle }}">{{ meInitials }}</div>
-            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
-              <input value="{{ meName }}" onChange="{{ onMeName }}" placeholder="Full name" style="width:100%;max-width:440px;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;{{ settingsInputPad }}outline:none" style-focus="border-color:var(--accent)" />
-              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-                <div onClick="{{ pickPhoto }}" style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;box-sizing:border-box;{{ settingsSmallBtnPad }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">add_a_photo</span>Photo</div>
-                <sc-if value="{{ meHasPhoto }}" hint-placeholder-val="{{ false }}">
-                  <div onClick="{{ removePhoto }}" title="Remove photo" style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--muted);border-radius:8px;box-sizing:border-box;{{ settingsSmallBtnPad }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">delete</span>Remove</div>
+            <sc-if value="{{ profileLockText }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteInfo }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--muted)">lock</span><span>{{ profileLockText }}</span></div>
+            </sc-if>
+            <div style="display:flex;align-items:flex-start;gap:11px">
+              <div style="{{ mePreviewStyle }}">{{ meInitials }}</div>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+                <input value="{{ meName }}" onChange="{{ onMeName }}" onBlur="{{ saveMeName }}" readOnly="{{ nameLocked }}" placeholder="Full name" style="{{ nameFieldStyle }}" style-focus="border-color:var(--accent)" />
+                <sc-if value="{{ nameManagedNote }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ sHint }}">{{ nameManagedNote }}</div>
                 </sc-if>
-                <span style="font-size:12px;color:var(--faint)">JPG/PNG, max 1 MB</span>
+                <sc-if value="{{ nameProblem }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ sProblem }}">{{ nameProblem }}</div>
+                </sc-if>
+                <sc-if value="{{ photoControlsShown }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                    <div data-press onClick="{{ pickPhoto }}" style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;box-sizing:border-box;{{ settingsSmallBtnPad }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">add_a_photo</span>Picture</div>
+                    <sc-if value="{{ meHasPhoto }}" hint-placeholder-val="{{ false }}">
+                      <div data-press onClick="{{ removePhoto }}" title="Remove picture" style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--muted);border-radius:8px;box-sizing:border-box;{{ settingsSmallBtnPad }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">delete</span>Remove</div>
+                    </sc-if>
+                    <span style="font-size:12px;color:var(--faint)">JPG/PNG, up to 1 MB</span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ photoProblem }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ sProblem }}">{{ photoProblem }}</div>
+                </sc-if>
               </div>
-              <sc-if value="{{ photoError }}" hint-placeholder-val="{{ false }}">
-                <div style="font-size:12px;color:var(--warn)">{{ photoError }}</div>
-              </sc-if>
             </div>
-          </div>
-          <input ref="{{ photoInputRef }}" type="file" accept="image/*" onChange="{{ onPhotoFile }}" style="display:none" />
-          <div style="font-size:13px;line-height:1.5;max-width:620px;color:var(--muted);text-wrap:pretty">Your name and photo are stored on your MailFathom server and visible in every client you sign in to - we never send them to the mail server.</div>
-</sc-if>
+            <input ref="{{ photoInputRef }}" type="file" accept="image/jpeg,image/png" onChange="{{ onPhotoFile }}" style="display:none" />
+            <div style="{{ sHint }}">Your name and picture are held by the server you signed in to, so they follow you between machines. Neither is sent to your mail server.</div>
+            <div style="{{ sDivider }}"></div>
+            <div style="{{ sCap }}">Language</div>
+            <div style="{{ sSegTrack }}">
+              <sc-for list="{{ personLangOptions }}" as="pl" hint-placeholder-count="2">
+                <div data-press onClick="{{ pl.pick }}" title="{{ profileTip }}" aria-disabled="{{ profileLocked }}" style="{{ pl.style }}" style-hover="cursor:pointer">{{ pl.label }}</div>
+              </sc-for>
+            </div>
+            <div style="{{ sHint }}">The language MailFathom writes to you in - summaries, thread digests, suggested replies and notes. The screens have a language of their own, set with the rest of the application.</div>
+            <sc-if value="{{ personLangProblem }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sProblem }}">{{ personLangProblem }}</div>
+            </sc-if>
+            <div style="{{ sDivider }}"></div>
+            <div style="{{ sCap }}">Time zone</div>
+            <select value="{{ tzValue }}" onChange="{{ onTz }}" disabled="{{ profileLocked }}" style="{{ tzFieldStyle }}" style-focus="border-color:var(--accent)">
+              <sc-for list="{{ tzOptions }}" as="tz" hint-placeholder-count="5">
+                <option value="{{ tz.v }}">{{ tz.label }}</option>
+              </sc-for>
+            </select>
+            <div style="{{ sHint }}">Every date you are shown is written in this zone, and it is what “this week” and “since Tuesday” mean when you ask about your mail.</div>
+            <sc-if value="{{ tzProblem }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sProblem }}">{{ tzProblem }}</div>
+            </sc-if>
+            <div style="{{ sDivider }}"></div>
+            <div style="{{ sCap }}">Phone numbers</div>
+            <div style="{{ sHint }}">Colleagues see them on your card, and the first one is the one they call.</div>
+            <sc-if value="{{ phonesEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:14px;color:var(--muted)">No number yet - your card shows none.</div>
+            </sc-if>
+            <sc-for list="{{ phoneRows }}" as="ph" hint-placeholder-count="2">
+              <div style="display:flex;flex-direction:column;gap:4px;max-width:620px">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <select value="{{ ph.label }}" onChange="{{ ph.onLabel }}" disabled="{{ profileLocked }}" style="{{ ph.selectStyle }}" style-focus="border-color:var(--accent)">
+                    <sc-for list="{{ phoneLabelOptions }}" as="pll" hint-placeholder-count="4">
+                      <option value="{{ pll.v }}">{{ pll.label }}</option>
+                    </sc-for>
+                  </select>
+                  <input type="tel" value="{{ ph.number }}" onChange="{{ ph.onNumber }}" onBlur="{{ ph.commit }}" readOnly="{{ profileLocked }}" placeholder="+48 600 000 000" style="{{ ph.numberStyle }}" style-focus="border-color:var(--accent)" />
+                  <sc-if value="{{ ph.removeShown }}" hint-placeholder-val="{{ true }}">
+                    <div data-press onClick="{{ ph.remove }}" title="Remove this number" style="{{ iconBtn }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">close</span></div>
+                  </sc-if>
+                </div>
+                <sc-if value="{{ ph.preferred }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;align-items:center;gap:8px;min-height:24px"><span style="{{ preferredMark }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:13px;line-height:1">call</span>First</span><span style="font-size:12px;color:var(--faint)">The number colleagues call</span></div>
+                </sc-if>
+                <sc-if value="{{ ph.notPreferred }}" hint-placeholder-val="{{ false }}">
+                  <div data-press onClick="{{ ph.makePreferred }}" style="{{ smallBtn }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">vertical_align_top</span>Move to first</div>
+                </sc-if>
+                <sc-if value="{{ ph.problem }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ sProblem }}">{{ ph.problem }}</div>
+                </sc-if>
+              </div>
+            </sc-for>
+            <sc-if value="{{ addPhoneShown }}" hint-placeholder-val="{{ true }}">
+              <div data-press onClick="{{ addPhone }}" title="{{ addPhoneTip }}" aria-disabled="{{ addPhoneFull }}" style="{{ addPhoneStyle }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">add</span>Add a number</div>
+            </sc-if>
+            <sc-if value="{{ phonesProblem }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sProblem }}">{{ phonesProblem }}</div>
+            </sc-if>
+          </sc-if>
+          <sc-if value="{{ tabAway }}" hint-placeholder-val="{{ false }}">
+            <sc-if value="{{ profileLockText }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteInfo }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--muted)">lock</span><span>{{ profileLockText }}</span></div>
+            </sc-if>
+            <div style="{{ sCap }}">Working hours</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <sc-for list="{{ whDays }}" as="wd" hint-placeholder-count="7">
+                <div data-press onClick="{{ wd.pick }}" title="{{ profileTip }}" aria-disabled="{{ profileLocked }}" style="{{ wd.style }}" style-hover="cursor:pointer">{{ wd.label }}</div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ whTimesShown }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <input type="time" value="{{ whStart }}" onChange="{{ onWhStart }}" readOnly="{{ profileLocked }}" aria-label="Work starts" style="{{ whFieldStyle }}" style-focus="border-color:var(--accent)" />
+                <span style="font-size:14px;color:var(--muted)">to</span>
+                <input type="time" value="{{ whEnd }}" onChange="{{ onWhEnd }}" readOnly="{{ profileLocked }}" aria-label="Work ends" style="{{ whFieldStyle }}" style-focus="border-color:var(--accent)" />
+              </div>
+            </sc-if>
+            <sc-if value="{{ whNone }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:14px;color:var(--muted)">No working days - your card says nothing about when you work.</div>
+            </sc-if>
+            <div style="{{ sHint }}">{{ whHint }}</div>
+            <sc-if value="{{ whProblem }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sProblem }}">{{ whProblem }}</div>
+            </sc-if>
+            <div style="{{ sDivider }}"></div>
+            <div style="{{ sCap }}">Automatic reply</div>
+            <div data-press onClick="{{ toggleAr }}" title="{{ profileTip }}" aria-disabled="{{ profileLocked }}" style="{{ arRowStyle }}" style-hover="{{ sRowHover }}">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                <div style="font-size:14px">Answer mail automatically</div>
+                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Each sender is answered once, from the account they wrote to, for as long as the period below lasts.</div>
+              </div>
+              <span style="{{ arSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
+            </div>
+            <sc-if value="{{ arStatusShown }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ arStatusStyle }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">{{ arStatusIcon }}</span><span>{{ arStatus }}</span></div>
+            </sc-if>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <div style="{{ sCap }}">From</div>
+                <input type="datetime-local" value="{{ arStarts }}" onChange="{{ onArStarts }}" readOnly="{{ arReadOnly }}" style="{{ arTimeStyle }}" style-focus="border-color:var(--accent)" />
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <div style="{{ sCap }}">Until</div>
+                <input type="datetime-local" value="{{ arEnds }}" onChange="{{ onArEnds }}" readOnly="{{ arReadOnly }}" style="{{ arTimeStyle }}" style-focus="border-color:var(--accent)" />
+              </div>
+            </div>
+            <div style="{{ sCapGap }}">On these accounts</div>
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <sc-for list="{{ arAccounts }}" as="ra" hint-placeholder-count="3">
+                <div data-press onClick="{{ ra.pick }}" title="{{ ra.tip }}" aria-disabled="{{ ra.refused }}" style="{{ ra.rowStyle }}" style-hover="{{ sRowHover }}">
+                  <span style="{{ ra.boxStyle }}">check</span>
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                    <div style="display:flex;align-items:center;gap:6px;font-size:14px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ra.mail }}</span><sc-if value="{{ ra.shared }}" hint-placeholder-val="{{ false }}"><span style="{{ ra.sharedStyle }}">Shared</span></sc-if></div>
+                    <div style="font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ra.name }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="{{ sHint }}">A shared mailbox is never one person's to answer for, so it is not offered.</div>
+            <div style="display:flex;align-items:baseline;gap:8px;max-width:620px;padding-top:6px">
+              <div style="{{ sCap }};flex:1">{{ arOutsideCaption }}</div>
+              <div style="font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums">{{ arOutsideCount }}</div>
+            </div>
+            <textarea value="{{ arOutside }}" onChange="{{ onArOutside }}" readOnly="{{ arReadOnly }}" rows="4" style="{{ sArea }}" style-focus="border-color:var(--accent)"></textarea>
+            <sc-if value="{{ arInsideShown }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:baseline;gap:8px;max-width:620px;padding-top:6px">
+                <div style="{{ sCap }};flex:1">To colleagues in your organization</div>
+                <div style="font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums">{{ arInsideCount }}</div>
+              </div>
+              <textarea value="{{ arInside }}" onChange="{{ onArInside }}" readOnly="{{ arReadOnly }}" rows="3" placeholder="Left empty, colleagues get the text above." style="{{ sArea }}" style-focus="border-color:var(--accent)"></textarea>
+              <div style="{{ sHint }}">Left empty, colleagues get the text above.</div>
+            </sc-if>
+            <sc-if value="{{ arNoOrgNote }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sHint }}">You are in no organization, so one text answers everybody.</div>
+            </sc-if>
+            <sc-if value="{{ arSaveShown }}" hint-placeholder-val="{{ true }}">
+              <div data-press onClick="{{ arSave }}" title="{{ arSaveTip }}" aria-disabled="{{ arSaveOff }}" style="{{ arSaveStyle }}" style-hover="cursor:pointer;filter:brightness(1.06)">Save automatic reply</div>
+              <div style="{{ sHint }}">Every save starts over: each sender is answered once more, even one an earlier reply already answered.</div>
+            </sc-if>
+            <sc-if value="{{ arProblem }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sProblem }}">{{ arProblem }}</div>
+            </sc-if>
+            <sc-if value="{{ arSaved }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sOk }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">check_circle</span><span>{{ arSaved }}</span></div>
+            </sc-if>
+          </sc-if>
           <sc-if value="{{ acctListShown }}" hint-placeholder-val="{{ false }}">
+            <div style="{{ sCap }}">Preferred address</div>
+            <div style="{{ sHint }}">The address your card leads with, and the one colleagues write to when they pick you. It is one of the addresses of your accounts.</div>
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <sc-for list="{{ addrOptions }}" as="ad" hint-placeholder-count="3">
+                <div data-press onClick="{{ ad.pick }}" title="{{ profileTip }}" aria-disabled="{{ profileLocked }}" style="{{ ad.style }}" style-hover="{{ sRowHover }}">
+                  <span style="{{ ad.dotStyle }}"></span>
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                    <div style="display:flex;align-items:center;gap:6px;font-size:14px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ad.mail }}</span><sc-if value="{{ ad.shared }}" hint-placeholder-val="{{ false }}"><span style="{{ ad.sharedStyle }}">Shared</span></sc-if></div>
+                    <div style="font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ad.name }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ addrProblem }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sProblem }}">{{ addrProblem }}</div>
+            </sc-if>
+            <div style="{{ sDivider }}"></div>
             <div style="display:flex;align-items:baseline;gap:8px;max-width:620px">
-              <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);flex:1;min-width:0;font-weight:600">Mail accounts</div>
+              <div style="{{ sCap }};flex:1;min-width:0">Mail accounts</div>
               <div style="font-size:12px;color:var(--faint)">{{ acctCount }}</div>
             </div>
             <sc-for list="{{ acctItems }}" as="ac" hint-placeholder-count="3">
-              <div onClick="{{ ac.edit }}" style="display:flex;align-items:flex-start;gap:10px;padding:10px 11px;max-width:620px;border:1px solid var(--line);border-radius:12px;background:var(--sub)" style-hover="cursor:pointer;background:var(--hover);border-color:var(--border2)">
+              <div data-press onClick="{{ ac.edit }}" style="display:flex;align-items:flex-start;gap:10px;padding:10px 11px;max-width:620px;border:1px solid var(--line);border-radius:12px;background:var(--sub)" style-hover="cursor:pointer;background:var(--hover);border-color:var(--border2)">
                 <span style="{{ ac.dotStyle }}"></span>
                 <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
-                  <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ac.name }}</div>
+                  <div style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ac.name }}</span><sc-if value="{{ ac.shared }}" hint-placeholder-val="{{ false }}"><span style="{{ ac.sharedStyle }}">Shared</span></sc-if></div>
                   <div style="font-size:13px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ac.mail }}</div>
-                  <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ac.servers }}</div>
+                  <div style="font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ac.summary }}</div>
                 </div>
                 <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--faint);margin-top:2px">chevron_right</span>
               </div>
             </sc-for>
-            <div style="font-size:13px;line-height:1.5;max-width:620px;color:var(--muted);text-wrap:pretty">Accounts are set up by your administrator - here you can open one and change its settings. Passwords stay in this device's keychain; MailFathom only keeps the server addresses so it can reconnect after a restart.</div>
+            <div style="{{ sHint }}">Your administrator sets up each account, with its address, its mail server and how MailFathom signs in to it. Open one to decide everything else about it.</div>
           </sc-if>
           <sc-if value="{{ acctEditShown }}" hint-placeholder-val="{{ false }}">
             <div style="display:flex;align-items:center;gap:9px">
-              <div onClick="{{ acctBack }}" title="Back to the list" style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;color:var(--muted)" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1">arrow_back</span></div>
-              <div style="flex:1;min-width:0;font-size:15px;font-weight:600">{{ acctTitle }}</div>
+              <div data-press onClick="{{ acctBack }}" title="Back to the accounts" style="{{ iconBtn }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1">arrow_back</span></div>
+              <div style="flex:1;min-width:0;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ acctTitle }}</div>
             </div>
-            <div style="display:flex;flex-direction:column;gap:4px">
-              <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Display name</div>
-              <input value="{{ acctName }}" onChange="{{ onAcctName }}" placeholder="Karolina Kowalska" style="width:100%;max-width:440px;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;outline:none" style-focus="border-color:var(--accent)" />
-            </div>
-            <div style="display:flex;flex-direction:column;gap:4px">
-              <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">E-mail address</div>
-              <input value="{{ acctMail }}" readOnly="{{ true }}" tabIndex="{{ -1 }}" style="width:100%;max-width:440px;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text2);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;outline:none;cursor:default" />
-              <div style="font-size:13px;color:var(--faint)">The address identifies the account and cannot be changed here.</div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:4px">
-              <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Login</div>
-              <input value="{{ acctLogin }}" onChange="{{ onAcctLogin }}" placeholder="same as the e-mail address" style="width:100%;max-width:440px;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;outline:none" style-focus="border-color:var(--accent)" />
-              <sc-if value="{{ acctLoginHint }}" hint-placeholder-val="{{ false }}">
-                <div style="font-size:13px;color:var(--faint)">{{ acctLoginHint }}</div>
-              </sc-if>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:4px">
-              <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Password</div>
-              <div style="display:flex;align-items:center;gap:6px;max-width:440px">
-                <input type="{{ acctPassType }}" value="{{ acctPass }}" onChange="{{ onAcctPass }}" placeholder="••••••••" style="flex:1;min-width:0;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;outline:none" style-focus="border-color:var(--accent)" />
-                <div onClick="{{ toggleAcctPass }}" title="Show password" style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid var(--border2);border-radius:8px;color:var(--muted)" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">{{ acctPassIcon }}</span></div>
-              </div>
-            </div>
-            <div style="height:1px;background:var(--line2);margin:4px 0"></div>
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Incoming mail - IMAP</div>
-            <div style="display:flex;gap:7px;max-width:540px">
-              <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:4px">
-                <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Host</div>
-                <input value="{{ acctImapHost }}" onChange="{{ onAcctImapHost }}" placeholder="imap.company.com" style="width:100%;max-width:440px;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;outline:none" style-focus="border-color:var(--accent)" />
-              </div>
-              <div style="flex:0 0 80px;display:flex;flex-direction:column;gap:4px">
-                <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Port</div>
-                <input value="{{ acctImapPort }}" onChange="{{ onAcctImapPort }}" placeholder="993" style="width:100%;max-width:440px;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;outline:none" style-focus="border-color:var(--accent)" />
-              </div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:4px">
-              <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Encryption</div>
-              <select value="{{ acctImapEnc }}" onChange="{{ onAcctImapEnc }}" style="width:100%;max-width:260px;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;outline:none" style-focus="border-color:var(--accent)">
-                <sc-for list="{{ encOptions }}" as="e" hint-placeholder-count="3">
-                  <option value="{{ e.v }}">{{ e.label }}</option>
-                </sc-for>
-              </select>
-            </div>
-            <div style="height:1px;background:var(--line2);margin:4px 0"></div>
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Outgoing mail - SMTP</div>
-            <div style="display:flex;gap:7px;max-width:540px">
-              <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:4px">
-                <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Host</div>
-                <input value="{{ acctSmtpHost }}" onChange="{{ onAcctSmtpHost }}" placeholder="smtp.company.com" style="width:100%;max-width:440px;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;outline:none" style-focus="border-color:var(--accent)" />
-              </div>
-              <div style="flex:0 0 80px;display:flex;flex-direction:column;gap:4px">
-                <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Port</div>
-                <input value="{{ acctSmtpPort }}" onChange="{{ onAcctSmtpPort }}" placeholder="465" style="width:100%;max-width:440px;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;outline:none" style-focus="border-color:var(--accent)" />
-              </div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:4px">
-              <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Encryption</div>
-              <select value="{{ acctSmtpEnc }}" onChange="{{ onAcctSmtpEnc }}" style="width:100%;max-width:260px;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;outline:none" style-focus="border-color:var(--accent)">
-                <sc-for list="{{ encOptions }}" as="e2" hint-placeholder-count="3">
-                  <option value="{{ e2.v }}">{{ e2.label }}</option>
-                </sc-for>
-              </select>
-            </div>
-            <div onClick="{{ acctTestRun }}" style="{{ acctTestStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">lan</span>Test connection
-            </div>
-            <sc-if value="{{ acctTestShown }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;align-items:flex-start;gap:9px;padding:10px 11px;max-width:620px;border-radius:8px;border:1px solid var(--line);background:var(--sub)">
-                <sc-if value="{{ acctTestBad }}" hint-placeholder-val="{{ true }}">
-                  <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1.3;color:var(--err-text)">error</span>
-                </sc-if>
-                <sc-if value="{{ acctTestOk }}" hint-placeholder-val="{{ false }}">
-                  <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1.3;color:var(--ok-text)">check_circle</span>
-                </sc-if>
-                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
-                  <div style="font-size:14px;font-weight:600">{{ acctTestTitle }}</div>
-                  <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">{{ acctTestText }}</div>
-                </div>
-              </div>
+            <sc-if value="{{ acctLockText }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteInfo }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--muted)">lock</span><span>{{ acctLockText }}</span></div>
             </sc-if>
-            <div style="height:1px;background:var(--line2);margin:4px 0"></div>
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">How far back to fetch</div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <input type="date" value="{{ acctEarliest }}" onChange="{{ onAcctEarliest }}" style="flex:0 0 auto;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;outline:none" style-focus="border-color:var(--accent)" />
-              <sc-if value="{{ acctEarliestClearShown }}" hint-placeholder-val="{{ false }}">
-                <div onClick="{{ acctEarliestClear }}" style="font-size:13px;color:var(--muted);padding:6px 10px;border-radius:8px" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">No limit</div>
-              </sc-if>
+            <div style="{{ sCard }}">
+              <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                <div style="{{ sCap }}">Address</div>
+                <div style="display:flex;align-items:center;gap:6px;font-size:14px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ acctMail }}</span><sc-if value="{{ acctShared }}" hint-placeholder-val="{{ false }}"><span style="{{ sharedMarkStyle }}">Shared</span></sc-if></div>
+              </div>
+              <div style="font-size:12px;color:var(--faint);line-height:1.5">The address is what identifies the account, and your administrator sets it, with the mail server and how MailFathom signs in to it. Everything below is yours to change.</div>
             </div>
-            <div style="font-size:13px;line-height:1.5;max-width:620px;color:var(--muted);text-wrap:pretty">{{ acctEarliestHint }}</div>
-            <div style="height:1px;background:var(--line2);margin:4px 0"></div>
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Folder mapping</div>
-            <div style="font-size:13px;line-height:1.5;max-width:620px;color:var(--muted);text-wrap:pretty">MailFathom always keeps these six folders. Point each one at the matching folder on the mail server - the server's own naming often differs.</div>
-            <div style="display:flex;flex-direction:column;gap:6px">
-              <sc-for list="{{ acctFolders }}" as="fd" hint-placeholder-count="6">
-                <div style="display:flex;align-items:center;gap:9px">
-                  <div style="flex:0 0 124px;display:flex;align-items:center;gap:7px;font-size:14px;color:var(--text2)">
-                    <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--faint)">{{ fd.icon }}</span>{{ fd.label }}
+            <sc-for list="{{ acctGroups }}" as="g" hint-placeholder-count="6">
+              <div data-flash-key="{{ g.title }}" style="display:flex;flex-direction:column;gap:12px">
+                <div style="{{ sDivider }}"></div>
+                <div style="{{ sCap }}">{{ g.title }}</div>
+                <sc-if value="{{ g.hasHint }}" hint-placeholder-val="{{ false }}"><div style="{{ sHint }};margin-top:-6px">{{ g.hint }}</div></sc-if>
+                <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="3">
+                  <sc-if value="{{ it.isSwitch }}" hint-placeholder-val="{{ true }}">
+                    <div data-flash-key="{{ it.fk }}" data-press onClick="{{ it.toggle }}" title="{{ it.tip }}" aria-disabled="{{ it.refused }}" style="{{ it.rowStyle }}" style-hover="{{ sRowHover }}">
+                      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                        <div style="font-size:14px">{{ it.label }}</div>
+                        <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">{{ it.hint }}</div></sc-if>
+                      </div>
+                      <span style="{{ it.switchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.isText }}" hint-placeholder-val="{{ false }}">
+                    <div data-flash-key="{{ it.fk }}" style="{{ it.wrapStyle }}">
+                      <div style="font-size:14px">{{ it.label }}</div>
+                      <input value="{{ it.value }}" onInput="{{ it.onInput }}" placeholder="{{ it.placeholder }}" maxLength="{{ it.max }}" aria-invalid="{{ it.problem }}" readonly="{{ acctLocked }}" title="{{ lockedFolderTip }}" style="{{ it.style }}" style-focus="border-color:var(--accent)" />
+                      <sc-if value="{{ it.problem }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ it.problem }}</div></sc-if>
+                      <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.isNumber }}" hint-placeholder-val="{{ false }}">
+                    <div data-flash-key="{{ it.fk }}" style="{{ it.wrapStyle }}">
+                      <div style="font-size:14px">{{ it.label }}</div>
+                      <input type="number" value="{{ it.value }}" min="{{ it.min }}" max="{{ it.max }}" step="{{ it.step }}" onInput="{{ it.onInput }}" readonly="{{ acctLocked }}" title="{{ lockedFolderTip }}" style="{{ it.style }}" style-focus="border-color:var(--accent)" />
+                      <sc-if value="{{ it.problem }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ it.problem }}</div></sc-if>
+                      <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.isSelect }}" hint-placeholder-val="{{ false }}">
+                    <div data-flash-key="{{ it.fk }}" style="{{ it.wrapStyle }}">
+                      <div style="font-size:14px">{{ it.label }}</div>
+                      <select value="{{ it.value }}" onChange="{{ it.onChange }}" disabled="{{ acctLocked }}" title="{{ lockedFolderTip }}" style="{{ it.style }}" style-focus="border-color:var(--accent)">
+                        <sc-for list="{{ it.options }}" as="op" hint-placeholder-count="2">
+                          <option value="{{ op.v }}">{{ op.label }}</option>
+                        </sc-for>
+                      </select>
+                      <sc-if value="{{ it.problem }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ it.problem }}</div></sc-if>
+                      <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.isSeg }}" hint-placeholder-val="{{ false }}">
+                    <div data-flash-key="{{ it.fk }}" style="{{ it.wrapStyle }}">
+                      <div style="font-size:14px">{{ it.label }}</div>
+                      <div style="{{ it.track }}">
+                        <sc-for list="{{ it.segs }}" as="sg" hint-placeholder-count="2">
+                          <div data-press onClick="{{ sg.pick }}" title="{{ it.tip }}" aria-disabled="{{ acctLocked }}" style="{{ sg.style }}" style-hover="cursor:pointer">{{ sg.label }}</div>
+                        </sc-for>
+                      </div>
+                      <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.isChips }}" hint-placeholder-val="{{ false }}">
+                    <div data-flash-key="{{ it.fk }}" style="{{ it.wrapStyle }}">
+                      <div style="font-size:14px">{{ it.label }}</div>
+                      <div style="display:flex;flex-wrap:wrap;gap:6px">
+                        <sc-for list="{{ it.chips }}" as="cp" hint-placeholder-count="3">
+                          <div data-press onClick="{{ cp.pick }}" title="{{ it.tip }}" aria-disabled="{{ acctLocked }}" style="{{ cp.style }}" style-hover="cursor:pointer">{{ cp.label }}</div>
+                        </sc-for>
+                      </div>
+                      <sc-if value="{{ it.hasHint }}" hint-placeholder-val="{{ true }}"><div style="{{ sHint }}">{{ it.hint }}</div></sc-if>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ it.isExcl }}" hint-placeholder-val="{{ false }}">
+                    <div data-flash-key="{{ it.fk }}" style="{{ it.wrapStyle }}">
+                      <div style="font-size:14px">{{ it.label }}</div>
+                      <div style="{{ sHint }}">{{ it.hint }}</div>
+                      <sc-if value="{{ it.none }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--faint)">Nobody is left out.</div></sc-if>
+                      <sc-for list="{{ it.rows }}" as="ex" hint-placeholder-count="2">
+                        <div style="{{ sImageChip }}">
+                          <span style="flex:1;min-width:0;font-family:'Geist Mono',ui-monospace,monospace;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ex.text }}</span>
+                          <span style="font-size:12px;color:var(--faint)">{{ ex.kind }}</span>
+                          <sc-if value="{{ ex.isDomain }}" hint-placeholder-val="{{ true }}"><div data-press onClick="{{ ex.toggleSub }}" title="{{ lockedFolderTip }}" aria-disabled="{{ acctLocked }}" style="{{ ex.subStyle }}" style-hover="cursor:pointer">{{ ex.subLabel }}</div></sc-if>
+                          <sc-if value="{{ acctDeclSaveShown }}" hint-placeholder-val="{{ true }}"><div data-press onClick="{{ ex.remove }}" title="Remove from the list" style="{{ iconBtn }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">close</span></div></sc-if>
+                        </div>
+                      </sc-for>
+                      <sc-if value="{{ it.addShown }}" hint-placeholder-val="{{ true }}">
+                        <div style="display:flex;gap:8px;max-width:440px">
+                          <input value="{{ it.draft }}" onInput="{{ it.onDraft }}" placeholder="noreply@* or lists.example" style="{{ sField }};flex:1;min-width:0" style-focus="border-color:var(--accent)" />
+                          <div data-press onClick="{{ it.add }}" style="{{ it.addStyle }}" style-hover="cursor:pointer">{{ it.addLabel }}</div>
+                        </div>
+                        <sc-if value="{{ it.problem }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ it.problem }}</div></sc-if>
+                      </sc-if>
+                    </div>
+                  </sc-if>
+                </sc-for>
+              </div>
+            </sc-for>
+            <sc-if value="{{ acctDeclProblem }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ acctDeclProblem }}</div></sc-if>
+            <sc-if value="{{ acctDeclOutcome }}" hint-placeholder-val="{{ false }}">
+              <sc-if value="{{ acctDeclOk }}" hint-placeholder-val="{{ false }}"><div style="{{ sOk }}">{{ acctDeclOutcome }}</div></sc-if>
+              <sc-if value="{{ acctDeclBad }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ acctDeclOutcome }}</div></sc-if>
+            </sc-if>
+            <sc-if value="{{ acctDeclSaveShown }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                <div data-press onClick="{{ acctDeclSave }}" title="{{ acctDeclSaveTip }}" aria-disabled="{{ acctDeclSaveOff }}" style="{{ acctDeclSaveStyle }}" style-hover="cursor:pointer">Save account</div>
+                <sc-if value="{{ acctDeclDiscardShown }}" hint-placeholder-val="{{ false }}"><div data-press onClick="{{ acctDeclDiscard }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}">Discard changes</div></sc-if>
+              </div>
+              <div style="{{ sHint }}">Certificates, folders and the footer are saved on their own, below.</div>
+            </sc-if>
+            <div style="{{ sDivider }}"></div>
+            <div data-flash-key="certs" style="display:flex;flex-direction:column;gap:12px">
+            <div style="{{ sCap }}">Certificates and keys</div>
+            <div style="{{ sHint }}">{{ certHint }}</div>
+            <sc-if value="{{ certNone }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--faint)">No certificate or key yet.</div></sc-if>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <sc-for list="{{ certRows }}" as="ce" hint-placeholder-count="3">
+                <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 11px;max-width:620px;box-sizing:border-box;border:1px solid var(--line);border-radius:12px;background:var(--sub)">
+                  <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1.2;color:var(--muted)">{{ ce.icon }}</span>
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                    <div style="display:flex;align-items:baseline;gap:8px;min-width:0"><span style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ce.name }}</span><span style="font-size:12px;color:var(--faint);white-space:nowrap">{{ ce.kind }}</span></div>
+                    <div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ce.detail }}</div>
+                    <div style="font-size:12px;color:var(--faint)">{{ ce.usage }}</div>
                   </div>
-                  <input value="{{ fd.value }}" onChange="{{ fd.set }}" placeholder="{{ fd.ph }}" style="flex:1;min-width:0;max-width:340px;box-sizing:border-box;font-family:'Geist',system-ui,sans-serif;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:7px 10px;outline:none" style-focus="border-color:var(--accent)" />
+                  <sc-if value="{{ ce.removeShown }}" hint-placeholder-val="{{ true }}">
+                    <div data-press onClick="{{ ce.remove }}" title="Remove" style="{{ iconBtn }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">delete</span></div>
+                  </sc-if>
                 </div>
               </sc-for>
             </div>
-            <div style="height:1px;background:var(--line2);margin:4px 0"></div>
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Deleting and sending - this account only</div>
-            <div onClick="{{ toggleAcctHardDelete }}" style="display:flex;align-items:flex-start;gap:11px;padding:9px 10px;max-width:620px;border-radius:8px" style-hover="cursor:pointer;background:var(--hover)">
-              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
-                <div style="font-size:14px">Delete mail permanently - here and on the mail server</div>
-                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">{{ acctHardDeleteHint }}</div>
-              </div>
-              <span style="{{ acctHardDeleteSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
-            </div>
-            <div onClick="{{ toggleAcctPurgeGone }}" style="display:flex;align-items:flex-start;gap:11px;padding:9px 10px;max-width:620px;border-radius:8px" style-hover="cursor:pointer;background:var(--hover)">
-              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
-                <div style="font-size:14px">Follow deletions made in the IMAP source</div>
-                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">{{ acctPurgeGoneHint }}</div>
-              </div>
-              <span style="{{ acctPurgeGoneSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
-            </div>
-            <div onClick="{{ toggleAcctSaveSent }}" style="display:flex;align-items:flex-start;gap:11px;padding:9px 10px;max-width:620px;border-radius:8px" style-hover="cursor:pointer;background:var(--hover)">
-              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
-                <div style="font-size:14px">Save sent mail in the Sent folder</div>
-                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Some mail servers file sent mail into Sent on their own - then this can stay off. Left on, MailFathom still de-duplicates by Message-ID, so you will not end up with two copies.</div>
-              </div>
-              <span style="{{ acctSaveSentSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
-            </div>
-            <div style="height:1px;background:var(--line2);margin:4px 0"></div>
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Before sending to the model - this account only</div>
-            <div onClick="{{ toggleAcctSecretScan }}" style="display:flex;align-items:flex-start;gap:11px;padding:11px 12px;max-width:620px;border-radius:8px" style-hover="cursor:pointer;background:var(--hover)">
-              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
-                <div style="font-size:15px">Check the text for secrets</div>
-                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Before a message, an event or an attachment from this account goes to the AI model, MailFathom looks for passwords, access keys, tokens and card numbers. Anything it finds is shown to you first - you decide whether to hide it or send it anyway.</div>
-              </div>
-              <span style="{{ acctSecretScanSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
-            </div>
-            <sc-if value="{{ acctSecretScanWarn }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex;align-items:flex-start;gap:8px;padding:9px 10px;max-width:620px;border:1px solid var(--warn);border-radius:8px;background:var(--warn-soft);font-size:13px;line-height:1.5;color:var(--warn-text);text-wrap:pretty">
-                <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">gpp_maybe</span>
-                <span>The check works on a best-effort basis: it recognises common patterns, so it can miss a secret written in an unusual way, and it can hide ordinary text that merely looks like a key. Always read what is about to be sent.</span>
+            <sc-if value="{{ certAddShown }}" hint-placeholder-val="{{ true }}">
+              <div data-press onClick="{{ certAdd }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">add</span>Add a certificate or key</div>
+            </sc-if>
+            <sc-if value="{{ certAdding }}" hint-placeholder-val="{{ false }}">
+              <div data-reveal style="{{ sCard }}">
+                <div style="font-size:14px;font-weight:600">Add a certificate or key</div>
+                <div style="{{ sHint }}">An S/MIME certificate with its private key, as a .p12 or .pfx file, or an OpenPGP secret key, as an .asc file.</div>
+                <sc-if value="{{ certHasFile }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ sImageChip }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">draft</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ certFile }}</span><span style="font-size:12px;color:var(--faint)">{{ certFileKind }}</span></div>
+                </sc-if>
+                <div data-press onClick="{{ certPickFile }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">upload_file</span>Choose a file</div>
+                <sc-if value="{{ certHasFile }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;flex-direction:column;gap:6px">
+                    <div style="font-size:14px">Password</div>
+                    <input type="password" value="{{ certPass }}" onInput="{{ onCertPass }}" maxLength="1024" autocomplete="off" style="{{ sField }}" style-focus="border-color:var(--accent)" />
+                    <div style="{{ sHint }}">{{ certPassHint }}</div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ certProblem }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ certProblem }}</div></sc-if>
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                  <div data-press onClick="{{ certSave }}" title="{{ certSaveTip }}" aria-disabled="{{ certSaveOff }}" style="{{ certSaveStyle }}" style-hover="cursor:pointer">Add it</div>
+                  <div data-press onClick="{{ certCancel }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}">Cancel</div>
+                </div>
               </div>
             </sc-if>
-            <div style="display:flex;align-items:center;gap:8px;padding-top:6px">
-              <div onClick="{{ acctSave }}" style="{{ acctSaveStyle }}" style-hover="cursor:pointer;filter:brightness(1.06)">Save account</div>
-              <div onClick="{{ acctBack }}" style="{{ acctCancelStyle }}" style-hover="cursor:pointer;background:var(--hover)">Cancel</div>
+            <sc-if value="{{ certOutcome }}" hint-placeholder-val="{{ false }}">
+              <sc-if value="{{ certOutOk }}" hint-placeholder-val="{{ false }}"><div style="{{ sOk }}">{{ certOutcome }}</div></sc-if>
+              <sc-if value="{{ certOutBad }}" hint-placeholder-val="{{ false }}"><div style="{{ sProblem }}">{{ certOutcome }}</div></sc-if>
+            </sc-if>
             </div>
+            <div style="{{ sDivider }}"></div>
+            <div style="display:flex;align-items:baseline;gap:8px;max-width:620px">
+              <div style="{{ sCap }};flex:1;min-width:0">Folders</div>
+              <div style="font-size:12px;color:var(--faint)">{{ folderCount }}</div>
+            </div>
+            <div style="{{ sHint }}">The folders MailFathom reads from this account, and what it may do with each. A change reaches the account on its next run - nothing here touches the mail server until then.</div>
+            <div data-flash-key="folders" style="{{ sFolderList }}">
+              <sc-for list="{{ fdRows }}" as="fd" hint-placeholder-count="6">
+                <div style="{{ fd.wrapStyle }}">
+                  <div data-press onClick="{{ fd.open }}" title="{{ lockedFolderTip }}" style="{{ fd.rowStyle }}" style-hover="{{ sRowHover }}">
+                    <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--muted)">{{ fd.icon }}</span>
+                    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0">
+                        <span style="font-size:14px;font-weight:600">{{ fd.alias }}</span>
+                        <sc-for list="{{ fd.flags }}" as="fg" hint-placeholder-count="1">
+                          <span style="{{ sFlag }}">{{ fg.label }}</span>
+                        </sc-for>
+                      </div>
+                      <sc-if value="{{ fd.where }}" hint-placeholder-val="{{ true }}">
+                        <div style="{{ fd.whereStyle }}">{{ fd.where }}</div>
+                      </sc-if>
+                    </div>
+                    <sc-if value="{{ fd.chevron }}" hint-placeholder-val="{{ true }}">
+                      <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--faint)">{{ fd.chevron }}</span>
+                    </sc-if>
+                  </div>
+                  <sc-if value="{{ fd.editing }}" hint-placeholder-val="{{ false }}">
+                    <div data-reveal style="display:flex;flex-direction:column;gap:10px;padding:12px 12px 14px;border-top:1px solid var(--line2);background:var(--panel)">
+                      <div style="{{ sCap }}">Name</div>
+                      <input value="{{ feName }}" onChange="{{ onFeName }}" placeholder="Projects" style="{{ sField }}" style-focus="border-color:var(--accent)" />
+                      <div style="{{ sCap }}">How MailFathom finds it</div>
+                      <div style="{{ sSegTrack }}">
+                        <sc-for list="{{ feBySegs }}" as="fb" hint-placeholder-count="2">
+                          <div data-press onClick="{{ fb.pick }}" style="{{ fb.style }}" style-hover="cursor:pointer">{{ fb.label }}</div>
+                        </sc-for>
+                      </div>
+                      <sc-if value="{{ feByRole }}" hint-placeholder-val="{{ false }}">
+                        <select value="{{ feRole }}" onChange="{{ onFeRole }}" style="{{ sSelect }}" style-focus="border-color:var(--accent)">
+                          <sc-for list="{{ roleOptions }}" as="ro" hint-placeholder-count="6">
+                            <option value="{{ ro.v }}">{{ ro.label }}</option>
+                          </sc-for>
+                        </select>
+                        <div style="{{ sHint }}">The mail server says which of its folders plays this part, whatever it calls it - so it is found on a server with folder names in any language.</div>
+                      </sc-if>
+                      <sc-if value="{{ feByPath }}" hint-placeholder-val="{{ true }}">
+                        <input value="{{ fePath }}" onChange="{{ onFePath }}" placeholder="INBOX/Projects" style="{{ sField }}font-family:'Geist Mono',ui-monospace,monospace;" style-focus="border-color:var(--accent)" />
+                        <div style="{{ sHint }}">Where the folder sits on the mail server, outermost level first, the levels split by /.</div>
+                      </sc-if>
+                      <sc-for list="{{ feSwitches }}" as="fs" hint-placeholder-count="4">
+                        <div data-press onClick="{{ fs.toggle }}" title="{{ fs.tip }}" aria-disabled="{{ fs.refused }}" style="{{ fs.style }}" style-hover="{{ sRowHover }}">
+                          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                            <div style="font-size:14px">{{ fs.label }}</div>
+                            <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">{{ fs.hint }}</div>
+                          </div>
+                          <span style="{{ fs.switchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
+                        </div>
+                      </sc-for>
+                      <sc-if value="{{ feProblem }}" hint-placeholder-val="{{ false }}">
+                        <div style="{{ sProblem }}">{{ feProblem }}</div>
+                      </sc-if>
+                      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:4px">
+                        <div data-press onClick="{{ feSave }}" title="{{ feSaveTip }}" aria-disabled="{{ feSaveOff }}" style="{{ feSaveStyle }}" style-hover="cursor:pointer;filter:brightness(1.06)">Save folder</div>
+                        <div data-press onClick="{{ feCancel }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}">Cancel</div>
+                        <sc-if value="{{ feRemoveShown }}" hint-placeholder-val="{{ false }}">
+                          <div data-press onClick="{{ feRemove }}" style="{{ smallBtn }}color:var(--err-text);margin-left:auto" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">folder_off</span>Stop reading it</div>
+                        </sc-if>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ folderOutOk }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sOk }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">check_circle</span><span>{{ folderOut }}</span></div>
+            </sc-if>
+            <sc-if value="{{ folderOutBad }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sProblem }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">error</span><span>{{ folderOut }}</span></div>
+            </sc-if>
+            <sc-if value="{{ addFolderShown }}" hint-placeholder-val="{{ true }}">
+              <div data-press onClick="{{ addFolder }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">create_new_folder</span>Add a folder</div>
+            </sc-if>
+            <div style="{{ sDivider }}"></div>
+            <div style="{{ sCap }}">Footer</div>
+            <div style="{{ sHint }}">Added under every message you send from this account. The composer shows it folded under what you write.</div>
+            <sc-if value="{{ ftOrg }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteInfo }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--muted)">corporate_fare</span><span>Your organization sets the footer on this account, so a footer of your own cannot be written here. It fills in your name, your job title and your number. This is what goes out:</span></div>
+            </sc-if>
+            <sc-if value="{{ ftEditing }}" hint-placeholder-val="{{ false }}">
+              <div data-reveal style="{{ sFooterEditorWrap }}">
+                <div style="{{ sFooterBar }}">
+                  <sc-for list="{{ ftFmtButtons }}" as="fb" hint-placeholder-count="8">
+                    <div onMouseDown="{{ fb.run }}" title="{{ fb.title }}" style="{{ fb.style }}" style-hover="{{ sIconHover }}">{{ fb.label }}</div>
+                  </sc-for>
+                  <div onMouseDown="{{ ftInsertImage }}" title="{{ ftImageTip }}" aria-disabled="{{ ftImageOff }}" style="{{ ftImageBtnStyle }}" style-hover="{{ sIconHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">add_photo_alternate</span></div>
+                </div>
+                <div contentEditable="true" suppressContentEditableWarning="{{ true }}" ref="{{ ftEditorRef }}" onInput="{{ onFtInput }}" aria-label="Footer" style="{{ sFooterEditor }}"></div>
+              </div>
+              <div style="{{ sHint }}">The same editor you write mail in. An image is uploaded and travels inside the message - one linked from the web is refused, because loading it would tell its server who read your mail.</div>
+              <sc-if value="{{ ftProblem }}" hint-placeholder-val="{{ false }}">
+                <div style="{{ sProblem }}">{{ ftProblem }}</div>
+              </sc-if>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <div data-press onClick="{{ ftSave }}" title="{{ ftSaveTip }}" aria-disabled="{{ ftSaveOff }}" style="{{ ftSaveStyle }}" style-hover="cursor:pointer;filter:brightness(1.06)">Save footer</div>
+                <div data-press onClick="{{ ftCancel }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}">Cancel</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ ftShowsPreview }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sPreview }}">
+                <sc-for list="{{ ftLines }}" as="fl2" hint-placeholder-count="3">
+                  <div style="{{ fl2.style }}"><sc-if value="{{ fl2.image }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">image</span></sc-if>{{ fl2.text }}</div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ ftOwnActions }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <div data-press onClick="{{ ftEdit }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">edit</span>Edit footer</div>
+                <div data-press onClick="{{ ftRemove }}" style="{{ smallBtn }}color:var(--err-text)" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">delete</span>Remove footer</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ ftNone }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:14px;color:var(--muted)">Messages from this account go out without a footer.</div>
+            </sc-if>
+            <sc-if value="{{ ftNoneActions }}" hint-placeholder-val="{{ false }}">
+              <div data-press onClick="{{ ftWrite }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">edit_note</span>Write a footer</div>
+            </sc-if>
+            <sc-if value="{{ ftOutcomeOk }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sOk }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">check_circle</span><span>{{ ftOutcome }}</span></div>
+            </sc-if>
+            <sc-if value="{{ ftOutcomeBad }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sProblem }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">error</span><span>{{ ftOutcome }}</span></div>
+            </sc-if>
+          </sc-if>
+          <sc-if value="{{ tabReading }}" hint-placeholder-val="{{ false }}">
+            <sc-if value="{{ prefsLockText }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteInfo }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--muted)">lock</span><span>{{ prefsLockText }}</span></div>
+            </sc-if>
+            <div style="{{ sCap }}">Message view</div>
+            <div data-flash-key="msgView" style="{{ prefSegTrack }}">
+              <div data-press onClick="{{ setViewAi }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ viewAiStyle }}" style-hover="cursor:pointer">AI simplified</div>
+              <div data-press onClick="{{ setViewSimple }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ viewSimpleStyle }}" style-hover="cursor:pointer">Simplified</div>
+              <div data-press onClick="{{ setViewHtml }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ viewHtmlStyle }}" style-hover="cursor:pointer">Original</div>
+            </div>
+            <div style="{{ sHint }}">{{ viewHint }}</div>
+            <sc-if value="{{ htmlModeWarn }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteWarn }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">gpp_maybe</span><span>Security risk: message HTML can contain hidden tracking pixels, impersonating layouts and phishing links. We render it in isolation, but the preview alone can tell the sender the message was opened.</span></div>
+            </sc-if>
+            <div style="{{ sDivider }}"></div>
+            <div data-press onClick="{{ toggleAutoExpand }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                <div style="font-size:14px">Expand the whole thread automatically</div>
+                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Without this, a thread opens on the selected message and the rest sit behind a button.</div>
+              </div>
+              <span style="{{ autoExpandSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
+            </div>
+            <div data-press onClick="{{ toggleMarkRead }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                <div style="font-size:14px">Mark a message read when it opens</div>
+                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">On your mail server too, in every account you read. Off, a message stays unread until you mark it.</div>
+              </div>
+              <span style="{{ markReadSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
+            </div>
+            <div data-flash-key="aiFilters" data-press onClick="{{ toggleAiFiltersShown }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                <div style="font-size:14px">Show the AI filters in the folder tree</div>
+                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Three standing views of the mailbox, over what MailFathom already read. Turning them off takes the section out of the tree and changes nothing about the mail.</div>
+              </div>
+              <span style="{{ aiFiltersShownSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
+            </div>
+            <div style="{{ sCapGap }}">The mail list shows</div>
+            <div style="{{ prefSegTrack }}">
+              <sc-for list="{{ listSegs }}" as="ls" hint-placeholder-count="2">
+                <div data-press onClick="{{ ls.pick }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ ls.style }}" style-hover="cursor:pointer">{{ ls.label }}</div>
+              </sc-for>
+            </div>
+            <div data-press onClick="{{ toggleAutoImages }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                <div style="font-size:14px">Load images automatically</div>
+                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">With this off, a message shows a card to load its images once you decide the sender is trustworthy. Mail marked as spam never loads them.</div>
+              </div>
+              <span style="{{ autoImagesSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
+            </div>
+            <sc-if value="{{ autoImages }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteWarn }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">gpp_maybe</span><span>Security risk: an image is fetched from the sender's server, so opening the message tells them it was read, when, and roughly where from - this is how tracking pixels work.</span></div>
+            </sc-if>
+            <sc-if value="{{ readingProblem }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sProblem }}">{{ readingProblem }}</div>
+            </sc-if>
           </sc-if>
           <sc-if value="{{ tabAi }}" hint-placeholder-val="{{ false }}">
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Language of AI-written content</div>
-            <div style="display:flex;flex-wrap:wrap;gap:5px">
-              <sc-for list="{{ aiLangOptions }}" as="al" hint-placeholder-count="2">
-                <div onClick="{{ al.pick }}" style="{{ al.style }}" style-hover="cursor:pointer">{{ al.label }}</div>
-              </sc-for>
+            <sc-if value="{{ prefsLockText }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteInfo }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--muted)">lock</span><span>{{ prefsLockText }}</span></div>
+            </sc-if>
+            <div style="{{ sCap }}">Language of AI-written content</div>
+            <div style="{{ sCard }};flex-direction:row;align-items:center;gap:11px">
+              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:22px;line-height:1;color:var(--muted)">translate</span>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                <div style="font-size:14px;font-weight:600">{{ aiLangName }}</div>
+                <div style="font-size:12px;color:var(--faint)">Your language, set in Profile</div>
+              </div>
+              <div data-press onClick="{{ goProfile }}" style="{{ sQuiet }}align-self:center" style-hover="{{ sRowHover }}">Change</div>
             </div>
-            <div style="font-size:13px;line-height:1.5;max-width:620px;color:var(--muted);text-wrap:pretty">Summaries, thread digests and suggested replies are written in this language. It is separate from the interface language, which you set in <b style="font-weight:600">Application</b>.</div>
+            <div style="{{ sHint }}">Summaries, thread digests and suggested replies are written in your language. What MailFathom reads out of a mailbox on its own - the reading of each message, the facts and deadlines it finds - follows the language set for that mailbox instead, so everybody who reads the mailbox reads one language.</div>
             <div style="display:flex;align-items:flex-start;gap:8px;max-width:620px;font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">
               <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--faint)">info</span>
               <span>A change applies only to content written from now on. Summaries, notes and drafts that already exist keep the language they were created in.</span>
             </div>
-            <div style="height:1px;background:var(--line2);margin:4px 0"></div>
-            <div style="display:flex;align-items:flex-start;gap:8px;max-width:620px;font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">
-              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--faint)">shield</span>
-              <span>Checking the text for secrets before it goes to the model is set separately for each mail account - open <b style="font-weight:600">Accounts</b> and pick the account.</span>
-            </div>
-            <div onClick="{{ toggleAiMatch }}" style="display:flex;align-items:flex-start;gap:11px;padding:9px 10px;max-width:620px;border-radius:8px" style-hover="cursor:pointer;background:var(--hover)">
+            <div style="{{ sDivider }}"></div>
+            <div data-press onClick="{{ toggleAiMatch }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                 <div style="font-size:14px">Match the language of the message</div>
-                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Draft replies follow the language the sender wrote in; everything else keeps the setting above.</div>
+                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Draft replies follow the language the sender wrote in; everything else keeps your language.</div>
               </div>
               <span style="{{ aiMatchSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
             </div>
+            <sc-if value="{{ aiProblem }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sProblem }}">{{ aiProblem }}</div>
+            </sc-if>
+            <div style="{{ sDivider }}"></div>
+            <div style="{{ sCap }}">AI settings in other sections</div>
+            <div style="{{ sHint }}">Each is changed where it belongs. This list says how it stands and takes you there.</div>
+            <div style="{{ sFolderList }}">
+              <sc-for list="{{ aiRefs }}" as="ar" hint-placeholder-count="6">
+                <div data-press onClick="{{ ar.go }}" style="{{ ar.rowStyle }}" style-hover="{{ sRowHover }}">
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                    <div style="font-size:14px">{{ ar.label }}</div>
+                    <div style="font-size:12px;color:var(--muted)">{{ ar.state }}</div>
+                    <div style="font-size:12px;color:var(--faint)">{{ ar.where }}</div>
+                  </div>
+                  <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--muted)">chevron_right</span>
+                </div>
+              </sc-for>
+            </div>
           </sc-if>
           <sc-if value="{{ tabNotif }}" hint-placeholder-val="{{ false }}">
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Notification centre</div>
-            <div onClick="{{ toggleNotifAutoClear }}" style="display:flex;align-items:flex-start;gap:11px;padding:10px 12px;max-width:620px;border-radius:8px" style-hover="cursor:pointer;background:var(--hover)">
+            <sc-if value="{{ prefsLockText }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteInfo }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--muted)">lock</span><span>{{ prefsLockText }}</span></div>
+            </sc-if>
+            <div style="{{ sCap }}">Notification centre</div>
+            <div data-press onClick="{{ toggleNotifAutoClear }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                 <div style="font-size:14px">Remove notifications once they are read</div>
                 <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">A notification you have opened or marked as read disappears from the list on its own, so only what still needs you stays there.</div>
@@ -3726,103 +4144,108 @@ Project repository: https://github.com/fathomise/MailFathom
             </div>
             <sc-if value="{{ notifAutoClear }}" hint-placeholder-val="{{ false }}">
               <div style="display:flex;flex-direction:column;gap:5px">
-                <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Remove</div>
-                <select value="{{ notifAutoClearAfter }}" onChange="{{ onNotifAutoClearAfter }}" style="width:100%;max-width:260px;box-sizing:border-box;font-family:inherit;font-size:14px;color:var(--text);background:var(--sub);border:1px solid var(--border2);border-radius:8px;padding:9px 11px;outline:none" style-focus="border-color:var(--accent)">
+                <div style="{{ sCap }}">Remove</div>
+                <select value="{{ notifAutoClearAfter }}" onChange="{{ onNotifAutoClearAfter }}" disabled="{{ prefsLocked }}" style="{{ sSelect }}" style-focus="border-color:var(--accent)">
                   <sc-for list="{{ notifAfterOptions }}" as="na" hint-placeholder-count="4">
                     <option value="{{ na.v }}">{{ na.label }}</option>
                   </sc-for>
                 </select>
-                <div style="font-size:13px;line-height:1.5;max-width:620px;color:var(--muted);text-wrap:pretty">The mail, task or event behind a notification is never touched - only the entry in the notification list goes.</div>
+                <div style="{{ sHint }}">The mail, task or event behind a notification is never touched - only the entry in the notification list goes.</div>
               </div>
             </sc-if>
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);padding-top:4px;font-weight:600">This device</div>
-            <div onClick="{{ toggleNotifDevice }}" style="display:flex;align-items:flex-start;gap:11px;padding:10px 12px;max-width:620px;border-radius:8px" style-hover="cursor:pointer;background:var(--hover)">
+            <div style="{{ sCapGap }}">This device</div>
+            <div data-press onClick="{{ toggleNotifDevice }}" title="{{ notifDeviceTip }}" aria-disabled="{{ notifBlocked }}" style="{{ notifDeviceRowStyle }}" style-hover="{{ sRowHover }}">
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
                 <div style="font-size:14px">Notify me on this device</div>
                 <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">When the window is not in front of you, this device tells you how many things arrived and of what kind - never from whom, never what it is about.</div>
               </div>
               <span style="{{ notifDeviceSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
             </div>
+            <sc-if value="{{ notifBlocked }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteWarn }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">notifications_off</span><span>This browser has been told to block notifications from here. Allow them in its own site settings, and this switch will work again.</span></div>
+            </sc-if>
             <div style="display:flex;flex-direction:column;gap:9px;padding:10px 12px;max-width:620px;border-radius:8px">
               <div style="display:flex;align-items:baseline;gap:12px">
                 <div style="flex:1;min-width:0;font-size:14px">How long a notification stays visible</div>
                 <div style="flex:0 0 auto;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent-d)">{{ notifDurationLabel }}</div>
               </div>
               <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">In whole seconds, from 1 to 30. You get the same window to undo a permanent delete, which waits exactly as long as its notification is up.</div>
-              <input type="range" min="1" max="30" step="1" value="{{ notifDuration }}" onChange="{{ onNotifDuration }}" style="width:100%;margin:2px 0 0;accent-color:var(--accent);background:transparent" />
+              <input type="range" min="1" max="30" step="1" value="{{ notifDuration }}" onChange="{{ onNotifDuration }}" disabled="{{ prefsLocked }}" style="width:100%;margin:2px 0 0;accent-color:var(--accent);background:transparent" />
               <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums">
                 <span>1 s</span>
                 <span>30 s</span>
               </div>
             </div>
+            <sc-if value="{{ notifProblem }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sProblem }}">{{ notifProblem }}</div>
+            </sc-if>
           </sc-if>
           <sc-if value="{{ tabApp }}" hint-placeholder-val="{{ false }}">
-          <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Language</div>
-          <div style="display:flex;flex-wrap:wrap;gap:5px">
-            <sc-for list="{{ langOptions }}" as="lg" hint-placeholder-count="4">
-              <div onClick="{{ lg.pick }}" style="{{ lg.style }}" style-hover="cursor:pointer">{{ lg.label }}</div>
-            </sc-for>
-          </div>
-          <div style="height:1px;background:var(--line2);margin:4px 0"></div>
-          <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Message view</div>
-          <div style="display:flex;gap:4px;padding:3px;max-width:620px;border:1px solid var(--border2);border-radius:8px;background:var(--sub)">
-            <div onClick="{{ setViewAi }}" style="{{ viewAiStyle }}" style-hover="cursor:pointer">AI simplified</div>
-            <div onClick="{{ setViewSimple }}" style="{{ viewSimpleStyle }}" style-hover="cursor:pointer">Simplified</div>
-            <div onClick="{{ setViewHtml }}" style="{{ viewHtmlStyle }}" style-hover="cursor:pointer">Original</div>
-          </div>
-          <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">{{ viewHint }}</div>
-          <div onClick="{{ toggleAutoExpand }}" style="display:flex;align-items:flex-start;gap:11px;padding:9px 10px;max-width:620px;border-radius:8px" style-hover="cursor:pointer;background:var(--hover)">
-            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
-              <div style="font-size:14px">Expand the whole thread automatically</div>
-              <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Without this, a thread opens on the selected message and the rest sit behind a button.</div>
+            <sc-if value="{{ prefsLockText }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteInfo }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--muted)">lock</span><span>{{ prefsLockText }}</span></div>
+            </sc-if>
+            <div style="{{ sCap }}">Language</div>
+            <div style="{{ sSegTrack }}">
+              <sc-for list="{{ langOptions }}" as="lg" hint-placeholder-count="2">
+                <div data-press onClick="{{ lg.pick }}" style="{{ lg.style }}" style-hover="cursor:pointer">{{ lg.label }}</div>
+              </sc-for>
             </div>
-            <span style="{{ autoExpandSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
-          </div>
-          <div onClick="{{ toggleAutoImages }}" style="display:flex;align-items:flex-start;gap:11px;padding:9px 10px;max-width:620px;border-radius:8px" style-hover="cursor:pointer;background:var(--hover)">
-            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
-              <div style="font-size:14px">Load images automatically</div>
-              <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">With this off, a message shows a button to load its images once you decide the sender is trustworthy.</div>
+            <div style="{{ sHint }}">The language the screens are in. It is kept on this device, so the sign-in screen is in it too.</div>
+            <div style="{{ sDivider }}"></div>
+            <div style="{{ sCap }}">Theme</div>
+            <div style="{{ prefSegTrack }}">
+              <sc-for list="{{ settingsThemeSegs }}" as="th" hint-placeholder-count="3">
+                <div data-press onClick="{{ th.pick }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ th.style }}" style-hover="cursor:pointer">{{ th.label }}</div>
+              </sc-for>
             </div>
-            <span style="{{ autoImagesSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
-          </div>
-          <sc-if value="{{ autoImages }}" hint-placeholder-val="{{ false }}">
-            <div style="display:flex;align-items:flex-start;gap:8px;padding:9px 10px;max-width:620px;border:1px solid var(--warn);border-radius:8px;background:var(--warn-soft);font-size:13px;line-height:1.5;color:var(--warn-text);text-wrap:pretty">
-              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">gpp_maybe</span>
-              <span>Security risk: an image is fetched from the sender's server, so opening the message tells them it was read, when, and roughly where from - this is how tracking pixels work.</span>
+            <div style="{{ sHint }}">{{ themeHint }}</div>
+            <div style="{{ sDivider }}"></div>
+            <div style="{{ sCap }}">Mail</div>
+            <div data-press onClick="{{ toggleOpenInTabs }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                <div style="font-size:14px">Open mail in tabs</div>
+                <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Every open message, attachment and new message gets a tab of its own above the reading pane. Off, mail opens beside the list and a new message takes its place.</div>
+              </div>
+              <span style="{{ openInTabsSwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
             </div>
-          </sc-if>
-          <sc-if value="{{ htmlModeWarn }}" hint-placeholder-val="{{ false }}">
-            <div style="display:flex;align-items:flex-start;gap:8px;padding:9px 10px;max-width:620px;border:1px solid var(--warn);border-radius:8px;background:var(--warn-soft);font-size:13px;line-height:1.5;color:var(--warn-text);text-wrap:pretty">
-              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">gpp_maybe</span>
-              <span>Security risk: message HTML can contain hidden tracking pixels, impersonating layouts and phishing links. We render it in isolation, but the preview alone can tell the sender the message was opened.</span>
+            <sc-if value="{{ tabsWidthNote }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sHint }}">{{ tabsWidthNote }}</div>
+            </sc-if>
+            <div style="{{ sDivider }}"></div>
+            <div style="{{ sCap }}">Privacy</div>
+            <sc-if value="{{ telemetrySwitchShown }}" hint-placeholder-val="{{ true }}">
+              <div data-press onClick="{{ toggleTelemetry }}" title="{{ prefsTip }}" aria-disabled="{{ prefsLocked }}" style="{{ prefRowStyle }}" style-hover="{{ sRowHover }}">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                  <div style="font-size:14px">Don't send telemetry data</div>
+                  <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Error diagnostics and usage statistics stay on this device.</div>
+                </div>
+                <span style="{{ telemetrySwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
+              </div>
+            </sc-if>
+            <sc-if value="{{ telemetryForwarded }}" hint-placeholder-val="{{ true }}">
+              <div style="{{ sHint }}">{{ telemetryDestText }}</div>
+            </sc-if>
+            <sc-if value="{{ telemetryNotForwarded }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteInfo }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--muted)">cloud_off</span><span>This server takes no telemetry from this client, so it sends none and there is nothing to turn off.</span></div>
+            </sc-if>
+            <sc-if value="{{ telemetryUnanswered }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteInfo }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3;color:var(--muted);animation:mfpulse 1s ease-in-out infinite">hourglass_empty</span><span>Waiting for this server to say whether it forwards telemetry. Until it answers, your own decision is what holds.</span></div>
+            </sc-if>
+            <sc-if value="{{ telemetryOptOut }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sNoteWarn }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">info</span><span>Without telemetry, support gets harder - reports have to be written out by hand and some bugs can't be reproduced on the support side.</span></div>
+            </sc-if>
+            <div style="{{ sDivider }}"></div>
+            <div style="{{ sCap }}">Layout on this device</div>
+            <div style="{{ sHint }}">Column widths and panel sizes are remembered on this device only - they never go to the server, so every computer and phone keeps its own arrangement.</div>
+            <div data-press onClick="{{ resetLayout }}" style="{{ resetLayoutStyle }}" style-hover="{{ sRowHover }}">
+              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">restart_alt</span>Reset layout
             </div>
-          </sc-if>
-          <div style="height:1px;background:var(--line2);margin:4px 0"></div>
-          <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Privacy</div>
-          <div onClick="{{ toggleTelemetry }}" style="display:flex;align-items:flex-start;gap:11px;padding:9px 10px;max-width:620px;border-radius:8px" style-hover="cursor:pointer;background:var(--hover)">
-            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
-              <div style="font-size:14px">Don't send telemetry data</div>
-              <div style="font-size:13px;line-height:1.5;color:var(--muted);text-wrap:pretty">Crash diagnostics and usage statistics stay on this device.</div>
-            </div>
-            <span style="{{ telemetrySwitchStyle }}"><span style="{{ denseKnobStyle }}"></span></span>
-          </div>
-          <sc-if value="{{ telemetryOptOut }}" hint-placeholder-val="{{ false }}">
-            <div style="display:flex;align-items:flex-start;gap:8px;padding:9px 10px;max-width:620px;border:1px solid var(--warn);border-radius:8px;background:var(--warn-soft);font-size:13px;line-height:1.5;color:var(--warn-text);text-wrap:pretty">
-              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.3">info</span>
-              <span>Without telemetry, support gets harder - reports have to be written out by hand and some bugs can't be reproduced on the support side.</span>
-            </div>
-          </sc-if>
-          <div style="height:1px;background:var(--line2);margin:4px 0"></div>
-          <div style="font-family:'Geist',system-ui,sans-serif;font-size:12px;color:var(--faint);font-weight:600">Layout on this device</div>
-          <div style="font-size:13px;line-height:1.5;max-width:620px;color:var(--muted);text-wrap:pretty">Column widths and panel sizes are remembered on this device only - they never go to the server, so every computer and phone keeps its own arrangement.</div>
-          <div onClick="{{ resetLayout }}" style="{{ resetLayoutStyle }}" style-hover="cursor:pointer;background:var(--hover)">
-            <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1">restart_alt</span>Reset layout
-          </div>
-          <sc-if value="{{ resetLayoutDone }}" hint-placeholder-val="{{ false }}">
-            <div style="display:flex;align-items:center;gap:8px;max-width:620px;font-size:13px;color:var(--ok-text)">
-              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">check_circle</span>Layout restored to the defaults.
-            </div>
-          </sc-if>
+            <sc-if value="{{ resetLayoutDone }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sOk }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">check_circle</span>Layout restored to the defaults.</div>
+            </sc-if>
+            <sc-if value="{{ appProblem }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sProblem }}">{{ appProblem }}</div>
+            </sc-if>
           </sc-if>
         </div>
         </div>
@@ -3958,7 +4381,7 @@ Project repository: https://github.com/fathomise/MailFathom
     <div data-motion="pop" data-phase="{{ mo.agentReturn }}" role="button" tabIndex="0" aria-label="Back to the agent conversation you came from" onClick="{{ backToConv }}" onKeyDown="{{ backToConvKey }}" style="{{ convReturnStyle }}" style-hover="cursor:pointer;opacity:0.92" style-focus="outline:2px solid var(--accent);outline-offset:3px"><span style="{{ convReturnIconStyle }}">arrow_back</span>{{ convReturnLabel }}</div>
   </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;inOrganization&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;raise&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;send&quot;,&quot;change&quot;,&quot;draft&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;connection&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;connecting&quot;,&quot;online&quot;,&quot;delayed&quot;,&quot;delayedMailServer&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;inOrganization&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;raise&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;send&quot;,&quot;change&quot;,&quot;draft&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;connection&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;connecting&quot;,&quot;online&quot;,&quot;delayed&quot;,&quot;delayedMailServer&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;settingsWrites&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;refused&quot;,&quot;notStored&quot;,&quot;unanswered&quot;,&quot;moved&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;settingsAccess&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;full&quot;,&quot;nameManaged&quot;,&quot;readOnly&quot;],&quot;default&quot;:&quot;full&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;telemetry&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;forwarded&quot;,&quot;notForwarded&quot;,&quot;unanswered&quot;],&quot;default&quot;:&quot;forwarded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;notificationPermission&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;default&quot;,&quot;blocked&quot;],&quot;default&quot;:&quot;default&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
 const Component = MailFathomDesign.artboards.prototype(DCLogic, React);
 </script>
 </body>
