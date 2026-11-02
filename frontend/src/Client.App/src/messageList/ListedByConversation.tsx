@@ -25,7 +25,7 @@ import {
     refillsHeldRows,
     refreshAsked,
     rowAt,
-    trimmedAround,
+    trimmedWithoutRepeats,
     wantedFor,
     withoutRepeats,
     type HeldTimeline,
@@ -290,9 +290,7 @@ export function ListedByConversation({
         const moved = windowOfHeights(heights, top, viewport);
 
         setHeld((current) =>
-            trimmedAround(current, moved.first, moved.first + moved.count - 1, (all) =>
-                withoutRepeats(all, conversationOf),
-            ),
+            trimmedWithoutRepeats(current, moved.first, moved.first + moved.count - 1, conversationOf),
         );
     }
 

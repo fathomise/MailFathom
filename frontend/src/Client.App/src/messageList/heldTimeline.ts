@@ -177,6 +177,33 @@ export function withoutRepeats<Row>(held: HeldTimeline<Row>, identityOf: (row: R
     return repeats.size === 0 ? held : withoutLeaving(held, (row) => repeats.has(row));
 }
 
+/**
+ * The list grouped by conversation with every page too far from the reader dropped, and the repeats it was drawing
+ * left out of what is held from then on.
+ *
+ * Which row of a repeat is drawn is decided by the pages holding both, so once either of them is let go of the decision
+ * cannot be made again: drop the earlier and the later would draw its repeat, drop the later and its count could not
+ * say which row it left out. So a drop writes down what {@link withoutRepeats} drew rather than leaving it derived,
+ * and the list stays the height it was. Reading a page again replaces its rows, which is what settles a repeat anyway.
+ *
+ * @param held What the list knows.
+ * @param firstRow The first row on the screen, counted as the list is drawn.
+ * @param lastRow The last row on the screen, counted the same way.
+ * @param identityOf What says two rows stand for the same thing.
+ * @returns The list with distant rows dropped, or the same list where nothing was far enough to drop.
+ */
+export function trimmedWithoutRepeats<Row>(
+    held: HeldTimeline<Row>,
+    firstRow: number,
+    lastRow: number,
+    identityOf: (row: Row) => string,
+): HeldTimeline<Row> {
+    const drawn = withoutRepeats(held, identityOf);
+    const trimmed = trimmedAround(drawn, firstRow, lastRow);
+
+    return trimmed === drawn ? held : trimmed;
+}
+
 /** Every row the list is holding, in reading order, which is what the selection is ordered against. */
 export function heldRows<Row>(held: HeldTimeline<Row>): readonly Row[] {
     return held.slots.flatMap((slot) => slot.rows ?? []);
@@ -509,8 +536,8 @@ function endReached<Row>(held: HeldTimeline<Row>, direction: MailTimelinePageDir
  * @param held What the list knows.
  * @param firstRow The first row on the screen.
  * @param lastRow The last row on the screen.
- * @param drawnFrom What the list draws of what it holds — less what is leaving, less what repeats — which the two rows
- * above were counted in.
+ * @param drawnFrom What the list draws of what it holds — less what is leaving — which the two rows above were counted
+ * in. A list grouped by conversation trims through {@link trimmedWithoutRepeats} instead.
  * @returns The list with distant rows dropped, or the same list where nothing was far enough to drop.
  */
 export function trimmedAround<Row>(

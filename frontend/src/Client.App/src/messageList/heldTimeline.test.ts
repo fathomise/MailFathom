@@ -23,6 +23,7 @@ import {
     rowOf,
     rowOfSlot,
     trimmedAround,
+    trimmedWithoutRepeats,
     wantedFor,
     withoutLeaving,
     withoutRepeats,
@@ -266,12 +267,15 @@ describe('trimmedAround', () => {
         expect(rowAt(trimmed, 12)?.id).toBe('message-16');
         expect(rowAt(trimmed, 8)).toBeNull();
     });
+});
 
-    // A page that drew fewer rows than it was read with — a conversation it held stands higher up — cannot say which of
-    // them it left out once its rows are gone, so it keeps the count it was drawn at and the list stays the height it was.
-    it('keeps the count a page was drawn at when it drops one holding a repeat', () => {
-        const conversationOf = (email: MailTimelineEntry): string => email.subject ?? '';
-        const drawn = (all: HeldTimeline<MailTimelineEntry>) => withoutRepeats(all, conversationOf);
+// A conversation that moved to the top stands on two held pages, and which of its rows is drawn is decided by the two
+// together — so letting either go writes the decision down rather than leaving the other page to make it alone.
+describe('trimmedWithoutRepeats', () => {
+    const conversationOf = (email: MailTimelineEntry): string => email.subject ?? '';
+    const drawn = (all: HeldTimeline<MailTimelineEntry>) => withoutRepeats(all, conversationOf);
+
+    function movedToTheTopOfSix(): HeldTimeline<MailTimelineEntry> {
         const leading = page(0);
         let held = answered(
             nothingHeld,
@@ -283,11 +287,32 @@ describe('trimmedAround', () => {
             held = answered(held, page(at * rowsPerPage), extending(`after-${String(at * rowsPerPage)}`));
         }
 
+        return held;
+    }
+
+    it('keeps the list its height when it drops the later page of a repeat', () => {
+        const held = movedToTheTopOfSix();
         const tall = rowCountOf(drawn(held));
-        const trimmed = trimmedAround(held, tall - rowsPerPage, tall - 1, drawn);
+        const trimmed = trimmedWithoutRepeats(held, tall - rowsPerPage, tall - 1, conversationOf);
 
         expect(trimmed.slots[1]?.rows).toBeNull();
         expect(rowCountOf(drawn(trimmed))).toBe(tall);
+    });
+
+    it('keeps the list its height when it drops the earlier page of a repeat and keeps the later', () => {
+        const held = movedToTheTopOfSix();
+        const tall = rowCountOf(drawn(held));
+        const trimmed = trimmedWithoutRepeats(held, 12, 15, conversationOf);
+
+        expect(trimmed.slots[0]?.rows).toBeNull();
+        expect(trimmed.slots[1]?.rows).not.toBeNull();
+        expect(rowCountOf(drawn(trimmed))).toBe(tall);
+    });
+
+    it('answers with the list it was given, repeats and all, where nothing was far enough to drop', () => {
+        const held = movedToTheTopOfSix();
+
+        expect(trimmedWithoutRepeats(held, 10, 13, conversationOf)).toBe(held);
     });
 });
 
