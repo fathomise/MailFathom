@@ -1269,6 +1269,7 @@ export const pl: Catalogue = {
     'threadList.partiallyFailed': 'Części wątków nie udało się odczytać: {reason}.',
     'threadList.empty': 'Nie ma tu jeszcze żadnego wątku.',
     'threadList.wholeListRead': 'To już wszystkie wątki.',
+    'threadList.rowArriving': 'Ponowne wczytywanie tego wątku…',
     'threadList.me': 'ja',
     'threadList.you': 'Ty',
     'threadList.who': '{who}:',

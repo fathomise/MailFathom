@@ -2,7 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { MailEnrichmentAspect, MailTimelineOrder, MailTimelinePageDirection } from '@mailfathom/client-backend';
+import type {
+    ClientMailListMode,
+    MailEnrichmentAspect,
+    MailTimelineOrder,
+    MailTimelinePageDirection,
+} from '@mailfathom/client-backend';
 import { scopeKey, type MailScope } from '../workspace/mailScope';
 import {
     dateRanges,
@@ -25,7 +30,9 @@ import {
 // Four of the five things the position is keyed by are in the key itself: the deployment's address and the scope, which
 // names the account and the folder. The fifth pair — the order and the filters — is inside the record rather than in
 // the key, which is the stronger arrangement: a cursor and the two values it was issued under are written and replaced
-// together, so a cursor cannot outlive them and there is no composite key to get wrong. The user is the credential,
+// together, so a cursor cannot outlive them and there is no composite key to get wrong. The list read by conversation
+// is keyed apart from the list read by message, because a cursor of one is refused by the other however alike the
+// filters are, and the same account can be read both ways. The user is the credential,
 // and `forgetListings` is called wherever the client lets one go.
 //
 // The session's store rather than the machine's, and reached as `window.sessionStorage` rather than as the bare global,
@@ -81,13 +88,22 @@ export const neverOpenedListing: RememberedListing = {
 };
 
 /** How a folder of one deployment was last read, or the opening listing where it has not been. */
-export function rememberedListing(baseAddress: string, scope: MailScope): RememberedListing {
-    return listingsIn(stored())[keyFor(baseAddress, scope)] ?? neverOpenedListing;
+export function rememberedListing(
+    baseAddress: string,
+    scope: MailScope,
+    listMode: ClientMailListMode = 'messages',
+): RememberedListing {
+    return listingsIn(stored())[keyFor(baseAddress, scope, listMode)] ?? neverOpenedListing;
 }
 
 /** Keeps how a folder is being read and where in it the reader is, so leaving and returning is a continuation. */
-export function rememberListing(baseAddress: string, scope: MailScope, listing: RememberedListing): void {
-    const key = keyFor(baseAddress, scope);
+export function rememberListing(
+    baseAddress: string,
+    scope: MailScope,
+    listing: RememberedListing,
+    listMode: ClientMailListMode = 'messages',
+): void {
+    const key = keyFor(baseAddress, scope, listMode);
 
     // Written back last so that it is the newest entry, which is what makes the oldest the one dropped: object key
     // order is insertion order for string keys, and re-reading a folder therefore keeps it.
@@ -112,8 +128,10 @@ export function forgetListings(): void {
     }
 }
 
-function keyFor(baseAddress: string, scope: MailScope): string {
-    return `${baseAddress}\n${scopeKey(scope)}`;
+function keyFor(baseAddress: string, scope: MailScope, listMode: ClientMailListMode): string {
+    const listed = `${baseAddress}\n${scopeKey(scope)}`;
+
+    return listMode === 'threads' ? `${listed}\n${listMode}` : listed;
 }
 
 function stored(): unknown {

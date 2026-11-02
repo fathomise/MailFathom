@@ -2,12 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type {
-    MailTimelineEntry,
-    MailTimelinePage,
-    MailTimelinePageDirection,
-    SignalledFlags,
-} from '@mailfathom/client-backend';
+import type { MailTimelineEntry, MailTimelinePageDirection, SignalledFlags } from '@mailfathom/client-backend';
 
 // What the list is holding, which is bounded as well as what it is drawing. Windowing alone bounds the document; this
 // bounds the memory behind it, because a reader who has scrolled past forty thousand messages has read four hundred
@@ -18,9 +13,13 @@ import type {
 // looking at moves, and scrolling back into it reads that page again from its own cursor rather than reading the folder
 // from its leading end. The alternative — dropping the slot too — would shrink the list under the reader on a scroll
 // they did not make, which is the defect windowing exists to avoid one level up.
+//
+// What a row is does not change any of that, so the list holds rows of either reading of the mail list alike: a message
+// where it is read by message, and a conversation where it is grouped by conversation. The few readings that are about
+// a message in particular — where its flags stand, which row a message is — say so in their types.
 
 /** One page's worth of the list: its rows where they are held, and where they are read from where they are not. */
-export interface TimelineSlot {
+export interface TimelineSlot<Row> {
     /** The cursor this page was asked with, or `null` where it was read from the leading end of the list. */
     readonly askedWith: string | null;
 
@@ -31,7 +30,7 @@ export interface TimelineSlot {
     readonly rowCount: number;
 
     /** The rows, or `null` where they have been dropped and the cursor above is how they come back. */
-    readonly emails: readonly MailTimelineEntry[] | null;
+    readonly rows: readonly Row[] | null;
 
     /**
      * Whether the rows held here may no longer be what the deployment holds, because a refresh asked for everything to
@@ -54,25 +53,32 @@ export interface TimelineSlot {
 export const pagesKeptEitherSide = 2;
 
 /** The pages the list knows about, in the order the list is read in. */
-export interface HeldTimeline {
-    readonly slots: readonly TimelineSlot[];
+export interface HeldTimeline<Row> {
+    readonly slots: readonly TimelineSlot<Row>[];
+}
+
+/** One page as a read answered it: its rows, and the two cursors the pages either side of it are asked with. */
+export interface TimelinePage<Row> {
+    readonly rows: readonly Row[];
+    readonly nextCursor: string | null;
+    readonly previousCursor: string | null;
 }
 
 /** A list that knows about nothing, which is where every scope and every change of filter starts. */
-export const nothingHeld: HeldTimeline = { slots: [] };
+export const nothingHeld: HeldTimeline<never> = { slots: [] };
 
 /** How many rows the list stands for, held or dropped. */
-export function rowCountOf(held: HeldTimeline): number {
+export function rowCountOf<Row>(held: HeldTimeline<Row>): number {
     return held.slots.reduce((rows, slot) => rows + slot.rowCount, 0);
 }
 
-/** The message at a row, or `null` where the page holding it has been dropped. */
-export function rowAt(held: HeldTimeline, row: number): MailTimelineEntry | null {
+/** What stands at a row, or `null` where the page holding it has been dropped. */
+export function rowAt<Row>(held: HeldTimeline<Row>, row: number): Row | null {
     let passed = 0;
 
     for (const slot of held.slots) {
         if (row < passed + slot.rowCount) {
-            return slot.emails?.[row - passed] ?? null;
+            return slot.rows?.[row - passed] ?? null;
         }
 
         passed += slot.rowCount;
@@ -82,11 +88,11 @@ export function rowAt(held: HeldTimeline, row: number): MailTimelineEntry | null
 }
 
 /** The row a message stands at, or `null` where no page the list is holding carries it. */
-export function rowOf(held: HeldTimeline, storedEmailId: string): number | null {
+export function rowOf(held: HeldTimeline<MailTimelineEntry>, storedEmailId: string): number | null {
     let passed = 0;
 
     for (const slot of held.slots) {
-        const at = slot.emails?.findIndex((email) => email.id === storedEmailId) ?? -1;
+        const at = slot.rows?.findIndex((email) => email.id === storedEmailId) ?? -1;
 
         if (at >= 0) {
             return passed + at;
@@ -116,8 +122,8 @@ export function rowOf(held: HeldTimeline, storedEmailId: string): number | null 
  * other — the same message drawn in the folder it was filed into is a message that has arrived.
  * @returns The list as it is drawn, and the same object where no row is leaving.
  */
-export function withoutLeaving(held: HeldTimeline, leaving: (email: MailTimelineEntry) => boolean): HeldTimeline {
-    const holdsLeaving = (slot: TimelineSlot): boolean => slot.emails?.some(leaving) === true;
+export function withoutLeaving<Row>(held: HeldTimeline<Row>, leaving: (row: Row) => boolean): HeldTimeline<Row> {
+    const holdsLeaving = (slot: TimelineSlot<Row>): boolean => slot.rows?.some(leaving) === true;
 
     // Answered before anything is rebuilt, so an act against mail this list is not drawing leaves the list the object it
     // already was — which is what keeps a folder nobody acted in from re-rendering every row.
@@ -131,25 +137,58 @@ export function withoutLeaving(held: HeldTimeline, leaving: (email: MailTimeline
                 return slot;
             }
 
-            const kept = slot.emails?.filter((email) => !leaving(email)) ?? null;
+            const kept = slot.rows?.filter((row) => !leaving(row)) ?? null;
 
-            return { ...slot, rowCount: kept?.length ?? slot.rowCount, emails: kept };
+            return { ...slot, rowCount: kept?.length ?? slot.rowCount, rows: kept };
         }),
     };
 }
 
-/** Every message the list is holding, in reading order, which is what the selection is ordered against. */
-export function heldRows(held: HeldTimeline): readonly MailTimelineEntry[] {
-    return held.slots.flatMap((slot) => slot.emails ?? []);
+/**
+ * The list with every row after the first standing for the same thing left out, which is what a list grouped by
+ * conversation is drawn from.
+ *
+ * A conversation stands where its newest message does, so one that moved to the top of the list since a page further
+ * down was read stands on both pages until that page is read again. The first one in reading order is the one kept —
+ * on a list read newest first, the page that put it at the top — and the page further down is the one that shrinks, so
+ * the list is the height of what it draws. Derived on each render rather than written into what is held, for the
+ * reason {@link withoutLeaving} gives: reading that page again is what settles it, and nothing has to be put back.
+ *
+ * @param held What the list knows.
+ * @param identityOf What says two rows stand for the same thing.
+ * @returns The list as it is drawn, and the same object where no row repeats.
+ */
+export function withoutRepeats<Row>(held: HeldTimeline<Row>, identityOf: (row: Row) => string): HeldTimeline<Row> {
+    const seen = new Set<string>();
+    const repeats = new Set<Row>();
+
+    for (const slot of held.slots) {
+        for (const row of slot.rows ?? []) {
+            const identity = identityOf(row);
+
+            if (seen.has(identity)) {
+                repeats.add(row);
+            } else {
+                seen.add(identity);
+            }
+        }
+    }
+
+    return repeats.size === 0 ? held : withoutLeaving(held, (row) => repeats.has(row));
+}
+
+/** Every row the list is holding, in reading order, which is what the selection is ordered against. */
+export function heldRows<Row>(held: HeldTimeline<Row>): readonly Row[] {
+    return held.slots.flatMap((slot) => slot.rows ?? []);
 }
 
 /** The cursor the page after the end of the list is asked with, or `null` where the end has been reached. */
-export function cursorAfter(held: HeldTimeline): string | null {
+export function cursorAfter<Row>(held: HeldTimeline<Row>): string | null {
     return held.slots.at(-1)?.nextCursor ?? null;
 }
 
 /** The cursor the page before the beginning of the list is asked with, or `null` where the beginning has been reached. */
-export function cursorBefore(held: HeldTimeline): string | null {
+export function cursorBefore<Row>(held: HeldTimeline<Row>): string | null {
     return held.slots.at(0)?.previousCursor ?? null;
 }
 
@@ -166,7 +205,7 @@ export interface HeldPosition {
  * The direction travels with the cursor because the pair is what names a page: the same cursor read the other way
  * answers with the page on the other side of it, which would put a returning reader a page from where they left.
  */
-export function positionOfRow(held: HeldTimeline, row: number): HeldPosition | null {
+export function positionOfRow<Row>(held: HeldTimeline<Row>, row: number): HeldPosition | null {
     let passed = 0;
 
     for (const slot of held.slots) {
@@ -181,7 +220,7 @@ export function positionOfRow(held: HeldTimeline, row: number): HeldPosition | n
 }
 
 /** The row the first row of a page stands at, or `null` where the list knows no such page. */
-export function rowOfSlot(held: HeldTimeline, slot: number): number | null {
+export function rowOfSlot<Row>(held: HeldTimeline<Row>, slot: number): number | null {
     if (slot < 0 || slot >= held.slots.length) {
         return null;
     }
@@ -202,13 +241,13 @@ export interface TimelineRead {
  * The page a read the list has not made yet would ask for, or `null` where what is on the screen is all held and none of
  * it is waiting to be read again.
  */
-export function wantedFor(held: HeldTimeline, firstRow: number, lastRow: number): TimelineRead | null {
+export function wantedFor<Row>(held: HeldTimeline<Row>, firstRow: number, lastRow: number): TimelineRead | null {
     let passed = 0;
 
     for (const [at, slot] of held.slots.entries()) {
         const beyond = passed + slot.rowCount;
 
-        if ((slot.emails === null || slot.stale) && passed <= lastRow && beyond > firstRow) {
+        if ((slot.rows === null || slot.stale) && passed <= lastRow && beyond > firstRow) {
             return { cursor: slot.askedWith, direction: slot.readAs, refilling: at };
         }
 
@@ -229,12 +268,12 @@ export function wantedFor(held: HeldTimeline, firstRow: number, lastRow: number)
 }
 
 /** The page a read answered with, as a slot the list stands on. */
-function slotFor(page: MailTimelinePage, read: TimelineRead): TimelineSlot {
+function slotFor<Row>(page: TimelinePage<Row>, read: TimelineRead): TimelineSlot<Row> {
     return {
         askedWith: read.cursor,
         readAs: read.direction,
-        rowCount: page.emails.length,
-        emails: page.emails,
+        rowCount: page.rows.length,
+        rows: page.rows,
         nextCursor: page.nextCursor,
         previousCursor: page.previousCursor,
         stale: false,
@@ -256,14 +295,14 @@ function slotFor(page: MailTimelinePage, read: TimelineRead): TimelineSlot {
  * @param held What the list knows now.
  * @returns What the list knows, and the list itself where its leading page holds no rows to mark.
  */
-export function arrivalNoticed(held: HeldTimeline): HeldTimeline {
+export function arrivalNoticed<Row>(held: HeldTimeline<Row>): HeldTimeline<Row> {
     const leading = held.slots[0];
 
     if (leading === undefined) {
         return held;
     }
 
-    if (leading.emails === null || leading.stale) {
+    if (leading.rows === null || leading.stale) {
         return held;
     }
 
@@ -284,19 +323,29 @@ export function arrivalNoticed(held: HeldTimeline): HeldTimeline {
  * came into it, and the leading page is marked exactly as {@link arrivalNoticed} marks it, which leaves a leading page
  * already dropped to be read once it is reached.
  *
+ * A row is asked which message it was drawn from rather than read for one, because the two readings of the list hold
+ * different rows: a message stands for itself, and a conversation is drawn from its newest message, which is the one
+ * whose change would change the row.
+ *
  * @param held What the list knows now.
- * @param storedEmailIds The rows the deployment named.
+ * @param storedEmailIds The messages the deployment named.
+ * @param messageOf The message a row was drawn from.
  * @returns What the list knows.
  */
-export function changeNoticed(held: HeldTimeline, storedEmailIds: readonly string[]): HeldTimeline {
+export function changeNoticed<Row>(
+    held: HeldTimeline<Row>,
+    storedEmailIds: readonly string[],
+    messageOf: (row: Row) => string,
+): HeldTimeline<Row> {
     const named = new Set(storedEmailIds);
 
     if (named.size === 0) {
         return held;
     }
 
-    const holdsAnyNamed = (slot: TimelineSlot): boolean => slot.emails?.some((email) => named.has(email.id)) === true;
-    const holdsNamed = (slot: TimelineSlot): boolean => !slot.stale && holdsAnyNamed(slot);
+    const holdsAnyNamed = (slot: TimelineSlot<Row>): boolean =>
+        slot.rows?.some((row) => named.has(messageOf(row))) === true;
+    const holdsNamed = (slot: TimelineSlot<Row>): boolean => !slot.stale && holdsAnyNamed(slot);
 
     // Mail named for this folder that the list holds on no page is mail that came into it — a move or an archive the
     // deployment carried here — so it is read as an arrival would be rather than left out until somebody refreshes.
@@ -326,9 +375,9 @@ export function changeNoticed(held: HeldTimeline, storedEmailIds: readonly strin
  * @param held What the list knows now.
  * @returns What the list knows, and the list itself where it holds no rows.
  */
-export function refreshAsked(held: HeldTimeline): HeldTimeline {
-    return held.slots.some((slot) => slot.emails !== null)
-        ? { slots: held.slots.map((slot) => (slot.emails === null ? slot : { ...slot, stale: true })) }
+export function refreshAsked<Row>(held: HeldTimeline<Row>): HeldTimeline<Row> {
+    return held.slots.some((slot) => slot.rows !== null)
+        ? { slots: held.slots.map((slot) => (slot.rows === null ? slot : { ...slot, stale: true })) }
         : held;
 }
 
@@ -343,7 +392,7 @@ export function refreshAsked(held: HeldTimeline): HeldTimeline {
  * @param slot The page the read was refilling.
  * @returns What the list knows.
  */
-export function refreshUnanswered(held: HeldTimeline, slot: number): HeldTimeline {
+export function refreshUnanswered<Row>(held: HeldTimeline<Row>, slot: number): HeldTimeline<Row> {
     return { slots: held.slots.map((standing, at) => (at === slot ? { ...standing, stale: false } : standing)) };
 }
 
@@ -351,10 +400,10 @@ export function refreshUnanswered(held: HeldTimeline, slot: number): HeldTimelin
  * Whether a read refills a page whose rows are still drawn, which is the one read whose failure takes nothing off the
  * screen: only a stale page is read again while it holds its rows.
  */
-export function refillsHeldRows(held: HeldTimeline, read: TimelineRead | null): boolean {
+export function refillsHeldRows<Row>(held: HeldTimeline<Row>, read: TimelineRead | null): boolean {
     const refilling = read?.refilling ?? null;
 
-    return refilling !== null && (held.slots[refilling]?.emails ?? null) !== null;
+    return refilling !== null && (held.slots[refilling]?.rows ?? null) !== null;
 }
 
 /**
@@ -369,7 +418,10 @@ export function refillsHeldRows(held: HeldTimeline, read: TimelineRead | null): 
  * @param flags Where the deployment says each named row's flags stand.
  * @returns What the list knows.
  */
-export function flagsNoticed(held: HeldTimeline, flags: readonly SignalledFlags[]): HeldTimeline {
+export function flagsNoticed(
+    held: HeldTimeline<MailTimelineEntry>,
+    flags: readonly SignalledFlags[],
+): HeldTimeline<MailTimelineEntry> {
     const stated = new Map(flags.map((flag) => [flag.email, flag]));
 
     const redrawn = (email: MailTimelineEntry): MailTimelineEntry => {
@@ -388,7 +440,8 @@ export function flagsNoticed(held: HeldTimeline, flags: readonly SignalledFlags[
         };
     };
 
-    const holdsNamed = (slot: TimelineSlot): boolean => slot.emails?.some((email) => stated.has(email.id)) === true;
+    const holdsNamed = (slot: TimelineSlot<MailTimelineEntry>): boolean =>
+        slot.rows?.some((email) => stated.has(email.id)) === true;
 
     // Answered before anything is rebuilt, so a statement about mail this list is not holding leaves the list the
     // object it already was — the same reason `changeNoticed` asks first. A page holding none of the rows named keeps
@@ -398,9 +451,7 @@ export function flagsNoticed(held: HeldTimeline, flags: readonly SignalledFlags[
     }
 
     return {
-        slots: held.slots.map((slot) =>
-            holdsNamed(slot) ? { ...slot, emails: slot.emails?.map(redrawn) ?? null } : slot,
-        ),
+        slots: held.slots.map((slot) => (holdsNamed(slot) ? { ...slot, rows: slot.rows?.map(redrawn) ?? null } : slot)),
     };
 }
 
@@ -415,7 +466,7 @@ export function flagsNoticed(held: HeldTimeline, flags: readonly SignalledFlags[
  * @param read What was asked for, which says where the answer belongs.
  * @returns What the list knows.
  */
-export function answered(held: HeldTimeline, page: MailTimelinePage, read: TimelineRead): HeldTimeline {
+export function answered<Row>(held: HeldTimeline<Row>, page: TimelinePage<Row>, read: TimelineRead): HeldTimeline<Row> {
     if (read.refilling !== null) {
         return {
             slots: held.slots.map((slot, at) => (at === read.refilling ? slotFor(page, read) : slot)),
@@ -425,7 +476,7 @@ export function answered(held: HeldTimeline, page: MailTimelinePage, read: Timel
     // A page with no rows is the end of the list having been reached between two reads, and it joins nothing rather
     // than standing as a row of nowhere. The first page is the exception: a folder holding no mail answers with one,
     // and a list that recorded nothing would ask for it again on every render.
-    if (page.emails.length === 0 && held.slots.length > 0) {
+    if (page.rows.length === 0 && held.slots.length > 0) {
         return endReached(held, read.direction);
     }
 
@@ -437,7 +488,7 @@ export function answered(held: HeldTimeline, page: MailTimelinePage, read: Timel
 // An end that answered with no rows is an end reached, and the cursor pointing at it is retired so the list does not
 // ask again on the next scroll. Nothing else about the slot changes: its rows and its other cursor are still what they
 // were.
-function endReached(held: HeldTimeline, direction: MailTimelinePageDirection): HeldTimeline {
+function endReached<Row>(held: HeldTimeline<Row>, direction: MailTimelinePageDirection): HeldTimeline<Row> {
     const at = direction === 'forward' ? held.slots.length - 1 : 0;
 
     return {
@@ -458,18 +509,19 @@ function endReached(held: HeldTimeline, direction: MailTimelinePageDirection): H
  * @param held What the list knows.
  * @param firstRow The first row on the screen.
  * @param lastRow The last row on the screen.
- * @param leaving What is leaving the list, which the two rows above were counted without.
+ * @param drawnFrom What the list draws of what it holds — less what is leaving, less what repeats — which the two rows
+ * above were counted in.
  * @returns The list with distant rows dropped, or the same list where nothing was far enough to drop.
  */
-export function trimmedAround(
-    held: HeldTimeline,
+export function trimmedAround<Row>(
+    held: HeldTimeline<Row>,
     firstRow: number,
     lastRow: number,
-    leaving: (email: MailTimelineEntry) => boolean = () => false,
-): HeldTimeline {
+    drawnFrom: (held: HeldTimeline<Row>) => HeldTimeline<Row> = (all) => all,
+): HeldTimeline<Row> {
     // Rows are counted as they are drawn, because that is the numbering the window was worked out in; the slots line up
-    // with what is held either way, since leaving never drops one.
-    const measured = withoutLeaving(held, leaving);
+    // with what is held either way, since neither leaving nor repeating ever drops one.
+    const measured = drawnFrom(held);
     const reached: number[] = [];
     let passed = 0;
 
@@ -487,7 +539,7 @@ export function trimmedAround(
     const keptTo = furthest + pagesKeptEitherSide;
 
     const slots = held.slots.map((slot, at) =>
-        slot.emails === null || (at >= keptFrom && at <= keptTo) ? slot : { ...slot, emails: null },
+        slot.rows === null || (at >= keptFrom && at <= keptTo) ? slot : { ...slot, rows: null },
     );
 
     // The list it was given where nothing was far enough to drop, so a scroll that changes nothing renders nothing.

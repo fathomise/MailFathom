@@ -1130,8 +1130,10 @@ GET /api/client/threads?account=work&pageSize=25
 ```
 
 It answers with one page of the user's conversations, newest first by the arrival of each one's newest message, and
-with the cursor that continues the list. It is the list a client draws when the person reads by conversation rather
-than by message, which [`listMode`](#the-preferences-routes) records:
+with the cursor that continues the list in one direction only. The client no longer reads it: a person who reads by
+conversation rather than by message, which [`listMode`](#the-preferences-routes) records, is drawn
+[the mail list grouped by conversation](#the-mail-list-route) instead, whose rows are this route's rows and whose filters
+and two cursors are the message list's. The route answers:
 
 ```jsonc
 {

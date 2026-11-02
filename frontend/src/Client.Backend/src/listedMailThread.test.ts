@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import { readMailThreadList, threadListPageSize } from './mailThreadList';
+import { conversationPageSize, readMailConversations, type MailTimelineQuery } from './mailTimeline';
 import type { ClientSession } from './session';
 import type { ClientRequest, ClientResponse, MailFathomTransport } from './transport';
 
@@ -49,7 +49,29 @@ const thread = {
     },
 };
 
-const page = { threads: [thread], nextCursor: 'AbCd', pageSize: threadListPageSize };
+const page = { conversations: [thread], nextCursor: 'AbCd', previousCursor: null, pageSize: conversationPageSize };
+
+const leadingPage: MailTimelineQuery = {
+    account: null,
+    folder: null,
+    includeJunk: false,
+    unread: null,
+    flagged: null,
+    hasAttachments: null,
+    receivedOnOrAfter: null,
+    receivedBefore: null,
+    carriesMark: null,
+    markDueOnOrAfter: null,
+    markDueBefore: null,
+    order: 'newestFirst',
+    direction: 'forward',
+    pageSize: conversationPageSize,
+    cursor: null,
+};
+
+function reading(transport: MailFathomTransport, query: Partial<MailTimelineQuery> = {}) {
+    return readMailConversations(session, transport, { ...leadingPage, ...query });
+}
 
 // The transport is the network boundary and the whole of what a test here fakes.
 function recording(status: number, body: unknown): { transport: MailFathomTransport; requests: ClientRequest[] } {
@@ -67,29 +89,31 @@ function recording(status: number, body: unknown): { transport: MailFathomTransp
     };
 }
 
-describe('readMailThreadList', () => {
-    it('asks for one page of every account’s conversations where no account is named', async () => {
+describe('readMailConversations', () => {
+    it('asks for the mail list grouped by conversation, under the same query string a page read by message names', async () => {
         const { transport, requests } = recording(200, page);
 
-        await readMailThreadList(session, transport, null, null);
+        await reading(transport);
 
         expect(requests[0]?.method).toBe('GET');
-        expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/threads?pageSize=25');
+        expect(requests[0]?.path).toBe(
+            'https://mail.example.invalid/api/client/emails?sort=receivedAt&order=newestFirst&direction=forward&pageSize=25&grouping=conversation',
+        );
         expect(requests[0]?.headers['Authorization']).toBe('Basic dGVzdA==');
     });
 
-    it('names the account and the cursor it continues from', async () => {
+    it('narrows the grouped list by the account, the filters, and the cursor it continues from', async () => {
         const { transport, requests } = recording(200, page);
 
-        await readMailThreadList(session, transport, 'work & home', 'Ab/Cd');
+        await reading(transport, { account: 'work & home', unread: true, carriesMark: 'Commitment', cursor: 'Ab/Cd' });
 
         expect(requests[0]?.path).toBe(
-            'https://mail.example.invalid/api/client/threads?pageSize=25&account=work%20%26%20home&cursor=Ab%2FCd',
+            'https://mail.example.invalid/api/client/emails?sort=receivedAt&order=newestFirst&direction=forward&pageSize=25&account=work%20%26%20home&carriesMark=Commitment&unread=true&cursor=Ab%2FCd&grouping=conversation',
         );
     });
 
     it('reads every conversation on the page as the deployment described it', async () => {
-        const answer = await readMailThreadList(session, recording(200, page).transport, null, null);
+        const answer = await reading(recording(200, page).transport);
 
         expect(answer).toStrictEqual({ outcome: 'read', value: page });
     });
@@ -97,30 +121,27 @@ describe('readMailThreadList', () => {
     it('reads a conversation with no title and nobody else writing in it', async () => {
         const untitled = { ...thread, newestReceivedSender: null, title: null };
 
-        const answer = await readMailThreadList(
-            session,
-            recording(200, { ...page, threads: [untitled], nextCursor: null }).transport,
-            null,
-            null,
+        const answer = await reading(
+            recording(200, { ...page, conversations: [untitled], nextCursor: null }).transport,
         );
 
         expect(answer).toStrictEqual({
             outcome: 'read',
-            value: { threads: [untitled], nextCursor: null, pageSize: threadListPageSize },
+            value: {
+                conversations: [untitled],
+                nextCursor: null,
+                previousCursor: null,
+                pageSize: conversationPageSize,
+            },
         });
     });
 
     it('reads a title whose standing is empty, where nothing is left open', async () => {
         const settled = { ...thread, title: { ...thread.title, standing: '' } };
 
-        const answer = await readMailThreadList(
-            session,
-            recording(200, { ...page, threads: [settled] }).transport,
-            null,
-            null,
-        );
+        const answer = await reading(recording(200, { ...page, conversations: [settled] }).transport);
 
-        expect(answer.outcome === 'read' ? answer.value.threads[0]?.title?.standing : null).toBe('');
+        expect(answer.outcome === 'read' ? answer.value.conversations[0]?.title?.standing : null).toBe('');
     });
 
     it.each([
@@ -143,23 +164,15 @@ describe('readMailThreadList', () => {
         ['an attachment mark that is not a yes or a no', { ...thread, hasAttachments: 'yes' }],
         ['a say on unnamed participants that is not a yes or a no', { ...thread, moreParticipantsNotNamed: 1 }],
     ])('refuses %s', async (_, row) => {
-        const answer = await readMailThreadList(
-            session,
-            recording(200, { ...page, threads: [row] }).transport,
-            null,
-            null,
-        );
+        const answer = await reading(recording(200, { ...page, conversations: [row] }).transport);
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
     it('refuses a page holding more conversations than it asked for', async () => {
-        const answer = await readMailThreadList(
-            session,
-            recording(200, { ...page, threads: Array.from({ length: threadListPageSize + 1 }, () => thread) })
+        const answer = await reading(
+            recording(200, { ...page, conversations: Array.from({ length: conversationPageSize + 1 }, () => thread) })
                 .transport,
-            null,
-            null,
         );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
@@ -169,19 +182,15 @@ describe('readMailThreadList', () => {
         ['an empty cursor', { ...page, nextCursor: '' }],
         ['a cursor longer than any the deployment issues', { ...page, nextCursor: 'c'.repeat(4097) }],
         ['a page that is not an object', [page]],
+        ['the rows of the list read by message instead', { ...page, conversations: undefined, emails: [] }],
     ])('refuses a page carrying %s', async (_, body) => {
-        const answer = await readMailThreadList(session, recording(200, body).transport, null, null);
+        const answer = await reading(recording(200, body).transport);
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
     it('refuses an answer that is not JSON', async () => {
-        const answer = await readMailThreadList(
-            session,
-            () => Promise.resolve({ status: 200, body: '<html>', headers: {} }),
-            null,
-            null,
-        );
+        const answer = await reading(() => Promise.resolve({ status: 200, body: '<html>', headers: {} }));
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
@@ -191,18 +200,13 @@ describe('readMailThreadList', () => {
         [403, 'unauthorized'],
         [500, 'unavailable'],
     ] as const)('reports a %i by the reason it names', async (status, reason) => {
-        const answer = await readMailThreadList(session, recording(status, {}).transport, null, null);
+        const answer = await reading(recording(status, {}).transport);
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason, status } });
     });
 
     it('reports a deployment that did not answer as unavailable', async () => {
-        const answer = await readMailThreadList(
-            session,
-            () => Promise.reject(new TypeError('Failed to fetch')),
-            null,
-            null,
-        );
+        const answer = await reading(() => Promise.reject(new TypeError('Failed to fetch')));
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: null } });
     });

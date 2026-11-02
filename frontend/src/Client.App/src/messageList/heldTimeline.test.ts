@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import type { MailTimelineEntry, MailTimelinePage } from '@mailfathom/client-backend';
+import type { MailTimelineEntry } from '@mailfathom/client-backend';
 import {
     answered,
     arrivalNoticed,
@@ -25,11 +25,15 @@ import {
     trimmedAround,
     wantedFor,
     withoutLeaving,
+    withoutRepeats,
     type HeldTimeline,
+    type TimelinePage,
     type TimelineRead,
 } from './heldTimeline';
 
 const rowsPerPage = 4;
+
+const idOf = (email: MailTimelineEntry): string => email.id;
 
 function message(at: number): MailTimelineEntry {
     return {
@@ -66,12 +70,11 @@ function message(at: number): MailTimelineEntry {
 }
 
 // One page of four, numbered from where it starts, so a row identity says which page it came from.
-function page(from: number, cursors: Partial<MailTimelinePage> = {}): MailTimelinePage {
+function page(from: number, cursors: Partial<TimelinePage<MailTimelineEntry>> = {}): TimelinePage<MailTimelineEntry> {
     return {
-        emails: Array.from({ length: rowsPerPage }, (_, at) => message(from + at)),
+        rows: Array.from({ length: rowsPerPage }, (_, at) => message(from + at)),
         nextCursor: `after-${String(from + rowsPerPage)}`,
         previousCursor: from === 0 ? null : `before-${String(from)}`,
-        pageSize: rowsPerPage,
         ...cursors,
     };
 }
@@ -83,7 +86,7 @@ function extending(cursor: string): TimelineRead {
 }
 
 /** A list read forward from its leading end, one page at a time, which is what scrolling down produces. */
-function readForward(pages: number): HeldTimeline {
+function readForward(pages: number): HeldTimeline<MailTimelineEntry> {
     let held = answered(nothingHeld, page(0), forward);
 
     for (let at = 1; at < pages; at += 1) {
@@ -134,6 +137,45 @@ describe('withoutLeaving', () => {
     });
 });
 
+// A conversation stands where its newest message does, so one that moved to the top since a page further down was read
+// is on both pages until that page is read again. Rows here stand for a conversation by their subject.
+describe('withoutRepeats', () => {
+    const conversationOf = (email: MailTimelineEntry): string => email.subject ?? '';
+
+    function movedToTheTop(): HeldTimeline<MailTimelineEntry> {
+        const leading = page(0);
+        const further = page(4);
+
+        return answered(
+            answered(
+                nothingHeld,
+                { ...leading, rows: [{ ...message(9), subject: 'Message 5' }, ...leading.rows] },
+                forward,
+            ),
+            further,
+            extending('after-4'),
+        );
+    }
+
+    it('draws a conversation held on two pages once, where the earlier page stands it', () => {
+        const shown = withoutRepeats(movedToTheTop(), conversationOf);
+
+        expect(
+            heldRows(shown)
+                .filter((email) => email.subject === 'Message 5')
+                .map((email) => email.id),
+        ).toEqual(['message-9']);
+        expect(rowCountOf(shown)).toBe(rowCountOf(movedToTheTop()) - 1);
+        expect(shown.slots[1]?.rowCount).toBe(rowsPerPage - 1);
+    });
+
+    it('answers with the list itself where nothing repeats', () => {
+        const held = readForward(2);
+
+        expect(withoutRepeats(held, conversationOf)).toBe(held);
+    });
+});
+
 describe('answered', () => {
     it('stands a list on the first page it read', () => {
         const held = answered(nothingHeld, page(0), forward);
@@ -143,7 +185,7 @@ describe('answered', () => {
     });
 
     it('records a folder holding no mail rather than reading it again', () => {
-        const empty = { emails: [], nextCursor: null, previousCursor: null, pageSize: rowsPerPage };
+        const empty = { rows: [], nextCursor: null, previousCursor: null };
         const held = answered(nothingHeld, empty, forward);
 
         expect(held.slots).toHaveLength(1);
@@ -168,7 +210,7 @@ describe('answered', () => {
 
     it('retires the cursor at an end that answered with nothing, so the list stops asking there', () => {
         const opened = answered(nothingHeld, page(0), forward);
-        const empty = { emails: [], nextCursor: null, previousCursor: null, pageSize: rowsPerPage };
+        const empty = { rows: [], nextCursor: null, previousCursor: null };
         const held = answered(opened, empty, extending('after-4'));
 
         expect(rowCountOf(held)).toBe(rowsPerPage);
@@ -219,7 +261,7 @@ describe('trimmedAround', () => {
     it('keeps the pages either side of the one on the screen while rows above it are leaving', () => {
         const held = readForward(9);
         const leaving = new Set(['message-0', 'message-1', 'message-2', 'message-3']);
-        const trimmed = trimmedAround(held, 20, 23, (email) => leaving.has(email.id));
+        const trimmed = trimmedAround(held, 20, 23, (all) => withoutLeaving(all, (email) => leaving.has(email.id)));
 
         expect(rowAt(trimmed, 32)?.id).toBe('message-32');
         expect(rowAt(trimmed, 12)).toBeNull();
@@ -389,7 +431,7 @@ describe('refreshAsked', () => {
     it('leaves a page it had already dropped as it was, which the list reads again once it is reached anyway', () => {
         const held = refreshAsked(trimmedAround(readForward(6), 20, 23));
 
-        expect(held.slots[0]?.emails).toBeNull();
+        expect(held.slots[0]?.rows).toBeNull();
         expect(held.slots[0]?.stale).toBe(false);
     });
 
@@ -429,7 +471,7 @@ describe('refillsHeldRows', () => {
 
 describe('changeNoticed', () => {
     it('marks the pages holding the mail the deployment named and no others, keeping their rows drawn', () => {
-        const held = changeNoticed(readForward(3), ['message-5']);
+        const held = changeNoticed(readForward(3), ['message-5'], idOf);
 
         expect(held.slots[0]?.stale).toBe(false);
         expect(held.slots[1]?.stale).toBe(true);
@@ -438,7 +480,7 @@ describe('changeNoticed', () => {
     });
 
     it('marks every page holding one of them', () => {
-        const held = changeNoticed(readForward(3), ['message-1', 'message-9']);
+        const held = changeNoticed(readForward(3), ['message-1', 'message-9'], idOf);
 
         expect(held.slots[0]?.stale).toBe(true);
         expect(held.slots[1]?.stale).toBe(false);
@@ -446,13 +488,13 @@ describe('changeNoticed', () => {
     });
 
     it('leaves a page it has already marked as it was, so a second statement about it asks once', () => {
-        const once = changeNoticed(readForward(3), ['message-5']);
+        const once = changeNoticed(readForward(3), ['message-5'], idOf);
 
-        expect(changeNoticed(once, ['message-5'])).toBe(once);
+        expect(changeNoticed(once, ['message-5'], idOf)).toBe(once);
     });
 
     it('reads mail it holds on no page as mail that came into the folder, marking the leading page alone', () => {
-        const held = changeNoticed(readForward(3), ['message-999']);
+        const held = changeNoticed(readForward(3), ['message-999'], idOf);
 
         expect(held.slots.map((slot) => slot.stale)).toStrictEqual([true, false, false]);
         expect(heldRows(held)).toStrictEqual(heldRows(readForward(3)));
@@ -460,7 +502,7 @@ describe('changeNoticed', () => {
 
     it('reads the leading page for mail it holds on no page while only a page far below it was dropped', () => {
         const trimmed = trimmedAround(readForward(2 + pagesKeptEitherSide * 2), 0, 3);
-        const held = changeNoticed(trimmed, ['message-999']);
+        const held = changeNoticed(trimmed, ['message-999'], idOf);
 
         expect(held.slots[0]?.stale).toBe(true);
         expect(held.slots.slice(1).map((slot) => slot.stale)).toStrictEqual(trimmed.slots.slice(1).map(() => false));
@@ -469,17 +511,17 @@ describe('changeNoticed', () => {
     it('reads nothing for mail it holds on no page while the leading page is itself dropped', () => {
         const trimmed = trimmedAround(readForward(6), 20, 23);
 
-        expect(changeNoticed(trimmed, ['message-999'])).toBe(trimmed);
+        expect(changeNoticed(trimmed, ['message-999'], idOf)).toBe(trimmed);
     });
 
     it('leaves the list the object it was where nothing is named', () => {
         const held = readForward(3);
 
-        expect(changeNoticed(held, [])).toBe(held);
+        expect(changeNoticed(held, [], idOf)).toBe(held);
     });
 
     it('keeps the list the length it was', () => {
-        expect(rowCountOf(changeNoticed(readForward(3), ['message-5']))).toBe(rowCountOf(readForward(3)));
+        expect(rowCountOf(changeNoticed(readForward(3), ['message-5'], idOf))).toBe(rowCountOf(readForward(3)));
     });
 });
 
@@ -487,7 +529,7 @@ describe('flagsNoticed', () => {
     it('redraws the named rows where they are held, dropping no page', () => {
         const held = flagsNoticed(readForward(3), [{ email: 'message-5', isSeen: false, isFlagged: true }]);
 
-        expect(held.slots.every((slot) => slot.emails !== null)).toBe(true);
+        expect(held.slots.every((slot) => slot.rows !== null)).toBe(true);
         expect(rowAt(held, 5)).toMatchObject({ id: 'message-5', unread: true, flagged: true });
     });
 

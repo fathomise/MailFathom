@@ -14,9 +14,9 @@ import {
 import { flushSync } from 'react-dom';
 import {
     isSpam,
-    readMailTimeline,
     type ClientFailure,
     type ClientFailureReason,
+    type ClientMailListMode,
     type ClientSession,
     type MailAccount,
     type MailFathomTransport,
@@ -58,23 +58,17 @@ import {
     rowsDrawnAtOnce,
     windowOf,
 } from '../messageRows/rowWindow';
-import { needsAttention } from '../synchronization/synchronizationState';
-import { accountInScope, scopeReaches, type MailScope } from '../workspace/mailScope';
+import { scopeReaches, type MailScope } from '../workspace/mailScope';
 import { useWorkspace } from '../workspace/useWorkspace';
 import { useSignalledChanges } from '../signals/signalledChanges';
 import { useCoarsePointer } from '../shell/useWideWorkspace';
 import {
-    answered,
-    arrivalNoticed,
-    changeNoticed,
     cursorAfter,
     flagsNoticed,
     heldRows,
     nothingHeld,
     positionOfRow,
     refillsHeldRows,
-    refreshAsked,
-    refreshUnanswered,
     rowAt,
     rowOf,
     rowCountOf,
@@ -82,14 +76,15 @@ import {
     wantedFor,
     withoutLeaving,
     type HeldTimeline,
-    type TimelineRead,
 } from './heldTimeline';
+import { ListedByConversation } from './ListedByConversation';
 import { ListPull } from './ListPull';
 import { ListSettings } from './ListSettings';
-import { narrowed, narrowedByReading, narrowedToView, queryFor, type MailListing } from './listing';
+import { emptyReason, narrowedToView, type MailListing } from './listing';
 import { extendedTo, inReadingOrder, withToggled } from '../contextMenu/rowSelection';
 import { noRows, rowSettled, rowWentOut, rowsAlsoMoved, rowsNoticed, rowsStillDrawn } from './movedRows';
 import { rememberedListing, rememberListing } from './rememberedListings';
+import { messagePages, usePageReads, useSignalledPages } from './timelinePages';
 import { actedMessages, useListedMail } from './useListedMail';
 import { Departing } from '../shell/Departing';
 
@@ -106,6 +101,11 @@ import { Departing } from '../shell/Departing';
 // The component is mounted with the scope as its key, so pointing at another mailbox starts a list rather than resets
 // one: every piece of state below belongs to one folder read one way, and there is no correct way to carry any of it
 // across.
+//
+// It is also the list read by conversation, which is the same list grouped: the same route, the same filters, the same
+// window of pages and the same rule for reading them again, with a conversation's row drawn where a message's is —
+// `ListedByConversation.tsx`. What the two readings share is `heldTimeline.ts` and `timelinePages.ts`; what is here is
+// what only a list of messages has, which is a selection, the acts on it, and a row's own menu.
 
 const failureLabels: Readonly<Record<ClientFailureReason, MessageKey>> = {
     unauthenticated: 'failure.unauthenticated',
@@ -161,14 +161,7 @@ function spamFolderOf(scope: MailScope, acts: MailboxActs): boolean {
     );
 }
 
-export function MessageList({
-    session,
-    transport,
-    scope,
-    accounts,
-    online,
-    onOpen,
-}: {
+interface MessageListProps {
     readonly session: ClientSession;
     readonly transport: MailFathomTransport;
     readonly scope: MailScope;
@@ -180,10 +173,31 @@ export function MessageList({
      *
      * A row knows which message and what it is called; what opening one *does* — replace the pane, or take a tab of
      * its own beside what is already open — belongs to the frame, and a list that decided it would be the second
-     * implementation of a decision the frame already holds.
+     * implementation of a decision the frame already holds. `byThread` says the row was a conversation rather than one
+     * message of it, which opens it at what arrived since it was last read.
      */
-    readonly onOpen: (storedEmailId: string, subject: string | null, threadId: string | null) => void;
+    readonly onOpen: (
+        storedEmailId: string,
+        subject: string | null,
+        threadId: string | null,
+        byThread?: boolean,
+    ) => void;
+}
+
+export function MessageList({
+    listMode = 'messages',
+    ...props
+}: MessageListProps & {
+    /**
+     * Whether the list is read by message or grouped by conversation. Read by conversation, the scope names an account
+     * or every account and never a folder, since a conversation gathers its messages from every folder.
+     */
+    readonly listMode?: ClientMailListMode;
 }) {
+    return listMode === 'threads' ? <ListedByConversation {...props} /> : <ListedByMessage {...props} />;
+}
+
+function ListedByMessage({ session, transport, scope, accounts, online, onOpen }: MessageListProps) {
     const { translate } = useLocalization();
     const { workspace, revise } = useWorkspace();
     const listed = useListedMail();
@@ -209,7 +223,7 @@ export function MessageList({
     // because the listing is what a cursor was issued under and this changes neither the order nor a filter: turning
     // the sentences off leaves the reader on the row they were on instead of at the top of the folder.
     const [readingsShown, setReadingsShown] = useState(opening.readingsShown);
-    const [held, setHeld] = useState<HeldTimeline>(nothingHeld);
+    const [held, setHeld] = useState<HeldTimeline<MailTimelineEntry>>(nothingHeld);
 
     // Which rows the reader is meant to notice, and which they have already seen. The standing rule for every list in
     // this client is that the skeleton is drawn once, when the list holds nothing, and every change after it reaches
@@ -355,71 +369,39 @@ export function MessageList({
                 ? wantedFor(shown, drawn.first, lastDrawn)
                 : null;
 
-    // Named apart so the effect below depends on what the request *is* rather than on the object naming it. A fresh
-    // object every render would put a request on the wire every render; these three change only when the page wanted
-    // changes, which is what starts one read per page and abandons one the reader has scrolled away from.
-    const wantedCursor = wanted?.cursor ?? null;
-    const wantedDirection = wanted?.direction ?? null;
-    const wantedRefilling = wanted?.refilling ?? null;
-
     // Whether the page wanted is one a refresh marked while its rows stay drawn, which decides what its failure does: a
     // read the reader is still looking at rows through says nothing when it is not answered, and the rows stay.
     const wantedQuietly = refillsHeldRows(shown, wanted);
 
-    // The one effect that puts a request on the wire, which is what an effect is for. What it asked for travels with
-    // the answer, so a page knows where it belongs and an answer to a read this list has moved on from is discarded.
-    useEffect(() => {
-        if (wantedDirection === null) {
-            return;
-        }
+    usePageReads({
+        session,
+        transport,
+        scope,
+        listing,
+        reader: messagePages,
+        wanted,
+        quietly: wantedQuietly,
+        setHeld,
+        setFailure,
+        onPage: (emails, askedAt) => {
+            // Where each message belongs, written down as the page arrives, because the surfaces that act on a
+            // selection are outside this column and the identities the workspace holds say neither which account a
+            // message is in nor which folder it would be leaving.
+            listed.drew(emails, askedAt);
 
-        const asked: TimelineRead = {
-            cursor: wantedCursor,
-            direction: wantedDirection,
-            refilling: wantedRefilling,
-        };
+            // What this page's arrival amounts to, read against what the reader has already been shown: the rows that
+            // are new to them land, the rows the page draws differently are washed, and the rows it repeats — which is
+            // most of a page a refresh read again — are left alone.
+            const noticed = rowsNoticed(
+                drawnBefore.current,
+                emails.map((email) => [email.id, rowMark(email)] as const),
+            );
 
-        let listening = true;
-        const askedAt = Date.now();
-
-        void readMailTimeline(session, transport, queryFor(scope, listing, asked.cursor, asked.direction)).then(
-            (result) => {
-                if (!listening) {
-                    return;
-                }
-
-                const refilled = asked.refilling;
-
-                if (result.outcome === 'failed' && wantedQuietly && refilled !== null) {
-                    setHeld((current) => refreshUnanswered(current, refilled));
-                } else if (result.outcome === 'failed') {
-                    setFailure(result.failure);
-                } else {
-                    // Where each message belongs, written down as the page arrives, because the surfaces that act on a
-                    // selection are outside this column and the identities the workspace holds say neither which
-                    // account a message is in nor which folder it would be leaving.
-                    listed.drew(result.value.emails, askedAt);
-                    setHeld((current) => answered(current, result.value, asked));
-
-                    // What this page's arrival amounts to, read against what the reader has already been shown: the
-                    // rows that are new to them land, the rows the page draws differently are washed, and the rows it
-                    // repeats — which is most of a page a refresh read again — are left alone.
-                    const noticed = rowsNoticed(
-                        drawnBefore.current,
-                        result.value.emails.map((email) => [email.id, rowMark(email)] as const),
-                    );
-
-                    drawnBefore.current = noticed.shown;
-                    setArrivedRows((rows) => rowsAlsoMoved(rows, noticed.arrived));
-                    setChangedRows((rows) => rowsAlsoMoved(rows, noticed.changed));
-                }
-            },
-        );
-
-        return () => {
-            listening = false;
-        };
-    }, [session, transport, scope, listing, wantedCursor, wantedDirection, wantedRefilling, wantedQuietly, listed]);
+            drawnBefore.current = noticed.shown;
+            setArrivedRows((rows) => rowsAlsoMoved(rows, noticed.arrived));
+            setChangedRows((rows) => rowsAlsoMoved(rows, noticed.changed));
+        },
+    });
 
     // Where the reader is, written down once they have stopped moving, and again the moment the page goes away —
     // whichever comes first. The second is what makes a reload a continuation rather than a race with the first: a
@@ -497,41 +479,14 @@ export function MessageList({
         }
     }, [viewport, rowHeight, rowCount, drawn.first, opening.rowInPage, focusedRow, focusedIsDrawn, restored]);
 
-    // What the deployment said changed, acted on by dropping the pages it names rather than by reading the folder
-    // again from its leading end: the read that follows is the one the window itself asks for, so the reader keeps
-    // their place, their selection, and the row under their pointer, and pages they have scrolled away from are read
-    // again when they reach them rather than now.
+    useSignalledPages({ scope, setHeld, setFailure, messageOf: identityOf });
+
+    // A flag is applied to the rows in place rather than dropping the page they are on, which is the one change cheap
+    // enough to state: nothing about it can move a row out of this window or into it. Only a list of messages draws a
+    // flag, so it is listened for here rather than beside the signals both readings of the list answer alike.
     useEffect(
         () =>
             signalledChanges.listen((signal) => {
-                // A refresh marks every page the list holds rather than dropping one, so the rows stay drawn while the
-                // pages on the screen are read again — and a list that had stopped on a failure is let try again.
-                if (signal.kind === 'refresh') {
-                    setFailure(null);
-                    setHeld(refreshAsked);
-                }
-
-                // A sender is recognized by the contact books as they stand when a row is read, so a contact written
-                // or erased anywhere can move any row's mark: the pages on the screen are read again the same way.
-                if (signal.kind === 'contacts.changed') {
-                    setHeld(refreshAsked);
-                }
-
-                if (signal.kind === 'mail.arrived' && scopeReaches(scope, signal.account, signal.folder)) {
-                    setHeld(arrivalNoticed);
-                }
-
-                // The pages holding the named rows are read again and nothing is washed here. What a signal names is
-                // mail the deployment wrote down, which is not the same question as whether a reader would see the row
-                // differently: the answer is what says that, and the read above is where it is asked. A row washed
-                // from the signal was washed for a re-derived preview or a rewritten record as readily as for a
-                // subject that moved, which is the reload this whole mechanism exists to stop, one row at a time.
-                if (signal.kind === 'mail.changed' && scopeReaches(scope, signal.account, signal.folder)) {
-                    setHeld((current) => changeNoticed(current, signal.emails));
-                }
-
-                // A flag is applied to the rows in place rather than dropping the page they are on, which is the one
-                // change cheap enough to state: nothing about it can move a row out of this window or into it.
                 if (signal.kind === 'mail.flags.changed' && scopeReaches(scope, signal.account, signal.folder)) {
                     setHeld((current) => flagsNoticed(current, signal.flags));
                     setChangedRows((rows) => rowsAlsoMoved(rows, new Set(signal.flags.map((stated) => stated.email))));
@@ -575,7 +530,7 @@ export function MessageList({
         const moved = windowOf(rowCount, rowHeight, top, viewport);
         const last = moved.first + moved.count - 1;
 
-        setHeld((current) => trimmedAround(current, moved.first, last, hasLeft));
+        setHeld((current) => trimmedAround(current, moved.first, last, (drawn) => withoutLeaving(drawn, hasLeft)));
 
         // What the rows that moved are let go of, and it is a scroll rather than an animation that does it: a row
         // carried out of the window is unmounted, and an unmounted row never reports its own animation ending. Asked
@@ -1113,7 +1068,7 @@ export function MessageList({
                 rather than waiting to: nothing reads it again once the act lands, so a state kept for "not yet" would be
                 one no act ever ends. A refusal brings the rows back, exactly as it brings one back. */}
             {rowCount === 0 ? (
-                <Note>{translate(emptyReason(accounts, scope, listing))}</Note>
+                <Note>{translate(emptyReason(accounts, scope, listing, 'list.emptyFolder'))}</Note>
             ) : (
                 <ListPull scroller={scroller} enabled={coarse}>
                     <div
@@ -1284,37 +1239,6 @@ export function MessageList({
 
 function identityOf(email: { readonly id: string }): string {
     return email.id;
-}
-
-/**
- * Why a folder is showing nothing, which is five different sentences rather than one.
- *
- * A folder nothing has been taken into yet is the one a reader would otherwise read as empty and act on — so it is told
- * apart from a folder that genuinely holds nothing, from one whose account stopped synchronizing, and from a list the
- * reader has narrowed to nothing themselves.
- *
- * A list narrowed by what a derivation read is the fifth, and it is its own sentence because the reader cannot tell
- * the two apart from the mail: nothing here derives anything, so an empty answer is either mail carrying no such
- * reading or a deployment that has derived nothing over this folder at all — and a client that said only "nothing
- * matches" would leave somebody correcting a filter that was never the reason.
- */
-function emptyReason(accounts: readonly MailAccount[], scope: MailScope, listing: MailListing): MessageKey {
-    const named = accountInScope(scope);
-    const inScope = named === null ? accounts : accounts.filter((account) => account.id === named);
-
-    if (inScope.length > 0 && inScope.every((account) => account.synchronizationState === 'NeverSynchronized')) {
-        return 'list.notSynchronizedYet';
-    }
-
-    if (inScope.some((account) => needsAttention(account.synchronizationState))) {
-        return 'list.emptyWhileFailing';
-    }
-
-    if (narrowedByReading(listing.filters)) {
-        return 'list.nothingRead';
-    }
-
-    return narrowed(listing.filters) ? 'list.nothingMatches' : 'list.emptyFolder';
 }
 
 // A row standing where a page the list dropped used to be. It is drawn rather than left blank so that the space is

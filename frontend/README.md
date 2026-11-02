@@ -601,9 +601,15 @@ up. A conversation opens at the message somebody arrived at, else at what they h
 and that is decided once from what is held when it is first drawn so a page arriving later cannot close what somebody is
 reading. A conversation longer than one page is read on rather than cut off, and says which of the two it is.
 
-`src/threadList/` is the same mail read by conversation rather than by message, which the switch above the mailbox
-column chooses and the deployment remembers as `listMode`. It reads `/api/client/threads` for one account or for every
-account, and the column beside it offers the accounts rather than the folders, because a conversation spans folders.
+The same list read by conversation rather than by message, which the switch above the mailbox column chooses and the
+deployment remembers as `listMode`, is `MessageList` grouped: `src/messageList/ListedByConversation.tsx` reads
+`/api/client/emails?grouping=conversation` for one account or for every account, under the same filters and order,
+holds the same window of pages through `heldTimeline.ts`, and reads them again by the same rule —
+`src/messageList/timelinePages.ts` is the one effect both readings put a page on the wire with and the one listener
+both answer the deployment's signals with. So a refresh costs the same however far down somebody has scrolled, an AI
+filter pressed narrows the conversations as it narrows messages, and a conversation that moved to the top while a page
+further down still holds it is drawn once. `src/threadList/` keeps what is a conversation's own: its row, and the
+column beside the list, which offers the accounts rather than the folders because a conversation spans folders.
 Opening a row opens the conversation above with what arrived since it was last read unfolded and marked new.
 
 **No package windows either list, and that is a measurement rather than a preference.** Every row of the folder's list

@@ -4,12 +4,15 @@
 
 import {
     longestTimelinePage,
+    type MailAccount,
     type MailEnrichmentAspect,
     type MailTimelineOrder,
     type MailTimelinePageDirection,
     type MailTimelineQuery,
 } from '@mailfathom/client-backend';
-import { namedInScope, scopePointsAtJunk, type MailScope } from '../workspace/mailScope';
+import type { MessageKey } from '../localization/en';
+import { needsAttention } from '../synchronization/synchronizationState';
+import { accountInScope, namedInScope, scopePointsAtJunk, type MailScope } from '../workspace/mailScope';
 
 // What the reader has asked of one folder: which way round it is read, and what is kept out of it. It is the list's own
 // state rather than the workspace's, because it belongs to a folder rather than to the person — moving to another
@@ -307,4 +310,43 @@ function localMinute(at: Date): string {
     const padded = (value: number): string => String(value).padStart(2, '0');
 
     return `${String(at.getFullYear()).padStart(4, '0')}-${padded(at.getMonth() + 1)}-${padded(at.getDate())}T${padded(at.getHours())}:${padded(at.getMinutes())}`;
+}
+
+/**
+ * Why a folder is showing nothing, which is five different sentences rather than one.
+ *
+ * A folder nothing has been taken into yet is the one a reader would otherwise read as empty and act on — so it is told
+ * apart from a folder that genuinely holds nothing, from one whose account stopped synchronizing, and from a list the
+ * reader has narrowed to nothing themselves.
+ *
+ * A list narrowed by what a derivation read is the fifth, and it is its own sentence because the reader cannot tell
+ * the two apart from the mail: nothing here derives anything, so an empty answer is either mail carrying no such
+ * reading or a deployment that has derived nothing over this folder at all — and a client that said only "nothing
+ * matches" would leave somebody correcting a filter that was never the reason.
+ *
+ * @param unnarrowed What the list says where nothing explains its emptiness but there being nothing in it, which is a
+ * folder's sentence read by message and a conversation's read by conversation.
+ */
+export function emptyReason(
+    accounts: readonly MailAccount[],
+    scope: MailScope,
+    listing: MailListing,
+    unnarrowed: MessageKey,
+): MessageKey {
+    const named = accountInScope(scope);
+    const inScope = named === null ? accounts : accounts.filter((account) => account.id === named);
+
+    if (inScope.length > 0 && inScope.every((account) => account.synchronizationState === 'NeverSynchronized')) {
+        return 'list.notSynchronizedYet';
+    }
+
+    if (inScope.some((account) => needsAttention(account.synchronizationState))) {
+        return 'list.emptyWhileFailing';
+    }
+
+    if (narrowedByReading(listing.filters)) {
+        return 'list.nothingRead';
+    }
+
+    return narrowed(listing.filters) ? 'list.nothingMatches' : unnarrowed;
 }

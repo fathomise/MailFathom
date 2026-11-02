@@ -768,7 +768,7 @@ const billing = { address: 'billing@hosting.example', displayName: 'Hosting Bill
 
 type Correspondent = typeof reader;
 
-/** One conversation as the thread list publishes it, with what a test does not name left as an ordinary read one. */
+/** One conversation as the list grouped by conversation publishes it, with what a test does not name left as an ordinary read one. */
 function listedThread(threadId: string, said: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
     return {
         threadId,
@@ -803,12 +803,12 @@ function newestOf(
 }
 
 /**
- * The work account's conversations as the list read by conversation draws them: one row of each of its variants — a
- * title with where it stands, one whose standing is held back for a message that arrived since, a topic with nothing
- * left open ending in the reader's own reply, and one no derivation has named yet.
+ * The work account's conversations as the mail list grouped by conversation answers them: one row of each of its
+ * variants — a title with where it stands, one whose standing is held back for a message that arrived since, a topic
+ * with nothing left open ending in the reader's own reply, and one no derivation has named yet.
  */
 export const threadList = {
-    threads: [
+    conversations: [
         listedThread('00000000-0000-4000-8000-0000000000d1', {
             unreadCount: 2,
             hasAttachments: true,
@@ -876,5 +876,6 @@ export const threadList = {
         }),
     ],
     nextCursor: null,
+    previousCursor: null,
     pageSize: 25,
 };

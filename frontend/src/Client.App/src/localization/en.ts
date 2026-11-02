@@ -1246,6 +1246,7 @@ export const en = {
     'threadList.partiallyFailed': 'Some of the conversations could not be read: {reason}.',
     'threadList.empty': 'There is no conversation here yet.',
     'threadList.wholeListRead': 'That is every conversation.',
+    'threadList.rowArriving': 'Reading this conversation again…',
     'threadList.me': 'me',
     'threadList.you': 'You',
     'threadList.who': '{who}:',

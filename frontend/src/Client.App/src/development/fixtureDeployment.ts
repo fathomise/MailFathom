@@ -349,6 +349,10 @@ function answerFor(
     }
 
     if (route === '/emails') {
+        if (asked.get('grouping') === 'conversation') {
+            return answering(options.emptyCollections ? { ...mail.threadList, conversations: [] } : mail.threadList);
+        }
+
         if (options.emptyCollections) {
             return answering(mail.emptyFolderPage);
         }
@@ -360,10 +364,6 @@ function answerFor(
         const cursor = Number(asked.get('cursor') ?? '0');
 
         return answering(mail.timelinePage(asked.get('direction') === 'backward' ? cursor - mail.rowsPerPage : cursor));
-    }
-
-    if (route === '/threads') {
-        return answering(options.emptyCollections ? { ...mail.threadList, threads: [] } : mail.threadList);
     }
 
     if (route === '/citations/resolution') {
