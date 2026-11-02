@@ -48,13 +48,13 @@
     <NoWarn>$(NoWarn);IDE0290;IDE0079</NoWarn>
   </PropertyGroup>
 
-  <!-- scripts/verify-fast.sh builds with RunPipelineOnlyAnalyzers=false and leaves two rules to the full gate and CI,
+  <!-- scripts/verify-fast.sh builds with SkipPipelineOnlyAnalyzers=true and leaves two rules to the full gate and CI,
        which never set it: CA2000, two fifths of every analyzer second the solution spends, and IDE0055, whose
        whitespace the loop repairs before it builds. Appending the
        rules to NoWarn would leave their analyzers running, because .editorconfig names their severity for every C#
        file; the analyzer configuration file beside this one sits nearer the sources, outranks .editorconfig, and stops
        the analyzers altogether. -->
-  <ItemGroup Condition="'$(RunPipelineOnlyAnalyzers)' == 'false'">
+  <ItemGroup Condition="'$(SkipPipelineOnlyAnalyzers)' == 'true'">
     <EditorConfigFiles Include="$(MSBuildThisFileDirectory)without-pipeline-only-analyzers.editorconfig" />
   </ItemGroup>
 

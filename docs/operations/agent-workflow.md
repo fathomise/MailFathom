@@ -76,7 +76,7 @@ built in 238 seconds and recompiled all 28 projects after a commit, against 25
 seconds and two projects without one. The loop therefore builds with
 `-p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false`,
 and a commit recompiles what it reached and what depends on it. It also builds with
-`-p:RunPipelineOnlyAnalyzers=false`, which leaves out two rules: `CA2000` — 830 of the
+`-p:SkipPipelineOnlyAnalyzers=true`, which leaves out two rules: `CA2000` — 830 of the
 2 062 CPU seconds the analyzers spend on the solution, measured with
 `-p:ReportAnalyzer=true` — and `IDE0055`, whose whitespace the repair in front
 of the build has already made, and which in 371 fast-loop runs, 192 of them reaching

@@ -93,11 +93,11 @@ if change_reaches_client_stack "${touched_paths[@]}"; then
   run_client_stack='yes'
 fi
 
-# `--include` selects within the workspace `dotnet format` loaded, so this names the files the service
-# solution actually holds. Everything outside `frontend/` belongs to it, which is where a `.cs` file
-# above both stacks was already going, and `frontend/` holds no C# at all — it is React, TypeScript,
-# and the desktop shell's Rust crate, none of which this pass can open.
-mapfile -t changed_service_csharp_files < <(printf '%s\n' "$changed_paths" | grep -E '\.cs$' | grep -Ev '^frontend/' | sort --unique)
+# The whitespace repair below runs over `backend/` as a folder, which reads an `--include` path against
+# that folder rather than the working directory and repairs nothing at a path it cannot resolve, so
+# this keeps the C# under `backend/` and names it relative to there. No project builds a `.cs` file
+# outside `backend/`, so nothing the loop judges is left unrepaired.
+mapfile -t changed_backend_csharp_files < <(printf '%s\n' "$changed_paths" | grep -E '^backend/.*\.cs$' | sed 's|^backend/||' | sort --unique)
 
 # The full gate builds, tests, and verifies the formatting this loop repairs, in whichever stacks
 # this change reaches, so a green run of it over this content leaves nothing here to find. The
@@ -168,14 +168,10 @@ fi
 # than the rule has ever cost the loop, so the full gate and `CI` are what report it, together with a
 # diagnostic with no code fix — `IDE0060` the one that reaches this repository — and any change never
 # run through this loop, since they verify the whole formatting instead of repairing it.
-#
-# `--folder` reads an `--include` path against the folder it was given rather than the working
-# directory, and a path it cannot resolve repairs nothing and reports nothing, so the paths lose their
-# `backend/` prefix here.
 digest_before_repair="$(resolve_verification_digest)"
 
-if [[ -n "$run_service_stack" ]] && ((${#changed_service_csharp_files[@]} > 0)); then
-  dotnet format whitespace backend --folder --include "${changed_service_csharp_files[@]#backend/}"
+if [[ -n "$run_service_stack" ]] && ((${#changed_backend_csharp_files[@]} > 0)); then
+  dotnet format whitespace backend --folder --include "${changed_backend_csharp_files[@]}"
 fi
 
 # The cache Prettier keeps sits under `frontend/node_modules/`, never in the tree.
@@ -193,13 +189,13 @@ digest_after_repair="$(resolve_verification_digest)"
 # keep all three. The SDK stamps the HEAD commit into every assembly's informational version and
 # every project's Source Link file, so a new commit would recompile the whole solution and re-run
 # every analyzer whatever it touched; without the stamp a commit recompiles what it reached and what
-# depends on it. `RunPipelineOnlyAnalyzers=false` leaves out `CA2000`, two fifths of every analyzer
+# depends on it. `SkipPipelineOnlyAnalyzers=true` leaves out `CA2000`, two fifths of every analyzer
 # second the solution spends, and `IDE0055`, whose whitespace the repair above has already made;
 # `backend/Directory.Build.props` says how. Because the two gates build with different properties,
 # switching between them in one worktree rebuilds the solution once.
 if [[ -n "$run_service_stack" ]]; then
   dotnet build backend/MailFathom.slnx --configuration Release --no-restore \
-    -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:RunPipelineOnlyAnalyzers=false
+    -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true
 fi
 
 # The client's checks. The lint is the client's `TreatWarningsAsErrors`: every rule reports as an error

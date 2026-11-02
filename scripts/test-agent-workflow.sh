@@ -444,7 +444,7 @@ verify_fast_runs_restore_build_tests_and_formatting() {
   )
 
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:RunPipelineOnlyAnalyzers=false\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
     "$invocation_log"
 }
 
@@ -682,7 +682,7 @@ verify_fast_runs_the_client_flow_for_a_change_under_frontend() {
 
   remove_client_change
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:RunPipelineOnlyAnalyzers=false\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
     "$invocation_log"
   assert_file_content \
     $'--dir frontend install --frozen-lockfile\n--dir frontend exec prettier --write --cache --ignore-unknown src/Sample.txt\n--dir frontend exec eslint --max-warnings 0 --no-warn-ignored src/Sample.txt\n--dir frontend run typecheck\n--dir frontend exec vitest related --run --coverage.enabled=false src/Sample.txt' \
@@ -707,7 +707,7 @@ verify_fast_builds_every_stack_before_testing_either() {
 
   remove_client_change
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\n--dir frontend install --frozen-lockfile\nformat whitespace backend --folder --include src/Sample.cs\n--dir frontend exec prettier --write --cache --ignore-unknown src/Sample.txt\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:RunPipelineOnlyAnalyzers=false\n--dir frontend exec eslint --max-warnings 0 --no-warn-ignored src/Sample.txt\n--dir frontend run typecheck\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\n--dir frontend exec vitest related --run --coverage.enabled=false src/Sample.txt' \
+    $'restore backend/MailFathom.slnx --locked-mode\n--dir frontend install --frozen-lockfile\nformat whitespace backend --folder --include src/Sample.cs\n--dir frontend exec prettier --write --cache --ignore-unknown src/Sample.txt\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\n--dir frontend exec eslint --max-warnings 0 --no-warn-ignored src/Sample.txt\n--dir frontend run typecheck\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\n--dir frontend exec vitest related --run --coverage.enabled=false src/Sample.txt' \
     "$shared_invocation_log"
 }
 
@@ -807,7 +807,7 @@ the_fast_loop_alone_departs_from_the_full_service_build_and_format() {
   local failures=0 departure gate
 
   for departure in '-p:IncludeSourceRevisionInInformationalVersion=false' '-p:EnableSourceLink=false' \
-    '-p:RunPipelineOnlyAnalyzers=false' 'format whitespace backend --folder'; do
+    '-p:SkipPipelineOnlyAnalyzers=true' 'format whitespace backend --folder'; do
     grep -qF -e "$departure" "$source_repository_root/scripts/verify-fast.sh" || {
       printf 'scripts/verify-fast.sh no longer passes %s\n' "$departure" >&2
       failures=$((failures + 1))
@@ -819,7 +819,7 @@ the_fast_loop_alone_departs_from_the_full_service_build_and_format() {
     failures=$((failures + 1))
   fi
 
-  if grep -nE 'IncludeSourceRevisionInInformationalVersion|EnableSourceLink|RunPipelineOnlyAnalyzers|dotnet format whitespace' \
+  if grep -nE 'IncludeSourceRevisionInInformationalVersion|EnableSourceLink|SkipPipelineOnlyAnalyzers|dotnet format whitespace' \
     "$source_repository_root/scripts/verify-full.sh" "$source_repository_root"/.github/workflows/*.yml >&2; then
     printf 'The full gate or a workflow takes over one of the fast loop'\''s departures\n' >&2
     failures=$((failures + 1))
@@ -952,7 +952,7 @@ verify_fast_passes_over_a_workflow_when_it_decides_the_stacks() {
 
   discard_workflow_change
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:RunPipelineOnlyAnalyzers=false\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
     "$invocation_log"
   assert_file_content '' "$client_invocation_log"
 }
@@ -1699,7 +1699,7 @@ verify_fast_accepts_a_detached_head() {
   fi
 
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:RunPipelineOnlyAnalyzers=false\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
     "$invocation_log"
 }
 
@@ -1728,7 +1728,7 @@ verify_fast_skips_formatting_when_no_csharp_file_changed() {
   fi
 
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:RunPipelineOnlyAnalyzers=false\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
+    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
     "$invocation_log"
 }
 
@@ -1745,7 +1745,7 @@ verification_stops_after_first_failure() {
   fi
 
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:RunPipelineOnlyAnalyzers=false' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true' \
     "$invocation_log"
 }
 
