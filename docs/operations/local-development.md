@@ -94,7 +94,10 @@ the open pull requests with `gh`, so it needs read access to GitHub and nothing
 more; it reads at most 100 of them, its own `--limit`, and `gh` returns at most
 100 files of each, and it says so on stderr when a reply reaches either ceiling. Like the obligations report it never gates.
 
-The fast script restores the solution, builds it whole in Release configuration,
+The fast script restores the solution, builds it whole in Release configuration —
+without the commit stamp, Source Link, or `CA2000`, which the full script and `CI`
+keep, so a commit recompiles only what it reached and switching between the two
+scripts in one worktree rebuilds the solution once —
 runs without rebuilding the unit suites the change can have broken, and formats
 the C# files the branch changed — each against whichever of the two solutions
 holds it, which
@@ -125,12 +128,11 @@ apply, and the Release build passes over it despite the same `warning` severity,
 so only a verifying pass ever names it. What the repairing pass adds is what no
 build sees: the ordering of using directives and a missing final newline are
 `dotnet format`'s own passes rather than analyzer rules, and both have code
-fixes, so rewriting them is the whole answer.
-
-Restricting the pass to the changed files is what keeps the loop usable.
-`dotnet format` reloads the MSBuild workspace on every invocation at a cost that
-does not depend on scope, and the analysis after it does: the whole solution
-costs several times what a handful of files costs, on any machine.
+fixes, so rewriting them is the whole answer — which is all the pass asks for:
+`dotnet format whitespace --folder` over the changed files without loading the
+workspace, then `dotnet format style --diagnostics IDE0055` to order their using
+directives, and no other diagnostic.
+[Entry points](agent-workflow.md#entry-points) carries what each costs.
 
 The full script additionally restores repository tools, runs the workflow
 contract suite unless every path the branch touched is a C# file it added or

@@ -122,9 +122,18 @@ fi
 # regenerating the lock files fails restore with NU1004, and discovering that after the whole coverage
 # collection has already run wastes the loop this script exists to shorten. Regenerate with
 # `dotnet restore backend/MailFathom.slnx --force-evaluate` as part of the change that moves the pin.
+#
+# The build departs from the full gate's in three properties, and the full gate and `CI` keep all
+# three. The SDK stamps the HEAD commit into every assembly's informational version and every
+# project's Source Link file, so a new commit would recompile the whole solution and re-run every
+# analyzer whatever it touched; without the stamp a commit recompiles what it reached and what
+# depends on it. `AnalyzeDisposal=false` leaves out `CA2000`, which is two fifths of every analyzer
+# second the solution spends; `backend/Directory.Build.props` says how. Because the two gates build
+# with different properties, switching between them in one worktree rebuilds the solution once.
 if [[ -n "$run_service_stack" ]]; then
   dotnet restore backend/MailFathom.slnx --locked-mode
-  dotnet build backend/MailFathom.slnx --configuration Release --no-restore
+  dotnet build backend/MailFathom.slnx --configuration Release --no-restore \
+    -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:AnalyzeDisposal=false
 fi
 
 # The client's checks. `frontend/` is a pnpm workspace, so every step runs from that directory and
@@ -213,22 +222,23 @@ fi
 # while the ordering of using directives and a missing final newline are `dotnet format`'s own passes
 # and appear nowhere in a build.
 #
-# So a second `--verify-no-changes` pass here would restate the build's verdict at the cost of
-# another full workspace load. What it could still report is a diagnostic with no code fix, which
-# this pass could not act on either — `IDE0060` is the one that reaches this repository, and the
-# Release build passes over it despite `.editorconfig` setting it to `warning`. Naming a defect the
-# loop cannot repair belongs to the full gate and to `CI`, which verify instead of repairing, and
-# which is where a change that was never run through this loop is caught.
+# So the pass repairs exactly those two and asks nothing else. A plain `dotnet format` would run every
+# code-style and analyzer diagnostic over each project holding a changed file — minutes on a change
+# reaching several projects, to repair what the build had already judged. Instead `whitespace
+# --folder` repairs whitespace and the final newline from the files alone, without loading the
+# workspace, and `style --diagnostics IDE0055` loads it once to order the using directives, which no
+# build reports and no whitespace pass sorts. What either leaves unrepaired — a diagnostic with no code
+# fix, `IDE0060` the one that reaches this repository, or a change never run through this loop — is
+# the full gate's and `CI`'s to name, since they verify the whole formatting instead of repairing it.
 #
-# The loop formats only what the branch changed. `dotnet format` reloads the MSBuild workspace on
-# every invocation and analyzes whatever is in scope, so the whole solution costs several times what
-# a handful of files costs. Splitting the run into the `whitespace`, `style`, and `analyzers`
-# subcommands does not help: it pays that workspace load three times. The workspace load is a
-# design-time evaluation rather than a build, and `dotnet format` has no switch to skip it.
+# `--folder` reads an `--include` path against the folder it was given rather than the working
+# directory, and a path it cannot resolve repairs nothing and reports nothing, so the paths lose their
+# `backend/` prefix there and keep it for the solution.
 digest_before_formatting="$(resolve_verification_digest)"
 
 if [[ -n "$run_service_stack" ]] && ((${#changed_service_csharp_files[@]} > 0)); then
-  dotnet format backend/MailFathom.slnx --no-restore --include "${changed_service_csharp_files[@]}"
+  dotnet format whitespace backend --folder --include "${changed_service_csharp_files[@]#backend/}"
+  dotnet format style backend/MailFathom.slnx --no-restore --diagnostics IDE0055 --include "${changed_service_csharp_files[@]}"
 fi
 
 # The cache Prettier keeps sits under `frontend/node_modules/`, never in the tree.

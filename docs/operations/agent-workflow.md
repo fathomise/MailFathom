@@ -37,9 +37,10 @@ have broken, `--no-build` against the binaries that first phase produced, so
 nothing is built twice. Last the repairing formatting passes: `dotnet format`
 over the C# files the branch changed — everything committed since `origin/main`,
 staged, modified, or newly added — and Prettier over the client files it changed. It is
-the only workflow script that rewrites source files. Each C# file is formatted
-against `backend/MailFathom.slnx`, which is the solution that holds it, and that
-pass is skipped where the branch touched no C#. A rewrite that reaches the end of
+the only workflow script that rewrites source files. The C# files go through two
+passes, `dotnet format whitespace backend --folder` and then
+`dotnet format style backend/MailFathom.slnx --diagnostics IDE0055`, and both are
+skipped where the branch touched no C#. A rewrite that reaches the end of
 a passing run is the formatters' own repair, so the run records the tree they
 left rather than the one it built: the rewrite is staged and committed with the
 change, and the gate is not run a second time to say what it already said —
@@ -60,6 +61,28 @@ the suite is where the cost is. Narrowing the build instead would buy the second
 and give up the analyzer verdict `EnforceCodeStyleInBuild` and
 `TreatWarningsAsErrors` produce over every project, which is the half of that step
 answering for the files the change did not open.
+
+That eight seconds holds only because the loop's build is not stamped. The SDK
+writes the HEAD commit into every assembly's informational version and every
+project's Source Link file, so under the full gate's properties a new commit
+changes an input of every project: one edited documentation comment in `Domain`
+built in 238 seconds and recompiled all 28 projects after a commit, against 25
+seconds and two projects without one. The loop therefore builds with
+`-p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false`,
+and a commit recompiles what it reached and what depends on it. It also builds with
+`-p:AnalyzeDisposal=false`, which leaves out `CA2000` — 830 of the 2 062 CPU seconds
+the analyzers spend on the solution, measured with `-p:ReportAnalyzer=true`.
+`backend/Directory.Build.props` reads the property and adds
+`backend/without-disposal-analysis.editorconfig` to the analyzer configuration: the
+rule's severity is named in `.editorconfig` for every C# file, which a `NoWarn`
+entry does not outrank and under which the analyzer keeps running, while a
+configuration file nearer the sources outranks it and stops the analyzer. The full
+gate and `CI` set none of the three, so a build carrying a commit, Source Link, and a
+`CA2000` violation is still what they verify, and
+`the_fast_loop_alone_departs_from_the_full_service_build_and_format` fails a change
+that hands one of the departures to either. Because the two gates build with
+different properties, switching between them in one worktree rebuilds the solution
+once.
 
 Which suites run is
 [`scripts/resolve-changed-unit-suites.sh`](https://github.com/fathomise/MailFathom/blob/main/scripts/resolve-changed-unit-suites.sh)'s
@@ -137,20 +160,32 @@ to a build: the ordering of using directives and a missing final newline are
 either. They also have code fixes, which is why repairing them is the whole
 answer and verifying them again afterwards adds nothing.
 
+So the pass asks for those two and nothing else. A plain `dotnet format` runs about
+twenty-five code-style and three hundred and fifty analyzer diagnostics over every
+project holding a changed file — 51 seconds for one file and 203 for eleven files in
+seven projects on the owner's machine, repairing nothing the build had not already
+judged. `dotnet format whitespace backend --folder` repairs whitespace and the final
+newline from the files alone, in about three seconds, without loading the
+workspace; it reads an `--include` path against the folder rather than the working
+directory and silently repairs nothing for a path it cannot resolve, which is why
+the loop hands it the paths without their `backend/` prefix. It does not sort using
+directives, so `dotnet format style backend/MailFathom.slnx --diagnostics IDE0055`
+follows it, loading the workspace once to order them — about 41 seconds for one file.
+The `--folder` pass parses without the projects' language version; over the whole of
+`backend/` on the tree this was measured against it rewrites nothing the full
+verifying pass accepts.
+
 Nobody runs `dotnet format` by hand. Both of its modes already run where they
 belong, so a hand-run pass either repeats a full workspace load to reproduce
 what the build named, or, over the whole solution, costs several times that and
 can rewrite files the change never touched. Fix what the build named and run the
 loop again.
 
-Scoping is what makes the pass affordable at all. Each invocation reloads the
-MSBuild workspace, which costs the same regardless of scope, and the analysis
+Scoping is what makes the verifying pass affordable at all. Each invocation reloads
+the MSBuild workspace, which costs the same regardless of scope, and the analysis
 that follows scales with the files in it: the whole solution costs several times
 what a handful of files does, and the ratio is what the two gates are built
-around rather than any particular number, which follows the machine. Splitting
-the run into the `whitespace`, `style`, and `analyzers` subcommands is slower
-still, because it pays the workspace load three times for work one invocation
-already does.
+around rather than any particular number, which follows the machine.
 
 Ask what the change obliges elsewhere while reviewing it:
 
@@ -505,9 +540,12 @@ Four things bound what a record claims.
   Both run the flow of whichever stacks the change reaches, and the full gate's is
   the loop's plus coverage and the verifying formatting pass; passing the loop says
   nothing about coverage or the contract suite. The one step the loop does settle
-  for the full gate is the scoped formatting pass over the service solution — the
-  same tool over the same file set, and a record names the tree the repairing pass
-  left, which leaves `--verify-no-changes` one possible answer.
+  for the full gate is the scoped formatting pass over the service solution. The
+  repairing pass covers the same file set, and a record names the tree it left, so
+  what `--verify-no-changes` could still report there is either a diagnostic the full
+  gate's own build fails on — that build runs every analyzer the loop's leaves out —
+  or whitespace, a final newline, or using order, which the repairing pass
+  repaired.
   Neither whole-solution pass is settled that way — the client's, and the service's
   where a shared style input triggered it — because the loop never formatted that
   scope.
