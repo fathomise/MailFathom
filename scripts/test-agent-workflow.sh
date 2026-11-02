@@ -742,7 +742,11 @@ verify_fast_checks_the_whole_client_workspace_when_a_shared_client_input_changed
 
   add_client_change
 
-  for shared_client_input in frontend/package.json frontend/src/Client.App/tsconfig.json Version.props; do
+  for shared_client_input in \
+    frontend/package.json frontend/src/Client.App/tsconfig.json frontend/.npmrc frontend/.prettierrc \
+    frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml frontend/eslint.config.ts frontend/vitest.config.ts \
+    frontend/.prettierignore frontend/src/Client.App/vite.config.ts frontend/src/Client.App/vitest.setup.ts \
+    Version.props; do
     : > "$client_invocation_log"
     mkdir -p "$(dirname "$repository_root/$shared_client_input")"
     printf '{}\n' > "$repository_root/$shared_client_input"
