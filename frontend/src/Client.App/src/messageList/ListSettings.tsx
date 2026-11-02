@@ -117,8 +117,11 @@ export function ListSettings({
      * Its own call rather than a field of the listing above, because the listing is what a cursor was issued under:
      * this changes neither the order nor a filter, so a reader who turns the sentences off keeps the row they were on
      * instead of being returned to the top of the folder.
+     *
+     * `null` where the rows never say it, which is the list read by conversation: a conversation's row draws its title
+     * instead, so there is nothing for the switch to turn on or off and it is not offered.
      */
-    readonly onDrawReadings: (shown: boolean) => void;
+    readonly onDrawReadings: ((shown: boolean) => void) | null;
 }) {
     const { translate } = useLocalization();
 
@@ -286,16 +289,18 @@ export function ListSettings({
                         says about the mail that is, so counting it among the narrowings in force would tell somebody
                         their folder was being kept from them. A switch rather than a filter chip for the same reason,
                         and it reads no page — the folder stays where it is and the rows stop saying it. */}
-                        <div className="flex flex-col gap-1.25 border-t border-line-soft pt-2">
-                            <p className={sectionLabel}>{translate('list.readings')}</p>
+                        {onDrawReadings === null ? null : (
+                            <div className="flex flex-col gap-1.25 border-t border-line-soft pt-2">
+                                <p className={sectionLabel}>{translate('list.readings')}</p>
 
-                            <label className="flex cursor-pointer items-center gap-2 text-sm text-text-soft">
-                                <Switch on={readingsShown} onChange={onDrawReadings} />
-                                {translate('list.showReadings')}
-                            </label>
+                                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-soft">
+                                    <Switch on={readingsShown} onChange={onDrawReadings} />
+                                    {translate('list.showReadings')}
+                                </label>
 
-                            <p className="text-sm text-faint text-pretty">{translate('list.readingsExplained')}</p>
-                        </div>
+                                <p className="text-sm text-faint text-pretty">{translate('list.readingsExplained')}</p>
+                            </div>
+                        )}
 
                         {/* Radio buttons rather than pressable chips, for the reason `shell/Preferences.tsx` gives about the
                     theme: the platform announces them as one group, moves between them with the arrow keys, and leaves

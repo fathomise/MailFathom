@@ -538,15 +538,11 @@ export {
     type MailThreadParticipant,
 } from './mailThread';
 export {
-    mailThreadListRoute,
-    readMailThreadList,
-    threadListPageSize,
     type ListedMailThread,
     type ListedThreadNewest,
     type ListedThreadParticipant,
     type ListedThreadTitle,
-    type MailThreadListPage,
-} from './mailThreadList';
+} from './listedMailThread';
 export {
     mailThreadStateRoute,
     readMailThreadState,
@@ -557,10 +553,13 @@ export {
     type MailThreadStateSource,
 } from './mailThreadState';
 export {
+    conversationPageSize,
     longestTimelinePage,
     mailTimelineRoute,
+    readMailConversations,
     readMailTimeline,
     timelineQueryString,
+    type MailConversationPage,
     type MailTimelineEntry,
     type MailTimelineOrder,
     type MailTimelinePage,

@@ -2,24 +2,17 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
 import { asRecord } from './json';
 import { parsePersonPhoto, type PersonPhotoReference } from './personPhotos';
 import { parseListedSender, type MailListedSender } from './senderFacts';
-import { headersFor, routeFor, type ClientSession } from './session';
-import { spanned } from './telemetry';
-import { send, type MailFathomTransport } from './transport';
 
-// The user's conversations, one row each, which is the list a screen draws when the person reads by conversation
-// rather than by message. It names no folder at all: a conversation gathers its messages from every folder the user may
-// read, so what narrows it is an account and nothing else.
+// One conversation as a row, which is what the mail list answers with when it is grouped by conversation rather than
+// read by message — `mailTimeline.ts` reads the page. A conversation gathers its messages from every folder the user
+// may read, so the row names no folder at all.
 //
 // A row is not a mail list row with a count added. It quotes the conversation's newest message, names who wrote in it,
 // and carries what a derivation called the whole of it — so it has a shape and a parser of its own, built from the same
 // pieces a mail list row is built from where the two genuinely carry the same fact: the sender facts and the photo.
-
-/** The route the conversation list is served at, relative to the client prefix. */
-export const mailThreadListRoute = '/threads';
 
 /** Somebody who has written in a conversation, and whether that is the user. */
 export interface ListedThreadParticipant {
@@ -99,25 +92,7 @@ export interface ListedMailThread {
     readonly title: ListedThreadTitle | null;
 }
 
-/** One page of the conversation list. */
-export interface MailThreadListPage {
-    readonly threads: readonly ListedMailThread[];
-
-    /** The cursor the following page is asked with, or `null` at the end of the list. */
-    readonly nextCursor: string | null;
-
-    readonly pageSize: number;
-}
-
-/** How many conversations one page is asked for, which is the deployment's own default. */
-export const threadListPageSize = 25;
-
-// A page is twenty-five rows, each quoting one preview and naming at most eight authors, so this sits well above anything
-// the deployment composes and well below the transport's own backstop.
-const longestThreadListAnswer = 256 * 1024;
-
 const longestIdentity = 256;
-const longestCursor = 4_096;
 const longestText = 4_096;
 
 // The deployment names at most eight authors per row. This is above that and bounds the walk rather than trusting the
@@ -125,85 +100,15 @@ const longestText = 4_096;
 const mostParticipants = 16;
 
 /**
- * Reads one page of the user's conversations, newest first, answering an expected failure as a value.
+ * Reads one conversation row, or `null` for a row with anything wrong in it.
  *
- * @param account The account to list, by its identifier, or `null` for every account the user is assigned.
- * @param cursor The cursor the previous page answered with, or `null` for the newest conversations.
+ * Exported inside this package rather than published, because the row is what the mail list grouped by conversation
+ * answers with, and the bounds a row is held to belong beside its shape rather than to the route that asked for it.
+ *
+ * @param value The row as the deployment sent it.
+ * @returns The row, or `null` where it is not one.
  */
-export function readMailThreadList(
-    session: ClientSession,
-    transport: MailFathomTransport,
-    account: string | null,
-    cursor: string | null,
-): Promise<ClientResult<MailThreadListPage>> {
-    return spanned(`GET ${mailThreadListRoute}`, async () => {
-        const asked = [`pageSize=${String(threadListPageSize)}`];
-
-        if (account !== null) {
-            asked.push(`account=${encodeURIComponent(account)}`);
-        }
-
-        if (cursor !== null) {
-            asked.push(`cursor=${encodeURIComponent(cursor)}`);
-        }
-
-        const response = await send(transport, {
-            method: 'GET',
-            path: `${routeFor(session, mailThreadListRoute)}?${asked.join('&')}`,
-            headers: headersFor(session),
-            longestAnswer: longestThreadListAnswer,
-        });
-
-        if (response === null) {
-            return failed('unavailable', null);
-        }
-
-        if (response.status !== 200) {
-            return failed(failureReasonForStatus(response.status), response.status);
-        }
-
-        const page = parsePage(response.body);
-
-        return page === null ? failed('unreadable', response.status) : read(page);
-    });
-}
-
-function parsePage(body: string): MailThreadListPage | null {
-    let parsed: unknown;
-
-    try {
-        parsed = JSON.parse(body);
-    } catch {
-        return null;
-    }
-
-    const record = asRecord(parsed);
-    if (record === null) {
-        return null;
-    }
-
-    const rows = record['threads'];
-    const nextCursor = record['nextCursor'] ?? null;
-    const pageSize = record['pageSize'];
-
-    if (!Array.isArray(rows) || rows.length > threadListPageSize || !isCursor(nextCursor) || !isCount(pageSize)) {
-        return null;
-    }
-
-    const threads: ListedMailThread[] = [];
-    for (const row of rows) {
-        const thread = parseThread(row);
-        if (thread === null) {
-            return null;
-        }
-
-        threads.push(thread);
-    }
-
-    return { threads, nextCursor, pageSize };
-}
-
-function parseThread(value: unknown): ListedMailThread | null {
+export function parseListedThread(value: unknown): ListedMailThread | null {
     const record = asRecord(value);
     if (record === null) {
         return null;
@@ -347,8 +252,4 @@ function isOptionalText(value: unknown): value is string | null {
 
 function isCount(value: unknown): value is number {
     return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
-}
-
-function isCursor(value: unknown): value is string | null {
-    return value === null || (typeof value === 'string' && value.length > 0 && value.length <= longestCursor);
 }

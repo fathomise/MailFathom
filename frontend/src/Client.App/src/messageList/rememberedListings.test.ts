@@ -63,6 +63,15 @@ describe('rememberListing', () => {
         expect(rememberedListing(deployment, everything)).toStrictEqual(neverOpenedListing);
     });
 
+    it('keeps an account read by conversation apart from the same account read by message', () => {
+        const account: MailScope = { kind: 'account', accountId: 'work' };
+
+        rememberListing(deployment, account, kept, 'threads');
+
+        expect(rememberedListing(deployment, account)).toStrictEqual(neverOpenedListing);
+        expect(rememberedListing(deployment, account, 'threads')).toStrictEqual(kept);
+    });
+
     it('drops the folder read longest ago once it is holding as many as it keeps', () => {
         for (let at = 0; at < 65; at += 1) {
             rememberListing(deployment, { kind: 'account', accountId: `account-${String(at)}` }, kept);

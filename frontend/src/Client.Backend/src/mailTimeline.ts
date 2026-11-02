@@ -4,6 +4,7 @@
 
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
 import { asRecord } from './json';
+import { parseListedThread, type ListedMailThread } from './listedMailThread';
 import { parseEnrichment, type MailEnrichment, type MailEnrichmentAspect } from './mailEnrichment';
 import { parseSpamVerdict, type MailSpamVerdict } from './mailSpam';
 import { parsePersonPhoto, type PersonPhotoReference } from './personPhotos';
@@ -188,6 +189,27 @@ export interface MailTimelinePage {
     readonly pageSize: number;
 }
 
+/** One page of the list grouped by conversation, and the two cursors the pages either side of it are asked with. */
+export interface MailConversationPage {
+    readonly conversations: readonly ListedMailThread[];
+
+    /** The cursor the following page is asked with, or `null` at the end of the list. */
+    readonly nextCursor: string | null;
+
+    /** The cursor the preceding page is asked with, or `null` at the beginning of the list. */
+    readonly previousCursor: string | null;
+
+    readonly pageSize: number;
+}
+
+/**
+ * How many conversations one page is asked for, which is the deployment's own default.
+ *
+ * A quarter of a page read by message, because a conversation row names up to eight of its authors beside the quoted
+ * message, and a page of them stays within the answer this client reads.
+ */
+export const conversationPageSize = 25;
+
 /**
  * The largest page this surface serves, which is the deployment's bound rather than a preference.
  *
@@ -215,15 +237,84 @@ const mostRecipients = 256;
  * @param query Which list is being read, and where in it.
  * @returns The page, or why it never arrived.
  */
-export function readMailTimeline(
+export async function readMailTimeline(
     session: ClientSession,
     transport: MailFathomTransport,
     query: MailTimelineQuery,
 ): Promise<ClientResult<MailTimelinePage>> {
+    const result = await readPage(
+        session,
+        transport,
+        timelineQueryString(query),
+        query.pageSize,
+        'emails',
+        parseTimelineEntry,
+    );
+
+    if (result.outcome === 'failed') {
+        return result;
+    }
+
+    const { rows, ...cursors } = result.value;
+
+    return read({ emails: rows, ...cursors });
+}
+
+/**
+ * Reads one page of the same list grouped by conversation: one row per conversation, standing where its newest message
+ * that passed the filters does, and cut and continued by the same two cursors.
+ *
+ * The query names no folder and asks for no junk, because a conversation gathers its messages from every folder: the
+ * deployment refuses either beside the grouping rather than answering with it dropped.
+ *
+ * @param session The address to reach and the finished header value to present.
+ * @param transport How the request goes out.
+ * @param query Which list is being read, and where in it — a cursor issued for the list read by message is refused.
+ * @returns The page, or why it never arrived.
+ */
+export async function readMailConversations(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    query: MailTimelineQuery,
+): Promise<ClientResult<MailConversationPage>> {
+    const result = await readPage(
+        session,
+        transport,
+        `${timelineQueryString(query)}&grouping=conversation`,
+        query.pageSize,
+        'conversations',
+        parseListedThread,
+    );
+
+    if (result.outcome === 'failed') {
+        return result;
+    }
+
+    const { rows, ...cursors } = result.value;
+
+    return read({ conversations: rows, ...cursors });
+}
+
+/** One page as the wire carries it, whichever reading of the list its rows are. */
+interface ReadPage<Row> {
+    readonly rows: readonly Row[];
+    readonly nextCursor: string | null;
+    readonly previousCursor: string | null;
+    readonly pageSize: number;
+}
+
+function readPage<Row>(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    queryString: string,
+    asked: number,
+    listedAs: 'emails' | 'conversations',
+    parseRow: (row: unknown) => Row | null,
+): Promise<ClientResult<ReadPage<Row>>> {
     return spanned(`GET ${mailTimelineRoute}`, async () => {
         const response = await send(transport, {
             method: 'GET',
-            path: routeFor(session, mailTimelineRoute) + timelineQueryString(query),
+            path: routeFor(session, mailTimelineRoute) + queryString,
             headers: headersFor(session),
             longestAnswer: longestTimelineAnswer,
         });
@@ -236,7 +327,7 @@ export function readMailTimeline(
             return failed(failureReasonForStatus(response.status), response.status);
         }
 
-        const page = parsePage(response.body, query.pageSize);
+        const page = parsePage(response.body, asked, listedAs, parseRow);
 
         return page === null ? failed('unreadable', response.status) : read(page);
     });
@@ -295,7 +386,12 @@ export function timelineQueryString(query: MailTimelineQuery): string {
 // The page is held against what was asked for as well as against its own shape: a deployment answering with more rows
 // than the request admits is one this client refuses to render rather than one it draws, which is the bound the root
 // instructions place at every remote boundary.
-function parsePage(body: string, asked: number): MailTimelinePage | null {
+function parsePage<Row>(
+    body: string,
+    asked: number,
+    listedAs: 'emails' | 'conversations',
+    parseRow: (row: unknown) => Row | null,
+): ReadPage<Row> | null {
     let parsed: unknown;
 
     try {
@@ -309,12 +405,12 @@ function parsePage(body: string, asked: number): MailTimelinePage | null {
         return null;
     }
 
-    const rows = record['emails'];
+    const listed = record[listedAs];
     const pageSize = record['pageSize'];
     const nextCursor = record['nextCursor'] ?? null;
     const previousCursor = record['previousCursor'] ?? null;
 
-    if (!Array.isArray(rows) || rows.length > asked) {
+    if (!Array.isArray(listed) || listed.length > asked) {
         return null;
     }
 
@@ -326,17 +422,17 @@ function parsePage(body: string, asked: number): MailTimelinePage | null {
         return null;
     }
 
-    const emails: MailTimelineEntry[] = [];
-    for (const row of rows) {
-        const entry = parseTimelineEntry(row);
-        if (entry === null) {
+    const rows: Row[] = [];
+    for (const row of listed) {
+        const parsedRow = parseRow(row);
+        if (parsedRow === null) {
             return null;
         }
 
-        emails.push(entry);
+        rows.push(parsedRow);
     }
 
-    return { emails, nextCursor, previousCursor, pageSize };
+    return { rows, nextCursor, previousCursor, pageSize };
 }
 
 /**

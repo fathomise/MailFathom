@@ -6,7 +6,17 @@ import { expect, type Page } from '@playwright/test';
 
 import { workAccount } from './fixtures/deployment';
 import { markupOnlySubject, newsletterSubject } from './fixtures/messages';
-import { bodiesOf, folder, holdTheClock, notice, openSignedIn, row, tabletWindow, test } from './client.harness';
+import {
+    bodiesOf,
+    folder,
+    holdTheClock,
+    nothingStandsOverTheScreen,
+    notice,
+    openSignedIn,
+    row,
+    tabletWindow,
+    test,
+} from './client.harness';
 
 // The folder acts driven from the tree, each held against what reads the mailbox's folders afterwards: the tree, the
 // folders a message can be filed into, a reload, and — for a deletion — a search that used to find the mail filed
@@ -134,6 +144,7 @@ test('makes a folder inside another, renames it, and moves it under a third, and
 
         await expect(filing.getByRole('button', { name: filedAs, exact: true })).toBeVisible();
         await filing.getByRole('button', { name: 'Close' }).click();
+        await nothingStandsOverTheScreen(page);
     };
 
     const editing = async (name: string) => {

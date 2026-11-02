@@ -710,17 +710,19 @@ export class FakeDeployment {
                 return this.folderRevised(request.body, 'Moved');
             case 'POST /managed-folders/deletions':
                 return this.folderDeleted(request.body);
-            case 'GET /emails':
-                return answering(this.folderPage(request.query));
-            // Narrowed by the account asked for, as the route narrows it: every corpus conversation is the work
-            // account's, so the other accounts read as holding none.
-            case 'GET /threads': {
+            // Grouped by conversation, the list is narrowed by the account asked for, as the route narrows it: every
+            // corpus conversation is the work account's, so the other accounts read as holding none.
+            case 'GET /emails': {
+                if (request.query.get('grouping') !== 'conversation') {
+                    return answering(this.folderPage(request.query));
+                }
+
                 const account = request.query.get('account');
 
                 return answering({
                     ...mail.threadList,
-                    threads: mail.threadList.threads.filter(
-                        (thread) => account === null || thread['account'] === account,
+                    conversations: mail.threadList.conversations.filter(
+                        (conversation) => account === null || conversation['account'] === account,
                     ),
                 });
             }

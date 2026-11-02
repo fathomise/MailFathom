@@ -52,11 +52,15 @@ test('lists the conversations of the account picked, and of every account again'
 
     await accounts.getByRole('button', { name: 'Club' }).click();
 
-    await expect(page.getByText('There is no conversation here yet.')).toBeVisible();
-    expect(deployment.requests('GET', '/threads').at(-1)?.query.get('account')).toBe(failingAccount.id);
+    await expect(
+        page.getByText('This mailbox stopped synchronizing, so what is here may be less than the mail server holds.'),
+    ).toBeVisible();
+    expect(deployment.requests('GET', '/emails').at(-1)?.query.get('account')).toBe(failingAccount.id);
+    expect(deployment.requests('GET', '/emails').at(-1)?.query.get('grouping')).toBe('conversation');
 
     await accounts.getByRole('button', { name: 'All accounts' }).click();
 
     await expect(page.getByRole('list', { name: 'Threads' }).getByRole('listitem')).toHaveCount(4);
-    expect(deployment.requests('GET', '/threads').at(-1)?.query.get('account')).toBeNull();
+    expect(deployment.requests('GET', '/emails').at(-1)?.query.get('account')).toBeNull();
+    expect(deployment.requests('GET', '/threads')).toHaveLength(0);
 });

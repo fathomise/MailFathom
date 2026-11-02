@@ -70,7 +70,6 @@ import { MailboxActsProvider } from './mailboxActs/MailboxActs';
 import { ListedMailProvider } from './messageList/ListedMail';
 import { MessageList } from './messageList/MessageList';
 import { ThreadAccounts } from './threadList/ThreadAccounts';
-import { ThreadList } from './threadList/ThreadList';
 import { threadListAccountIn } from './threadList/threadRows';
 import { forgetListings } from './messageList/rememberedListings';
 import { NotificationBell } from './notifications/NotificationBell';
@@ -1587,7 +1586,7 @@ export function App({
                                                                                                                             : null
                                                                                                                     }
                                                                                                                 >
-                                                                                                                    <ThreadList
+                                                                                                                    <MessageList
                                                                                                                         key={
                                                                                                                             threadListAccountIn(
                                                                                                                                 mailAccounts,
@@ -1595,33 +1594,28 @@ export function App({
                                                                                                                             ) ??
                                                                                                                             ''
                                                                                                                         }
+                                                                                                                        listMode="threads"
                                                                                                                         session={
                                                                                                                             session
                                                                                                                         }
                                                                                                                         transport={
                                                                                                                             readMail
                                                                                                                         }
-                                                                                                                        account={threadListAccountIn(
-                                                                                                                            mailAccounts,
-                                                                                                                            workspace.threadListAccount,
+                                                                                                                        scope={scopeOfAccount(
+                                                                                                                            threadListAccountIn(
+                                                                                                                                mailAccounts,
+                                                                                                                                workspace.threadListAccount,
+                                                                                                                            ),
                                                                                                                         )}
+                                                                                                                        accounts={
+                                                                                                                            mailAccounts
+                                                                                                                        }
                                                                                                                         online={
                                                                                                                             connection.online
                                                                                                                         }
-                                                                                                                        onOpen={(
-                                                                                                                            thread,
-                                                                                                                        ) => {
-                                                                                                                            openTabs.openMail(
-                                                                                                                                thread
-                                                                                                                                    .newest
-                                                                                                                                    .id,
-                                                                                                                                thread
-                                                                                                                                    .newest
-                                                                                                                                    .subject,
-                                                                                                                                thread.threadId,
-                                                                                                                                true,
-                                                                                                                            );
-                                                                                                                        }}
+                                                                                                                        onOpen={
+                                                                                                                            openTabs.openMail
+                                                                                                                        }
                                                                                                                     />
                                                                                                                 </MailSearch>
                                                                                                             ) : (
