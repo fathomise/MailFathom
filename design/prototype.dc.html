@@ -3880,7 +3880,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div data-press="button" onClick="{{ certPickFile }}" style="{{ sQuiet }}" style-hover="{{ sRowHover }}"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">upload_file</span>Choose a file</div>
                 <sc-if value="{{ certHasFile }}" hint-placeholder-val="{{ false }}">
                   <div style="display:flex;flex-direction:column;gap:6px">
-                    <div style="font-size:14px">Password</div>
+                    <div style="font-size:14px">{{ certPassLabel }}</div>
                     <input type="password" value="{{ certPass }}" onInput="{{ onCertPass }}" maxLength="1024" autocomplete="off" style="{{ sField }}" style-focus="border-color:var(--accent)" />
                     <div style="{{ sHint }}">{{ certPassHint }}</div>
                   </div>

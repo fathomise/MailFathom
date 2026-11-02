@@ -433,7 +433,9 @@ MailFathomDesign.settingsPanel = (self, env) => {
   /* ---------- Certificates ---------- */
   /* Each account keeps its own store, and chooses from it for signing and for encryption, the same one or two
      different ones. Adding or removing one is written at once, like a folder, not with Save account. */
-  const SAMPLE_FILES = [{ file: "kowalska-2028.p12", kind: "smime", size: "6 KB" }, { file: "kowalska-work.asc", kind: "pgp", size: "4 KB" }];
+  /* A file may be locked with a password or a passphrase, or not. Only the service can tell, by opening it, so the
+     password is never required up front: a locked file sent without one, or with the wrong one, comes back refused. */
+  const SAMPLE_FILES = [{ file: "kowalska-2028.p12", kind: "smime", size: "6 KB", locked: true, secret: "nordwind" }, { file: "kowalska-work.asc", kind: "pgp", size: "4 KB", locked: false }];
   const cd = st.certDraft || null;
   const usageOf = (id) => {
     const sd = decl ? decl.sending : { signWith: null, encryptWith: null };
@@ -443,7 +445,6 @@ MailFathomDesign.settingsPanel = (self, env) => {
   };
   const certProblem = !cd ? "" :
     !cd.file ? "Choose the file first." :
-    cd.kind === "smime" && !cd.pass ? "A .p12 file is locked with a password - type it, so MailFathom can open it." :
     (cd.pass || "").length > 1024 ? "A password is 1024 characters at most." : "";
   const CERT_OUT = {
     saved: "Added. Choose it under Sending, above, to sign or encrypt with it.",
@@ -451,6 +452,8 @@ MailFathomDesign.settingsPanel = (self, env) => {
     notStored: "That certificate was not saved to the server, so this account does not have it.",
     unanswered: "The server did not answer, so it is not known whether that certificate was saved.",
     moved: "That certificate was not saved to the server, so this account does not have it.",
+    locked: "That file is locked with a password. Type it above, then add it again.",
+    wrongPassword: "That password does not open the file. Check it, then add it again.",
   };
   const answerCert = (apply, after) => {
     const outcome = writes;
@@ -905,17 +908,20 @@ MailFathomDesign.settingsPanel = (self, env) => {
     certPickFile: () => {
       const n = ((st.certPicks || 0) % SAMPLE_FILES.length);
       const f = SAMPLE_FILES[n];
-      set({ certDraft: Object.assign({}, cd, { file: f.file, kind: f.kind, size: f.size }), certPicks: (st.certPicks || 0) + 1, certOut: null });
+      set({ certDraft: Object.assign({}, cd, { file: f.file, kind: f.kind, size: f.size, locked: f.locked, secret: f.secret }), certPicks: (st.certPicks || 0) + 1, certOut: null });
     },
     certPass: cd ? cd.pass : "",
     onCertPass: (e) => set({ certDraft: Object.assign({}, cd, { pass: e.target.value }), certOut: null }),
-    certPassHint: cd && cd.kind === "pgp" ? "Only if the key is locked with a passphrase." : "The password the .p12 or .pfx file was exported with.",
+    certPassLabel: cd && cd.kind === "pgp" ? "Passphrase, if the key has one" : "Password, if the file has one",
+    certPassHint: cd && cd.kind === "pgp" ? "Leave it empty for a key with no passphrase." : "The password the .p12 or .pfx file was exported with. Leave it empty for a file with none.",
     certProblem,
     certSaveStyle: primary(!!cd && !certProblem),
     certSaveOff: !cd || !!certProblem,
     certSaveTip: certProblem || undefined,
     certSave: () => {
       if (!cd || certProblem) return;
+      if (cd.locked && !cd.pass) { set({ certOut: "locked" }); return; }
+      if (cd.locked && cd.pass !== cd.secret) { set({ certOut: "wrongPassword" }); return; }
       const id = "cert-" + Date.now();
       const kind = cd.kind;
       const c = kind === "smime"
