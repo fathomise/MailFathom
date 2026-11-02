@@ -397,7 +397,7 @@ contact's and the verdict's identifiers do, and no address or domain does.
 ### A contact that changes, and mail already stored
 
 **A message stores what configuration and the organization signature answered, and its contacts are found when it is
-read.** Extraction stores the verdict steps 1, 3, and 4 reach — organization member, the owner's own address, the
+read.** Extraction stores the verdict steps 1, 4, and 5 reach — organization member, the owner's own address, the
 owner's own domain — together with whether the account was strict, the comparison form of the first `From` mailbox,
 and everything the contact steps are held against: the authentication verdict and the route that established the
 author, the authenticated author domain, the signature verification, and for `Known` the policy read at extraction.
