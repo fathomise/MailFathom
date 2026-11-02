@@ -88,7 +88,9 @@ MailFathomDesign.settingsPanel = (self, env) => {
   const btn = (kind) => "display:flex;align-items:center;justify-content:center;align-self:flex-start;gap:6px;border-radius:8px;font-size:14px;font-weight:600;white-space:nowrap;box-sizing:border-box;" + (touch ? "min-height:44px;padding:0 16px;" : "padding:9px 16px;") + kind;
   const quiet = btn("background:var(--sub);border:1px solid var(--border2);color:var(--text2);");
   const primary = (on) => btn(on ? "background:var(--accent);color:var(--onaccent);" : "background:var(--border2);color:var(--panel);opacity:0.6;");
-  const sw = (on, dim) => "flex:0 0 auto;margin-top:2px;width:30px;height:17px;border-radius:8px;display:flex;align-items:center;padding:2px;background:var(" + (on ? "--accent" : "--border2") + ");justify-content:" + (on ? "flex-end" : "flex-start") + (dim ? ";opacity:0.5" : "");
+  /* The knob slides rather than jumps: it sits at the start and `--knob-x` carries it across, which the knob's own
+     transition animates. */
+  const sw = (on, dim) => "flex:0 0 auto;margin-top:2px;width:30px;height:17px;border-radius:8px;display:flex;align-items:center;padding:2px;transition:background-color 180ms ease;background:var(" + (on ? "--accent" : "--border2") + ");justify-content:flex-start;--knob-x:" + (on ? "17px" : "0px") + (dim ? ";opacity:0.5" : "");
   const row = (dim) => "display:flex;align-items:flex-start;gap:11px;padding:9px 10px;max-width:620px;border-radius:8px;box-sizing:border-box;" + (touch ? "min-height:44px;" : "") + (dim ? "opacity:0.55;" : "");
   const seg = (on) => segStyle(on) + (touch ? ";min-height:36px;display:flex;align-items:center;justify-content:center;box-sizing:border-box" : "");
   const segTrack = "display:flex;gap:4px;padding:3px;max-width:620px;border:1px solid var(--border2);border-radius:8px;background:var(--sub)";
@@ -101,7 +103,6 @@ MailFathomDesign.settingsPanel = (self, env) => {
     { v: "profil", label: "Profile", icon: "person", hint: "Your name and picture, your language and time zone, and how colleagues reach you.", words: "name photo picture language time zone phone number address" },
     { v: "away", label: "Availability", icon: "event_available", hint: "When you work, and what MailFathom answers while you are away.", words: "working hours automatic reply out of office away vacation" },
     { v: "accounts", label: "Accounts", icon: "alternate_email", hint: "The mail accounts your administrator gave you, and everything about each that is yours to decide: its name and language, deleting, spam, contacts, scanning, sending, its folders and its footer.", words: "account name language push polling delete deletion permanently expunge spam junk contacts collect exclusions scan secrets personal data screen outgoing sender trust strict domains send from signing smime openpgp folder synchronize footer signature embeddings" },
-    { v: "certs", label: "Certificates", icon: "key", hint: "The certificates and keys you sign and encrypt mail with, added once and chosen for each account.", words: "certificate key smime s/mime openpgp pgp gpg sign signing signature encrypt encryption p12 pfx asc" },
     { v: "reading", label: "Reading", icon: "chrome_reader_mode", hint: "How a message opens, and what opening it does.", words: "message view simplified original expand thread mark read ai filters" },
     { v: "ai", label: "AI", icon: "auto_awesome", hint: "The language the assistant writes in, and when it follows the message instead.", words: "language reply match" },
     { v: "notif", label: "Notifications", icon: "notifications", hint: "What reaches you, on which device, and for how long it stays.", words: "notification device seconds remove" },
@@ -114,6 +115,23 @@ MailFathomDesign.settingsPanel = (self, env) => {
   const curSec = SECTIONS.find(x => x.v === cur);
   const pickSectionNow = (v) => set({ settingsTab: v, acctDraft: null, folderEdit: null, footerEdit: null, acctForm: null, acctOut: null, certDraft: null, certOut: null });
   const pickSection = (v) => (self._settingsGuard ? self._settingsGuard(() => pickSectionNow(v)) : pickSectionNow(v));
+  /* A reference lands on the setting it names: the section opens (an account too, where the setting is one), the
+     setting is scrolled into the middle of the view, and it flashes once so the eye finds it. */
+  const flashTo = (section, key, acctId) => {
+    const go = () => {
+      set({ settingsTab: section, acctDraft: acctId || null, folderEdit: null, footerEdit: null, acctForm: null, acctOut: null, certDraft: null, certOut: null });
+      setTimeout(() => {
+        const el = document.querySelector('[data-flash-key="' + key + '"]');
+        if (!el) return;
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        el.removeAttribute("data-flash");
+        void el.offsetWidth;
+        el.setAttribute("data-flash", "on");
+        setTimeout(() => el.removeAttribute("data-flash"), 1600);
+      }, 80);
+    };
+    return self._settingsGuard ? self._settingsGuard(go) : go();
+  };
   const navItem = (x) => ({
     label: x.label, icon: x.icon,
     pick: () => pickSection(x.v),
@@ -314,21 +332,21 @@ MailFathomDesign.settingsPanel = (self, env) => {
   const lockDim = folderLocked ? ";opacity:0.55" : "";
   const lockTip = folderLocked ? LOCKED_TIP : undefined;
   const item = {
-    text: (label, hint, path, o = {}) => ({ isText: true, label, hint, value: getAt(path) == null ? "" : getAt(path), placeholder: o.placeholder || "", max: o.max || 512, problem: checkOf(path),
+    text: (label, hint, path, o = {}) => ({ isText: true, fk: path, label, hint, value: getAt(path) == null ? "" : getAt(path), placeholder: o.placeholder || "", max: o.max || 512, problem: checkOf(path),
       style: (folderLocked ? fieldRo : field) + (o.mono ? "font-family:'Geist Mono',ui-monospace,monospace;font-size:13px;" : ""),
       onInput: (e) => putAt(path, o.empty !== undefined && !e.target.value.trim() ? o.empty : e.target.value) }),
-    number: (label, hint, path, o = {}) => ({ isNumber: true, label, hint, value: getAt(path), min: o.min, max: o.max, step: o.step || 1, problem: checkOf(path),
+    number: (label, hint, path, o = {}) => ({ isNumber: true, fk: path, label, hint, value: getAt(path), min: o.min, max: o.max, step: o.step || 1, problem: checkOf(path),
       style: (folderLocked ? fieldRo : field) + "max-width:140px;",
       onInput: (e) => putAt(path, e.target.value === "" ? null : Number(e.target.value)) }),
-    seg: (label, hint, path, options) => ({ isSeg: true, label, hint, track: segTrack + lockDim, tip: lockTip,
+    seg: (label, hint, path, options) => ({ isSeg: true, fk: path, label, hint, track: segTrack + lockDim, tip: lockTip,
       segs: options.map(([v, l]) => ({ label: l, style: seg(getAt(path) === v), pick: () => putAt(path, v) })) }),
-    select: (label, hint, path, options) => ({ isSelect: true, label, hint, value: getAt(path) == null ? "" : getAt(path),
+    select: (label, hint, path, options) => ({ isSelect: true, fk: path, label, hint, value: getAt(path) == null ? "" : getAt(path),
       options: options.map(([v, l]) => ({ v: v == null ? "" : v, label: l })), style: folderLocked ? fieldRo : field,
       onChange: (e) => putAt(path, e.target.value === "" ? null : e.target.value) }),
     sw: (label, hint, path, o = {}) => {
       const off = !!o.off;
       const on = !off && !!getAt(path);
-      return { isSwitch: true, label, hint, tip: off ? o.tip : lockTip, refused: off || folderLocked,
+      return { isSwitch: true, fk: path, label, hint, tip: off ? o.tip : lockTip, refused: off || folderLocked,
         rowStyle: row(off || folderLocked), switchStyle: sw(on, off || folderLocked),
         toggle: () => off ? null : putAt(path, !getAt(path)) };
     },
@@ -336,7 +354,7 @@ MailFathomDesign.settingsPanel = (self, env) => {
       chips: chips.map(c => ({ label: c.label, style: chip(c.on, folderLocked), pick: () => folderLocked ? null : c.pick() })) }),
   };
   const toggleIn = (list, v) => list.indexOf(v) >= 0 ? list.filter(x => x !== v) : list.concat([v]);
-  const CERTS = st.setCertificates || SETTINGS.certificates;
+  const CERTS = draft ? draft.certificates || [] : [];
   const certLabel = (c) => (c.kind === "smime" ? "S/MIME - " : "OpenPGP - ") + c.name;
   const signOptions = [[null, "Not signed"]].concat(CERTS.map(c => [c.id, certLabel(c)]));
   const encryptOptions = [[null, "Not encrypted"], ["same", "The same as for signing"]].concat(CERTS.map(c => [c.id, certLabel(c)]));
@@ -407,33 +425,39 @@ MailFathomDesign.settingsPanel = (self, env) => {
       item.text("Name beside it", "Left empty, only the address is written.", "sending.fromName", { empty: null, placeholder: "No name", max: 128 }),
       item.sw("File a copy in Sent", "Puts a copy of every message you send into this account's Sent folder.", "sending.fileSentCopy"),
       item.sw("Take it back when the provider files one too", "Some providers file their own copy; this removes the second one.", "sending.withdrawDuplicate", { off: !decl.sending.fileSentCopy, tip: "Turn on filing a copy first." }),
-      item.select("Sign with", "What you send from this account is signed with it, so the reader can tell it came from you. Certificates and keys are added once, under Certificates, and chosen here.", "sending.signWith", signOptions),
+      item.select("Sign with", "What you send from this account is signed with it, so the reader can tell it came from you. It is one of this account's certificates and keys, below.", "sending.signWith", signOptions),
       Object.assign(item.select("Encrypt with", decl.sending.encryptWith === "same" && !decl.sending.signWith ? "Nothing is signed, so there is nothing to take the same from - pick one." : "The certificate or key correspondents encrypt mail to you with, and the one MailFathom opens it with. It travels with what you sign, so they can.", "sending.encryptWith", encryptOptions), { problem: decl.sending.encryptWith === "same" && !decl.sending.signWith ? "Pick what to encrypt with." : "" }),
-      { isLink: true, label: "Manage certificates and keys", go: () => pickSection("certs") },
     ] },
   ];
 
   /* ---------- Certificates ---------- */
-  /* One store for the person, shared by every account; an account only chooses from it, for signing and for
-     encryption, the same one or two different ones. */
+  /* Each account keeps its own store, and chooses from it for signing and for encryption, the same one or two
+     different ones. Adding or removing one is written at once, like a folder, not with Save account. */
   const SAMPLE_FILES = [{ file: "kowalska-2028.p12", kind: "smime", size: "6 KB" }, { file: "kowalska-work.asc", kind: "pgp", size: "4 KB" }];
   const cd = st.certDraft || null;
-  const usedBy = (id) => accounts.filter(a => a.settings.sending.signWith === id || a.settings.sending.encryptWith === id || (a.settings.sending.encryptWith === "same" && a.settings.sending.signWith === id));
+  const usageOf = (id) => {
+    const sd = decl ? decl.sending : { signWith: null, encryptWith: null };
+    const signs = sd.signWith === id;
+    const encrypts = sd.encryptWith === id || (sd.encryptWith === "same" && signs);
+    return signs && encrypts ? "Signs and encrypts" : signs ? "Signs" : encrypts ? "Encrypts" : "Not chosen for signing or encrypting";
+  };
   const certProblem = !cd ? "" :
     !cd.file ? "Choose the file first." :
     cd.kind === "smime" && !cd.pass ? "A .p12 file is locked with a password - type it, so MailFathom can open it." :
     (cd.pass || "").length > 1024 ? "A password is 1024 characters at most." : "";
   const CERT_OUT = {
-    saved: "Added. Choose it for an account under Accounts > Sending.",
+    saved: "Added. Choose it under Sending, above, to sign or encrypt with it.",
     refused: "The server did not take that file: it holds no private key, so nothing could be signed or opened with it.",
-    notStored: "That certificate was not saved to the server, so it is not in your store.",
+    notStored: "That certificate was not saved to the server, so this account does not have it.",
     unanswered: "The server did not answer, so it is not known whether that certificate was saved.",
-    moved: "That certificate was not saved to the server, so it is not in your store.",
+    moved: "That certificate was not saved to the server, so this account does not have it.",
   };
   const answerCert = (apply, after) => {
     const outcome = writes;
     self.setState(s => Object.assign({
-      setCertificates: outcome === "saved" ? apply((s.setCertificates || SETTINGS.certificates).slice()) : (s.setCertificates || SETTINGS.certificates),
+      setAccounts: outcome === "saved"
+        ? (s.setAccounts || MAIL_ACCOUNTS).map(a => a.id === s.acctDraft ? Object.assign({}, a, { certificates: apply((a.certificates || []).slice()) }) : a)
+        : (s.setAccounts || MAIL_ACCOUNTS),
       certOut: outcome,
     }, outcome === "saved" && after ? after(s) : {}));
   };
@@ -485,7 +509,6 @@ MailFathomDesign.settingsPanel = (self, env) => {
     tabProfil: cur === "profil",
     tabAway: cur === "away",
     tabAccounts: cur === "accounts",
-    tabCerts: cur === "certs",
     tabReading: cur === "reading",
     tabAi: cur === "ai",
     tabNotif: cur === "notif",
@@ -675,11 +698,11 @@ MailFathomDesign.settingsPanel = (self, env) => {
       summary: a.folders.length + (a.folders.length === 1 ? " folder" : " folders") + "  ·  " +
         (a.footerByOrganization ? "Footer set by your organization" : ownFooters[a.id] ? "Your own footer" : "No footer"),
       dotStyle: "flex:0 0 8px;width:8px;height:8px;border-radius:50%;margin-top:6px;background:" + a.dot,
-      edit: () => set({ acctDraft: a.id, folderEdit: null, folderOut: null, footerEdit: null, footerOut: null, acctForm: null, acctOut: null, exclDraft: "" }),
+      edit: () => set({ acctDraft: a.id, folderEdit: null, folderOut: null, footerEdit: null, footerOut: null, acctForm: null, acctOut: null, exclDraft: "", certDraft: null, certOut: null }),
     })),
 
     /* Accounts — one account */
-    acctBack: () => set({ acctDraft: null, folderEdit: null, footerEdit: null, acctForm: null, acctOut: null }),
+    acctBack: () => set({ acctDraft: null, folderEdit: null, footerEdit: null, acctForm: null, acctOut: null, certDraft: null, certOut: null }),
     acctTitle: draft ? draft.name : "",
     acctMail: draft ? draft.mail : "",
     acctShared: draft ? !!draft.shared : false,
@@ -843,28 +866,32 @@ MailFathomDesign.settingsPanel = (self, env) => {
     sPreview: "display:flex;flex-direction:column;gap:2px;padding:12px 13px;max-width:620px;box-sizing:border-box;border:1px dashed var(--border2);border-radius:10px",
 
     /* Certificates */
-    certLockText: folderLocked ? (offline ? "There is no connection to the MailFathom server, so your certificates and keys are shown here rather than offered for you to change until it is back." : "This sign-in may read your certificates and keys and may not change them.") : "",
+    certHint: "The S/MIME certificates and OpenPGP keys this account signs and encrypts with, each with its private key - the same one for both, or two different ones. They belong to the account, so everyone it is assigned to sends with them. MailFathom holds them on its server and opens mail encrypted to them, so a message it opens is searched, indexed and read by the AI like any other mail.",
     certRows: CERTS.map(c => {
-      const users = usedBy(c.id);
+      const usage = usageOf(c.id);
       return {
         icon: c.kind === "smime" ? "verified_user" : "key",
         name: c.name,
         kind: c.kind === "smime" ? "S/MIME certificate" : "OpenPGP key",
         detail: c.address + "  ·  " + (c.validUntil ? "valid until " + fmtDay(c.validUntil) : "fingerprint " + c.fingerprint),
-        usage: users.length ? "Chosen by " + users.map(a => a.name).join(", ") : "No account uses it yet",
+        usage,
         removeShown: !folderLocked,
         remove: () => self.askDel({
           title: "Remove " + c.name + "?",
-          text: users.length
-            ? users.map(a => a.name).join(" and ") + " stop" + (users.length === 1 ? "s" : "") + " signing and encrypting with it, and encrypted mail sent to it can no longer be opened here."
-            : "Encrypted mail sent to it can no longer be opened here. The file has to be added again to use it.",
+          text: (usage.indexOf("Not chosen") === 0 ? "" : draft.name + " stops signing or encrypting with it. ") + "Mail encrypted to it can no longer be opened here, and the file has to be added again to use it.",
           label: "Remove",
-          run: () => answerCert(l => l.filter(x => x.id !== c.id), s2 => ({ setAccounts: (s2.setAccounts || MAIL_ACCOUNTS).map(a => {
-            const sd = Object.assign({}, a.settings.sending);
-            if (sd.signWith === c.id) sd.signWith = null;
-            if (sd.encryptWith === c.id || (sd.encryptWith === "same" && sd.signWith == null)) sd.encryptWith = null;
-            return Object.assign({}, a, { settings: Object.assign({}, a.settings, { sending: sd }) });
-          }) })),
+          run: () => answerCert(l => l.filter(x => x.id !== c.id), s2 => {
+            const clear = (sd) => {
+              const n = Object.assign({}, sd);
+              if (n.signWith === c.id) n.signWith = null;
+              if (n.encryptWith === c.id || (n.encryptWith === "same" && n.signWith == null)) n.encryptWith = null;
+              return n;
+            };
+            return {
+              setAccounts: (s2.setAccounts || MAIL_ACCOUNTS).map(a => a.id === s2.acctDraft ? Object.assign({}, a, { certificates: (a.certificates || []).filter(x => x.id !== c.id), settings: Object.assign({}, a.settings, { sending: clear(a.settings.sending) }) }) : a),
+              acctForm: s2.acctForm ? Object.assign({}, s2.acctForm, { v: Object.assign({}, s2.acctForm.v, { sending: clear(s2.acctForm.v.sending) }) }) : null,
+            };
+          }),
         }),
       };
     }),
@@ -892,8 +919,8 @@ MailFathomDesign.settingsPanel = (self, env) => {
       const id = "cert-" + Date.now();
       const kind = cd.kind;
       const c = kind === "smime"
-        ? { id, kind, name: "Karolina Kowalska - 2028", address: "k.kowalska@nordwind.example", file: cd.file, validUntil: "2028-06-30" }
-        : { id, kind, name: "k.kowalska@nordwind.example", address: "k.kowalska@nordwind.example", file: cd.file, fingerprint: "A04C 18E2 6B9F 7D13", validUntil: null };
+        ? { id, kind, name: draft.name + " - 2028", address: draft.mail, file: cd.file, validUntil: "2028-06-30" }
+        : { id, kind, name: draft.mail, address: draft.mail, file: cd.file, fingerprint: "A04C 18E2 6B9F 7D13", validUntil: null };
       answerCert(l => l.concat([c]), () => ({ certDraft: null }));
     },
     certCancel: () => set({ certDraft: null, certOut: null }),
@@ -907,13 +934,14 @@ MailFathomDesign.settingsPanel = (self, env) => {
       const visible = accounts.reduce((n, a) => n + a.folders.filter(f => f.ai).length, 0);
       const scanning = accounts.filter(a => a.settings.spam.on && a.settings.spam.aiScanning).map(a => a.name);
       const screened = accounts.filter(a => a.settings.sensitive.secrets || a.settings.sensitive.pii).map(a => a.name);
+      const firstWith = (test) => (accounts.find(test) || accounts[0]).id;
       return [
-        { label: "Visible to AI and indexed for search by meaning", where: "Accounts › each folder", state: visible + " of " + folders + " folders visible to AI", go: () => pickSection("accounts") },
-        { label: "AI spam scanning", where: "Accounts › Spam", state: scanning.length ? "On for " + scanning.join(", ") : "Off on every account", go: () => pickSection("accounts") },
-        { label: "Scanning before a model reads mail", where: "Accounts › Sensitive content", state: screened.length ? "On for " + screened.join(", ") : "Off on every account", go: () => pickSection("accounts") },
-        { label: "Language of what MailFathom writes about a mailbox", where: "Accounts › The account", state: accounts.map(a => a.name + ": " + (a.settings.language === "Polish" ? "Polski" : "English")).join(", "), go: () => pickSection("accounts") },
-        { label: "AI simplified message view", where: "Reading › Message view", state: (st.msgView || "simple") === "ai" ? "In use" : "Not in use", go: () => pickSection("reading") },
-        { label: "AI filters in the folder tree", where: "Reading", state: st.aiFiltersShown !== false ? "Shown" : "Hidden", go: () => pickSection("reading") },
+        { label: "Visible to AI and indexed for search by meaning", where: "Accounts › each folder", state: visible + " of " + folders + " folders visible to AI", go: () => flashTo("accounts", "folders", firstWith(a => a.folders.some(f => f.ai))) },
+        { label: "AI spam scanning", where: "Accounts › Spam", state: scanning.length ? "On for " + scanning.join(", ") : "Off on every account", go: () => flashTo("accounts", "spam.aiScanning", firstWith(a => a.settings.spam.on && a.settings.spam.aiScanning)) },
+        { label: "Scanning before a model reads mail", where: "Accounts › Sensitive content", state: screened.length ? "On for " + screened.join(", ") : "Off on every account", go: () => flashTo("accounts", "Sensitive content", firstWith(a => a.settings.sensitive.secrets || a.settings.sensitive.pii)) },
+        { label: "Language of what MailFathom writes about a mailbox", where: "Accounts › The account", state: accounts.map(a => a.name + ": " + (a.settings.language === "Polish" ? "Polski" : "English")).join(", "), go: () => flashTo("accounts", "language", accounts[0].id) },
+        { label: "AI simplified message view", where: "Reading › Message view", state: (st.msgView || "simple") === "ai" ? "In use" : "Not in use", go: () => flashTo("reading", "msgView") },
+        { label: "AI filters in the folder tree", where: "Reading", state: st.aiFiltersShown !== false ? "Shown" : "Hidden", go: () => flashTo("reading", "aiFilters") },
       ].map((r, i) => Object.assign(r, { rowStyle: "display:flex;align-items:center;gap:10px;padding:" + (touch ? "8px 12px;min-height:52px;" : "9px 11px;") + "box-sizing:border-box;" + (i ? "border-top:1px solid var(--line2)" : "") }));
     })(),
     /* AI */

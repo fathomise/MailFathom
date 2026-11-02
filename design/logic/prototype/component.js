@@ -7808,7 +7808,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         tabsRowNote: w >= 1180 ? "" : "available on a wider screen",
         tabsSwitchStyle: "flex:0 0 auto;width:30px;height:17px;border-radius:8px;display:flex;align-items:center;padding:2px;background:var(" + (wantTabs ? "--accent" : "--border2") + ");justify-content:" + (wantTabs ? "flex-end" : "flex-start"),
         toggleTabsMode: () => (w >= 1180 ? this.setState({ workMode: wantTabs ? "classic" : "tabs" }) : null),
-        denseKnobStyle: "width:13px;height:13px;border-radius:50%;background:var(--panel)",
+        denseKnobStyle: "width:13px;height:13px;border-radius:50%;background:var(--panel);transform:translateX(var(--knob-x, 0px));transition:transform 200ms cubic-bezier(0.3, 0.7, 0.4, 1)",
         themeSegs: [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]].map(([v, label]) => ({
           label,
           pick: () => this.setState({ themePref: v, themeOverride: null }),

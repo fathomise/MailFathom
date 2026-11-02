@@ -137,8 +137,14 @@ MailFathomDesign.data.defaultReplyTo = "k.kowalska@nordwind.example";
 // reads from it. A folder is found by its `role` or by its `path` on the mail server, outermost level first, and
 // carries the four switches the person may change: `sync` mirrors it, `ai` lets AI reach it, `embed` indexes it for
 // search by meaning, which needs `ai`, and `create` lets MailFathom create a folder the path names and the server lacks.
+// `certificates` is the account's own store of S/MIME certificates and OpenPGP keys, each with its private key, that
+// `settings.sending` signs and encrypts with.
 MailFathomDesign.data.mailAccounts = [
   { id: "a1", name: "Karolina Kowalska", mail: "k.kowalska@nordwind.example", dot: "var(--accent)", footer: "acc1", footerByOrganization: true, folderDelete: "DeleteOnServer",
+    certificates: [
+      { id: "smime-kowalska", kind: "smime", name: "Karolina Kowalska", address: "k.kowalska@nordwind.example", file: "kowalska-2027.p12", validUntil: "2027-03-14" },
+      { id: "smime-kowalska-enc", kind: "smime", name: "Karolina Kowalska - encryption", address: "k.kowalska@nordwind.example", file: "kowalska-enc-2027.p12", validUntil: "2027-03-14" },
+    ],
     settings: { language: "English",
       authoredDeleteServer: "LeaveOnServer",
       trustOwnDomains: true, strict: false,
@@ -158,6 +164,9 @@ MailFathomDesign.data.mailAccounts = [
       { alias: "Archive 2026", role: "", path: ["Archive", "2026"], sync: false, ai: true, embed: false, create: true },
     ] },
   { id: "a2", name: "Karolina - private", mail: "kowalska.k@mail.example", dot: "#4d9aa8", footer: "acc2", folderDelete: "MarkDeletedLocally",
+    certificates: [
+      { id: "pgp-private", kind: "pgp", name: "kowalska.k@mail.example", address: "kowalska.k@mail.example", file: "kowalska-private.asc", fingerprint: "5E1A 9C42 77D0 31B8", validUntil: null },
+    ],
     settings: { language: "Polish",
       authoredDeleteServer: "LeaveOnServer",
       trustOwnDomains: false, strict: false,
