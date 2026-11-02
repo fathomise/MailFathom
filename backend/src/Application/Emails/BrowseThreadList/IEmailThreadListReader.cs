@@ -38,4 +38,32 @@ public interface IEmailThreadListReader
         EmailThreadListPosition? continueAfter,
         int limit,
         CancellationToken cancellationToken);
+
+    /// <summary>Reads one walk of a mail list grouped by conversation.</summary>
+    /// <param name="filter">The list's filters, its account scope with junk mail included, and the direction the walk reads in.</param>
+    /// <param name="readerAddresses">The addresses the reader sends as, which decide what counts as received and who is the reader.</param>
+    /// <param name="continueAfter">The position the walk continues beyond, or <see langword="null" /> from the leading end.</param>
+    /// <param name="limit">How many conversations to read at most.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>
+    /// The conversations, each at the position of its newest message that passed the read, ordered by that position in
+    /// the filter's direction and beginning strictly beyond <paramref name="continueAfter" />.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// A conversation is in the walk while at least one of its messages passes the filter and is neither judged spam
+    /// nor in Trash or a folder beneath it. Its position is the newest such message, so the filters decide which
+    /// conversations are listed and where each stands, exactly as they decide which messages an ungrouped list holds.
+    /// </para>
+    /// <para>
+    /// Once it is in, the conversation is described whole, as <see cref="ReadPageAsync" /> describes one: every message
+    /// of it the scope admits is counted and quoted, spam and Trash included, whatever the filter let through.
+    /// </para>
+    /// </remarks>
+    Task<IReadOnlyList<GroupedEmailThread>> ReadGroupedPageAsync(
+        EmailTimelineFilter filter,
+        IReadOnlySet<EmailAddress> readerAddresses,
+        EmailTimelinePosition? continueAfter,
+        int limit,
+        CancellationToken cancellationToken);
 }

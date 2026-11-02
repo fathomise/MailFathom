@@ -23,6 +23,10 @@ namespace MailFathom.Infrastructure.Persistence.Emails.Threads;
 /// says so.
 /// </para>
 /// <para>
+/// A walk of the mail list grouped by conversation is one read more: the walk chooses the conversations from what the
+/// filters let through, and a second grouping counts the chosen ones whole before the same three describe them.
+/// </para>
+/// <para>
 /// Every message-reading clause composes <see cref="StoredEmailSelectionPredicate" /> and states no narrowing of its
 /// own, and each lives in a member of this class rather than in the asynchronous read, for the reason
 /// <see cref="StoredEmailThreadReader" /> gives: the architecture rule holding a mail read to the shared narrowing reads
@@ -55,16 +59,80 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
             cancellationToken);
         string[] readerForms = [.. readerAddresses.Select(static address => address.NormalizedAddress).Distinct(StringComparer.Ordinal)];
 
-        var emails = dbContext.StoredEmails.AsNoTracking();
-
-        var threads = await Page(emails, scope, trashedFolderIds, readerForms, continueAfter, limit)
+        var threads = await Page(dbContext.StoredEmails.AsNoTracking(), scope, trashedFolderIds, readerForms, continueAfter, limit)
             .ToArrayAsync(cancellationToken);
 
+        return await this.DescribedAsync(threads, scope, readerForms, readerAddresses, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<GroupedEmailThread>> ReadGroupedPageAsync(
+        EmailTimelineFilter filter,
+        IReadOnlySet<EmailAddress> readerAddresses,
+        EmailTimelinePosition? continueAfter,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(readerAddresses);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+
+        var scope = filter.Selection.Scope;
+
+        if (scope.AccountIds.Count is 0)
+        {
+            return [];
+        }
+
+        var trashedFolderIds = await StoredTrashedFolders.ReadAsync(
+            dbContext.MailFolders,
+            [.. scope.AccountIds.Select(static accountId => accountId.Value)],
+            cancellationToken);
+        string[] readerForms = [.. readerAddresses.Select(static address => address.NormalizedAddress).Distinct(StringComparer.Ordinal)];
+        var emails = dbContext.StoredEmails.AsNoTracking();
+
+        var grouped = await GroupedPage(emails, filter, trashedFolderIds, continueAfter, limit).ToArrayAsync(cancellationToken);
+
+        if (grouped.Length is 0)
+        {
+            return [];
+        }
+
+        var counted = await Counted(emails, scope, [.. grouped.Select(static row => row.EmailThreadId)], readerForms)
+            .ToDictionaryAsync(static row => row.EmailThreadId, cancellationToken);
+        var described = (await this.DescribedAsync(
+                [.. grouped.Where(row => counted.ContainsKey(row.EmailThreadId)).Select(row => counted[row.EmailThreadId])],
+                scope,
+                readerForms,
+                readerAddresses,
+                cancellationToken))
+            .ToDictionary(static thread => thread.ThreadId.Value);
+
+        return
+        [
+            .. grouped
+                .Where(row => described.ContainsKey(row.EmailThreadId))
+                .Select(row => new GroupedEmailThread(
+                    described[row.EmailThreadId],
+                    new EmailTimelinePosition(row.NewestArrival, StoredEmailId.Create(row.NewestEmailId)))),
+        ];
+    }
+
+    /// <summary>Reads what each conversation of a page is quoted by, who wrote into it, and what it was called, in the page's order.</summary>
+    /// <remarks>A conversation whose newest message has gone between the reads has nothing to quote and is left out.</remarks>
+    private async Task<IReadOnlyList<ListedEmailThread>> DescribedAsync(
+        StoredThreadListRow[] threads,
+        MailboxScope scope,
+        string[] readerForms,
+        IReadOnlySet<EmailAddress> readerAddresses,
+        CancellationToken cancellationToken)
+    {
         if (threads.Length is 0)
         {
             return [];
         }
 
+        var emails = dbContext.StoredEmails.AsNoTracking();
         Guid[] threadIds = [.. threads.Select(static thread => thread.EmailThreadId)];
 
         var quoted = await Quoted(emails, scope, threadIds, readerForms)
@@ -149,6 +217,119 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
                 conversation.UnreadCount,
                 conversation.AttachedCount > 0));
     }
+
+    /// <summary>Groups the mail a filter lets through by conversation and reads one walk of the conversations it keeps listed.</summary>
+    /// <param name="emails">The stored mail.</param>
+    /// <param name="filter">The list's filters and account scope, junk included, and the direction the walk reads in.</param>
+    /// <param name="trashedFolderIds">The folders in Trash of every account in the scope.</param>
+    /// <param name="continueAfter">The position the walk continues beyond, or <see langword="null" />.</param>
+    /// <param name="limit">How many conversations to read at most.</param>
+    /// <returns>The query, which PostgreSQL evaluates in full.</returns>
+    /// <remarks>
+    /// <para>
+    /// A conversation stands at its newest message that passes the filter and is neither judged spam nor in Trash, which
+    /// is <see cref="StoredEmailSelectionPredicate.Matching" /> narrowed by the rule that keeps a conversation listed.
+    /// The newest is the one the newest-first timeline reads first: dated before undated, then latest, then the highest
+    /// identifier, so its arrival is the group's latest and its identifier breaks the tie. The keyset and the order are
+    /// the timeline's own over that pair, which is what lets a grouped page carry a message list's cursor.
+    /// </para>
+    /// <para>
+    /// It groups every message the filter lets through before the keyset narrows the groups, for the reason
+    /// <see cref="Page" /> does, and the newest message of each group is picked by a correlated subquery that the
+    /// statement repeats wherever the keyset and the order read it. A stored newest passing message per conversation
+    /// cannot exist, since what passes depends on the filters; measuring a page against a large mailbox decides whether
+    /// a window function ranking each group once is worth the raw SQL it would take.
+    /// </para>
+    /// </remarks>
+    internal static IQueryable<StoredGroupedThreadRow> GroupedPage(
+        IQueryable<StoredEmailEntity> emails,
+        EmailTimelineFilter filter,
+        Guid[] trashedFolderIds,
+        EmailTimelinePosition? continueAfter,
+        int limit)
+    {
+        var passing = StoredEmailSelectionPredicate.Matching(
+            emails.Where(static email => email.EmailThreadId != null),
+            filter.Selection);
+        var conversations = StoredEmailSelectionPredicate.WithoutMailJudgedSpam(passing, filter.Selection.Scope.JunkFolders)
+            .Where(email => !trashedFolderIds.Contains(email.FolderId))
+            .GroupBy(static email => email.EmailThreadId!.Value)
+            .Select(static conversation => new
+            {
+                EmailThreadId = conversation.Key,
+                NewestArrival = conversation.Max(email => email.ReceivedAt),
+                NewestEmailId = conversation
+                    .OrderBy(email => email.ReceivedAt == null)
+                    .ThenByDescending(email => email.ReceivedAt)
+                    .ThenByDescending(email => email.Id)
+                    .Select(email => email.Id)
+                    .First(),
+            });
+
+        if (continueAfter is { } boundary)
+        {
+            var boundaryId = boundary.StoredEmailId.Value;
+
+            conversations = (filter.Direction, boundary.ReceivedAt) switch
+            {
+                (EmailTimelineDirection.NewestFirst, { } arrival) => conversations.Where(conversation =>
+                    conversation.NewestArrival == null
+                    || conversation.NewestArrival < arrival
+                    || (conversation.NewestArrival == arrival && conversation.NewestEmailId < boundaryId)),
+                (EmailTimelineDirection.NewestFirst, null) => conversations.Where(conversation =>
+                    conversation.NewestArrival == null && conversation.NewestEmailId < boundaryId),
+                (EmailTimelineDirection.OldestFirst, { } arrival) => conversations.Where(conversation =>
+                    conversation.NewestArrival != null
+                    && (conversation.NewestArrival > arrival
+                        || (conversation.NewestArrival == arrival && conversation.NewestEmailId > boundaryId))),
+                _ => conversations.Where(conversation =>
+                    conversation.NewestArrival != null || conversation.NewestEmailId > boundaryId),
+            };
+        }
+
+        var ordered = filter.Direction is EmailTimelineDirection.NewestFirst
+            ? conversations
+                .OrderBy(static conversation => conversation.NewestArrival == null)
+                .ThenByDescending(static conversation => conversation.NewestArrival)
+                .ThenByDescending(static conversation => conversation.NewestEmailId)
+            : conversations
+                .OrderByDescending(static conversation => conversation.NewestArrival == null)
+                .ThenBy(static conversation => conversation.NewestArrival)
+                .ThenBy(static conversation => conversation.NewestEmailId);
+
+        return ordered
+            .Take(limit)
+            .Select(static conversation => new StoredGroupedThreadRow(
+                conversation.EmailThreadId,
+                conversation.NewestArrival,
+                conversation.NewestEmailId));
+    }
+
+    /// <summary>Counts each named conversation whole, over every message of it the scope admits.</summary>
+    /// <remarks>The counts are <see cref="Page" />'s, read for conversations a grouped walk already chose rather than for a page this query orders.</remarks>
+    internal static IQueryable<StoredThreadListRow> Counted(
+        IQueryable<StoredEmailEntity> emails,
+        MailboxScope scope,
+        Guid[] threadIds,
+        string[] readerForms) =>
+        Readable(emails, scope)
+            .Where(email => threadIds.Contains(email.EmailThreadId!.Value))
+            .GroupBy(static email => email.EmailThreadId!.Value)
+            .Select(conversation => new
+            {
+                EmailThreadId = conversation.Key,
+                NewestArrival = conversation.Max(email => email.ReceivedAt),
+                MessageCount = conversation.Count(),
+                UnreadCount = conversation.Count(email => !email.IsRemotelySeen
+                    && (email.SenderNormalizedAddress == null || !readerForms.Contains(email.SenderNormalizedAddress))),
+                AttachedCount = conversation.Count(email => email.AttachmentCount > 0),
+            })
+            .Select(static conversation => new StoredThreadListRow(
+                conversation.EmailThreadId,
+                conversation.NewestArrival,
+                conversation.MessageCount,
+                conversation.UnreadCount,
+                conversation.AttachedCount > 0));
 
     /// <summary>Reads the newest message of each listed conversation and the newest one somebody else sent.</summary>
     /// <remarks>Undated messages sort last, the way they do in the list, so a conversation is quoted by a message that carries a date wherever one does.</remarks>
@@ -260,6 +441,8 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
         int MessageCount,
         int UnreadCount,
         bool HasAttachments);
+
+    internal sealed record StoredGroupedThreadRow(Guid EmailThreadId, DateTimeOffset? NewestArrival, Guid NewestEmailId);
 
     internal sealed record StoredThreadQuotedRow(Guid EmailThreadId, Guid NewestEmailId, Guid? NewestReceivedEmailId);
 

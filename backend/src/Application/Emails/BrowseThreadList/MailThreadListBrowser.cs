@@ -4,10 +4,12 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Emails.BrowseTimeline;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Observability;
+using MailFathom.Application.Paging;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
@@ -22,6 +24,10 @@ namespace MailFathom.Application.Emails.BrowseThreadList;
 /// is listed under the account that holds it, or under all of the person's accounts. What it is quoted by — its
 /// newest message, the sender mark of its newest received one, who wrote into it, and what a derivation called it — is
 /// read for the page rather than per row, so a page of fifty costs a handful of reads rather than fifty.
+/// </para>
+/// <para>
+/// The same conversations are also served as a message list grouped by conversation, which the message list's filters,
+/// order, and cursors narrow and page as they do the messages; a row there is described exactly as a row here.
 /// </para>
 /// <para>
 /// Who the reader is comes from the addresses their assigned accounts send as, which is the same answer outgoing mail
@@ -142,6 +148,101 @@ public sealed class MailThreadListBrowser
             : null;
 
         return new BrowsedThreadList(rows, nextCursor, pageSize.Value);
+    }
+
+    /// <summary>Reads one page of the caller's mail list grouped by conversation, in either direction.</summary>
+    /// <param name="request">The list's account, filters, order, page size, direction, and cursor, as a message list takes them.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>The page, and the cursor that continues it at each end where one exists.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="request" /> is <see langword="null" />.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller's grant does not carry <c>mailfathom.mail.read</c>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the request names an order or a page direction that is not a defined member.</exception>
+    /// <exception cref="MailboxQueryFilterInvalidException">Thrown when the request names a folder or asks for junk mail, when a filter carries a value the query does not accept, and when a backward page is asked for without a cursor.</exception>
+    /// <exception cref="MailAccountNotAccessibleException">Thrown when the account is not one the caller is assigned.</exception>
+    /// <exception cref="MailboxQueryPageSizeOutOfRangeException">Thrown when the page size is outside the bound.</exception>
+    /// <exception cref="MailboxQueryCursorMalformedException">Thrown when the cursor is not one this deployment issues.</exception>
+    /// <exception cref="MailboxQueryCursorFilterMismatchException">Thrown when the cursor was issued for a different list, an ungrouped one included.</exception>
+    /// <remarks>
+    /// <para>
+    /// It is the message list's own read with one row kept per conversation: the same account scope, filters, order,
+    /// and cursor, each conversation standing at its newest message that passed them. What differs is the scope it
+    /// runs under. A conversation gathers its messages from every folder, so no folder narrows it, and the junk folder
+    /// takes part because a conversation is counted whole; spam and Trash decide only whether it is listed. A request
+    /// naming a folder or asking for junk mail is therefore refused rather than answered with that filter dropped.
+    /// </para>
+    /// <para>
+    /// The cursor is a message list's cursor under a fingerprint of its own, so a cursor taken from the list read by
+    /// message is refused here and the other way round, although both name a message.
+    /// </para>
+    /// </remarks>
+    public async Task<BrowsedConversationPage> BrowseGroupedPageAsync(
+        BrowseTimelineRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        this.authorization.RequirePermission(MailFathomPermission.MailRead);
+
+        using var read = this.readTelemetry.BeginRead(MailboxReadOperation.ListEmailThreads, cancellationToken);
+
+        using var actingFor = this.egressGuard.ActingFor(
+            await this.egressGuard.ReadPostureAcrossAccountsOfAsync(this.scopeResolver.User, cancellationToken));
+
+        RefuseWhatGroupingDoesNotRead(request);
+
+        var sortedList = request.SortedListWithin(await this.scopeResolver.ReadableScopeAsync(
+            MailboxReaderKind.Person,
+            request.Accounts,
+            [],
+            JunkMailInclusion.Included,
+            cancellationToken));
+        var fingerprint = PageFilterFingerprint.Of("conversations", sortedList.Fingerprint);
+        var pageSize = MailboxQueryPageSize.FromRequested(request.PageSize);
+        var pageDirection = TimelinePaging.Defined(request.PageDirection);
+        var boundary = TimelinePaging.ContinuationBoundary(request.Cursor, fingerprint, pageDirection);
+
+        if (sortedList.Selection.Scope.AccountIds.Count is 0)
+        {
+            read.Completed(0);
+
+            return new BrowsedConversationPage([], NextCursor: null, PreviousCursor: null, pageSize.Value);
+        }
+
+        var walked = await this.listReader.ReadGroupedPageAsync(
+            TimelinePaging.WalkedIn(sortedList, pageDirection),
+            await this.ReaderAddressesAsync(cancellationToken),
+            boundary,
+            pageSize.Value + 1,
+            cancellationToken);
+
+        var page = TimelinePaging.SortedPage(walked, pageSize, pageDirection);
+        var beyondThePage = walked.Count > pageSize.Value;
+        var rows = await this.GuardedAsync(
+            await this.DescribedAsync([.. page.Select(static grouped => grouped.Thread)], cancellationToken),
+            cancellationToken);
+
+        read.Completed(rows.Count);
+
+        EmailTimelinePosition[] positions = [.. page.Select(static grouped => grouped.Position)];
+
+        return new BrowsedConversationPage(
+            rows,
+            TimelinePaging.CursorAfterThePage(positions, fingerprint, pageDirection, beyondThePage),
+            TimelinePaging.CursorBeforeThePage(positions, fingerprint, pageDirection, beyondThePage, boundary),
+            pageSize.Value);
+    }
+
+    private static void RefuseWhatGroupingDoesNotRead(BrowseTimelineRequest request)
+    {
+        if (request.Folders.Count is not 0)
+        {
+            throw MailboxQueryFilterInvalidException.NotReadByConversation("folders");
+        }
+
+        if (request.IncludeJunkMail)
+        {
+            throw MailboxQueryFilterInvalidException.NotReadByConversation("junk mail");
+        }
     }
 
     private static EmailThreadListPosition? ContinuationBoundary(string? cursor, string fingerprint)

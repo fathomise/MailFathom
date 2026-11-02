@@ -79,4 +79,22 @@ public sealed record BrowseTimelineRequest
     /// <summary>Gets the cursor a previous page returned, or <see langword="null" /> to read the leading end of the list.</summary>
     /// <remarks>The cursor is opaque and belongs to the filters and the order it was issued for; presenting it against a different list is refused.</remarks>
     public string? Cursor { get; init; }
+
+    /// <summary>Validates the filters and the order this request names, within the scope a use case resolved for it.</summary>
+    /// <param name="scope">What the caller may read and asked to read.</param>
+    /// <returns>The list as it is sorted, before any page of it is walked.</returns>
+    /// <exception cref="MailboxQueryFilterInvalidException">Thrown when a filter carries a value the query does not accept.</exception>
+    internal EmailTimelineFilter SortedListWithin(MailboxScope scope) => EmailTimelineFilter.Create(
+        scope,
+        senderAddress: null,
+        recipientAddress: null,
+        subjectFragment: null,
+        this.ReceivedOnOrAfter,
+        this.ReceivedBefore,
+        this.IsRemotelySeen,
+        this.IsRemotelyFlagged,
+        keyword: null,
+        this.HasAttachments,
+        this.Order,
+        EmailMarkSelection.Create(this.CarriesMarkOfAspect, this.MarkDueOnOrAfter, this.MarkDueBefore));
 }

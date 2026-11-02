@@ -2623,6 +2623,43 @@
         ],
         "type": "object"
       },
+      "ClientMailConversationPageResponse": {
+        "properties": {
+          "conversations": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailThreadListEntryResponse"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pageSize": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "previousCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "conversations",
+          "nextCursor",
+          "previousCursor",
+          "pageSize"
+        ],
+        "type": "object"
+      },
       "ClientMailDeleteRequest": {
         "properties": {
           "storedEmailId": {
@@ -4574,6 +4611,16 @@
               "string"
             ]
           },
+          "receipts": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailReceiptSummaryResponse"
+              }
+            ]
+          },
           "receivedAt": {
             "format": "date-time",
             "type": [
@@ -4618,7 +4665,8 @@
           "senderDisplayName",
           "preview",
           "own",
-          "senderPhoto"
+          "senderPhoto",
+          "receipts"
         ],
         "type": "object"
       },
@@ -5066,43 +5114,6 @@
           "senderPhoto",
           "report",
           "receipts"
-        ],
-        "type": "object"
-      },
-      "ClientMailTimelineResponse": {
-        "properties": {
-          "emails": {
-            "items": {
-              "$ref": "#/components/schemas/ClientMailTimelineEntryResponse"
-            },
-            "type": "array"
-          },
-          "nextCursor": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "pageSize": {
-            "format": "int32",
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ]
-          },
-          "previousCursor": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        },
-        "required": [
-          "emails",
-          "nextCursor",
-          "previousCursor",
-          "pageSize"
         ],
         "type": "object"
       },
@@ -22230,6 +22241,13 @@
               "format": "date-time",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "grouping",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -22237,7 +22255,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ClientMailTimelineResponse"
+                  "$ref": "#/components/schemas/ClientMailConversationPageResponse"
                 }
               }
             },

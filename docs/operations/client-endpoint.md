@@ -1040,6 +1040,7 @@ leading end and answering with the leading page would read as having scrolled to
 | `direction` | `forward`, `backward` | `forward` |
 | `pageSize` | 1 to 100 | 25 |
 | `cursor` | A cursor a previous page returned | the leading end of the list |
+| `grouping` | `message`, `conversation` | `message` |
 
 **The three `mark` parameters narrow by what an enrichment already derived, and derive nothing.** `carriesMark` keeps
 the mail one of this deployment's own readings was recorded on, spelled exactly as `enrichment.marks[].aspect` publishes
@@ -1068,6 +1069,51 @@ instead.
 
 The filters are part of what a cursor was issued for, so changing any of them — or the `order` — makes a cursor taken
 before the change belong to a different list. Changing `pageSize` alone does not: page size moves no boundary.
+
+**`grouping=conversation` reads the same list one conversation at a time.** The scope, every filter, the `order`, the
+page size, and both cursors work exactly as they do without it; what changes is that the read keeps one row per
+conversation, standing at the conversation's newest message that passed them, and the page carries those rows under
+`conversations` instead of `emails`:
+
+```jsonc
+{
+  "conversations": [
+    {
+      "threadId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91",
+      "account": "work",
+      "messageCount": 4,
+      "unreadCount": 0,
+      "hasAttachments": true,
+      "participants": [ { "address": "releases@example.test", "displayName": "Example Releases", "reader": false } ],
+      "moreParticipantsNotNamed": false,
+      "newest": { "id": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90", "own": true, "receipts": null /* … */ },
+      "newestReceivedSender": { /* … */ },
+      "title": null
+    }
+  ],
+  "nextCursor": "AbCd...",
+  "previousCursor": null,
+  "pageSize": 25
+}
+```
+
+- **A row is the row of [the conversation list route](#the-conversation-list-route)** and describes the whole
+  conversation, whichever folders hold its messages and whichever of them the filters let through: every count, the
+  participants, `newest`, and `title` read exactly as that route documents them. `newest` is the conversation's own
+  newest message, so it can be a message no filter would have kept — a reply in Trash, say — while the row stands in the
+  list where its newest *passing* message does.
+- **A conversation is listed when one of its messages passes the filters and is neither spam nor in Trash** — judged
+  spam wherever it sits, or sitting in the junk folder, and Trash including every folder beneath it. Archive is an
+  ordinary folder. So `unread=true` lists the conversations with an unread message outside spam and Trash, and
+  `carriesMark=Commitment` the ones with a message carrying a commitment; a conversation whose every message is spam, in
+  Trash, or some of each is never listed.
+- **There is no folder.** A conversation gathers its messages from every folder of its account, so the grouped list is
+  scoped by `account` alone, or by all of the user's accounts. A request naming `folder` or `includeJunk=true` beside
+  the grouping is refused with `400` rather than answered with the parameter dropped.
+- **The cursors belong to the grouped list.** A cursor taken from the list read by message is refused here as one issued
+  for a different list, and the other way round, however alike the other parameters are.
+- `grouping` is matched without regard to case, and any other value is refused with `400`. Without it, or with
+  `grouping=message`, the route answers exactly as the rest of this section describes.
 
 **The page is served from the local copy.** Nothing here contacts a mail server, so no screen waits on IMAP, and
 reading a folder cannot set the remote `\Seen` flag. How current that copy is, per folder, is what
@@ -1108,7 +1154,8 @@ than by message, which [`listMode`](#the-preferences-routes) records:
         "senderDisplayName": "Somebody",
         "preview": "Thanks, the notes read well.",
         "own": true,
-        "senderPhoto": null
+        "senderPhoto": null,
+        "receipts": null
       },
       "newestReceivedSender": {
         "authorAuthentication": "Authenticated",
@@ -1146,9 +1193,11 @@ into the conversation, and `moreParticipantsNotNamed` says the conversation has 
 
 **`newest` quotes the conversation's newest message** the way a list row quotes one: its author, its arrival, its
 subject, and `preview`, the opening of its own text under the same bound and the same rules as a
-[mail list row's](#the-mail-list-route). `own` says the user wrote it. `newestReceivedSender` holds the facts the sender
-mark of the newest message somebody *else* wrote is chosen from, read as the `sender` object of a mail list row reads,
-and is `null` where the user wrote every message in the conversation.
+[mail list row's](#the-mail-list-route). `own` says the user wrote it, and `receipts` is what came back for it, counted
+as on a mail list row — present only where the user wrote it and it asked for a report or got one, so a conversation
+whose newest message was received carries none whatever came back for an earlier reply. `newestReceivedSender` holds
+the facts the sender mark of the newest message somebody *else* wrote is chosen from, read as the `sender` object of a
+mail list row reads, and is `null` where the user wrote every message in the conversation.
 
 **`title` is what [a derivation](../features/thread-state.md) called the conversation**, as
 [the conversation state route](#the-conversation-state-route) serves it, and `null` where none did. Its

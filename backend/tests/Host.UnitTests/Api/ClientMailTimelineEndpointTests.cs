@@ -4,15 +4,19 @@
 
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts.Photos;
+using MailFathom.Application.Emails.BrowseThreadList;
 using MailFathom.Application.Emails.BrowseTimeline;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Emails.Threads;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Observability;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Emails.Authorship;
@@ -41,7 +45,13 @@ public sealed class ClientMailTimelineEndpointTests
 
     private static readonly DateTimeOffset FirstJuly = new(2026, 7, 1, 8, 0, 0, TimeSpan.Zero);
 
+    private static readonly EmailThreadId ConversationId = EmailThreadId.Create(new Guid("11111111-1111-1111-1111-111111111111"));
+
+    private static readonly StoredEmailId ReadersReplyId = StoredEmailId.Create(new Guid("33333333-3333-3333-3333-333333333333"));
+
     private readonly IStoredEmailTimelineReader timeline = Substitute.For<IStoredEmailTimelineReader>();
+
+    private readonly IEmailThreadListReader conversationList = Substitute.For<IEmailThreadListReader>();
 
     /// <summary>The path a client appends to the address it was configured with, pinned because the client composes it from a constant of its own.</summary>
     [Fact]
@@ -165,6 +175,65 @@ public sealed class ClientMailTimelineEndpointTests
         Assert.NotEqual(
             Assert.IsType<ProblemHttpResult>(invented.Result).ProblemDetails.Detail,
             Assert.IsType<ProblemHttpResult>(otherList.Result).ProblemDetails.Detail);
+    }
+
+    [Theory]
+    [InlineData("thread")]
+    [InlineData("message,conversation")]
+    [InlineData("1")]
+    public async Task ReadTimelineAsync_AGroupingThisSurfaceDoesNotPublish_IsRefused(string grouping)
+    {
+        // Act
+        var result = await this.ReadAsync(grouping: grouping);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+    }
+
+    /// <summary>Naming the message grouping is the list a request naming none reads, matched without regard to case.</summary>
+    [Fact]
+    public async Task ReadTimelineAsync_TheMessageGroupingNamed_ReadsTheMessageList()
+    {
+        // Act
+        var result = await this.ReadAsync(grouping: "Message");
+
+        // Assert
+        Assert.IsType<Ok<ClientMailTimelineResponse>>(result.Result);
+    }
+
+    /// <summary>A conversation gathers its messages from every folder, so a folder beside the grouping is a filter the list could only have ignored.</summary>
+    [Fact]
+    public async Task ReadTimelineAsync_TheConversationGroupingBesideAFolder_IsRefusedRatherThanIgnored()
+    {
+        // Act
+        var result = await this.ReadAsync(folder: "role:Inbox", grouping: ClientMailTimelineEndpoint.ConversationGrouping);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+        await this.conversationList.DidNotReceiveWithAnyArgs().ReadGroupedPageAsync(
+            default!,
+            default!,
+            default,
+            default,
+            TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>The grouped page carries a conversation row, the receipt mark of the reader's own newest message, and a cursor at each end.</summary>
+    [Fact]
+    public async Task ReadTimelineAsync_TheConversationGrouping_PutsOneConversationRowPerConversationOnTheWire()
+    {
+        // Act
+        var result = await this.ReadAsync(grouping: ClientMailTimelineEndpoint.ConversationGrouping, pageSize: 1);
+
+        // Assert
+        var page = Assert.IsType<Ok<ClientMailConversationPageResponse>>(result.Result).Value!;
+        var row = Assert.Single(page.Conversations);
+
+        Assert.Equal((ConversationId.Value, 3, ReadersReplyId.Value, true), (row.ThreadId, row.MessageCount, row.Newest.Id, row.Newest.Own));
+        Assert.Equal(2, row.Newest.Receipts?.Delivery.Delivered);
+        Assert.NotNull(page.NextCursor);
+        Assert.Null(page.PreviousCursor);
+        Assert.Equal(1, page.PageSize);
     }
 
     [Fact]
@@ -624,7 +693,8 @@ public sealed class ClientMailTimelineEndpointTests
                 RemoteEmailKeywords.None),
         };
 
-    private Task<Results<Ok<ClientMailTimelineResponse>, ProblemHttpResult>> ReadAsync(
+    private Task<Results<Ok<ClientMailTimelineResponse>, Ok<ClientMailConversationPageResponse>, ProblemHttpResult>> ReadAsync(
+        string? grouping = null,
         string? account = null,
         string? folder = null,
         bool? unread = null,
@@ -663,10 +733,95 @@ public sealed class ClientMailTimelineEndpointTests
             carriesMark,
             markDueOnOrAfter,
             markDueBefore,
+            grouping,
             this.Browser(participation),
+            this.Conversations(),
             UnresolvedPersonPhotos.Create(),
             TestContext.Current.CancellationToken);
     }
+
+    /// <summary>Builds the grouped read behind the route, answering two conversations whose first the reader answered last with a reply that was delivered.</summary>
+    private MailThreadListBrowser Conversations()
+    {
+        var work = MailAccountId.Create("work");
+        var readersReply = SyntheticListedEmail() with
+        {
+            StoredEmailId = ReadersReplyId,
+            ThreadId = ConversationId,
+            SenderAddress = "me@example.test",
+            Receipts = new OutgoingEmailReceipts(
+                new OutgoingReceiptRequests(DeliveryNotification: true, ReadReceipt: false),
+                [Delivered("anna@example.test"), Delivered("bob@example.test")]),
+        };
+        GroupedEmailThread[] grouped =
+        [
+            Grouped(ConversationId, readersReply.StoredEmailId),
+            Grouped(EmailThreadId.Create(Guid.CreateVersion7()), StoredEmailId.Create(Guid.CreateVersion7())),
+        ];
+
+        this.conversationList
+            .ReadGroupedPageAsync(
+                Arg.Any<EmailTimelineFilter>(),
+                Arg.Any<IReadOnlySet<EmailAddress>>(),
+                Arg.Any<EmailTimelinePosition?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<GroupedEmailThread>>(grouped));
+
+        var catalog = Substitute.For<ICallerMailAccountCatalog>();
+        catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(work)]);
+
+        var summaries = Substitute.For<IStoredEmailSummaryReader>();
+        summaries.ReadSummariesAsync(Arg.Any<IReadOnlyList<StoredEmailId>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyDictionary<StoredEmailId, EmailSummary>>(
+                new Dictionary<StoredEmailId, EmailSummary> { [readersReply.StoredEmailId] = readersReply }));
+
+        var previews = Substitute.For<IStoredEmailPreviewReader>();
+        previews.ReadPreviewsAsync(Arg.Any<IReadOnlyList<StoredEmailId>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyDictionary<StoredEmailId, string>>(new Dictionary<StoredEmailId, string>()));
+
+        var readTelemetry = Substitute.For<IMailboxReadTelemetry>();
+        readTelemetry.BeginRead(Arg.Any<MailboxReadOperation>(), Arg.Any<CancellationToken>())
+            .Returns(Substitute.For<IMailboxReadScope>());
+
+        var participation = StubMailFolderParticipation.Mapping(new MailFolderIdentity(work, MailFolderAlias.Create("INBOX")));
+
+        return new MailThreadListBrowser(
+            this.conversationList,
+            summaries,
+            previews,
+            catalog,
+            Substitute.For<IOutgoingSenderIdentityReader>(),
+            new MailboxScopeResolver(
+                catalog,
+                participation,
+                StubDeploymentMailFolders.Of(participation),
+                StubMailFolderMappings.ResolvingNothing),
+            SensitiveContentEgressGuards.Inactive(),
+            readTelemetry,
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));
+    }
+
+    /// <summary>Groups one conversation of three messages whose newest the reader wrote, standing at that message.</summary>
+    private static GroupedEmailThread Grouped(EmailThreadId threadId, StoredEmailId newest) => new(
+        new ListedEmailThread
+        {
+            ThreadId = threadId,
+            NewestArrival = FirstJuly,
+            MessageCount = 3,
+            UnreadCount = 0,
+            HasAttachments = false,
+            NewestEmailId = newest,
+            NewestReceivedEmailId = null,
+            Participants = [],
+            Title = null,
+        },
+        new EmailTimelinePosition(FirstJuly, newest));
+
+    private static RecipientReceipts Delivered(string address) => new(
+        address,
+        new RecordedReceiptOutcome(ReceiptOutcome.Delivered, FirstJuly, ReceiptOutcomeSource.Report, null, null),
+        null);
 
     /// <summary>Builds the use case behind the route over the real scope resolution, with storage and the instruments stood in for.</summary>
     /// <param name="participation">What the caller's folders take part in, defaulting to a deployment that maps none.</param>

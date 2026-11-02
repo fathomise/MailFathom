@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Emails.BrowseThreadList;
+using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -67,6 +68,70 @@ public sealed class StoredEmailThreadListReaderCommandTests
         Assert.Contains("@boundaryId", command, StringComparison.Ordinal);
     }
 
+    /// <summary>The grouped walk translates in both directions, from either end and from either shape of boundary, and decides listing on spam and Trash.</summary>
+    [Theory]
+    [InlineData(EmailTimelineDirection.NewestFirst, null)]
+    [InlineData(EmailTimelineDirection.NewestFirst, true)]
+    [InlineData(EmailTimelineDirection.NewestFirst, false)]
+    [InlineData(EmailTimelineDirection.OldestFirst, null)]
+    [InlineData(EmailTimelineDirection.OldestFirst, true)]
+    [InlineData(EmailTimelineDirection.OldestFirst, false)]
+    public void GroupedPage_EitherDirectionFromEitherBoundary_IsOneGroupedOrderedBoundedRead(
+        EmailTimelineDirection direction,
+        bool? datedBoundary)
+    {
+        // Arrange
+        EmailTimelinePosition? boundary = datedBoundary is { } dated
+            ? new EmailTimelinePosition(
+                dated ? DateTimeOffset.Parse("2026-10-30T09:00:00Z", null) : null,
+                StoredEmailId.Create(Guid.Parse("33333333-3333-3333-3333-333333333333")))
+            : null;
+
+        // Act
+        var command = GroupedPageCommand(Filter(direction, mark: null), boundary);
+
+        // Assert
+        Assert.Contains("GROUP BY", command, StringComparison.Ordinal);
+        Assert.Contains("LIMIT", command, StringComparison.Ordinal);
+        Assert.Contains("@trashedFolderIds", command, StringComparison.Ordinal);
+        Assert.Contains("Verdict", command, StringComparison.Ordinal);
+        Assert.Equal(boundary is not null, command.Contains("boundaryId", StringComparison.Ordinal));
+    }
+
+    /// <summary>The list's filters reach the grouped walk through the shared predicate, an AI filter's mark criteria among them.</summary>
+    [Fact]
+    public void GroupedPage_UnderAMarkCriterionAndTheUnreadFilter_ComposesBothBeforeGrouping()
+    {
+        // Act
+        var command = GroupedPageCommand(
+            Filter(
+                EmailTimelineDirection.NewestFirst,
+                EmailMarkSelection.Create(EmailEnrichmentAspect.Commitment, dueOnOrAfter: null, dueBefore: null),
+                isRemotelySeen: false),
+            continueAfter: null);
+
+        // Assert
+        Assert.Contains("@aspect", command, StringComparison.Ordinal);
+        Assert.Contains("@isRemotelySeen", command, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Counted_TheChosenConversations_CountsEachWholeInOneGroupedRead()
+    {
+        // Arrange
+        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
+
+        // Act
+        var command = StoredEmailThreadListReader
+            .Counted(context.StoredEmails.AsNoTracking(), Scope(), ThreadIds, ["me@example.test"])
+            .ToQueryString();
+
+        // Assert
+        Assert.Contains("GROUP BY", command, StringComparison.Ordinal);
+        Assert.Contains("@readerForms", command, StringComparison.Ordinal);
+        Assert.DoesNotContain("LIMIT", command, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Quoted_ThePagesConversations_PicksOneNewestMessagePerConversation()
     {
@@ -128,6 +193,37 @@ public sealed class StoredEmailThreadListReaderCommandTests
                 PageLimit)
             .ToQueryString();
     }
+
+    private static string GroupedPageCommand(EmailTimelineFilter filter, EmailTimelinePosition? continueAfter)
+    {
+        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
+
+        return StoredEmailThreadListReader
+            .GroupedPage(
+                context.StoredEmails.AsNoTracking(),
+                filter,
+                trashedFolderIds: [Guid.Parse("22222222-2222-2222-2222-222222222222")],
+                continueAfter,
+                PageLimit)
+            .ToQueryString();
+    }
+
+    private static EmailTimelineFilter Filter(
+        EmailTimelineDirection direction,
+        EmailMarkSelection? mark,
+        bool? isRemotelySeen = null) => EmailTimelineFilter.Create(
+        Scope(),
+        senderAddress: null,
+        recipientAddress: null,
+        subjectFragment: null,
+        receivedOnOrAfter: null,
+        receivedBefore: null,
+        isRemotelySeen,
+        isRemotelyFlagged: null,
+        keyword: null,
+        hasAttachments: null,
+        direction,
+        mark);
 
     private static MailboxScope Scope() =>
         MailboxScope.Create([MailAccountId.Create("acct-1"), MailAccountId.Create("acct-2")], selectedFolders: null);
