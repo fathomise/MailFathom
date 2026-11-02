@@ -70,7 +70,7 @@ client_stack_filter=(
 # itself, so building the stack is how its edit is verified. No gate here runs either: a Release build
 # and a unit suite over an unchanged solution prove nothing about an edited YAML file, and the
 # contract suite the full gate runs is what reads one. The entries stay in the lists so they remain copies of `ci.yml`'s filters,
-# and the skip sits here so it holds for both gates and for the unit-suite resolver at once.
+# and the skip sits here so it holds for both gates at once.
 change_reaches() {
   local pattern path
   local -a patterns=()

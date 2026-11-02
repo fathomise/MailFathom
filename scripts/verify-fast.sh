@@ -20,8 +20,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/resolve-base-remote.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/list-branch-changes.sh"
 # shellcheck source=scripts/resolve-changed-stacks.sh
 source "$(dirname "${BASH_SOURCE[0]}")/resolve-changed-stacks.sh"
-# shellcheck source=scripts/resolve-changed-unit-suites.sh
-source "$(dirname "${BASH_SOURCE[0]}")/resolve-changed-unit-suites.sh"
 # shellcheck source=scripts/resolve-changed-client-files.sh
 source "$(dirname "${BASH_SOURCE[0]}")/resolve-changed-client-files.sh"
 # shellcheck source=scripts/verification-record.sh
@@ -214,32 +212,14 @@ if [[ -n "$run_client_stack" ]]; then
   pnpm --dir frontend run typecheck
 fi
 
-# The service suites. The solution is built whole and tested narrow, which is where the two costs
-# actually sit: on the owner's machine an incremental Release build is seconds and the whole suite is
-# about eighty, fifteen thousand tests of which a change reads a handful of projects' worth. Narrowing
-# the build instead would buy the seconds and give up the analyzer verdict `EnforceCodeStyleInBuild`
-# and `TreatWarningsAsErrors` produce over every project, which is the half of the build answering
-# for the files the change did not open.
-#
-# `scripts/resolve-changed-unit-suites.sh` decides which suites, and refuses to narrow at all for a
-# change that reaches a shared build input — the whole solution then runs exactly as it did before.
+# The service suites run whole, in one invocation that runs the test modules side by side. Narrowing
+# them to the projects a change names costs more than it saves: a change reaching most of the core
+# projects names nine suites, which one `dotnet test --project` after another takes about 225 seconds
+# over, while the whole solution in one parallel run takes about eighty, and a change reaching a
+# single project would save some fifty seconds against that. `Infrastructure.UnitTests` alone sets
+# the floor.
 if [[ -n "$run_service_stack" ]]; then
-  if changed_unit_suites="$(resolve_changed_unit_suites "${touched_paths[@]}")"; then
-    mapfile -t unit_suites <<< "$changed_unit_suites"
-
-    # Said rather than left to be inferred, because a run that tested a quarter of the suite and
-    # printed nothing about it reads as a run that tested all of it. The pipeline runs every suite on
-    # the pull request, so this is an earlier verdict withheld rather than a verdict lost.
-    printf '%d of the %d unit suites can have been broken by this change and run here; the rest are left to the pipeline:\n' \
-      "${#unit_suites[@]}" "$(count_unit_suites)"
-    printf '  %s\n' "${unit_suites[@]}"
-
-    for unit_suite in "${unit_suites[@]}"; do
-      dotnet test --project "$unit_suite" --configuration Release --no-build
-    done
-  else
-    dotnet test --solution backend/MailFathom.slnx --configuration Release --no-build
-  fi
+  dotnet test --solution backend/MailFathom.slnx --configuration Release --no-build
 fi
 
 # Narrowed, Vitest runs the test files whose imports reach a changed file and prints how many of the

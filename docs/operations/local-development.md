@@ -98,8 +98,8 @@ The fast script restores the solution, repairs the whitespace of the C# files th
 branch changed, builds the solution whole in Release configuration — without the
 commit stamp, Source Link, `CA2000`, or `IDE0055`, which the full script and `CI`
 keep, so a commit recompiles only what it reached and switching between the two
-scripts in one worktree rebuilds the solution once — and runs without rebuilding
-the unit suites the change can have broken;
+scripts in one worktree rebuilds the solution once — and runs every unit suite
+without rebuilding, in one parallel `dotnet test --solution`;
 [Building and testing the client](#building-and-testing-the-client) describes the
 client half. It is the only one that rewrites source files, and its one
 `dotnet format` pass is a repairing one — a run whose build and suites passed

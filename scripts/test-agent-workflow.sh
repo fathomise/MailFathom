@@ -108,30 +108,7 @@ printf '%s\n' \
   'if [[ -n "${FAKE_WORKFLOW_FAIL:-}" ]]; then exit 23; fi' \
   > "$repository_root/scripts/test-agent-workflow.sh"
 chmod +x "$repository_root/scripts/test-agent-workflow.sh"
-# The fast loop runs the unit suites a change reaches rather than the solution's whole suite, so the
-# fixture carries the two shapes that decision reads: a suite that names the project the branch's C#
-# file belongs to, and one that names nothing. Both are committed on `main` rather than on the
-# fixture branch, because a project file the branch itself added would be a changed path and would
-# select its own suite, which is a different contract from the one these state.
-mkdir -p "$repository_root/backend/tests/Sample.UnitTests" "$repository_root/backend/tests/Other.UnitTests"
-printf '<Project />\n' > "$repository_root/backend/src/Sample.csproj"
-printf '%s\n' \
-  '<Project>' \
-  '  <ItemGroup>' \
-  '    <ProjectReference Include="..\..\src\Sample.csproj" />' \
-  '  </ItemGroup>' \
-  '</Project>' \
-  > "$repository_root/backend/tests/Sample.UnitTests/Sample.UnitTests.csproj"
-printf '%s\n' \
-  '<Project>' \
-  '  <ItemGroup>' \
-  '    <PackageReference Include="xunit.v3.mtp-v2" />' \
-  '  </ItemGroup>' \
-  '</Project>' \
-  > "$repository_root/backend/tests/Other.UnitTests/Other.UnitTests.csproj"
-git -C "$repository_root" add .gitignore backend/MailFathom.slnx backend/src/Sample.csproj \
-  backend/tests/Other.UnitTests/Other.UnitTests.csproj \
-  backend/tests/Sample.UnitTests/Sample.UnitTests.csproj \
+git -C "$repository_root" add .gitignore backend/MailFathom.slnx \
   scripts/test-agent-workflow.sh tracked.txt
 git -C "$repository_root" commit --quiet -m 'test fixture'
 
@@ -431,10 +408,9 @@ verify_full_runs_no_stack_flow_for_a_change_no_build_reads() {
 # branch that changed no file under `frontend/` reaches nothing of that stack at all, so the run this
 # contract describes names no path under it.
 #
-# The test step names one project rather than the solution, which is the other half of what this log
-# states: the solution is built whole, because the build is where the analyzers report on every
-# project, and only the suites the change reaches are run. `Other.UnitTests` names nothing the branch
-# touched and is absent for that reason rather than by an exclusion.
+# The test step names the solution, which is the other half of what this log states: the fast loop
+# runs every unit suite in one invocation rather than the projects the change names, because one
+# parallel run of the whole suite costs less than the narrowed suites run one after another.
 verify_fast_runs_restore_build_tests_and_formatting() {
   : > "$invocation_log"
 
@@ -444,63 +420,8 @@ verify_fast_runs_restore_build_tests_and_formatting() {
   )
 
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --solution backend/MailFathom.slnx --configuration Release --no-build' \
     "$invocation_log"
-}
-
-# A run that tested a quarter of the suite and said nothing about it reads as a run that tested all
-# of it, which is the failure a narrowing gate has and a whole one does not. So the count and the
-# projects are printed, and the sentence says where the rest of the verdict comes from.
-verify_fast_names_the_suites_it_left_to_the_pipeline() {
-  local narrowed_output="$test_directory/verify-fast-narrowed-output"
-
-  (
-    cd "$repository_root"
-    VERIFY_FORCE=1 "$scripts_directory/verify-fast.sh"
-  ) > "$narrowed_output" 2>&1
-
-  assert_contains '1 of the 2 unit suites can have been broken by this change and run here; the rest are left to the pipeline:' \
-    "$narrowed_output"
-  assert_contains '  backend/tests/Sample.UnitTests/Sample.UnitTests.csproj' "$narrowed_output"
-
-  if grep -Fq 'Other.UnitTests' "$narrowed_output"; then
-    printf 'verify-fast.sh named a suite the change does not reach\n' >&2
-    return 1
-  fi
-}
-
-# The narrowing stops where the change stops being about one project. A package pin, a shared build
-# property, the solution file, or the SDK pin can move the verdict on a project nothing in the change
-# touched, so no selection is honest there and the whole solution runs — exactly as it did before the
-# fast loop narrowed anything.
-#
-# Both paths are asserted because the two are reached differently and only one of them is under
-# `backend/`. `global.json` stands for the shared build inputs above both stacks — `NuGet.config` and
-# `.config/**` beside it — which a rule written around `backend/` alone would skip as uninteresting
-# rather than refuse to narrow around, leaving an SDK bump verified by whichever suite the C# file
-# beside it happened to name. Each runs beside the fixture branch's own C# file, which is what makes
-# the assertion about the shared input rather than about a branch with nothing else on it.
-verify_fast_runs_every_suite_when_a_shared_build_input_changed() {
-  local shared_build_input
-
-  for shared_build_input in backend/Directory.Packages.props global.json; do
-    : > "$invocation_log"
-    printf '{}\n' > "$repository_root/$shared_build_input"
-    git -C "$repository_root" add "$shared_build_input"
-
-    (
-      cd "$repository_root"
-      VERIFY_FORCE=1 "$scripts_directory/verify-fast.sh"
-    ) > /dev/null 2>&1
-
-    git -C "$repository_root" rm --quiet --force --cached "$shared_build_input"
-    rm -f "$repository_root/$shared_build_input"
-
-    if ! grep -Fq 'test --solution backend/MailFathom.slnx --configuration Release --no-build' "$invocation_log"; then
-      printf 'verify-fast.sh narrowed the suite for a change to %s\n' "$shared_build_input" >&2
-      return 1
-    fi
-  done
 }
 
 # The base check is the fast loop's now as well as the full gate's, and it is the one question `CI`
@@ -682,7 +603,7 @@ verify_fast_runs_the_client_flow_for_a_change_under_frontend() {
 
   remove_client_change
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --solution backend/MailFathom.slnx --configuration Release --no-build' \
     "$invocation_log"
   assert_file_content \
     $'--dir frontend install --frozen-lockfile\n--dir frontend exec prettier --write --cache --ignore-unknown src/Sample.txt\n--dir frontend exec eslint --max-warnings 0 --no-warn-ignored src/Sample.txt\n--dir frontend run typecheck\n--dir frontend exec vitest related --run --coverage.enabled=false src/Sample.txt' \
@@ -707,7 +628,7 @@ verify_fast_builds_every_stack_before_testing_either() {
 
   remove_client_change
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\n--dir frontend install --frozen-lockfile\nformat whitespace backend --folder --include src/Sample.cs\n--dir frontend exec prettier --write --cache --ignore-unknown src/Sample.txt\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\n--dir frontend exec eslint --max-warnings 0 --no-warn-ignored src/Sample.txt\n--dir frontend run typecheck\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\n--dir frontend exec vitest related --run --coverage.enabled=false src/Sample.txt' \
+    $'restore backend/MailFathom.slnx --locked-mode\n--dir frontend install --frozen-lockfile\nformat whitespace backend --folder --include src/Sample.cs\n--dir frontend exec prettier --write --cache --ignore-unknown src/Sample.txt\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\n--dir frontend exec eslint --max-warnings 0 --no-warn-ignored src/Sample.txt\n--dir frontend run typecheck\ntest --solution backend/MailFathom.slnx --configuration Release --no-build\n--dir frontend exec vitest related --run --coverage.enabled=false src/Sample.txt' \
     "$shared_invocation_log"
 }
 
@@ -939,7 +860,7 @@ discard_workflow_change() {
 }
 
 # On the fixture branch, so the C# file it carries is what earns the service flow: the run is the one
-# that file alone earns, narrowed to the one suite naming it, and the client flow does not run.
+# that file alone earns, and the client flow does not run.
 verify_fast_passes_over_a_workflow_when_it_decides_the_stacks() {
   : > "$invocation_log"
   : > "$client_invocation_log"
@@ -952,7 +873,7 @@ verify_fast_passes_over_a_workflow_when_it_decides_the_stacks() {
 
   discard_workflow_change
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --solution backend/MailFathom.slnx --configuration Release --no-build' \
     "$invocation_log"
   assert_file_content '' "$client_invocation_log"
 }
@@ -1699,7 +1620,7 @@ verify_fast_accepts_a_detached_head() {
   fi
 
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
+    $'restore backend/MailFathom.slnx --locked-mode\nformat whitespace backend --folder --include src/Sample.cs\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --solution backend/MailFathom.slnx --configuration Release --no-build' \
     "$invocation_log"
 }
 
@@ -1728,7 +1649,7 @@ verify_fast_skips_formatting_when_no_csharp_file_changed() {
   fi
 
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build' \
+    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore -p:IncludeSourceRevisionInInformationalVersion=false -p:EnableSourceLink=false -p:SkipPipelineOnlyAnalyzers=true\ntest --solution backend/MailFathom.slnx --configuration Release --no-build' \
     "$invocation_log"
 }
 
@@ -12847,8 +12768,6 @@ None'
 }
 
 run_test verify_fast_runs_restore_build_tests_and_formatting
-run_test verify_fast_names_the_suites_it_left_to_the_pipeline
-run_test verify_fast_runs_every_suite_when_a_shared_build_input_changed
 run_test verify_fast_stops_when_head_is_behind_origin_main
 run_test verify_fast_accepts_a_branch_behind_origin_main_when_told_to
 run_test verify_full_accepts_a_branch_behind_origin_main_when_told_to
