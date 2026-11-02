@@ -211,6 +211,17 @@ export async function settled(page: Page): Promise<void> {
     await expect.poll(() => page.evaluate(everythingArrived)).toBe(true);
 }
 
+const nothingStanding = `!((window.history.state ?? {})['mailfathom.back'] > 0)`;
+
+/**
+ * Waits until the history entry showing says nothing stands over the screen. A surface closed by its own control gives
+ * its entry back with a traversal that lands a task or more later, and a reload started before it lands is aborted by
+ * it — so a reload that follows such a close waits for this first.
+ */
+export async function nothingStandsOverTheScreen(page: Page): Promise<void> {
+    await expect.poll(() => page.evaluate(nothingStanding)).toBe(true);
+}
+
 /**
  * The settings surface opened on its Application section — by the tab strip on one pane, by the section navigation on
  * two — which is where everything about the client rather than the person is.
