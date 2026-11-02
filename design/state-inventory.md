@@ -1182,8 +1182,13 @@ and a day chip stand at 36 with the rest of the 44 around them. One choice among
 segmented track: the person's language, *Message view*, the interface language, the theme, the list
 mode, and how a folder is found.
 
-**A press answers at once.** Every control in the panel (`data-press`) sinks to 97 % while it is held and eases
-into its new state over 160 ms; a switch's knob slides across over 200 ms (`--knob-x`) rather than jumping; a block a
+**A press answers at once, by the kind of control and never by much.** `data-press` names the kind. A `button` sinks
+to 98.5 % and darkens 4 %; a `segment` sinks to 97 % under a 7 % tint of `--text`; an `icon` button, being small,
+sinks to 92 % under the same tint; a `row` — a section in the navigation, a radio row, an account, a folder, an AI
+reference — and a `switch` row do not move and only take the tint, since a wide row that shrinks reads as the page
+moving, and a switch row's knob (`data-knob`) draws in to 82 % while it is held. A press lands in 70 ms and lets go in
+180 ms, and every control eases into its new state over 160 ms; a switch's knob slides across over 200 ms (`--knob-x`)
+rather than jumping; a block a
 press opens — a folder, a certificate being added, the footer being written — rises in (`data-reveal`). Under
 `prefers-reduced-motion` none of it moves.
 
