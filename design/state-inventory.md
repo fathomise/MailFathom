@@ -545,7 +545,7 @@ Added to the prototype after this inventory was first written, and read against 
 | Search idle | `listSearchIdle` | `!st.listSearchOn` |
 | Search active | `listSearchActive` | the search control |
 | Filters open | `filtersOpen` | the filter control |
-| Filters in force | `filtersActive` | `filterCount > 0` over unread, flagged, attachment, date range and sort |
+| Filters in force | `filtersActive` | `filterCount > 0` over unread, flagged, attachment, date range and sort, and the criteria a press on an AI filter put among them — counted once however many there are, since the press was one decision. The prototype's `filterCount` reads the first five alone, because its AI filter entries answer no press (§ *States the source has and a preview does not reach*); the count and the lit control cover all six, read by message and by conversation alike |
 | Undo after archiving | `undoShown` | `isMobile` and the last archived thread is still archived — **phone only** |
 | A thread being dragged | `st.dragIds` (`dragThreadsStart`) | a row is `draggable` and starts a drag; the dragged rows go to `opacity:0.45` while it lasts, and a drag started on a row inside a selection of more than one carries **the whole selection** rather than that row |
 | A folder under the drag | `st.dragOverKey` (`dragOverFolder`) | the pointer over a folder row in the side list while `dragIds` is set — that row draws the accent-soft background, the accent text and an `inset 0 0 0 2px var(--accent)` ring, which is the only affordance saying a drop lands here |
