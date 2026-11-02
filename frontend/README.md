@@ -36,6 +36,14 @@ field is what says which version to install. `.npmrc` declares the registry thos
 leaving it to whatever a machine configured. [Local development](../docs/operations/local-development.md) has the
 prerequisites and how the verification gates run all of this.
 
+The full gate and the pull request run `pnpm lint`, `pnpm test`, and `pnpm format:check` over the whole workspace. The
+fast loop runs the same three tools over what a change touched instead — ESLint and the repairing Prettier pass over the
+client files it changed, Vitest over the test files importing them — and `pnpm typecheck` whole, because the type check
+is what catches a changed type breaking an unchanged importer. A change to one of the files every client file is
+checked through — a manifest, the lock file, a `tsconfig`, the ESLint, Vitest, Vite, or Prettier configuration, an
+`.editorconfig` — or one that removes a client file runs the three over the whole workspace again, and the loop says
+which it did. [Agent workflow](../docs/operations/agent-workflow.md#entry-points) has the whole of that rule.
+
 `pnpm dev` is also what the Aspire app host starts as its `mailfathom-client` resource, so one command brings up the
 database, the service, and this development server already pointed at the client surface — [the client
 resource](../docs/operations/local-development.md#the-client-resource) is that arrangement, including the environment

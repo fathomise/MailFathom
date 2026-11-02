@@ -36,7 +36,7 @@ stack stops the run before any suite starts. Then the unit suites the change can
 have broken, `--no-build` against the binaries that first phase produced, so
 nothing is built twice. Last the repairing formatting passes: `dotnet format`
 over the C# files the branch changed — everything committed since `origin/main`,
-staged, modified, or newly added — and Prettier over the client workspace. It is
+staged, modified, or newly added — and Prettier over the client files it changed. It is
 the only workflow script that rewrites source files. Each C# file is formatted
 against `backend/MailFathom.slnx`, which is the solution that holds it, and that
 pass is skipped where the branch touched no C#. A rewrite that reaches the end of
@@ -82,6 +82,37 @@ in the change touched. The run prints how many suites it ran of how many there
 are and names them, so a run that tested a quarter of the suite never reads as a
 run that tested all of it; `CI` runs every suite on the pull request, which is
 where the rest of that verdict arrives.
+
+The client is narrowed the same way, in its three slowest checks. ESLint runs
+over the client files the branch changed rather than `eslint .`, with the
+configuration's own ignores still deciding what is linted; Vitest runs
+`vitest related` over them, which finds the test files whose imports reach a
+changed file through Vitest's own module graph and prints how many of the
+workspace's that was, with coverage off because a figure over a few test files
+describes nothing; and the repairing Prettier pass writes the changed files alone,
+with its cache under `frontend/node_modules/`. The type check is not narrowed,
+because it is what catches a changed type breaking an unchanged importer. What the
+narrowing costs is a type-aware lint rule's verdict on an unchanged file, which
+can move when a changed file's types move — and the pipeline's whole-workspace
+lint is what answers for that. Measured one tool at a time on the owner's machine,
+a type-aware lint of the whole workspace is about 185 seconds against about 18
+for two changed files, and the whole suite about 123 seconds with coverage off
+against 73 for `vitest related` on a module most of the application imports —
+and far less for a leaf; each narrowing spends less CPU in total rather than the
+same work over more cores, which matters on a machine several sessions share.
+
+[`scripts/resolve-changed-client-files.sh`](https://github.com/fathomise/MailFathom/blob/main/scripts/resolve-changed-client-files.sh)
+refuses the narrowing in two cases, and the three checks then run over the whole
+workspace exactly as the full gate's do. One is a change reaching a shared client
+input: a `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `.npmrc`,
+`eslint.config.ts`, any `tsconfig*.json`, `vitest.config.ts`,
+`Client.App/vite.config.ts`, `Client.App/vitest.setup.ts`, `.prettierignore`, a
+`.prettierrc`, an `.editorconfig`, or a client path outside `frontend/` at all —
+`Version.props` and the script reading it, which reach the client through its
+build rather than through an import. The other is a removed or renamed client
+file, whose broken importers are unchanged files and which `vitest related`
+cannot be handed. Either way the run says which, and a narrowed run names the
+files it narrowed to, so neither reads as the other.
 
 Which of the two stacks it does any of that in follows from the changed paths
 rather than from whoever started it;
@@ -358,9 +389,11 @@ Three things follow that are worth knowing before they are discovered.
   whole invocation log rather than a line of it.
 - **A branch that did change something there runs the client's own flow.** The
   loop restores the pnpm workspace in locked mode and runs its lint, its type
-  check, its suite through `pnpm test`, and a repairing formatting pass; the full
-  gate runs the same four with the formatting pass verifying instead, and adds
-  the build —
+  check, its suite, and a repairing formatting pass, the three of those that can
+  be narrowed to the files the change touched; the full gate runs the same four
+  over the whole workspace, through `pnpm lint`, `pnpm test`, and
+  `pnpm format:check`, with the formatting pass verifying instead, and adds the
+  build —
   `verify_fast_runs_the_client_flow_for_a_change_under_frontend` and
   `verify_full_runs_the_client_flow_for_a_change_under_frontend` hold both to it,
   each by comparing the whole of what the flow invoked. `CI`'s `Frontend` job runs
@@ -386,7 +419,8 @@ Three things follow that are worth knowing before they are discovered.
 Each stack formats through its own tool, and the split into a repairing and a
 verifying half is the same on both sides: the fast loop repairs and the full gate
 verifies. `dotnet format` reaches the service solution alone, over the C# files
-the branch changed, and Prettier reaches the pnpm workspace; neither is ever
+the branch changed, and Prettier reaches the pnpm workspace — the client files the
+branch changed in the loop, and the whole tree in the full gate; neither is ever
 invoked by hand, because both already run where they belong.
 
 ### The base is asked twice locally and never in the pipeline

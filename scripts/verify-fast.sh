@@ -22,6 +22,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/list-branch-changes.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/resolve-changed-stacks.sh"
 # shellcheck source=scripts/resolve-changed-unit-suites.sh
 source "$(dirname "${BASH_SOURCE[0]}")/resolve-changed-unit-suites.sh"
+# shellcheck source=scripts/resolve-changed-client-files.sh
+source "$(dirname "${BASH_SOURCE[0]}")/resolve-changed-client-files.sh"
 # shellcheck source=scripts/verification-record.sh
 source "$(dirname "${BASH_SOURCE[0]}")/verification-record.sh"
 
@@ -81,6 +83,7 @@ mapfile -t touched_paths < <(printf '%s\n%s\n' "$changed_paths" "$removed_paths"
 
 run_service_stack=''
 run_client_stack=''
+changed_client_files=()
 
 if change_reaches_service_stack "${touched_paths[@]}"; then
   run_service_stack='yes'
@@ -138,7 +141,28 @@ if [[ -n "$run_client_stack" ]]; then
   fi
 
   pnpm --dir frontend install --frozen-lockfile
-  pnpm --dir frontend run lint
+
+  # `scripts/resolve-changed-client-files.sh` decides whether the lint, the suite, and the formatting
+  # pass narrow to the client files the branch changed, and refuses where the change reaches a shared
+  # client input or removes a client file. Said either way, for the reason the service suites are.
+  if client_whole_workspace_reason="$(explain_whole_client_workspace "$removed_paths" "${touched_paths[@]}")"; then
+    printf 'The client lint, suite, and formatting run over the whole workspace, because %s\n' "$client_whole_workspace_reason"
+  else
+    mapfile -t changed_client_files < <(printf '%s\n' "$changed_paths" | sed -n 's#^frontend/##p' | sort --unique)
+
+    printf 'The client lint, suite, and formatting are narrowed to the %d changed client files below, and the type check runs whole. A type-aware lint rule can change its verdict on an unchanged file when a changed file'\''s types move, so the whole workspace'\''s lint, suite, and formatting are left to the pipeline:\n' \
+      "${#changed_client_files[@]}"
+    printf '  frontend/%s\n' "${changed_client_files[@]}"
+  fi
+
+  # Narrowed, the configuration's own ignores still decide what is linted, so a changed path ESLint
+  # does not lint is passed over rather than reported.
+  if ((${#changed_client_files[@]} > 0)); then
+    pnpm --dir frontend exec eslint --max-warnings 0 --no-warn-ignored "${changed_client_files[@]}"
+  else
+    pnpm --dir frontend run lint
+  fi
+
   pnpm --dir frontend run typecheck
 fi
 
@@ -170,8 +194,15 @@ if [[ -n "$run_service_stack" ]]; then
   fi
 fi
 
+# Narrowed, Vitest runs the test files whose imports reach a changed file and prints how many of the
+# workspace's that was. Coverage is off there: a figure over a few test files describes nothing, and
+# writing it would share `artifacts/coverage/client/` with whatever whole run is beside it.
 if [[ -n "$run_client_stack" ]]; then
-  pnpm --dir frontend run test
+  if ((${#changed_client_files[@]} > 0)); then
+    pnpm --dir frontend exec vitest related --run --coverage.enabled=false "${changed_client_files[@]}"
+  else
+    pnpm --dir frontend run test
+  fi
 fi
 
 # One formatting pass per stack, and a repairing one, because this is the only step in either gate
@@ -200,8 +231,13 @@ if [[ -n "$run_service_stack" ]] && ((${#changed_service_csharp_files[@]} > 0));
   dotnet format backend/MailFathom.slnx --no-restore --include "${changed_service_csharp_files[@]}"
 fi
 
+# The cache Prettier keeps sits under `frontend/node_modules/`, never in the tree.
 if [[ -n "$run_client_stack" ]]; then
-  pnpm --dir frontend run format
+  if ((${#changed_client_files[@]} > 0)); then
+    pnpm --dir frontend exec prettier --write --cache --ignore-unknown "${changed_client_files[@]}"
+  else
+    pnpm --dir frontend run format
+  fi
 fi
 
 # A rewrite by the formatters is their own repair: whitespace, the order of using directives, a final
