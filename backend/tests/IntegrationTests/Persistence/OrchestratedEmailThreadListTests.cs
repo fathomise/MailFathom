@@ -31,7 +31,7 @@ namespace MailFathom.IntegrationTests.Persistence;
 /// </para>
 /// <para>
 /// The database is shared with every other class in the collection, so the walk reads every listed conversation and
-/// the assertions are made over this class's own: five conversations seeded once under fixed identities and a block of
+/// the assertions are made over this class's own: six conversations seeded once under fixed identities and a block of
 /// UIDs no other class uses. How the use case pages, narrows to an account, and quotes a row is decided without a
 /// database and stays in the unit suite.
 /// </para>
@@ -55,8 +55,9 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
     private static readonly Guid AllSpam = Guid.Parse("0197a000-0000-7000-8000-000000002889");
     private static readonly Guid SpamAndTrash = Guid.Parse("0197a000-0000-7000-8000-000000002890");
     private static readonly Guid TrashOnly = Guid.Parse("0197a000-0000-7000-8000-000000002891");
+    private static readonly Guid AcrossFolders = Guid.Parse("0197a000-0000-7000-8000-000000002919");
 
-    private static readonly Guid[] SeededThreads = [Answered, OneOrdinaryAmongSpam, AllSpam, SpamAndTrash, TrashOnly];
+    private static readonly Guid[] SeededThreads = [Answered, OneOrdinaryAmongSpam, AllSpam, SpamAndTrash, TrashOnly, AcrossFolders];
 
     /// <summary>The messages this class seeds, each into its own UID from a block no other class uses.</summary>
     private static readonly SeededMessage[] SeededMessages =
@@ -70,6 +71,8 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
         new(9106, SpamAndTrash, FolderAlias, "offer@mailfathom.test", MinutesAfter: 50, Seen: false, Spam: true),
         new(9107, SpamAndTrash, TrashFolderAlias, "carol@mailfathom.test", MinutesAfter: 55, Seen: true, Spam: false),
         new(9108, TrashOnly, TrashFolderAlias, "carol@mailfathom.test", MinutesAfter: 65, Seen: true, Spam: false),
+        new(9109, AcrossFolders, FolderAlias, "bob@mailfathom.test", MinutesAfter: 70, Seen: true, Spam: false),
+        new(9110, AcrossFolders, TrashFolderAlias, "carol@mailfathom.test", MinutesAfter: 80, Seen: false, Spam: false),
     ];
 
     [Fact]
@@ -86,8 +89,77 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
         // Assert
         var ours = listed.Where(thread => SeededThreads.Contains(thread.ThreadId.Value)).ToArray();
 
-        Assert.Equal([Answered, OneOrdinaryAmongSpam], ours.Select(thread => thread.ThreadId.Value));
+        Assert.Equal([Answered, AcrossFolders, OneOrdinaryAmongSpam], ours.Select(thread => thread.ThreadId.Value));
         Assert.Equal(listed.Count, listed.Select(thread => thread.ThreadId).Distinct().Count());
+    }
+
+    /// <summary>
+    /// Grouped with no filter, the list holds the conversations the ungrouped list holds, each standing at its newest
+    /// message that is neither spam nor in Trash, and a walk back from the far end visits them once in the reverse order.
+    /// </summary>
+    [Fact]
+    public async Task ReadGroupedPageAsync_WalkingForwardThenBack_ListsEachListedConversationOnceAtItsNewestMessageOutsideSpamAndTrash()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var stored = await EnsureSeededAsync(services, cancellationToken);
+
+        // Act
+        var forward = await WalkGroupedAsync(services, isRemotelySeen: null, EmailTimelineDirection.NewestFirst, from: null, cancellationToken);
+        var backward = await WalkGroupedAsync(services, isRemotelySeen: null, EmailTimelineDirection.OldestFirst, forward[^1].Position, cancellationToken);
+
+        // Assert
+        var ours = forward.Where(grouped => SeededThreads.Contains(grouped.Thread.ThreadId.Value)).ToArray();
+
+        Assert.Equal(
+            [(Answered, stored[9101]), (AcrossFolders, stored[9109]), (OneOrdinaryAmongSpam, stored[9103])],
+            ours.Select(grouped => (grouped.Thread.ThreadId.Value, grouped.Position.StoredEmailId)));
+        Assert.Equal(forward.Count, forward.Select(grouped => grouped.Thread.ThreadId).Distinct().Count());
+        Assert.Equal(
+            forward.SkipLast(1).Reverse().Select(grouped => grouped.Thread.ThreadId),
+            backward.Select(grouped => grouped.Thread.ThreadId));
+    }
+
+    /// <summary>A conversation spread across folders is positioned by what passed and described whole, its trashed newest message included.</summary>
+    [Fact]
+    public async Task ReadGroupedPageAsync_AConversationSpreadAcrossFolders_IsCountedAndQuotedWhole()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var stored = await EnsureSeededAsync(services, cancellationToken);
+
+        // Act
+        var forward = await WalkGroupedAsync(services, isRemotelySeen: null, EmailTimelineDirection.NewestFirst, from: null, cancellationToken);
+
+        // Assert
+        var across = Assert.Single(forward, grouped => grouped.Thread.ThreadId.Value == AcrossFolders);
+
+        Assert.Equal((2, stored[9110]), (across.Thread.MessageCount, across.Thread.NewestEmailId));
+    }
+
+    /// <summary>
+    /// A filter narrows the grouped list to conversations with a message that passes it outside spam and Trash: an
+    /// unread spam message and an unread trashed one keep nothing listed, and the listed one stands at the unread message.
+    /// </summary>
+    [Fact]
+    public async Task ReadGroupedPageAsync_UnderTheUnreadFilter_ListsOnlyConversationsWithAnUnreadMessageOutsideSpamAndTrash()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var stored = await EnsureSeededAsync(services, cancellationToken);
+
+        // Act
+        var unread = await WalkGroupedAsync(services, isRemotelySeen: false, EmailTimelineDirection.NewestFirst, from: null, cancellationToken);
+
+        // Assert
+        var ours = unread.Where(grouped => SeededThreads.Contains(grouped.Thread.ThreadId.Value)).ToArray();
+
+        Assert.Equal(
+            [(Answered, stored[9100], 2)],
+            ours.Select(grouped => (grouped.Thread.ThreadId.Value, grouped.Position.StoredEmailId, grouped.Thread.MessageCount)));
     }
 
     /// <summary>A conversation is counted whole, Spam and Trash included, and only mail somebody else sent and nobody read is unread.</summary>
@@ -154,7 +226,60 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
             cancellationToken);
     }
 
-    /// <summary>Writes the five conversations once and answers each seeded UID's stored identity.</summary>
+    /// <summary>Walks the grouped list one conversation at a time in one direction, from a position or from that direction's leading end.</summary>
+    private static async Task<IReadOnlyList<GroupedEmailThread>> WalkGroupedAsync(
+        OrchestratedMailFathomServices services,
+        bool? isRemotelySeen,
+        EmailTimelineDirection direction,
+        EmailTimelinePosition? from,
+        CancellationToken cancellationToken)
+    {
+        _ = EmailAddress.TryCreate(displayName: null, ReaderAddress, out var reader);
+        IReadOnlySet<EmailAddress> readerAddresses = new HashSet<EmailAddress> { reader };
+
+        return await services.AsCallerInScopeAsync(
+            async (scope, token) =>
+            {
+                var mailboxScope = await scope.GetRequiredService<MailboxScopeResolver>().ReadableScopeAsync(
+                    MailboxReaderKind.Person,
+                    [],
+                    [],
+                    JunkMailInclusion.Included,
+                    token);
+                var filter = EmailTimelineFilter.Create(
+                    mailboxScope,
+                    senderAddress: null,
+                    recipientAddress: null,
+                    subjectFragment: null,
+                    receivedOnOrAfter: null,
+                    receivedBefore: null,
+                    isRemotelySeen,
+                    isRemotelyFlagged: null,
+                    keyword: null,
+                    hasAttachments: null,
+                    direction);
+                var listReader = scope.GetRequiredService<IEmailThreadListReader>();
+                List<GroupedEmailThread> walked = [];
+                var after = from;
+
+                while (true)
+                {
+                    var page = await listReader.ReadGroupedPageAsync(filter, readerAddresses, after, PageSize, token);
+
+                    if (page.Count is 0)
+                    {
+                        return (IReadOnlyList<GroupedEmailThread>)walked;
+                    }
+
+                    walked.AddRange(page);
+                    after = page[^1].Position;
+                }
+            },
+            [MailFathomPermission.MailRead],
+            cancellationToken);
+    }
+
+    /// <summary>Writes the six conversations once and answers each seeded UID's stored identity.</summary>
     /// <remarks>
     /// The messages go through the production write path and settlement, so each is a row a deployment produces; what a
     /// synchronization run and the threading, spam, and folder work would decide afterwards is then stated directly —

@@ -28,10 +28,8 @@ namespace MailFathom.Application.Emails.BrowseTimeline;
 /// scrolled down can scroll back.
 /// </para>
 /// <para>
-/// Scrolling back is a second walk over the same list rather than a second list. The order the rows are sorted in is
-/// part of what a cursor was issued for, so it never changes with the direction a page is asked in: a backward page is
-/// read away from the cursor with the walk reversed and handed back in the sorted order, and its cursors carry the
-/// sorted list's fingerprint. That is what lets a client page in both directions from cursors it collected in either.
+/// Scrolling back is a second walk over the same list rather than a second list, as <see cref="TimelinePaging" /> pages
+/// it, which is also how the same list grouped by conversation is paged.
 /// </para>
 /// <para>
 /// It reaches no mail server. A page answers from what synchronization has already stored, so no request from a browser
@@ -46,9 +44,6 @@ namespace MailFathom.Application.Emails.BrowseTimeline;
 /// </remarks>
 public sealed class MailTimelineBrowser
 {
-    /// <summary>How this use case names the value that says which way a page continues, when it refuses one.</summary>
-    private const string PageDirectionFilterName = "page direction";
-
     private readonly IStoredEmailTimelineReader timelineReader;
     private readonly IStoredEmailPreviewReader previewReader;
     private readonly IStoredEmailEnrichmentReader enrichmentReader;
@@ -129,8 +124,8 @@ public sealed class MailTimelineBrowser
 
         var sortedList = await this.SortedListAsync(request, cancellationToken);
         var pageSize = MailboxQueryPageSize.FromRequested(request.PageSize);
-        var pageDirection = DefinedPageDirection(request.PageDirection);
-        var boundary = ContinuationBoundary(request.Cursor, sortedList, pageDirection);
+        var pageDirection = TimelinePaging.Defined(request.PageDirection);
+        var boundary = TimelinePaging.ContinuationBoundary(request.Cursor, sortedList.Fingerprint, pageDirection);
 
         // Every value has been validated by this point, so a deployment serving this user no account answers the same
         // refusals a deployment serving several does, and only then reports that it holds nothing to draw.
@@ -144,12 +139,12 @@ public sealed class MailTimelineBrowser
         // One row beyond the page is what establishes whether another page exists at the end being walked towards. The
         // other end is known without asking: a page reached from a cursor has whatever the cursor came from behind it.
         var walked = await this.timelineReader.ReadPageAsync(
-            WalkedIn(sortedList, pageDirection),
+            TimelinePaging.WalkedIn(sortedList, pageDirection),
             boundary,
             pageSize.Value + 1,
             cancellationToken);
 
-        var page = SortedPage(walked, pageSize, pageDirection);
+        var page = TimelinePaging.SortedPage(walked, pageSize, pageDirection);
         var beyondThePage = walked.Count > pageSize.Value;
 
         var pageIdentities = page.Select(static email => email.StoredEmailId).ToArray();
@@ -165,130 +160,14 @@ public sealed class MailTimelineBrowser
 
         read.Completed(rows.Count);
 
+        EmailTimelinePosition[] positions = [.. page.Select(static email => email.Position)];
+
         return new BrowsedTimelinePage(
             rows,
-            CursorAfterThePage(page, sortedList, pageDirection, beyondThePage),
-            CursorBeforeThePage(page, sortedList, pageDirection, beyondThePage, boundary),
+            TimelinePaging.CursorAfterThePage(positions, sortedList.Fingerprint, pageDirection, beyondThePage),
+            TimelinePaging.CursorBeforeThePage(positions, sortedList.Fingerprint, pageDirection, beyondThePage, boundary),
             pageSize.Value);
     }
-
-    /// <summary>Names the walk that produces the page, which is the sorted list itself or that list read backwards.</summary>
-    private static EmailTimelineFilter WalkedIn(EmailTimelineFilter sortedList, TimelinePageDirection pageDirection) =>
-        pageDirection is TimelinePageDirection.Forward
-            ? sortedList
-            : EmailTimelineFilter.ReadIn(sortedList.Selection, Opposite(sortedList.Direction));
-
-    /// <summary>Names the end of the timeline a backward walk reads towards.</summary>
-    private static EmailTimelineDirection Opposite(EmailTimelineDirection direction) =>
-        direction is EmailTimelineDirection.NewestFirst
-            ? EmailTimelineDirection.OldestFirst
-            : EmailTimelineDirection.NewestFirst;
-
-    /// <summary>Cuts the walk to one page and puts it back into the order the list is sorted in.</summary>
-    /// <remarks>
-    /// The probe row is dropped first, so reversing a backward walk turns the page the caller keeps rather than a page
-    /// with somebody else's boundary row still on the end of it.
-    /// </remarks>
-    private static IReadOnlyList<EmailSummary> SortedPage(
-        IReadOnlyList<EmailSummary> walked,
-        MailboxQueryPageSize pageSize,
-        TimelinePageDirection pageDirection)
-    {
-        var withoutTheProbe = walked.Take(pageSize.Value);
-
-        return pageDirection is TimelinePageDirection.Forward
-            ? [.. withoutTheProbe]
-            : [.. withoutTheProbe.Reverse()];
-    }
-
-    /// <summary>Issues the cursor that reads the page after this one, or nothing where the list ends here.</summary>
-    /// <remarks>
-    /// Walking forward, another page exists exactly when the probe row came back. Walking backward there is always
-    /// something after the page, because the cursor the walk started from names a row that is still there.
-    /// </remarks>
-    private static string? CursorAfterThePage(
-        IReadOnlyList<EmailSummary> page,
-        EmailTimelineFilter sortedList,
-        TimelinePageDirection pageDirection,
-        bool beyondThePage)
-    {
-        if (page.Count is 0)
-        {
-            return null;
-        }
-
-        var more = pageDirection is not TimelinePageDirection.Forward || beyondThePage;
-
-        return more ? EmailTimelineCursor.After(page[^1].Position, sortedList.Fingerprint).Encode() : null;
-    }
-
-    /// <summary>Issues the cursor that reads the page before this one, or nothing where the list begins here.</summary>
-    /// <remarks>
-    /// Walking backward, a further page exists exactly when the probe row came back. Walking forward, what lies before
-    /// the page is whatever the presented cursor was taken from — so a page read from the leading end of the list has
-    /// nothing before it and every other forward page has.
-    /// </remarks>
-    private static string? CursorBeforeThePage(
-        IReadOnlyList<EmailSummary> page,
-        EmailTimelineFilter sortedList,
-        TimelinePageDirection pageDirection,
-        bool beyondThePage,
-        EmailTimelinePosition? boundary)
-    {
-        if (page.Count is 0)
-        {
-            return null;
-        }
-
-        var more = pageDirection is TimelinePageDirection.Forward
-            ? boundary is not null
-            : beyondThePage;
-
-        return more ? EmailTimelineCursor.After(page[0].Position, sortedList.Fingerprint).Encode() : null;
-    }
-
-    /// <summary>Reads the position a cursor names, after establishing that the cursor belongs to this list.</summary>
-    /// <remarks>
-    /// A blank cursor is the leading end of the list rather than a malformed one, for the reason the tool listing reads
-    /// it that way: a client carrying the field with nothing in it yet has asked for the beginning of the walk. That
-    /// makes it no cursor at all, which is why a backward page is refused against it as well as against an absent one.
-    /// </remarks>
-    private static EmailTimelinePosition? ContinuationBoundary(
-        string? cursor,
-        EmailTimelineFilter sortedList,
-        TimelinePageDirection pageDirection)
-    {
-        if (string.IsNullOrWhiteSpace(cursor))
-        {
-            if (pageDirection is TimelinePageDirection.Backward)
-            {
-                throw MailboxQueryFilterInvalidException.NeedsACursor(PageDirectionFilterName);
-            }
-
-            return null;
-        }
-
-        if (!EmailTimelineCursor.TryDecode(cursor, out var decodedCursor))
-        {
-            throw new MailboxQueryCursorMalformedException();
-        }
-
-        if (!string.Equals(decodedCursor.FilterFingerprint, sortedList.Fingerprint, StringComparison.Ordinal))
-        {
-            throw new MailboxQueryCursorFilterMismatchException();
-        }
-
-        return decodedCursor.Position;
-    }
-
-    /// <summary>Establishes that the page direction names one of the two answers rather than an unmapped value.</summary>
-    private static TimelinePageDirection DefinedPageDirection(TimelinePageDirection pageDirection) =>
-        Enum.IsDefined(pageDirection)
-            ? pageDirection
-            : throw new ArgumentOutOfRangeException(
-                nameof(pageDirection),
-                pageDirection,
-                "A page continues from its cursor in one of two directions, and no other value names one.");
 
     /// <summary>Scans everything a row carries that was written by a message's author or derived from one.</summary>
     /// <remarks>
@@ -405,22 +284,11 @@ public sealed class MailTimelineBrowser
         enrichments.TryGetValue(email.StoredEmailId, out var enrichment) ? enrichment : null;
 
     /// <summary>Validates what the request asked for and restricts the list to the accounts its user owns.</summary>
-    private async Task<EmailTimelineFilter> SortedListAsync(BrowseTimelineRequest request, CancellationToken cancellationToken) => EmailTimelineFilter.Create(
-        await this.scopeResolver.ReadableScopeAsync(
+    private async Task<EmailTimelineFilter> SortedListAsync(BrowseTimelineRequest request, CancellationToken cancellationToken) =>
+        request.SortedListWithin(await this.scopeResolver.ReadableScopeAsync(
             MailboxReaderKind.Person,
             request.Accounts,
             request.Folders,
             request.IncludeJunkMail ? JunkMailInclusion.Included : JunkMailInclusion.Excluded,
-            cancellationToken),
-        senderAddress: null,
-        recipientAddress: null,
-        subjectFragment: null,
-        request.ReceivedOnOrAfter,
-        request.ReceivedBefore,
-        request.IsRemotelySeen,
-        request.IsRemotelyFlagged,
-        keyword: null,
-        request.HasAttachments,
-        request.Order,
-        EmailMarkSelection.Create(request.CarriesMarkOfAspect, request.MarkDueOnOrAfter, request.MarkDueBefore));
+            cancellationToken));
 }

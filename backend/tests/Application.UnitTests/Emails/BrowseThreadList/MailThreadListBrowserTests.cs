@@ -6,8 +6,11 @@ using System.Globalization;
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.BrowseThreadList;
+using MailFathom.Application.Emails.BrowseTimeline;
+using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
+using MailFathom.Application.Emails.Threads;
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Observability;
@@ -352,6 +355,199 @@ public sealed class MailThreadListBrowserTests
 
         // Assert
         Assert.Equal(MailFathomPermission.MailRead, refusal.RequiredPermission);
+    }
+
+    /// <summary>A grouped list pages in both directions from the cursors it issued, handing a backward page back in the sorted order.</summary>
+    [Fact]
+    public async Task BrowseGroupedPageAsync_PagingForwardAndBack_VisitsTheSameConversationsInTheSortedOrder()
+    {
+        // Arrange
+        var grouped = Enumerable.Range(1, 5).Select(Grouped).ToArray();
+        var browser = BrowserOver(GroupedReaderAnswering(grouped), [.. grouped.Select(conversation => conversation.Thread)]);
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        // Act
+        var first = await browser.BrowseGroupedPageAsync(new BrowseTimelineRequest { PageSize = 2 }, cancellationToken);
+        var second = await browser.BrowseGroupedPageAsync(
+            new BrowseTimelineRequest { PageSize = 2, Cursor = first.NextCursor },
+            cancellationToken);
+        var backToFirst = await browser.BrowseGroupedPageAsync(
+            new BrowseTimelineRequest { PageSize = 2, Cursor = second.PreviousCursor, PageDirection = TimelinePageDirection.Backward },
+            cancellationToken);
+
+        // Assert
+        Assert.Equal([grouped[0].Thread.ThreadId, grouped[1].Thread.ThreadId], first.Conversations.Select(row => row.Thread.ThreadId));
+        Assert.Null(first.PreviousCursor);
+        Assert.Equal([grouped[2].Thread.ThreadId, grouped[3].Thread.ThreadId], second.Conversations.Select(row => row.Thread.ThreadId));
+        Assert.NotNull(second.NextCursor);
+        Assert.Equal(first.Conversations.Select(row => row.Thread.ThreadId), backToFirst.Conversations.Select(row => row.Thread.ThreadId));
+        Assert.Null(backToFirst.PreviousCursor);
+        Assert.NotNull(backToFirst.NextCursor);
+    }
+
+    /// <summary>The grouped read takes the list's filters and account as the message list does, with every folder and the junk folder in its scope.</summary>
+    [Fact]
+    public async Task BrowseGroupedPageAsync_AnAccountAnAiFilterAndTheListsFilters_ReadUnderThoseFiltersAcrossEveryFolderOfThatAccount()
+    {
+        // Arrange
+        var reader = GroupedReaderAnswering([]);
+        var browser = BrowserOver(reader, []);
+        var dueBefore = DateTimeOffset.Parse("2026-11-09T00:00:00Z", CultureInfo.InvariantCulture);
+
+        // Act
+        await browser.BrowseGroupedPageAsync(
+            new BrowseTimelineRequest
+            {
+                Accounts = [MailAccountSelector.For(SecondAccount)],
+                CarriesMarkOfAspect = EmailEnrichmentAspect.Commitment,
+                MarkDueBefore = dueBefore,
+                IsRemotelySeen = false,
+                HasAttachments = true,
+                Order = EmailTimelineDirection.OldestFirst,
+            },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var filter = Assert.IsType<EmailTimelineFilter>(Assert.Single(reader.ReceivedCalls()).GetArguments()[0]);
+
+        Assert.Equal([SecondAccount], filter.Selection.Scope.AccountIds);
+        Assert.True(filter.Selection.Scope.IncludesJunkMail);
+        Assert.Empty(filter.Selection.Scope.SelectedFolders);
+        Assert.Equal(
+            (EmailEnrichmentAspect.Commitment, (DateTimeOffset?)dueBefore, (bool?)false, (bool?)true, EmailTimelineDirection.OldestFirst),
+            (filter.Selection.Mark?.Aspect, filter.Selection.Mark?.DueBefore, filter.Selection.IsRemotelySeen, filter.Selection.HasAttachments, filter.Direction));
+    }
+
+    /// <summary>A conversation has no folder, so a folder beside the grouping, or a request for junk mail, is refused before anything is read.</summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task BrowseGroupedPageAsync_AFolderOrJunkMail_IsRefusedRatherThanIgnored(bool namesAFolder, bool includesJunk)
+    {
+        // Arrange
+        var reader = GroupedReaderAnswering([]);
+        var browser = BrowserOver(reader, []);
+
+        // Act
+        await Assert.ThrowsAsync<MailboxQueryFilterInvalidException>(() => browser.BrowseGroupedPageAsync(
+            new BrowseTimelineRequest
+            {
+                Folders = namesAFolder ? [MailFolderReference.CreateNamedByCaller("role:Inbox")] : [],
+                IncludeJunkMail = includesJunk,
+            },
+            TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Empty(reader.ReceivedCalls());
+    }
+
+    /// <summary>
+    /// A cursor from the message list read under the very scope the grouped list reads under still names a different
+    /// list, so it is refused rather than read as a position among conversations.
+    /// </summary>
+    [Fact]
+    public async Task BrowseGroupedPageAsync_ACursorFromTheMessageListUnderTheSameScope_IsRefused()
+    {
+        // Arrange
+        var browser = BrowserOver(GroupedReaderAnswering([]), []);
+        var messageList = MessageListOver([Summary(1, "anna@example.test"), Summary(2, "anna@example.test")]);
+        var messages = await messageList.BrowsePageAsync(
+            new BrowseTimelineRequest { PageSize = 1, IncludeJunkMail = true },
+            TestContext.Current.CancellationToken);
+
+        // Act, Assert
+        await Assert.ThrowsAsync<MailboxQueryCursorFilterMismatchException>(() => browser.BrowseGroupedPageAsync(
+            new BrowseTimelineRequest { PageSize = 1, Cursor = messages.NextCursor },
+            TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task BrowseGroupedPageAsync_ACallerAssignedNoAccount_AnswersAnEmptyPageWithoutReading()
+    {
+        // Arrange
+        var reader = GroupedReaderAnswering([]);
+        var browser = BrowserOver(reader, [], assignedAccounts: []);
+
+        // Act
+        var page = await browser.BrowseGroupedPageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(page.Conversations);
+        Assert.Equal((null, null), (page.NextCursor, page.PreviousCursor));
+        Assert.Empty(reader.ReceivedCalls());
+    }
+
+    /// <summary>Answers each grouped walk from a list sorted newest first, read backwards for an oldest-first walk, beyond the position it continues from.</summary>
+    private static IEmailThreadListReader GroupedReaderAnswering(IReadOnlyList<GroupedEmailThread> newestFirst)
+    {
+        var reader = Substitute.For<IEmailThreadListReader>();
+        reader
+            .ReadGroupedPageAsync(
+                Arg.Any<EmailTimelineFilter>(),
+                Arg.Any<IReadOnlySet<EmailAddress>>(),
+                Arg.Any<EmailTimelinePosition?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var walk = call.ArgAt<EmailTimelineFilter>(0).Direction is EmailTimelineDirection.NewestFirst
+                    ? newestFirst
+                    : [.. newestFirst.Reverse()];
+                var skipped = call.ArgAt<EmailTimelinePosition?>(2) is { } position
+                    ? walk.TakeWhile(grouped => grouped.Position != position).Count() + 1
+                    : 0;
+
+                return Task.FromResult<IReadOnlyList<GroupedEmailThread>>([.. walk.Skip(skipped).Take(call.ArgAt<int>(3))]);
+            });
+
+        return reader;
+    }
+
+    /// <summary>Groups the numbered conversation, standing at its newest message.</summary>
+    private static GroupedEmailThread Grouped(int ordinal)
+    {
+        var thread = Listed(ordinal);
+
+        return new GroupedEmailThread(thread, new EmailTimelinePosition(thread.NewestArrival, thread.NewestEmailId));
+    }
+
+    /// <summary>Builds the message list over the same caller and folders as <see cref="BrowserOver" />, answering every walk with the given messages.</summary>
+    private static MailTimelineBrowser MessageListOver(IReadOnlyList<EmailSummary> messages)
+    {
+        var accountCatalog = Substitute.For<ICallerMailAccountCatalog>();
+        accountCatalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns(
+            [SyntheticServedAccount.Of(Account), SyntheticServedAccount.Of(SecondAccount)]);
+
+        var timeline = Substitute.For<IStoredEmailTimelineReader>();
+        timeline
+            .ReadPageAsync(
+                Arg.Any<EmailTimelineFilter>(),
+                Arg.Any<EmailTimelinePosition?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(messages));
+
+        var enrichments = Substitute.For<IStoredEmailEnrichmentReader>();
+        enrichments.ReadEnrichmentsAsync(Arg.Any<IReadOnlyList<StoredEmailId>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyDictionary<StoredEmailId, EmailEnrichment>>(new Dictionary<StoredEmailId, EmailEnrichment>()));
+
+        var participation = StubMailFolderParticipation.Mapping(
+            new MailFolderIdentity(Account, Inbox),
+            new MailFolderIdentity(SecondAccount, Inbox));
+
+        return new MailTimelineBrowser(
+            timeline,
+            new InMemoryStoredEmailPreviews(),
+            enrichments,
+            Substitute.For<IEmailThreadReader>(),
+            new MailboxScopeResolver(
+                accountCatalog,
+                participation,
+                StubDeploymentMailFolders.Of(participation),
+                StubMailFolderMappings.ResolvingNothing),
+            SensitiveContentEgressGuards.Inactive(),
+            new RecordingMailboxReadTelemetry(),
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));
     }
 
     /// <summary>Answers each read with the conversations after the position it continues from, in list order, as the real reader does.</summary>

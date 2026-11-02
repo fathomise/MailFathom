@@ -2,8 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.Json.Serialization;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts.Photos;
+using MailFathom.Application.Emails.BrowseThreadList;
 using MailFathom.Application.Emails.BrowseTimeline;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.Mailboxes;
@@ -55,6 +57,12 @@ internal static class ClientMailTimelineEndpoint
     /// <summary>The <c>order</c> value that reads the oldest mail first.</summary>
     internal const string OldestFirstOrder = "oldestFirst";
 
+    /// <summary>The <c>grouping</c> value that makes each row one message, which is what a request naming none takes.</summary>
+    internal const string MessageGrouping = "message";
+
+    /// <summary>The <c>grouping</c> value that makes each row one conversation, standing at its newest message the read let through.</summary>
+    internal const string ConversationGrouping = "conversation";
+
     /// <summary>The <c>direction</c> value that reads the page after the cursor, which is what a request naming none takes.</summary>
     internal const string ForwardDirection = "forward";
 
@@ -102,14 +110,23 @@ internal static class ClientMailTimelineEndpoint
     /// <param name="carriesMark">The reading a derivation must have made about the message, or <see langword="null" /> for any.</param>
     /// <param name="markDueOnOrAfter">The inclusive start of the range a commitment falls due in, or <see langword="null" /> for no start.</param>
     /// <param name="markDueBefore">The exclusive end of that range, or <see langword="null" /> for no end.</param>
-    /// <param name="timeline">Reads the page, for a caller the read's own grant admits.</param>
+    /// <param name="grouping">Whether a row is a <c>message</c> or a <c>conversation</c>, reading by message where the request names neither.</param>
+    /// <param name="timeline">Reads the page by message, for a caller the read's own grant admits.</param>
+    /// <param name="conversations">Reads the page grouped by conversation, for a caller the read's own grant admits.</param>
     /// <param name="photos">Resolves the photo each sender on the page is drawn by, for a caller who may read the books.</param>
     /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
     /// <returns><c>200</c> with the page, <c>400</c> naming what was wrong with the request, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.read</c>.</returns>
     /// <remarks>
+    /// <para>
     /// Every refusal is <c>400</c> and each one says which of them it is, because a cursor a deployment never issued and
     /// a cursor issued for a different list are two different mistakes with two different repairs — and answering
     /// either with the leading page would be a screen silently jumping back to the top.
+    /// </para>
+    /// <para>
+    /// Grouping changes what a row is and nothing about which mail the filters let through: the same scope, filters,
+    /// order, and cursors, with one row kept per conversation. A conversation has no folder, so naming one beside the
+    /// grouping is refused rather than ignored, and so is asking for junk mail, which a conversation counts whole anyway.
+    /// </para>
     /// </remarks>
     internal static async Task<Results<Ok<ClientMailTimelineResponse>, ProblemHttpResult>> ReadTimelineAsync(
         [FromQuery] string? account,
@@ -128,12 +145,20 @@ internal static class ClientMailTimelineEndpoint
         [FromQuery] string? carriesMark,
         [FromQuery] DateTimeOffset? markDueOnOrAfter,
         [FromQuery] DateTimeOffset? markDueBefore,
+        [FromQuery] string? grouping,
         [FromServices] MailTimelineBrowser timeline,
+        [FromServices] MailThreadListBrowser conversations,
         [FromServices] PersonPhotos photos,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(timeline);
+        ArgumentNullException.ThrowIfNull(conversations);
         ArgumentNullException.ThrowIfNull(photos);
+
+        if (GroupedByConversation(Named(grouping)) is not { } groupedByConversation)
+        {
+            return Refuse($"The grouping names neither '{MessageGrouping}' nor '{ConversationGrouping}'.");
+        }
 
         if (Named(sort) is { } namedSort && !string.Equals(namedSort, ReceivedAtSort, StringComparison.OrdinalIgnoreCase))
         {
@@ -181,6 +206,16 @@ internal static class ClientMailTimelineEndpoint
 
         try
         {
+            if (groupedByConversation)
+            {
+                var grouped = await conversations.BrowseGroupedPageAsync(request, cancellationToken);
+                var authorPhotos = await photos.ResolveAsync(
+                    PersonPhotoResponse.AddressesOf(grouped.Conversations.Select(row => row.Newest.SenderAddress)),
+                    cancellationToken);
+
+                return TypedResults.Ok(ClientMailTimelineResponse.For(grouped, authorPhotos));
+            }
+
             var page = await timeline.BrowsePageAsync(request, cancellationToken);
             var senderPhotos = await photos.ResolveAsync(
                 PersonPhotoResponse.AddressesOf(page.Emails.Select(row => row.Email.SenderAddress)),
@@ -233,6 +268,15 @@ internal static class ClientMailTimelineEndpoint
         null => EmailTimelineDirection.NewestFirst,
         _ when NamesTheSame(order, NewestFirstOrder) => EmailTimelineDirection.NewestFirst,
         _ when NamesTheSame(order, OldestFirstOrder) => EmailTimelineDirection.OldestFirst,
+        _ => null,
+    };
+
+    /// <summary>Reads whether a row is a conversation rather than a message, reading by message where the request named nothing.</summary>
+    private static bool? GroupedByConversation(string? grouping) => grouping switch
+    {
+        null => false,
+        _ when NamesTheSame(grouping, MessageGrouping) => false,
+        _ when NamesTheSame(grouping, ConversationGrouping) => true,
         _ => null,
     };
 
@@ -302,23 +346,33 @@ internal static class ClientMailTimelineEndpoint
 }
 
 /// <summary>One page of the user's mail, as the client endpoint serves it.</summary>
-/// <param name="Emails">The rows, in the order the request asked the list to be sorted in.</param>
 /// <param name="NextCursor">The cursor the following page is asked with, or <see langword="null" /> at the end of the list.</param>
 /// <param name="PreviousCursor">The cursor the preceding page is asked with, or <see langword="null" /> at the beginning of the list.</param>
 /// <param name="PageSize">How many rows the read ran under, which is what the request asked for or the default it took.</param>
+/// <param name="Emails">The rows of a page read one message at a time, in the order the request asked the list to be sorted in, or <see langword="null" /> on a page grouped by conversation, which leaves the member out of the body and out of the schema's required members.</param>
+/// <param name="Conversations">The rows of a page grouped by conversation, in the same order, each standing at its newest message the read let through, or <see langword="null" /> on a page read one message at a time, which leaves the member out of the body and out of the schema's required members.</param>
 /// <remarks>
+/// <para>
 /// The two cursors are what makes a list scrollable in both directions from one request. Each is opaque and holdable —
 /// it names a row of this page together with the list it was read under, and nothing on the server remembers it — so a
 /// client may keep one while the screen is closed and continue from it afterwards. An absent one is that end of the
 /// list having been reached, never a hint to try again.
+/// </para>
+/// <para>
+/// Exactly one of the two lists is present, and which one follows from the grouping the request named. They are two
+/// members of one body rather than two bodies because they are one list read two ways under one paging model, and a
+/// route declares one body per status code; a grouped row is the conversation list's row, because it describes the
+/// same thing.
+/// </para>
 /// </remarks>
 internal sealed record ClientMailTimelineResponse(
-    IReadOnlyList<ClientMailTimelineEntryResponse> Emails,
     string? NextCursor,
     string? PreviousCursor,
-    int PageSize)
+    int PageSize,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ClientMailTimelineEntryResponse>? Emails = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ClientMailThreadListEntryResponse>? Conversations = null)
 {
-    /// <summary>Describes one page for the wire.</summary>
+    /// <summary>Describes one page of messages for the wire.</summary>
     /// <param name="page">The page the use case read.</param>
     /// <param name="senderPhotos">The photo each sender on the page is drawn by, keyed by their address.</param>
     /// <returns>The response body.</returns>
@@ -331,10 +385,29 @@ internal sealed record ClientMailTimelineResponse(
         ArgumentNullException.ThrowIfNull(senderPhotos);
 
         return new ClientMailTimelineResponse(
-            [.. page.Emails.Select(row => ClientMailTimelineEntryResponse.For(row, senderPhotos))],
             page.NextCursor,
             page.PreviousCursor,
-            page.PageSize);
+            page.PageSize,
+            Emails: [.. page.Emails.Select(row => ClientMailTimelineEntryResponse.For(row, senderPhotos))]);
+    }
+
+    /// <summary>Describes one page of conversations for the wire.</summary>
+    /// <param name="page">The page the use case read.</param>
+    /// <param name="authorPhotos">The photo each quoted author is drawn by, keyed by their address.</param>
+    /// <returns>The response body.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    internal static ClientMailTimelineResponse For(
+        BrowsedConversationPage page,
+        IReadOnlyDictionary<EmailAddress, PersonPhoto> authorPhotos)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        ArgumentNullException.ThrowIfNull(authorPhotos);
+
+        return new ClientMailTimelineResponse(
+            page.NextCursor,
+            page.PreviousCursor,
+            page.PageSize,
+            Conversations: [.. page.Conversations.Select(row => ClientMailThreadListEntryResponse.For(row, authorPhotos))]);
     }
 }
 

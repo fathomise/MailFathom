@@ -4574,6 +4574,16 @@
               "string"
             ]
           },
+          "receipts": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientMailReceiptSummaryResponse"
+              }
+            ]
+          },
           "receivedAt": {
             "format": "date-time",
             "type": [
@@ -4618,7 +4628,8 @@
           "senderDisplayName",
           "preview",
           "own",
-          "senderPhoto"
+          "senderPhoto",
+          "receipts"
         ],
         "type": "object"
       },
@@ -5071,11 +5082,23 @@
       },
       "ClientMailTimelineResponse": {
         "properties": {
+          "conversations": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailThreadListEntryResponse"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
           "emails": {
             "items": {
               "$ref": "#/components/schemas/ClientMailTimelineEntryResponse"
             },
-            "type": "array"
+            "type": [
+              "null",
+              "array"
+            ]
           },
           "nextCursor": {
             "type": [
@@ -5099,7 +5122,6 @@
           }
         },
         "required": [
-          "emails",
           "nextCursor",
           "previousCursor",
           "pageSize"
@@ -22228,6 +22250,13 @@
             "name": "markDueBefore",
             "schema": {
               "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "grouping",
+            "schema": {
               "type": "string"
             }
           }

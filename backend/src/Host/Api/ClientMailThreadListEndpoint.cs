@@ -199,7 +199,8 @@ internal sealed record ClientMailThreadListEntryResponse(
             row.Newest.SenderDisplayName,
             row.NewestPreview,
             row.NewestIsReaders,
-            PersonPhotoResponse.For(row.Newest.SenderAddress, authorPhotos)),
+            PersonPhotoResponse.For(row.Newest.SenderAddress, authorPhotos),
+            row.NewestIsReaders ? ClientMailReceiptSummaryResponse.For(row.Newest.Receipts) : null),
         row.NewestReceivedSender is { } sender ? ClientMailListedSenderResponse.For(sender) : null,
         row.Thread.Title is { } title
             ? new ClientMailThreadListTitleResponse(
@@ -225,6 +226,7 @@ internal sealed record ClientMailThreadListParticipantResponse(string Address, s
 /// <param name="Preview">The opening of its own text, bounded, or <see langword="null" /> where nothing has extracted it yet.</param>
 /// <param name="Own">Whether the user wrote it.</param>
 /// <param name="SenderPhoto">The photo its author is drawn by, or <see langword="null" /> where they are drawn by their initials.</param>
+/// <param name="Receipts">What came back for it, where the user wrote it and it asked for a report or got one; <see langword="null" /> otherwise, a received newest message always included.</param>
 internal sealed record ClientMailThreadListNewestResponse(
     Guid Id,
     string? Subject,
@@ -233,7 +235,8 @@ internal sealed record ClientMailThreadListNewestResponse(
     string? SenderDisplayName,
     string? Preview,
     bool Own,
-    PersonPhotoResponse? SenderPhoto);
+    PersonPhotoResponse? SenderPhoto,
+    ClientMailReceiptSummaryResponse? Receipts);
 
 /// <summary>What a listed conversation is called, and the shape of the conversation it was derived from.</summary>
 /// <param name="Topic">What the conversation is about, kept as replies arrive.</param>

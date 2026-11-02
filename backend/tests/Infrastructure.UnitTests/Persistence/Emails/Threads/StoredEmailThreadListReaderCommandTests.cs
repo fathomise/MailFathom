@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Emails.BrowseThreadList;
+using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -67,6 +68,119 @@ public sealed class StoredEmailThreadListReaderCommandTests
         Assert.Contains("@boundaryId", command, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The first page of the grouped walk is one grouped, bounded read that decides listing on spam and Trash and orders
+    /// the conversations by their newest passing arrival, undated last, then by that message's identifier — newest
+    /// first or oldest first as the walk asked, which is the timeline's own order.
+    /// </summary>
+    [Theory]
+    [InlineData(
+        EmailTimelineDirection.NewestFirst,
+        "ORDER BY max(s.\"ReceivedAt\") IS NULL, max(s.\"ReceivedAt\") DESC, (",
+        "LIMIT 1) DESC\nLIMIT @p")]
+    [InlineData(
+        EmailTimelineDirection.OldestFirst,
+        "ORDER BY max(s.\"ReceivedAt\") IS NULL DESC, max(s.\"ReceivedAt\"), (",
+        "LIMIT 1)\nLIMIT @p")]
+    public void GroupedPage_TheFirstPageInEitherDirection_OrdersByTheNewestPassingArrivalThenItsMessage(
+        EmailTimelineDirection direction,
+        string arrivalOrder,
+        string messageOrderAndLimit)
+    {
+        // Act
+        var command = GroupedPageCommand(Filter(direction, mark: null), continueAfter: null);
+
+        // Assert
+        Assert.Contains("GROUP BY", command, StringComparison.Ordinal);
+        Assert.Contains("@trashedFolderIds", command, StringComparison.Ordinal);
+        Assert.Contains("Verdict", command, StringComparison.Ordinal);
+        Assert.DoesNotContain("HAVING", command, StringComparison.Ordinal);
+        Assert.Contains(arrivalOrder, OuterOrder(command), StringComparison.Ordinal);
+        Assert.EndsWith(messageOrderAndLimit, OuterOrder(command), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A continued page keeps the conversations beyond the boundary in the walk's direction: past its arrival, or at
+    /// that arrival past its message, with an undated boundary reaching only the undated conversations when walking
+    /// newest first and every dated one besides when walking oldest first.
+    /// </summary>
+    [Theory]
+    [InlineData(
+        EmailTimelineDirection.NewestFirst,
+        true,
+        "HAVING max(s.\"ReceivedAt\") IS NULL OR max(s.\"ReceivedAt\") < @arrival OR (max(s.\"ReceivedAt\") = @arrival AND (",
+        "LIMIT 1) < @")]
+    [InlineData(
+        EmailTimelineDirection.NewestFirst,
+        false,
+        "HAVING max(s.\"ReceivedAt\") IS NULL AND (",
+        "LIMIT 1) < @")]
+    [InlineData(
+        EmailTimelineDirection.OldestFirst,
+        true,
+        "HAVING max(s.\"ReceivedAt\") IS NOT NULL AND (max(s.\"ReceivedAt\") > @arrival OR (max(s.\"ReceivedAt\") = @arrival AND (",
+        "LIMIT 1) > @")]
+    [InlineData(
+        EmailTimelineDirection.OldestFirst,
+        false,
+        "HAVING max(s.\"ReceivedAt\") IS NOT NULL OR (",
+        "LIMIT 1) > @")]
+    public void GroupedPage_AContinuedPage_KeepsOnlyTheConversationsBeyondTheBoundaryInTheWalksDirection(
+        EmailTimelineDirection direction,
+        bool datedBoundary,
+        string arrivalComparison,
+        string messageComparison)
+    {
+        // Arrange
+        var boundary = new EmailTimelinePosition(
+            datedBoundary ? DateTimeOffset.Parse("2026-10-30T09:00:00Z", null) : null,
+            StoredEmailId.Create(Guid.Parse("33333333-3333-3333-3333-333333333333")));
+
+        // Act
+        var command = GroupedPageCommand(Filter(direction, mark: null), boundary);
+
+        // Assert
+        var keyset = command[command.IndexOf("HAVING", StringComparison.Ordinal)..command.LastIndexOf("ORDER BY max(", StringComparison.Ordinal)];
+
+        Assert.StartsWith(arrivalComparison, keyset, StringComparison.Ordinal);
+        Assert.Contains(messageComparison, keyset, StringComparison.Ordinal);
+        Assert.Equal(datedBoundary, keyset.Contains("@arrival", StringComparison.Ordinal));
+    }
+
+    /// <summary>The list's filters reach the grouped walk through the shared predicate, an AI filter's mark criteria among them.</summary>
+    [Fact]
+    public void GroupedPage_UnderAMarkCriterionAndTheUnreadFilter_ComposesBothBeforeGrouping()
+    {
+        // Act
+        var command = GroupedPageCommand(
+            Filter(
+                EmailTimelineDirection.NewestFirst,
+                EmailMarkSelection.Create(EmailEnrichmentAspect.Commitment, dueOnOrAfter: null, dueBefore: null),
+                isRemotelySeen: false),
+            continueAfter: null);
+
+        // Assert
+        Assert.Contains("@aspect", command, StringComparison.Ordinal);
+        Assert.Contains("@isRemotelySeen", command, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Counted_TheChosenConversations_CountsEachWholeInOneGroupedRead()
+    {
+        // Arrange
+        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
+
+        // Act
+        var command = StoredEmailThreadListReader
+            .Counted(context.StoredEmails.AsNoTracking(), Scope(), ThreadIds, ["me@example.test"])
+            .ToQueryString();
+
+        // Assert
+        Assert.Contains("GROUP BY", command, StringComparison.Ordinal);
+        Assert.Contains("@readerForms", command, StringComparison.Ordinal);
+        Assert.DoesNotContain("LIMIT", command, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Quoted_ThePagesConversations_PicksOneNewestMessagePerConversation()
     {
@@ -128,6 +242,40 @@ public sealed class StoredEmailThreadListReaderCommandTests
                 PageLimit)
             .ToQueryString();
     }
+
+    private static string GroupedPageCommand(EmailTimelineFilter filter, EmailTimelinePosition? continueAfter)
+    {
+        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
+
+        return StoredEmailThreadListReader
+            .GroupedPage(
+                context.StoredEmails.AsNoTracking(),
+                filter,
+                trashedFolderIds: [Guid.Parse("22222222-2222-2222-2222-222222222222")],
+                continueAfter,
+                PageLimit)
+            .ToQueryString();
+    }
+
+    private static string OuterOrder(string command) =>
+        command[command.LastIndexOf("ORDER BY max(", StringComparison.Ordinal)..].ReplaceLineEndings("\n").TrimEnd();
+
+    private static EmailTimelineFilter Filter(
+        EmailTimelineDirection direction,
+        EmailMarkSelection? mark,
+        bool? isRemotelySeen = null) => EmailTimelineFilter.Create(
+        Scope(),
+        senderAddress: null,
+        recipientAddress: null,
+        subjectFragment: null,
+        receivedOnOrAfter: null,
+        receivedBefore: null,
+        isRemotelySeen,
+        isRemotelyFlagged: null,
+        keyword: null,
+        hasAttachments: null,
+        direction,
+        mark);
 
     private static MailboxScope Scope() =>
         MailboxScope.Create([MailAccountId.Create("acct-1"), MailAccountId.Create("acct-2")], selectedFolders: null);

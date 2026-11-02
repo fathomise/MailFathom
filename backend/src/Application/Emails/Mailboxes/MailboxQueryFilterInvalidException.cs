@@ -157,6 +157,21 @@ public sealed class MailboxQueryFilterInvalidException : MailFathomException
             filterName),
         filterName);
 
+    /// <summary>Refuses a filter that a list grouped by conversation does not read, where the request named one anyway.</summary>
+    /// <param name="filterName">How this assembly names the filter, for example <c>folders</c>.</param>
+    /// <returns>The failure to raise.</returns>
+    /// <remarks>
+    /// A conversation gathers its messages from every folder, so a folder cannot narrow it, and spam is what decides
+    /// whether it is listed rather than something a caller may ask to see. Answering such a request with the filter
+    /// dropped would draw a list the caller believes is narrowed by something it is not.
+    /// </remarks>
+    public static MailboxQueryFilterInvalidException NotReadByConversation(string filterName) => new(
+        string.Format(
+            CultureInfo.InvariantCulture,
+            "The mailbox query {0} filter does not narrow a list grouped by conversation.",
+            filterName),
+        filterName);
+
     /// <summary>Refuses a filter that names more distinct values than the query accepts.</summary>
     /// <param name="count">How many distinct values the filter names.</param>
     /// <param name="limit">The greatest number of values the filter accepts.</param>
