@@ -7,7 +7,7 @@ using MailFathom.Domain.Emails;
 namespace MailFathom.Application.Emails.BrowseThreadList;
 
 /// <summary>One conversation of a mail list grouped by conversation, and where it stands in that list.</summary>
-/// <param name="Thread">The whole conversation, described as the conversation list describes it.</param>
+/// <param name="Thread">The whole conversation, every message of it the reader may read counted and quoted.</param>
 /// <param name="Position">The position of its newest message that passed the read, which is what the list is ordered and paged by.</param>
 /// <remarks>
 /// The two are read under different rules on purpose. The position is the newest message the filters let through, so

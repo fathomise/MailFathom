@@ -2,7 +2,6 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using MailFathom.Application.Emails.BrowseThreadList;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Domain.Accounts;
@@ -15,7 +14,7 @@ using Xunit;
 namespace MailFathom.Infrastructure.UnitTests.Persistence.Emails.Threads;
 
 /// <summary>
-/// Generates the commands a page of conversations is read with, against the real provider and the real model, with no
+/// Generates the commands a walk of the mail list grouped by conversation is read with, against the real provider and the real model, with no
 /// connection opened. Grouping a conversation, ordering by an aggregate, and picking one row per group are the shapes
 /// EF Core refuses by throwing while translating, so a query written the wrong way builds and fails on the first
 /// request; each command here had to translate before it could be read. What the commands return is the integration
@@ -26,47 +25,6 @@ public sealed class StoredEmailThreadListReaderCommandTests
     private const int PageLimit = 26;
 
     private static readonly Guid[] ThreadIds = [Guid.Parse("11111111-1111-1111-1111-111111111111")];
-
-    [Fact]
-    public void Page_TheFirstPage_IsOneGroupedOrderedBoundedRead()
-    {
-        // Act
-        var command = PageCommand(continueAfter: null);
-
-        // Assert
-        Assert.Contains("GROUP BY", command, StringComparison.Ordinal);
-        Assert.Contains("ORDER BY", command, StringComparison.Ordinal);
-        Assert.Contains("LIMIT", command, StringComparison.Ordinal);
-    }
-
-    /// <summary>A conversation is listed on a message that is neither spam nor in Trash, so the page carries a second read of the readable mail that decides it.</summary>
-    [Fact]
-    public void Page_AnyPage_DecidesWhichConversationsAreListedFromTheSpamVerdictAndTheTrashedFolders()
-    {
-        // Act
-        var command = PageCommand(continueAfter: null);
-
-        // Assert
-        Assert.Contains("@trashedFolderIds", command, StringComparison.Ordinal);
-        Assert.Contains("Verdict", command, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void Page_AContinuedPage_TranslatesTheKeysetWhetherOrNotTheBoundaryCarriesADate(bool dated)
-    {
-        // Arrange
-        var boundary = new EmailThreadListPosition(
-            dated ? DateTimeOffset.Parse("2026-10-30T09:00:00Z", null) : null,
-            EmailThreadId.Create(ThreadIds[0]));
-
-        // Act
-        var command = PageCommand(boundary);
-
-        // Assert
-        Assert.Contains("@boundaryId", command, StringComparison.Ordinal);
-    }
 
     /// <summary>
     /// The first page of the grouped walk is one grouped, bounded read that decides listing on spam and Trash and orders
@@ -226,21 +184,6 @@ public sealed class StoredEmailThreadListReaderCommandTests
 
         // Assert
         Assert.Contains("\"Topic\" IS NOT NULL", command, StringComparison.Ordinal);
-    }
-
-    private static string PageCommand(EmailThreadListPosition? continueAfter)
-    {
-        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
-
-        return StoredEmailThreadListReader
-            .Page(
-                context.StoredEmails.AsNoTracking(),
-                Scope(),
-                trashedFolderIds: [Guid.Parse("22222222-2222-2222-2222-222222222222")],
-                readerForms: ["me@example.test"],
-                continueAfter,
-                PageLimit)
-            .ToQueryString();
     }
 
     private static string GroupedPageCommand(EmailTimelineFilter filter, EmailTimelinePosition? continueAfter)

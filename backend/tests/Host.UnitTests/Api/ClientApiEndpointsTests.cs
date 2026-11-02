@@ -276,7 +276,6 @@ public sealed class ClientApiEndpointsTests
                     .Select(signal =>
                         $"{ClientEndpointOptions.RoutePrefix}{ClientTelemetryEndpoint.TelemetryRoutePrefix}{signal.Route}")
                     .Order(StringComparer.Ordinal),
-                $"{ClientEndpointOptions.RoutePrefix}{ClientMailThreadListEndpoint.MailThreadListRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailThreadEndpoint.MailThreadRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientMailThreadStateEndpoint.MailThreadStateRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientTimeZoneEndpoint.TimeZoneRoute}",
@@ -385,7 +384,6 @@ public sealed class ClientApiEndpointsTests
                 $"GET {prefix}{ClientTaskEndpoints.ProposedTasksRoute} -> {MailFathomPermission.TasksRead.Name}",
                 $"GET {prefix}{ClientTaskEndpoints.TodayLayoutRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"GET {prefix}{ClientTaskEndpoints.TaskRoute} -> {MailFathomPermission.TasksRead.Name}",
-                $"GET {prefix}{ClientMailThreadListEndpoint.MailThreadListRoute} -> {MailFathomPermission.MailRead.Name}",
                 $"GET {prefix}{ClientMailThreadEndpoint.MailThreadRoute} -> {MailFathomPermission.MailRead.Name}",
                 $"GET {prefix}{ClientMailThreadStateEndpoint.MailThreadStateRoute} -> {MailFathomPermission.MailRead.Name}",
                 $"GET {prefix}{ClientTimeZoneEndpoint.TimeZoneRoute} -> {MailFathomPermission.ProfileRead.Name}",

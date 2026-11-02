@@ -361,8 +361,7 @@ internal static class ClientMailTimelineEndpoint
 /// <para>
 /// Exactly one of the two lists is present, and which one follows from the grouping the request named. They are two
 /// members of one body rather than two bodies because they are one list read two ways under one paging model, and a
-/// route declares one body per status code; a grouped row is the conversation list's row, because it describes the
-/// same thing.
+/// route declares one body per status code.
 /// </para>
 /// </remarks>
 internal sealed record ClientMailTimelineResponse(

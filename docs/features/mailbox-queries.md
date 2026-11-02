@@ -592,17 +592,28 @@ somebody the rows beneath it had redacted would leave the two disagreeing about 
 
 ## Listing conversations
 
-A person who reads by conversation sees a list of conversations rather than of messages. `MailThreadListBrowser` is
-that read — [`GET /api/client/threads`](../operations/client-endpoint.md#the-conversation-list-route) publishes it —
-and it takes an account or none, and never a folder: a conversation gathers its messages from every folder, so a list
-narrowed to one would list the half of an exchange that happened to land there. The scope is the person's, through the
-same `MailboxScopeResolver`, with the junk folder taking part as it does when one conversation is read.
+A person who reads by conversation sees the message list itself, grouped:
+[`GET /api/client/emails?grouping=conversation`](../operations/client-endpoint.md#the-mail-list-route) is served by
+`MailThreadListBrowser.BrowseGroupedPageAsync`, which takes the message list's own request and keeps one row per
+conversation. So the filters a person picked keep narrowing the list when they switch to conversations: switching
+changes how a row is drawn, not which mail the filters let through.
+**A conversation is listed while at least one of its messages passes the read and is neither judged spam nor in
+Trash.** The read applies the account scope and every filter — unread, flagged, attachment, the received range, and
+the mark criteria the AI views put into the list's filters. A message in a folder beneath Trash is in Trash, the
+folders in Trash being read the way the rest of the deployment reads them, and Archive is an ordinary folder. A
+conversation that is entirely spam, entirely in Trash, or some of each is not listed, because there is nothing in it
+the person kept.
 
-**A conversation is listed while at least one of its messages is neither judged spam nor in Trash.** A message in a
-folder beneath Trash is in Trash, the folders in Trash being read the way the rest of the deployment reads them, and
-Archive is an ordinary folder. A conversation that is entirely spam, entirely in Trash, or some of each is not listed,
-because there is nothing in it the person kept; one that is listed is counted whole, so its message count and its
-unread count include the messages that alone would not have listed it.
+**A conversation stands at its newest message that passed the read**, and the list is ordered by that message's
+position in the requested `order`. That position is a message's, so the page is cut and continued by the message list's
+own keyset cursor, in both directions, by the same paging the message list uses; only the fingerprint, which names the
+grouping beside the filters, tells the two lists' cursors apart.
+
+**The row describes the whole conversation rather than what of it matched**, over every message of it the person may
+read, so its message count and its unread count include the messages that alone would not have listed it. A
+conversation gathers its messages from every folder, so the grouped read takes no folder, and no request for junk mail
+either — a request naming one is refused rather than answered with it dropped. The scope is the person's, through the
+same `MailboxScopeResolver`, with the junk folder taking part as it does when one conversation is read.
 
 **Who the reader is decides what counts as received.** The addresses the person sends as are the sending identities of
 every account they are assigned, the same reading that decides which correspondents a person has vouched for, so a
@@ -611,36 +622,10 @@ authors in the order they first wrote, quotes its newest message by author, time
 [preview](#the-preview-a-list-row-shows), carries the sender verdict of the newest message somebody else wrote, and the
 title [a derivation](thread-state.md) gave the conversation with the revision it was derived from.
 
-**The order is the newest arrival in each conversation, newest first, settled by the conversation's identity**, and a
-page is bounded by `MailboxQueryPageSize` and continued by a keyset cursor over that pair, with the account the list
-was narrowed to in its fingerprint. A conversation whose messages carry no arrival time sorts after every dated one.
-Grouping, filtering and ordering are done by PostgreSQL in one statement; what a row quotes is read for the page's
-conversations alone afterwards, and a row whose newest message went in between is left out of the page.
-
-The participants' display names, the title, the quoted subject, author and preview are guarded at `ClientMailListing`,
-as every list row is.
-
-### The message list grouped by conversation
-
-The same conversations are also the message list itself, grouped:
-[`GET /api/client/emails?grouping=conversation`](../operations/client-endpoint.md#the-mail-list-route) is served by
-`MailThreadListBrowser.BrowseGroupedPageAsync`, which takes the message list's own request and keeps one row per
-conversation. So the filters a person picked keep narrowing the list when they switch to conversations: switching
-changes how a row is drawn, not which mail the filters let through.
-
-**A conversation stands at its newest message that passed the read.** The read applies the account scope, every
-filter — unread, flagged, attachment, the received range, and the mark criteria the AI views put into the list's
-filters — and keeps the messages that are neither spam nor in Trash, by the rule above; each conversation holding one
-is listed at the newest of them, and the list is ordered by that message's position in the requested `order`. That
-position is a message's, so the page is cut and continued by the message list's own keyset cursor, in both directions,
-by the same paging the message list uses; only the fingerprint, which names the grouping beside the filters, tells the
-two lists' cursors apart.
-
-**The row is the conversation list's row**, describing the whole conversation rather than what of it matched: it is
-counted, quoted, and titled exactly as above, over every message of it the person may read. A conversation gathers its
-messages from every folder, so the grouped read takes no folder, and no request for junk mail either — a request naming
-one is refused rather than answered with it dropped. Grouping and ordering are one PostgreSQL statement over what the
-filters let through; a second grouping then counts the page's conversations whole before they are described.
+Grouping and ordering are one PostgreSQL statement over what the filters let through; a second grouping then counts the
+page's conversations whole, and what a row quotes is read for the page's conversations alone afterwards. A row whose
+newest message went in between is left out of the page. The participants' display names, the title, the quoted
+subject, author and preview are guarded at `ClientMailListing`, as every list row is.
 
 ## Freshness reporting
 
@@ -735,11 +720,10 @@ list, mirrored or not and withheld or not, is [the administrative status route](
   participant a header names, and `EmailThreadCursor`, whose boundary is a message rather than a position. It owns none
   of the threading: membership, the bound and the order come from `MailFathom.Application.Emails.Threads`, which the MCP
   content read publishes a conversation through as well.
-- `MailFathom.Application.Emails.BrowseThreadList` — `MailThreadListBrowser`, the list of conversations a screen read
-  by conversation is drawn from, with `IEmailThreadListReader`, the port that groups, filters, counts and orders them,
-  the row it answers, and `EmailThreadListCursor`, whose boundary is a conversation's newest arrival — and the message
-  list grouped by conversation, whose `GroupedEmailThread` stands at its newest passing message and whose
-  `BrowsedConversationPage` carries the message list's cursors at both ends.
+- `MailFathom.Application.Emails.BrowseThreadList` — `MailThreadListBrowser`, the message list grouped by conversation
+  a screen read by conversation is drawn from, with `IEmailThreadListReader`, the port that groups, filters, counts and
+  orders the conversations, the row it answers, `GroupedEmailThread`, which stands at its newest passing message, and
+  `BrowsedConversationPage`, which carries the message list's cursors at both ends.
 - `MailFathom.Application.Emails.Mailboxes` — `MailboxEmailSelection`, `EmailMarkSelection` beside it, the timeline filter that wraps them, the cursor,
   the page size, and the query failures shared with the other read models. `MailboxScopeResolver` is here too: it
   resolves the accounts a read runs against and refuses one this deployment does not serve, and it is a collaborator

@@ -44,146 +44,31 @@ public sealed class MailThreadListBrowserTests
     private static readonly MailAccountId SecondAccount = MailAccountId.Create("work");
     private static readonly MailFolderAlias Inbox = MailFolderAlias.Create("INBOX");
 
-    [Fact]
-    public async Task BrowsePageAsync_MoreConversationsThanAPage_IssuesACursorTheNextPageContinuesAfter()
-    {
-        // Arrange
-        var threads = Enumerable.Range(1, 3).Select(ordinal => Listed(ordinal)).ToArray();
-        var reader = ReaderAnswering(threads);
-        var browser = BrowserOver(reader, threads);
-
-        // Act
-        var first = await browser.BrowsePageAsync(new BrowseThreadListRequest { PageSize = 2 }, TestContext.Current.CancellationToken);
-        await browser.BrowsePageAsync(
-            new BrowseThreadListRequest { PageSize = 2, Cursor = first.NextCursor },
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal([threads[0].ThreadId, threads[1].ThreadId], first.Threads.Select(row => row.Thread.ThreadId));
-        await reader.Received(1).ReadPageAsync(
-            Arg.Any<MailboxScope>(),
-            Arg.Any<IReadOnlySet<EmailAddress>>(),
-            null,
-            3,
-            Arg.Any<CancellationToken>());
-        await reader.Received(1).ReadPageAsync(
-            Arg.Any<MailboxScope>(),
-            Arg.Any<IReadOnlySet<EmailAddress>>(),
-            threads[1].Position,
-            3,
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task BrowsePageAsync_TheLastConversations_IssueNoCursor()
-    {
-        // Arrange
-        var threads = Enumerable.Range(1, 2).Select(ordinal => Listed(ordinal)).ToArray();
-        var browser = BrowserOver(ReaderAnswering(threads), threads);
-
-        // Act
-        var page = await browser.BrowsePageAsync(new BrowseThreadListRequest { PageSize = 2 }, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(2, page.Threads.Count);
-        Assert.Null(page.NextCursor);
-    }
-
-    /// <summary>A cursor names the list it was read under, so continuing one account's list as another's is refused rather than answered with the wrong rows.</summary>
-    [Fact]
-    public async Task BrowsePageAsync_ACursorIssuedForAnotherAccountsList_IsRefused()
-    {
-        // Arrange
-        var threads = Enumerable.Range(1, 3).Select(ordinal => Listed(ordinal)).ToArray();
-        var browser = BrowserOver(ReaderAnswering(threads), threads);
-        var everyAccount = await browser.BrowsePageAsync(new BrowseThreadListRequest { PageSize = 1 }, TestContext.Current.CancellationToken);
-
-        // Act, Assert
-        await Assert.ThrowsAsync<MailboxQueryCursorFilterMismatchException>(() => browser.BrowsePageAsync(
-            new BrowseThreadListRequest
-            {
-                Account = MailAccountSelector.For(Account),
-                PageSize = 1,
-                Cursor = everyAccount.NextCursor,
-            },
-            TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task BrowsePageAsync_ACursorThisDeploymentNeverIssued_IsRefused()
-    {
-        // Arrange
-        var browser = BrowserOver(ReaderAnswering([]), []);
-
-        // Act, Assert
-        await Assert.ThrowsAsync<MailboxQueryCursorMalformedException>(() => browser.BrowsePageAsync(
-            new BrowseThreadListRequest { Cursor = "not-a-cursor" },
-            TestContext.Current.CancellationToken));
-    }
-
     /// <summary>Who the reader is decides what counts as received, so it is every address their accounts send as and nothing else.</summary>
     [Fact]
-    public async Task BrowsePageAsync_ARequestForEveryAccount_ReadsUnderEveryAccountAndTheAddressesTheyAllSendAs()
+    public async Task BrowseGroupedPageAsync_ARequestForEveryAccount_ReadsUnderEveryAccountAndTheAddressesTheyAllSendAs()
     {
         // Arrange
         var reader = ReaderAnswering([]);
         var browser = BrowserOver(reader, [], sendingAs: [(Account, ReaderAddress), (SecondAccount, "me@work.example.test")]);
 
         // Act
-        await browser.BrowsePageAsync(new BrowseThreadListRequest(), TestContext.Current.CancellationToken);
+        await browser.BrowseGroupedPageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken);
 
         // Assert
         var arguments = Assert.Single(reader.ReceivedCalls()).GetArguments();
-        var scope = Assert.IsType<MailboxScope>(arguments[0]);
+        var filter = Assert.IsType<EmailTimelineFilter>(arguments[0]);
         var readerAddresses = Assert.IsAssignableFrom<IReadOnlySet<EmailAddress>>(arguments[1]);
 
-        Assert.Equal([Account, SecondAccount], scope.AccountIds);
-        Assert.True(scope.IncludesJunkMail);
+        Assert.Equal([Account, SecondAccount], filter.Selection.Scope.AccountIds);
         Assert.Equal(
             [ReaderAddress, "me@work.example.test"],
             readerAddresses.Select(address => address.Address).Order(StringComparer.Ordinal));
     }
 
-    [Fact]
-    public async Task BrowsePageAsync_ARequestNamingOneAccount_ReadsUnderThatAccountAlone()
-    {
-        // Arrange
-        var reader = ReaderAnswering([]);
-        var browser = BrowserOver(reader, []);
-
-        // Act
-        await browser.BrowsePageAsync(
-            new BrowseThreadListRequest { Account = MailAccountSelector.For(SecondAccount) },
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        await reader.Received(1).ReadPageAsync(
-            Arg.Is<MailboxScope>(scope => scope.AccountIds.SequenceEqual(new[] { SecondAccount })),
-            Arg.Any<IReadOnlySet<EmailAddress>>(),
-            null,
-            Arg.Any<int>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task BrowsePageAsync_ACallerAssignedNoAccount_AnswersAnEmptyPageWithoutReading()
-    {
-        // Arrange
-        var reader = ReaderAnswering([]);
-        var browser = BrowserOver(reader, [], assignedAccounts: []);
-
-        // Act
-        var page = await browser.BrowsePageAsync(new BrowseThreadListRequest(), TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Empty(page.Threads);
-        Assert.Null(page.NextCursor);
-        await reader.DidNotReceiveWithAnyArgs().ReadPageAsync(default!, default!, default, default, TestContext.Current.CancellationToken);
-    }
-
     /// <summary>A row quotes its newest message and draws its sender mark from the newest one somebody else sent, which are two messages once the reader has replied.</summary>
     [Fact]
-    public async Task BrowsePageAsync_AConversationTheReaderAnsweredLast_QuotesTheReplyAndMarksTheSenderOfTheMessageBeforeIt()
+    public async Task BrowseGroupedPageAsync_AConversationTheReaderAnsweredLast_QuotesTheReplyAndMarksTheSenderOfTheMessageBeforeIt()
     {
         // Arrange
         var received = Summary(10, "anna@example.test") with
@@ -195,10 +80,10 @@ public sealed class MailThreadListBrowserTests
         var browser = BrowserOver(ReaderAnswering([thread]), [], summaries: [received, reply]);
 
         // Act
-        var page = await browser.BrowsePageAsync(new BrowseThreadListRequest(), TestContext.Current.CancellationToken);
+        var page = await browser.BrowseGroupedPageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken);
 
         // Assert
-        var row = Assert.Single(page.Threads);
+        var row = Assert.Single(page.Conversations);
 
         Assert.True(row.NewestIsReaders);
         Assert.Equal(reply.StoredEmailId, row.Newest.StoredEmailId);
@@ -206,7 +91,7 @@ public sealed class MailThreadListBrowserTests
     }
 
     [Fact]
-    public async Task BrowsePageAsync_AConversationEndingOnAReceivedMessage_IsNotTheReadersAndCarriesItsPreview()
+    public async Task BrowseGroupedPageAsync_AConversationEndingOnAReceivedMessage_IsNotTheReadersAndCarriesItsPreview()
     {
         // Arrange
         var thread = Listed(1);
@@ -216,10 +101,10 @@ public sealed class MailThreadListBrowserTests
             previews: new InMemoryStoredEmailPreviews().With(thread.NewestEmailId, "Shall we meet on Tuesday?"));
 
         // Act
-        var page = await browser.BrowsePageAsync(new BrowseThreadListRequest(), TestContext.Current.CancellationToken);
+        var page = await browser.BrowseGroupedPageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken);
 
         // Assert
-        var row = Assert.Single(page.Threads);
+        var row = Assert.Single(page.Conversations);
 
         Assert.False(row.NewestIsReaders);
         Assert.Equal("Shall we meet on Tuesday?", row.NewestPreview);
@@ -227,7 +112,7 @@ public sealed class MailThreadListBrowserTests
     }
 
     [Fact]
-    public async Task BrowsePageAsync_AConversationWrittenOnlyByTheReader_CarriesNoSenderMark()
+    public async Task BrowseGroupedPageAsync_AConversationWrittenOnlyByTheReader_CarriesNoSenderMark()
     {
         // Arrange
         var own = Summary(10, ReaderAddress);
@@ -235,17 +120,17 @@ public sealed class MailThreadListBrowserTests
         var browser = BrowserOver(ReaderAnswering([thread]), [], summaries: [own]);
 
         // Act
-        var page = await browser.BrowsePageAsync(new BrowseThreadListRequest(), TestContext.Current.CancellationToken);
+        var page = await browser.BrowseGroupedPageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken);
 
         // Assert
-        var row = Assert.Single(page.Threads);
+        var row = Assert.Single(page.Conversations);
 
         Assert.True(row.NewestIsReaders);
         Assert.Null(row.NewestReceivedSender);
     }
 
     [Fact]
-    public async Task BrowsePageAsync_MoreAuthorsThanARowNames_NamesTheFirstOnesAndSaysThereAreMore()
+    public async Task BrowseGroupedPageAsync_MoreAuthorsThanARowNames_NamesTheFirstOnesAndSaysThereAreMore()
     {
         // Arrange
         var authors = Enumerable
@@ -256,10 +141,10 @@ public sealed class MailThreadListBrowserTests
         var browser = BrowserOver(ReaderAnswering([thread]), [thread]);
 
         // Act
-        var page = await browser.BrowsePageAsync(new BrowseThreadListRequest(), TestContext.Current.CancellationToken);
+        var page = await browser.BrowseGroupedPageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken);
 
         // Assert
-        var row = Assert.Single(page.Threads);
+        var row = Assert.Single(page.Conversations);
 
         Assert.Equal(
             authors.Take(IEmailThreadListReader.MaximumNamedParticipants).Select(author => author.Address),
@@ -269,7 +154,7 @@ public sealed class MailThreadListBrowserTests
 
     /// <summary>A conversation whose newest message was erased between the two reads has nothing to quote, so it is left off the page rather than drawn empty.</summary>
     [Fact]
-    public async Task BrowsePageAsync_AConversationWhoseNewestMessageIsGone_IsLeftOffThePage()
+    public async Task BrowseGroupedPageAsync_AConversationWhoseNewestMessageIsGone_IsLeftOffThePage()
     {
         // Arrange
         var kept = Listed(1);
@@ -277,14 +162,14 @@ public sealed class MailThreadListBrowserTests
         var browser = BrowserOver(ReaderAnswering([kept, gone]), [kept]);
 
         // Act
-        var page = await browser.BrowsePageAsync(new BrowseThreadListRequest(), TestContext.Current.CancellationToken);
+        var page = await browser.BrowseGroupedPageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal([kept.ThreadId], page.Threads.Select(row => row.Thread.ThreadId));
+        Assert.Equal([kept.ThreadId], page.Conversations.Select(row => row.Thread.ThreadId));
     }
 
     [Fact]
-    public async Task BrowsePageAsync_WithTheEgressGuardOn_ServesNoDetectedValueInAnyQuotedText()
+    public async Task BrowseGroupedPageAsync_WithTheEgressGuardOn_ServesNoDetectedValueInAnyQuotedText()
     {
         // Arrange
         using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
@@ -308,10 +193,10 @@ public sealed class MailThreadListBrowserTests
             egressGuard: egress.Guard);
 
         // Act
-        var page = await browser.BrowsePageAsync(new BrowseThreadListRequest(), TestContext.Current.CancellationToken);
+        var page = await browser.BrowseGroupedPageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken);
 
         // Assert
-        var row = Assert.Single(page.Threads);
+        var row = Assert.Single(page.Conversations);
 
         Assert.DoesNotContain(Marker, row.Newest.Subject, StringComparison.Ordinal);
         Assert.DoesNotContain(Marker, row.Newest.SenderDisplayName, StringComparison.Ordinal);
@@ -322,7 +207,7 @@ public sealed class MailThreadListBrowserTests
     }
 
     [Fact]
-    public async Task BrowsePageAsync_APageThatWasServed_ReportsTheListReadAndWhatItReturned()
+    public async Task BrowseGroupedPageAsync_APageThatWasServed_ReportsTheListReadAndWhatItReturned()
     {
         // Arrange
         var readTelemetry = new RecordingMailboxReadTelemetry();
@@ -330,7 +215,7 @@ public sealed class MailThreadListBrowserTests
         var browser = BrowserOver(ReaderAnswering(threads), threads, readTelemetry: readTelemetry);
 
         // Act
-        await browser.BrowsePageAsync(new BrowseThreadListRequest(), TestContext.Current.CancellationToken);
+        await browser.BrowseGroupedPageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken);
 
         // Assert
         var read = Assert.Single(readTelemetry.Reads);
@@ -341,7 +226,7 @@ public sealed class MailThreadListBrowserTests
     }
 
     [Fact]
-    public async Task BrowsePageAsync_ACallerWithoutTheMailReadGrant_IsRefused()
+    public async Task BrowseGroupedPageAsync_ACallerWithoutTheMailReadGrant_IsRefused()
     {
         // Arrange
         var browser = BrowserOver(
@@ -351,7 +236,7 @@ public sealed class MailThreadListBrowserTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            browser.BrowsePageAsync(new BrowseThreadListRequest(), TestContext.Current.CancellationToken));
+            browser.BrowseGroupedPageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.MailRead, refusal.RequiredPermission);
@@ -504,12 +389,14 @@ public sealed class MailThreadListBrowserTests
     }
 
     /// <summary>Groups the numbered conversation, standing at its newest message.</summary>
-    private static GroupedEmailThread Grouped(int ordinal)
-    {
-        var thread = Listed(ordinal);
+    private static GroupedEmailThread Grouped(int ordinal) => Grouped(Listed(ordinal));
 
-        return new GroupedEmailThread(thread, new EmailTimelinePosition(thread.NewestArrival, thread.NewestEmailId));
-    }
+    /// <summary>Groups one conversation, standing at its newest message, which arrives earlier the higher its number.</summary>
+    private static GroupedEmailThread Grouped(ListedEmailThread thread) => new(
+        thread,
+        new EmailTimelinePosition(
+            DateTimeOffset.Parse("2026-10-30T12:00:00Z", null).AddHours(-OrdinalOf(thread.NewestEmailId)),
+            thread.NewestEmailId));
 
     /// <summary>Builds the message list over the same caller and folders as <see cref="BrowserOver" />, answering every walk with the given messages.</summary>
     private static MailTimelineBrowser MessageListOver(IReadOnlyList<EmailSummary> messages)
@@ -550,35 +437,14 @@ public sealed class MailThreadListBrowserTests
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));
     }
 
-    /// <summary>Answers each read with the conversations after the position it continues from, in list order, as the real reader does.</summary>
-    private static IEmailThreadListReader ReaderAnswering(IReadOnlyList<ListedEmailThread> threads)
-    {
-        var reader = Substitute.For<IEmailThreadListReader>();
-        reader
-            .ReadPageAsync(
-                Arg.Any<MailboxScope>(),
-                Arg.Any<IReadOnlySet<EmailAddress>>(),
-                Arg.Any<EmailThreadListPosition?>(),
-                Arg.Any<int>(),
-                Arg.Any<CancellationToken>())
-            .Returns(call =>
-            {
-                var after = call.ArgAt<EmailThreadListPosition?>(2);
-                var skipped = after is { } position
-                    ? threads.TakeWhile(thread => thread.Position != position).Count() + 1
-                    : 0;
-
-                return threads.Skip(skipped).Take(call.ArgAt<int>(3)).ToArray();
-            });
-
-        return reader;
-    }
+    /// <summary>Answers each grouped walk with the given conversations, newest first in the order given.</summary>
+    private static IEmailThreadListReader ReaderAnswering(IReadOnlyList<ListedEmailThread> threads) =>
+        GroupedReaderAnswering([.. threads.Select(Grouped)]);
 
     /// <summary>Lists one conversation whose newest message is a received one, numbered so the list order is the order of the numbers.</summary>
     private static ListedEmailThread Listed(int ordinal) => new()
     {
         ThreadId = EmailThreadId.Create(new Guid($"11111111-0000-0000-0000-{ordinal:D12}")),
-        NewestArrival = DateTimeOffset.Parse("2026-10-30T12:00:00Z", null).AddHours(-ordinal),
         MessageCount = 2,
         UnreadCount = 1,
         HasAttachments = false,

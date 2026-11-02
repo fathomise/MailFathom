@@ -814,7 +814,6 @@ public sealed class ClientMailTimelineEndpointTests
         new ListedEmailThread
         {
             ThreadId = threadId,
-            NewestArrival = FirstJuly,
             MessageCount = 3,
             UnreadCount = 0,
             HasAttachments = false,
