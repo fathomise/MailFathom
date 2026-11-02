@@ -1308,8 +1308,9 @@ Seven things around those commands are worth knowing before they are discovered:
 
 - **Both verification gates run this flow**, through `scripts/resolve-changed-stacks.sh`, for any change that reaches
   the client stack. The fast loop restores, lints, type-checks, runs the suite, and formats — repairing, the way
-  `dotnet format` does there — and the full gate runs the same steps with the formatting pass verifying instead, and
-  the build after them.
+  `dotnet format` does there — with the lint, the suite, and the formatting narrowed to the client files the change
+  touched unless it reached a shared client input or removed a client file, and the full gate runs the same steps over
+  the whole workspace with the formatting pass verifying instead, and the build after them.
   [Which stack a gate runs](agent-workflow.md#which-stack-a-gate-runs) carries how that is decided and what keeps it in
   step with `ci.yml`.
 - **`CI`'s `Frontend` job runs the full gate's client flow, the browser suite, and the desktop suite.** It is gated on the `frontend` path

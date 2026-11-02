@@ -40,8 +40,10 @@ if [[ "$(basename "$0")" == 'pnpm' ]]; then
   : "${FAKE_PNPM_LOG:?FAKE_PNPM_LOG must identify the invocation log}"
   printf '%s\n' "$*" >> "$FAKE_PNPM_LOG"
 
-  # The client's repairing pass, which the fast loop treats exactly as it treats `dotnet format`.
-  if [[ -n "${FAKE_PNPM_REWRITE:-}" && "$*" == '--dir frontend run format' ]]; then
+  # The client's repairing pass, which the fast loop treats exactly as it treats `dotnet format`, in
+  # both of the forms it takes: over the whole workspace, and narrowed to the changed client files.
+  if [[ -n "${FAKE_PNPM_REWRITE:-}" &&
+    ("$*" == '--dir frontend run format' || "$*" == '--dir frontend exec prettier --write '*) ]]; then
     printf 'rewritten\n' >> "$FAKE_PNPM_REWRITE"
   fi
 
@@ -666,7 +668,9 @@ verify_fast_fetches_the_remote_base_before_verifying() {
 # The other half of the same decision. A branch that reaches both stacks runs both flows, and each
 # one's invocation log is the whole of what its stack cost: the service's names no path under
 # `frontend/` and the client's names no solution. The loop's client flow ends on the repairing
-# formatting pass, which is what makes it the loop rather than the gate.
+# formatting pass, which is what makes it the loop rather than the gate, and its lint, suite, and
+# formatting name the one client file the branch changed rather than the workspace — while the type
+# check, which is what catches a changed type breaking an unchanged importer, still runs whole.
 verify_fast_runs_the_client_flow_for_a_change_under_frontend() {
   add_client_change
   : > "$invocation_log"
@@ -682,7 +686,7 @@ verify_fast_runs_the_client_flow_for_a_change_under_frontend() {
     $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\nformat backend/MailFathom.slnx --no-restore --include backend/src/Sample.cs' \
     "$invocation_log"
   assert_file_content \
-    $'--dir frontend install --frozen-lockfile\n--dir frontend run lint\n--dir frontend run typecheck\n--dir frontend run test\n--dir frontend run format' \
+    $'--dir frontend install --frozen-lockfile\n--dir frontend exec eslint --max-warnings 0 --no-warn-ignored src/Sample.txt\n--dir frontend run typecheck\n--dir frontend exec vitest related --run --coverage.enabled=false src/Sample.txt\n--dir frontend exec prettier --write --cache --ignore-unknown src/Sample.txt' \
     "$client_invocation_log"
 }
 
@@ -703,16 +707,101 @@ verify_fast_builds_every_stack_before_testing_either() {
 
   remove_client_change
   assert_file_content \
-    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore\n--dir frontend install --frozen-lockfile\n--dir frontend run lint\n--dir frontend run typecheck\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\n--dir frontend run test\nformat backend/MailFathom.slnx --no-restore --include backend/src/Sample.cs\n--dir frontend run format' \
+    $'restore backend/MailFathom.slnx --locked-mode\nbuild backend/MailFathom.slnx --configuration Release --no-restore\n--dir frontend install --frozen-lockfile\n--dir frontend exec eslint --max-warnings 0 --no-warn-ignored src/Sample.txt\n--dir frontend run typecheck\ntest --project backend/tests/Sample.UnitTests/Sample.UnitTests.csproj --configuration Release --no-build\n--dir frontend exec vitest related --run --coverage.enabled=false src/Sample.txt\nformat backend/MailFathom.slnx --no-restore --include backend/src/Sample.cs\n--dir frontend exec prettier --write --cache --ignore-unknown src/Sample.txt' \
     "$shared_invocation_log"
+}
+
+# A narrowed client run that said nothing about it reads as a run that checked the whole workspace, so
+# the files are named and the sentence says where the rest of the verdict comes from — the same bargain
+# the service suites print.
+verify_fast_names_the_client_files_it_narrowed_to() {
+  local narrowed_output="$test_directory/verify-fast-client-narrowed-output"
+  add_client_change
+
+  (
+    cd "$repository_root"
+    VERIFY_FORCE=1 "$scripts_directory/verify-fast.sh"
+  ) > "$narrowed_output" 2>&1
+
+  remove_client_change
+  assert_contains 'The client lint, suite, and formatting are narrowed to the 1 changed client files below, and the type check runs whole.' \
+    "$narrowed_output"
+  assert_contains 'left to the pipeline:' "$narrowed_output"
+  assert_contains '  frontend/src/Sample.txt' "$narrowed_output"
+}
+
+# The narrowing stops where the change stops being about the files it touched. A manifest, the lock
+# file, or a tool's configuration decides how every client file is checked, and a client path outside
+# `frontend/` reaches the client through its build rather than through an import, so each runs the
+# three checks over the whole workspace exactly as before the loop narrowed them, and says why. Each
+# runs beside the fixture's own client file, which is what makes the assertion about the shared input
+# rather than about a branch with nothing else on it.
+verify_fast_checks_the_whole_client_workspace_when_a_shared_client_input_changed() {
+  local shared_client_input
+  local fallback_output="$test_directory/verify-fast-client-fallback-output"
+
+  add_client_change
+
+  for shared_client_input in frontend/package.json frontend/src/Client.App/tsconfig.json Version.props; do
+    : > "$client_invocation_log"
+    mkdir -p "$(dirname "$repository_root/$shared_client_input")"
+    printf '{}\n' > "$repository_root/$shared_client_input"
+    git -C "$repository_root" add "$shared_client_input"
+
+    (
+      cd "$repository_root"
+      VERIFY_FORCE=1 "$scripts_directory/verify-fast.sh"
+    ) > "$fallback_output" 2>&1
+
+    git -C "$repository_root" rm --quiet --force --cached "$shared_client_input"
+    rm -f "$repository_root/$shared_client_input"
+
+    if ! assert_file_content \
+      $'--dir frontend install --frozen-lockfile\n--dir frontend run lint\n--dir frontend run typecheck\n--dir frontend run test\n--dir frontend run format' \
+      "$client_invocation_log" ||
+      ! assert_contains "run over the whole workspace, because $shared_client_input decides how every client file is checked" \
+        "$fallback_output"; then
+      printf 'verify-fast.sh narrowed the client checks for a change to %s\n' "$shared_client_input" >&2
+      remove_client_change
+      return 1
+    fi
+  done
+
+  remove_client_change
+}
+
+# A removed client file is the other case no narrowing can answer for: the files that imported it are
+# unchanged, and `vitest related` cannot be handed a path that no longer exists.
+verify_fast_checks_the_whole_client_workspace_when_a_client_file_was_removed() {
+  local fallback_output="$test_directory/verify-fast-client-removal-output"
+
+  : > "$client_invocation_log"
+  mkdir -p "$repository_root/frontend/src"
+  printf 'fixture\n' > "$repository_root/frontend/src/Removed.ts"
+  git -C "$repository_root" add frontend/src/Removed.ts
+  git -C "$repository_root" commit --quiet -m 'client file'
+  git -C "$repository_root" rm --quiet frontend/src/Removed.ts
+
+  (
+    cd "$repository_root"
+    VERIFY_FORCE=1 "$scripts_directory/verify-fast.sh"
+  ) > "$fallback_output" 2>&1
+
+  git -C "$repository_root" reset --quiet --hard HEAD~1
+
+  assert_file_content \
+    $'--dir frontend install --frozen-lockfile\n--dir frontend run lint\n--dir frontend run typecheck\n--dir frontend run test\n--dir frontend run format' \
+    "$client_invocation_log"
+  assert_contains 'because frontend/src/Removed.ts was removed or renamed' "$fallback_output"
 }
 
 # The full gate over the same branch. The service solution is verified with the files the branch
 # changed, because `--include` selects within the workspace `dotnet format` loaded and the service
 # workspace is several dozen projects; a client path in that list would name no file the solution
-# holds, which is what the split exists for. The client flow differs from the loop's in exactly the
-# two places the service flow does: the formatting pass verifies rather than repairs, and the build
-# runs.
+# holds, which is what the split exists for. The client flow differs from the loop's in the two
+# places the service flow does — the formatting pass verifies rather than repairs, and the build runs
+# — and in a third the service flow does not have: every client check covers the whole workspace,
+# never the files the branch changed, because this is the verdict the pull request holds a change to.
 verify_full_runs_the_client_flow_for_a_change_under_frontend() {
   add_client_change
   : > "$invocation_log"
@@ -12700,6 +12789,9 @@ run_test verify_fast_refuses_a_whitespace_error
 run_test verify_fast_fetches_the_remote_base_before_verifying
 run_test verify_fast_runs_the_client_flow_for_a_change_under_frontend
 run_test verify_fast_builds_every_stack_before_testing_either
+run_test verify_fast_names_the_client_files_it_narrowed_to
+run_test verify_fast_checks_the_whole_client_workspace_when_a_shared_client_input_changed
+run_test verify_fast_checks_the_whole_client_workspace_when_a_client_file_was_removed
 run_test verify_fast_runs_no_stack_flow_for_a_change_no_build_reads
 run_test verify_full_runs_no_stack_flow_for_a_change_no_build_reads
 run_test verify_full_runs_both_flows_for_a_change_above_both_stacks
