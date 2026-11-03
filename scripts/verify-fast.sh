@@ -214,10 +214,10 @@ fi
 
 # The service suites run whole, in one invocation that runs the test modules side by side. Narrowing
 # them to the projects a change names costs more than it saves: a change reaching most of the core
-# projects names nine suites, which one `dotnet test --project` after another takes about 225 seconds
-# over, while the whole solution in one parallel run takes about eighty, and a change reaching a
-# single project would save some fifty seconds against that. `Infrastructure.UnitTests` alone sets
-# the floor.
+# projects names nine suites, which one `dotnet test --project` after another takes about three minutes
+# over, while the whole solution in one parallel run takes about fifty-five, and a change reaching a
+# single project would save some thirty seconds against that. `Host.UnitTests` and
+# `Boundaries.UnitTests` set the floor.
 if [[ -n "$run_service_stack" ]]; then
   dotnet test --solution backend/MailFathom.slnx --configuration Release --no-build
 fi

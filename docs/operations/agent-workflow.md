@@ -62,8 +62,8 @@ neither stack's formatter and by nothing in the pipeline.
 
 The solution is built whole and tested narrow, and the two halves of that are
 measured rather than assumed. On the owner's machine an incremental Release build
-of the whole solution is about eight seconds and the whole suite is about eighty,
-fifteen thousand tests of which a change reads a handful of projects' worth — so
+of the whole solution is about eight seconds and the whole suite is about fifty-five,
+twenty-three thousand tests of which a change reads a handful of projects' worth — so
 the suite is where the cost is. Narrowing the build instead would buy the seconds
 and give up the analyzer verdict `EnforceCodeStyleInBuild` and
 `TreatWarningsAsErrors` produce over every project, which is the half of that step
@@ -93,10 +93,11 @@ that hands one of the departures to either. Because the two gates build with
 different properties, switching between them in one worktree rebuilds the solution
 once.
 
-The unit suites always run whole, in one parallel run that takes about eighty
-seconds on the owner's machine. `Infrastructure.UnitTests` alone sets most of that
-floor, so running only the suites a change names would save little even for a
-change to one project, and a run never has to say which suites it left out.
+The unit suites always run whole, in one parallel run that takes about fifty-five
+seconds on the owner's machine. `Host.UnitTests` and `Boundaries.UnitTests` set
+most of that floor between them, so running only the suites a change names would
+save little even for a change to one project, and a run never has to say which
+suites it left out.
 
 The client is narrowed, in its three slowest checks. ESLint runs
 over the client files the branch changed rather than `eslint .`, with the
