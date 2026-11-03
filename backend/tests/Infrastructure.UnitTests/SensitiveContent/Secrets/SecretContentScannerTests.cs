@@ -78,7 +78,17 @@ public sealed class SecretContentScannerTests
         new("ProviderToken", SyntheticSecrets.DatabasePlatformPassword, SyntheticSecrets.DatabasePlatformPassword),
     ];
 
-    private readonly FakeTimeProvider timeProvider = new(ScannedAt);
+    private static readonly FakeTimeProvider Clock = new(ScannedAt);
+
+    /// <summary>The scanners the tests below share, because building one compiles the corpus it registers.</summary>
+    /// <remarks>
+    /// A deployment builds its scanner once, as a singleton. One built per test paid that compilation on every row of
+    /// every theory here, which made this class the one the whole suite waited on; a scan changes nothing a scanner
+    /// holds, so sharing one shares nothing a test could observe.
+    /// </remarks>
+    private static readonly SecretContentScanner DefaultScanner = Scanner();
+
+    private static readonly SecretContentScanner EveryCategoryScanner = Scanner([.. SecretCategories.All]);
 
     /// <summary>Each case is the text a mailbox would carry, and the part of it a placeholder has to replace.</summary>
     /// <remarks>
@@ -122,7 +132,7 @@ public sealed class SecretContentScannerTests
         string credential)
     {
         // Arrange
-        var scanner = this.Scanner();
+        var scanner = DefaultScanner;
         var text = "Here it is: " + written + " — please rotate it.";
 
         // Act
@@ -148,7 +158,7 @@ public sealed class SecretContentScannerTests
         string after)
     {
         // Arrange
-        var scanner = this.Scanner();
+        var scanner = DefaultScanner;
         var text = before + written + after;
 
         // Act
@@ -187,7 +197,7 @@ public sealed class SecretContentScannerTests
         char following)
     {
         // Arrange
-        var scanner = this.Scanner();
+        var scanner = DefaultScanner;
         var credential = credentialName switch
         {
             nameof(SyntheticSecrets.EdgePlatformToken) => SyntheticSecrets.EdgePlatformToken,
@@ -215,7 +225,7 @@ public sealed class SecretContentScannerTests
     public async Task ScanAsync_TextAMailboxIsFullOf_ReportsNothing()
     {
         // Arrange
-        var scanner = this.Scanner();
+        var scanner = DefaultScanner;
 
         // Act
         var findings = await Task.WhenAll(SyntheticSecrets.FalsePositives.Select(async line =>
@@ -232,7 +242,7 @@ public sealed class SecretContentScannerTests
     public async Task ScanAsync_AFinding_NamesItsRuleAndCorpusRevisionAndNeverTheValue()
     {
         // Arrange
-        var scanner = this.Scanner();
+        var scanner = DefaultScanner;
 
         // Act
         var findings = await scanner.ScanAsync("token " + SyntheticSecrets.ProviderToken, TestContext.Current.CancellationToken);
@@ -253,7 +263,7 @@ public sealed class SecretContentScannerTests
     {
         // Arrange
         var providerToken = SecretCategories.ProviderToken;
-        var scanner = this.Scanner(
+        var scanner = Scanner(
             [providerToken],
             [SensitiveContentRule.Create(providerToken, "github-pat")]);
 
@@ -274,8 +284,8 @@ public sealed class SecretContentScannerTests
     {
         // Arrange
         var text = "key material " + SyntheticSecrets.HighEntropyString + " ends here";
-        var byDefault = this.Scanner();
-        var withEntropy = this.Scanner([.. SecretCategories.All]);
+        var byDefault = DefaultScanner;
+        var withEntropy = EveryCategoryScanner;
 
         // Act
         var ignored = await byDefault.ScanAsync(text, TestContext.Current.CancellationToken);
@@ -297,7 +307,7 @@ public sealed class SecretContentScannerTests
     public async Task ScanAsync_ARunOfTheRightShapeAndNoRandomness_IsNotReportedByTheEntropyLayer()
     {
         // Arrange
-        var scanner = this.Scanner([.. SecretCategories.All]);
+        var scanner = EveryCategoryScanner;
         var repetitive = string.Concat(Enumerable.Repeat("Ab", 21)) + "C=";
 
         // Act
@@ -315,7 +325,7 @@ public sealed class SecretContentScannerTests
     public void Resolve_ANameTheCorpusDoesNotDeclare_IsReportedRatherThanLost()
     {
         // Arrange
-        var scanner = this.Scanner();
+        var scanner = DefaultScanner;
 
         // Act
         var (rule, confidence) = scanner.Resolve("AProductThisBuildDoesNotName");
@@ -333,7 +343,7 @@ public sealed class SecretContentScannerTests
     {
         // Arrange
         var providerToken = SecretCategories.ProviderToken;
-        var scanner = this.Scanner(
+        var scanner = Scanner(
             [providerToken],
             [SensitiveContentRule.Create(providerToken, "github-pat")]);
 
@@ -346,7 +356,7 @@ public sealed class SecretContentScannerTests
     public void Resolve_TheUnnamedRuleSuppressed_DropsARefinementInsteadOfReportingIt()
     {
         // Arrange
-        var scanner = this.Scanner(
+        var scanner = Scanner(
             [SecretCategories.ProviderToken],
             [SecretRuleCorpus.UnnamedProviderCredential]);
 
@@ -387,7 +397,7 @@ public sealed class SecretContentScannerTests
     public async Task ScanAsync_InputBuiltToProvokeAMatcher_StillAnswers(string unit)
     {
         // Arrange
-        var scanner = this.Scanner([.. SecretCategories.All]);
+        var scanner = EveryCategoryScanner;
         var hostile = string.Concat(Enumerable.Repeat(unit, 200_000 / unit.Length));
 
         // Act
@@ -409,7 +419,7 @@ public sealed class SecretContentScannerTests
     public async Task ScanAsync_ACredentialWhoseRuleCouldReportPartOfIt_CoversTheWholeCredential(string rule)
     {
         // Arrange
-        var scanner = this.Scanner([.. SecretCategories.All]);
+        var scanner = EveryCategoryScanner;
         var credential = rule == "microsoft-teams-webhook"
             ? SyntheticSecrets.ChannelWebhookUrl
             : SyntheticSecrets.ShortLivedModelServiceKey;
@@ -460,7 +470,7 @@ public sealed class SecretContentScannerTests
     public async Task ScanAsync_ACancelledCaller_IsRefusedRatherThanScanned()
     {
         // Arrange
-        var scanner = this.Scanner();
+        var scanner = DefaultScanner;
         using var cancellation = new CancellationTokenSource();
         await cancellation.CancelAsync();
 
@@ -483,7 +493,7 @@ public sealed class SecretContentScannerTests
             ]);
 
         // Act, Assert
-        Assert.Throws<ArgumentException>(() => new SecretContentScanner(plan, this.timeProvider));
+        Assert.Throws<ArgumentException>(() => new SecretContentScanner(plan, Clock));
     }
 
     /// <summary>Redaction has to be byte-identical on repeat, which starts with the same text producing the same findings.</summary>
@@ -491,7 +501,7 @@ public sealed class SecretContentScannerTests
     public async Task ScanAsync_TheSameTextTwice_ProducesTheSameFindings()
     {
         // Arrange
-        var scanner = this.Scanner([.. SecretCategories.All]);
+        var scanner = EveryCategoryScanner;
         var text = string.Join(
             "\n",
             SyntheticSecrets.ProviderToken,
@@ -528,7 +538,7 @@ public sealed class SecretContentScannerTests
             .Select(finding => text.Substring(finding.Span.Start, finding.Span.Length))
             .Distinct(StringComparer.Ordinal)];
 
-    private SecretContentScanner Scanner(
+    private static SecretContentScanner Scanner(
         IReadOnlyList<SensitiveContentCategory>? categories = null,
         IReadOnlyList<SensitiveContentRule>? suppressions = null) => new(
         SensitiveContentPlan.Create(
@@ -539,5 +549,5 @@ public sealed class SecretContentScannerTests
                     categories ?? [.. SecretCategories.All.Where(SecretCategories.IsDetectedByDefault)],
                     suppressions ?? []),
             ]),
-        this.timeProvider);
+        Clock);
 }
