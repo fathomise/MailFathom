@@ -55,6 +55,7 @@ namespace MailFathom.Application.Mail.Delivery.Submission;
 /// <param name="outbox">Writes the record and the message down together, and says the account has something to send.</param>
 /// <param name="governor">Answers what this caller may be talked into sending, and records the send once it is durable.</param>
 /// <param name="authorization">Answers whether the caller that reached this holds the grant that lets it send.</param>
+/// <param name="settings">Says how far ahead a caller's send may be held.</param>
 /// <param name="timeProvider">Says whether a time the author named is still one a message can be held until.</param>
 public sealed class AuthoredMailSubmission(
     ICallerMailAccountCatalog accountCatalog,
@@ -63,6 +64,7 @@ public sealed class AuthoredMailSubmission(
     MailOutbox outbox,
     AuthoredSendGovernor governor,
     AccessAuthorization authorization,
+    AuthoredSendSettings settings,
     TimeProvider timeProvider)
 {
     /// <summary>Queues one message, or refuses it naming what the caller has to change.</summary>
@@ -72,7 +74,7 @@ public sealed class AuthoredMailSubmission(
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="request" /> is <see langword="null" />.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold <see cref="MailFathomPermission.MailSend" />, or is acting for no user.</exception>
     /// <exception cref="MailAccountNotAccessibleException">Thrown when the request names an account the caller's user is not assigned, which includes every account this deployment does not serve.</exception>
-    /// <exception cref="MailSubmissionRefusedException">Thrown when a recipient names nobody, a field cannot be composed, a bound is exceeded, the account configures no address to send from, or the message is asked to leave at a time that has passed.</exception>
+    /// <exception cref="MailSubmissionRefusedException">Thrown when a recipient names nobody, a field cannot be composed, a bound is exceeded, the account configures no address to send from, or the message is asked to leave at a time that has passed or further ahead than this deployment holds one.</exception>
     /// <exception cref="OutgoingMailRefusedException">Thrown when a recipient is one this deployment may not write to, when this caller has reached a ceiling of its own, or when a recipient it named is one nothing here vouches for.</exception>
     public async Task<OutgoingEmailRecord> SubmitAsync(
         MailSubmissionRequest request,
@@ -89,13 +91,11 @@ public sealed class AuthoredMailSubmission(
         var account = (await accountCatalog.ReadAssignedAccountsAsync(cancellationToken)).FirstOrDefault(assigned => assigned.IsNamedBy(request.Account))
             ?? throw new MailAccountNotAccessibleException(request.Account);
 
-        // Before the contact book is read and before anything is composed, because a time that has gone is the
-        // caller's own input and refusing it costs them nothing but the refusal. What it must not do is arrive at the
-        // outbox: a record written for a moment in the past is one the next delivery pass takes immediately, which is
-        // the opposite of what somebody naming a time asked for.
-        if (request.DueAt is { } dueAt && dueAt.Instant <= timeProvider.GetUtcNow())
+        // Before the contact book is read and before anything is composed, because the time is the caller's own input
+        // and refusing it costs them nothing but the refusal.
+        if (request.DueAt is { } dueAt)
         {
-            throw MailSubmissionRefusedException.DueTimeAlreadyPassed();
+            AuthoredSendHold.Require(dueAt, timeProvider.GetUtcNow(), settings.MaxSendHold);
         }
 
         // Ahead of the resolution rather than left to it, because the reads it performs carry what the caller supplied

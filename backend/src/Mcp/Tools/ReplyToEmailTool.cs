@@ -76,10 +76,12 @@ internal sealed class ReplyToEmailTool(AuthoredResponseSubmission submission)
     /// <param name="idempotencyKey">The caller's own identity for this message, which makes a retry the same message.</param>
     /// <param name="cc">Anybody to copy in beside whoever the reply already reaches, or absent to copy nobody.</param>
     /// <param name="htmlBody">The HTML alternative, or absent to send the plain text alone.</param>
+    /// <param name="sendAt">The time the reply is to leave at, or absent to send it as soon as it can.</param>
+    /// <param name="sendAtTimeZone">The zone a <paramref name="sendAt" /> without an offset is read in, or absent where it carries one.</param>
     /// <param name="cancellationToken">Cancels the write when the caller disconnects or the host shuts down.</param>
     /// <returns>The record the reply was queued as.</returns>
     /// <exception cref="StoredEmailIdentifierMalformedException">Thrown when the text names no email this system issued an identifier for.</exception>
-    /// <exception cref="MailSubmissionRefusedException">Thrown when the idempotency key is not one a record can be written under, a copied recipient carries no address, or the audience names no reply this system declares.</exception>
+    /// <exception cref="MailSubmissionRefusedException">Thrown when the idempotency key is not one a record can be written under, a copied recipient carries no address, the audience names no reply this system declares, or the send time is not one a message can be held until.</exception>
     /// <exception cref="MailFathomException">
     /// Raised by the use case for a grant, an email, a recipient, a field, or a bound it refuses. The call-tool filter
     /// turns every one of them into the coded result a client reads, so this tool neither catches nor re-describes any.
@@ -96,9 +98,11 @@ internal sealed class ReplyToEmailTool(AuthoredResponseSubmission submission)
         "Sends a real email in reply to one this deployment already holds. The message reaches strangers' mailboxes "
         + "and CANNOT be recalled, edited, or deleted once it has left — treat every call as final, and ask the person "
         + "you are acting for before replying on their behalf. The call itself transmits nothing: the reply is written "
-        + "down durably and a delivery pass offers it to a mail server seconds later, so the result says queued and "
-        + "never that anything was delivered. Call get_outgoing_email with the outgoingEmailId it answers to learn what "
-        + "became of the message, and cancel_outgoing_email to stop it while it is still waiting. audience is "
+        + "down durably and a delivery pass offers it to a mail server seconds later, or at sendAt when you name one, "
+        + "so the result says queued and never that anything was delivered. Omit sendAt to send now; name it to hold "
+        + "the reply until that time, which the result states back. Call get_outgoing_email with the outgoingEmailId "
+        + "it answers to learn what became of the message, and cancel_outgoing_email to stop it while it is still "
+        + "waiting — a held message can be stopped until it leaves. audience is "
         + "required and decides who receives the reply: senderOnly "
         + "answers one person, everyone answers every participant of the original — there is no default, and picking "
         + "the wrong one publishes a private answer or drops the rest of the conversation. Everything else is read "
@@ -129,6 +133,10 @@ internal sealed class ReplyToEmailTool(AuthoredResponseSubmission submission)
         IReadOnlyList<string>? cc = null,
         [Description("An HTML alternative to plainTextBody, sent beside it so each client shows the one it prefers. Omit it to send the plain text alone. It is the same words written twice, not a second message, and the quoted original is added to it for you.")]
         string? htmlBody = null,
+        [Description(SendTimeDescriptions.SendAt)]
+        string? sendAt = null,
+        [Description(SendTimeDescriptions.SendAtTimeZone)]
+        string? sendAtTimeZone = null,
         CancellationToken cancellationToken = default)
     {
         var request = new MailResponseSubmissionRequest
@@ -145,6 +153,7 @@ internal sealed class ReplyToEmailTool(AuthoredResponseSubmission submission)
                 MailSubmissionRefusedException.TooManyRecipients,
                 MailSubmissionRefusedException.From),
             Requester = AuthoredMailArguments.Requester(idempotencyKey),
+            DueAt = AuthoredMailArguments.DueTime(sendAt, sendAtTimeZone),
         };
 
         var record = await submission.SubmitAsync(request, cancellationToken);

@@ -699,8 +699,8 @@ internal static class HostComposition
         // is in. Both are read at startup, which the configuration reference marks as needing a restart.
         builder.Services.AddSingleton(provider =>
             provider.GetRequiredService<IOptions<MailDeliveryOptions>>().Value.SendCeilings.ToCallerCeilings());
-        builder.Services.AddSingleton(provider => new AuthoredSendSettings(
-            provider.GetRequiredService<IOptions<MailDeliveryOptions>>().Value.UnvouchedRecipients));
+        builder.Services.AddSingleton(provider =>
+            provider.GetRequiredService<IOptions<MailDeliveryOptions>>().Value.ToAuthoredSendSettings());
         builder.Services.AddScoped(provider =>
             provider.GetRequiredService<IOptions<MailDeliveryOptions>>().Value.ToOutgoingEmailBounds());
     }

@@ -74,10 +74,12 @@ internal sealed class ForwardEmailTool(AuthoredResponseSubmission submission)
     /// <param name="cc">The addresses to copy, or absent to copy nobody.</param>
     /// <param name="bcc">The addresses to copy without naming them to anybody else, or absent to blind-copy nobody.</param>
     /// <param name="htmlBody">The HTML alternative, or absent to send the plain text alone.</param>
+    /// <param name="sendAt">The time the forward is to leave at, or absent to send it as soon as it can.</param>
+    /// <param name="sendAtTimeZone">The zone a <paramref name="sendAt" /> without an offset is read in, or absent where it carries one.</param>
     /// <param name="cancellationToken">Cancels the write when the caller disconnects or the host shuts down.</param>
     /// <returns>The record the forward was queued as.</returns>
     /// <exception cref="StoredEmailIdentifierMalformedException">Thrown when the text names no email this system issued an identifier for.</exception>
-    /// <exception cref="MailSubmissionRefusedException">Thrown when the idempotency key is not one a record can be written under, or a recipient carries no address.</exception>
+    /// <exception cref="MailSubmissionRefusedException">Thrown when the idempotency key is not one a record can be written under, a recipient carries no address, or the send time is not one a message can be held until.</exception>
     /// <exception cref="MailFathomException">
     /// Raised by the use case for a grant, an email, a recipient, a field, or a bound it refuses. The call-tool filter
     /// turns every one of them into the coded result a client reads, so this tool neither catches nor re-describes any.
@@ -96,9 +98,11 @@ internal sealed class ForwardEmailTool(AuthoredResponseSubmission submission)
         + "once it has left, and it passes on somebody else's correspondence and attachments — treat every call as "
         + "final, and ask the person you are acting for before forwarding their mail. The call itself transmits "
         + "nothing: the forward is written down durably and a delivery pass offers it to a mail server seconds later, "
-        + "so the result says queued and never that anything was delivered. Call get_outgoing_email with the "
-        + "outgoingEmailId it answers to learn what became of the message, and cancel_outgoing_email to stop it "
-        + "while it is still waiting. to is required, because a forward "
+        + "or at sendAt when you name one, so the result says queued and never that anything was delivered. Omit "
+        + "sendAt to send now; name it to hold the forward until that time, which the result states back. Call "
+        + "get_outgoing_email with the outgoingEmailId it answers to learn what became of the message, and "
+        + "cancel_outgoing_email to stop it while it is still waiting — a held message can be stopped until it "
+        + "leaves. to is required, because a forward "
         + "addresses nobody on its own. Everything else is read from the stored email rather than supplied: the "
         + "subject, the attachments, and the forwarded message beneath what you write. So this tool takes no subject, "
         + "no attachment argument, no quoted text, and no From address; write only the new words. idempotencyKey is "
@@ -130,6 +134,10 @@ internal sealed class ForwardEmailTool(AuthoredResponseSubmission submission)
         IReadOnlyList<string>? bcc = null,
         [Description("An HTML alternative to plainTextBody, sent beside it so each client shows the one it prefers. Omit it to send the plain text alone. It is the same words written twice, not a second message, and the forwarded original is added to it for you.")]
         string? htmlBody = null,
+        [Description(SendTimeDescriptions.SendAt)]
+        string? sendAt = null,
+        [Description(SendTimeDescriptions.SendAtTimeZone)]
+        string? sendAtTimeZone = null,
         CancellationToken cancellationToken = default)
     {
         var request = new MailResponseSubmissionRequest
@@ -142,6 +150,7 @@ internal sealed class ForwardEmailTool(AuthoredResponseSubmission submission)
             Recipients = AuthoredRecipientHeaders.NamedRecipients(
                 to, cc, bcc, MailSubmissionRefusedException.TooManyRecipients, MailSubmissionRefusedException.From),
             Requester = AuthoredMailArguments.Requester(idempotencyKey),
+            DueAt = AuthoredMailArguments.DueTime(sendAt, sendAtTimeZone),
         };
 
         var record = await submission.SubmitAsync(request, cancellationToken);

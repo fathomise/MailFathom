@@ -158,7 +158,7 @@ public sealed class MailResponseToolMetadataTests
     {
         // Arrange
         string[] expectedProperties =
-            ["storedEmailId", "audience", "plainTextBody", "htmlBody", "cc", "idempotencyKey"];
+            ["storedEmailId", "audience", "plainTextBody", "htmlBody", "cc", "idempotencyKey", "sendAt", "sendAtTimeZone"];
 
         // Act
         var advertisedProperties = ArgumentNamesOf(RegisteredMcpToolSurface.AdvertisedTool(ReplyToEmailTool.ToolName));
@@ -175,7 +175,7 @@ public sealed class MailResponseToolMetadataTests
     {
         // Arrange
         string[] expectedProperties =
-            ["storedEmailId", "to", "cc", "bcc", "plainTextBody", "htmlBody", "idempotencyKey"];
+            ["storedEmailId", "to", "cc", "bcc", "plainTextBody", "htmlBody", "idempotencyKey", "sendAt", "sendAtTimeZone"];
 
         // Act
         var advertisedProperties = ArgumentNamesOf(RegisteredMcpToolSurface.AdvertisedTool(ForwardEmailTool.ToolName));

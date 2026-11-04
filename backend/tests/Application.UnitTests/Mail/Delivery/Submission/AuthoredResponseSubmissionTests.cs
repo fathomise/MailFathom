@@ -32,6 +32,7 @@ using MailFathom.Domain.Delivery.Governance;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Scheduling;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -251,6 +252,52 @@ public sealed class AuthoredResponseSubmissionTests
         await auditor.Received(1).RecordAuthoredSendAsync(
             Arg.Any<AuthoredSend>(),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>An answer asked to leave at a named time is held until it, exactly as a new message is.</summary>
+    [Fact]
+    public async Task SubmitAsync_ADueTimeStillToCome_RecordsTheAnswerHeldUntilIt()
+    {
+        // Arrange
+        var submission = SubmissionOver(Rendering(), out _);
+        var dueAt = ZonedInstant.At(Recorded.AddHours(9));
+
+        // Act
+        var record = await submission.SubmitAsync(
+            Request() with { DueAt = dueAt },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(dueAt, record.DueAt);
+        Assert.True(record.IsWaitingAt(Recorded));
+    }
+
+    /// <summary>A time that has gone, and one further ahead than the deployment holds a message, are refused before the answered mail is read.</summary>
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(31 * 24)]
+    public async Task SubmitAsync_ADueTimeNoAnswerCanBeHeldUntil_IsRefusedBeforeAnyMailIsRead(int hoursAhead)
+    {
+        // Arrange
+        var summaryReader = SummaryReaderReturning(SyntheticEmailSummaries.Create());
+        var submission = SubmissionOver(
+            Rendering(),
+            out _,
+            summaryReader: summaryReader,
+            settings: AuthoredSendSettings.Permissive with { MaxSendHold = TimeSpan.FromDays(30) });
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailSubmissionRefusedException>(
+            () => submission.SubmitAsync(
+                Request() with { DueAt = ZonedInstant.At(Recorded.AddHours(hoursAhead)) },
+                TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.AuthoredMailScheduleRefused, refusal.ErrorCode);
+        await summaryReader
+            .DidNotReceive()
+            .FindAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -647,7 +694,8 @@ public sealed class AuthoredResponseSubmissionTests
         IOutgoingSenderIdentityReader? senderIdentities = null,
         IAuthoredEmailComposer? composing = null,
         AccessAuthorization? authorization = null,
-        AuthoredSendGovernor? governor = null)
+        AuthoredSendGovernor? governor = null,
+        AuthoredSendSettings? settings = null)
     {
         var answered = summary ?? SyntheticEmailSummaries.Create();
         composer = composing ?? ComposingAuthoredEmails.ThatComposes(ComposedMime);
@@ -680,7 +728,9 @@ public sealed class AuthoredResponseSubmissionTests
             composer,
             OutboxOver(granted),
             governor ?? AuthoredSendGovernors.Permitting(granted),
-            granted);
+            granted,
+            settings ?? AuthoredSendSettings.Permissive,
+            new FakeTimeProvider(Recorded));
     }
 
     private static MailOutbox OutboxOver(AccessAuthorization granted)

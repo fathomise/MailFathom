@@ -9,6 +9,7 @@ using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Scheduling;
 
 namespace MailFathom.Application.Mail.Delivery;
 
@@ -189,6 +190,54 @@ internal static class AuthoredMailRefusalPublication
         MailFathomErrorCode.AuthoredMailScheduleRefused,
         "A message is held until a time still to come; the time this send names has already passed.");
 
+    /// <summary>Publishes a message asked to leave further ahead than this deployment holds one.</summary>
+    /// <param name="maximum">The longest a send may be held, which is the operator's configured bound.</param>
+    /// <returns>The code and the sentence to report.</returns>
+    /// <remarks>
+    /// The bound is stated and the caller's time is not, for the reason the past-time refusal gives: the time is theirs,
+    /// and what they need to change it is how far ahead it may lie.
+    /// </remarks>
+    internal static PublishedMailRefusal DueTimeBeyondHold(TimeSpan maximum) => new(
+        MailFathomErrorCode.AuthoredMailScheduleRefused,
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"A message is held for at most {HoldSpan(maximum)} before it leaves; the time this send names lies further ahead than that."));
+
+    /// <summary>Publishes a send time written in no form a time is read from.</summary>
+    /// <param name="maximumLength">The most characters the time may be written in.</param>
+    /// <returns>The code and the sentence to report.</returns>
+    /// <remarks>It names both forms, because the text that missed may have meant either, and the one it named neither offset nor zone for is refused here too: a wall-clock time read in no stated zone would be read in this server's.</remarks>
+    internal static PublishedMailRefusal SendTimeUnreadable(int maximumLength) => new(
+        MailFathomErrorCode.AuthoredMailScheduleRefused,
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"A send time is an ISO 8601 date and time of at most {maximumLength} characters, either with its offset, such as 2026-11-09T09:00+01:00, or without one together with the IANA zone it is read in, such as 2026-11-09T09:00 in Europe/Warsaw."));
+
+    /// <summary>Publishes a send time that states an offset and names a zone as well.</summary>
+    /// <returns>The code and the sentence to report.</returns>
+    /// <remarks>
+    /// A wall-clock time is resolved in the zone it is named in and its own offset is ignored, so a time carrying both
+    /// has said two things, and accepting it would silently drop one of them.
+    /// </remarks>
+    internal static PublishedMailRefusal SendTimeOffsetBesideZone() => new(
+        MailFathomErrorCode.AuthoredMailScheduleRefused,
+        "A send time states either its offset or the zone it is read in, never both: write the time without an offset beside its zone, or with its offset and no zone.");
+
+    /// <summary>Publishes a send time named in a zone this host does not know.</summary>
+    /// <returns>The code and the sentence to report.</returns>
+    internal static PublishedMailRefusal SendTimeZoneUnknown() => new(
+        MailFathomErrorCode.AuthoredMailScheduleRefused,
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"The zone a send time is read in is an IANA identifier this deployment knows, such as Europe/Warsaw, of at most {ZonedInstant.MaximumZoneIdLength} characters."));
+
+    /// <summary>Publishes a zone named for a send that names no time.</summary>
+    /// <returns>The code and the sentence to report.</returns>
+    /// <remarks>Refused rather than ignored, because a caller naming a zone meant a time to be read in it, and sending at once would be the opposite of what they asked for.</remarks>
+    internal static PublishedMailRefusal SendTimeZoneWithoutTime() => new(
+        MailFathomErrorCode.AuthoredMailScheduleRefused,
+        "A zone is named for the time a send is held until, so it is given together with that time and never on its own.");
+
     /// <summary>Publishes a repetition written in a form the schedule syntax does not name.</summary>
     /// <param name="described">What is wrong with the declaration, in the words the syntax itself states its rules in.</param>
     /// <returns>The code and the sentence to report.</returns>
@@ -222,6 +271,11 @@ internal static class AuthoredMailRefusalPublication
     private static string AmbiguousContactMessage(int? matchedContactCount) => string.Create(
         CultureInfo.InvariantCulture,
         $"One recipient names a contact by a name {matchedContactCount} contacts carry, so it names nobody.");
+
+    /// <summary>Writes a hold span the way an operator configured it, in days where it is a whole number of them and in hours otherwise.</summary>
+    private static string HoldSpan(TimeSpan span) => span.Ticks % TimeSpan.TicksPerDay == 0
+        ? string.Create(CultureInfo.InvariantCulture, $"{span.TotalDays:0} days")
+        : string.Create(CultureInfo.InvariantCulture, $"{span.TotalHours:0.##} hours");
 
     /// <summary>Writes the refusal a forward carrying more than this deployment composes produces.</summary>
     /// <remarks>

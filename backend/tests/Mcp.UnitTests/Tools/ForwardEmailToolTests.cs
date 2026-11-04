@@ -51,6 +51,28 @@ public sealed class ForwardEmailToolTests
         Assert.Equal(AnsweredMailSubmissions.RecordedAt, result.QueuedAt);
     }
 
+    /// <summary>A forward named a wall-clock time in a zone is held until that time, which the result states back.</summary>
+    [Fact]
+    public async Task ForwardEmailAsync_AWallClockTimeInAZone_HoldsTheForwardUntilIt()
+    {
+        // Arrange
+        var tool = ToolOver(out _);
+
+        // Act
+        var result = await tool.ForwardEmailAsync(
+            AnsweredEmailId,
+            ["reader@example.test"],
+            "Passing this on.",
+            "forward-1",
+            sendAt: "2026-08-20T09:00",
+            sendAtTimeZone: "Europe/Warsaw",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new DateTimeOffset(2026, 8, 20, 7, 0, 0, TimeSpan.Zero), result.SendAt);
+        Assert.Equal("Europe/Warsaw", result.SendAtTimeZone);
+    }
+
     /// <summary>
     /// A forward goes only where the caller sent it: nobody the original named is addressed, which is what separates it
     /// from either reply.

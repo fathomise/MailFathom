@@ -39,18 +39,27 @@ namespace MailFathom.Application.Mail.Delivery.Submission;
 /// will carry it is not being talked to and must not be, and what that server does decide is asked again by the
 /// delivery pass against the length that was stored.
 /// </para>
+/// <para>
+/// An answer asked to leave at a named time is held exactly as a new message is, under the same two refusals and the
+/// same bound, and asked before the stored email is read: a time that has gone or lies too far ahead is the caller's
+/// own input, and refusing it costs them nothing but the refusal.
+/// </para>
 /// </remarks>
 /// <param name="authoring">Turns the stored email and what somebody wrote into the message to compose.</param>
 /// <param name="composer">Builds the MIME, and decides every header this system owns rather than the author.</param>
 /// <param name="outbox">Writes the record and the message down together, and says the account has something to send.</param>
 /// <param name="governor">Answers what this caller may be talked into sending, and records the send once it is durable.</param>
 /// <param name="authorization">Answers whether the caller that reached this holds the grant that lets it send.</param>
+/// <param name="settings">Says how far ahead a caller's send may be held.</param>
+/// <param name="timeProvider">Says whether a time the author named is still one a message can be held until.</param>
 public sealed class AuthoredResponseSubmission(
     StoredEmailResponseAuthoring authoring,
     IAuthoredEmailComposer composer,
     MailOutbox outbox,
     AuthoredSendGovernor governor,
-    AccessAuthorization authorization)
+    AccessAuthorization authorization,
+    AuthoredSendSettings settings,
+    TimeProvider timeProvider)
 {
     /// <summary>Queues one answer to a stored email, or refuses it naming what the caller has to change.</summary>
     /// <param name="request">The answer that was asked for.</param>
@@ -58,7 +67,7 @@ public sealed class AuthoredResponseSubmission(
     /// <returns>The durable record the answer was written down as, whether this call created it or an identical earlier one did.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="request" /> is <see langword="null" />.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller holds neither <see cref="MailFathomPermission.MailSend" /> nor, beneath it, <see cref="MailFathomPermission.MailRead" />.</exception>
-    /// <exception cref="MailSubmissionRefusedException">Thrown when the answered email cannot be answered, a recipient the author added names nobody, a field cannot be composed, or a bound is exceeded.</exception>
+    /// <exception cref="MailSubmissionRefusedException">Thrown when the answered email cannot be answered, a recipient the author added names nobody, a field cannot be composed, a bound is exceeded, or the answer is asked to leave at a time that has passed or further ahead than this deployment holds one.</exception>
     /// <exception cref="OutgoingMailRefusedException">Thrown when a recipient is one this deployment may not write to, when this caller has reached a ceiling of its own, or when a recipient it added itself is one nothing here vouches for.</exception>
     public async Task<OutgoingEmailRecord> SubmitAsync(
         MailResponseSubmissionRequest request,
@@ -67,6 +76,11 @@ public sealed class AuthoredResponseSubmission(
         ArgumentNullException.ThrowIfNull(request);
 
         authorization.RequirePermission(MailFathomPermission.MailSend);
+
+        if (request.DueAt is { } dueAt)
+        {
+            AuthoredSendHold.Require(dueAt, timeProvider.GetUtcNow(), settings.MaxSendHold);
+        }
 
         // Ahead of the authoring rather than left to it, for the reason a new message's list is checked ahead of the
         // resolution: the reads it performs carry what the caller supplied, and a list this long describes an answer no
@@ -105,15 +119,17 @@ public sealed class AuthoredResponseSubmission(
             throw MailSubmissionRefusedException.From(composition.Refusal!);
         }
 
+        var send = request.DueAt is { } heldUntil ? composed.Request.HeldUntil(heldUntil) : composed.Request;
+
         // The people an answer is addressed to are mostly this system's reading of the message being answered, and the
         // governance beneath knows which is which: what a caller added itself is judged as its own word, and the rest
         // is judged by the deployment's recipient policy exactly as it is on a message answering nothing.
         var permit = await governor.RequirePermittedAsync(
             response.Email!.Recipients,
-            composed.Request,
+            send,
             cancellationToken);
 
-        var opened = await outbox.EnqueueAsync(composed.Request, composed.RawMime, cancellationToken);
+        var opened = await outbox.EnqueueAsync(send, composed.RawMime, cancellationToken);
 
         // Only where this call is what wrote the record down, for the reason the same line carries on a new message: a
         // retry answered from the record an earlier call left is one answer sent once, and a second audit entry for it

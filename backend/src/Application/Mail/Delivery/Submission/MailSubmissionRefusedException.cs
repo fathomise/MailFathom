@@ -92,6 +92,33 @@ public sealed class MailSubmissionRefusedException : MailFathomException
     public static MailSubmissionRefusedException DueTimeAlreadyPassed() =>
         new(AuthoredMailRefusalPublication.DueTimeAlreadyPassed());
 
+    /// <summary>Reports a message asked to leave further ahead than this deployment holds one.</summary>
+    /// <param name="maximum">The longest a send may be held.</param>
+    /// <returns>The failure to raise.</returns>
+    public static MailSubmissionRefusedException DueTimeBeyondHold(TimeSpan maximum) =>
+        new(AuthoredMailRefusalPublication.DueTimeBeyondHold(maximum));
+
+    /// <summary>Reports a send time written in no form a time is read from.</summary>
+    /// <param name="maximumLength">The most characters the time may be written in.</param>
+    /// <returns>The failure to raise.</returns>
+    public static MailSubmissionRefusedException SendTimeUnreadable(int maximumLength) =>
+        new(AuthoredMailRefusalPublication.SendTimeUnreadable(maximumLength));
+
+    /// <summary>Reports a send time that states an offset and names a zone as well.</summary>
+    /// <returns>The failure to raise.</returns>
+    public static MailSubmissionRefusedException SendTimeOffsetBesideZone() =>
+        new(AuthoredMailRefusalPublication.SendTimeOffsetBesideZone());
+
+    /// <summary>Reports a send time named in a zone this host does not know.</summary>
+    /// <returns>The failure to raise.</returns>
+    public static MailSubmissionRefusedException SendTimeZoneUnknown() =>
+        new(AuthoredMailRefusalPublication.SendTimeZoneUnknown());
+
+    /// <summary>Reports a zone named for a send that names no time.</summary>
+    /// <returns>The failure to raise.</returns>
+    public static MailSubmissionRefusedException SendTimeZoneWithoutTime() =>
+        new(AuthoredMailRefusalPublication.SendTimeZoneWithoutTime());
+
     /// <summary>Reports a repetition written in a form the schedule syntax does not name.</summary>
     /// <param name="described">What is wrong with the declaration, in the words the syntax itself states its rules in.</param>
     /// <returns>The failure to raise.</returns>

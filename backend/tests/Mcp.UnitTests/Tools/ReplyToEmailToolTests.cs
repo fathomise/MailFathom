@@ -12,6 +12,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Scheduling;
 using MailFathom.Mcp.Tools;
 using MailFathom.Mcp.Tools.Outgoing;
 using MailFathom.Mcp.Tools.Results;
@@ -50,6 +51,27 @@ public sealed class ReplyToEmailToolTests
         Assert.Equal(AnsweredMailSubmissions.ServedAccountId, result.AccountId);
         Assert.Equal(AnsweredMailSubmissions.RecordedAt, result.QueuedAt);
         Assert.True(Guid.TryParse(result.OutgoingEmailId, out _));
+    }
+
+    /// <summary>A reply named an instant with its offset is held until it, which the result states back.</summary>
+    [Fact]
+    public async Task ReplyToEmailAsync_ASendTimeWithAnOffset_HoldsTheReplyUntilIt()
+    {
+        // Arrange
+        var tool = ToolOver(out _);
+
+        // Act
+        var result = await tool.ReplyToEmailAsync(
+            AnsweredEmailId,
+            ReplyAudience.SenderOnly,
+            "Thank you.",
+            "reply-1",
+            sendAt: "2026-08-20T07:00:00Z",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new DateTimeOffset(2026, 8, 20, 7, 0, 0, TimeSpan.Zero), result.SendAt);
+        Assert.Equal(ZonedInstant.CoordinatedZoneId, result.SendAtTimeZone);
     }
 
     /// <summary>

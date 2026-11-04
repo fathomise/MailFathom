@@ -390,6 +390,7 @@ configured name for an account and carries nothing the caller did not already wr
 | `51012` | A flag change asks for nothing, states half a keyword change, names a value no record could carry, or reuses a request identity for a different change | A call naming an email and no value at all; `keywordChange` without `keywords` or the reverse; an empty list under `add` or `remove`; a keyword that is no IMAP atom, one over 64 characters, or more than 64 of them; a `requestId` that is blank, over 128 characters, or carrying a control character; a `requestId` already used on that email for a different value, which is answered by sending a new one rather than by retrying; or a keyword change naming `$Junk`, `$NotJunk`, or `$Phishing`, or any `replace` — the message names the rule and never the keyword |
 | `51013` | A field of a message a caller authored carries a value no message can be composed from | A subject or a recipient carrying a line break, which would smuggle a header nobody wrote; text naming no mailbox; an address outside ASCII, which is refused because a message is written down long before a submission server has said whether it carries one; an `account` or an `idempotencyKey` that is blank, too long, or carrying a control character — the message names the field and never the value |
 | `51014` | A message a caller authored is larger than this deployment composes | More recipients than an outgoing record holds, more than `MailDelivery:MaxRecipientCount` across the three headers, a body over `MailDelivery:MaxBodyCharacters`, or a forward whose original carries more files or larger ones than `MailDelivery` sends — the message names the field and the configured number, never what was measured |
+| `51015` | A send names a time it cannot be held until | A `sendAt` that is no ISO 8601 date and time, carries neither an offset nor a `sendAtTimeZone`, or carries both; a `sendAtTimeZone` this host does not know or given without a `sendAt`; a time that has already passed; or one further ahead than `MailDelivery:MaxSendHold` — the message names the rule or the bound and never the time |
 | `51016` | The call named a queued send with text that is no identifier this system issues | An `outgoingEmailId` that is blank, not a UUID, or the all-zero UUID, refused before anything is looked up — separate from a send nobody may be told about, because this one is true whatever this deployment has queued |
 | `51017` | The call amended or erased a contact the caller's organization keeps | An organization's contacts are written only by its administrators, over the administrative surface; promoting one copies it into the caller's own book, which the caller may then amend |
 | `52001` | A continuation cursor is not one this system issued | A truncated, hand-written, or foreign cursor |
@@ -1254,6 +1255,8 @@ bound is checked against the stored length by the delivery pass, so nothing is l
 | `plainTextBody` | `string` | **Required.** The body as plain text, which every recipient can read. Required even alongside `htmlBody` |
 | `htmlBody` | `string` | An HTML alternative, sent beside the plain text so each client shows the one it prefers. Omitted sends the plain text alone |
 | `idempotencyKey` | `string` | **Required.** The caller's own identity for this message, up to 128 characters. The same value on a retry is the same message; a new value is a new message |
+| `sendAt` | `string` | When the message is to leave, as an ISO 8601 date and time, in one of the [two forms](#a-send-held-until-a-named-time). Omitted queues the message for the next delivery pass |
+| `sendAtTimeZone` | `string` | The IANA zone a `sendAt` written without an offset is read in, such as `Europe/Warsaw`. Given only together with such a `sendAt` |
 
 At least one recipient is required across the three headers, and one address named in two of them is offered once — an
 envelope offers one address one time, and a second offer is a second copy in that person's mailbox. A message addressed
@@ -1275,8 +1278,8 @@ that cannot be taken back:
   existing message correctly needs the answered message's own identifiers, which come out of the stored copy rather than
   from anything a caller supplies — [`reply_to_email`](#reply_to_email) and [`forward_email`](#forward_email) are the
   tools that read them, and neither is reached by adding an argument here.
-- **It schedules nothing.** A message is queued now and leaves on the next delivery pass. There is no argument for a
-  time before which it is not to go out.
+- **It repeats nothing.** A message held until a named time is one message sent once; a send declared to recur is not
+  reachable from this surface.
 - **It is not a mailing list.** The recipient bound is a few dozen people by default, and the parent capability refuses
   mailing-list behaviour outright.
 - **Recipients are named by address.** Naming somebody out of [the contact book](contacts.md) is not accepted by this
@@ -1315,8 +1318,11 @@ against.
 | `state` | `queued`, `sending`, `sent`, `refused`, or `cancelled` |
 | `recipientCount` | How many people the message will be offered to across the three headers, after addresses named twice were reduced to one. Nobody is named |
 | `queuedAt` | When the send was first written down. For a repeated call it is when the first identical call wrote the record |
+| `sendAt` | The instant the message is held until, or `null` where it leaves as soon as a delivery pass reaches it |
+| `sendAtTimeZone` | The zone that instant was named in — the IANA identifier the caller gave, or `UTC` for a time given with an offset — or `null` where the message is not held |
 
-A fresh send is always `queued`. The other four exist because a repeated call answers with the record the first one
+A fresh send is always `queued`, held or not: the record's stage does not tell a held send from a due one, and a second
+spelling of one stage would drift from the stage itself. `sendAt` is what says the message waits. The other four exist because a repeated call answers with the record the first one
 wrote, which may have got anywhere since. The spellings are this surface's own rather than the stored stage names, and
 the difference is the point: a record opens at `Recorded`, which is accurate about a row and dangerous to a reader, and
 an agent told a message was *recorded* will report that it was sent.
@@ -1330,6 +1336,42 @@ a caller learns whether the message went out, the second how it stops one while 
 names both, so a client reading `tools/list` sees the three together rather than finding out later that `queued` was
 answerable.
 
+### A send held until a named time
+
+`sendAt` takes one of the two forms a time can be named in, and both become one instant the record is held until:
+
+- **An instant with its offset**, such as `2026-11-09T09:00:00+01:00` or `2026-11-09T08:00:00Z`, with no
+  `sendAtTimeZone`. It is that exact instant, recorded as named in `UTC`.
+- **A wall-clock time beside a zone**, such as `sendAt` `2026-11-09T09:00` and `sendAtTimeZone` `Europe/Warsaw`. It is
+  nine on that day on a clock in that zone, resolved once, when the call is made, with the offset the zone's own rules
+  give that day. This is the form for a time a person named, because a caller knows *nine on Monday in Warsaw* far more
+  reliably than the offset Warsaw stands at on that Monday. A time the clocks skip when they spring forward is taken as
+  the moment the gap ends; a time they pass twice when they fall back is taken at its first occurrence.
+
+The time is read as ISO 8601 only — a date, `T`, and the time to the minute, the second, or a fraction of one — so a
+day and a month are never read in each other's place. The boundary refuses with `51015`, before anything is composed:
+
+| Refused | Why |
+|---|---|
+| Text that is not such a date and time, or longer than 40 characters | Nothing can be read from it |
+| A time with neither an offset nor a `sendAtTimeZone` | It would be read on this server's clock rather than the caller's |
+| A time with an offset **and** a `sendAtTimeZone` | It has said two things, and accepting it would silently drop one |
+| A `sendAtTimeZone` this host's time-zone database does not know, or longer than 64 characters | There is no clock to read the time on |
+| A `sendAtTimeZone` without a `sendAt` | A zone names where a time is read, so it means nothing on its own |
+
+Two more refusals are the use case's rather than this boundary's, so they are the same on every tool that sends and
+answered with the same `51015`: a time that has already passed, and a time further ahead than
+`MailDelivery:MaxSendHold` allows, which is 90 days unless the operator configured otherwise. The second names the
+bound. A due time a year ahead is a mistyped year far more often than a plan, and a held message keeps its composed MIME
+in the content store until it leaves.
+
+A held message is the same act deferred, so it is governed exactly as an immediate one: the same grant, the same
+annotations, and the same recipient policy, ceilings, and screening, all judged when the call is made. `destructiveHint`
+and `openWorldHint` stay `true`, because they describe the message once it has left, and a hold that can be cancelled
+does not make a sent message recallable. Until it leaves, [`cancel_outgoing_email`](#cancel_outgoing_email) withdraws
+it; once it has left, nothing does. A message whose moment came while nothing ran is handled by
+`MailDelivery:AllowedSendLateness`, which [mail delivery](mail-delivery.md) describes.
+
 ### Asking twice
 
 `idempotencyKey` is required, and that is what makes `idempotentHint` true of the tool rather than of a careful caller.
@@ -1341,6 +1383,10 @@ What the key cannot do is tell a retry from a second message that happens to loo
 fresh value per attempt has asked twice, and nothing here can distinguish that from somebody genuinely writing to the
 same person again — which is why the description says to reuse the value verbatim when retrying and to choose a new one
 only for a message that is actually new. What the record guarantees is that one key sends once.
+
+A schedule is part of that once. It is set when the record is written, so a retry carrying a key already used answers
+with the first call's record and its time, whatever `sendAt` the retry named: a retry is never a reschedule. Moving a
+held message is cancelling it and sending another under a new key.
 
 ### What it refuses, and what it does not reveal
 
@@ -1397,6 +1443,8 @@ any submission server has been asked anything. The annotations are `send_email`'
 | `idempotencyKey` | `string` | **Required.** The caller's own identity for this reply, up to 128 characters, read exactly as [`send_email`'s](#asking-twice) |
 | `cc` | `string[]` | Anybody to copy in beside the people the reply already reaches, each a plain address. Omitted copies nobody |
 | `htmlBody` | `string` | An HTML alternative, sent beside the plain text. Omitted sends the plain text alone |
+| `sendAt` | `string` | When the reply is to leave, read exactly as [`send_email`'s](#a-send-held-until-a-named-time). Omitted queues it for the next delivery pass |
+| `sendAtTimeZone` | `string` | The IANA zone a `sendAt` without an offset is read in, as on `send_email` |
 
 **`audience` is required because the two values are different acts.** `senderOnly` addresses whoever asked for answers —
 the original's `Reply-To`, or its `From` — and nobody else. `everyone` also addresses everybody the original named in
@@ -1419,8 +1467,9 @@ hidden recipient on a reply is a copy of somebody else's conversation nobody in 
 
 ### Result
 
-The same shape `send_email` returns, field for field, and read the same way — a fresh call is always `queued`. Two
-answers to one email under one `idempotencyKey` are one message; a new value is a new message.
+The same shape `send_email` returns, field for field, and read the same way — a fresh call is always `queued`, and
+`sendAt` says whether it is held. Two answers to one email under one `idempotencyKey` are one message at one time; a new
+value is a new message.
 
 Nothing about the answered email appears in it either: no address, no subject, no line of what was quoted.
 
@@ -1450,6 +1499,8 @@ more or larger files than this deployment sends is **refused naming the limit** 
 | `cc` | `string[]` | The addresses to copy. Everybody the forward reaches can see them. Omitted copies nobody |
 | `bcc` | `string[]` | The addresses to copy without naming them to anybody else. Omitted blind-copies nobody |
 | `htmlBody` | `string` | An HTML alternative, sent beside the plain text. Omitted sends the plain text alone |
+| `sendAt` | `string` | When the forward is to leave, read exactly as [`send_email`'s](#a-send-held-until-a-named-time). Omitted queues it for the next delivery pass |
+| `sendAtTimeZone` | `string` | The IANA zone a `sendAt` without an offset is read in, as on `send_email` |
 
 At least one recipient is required across the three headers, and the recipient bound is `MailDelivery:MaxRecipientCount`
 as it is for any authored message — a forward is not a distribution list either.

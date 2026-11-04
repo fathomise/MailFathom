@@ -2,14 +2,17 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Globalization;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Submission;
 using MailFathom.Application.Mail.Delivery.Tracking;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Scheduling;
 
 namespace MailFathom.Mcp.Tools;
 
@@ -35,6 +38,18 @@ internal static class AuthoredMailArguments
     /// <summary>The greatest length text naming an email may carry before anything tries to read an identity out of it.</summary>
     /// <remarks>The bound and the reason are <c>get_email_content</c>'s: the longest form <see cref="Guid.TryParse(string, out Guid)" /> accepts is 68 characters, and the parse scans whatever it is handed.</remarks>
     private const int MaximumIdentifierLength = 68;
+
+    /// <summary>The greatest length a send time may be written in before anything parses it.</summary>
+    /// <remarks>The longest form <see cref="SendTimeFormats" /> accepts, seven fractional digits and an offset, is 33 characters; the bound sits above it and keeps an implausible value from being scanned.</remarks>
+    private const int MaximumSendTimeLength = 40;
+
+    /// <summary>The ISO 8601 shapes a send time is read in: to the minute, the second, or a fraction of one, each with an offset or a <c>Z</c>, or with neither.</summary>
+    private static readonly string[] SendTimeFormats =
+    [
+        "yyyy-MM-dd'T'HH:mmK",
+        "yyyy-MM-dd'T'HH:mm:ssK",
+        "yyyy-MM-dd'T'HH:mm:ss.FFFFFFFK",
+    ];
 
     /// <summary>Reads the identity of the stored email an answer is anchored to.</summary>
     /// <param name="storedEmailId">The text the caller named the email by.</param>
@@ -135,6 +150,54 @@ internal static class AuthoredMailArguments
         }
 
         return OutgoingEmailRequester.Command(idempotencyKey);
+    }
+
+    /// <summary>Reads the time a send is to be held until, in either of the two forms a caller may name one.</summary>
+    /// <param name="sendAt">The time, or absent to send as soon as a delivery pass reaches the message.</param>
+    /// <param name="sendAtTimeZone">The IANA zone a time written without an offset is read in, or absent where the time carries its own offset.</param>
+    /// <returns>The instant together with the zone it was named in, or <see langword="null" /> where no time was named.</returns>
+    /// <exception cref="MailSubmissionRefusedException">Thrown when the time is unreadable, states an offset beside a zone, names neither, names a zone this host does not know, or when a zone is named with no time.</exception>
+    /// <remarks>
+    /// <para>
+    /// The two forms are the two ways into <see cref="ZonedInstant" />. A time carrying an offset is already an instant
+    /// and is recorded as named in no zone of its own. A wall-clock time beside a zone is resolved in that zone exactly
+    /// once, here, because this is where "which nine in the morning" can still be answered: a caller knows nine on
+    /// Monday in Europe/Warsaw far more reliably than it knows the offset Warsaw will stand at on that Monday.
+    /// </para>
+    /// <para>
+    /// Only ISO 8601 is read, through formats spelled out rather than a culture's parse, so a day and a month are never
+    /// read in each other's place. Whether the time has already passed, and whether it lies further ahead than the
+    /// deployment holds a message, are the use case's questions: it reads the clock, and every surface meets the same
+    /// answer there.
+    /// </para>
+    /// </remarks>
+    public static ZonedInstant? DueTime(string? sendAt, string? sendAtTimeZone)
+    {
+        var timeNamed = !string.IsNullOrWhiteSpace(sendAt);
+        var zoneNamed = !string.IsNullOrWhiteSpace(sendAtTimeZone);
+
+        if (!timeNamed)
+        {
+            return zoneNamed ? throw MailSubmissionRefusedException.SendTimeZoneWithoutTime() : null;
+        }
+
+        if (sendAt!.Length > MaximumSendTimeLength
+            || !DateTime.TryParseExact(sendAt, SendTimeFormats, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var stated))
+        {
+            throw MailSubmissionRefusedException.SendTimeUnreadable(MaximumSendTimeLength);
+        }
+
+        var offsetStated = stated.Kind is not DateTimeKind.Unspecified;
+
+        return (offsetStated, zoneNamed) switch
+        {
+            (true, true) => throw MailSubmissionRefusedException.SendTimeOffsetBesideZone(),
+            (true, false) => ZonedInstant.At(DateTimeOffset.ParseExact(sendAt, SendTimeFormats, CultureInfo.InvariantCulture, DateTimeStyles.None)),
+            (false, true) => UserTimeZone.TryRead(sendAtTimeZone, out var zone)
+                ? ZonedInstant.Resolve(stated, zone.Zone)
+                : throw MailSubmissionRefusedException.SendTimeZoneUnknown(),
+            (false, false) => throw MailSubmissionRefusedException.SendTimeUnreadable(MaximumSendTimeLength),
+        };
     }
 
     /// <summary>Reports whether text could name an account at all, before anything looks for one it names.</summary>
