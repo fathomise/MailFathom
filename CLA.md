@@ -1,6 +1,6 @@
 # MailFathom Contributor Licence Agreement
 
-**Version 2.0**
+**Version 1.1**
 
 Thank you for contributing to MailFathom. This agreement records the terms under which your
 contribution is accepted. It is a licence, not a transfer: **you keep the copyright in everything you
