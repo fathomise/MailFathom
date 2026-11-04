@@ -301,7 +301,7 @@ internal sealed partial class OutboxDeliveryWorker : BackgroundService
     /// <summary>Reports the provider's copy of a send left in the folder because removing it was no longer safe.</summary>
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "The account's own mail server filed a second copy of a message sent for account {AccountId} as '{Filing}', and that copy was kept, because the server could not remove it while doing so was still safe. The folder holds both copies.")]
+        Message = "The account's own mail server filed a second copy of a message sent for account {AccountId} as '{Filing}', and that copy was kept, because removing it was refused or no longer safe. The folder holds both copies.")]
     private partial void LogProviderSentCopyKept(string accountId, string filing);
 
     [LoggerMessage(

@@ -52,10 +52,12 @@ namespace MailFathom.Application.Mail.Mutations;
 /// reads <see cref="IMailboxMutationJournal.Stage" /> and continues from there instead of starting over.
 /// </para>
 /// <para>
-/// Four operations take none, and each rests on a durable record of its own instead.
+/// Five operations take none, and each rests on a durable record of its own instead.
 /// <see cref="AppendAsync" /> and <see cref="WithdrawAppendedAsync" /> put a copy MailFathom composed into a folder and
 /// take it back again, and the outgoing or draft record the caller wrote before calling is what a resumed attempt
-/// reads; <see cref="AppendRestoredAsync" /> puts a held message back onto its source, and the restore's own append
+/// reads; <see cref="RemoveProviderSentCopyAsync" /> removes the copy a provider filed of such a message, and the
+/// filing row that recorded where synchronization met it is what a resumed attempt reads;
+/// <see cref="AppendRestoredAsync" /> puts a held message back onto its source, and the restore's own append
 /// record is what says an unanswered one must not be issued again.
 /// <see cref="ExpungeDrainedAsync" /> authors nothing at all: both its commands are idempotent against the UIDs
 /// they name, and the row that selected each UID still carries the occurrence until the expunge is answered — so the
@@ -291,9 +293,9 @@ public interface IMailboxWriteSession : IAsyncDisposable
     /// <exception cref="MailboxFolderRecreatedException">Thrown when the folder no longer reports the UIDVALIDITY the append named.</exception>
     /// <remarks>
     /// <para>
-    /// It exists so a sent copy MailFathom appended can be taken back out once the provider has filed one of its own
-    /// beside it. The UID is one the server itself named when it accepted the copy, so this reaches a message MailFathom
-    /// put there and can reach no other — which is what separates it from the delete a mutation performs on the user's own mail.
+    /// It exists so a draft copy MailFathom appended can be taken back out once a later revision replaced it or the draft
+    /// was given up. The UID is one the server itself named when it accepted the copy, so this reaches a message
+    /// MailFathom put there and can reach no other — which is what separates it from the delete a mutation performs on the user's own mail.
     /// </para>
     /// <para>
     /// The UIDVALIDITY is compared before anything is issued, because a folder recreated since the append renumbered

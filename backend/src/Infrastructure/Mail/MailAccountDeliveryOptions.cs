@@ -101,10 +101,11 @@ public sealed class MailAccountDeliveryOptions
     /// user with mail they sent and no record of it in the client they read.
     /// </para>
     /// <para>
-    /// It is turned off for the account whose provider files the copy itself, which several webmail providers do for
-    /// mail submitted through their own servers. That is configured rather than detected: a provider files the copy
-    /// asynchronously, so looking in the folder after a delivery cannot tell a copy that is about to appear from one
-    /// that never will, and guessing wrong leaves either a duplicate or a gap.
+    /// Several webmail providers also file a copy of mail submitted through their own servers. Synchronization recognizes
+    /// that copy by the <c>Message-ID</c> this deployment minted and, where the server named where the appended copy
+    /// landed, advertises <c>UIDPLUS</c>, keeps no folders as labels, and the copy is met within fifteen minutes of the
+    /// append, removes it so the folder holds MailFathom's copy alone; otherwise both stay. Turning this off keeps the
+    /// provider's copy as the only record of the send, which is the posture for a provider whose folders are labels.
     /// </para>
     /// </remarks>
     public bool FileSentCopy { get; set; } = true;

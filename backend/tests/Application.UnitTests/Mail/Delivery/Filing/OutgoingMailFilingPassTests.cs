@@ -7,6 +7,7 @@ using System.Text;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Outbox;
+using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -576,6 +577,41 @@ public sealed class OutgoingMailFilingPassTests
         // Assert
         Assert.Equal(OutgoingMailFilingOutcome.ProviderCopyKept, Assert.Single(results).Outcome);
         Assert.False(Assert.Single(context.Filing.Filings.Read(delivered)).AwaitsProviderCopyRemoval);
+    }
+
+    /// <summary>
+    /// A removal the server refuses in a way it would repeat — the folder renumbered, or no message-scoped expunge — settles
+    /// the row with the copy kept, so no later pass asks again.
+    /// </summary>
+    /// <param name="refusal">Which refusal the server answers with.</param>
+    [Theory]
+    [InlineData(nameof(MailboxFolderRecreatedException))]
+    [InlineData(nameof(MailboxMutationUnsupportedException))]
+    public async Task RemoveProviderSentCopiesAsync_ARemovalTheServerRefuses_KeepsTheCopyAndSettlesTheFiling(string refusal)
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        var delivered = await context.FileSentCopyAsync();
+        await context.RecordProviderCopyAsync(delivered);
+        var sent = MailFolderAlias.Create("sent");
+        Exception refused = refusal == nameof(MailboxFolderRecreatedException)
+            ? new MailboxFolderRecreatedException(Account, sent, ImapUidValidity.Create(42), ImapUidValidity.Create(43))
+            : new MailboxMutationUnsupportedException(Account, sent, "provider copy removal", "UIDPLUS");
+        context.Filing.WriteSession
+            .RemoveProviderSentCopyAsync(Arg.Any<ImapUidValidity>(), Arg.Any<ImapUid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(refused);
+
+        // Act
+        var results = await context.Filing.Pass.RemoveProviderSentCopiesAsync(
+            Account,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutgoingMailFilingOutcome.ProviderCopyKept, Assert.Single(results).Outcome);
+        var settled = Assert.Single(context.Filing.Filings.Read(delivered));
+        Assert.False(settled.AwaitsProviderCopyRemoval);
+        Assert.NotNull(settled.ProviderCopySettledAt);
     }
 
     /// <summary>A removal the server could not serve is left owed, so the next pass asks again rather than giving up on one failure.</summary>

@@ -1134,6 +1134,7 @@ derived from the send already read. Four things bound the removal, and each is t
 Turning `FileSentCopy` off is still the right answer where a provider is known to file, since it spends no append and
 no removal at all, and the provider's copy is then stored as the record of the send; what it costs is a mailbox with
 no record of the send should that belief turn out to be wrong.
+
 **The bytes are the ones the recipients received.** The append reuses the stored MIME rather than recomposing it, for
 the reason a retry does: a recomposed message carries a different `Message-ID` and threads as a second message in every
 client, including the user's own.
