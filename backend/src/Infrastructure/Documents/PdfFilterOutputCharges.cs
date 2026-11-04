@@ -194,9 +194,17 @@ internal static class PdfFilterOutputCharges
 
     /// <summary>Charges the bitmap a fax-encoded stream decodes into, whose size the stream's own parameters declare.</summary>
     /// <remarks>
-    /// The library allocates the whole bitmap from the declared columns and rows before it reads a single code, so the
-    /// declaration is the cost and is charged as it stands. Where both the parameters and the image name a height the
-    /// library takes the image's; the larger of the two is charged, which is never less.
+    /// <para>
+    /// The library allocates from the declared columns and rows before it reads a single code — a row buffer and two
+    /// change lists of a column each, then the whole bitmap — so the declaration is the cost and is charged as it
+    /// stands. Rows are chosen as the library chooses them: the image's height where both it and the parameters name a
+    /// positive one, and otherwise the larger of the two.
+    /// </para>
+    /// <para>
+    /// The library sizes the bitmap in thirty-two-bit arithmetic, so a declaration whose product is negative can wrap to
+    /// a positive allocation; the larger of that wrapped figure and the true one is charged, which is never less than
+    /// what it allocates.
+    /// </para>
     /// </remarks>
     public static void ChargeCcittFax(
         DictionaryToken dictionary,
@@ -204,14 +212,19 @@ internal static class PdfFilterOutputCharges
         PdfPageDecodeBudget budget)
     {
         const int defaultColumns = 1728;
+        const int changeListsHeld = 2;
 
         var parameters = DecodeParameterResolver.GetFilterParameters(dictionary, filterIndex);
         var columns = parameters.GetIntOrDefault(NameToken.Columns, defaultColumns);
-        var rows = Math.Max(
-            parameters.GetIntOrDefault(NameToken.Rows, 0),
-            dictionary.GetIntOrDefault(NameToken.Height, NameToken.H, 0));
+        var declaredRows = parameters.GetIntOrDefault(NameToken.Rows, 0);
+        var height = dictionary.GetIntOrDefault(NameToken.Height, NameToken.H, 0);
+        var rows = declaredRows > 0 && height > 0 ? height : Math.Max(declaredRows, height);
 
-        budget.Consume(Math.Max(0L, (columns + 7L) / 8 * rows));
+        var rowOctets = unchecked((columns + 7) / 8);
+        var workingOctets = rowOctets + (changeListsHeld * sizeof(int) * ((long)columns + 2));
+        var bitmapOctets = Math.Max(unchecked(rowOctets * rows), (long)rowOctets * rows);
+
+        budget.Consume(Math.Max(0L, workingOctets) + Math.Max(0L, bitmapOctets));
     }
 
     /// <summary>Charges the rows a predictor declared on a Flate or LZW stream holds, before anything is decoded.</summary>
@@ -225,9 +238,10 @@ internal static class PdfFilterOutputCharges
     /// padded row the output can end on. The decoded octets themselves are charged by the filter's own measure.
     /// </para>
     /// <para>
-    /// The row length is computed the way the library computes it, with its cap of thirty-two colours, but in a width
-    /// that cannot overflow: the library's own arithmetic is thirty-two-bit, so a declaration past that wraps there into
-    /// some smaller allocation, which the true figure charged here is never less than.
+    /// The row length is computed the way the library computes it, with its cap of thirty-two colours. Its arithmetic is
+    /// thirty-two-bit, so a declaration past that range wraps there — a positive one into some smaller allocation, and
+    /// a negative one possibly into a large positive allocation. Both the wrapped figure and the true one are computed,
+    /// and the larger is charged, which is never less than what the library allocates.
     /// </para>
     /// </remarks>
     private static void ChargePredictorRows(DictionaryToken dictionary, int filterIndex, PdfPageDecodeBudget budget)
@@ -245,7 +259,8 @@ internal static class PdfFilterOutputCharges
         var colors = Math.Min(parameters.GetIntOrDefault(NameToken.Colors, 1), maxColors);
         var bitsPerComponent = parameters.GetIntOrDefault(NameToken.BitsPerComponent, 8);
         var columns = parameters.GetIntOrDefault(NameToken.Columns, 1);
-        var rowLength = (((Int128)columns * colors * bitsPerComponent) + 7) / 8;
+        var libraryRowLength = unchecked(((columns * (colors * bitsPerComponent)) + 7) / 8);
+        var rowLength = Int128.Max(libraryRowLength, (((Int128)columns * colors * bitsPerComponent) + 7) / 8);
 
         budget.Consume(rowLength <= 0 ? 0 : (long)Int128.Min(rowLength * rowsHeld, long.MaxValue));
     }

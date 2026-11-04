@@ -981,7 +981,10 @@ public sealed class BoundedAttachmentTextExtractorTests
     [InlineData("ASCII85Decode")]
     [InlineData("ASCIIHexDecode")]
     [InlineData("CCITTFaxDecode")]
+    [InlineData("CCITTFaxDecode with a wide row")]
+    [InlineData("CCITTFaxDecode with rows that wrap")]
     [InlineData("FlateDecode with a predictor")]
+    [InlineData("FlateDecode with a predictor whose columns wrap")]
     public async Task ExtractTextAsync_APdfPageWhoseStreamDecodesPastItsAllowance_ReportsTheContainerBound(string filter)
     {
         // Arrange
@@ -1988,11 +1991,15 @@ public sealed class BoundedAttachmentTextExtractorTests
     /// chain, the longest repeat run-length coding allows, base-85's four-zero shorthand, two hexadecimal digits per
     /// space, a fax bitmap whose size is the declaration and not the data, and a predictor whose two row buffers are
     /// sized by its declared columns before a row is read. The base-85 stream is itself inside 64 KiB, so only its
-    /// shorthand carries it past the allowance.
+    /// shorthand carries it past the allowance. The wide fax row declares no rows, so only the change lists its columns
+    /// size pass the allowance; the wrapping declarations are negative, so only the library's thirty-two-bit arithmetic
+    /// turns them into an allocation — about a hundred mebibytes of bitmap, and a predictor row of about two hundred.
     /// </remarks>
     private static byte[] ContentStreamDecodingPast64KibibytesUnder(string filter)
     {
         const int mebibyte = 1024 * 1024;
+
+        var twoSpacesDeflated = DocumentFixtures.Deflated(Encoding.ASCII.GetBytes("  "));
 
         (string Entries, byte[] Encoded) stream = filter switch
         {
@@ -2002,7 +2009,10 @@ public sealed class BoundedAttachmentTextExtractorTests
             "ASCII85Decode" => ("/Filter /ASCII85Decode", Encoding.ASCII.GetBytes(new string('z', 32 * 1024) + "~>")),
             "ASCIIHexDecode" => ("/Filter /ASCIIHexDecode", Encoding.ASCII.GetBytes(string.Concat(Enumerable.Repeat("20", mebibyte)) + ">")),
             "CCITTFaxDecode" => ("/Filter /CCITTFaxDecode /DecodeParms << /Columns 8192 /Rows 1024 >>", new byte[64]),
-            _ => ("/Filter /FlateDecode /DecodeParms << /Predictor 12 /Colors 4 /BitsPerComponent 16 /Columns 30000000 >>", DocumentFixtures.Deflated(Encoding.ASCII.GetBytes("  "))),
+            "CCITTFaxDecode with a wide row" => ("/Filter /CCITTFaxDecode /DecodeParms << /Columns 65536 >>", new byte[64]),
+            "CCITTFaxDecode with rows that wrap" => ("/Height -32754432 /Filter /CCITTFaxDecode /DecodeParms << /Columns 1024 /Rows -32754432 >>", new byte[64]),
+            "FlateDecode with a predictor" => ("/Filter /FlateDecode /DecodeParms << /Predictor 12 /Colors 4 /BitsPerComponent 16 /Columns 30000000 >>", twoSpacesDeflated),
+            _ => ("/Filter /FlateDecode /DecodeParms << /Predictor 12 /Colors 1 /BitsPerComponent 8 /Columns -300000000 >>", twoSpacesDeflated),
         };
 
         return DocumentFixtures.PdfWithContentStream(stream.Entries, stream.Encoded);
