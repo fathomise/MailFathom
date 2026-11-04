@@ -241,16 +241,14 @@ internal sealed class EmailContentStore(
     /// <inheritdoc />
     /// <remarks>
     /// <para>
-    /// The existence check is what enforces "written once", and it is here rather than in the caller because a caller
-    /// cannot close the window: the record and its message are inserted in one transaction, so the only writer that can
-    /// meet an existing payload is one working from a record an earlier request already committed.
+    /// "Written once" is enforced here rather than in the caller, by writing only for a record still being inserted in
+    /// this very session. The record and its message are inserted in one transaction, so a record an earlier request
+    /// committed already had its message stored, and one now holding none is one whose message was released once it was
+    /// delivered — writing there would hold a delivered send's message a second time. A second write within the
+    /// inserting session is answered by the change tracker, which already holds the first.
     /// </para>
     /// <para>
-    /// A record still being inserted in this very session can carry no persisted content, so the database pass is
-    /// skipped for one — the change-tracker pass is the whole answer there.
-    /// </para>
-    /// <para>
-    /// Leaving an existing payload alone abandons the object this attempt's own placement wrote, which becomes an
+    /// Writing nothing for a committed record abandons the object this attempt's own placement wrote, which becomes an
     /// orphan nothing ever pointed at. That is the designed cost of placing before the record is known, and reclamation
     /// removes it on the same path it removes a crashed write.
     /// </para>
@@ -286,9 +284,7 @@ internal sealed class EmailContentStore(
             return;
         }
 
-        var isRecordPending = writeContext.Entry(outgoingEmail).State == EntityState.Added;
-        if (!isRecordPending
-            && await writeContext.OutgoingEmailContents.AnyAsync(matchesRecord, cancellationToken))
+        if (writeContext.Entry(outgoingEmail).State != EntityState.Added)
         {
             return;
         }
@@ -337,6 +333,71 @@ internal sealed class EmailContentStore(
                 .Select(content => content.RawMime)
                 .SingleOrDefaultAsync(token),
             cancellationToken);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// <para>
+    /// The keys are read before the rows go, for the reason <see cref="ReleasedContentObjects" /> gives, and both reads
+    /// carry the same stage condition, so an object is only ever named for release beside a row the statement would
+    /// remove. A row a competing replica removed between the two is gone either way, and naming its object twice erases
+    /// nothing that was still read.
+    /// </para>
+    /// <para>
+    /// The stage is read from the record as committed, so a send whose delivery this same session has only staged is
+    /// not delivered yet as far as this statement can tell, and keeps its payload. That is why the release follows the
+    /// commit that records a delivery rather than riding inside it.
+    /// </para>
+    /// </remarks>
+    public async Task<int> ReleaseDeliveredOutgoingContentAsync(
+        IPersistenceSession session,
+        IReadOnlyCollection<OutgoingEmailId> outgoingEmailIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(outgoingEmailIds);
+
+        if (outgoingEmailIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        Guid[] named = [.. outgoingEmailIds.Select(static outgoingEmailId => outgoingEmailId.Value)];
+
+        var delivered = writeContext.OutgoingEmailContents
+            .Where(content => named.Contains(content.OutgoingEmailId)
+                && content.OutgoingEmail.Stage == OutgoingEmailStage.Sent);
+
+        await ReleasedContentObjects.ReleaseForOutgoingContentsAsync(session, delivered, cancellationToken);
+
+        return await delivered.ExecuteDeleteAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Read from the content table rather than from the records, because a delivered send that still holds a payload is
+    /// the exception once its filing has settled: the records at <see cref="OutgoingEmailStage.Sent" /> grow with every
+    /// message an account has ever sent, while the payloads left beside them are the ones still waiting or the few a
+    /// stopped pass left behind.
+    /// </remarks>
+    public async Task<IReadOnlyList<OutgoingEmailId>> FindDeliveredOutgoingContentAsync(
+        DateTimeOffset deliveredOnOrBefore,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+
+        var delivered = await dbContext.OutgoingEmailContents
+            .AsNoTracking()
+            .Where(content => content.OutgoingEmail.Stage == OutgoingEmailStage.Sent
+                && content.OutgoingEmail.StageChangedAt <= deliveredOnOrBefore)
+            .OrderBy(content => content.OutgoingEmailId)
+            .Take(limit)
+            .Select(content => content.OutgoingEmailId)
+            .ToArrayAsync(cancellationToken);
+
+        return [.. delivered.Select(OutgoingEmailId.Create)];
     }
 
     /// <inheritdoc />

@@ -319,6 +319,8 @@ internal sealed class MailboxCustodianComposition
         this.FilingPolicies,
         this.Filings,
         this.Custodians,
+        this.Contents,
+        this.CommitPolicy,
         this.Clock,
         this.OutboxSettings);
 

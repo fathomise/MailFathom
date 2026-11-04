@@ -3795,7 +3795,9 @@ read by identity serves both kinds of caller. One holding both is answered the p
 recipient with the header it is named in and what the server said about it, the sender as the message's `From` names
 it, the body rendered from the MIME the send will transmit into the same closed document
 [the message body route](#the-message-body-route) answers with, and each attachment by name, media type, and size — none of them served
-from here. One holding only the sending grant is answered the delivery it watched before: the stage, the attempts, and
+from here. A delivered send carries none of those three once its sent copy has settled, because the record then no
+longer holds the message, as [mail delivery](../features/mail-delivery.md#a-delivered-send-keeps-its-record-and-lets-go-of-its-message)
+states. One holding only the sending grant is answered the delivery it watched before: the stage, the attempts, and
 each recipient's outcome, with no subject and no message. Subjects on a page are screened at the listing point and a
 preview at the content point, exactly as a stored message's would be, when the account's sensitive-content posture
 asks for it.

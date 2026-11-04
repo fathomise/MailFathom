@@ -1395,6 +1395,9 @@ internal static class HostComposition
         // place.
         builder.Services.AddHostedService<JobWorker>();
         builder.Services.AddHostedService<UnlinkedStoredFileSweepWorker>();
+        // Unconditional because a deployment that stopped sending still holds what it sent before it stopped, and how
+        // long a delivered message's bytes are kept is a storage-limitation obligation rather than housekeeping.
+        builder.Services.AddHostedService<DeliveredOutgoingContentSweepWorker>();
         // Unconditional for the same reason, and for one of its own: what it removes is composed from somebody's mail,
         // so how long it is kept is an obligation rather than housekeeping — and a deployment whose client endpoint was
         // switched off still holds the runs it answered while it was on.

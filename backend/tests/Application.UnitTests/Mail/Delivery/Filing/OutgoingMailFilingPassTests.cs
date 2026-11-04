@@ -58,6 +58,7 @@ public sealed class OutgoingMailFilingPassTests
         var result = Assert.Single(results);
         Assert.Equal(OutgoingMailFilingOutcome.NotRequested, result.Outcome);
         Assert.Empty(context.Filing.Filings.Read(delivered));
+        Assert.Equal([delivered], context.Released);
         await context.Filing.WriteSession.DidNotReceive().AppendAsync(
             Arg.Any<ReadOnlyMemory<byte>>(),
             Arg.Any<AppendedMailFlags>(),
@@ -282,6 +283,33 @@ public sealed class OutgoingMailFilingPassTests
         Assert.Equal(MailFathomErrorCode.OutgoingEmailFilingDestinationUnavailable, record.LastFilingFailure);
         Assert.Empty(record.Filings);
         Assert.Equal(1, record.AttemptCount);
+        Assert.Equal([delivered], context.Released);
+    }
+
+    /// <summary>
+    /// A copy that failed is settled too, because nothing files a delivered send's copy again: the pass is asked once,
+    /// right after the delivery, so bytes kept for a second attempt would be kept for one that never comes.
+    /// </summary>
+    [Fact]
+    public async Task SettleFiledCopiesAsync_AFilingThatFailed_ReleasesTheStoredMime()
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        context.Filing.FileSentCopies(Account);
+        var delivered = await context.DeliverAsync();
+        context.Content
+            .FindOutgoingContentAsync(Arg.Any<OutgoingEmailId>(), Arg.Any<CancellationToken>())
+            .Returns((StoredEmailContent?)null);
+
+        // Act
+        var results = await context.Filing.Pass.SettleFiledCopiesAsync(
+            delivered,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutgoingMailFilingOutcome.Failed, Assert.Single(results).Outcome);
+        Assert.Equal([delivered], context.Released);
     }
 
     /// <summary>
@@ -319,6 +347,7 @@ public sealed class OutgoingMailFilingPassTests
         Assert.Equal(OutgoingEmailStage.Sent, record.Stage);
         Assert.Null(record.LastFilingFailure);
         Assert.Empty(record.Filings);
+        Assert.Empty(context.Released);
         await context.Filing.WriteSession.DidNotReceiveWithAnyArgs().AppendAsync(
             Arg.Any<ReadOnlyMemory<byte>>(),
             Arg.Any<AppendedMailFlags>(),
@@ -343,6 +372,7 @@ public sealed class OutgoingMailFilingPassTests
 
         // Assert
         Assert.Empty(results);
+        Assert.Empty(context.Released);
         await context.Filing.WriteSession.DidNotReceive().AppendAsync(
             Arg.Any<ReadOnlyMemory<byte>>(),
             Arg.Any<AppendedMailFlags>(),
@@ -368,11 +398,131 @@ public sealed class OutgoingMailFilingPassTests
 
         // Assert
         Assert.Empty(results);
+        Assert.Empty(context.Released);
         await context.Filing.WriteSession.DidNotReceive().AppendAsync(
             Arg.Any<ReadOnlyMemory<byte>>(),
             Arg.Any<AppendedMailFlags>(),
             Arg.Any<DateTimeOffset>(),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// A mirrored send's stored message is released once the server has confirmed its sent copy, and not before: the
+    /// append is the last thing that reads the bytes.
+    /// </summary>
+    [Fact]
+    public async Task SettleFiledCopiesAsync_ADeliveredMessageWhoseCopyIsConfirmed_ReleasesItsStoredMimeAfterTheAppend()
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        context.Filing.FileSentCopies(Account);
+        context.Filing.AppendAnswer = new AppendedMailCopy(
+            RemoteEmailPlacement.Reported(ImapUidValidity.Create(42), ImapUid.Create(7)),
+            "mint-1@mailfathom.invalid");
+        var delivered = await context.DeliverAsync();
+
+        // Act
+        await context.Filing.Pass.SettleFiledCopiesAsync(delivered, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([delivered], context.Released);
+        Assert.Equal([OutgoingMailFilingStage.Confirmed], context.FilingStagesAtRelease);
+    }
+
+    /// <summary>A held account's sent copy was prepared from the stored bytes before its delivery committed, so nothing reads them afterwards.</summary>
+    [Fact]
+    public async Task SettleFiledCopiesAsync_AHeldAccount_ReleasesTheStoredMimeItsLocalCopyWasPreparedFrom()
+    {
+        // Arrange
+        var context = new FilingContext(holdsAccount: true);
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        context.Filing.FileSentCopies(Account);
+        var delivered = await context.DeliverAsync();
+
+        // Act
+        await context.Filing.Pass.SettleFiledCopiesAsync(delivered, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([delivered], context.Released);
+    }
+
+    /// <summary>A restoring account files on the source as a mirrored one does, so its stored message is released after the same confirmed append.</summary>
+    [Fact]
+    public async Task SettleFiledCopiesAsync_ARestoringAccount_ReleasesItsStoredMimeAfterTheAppend()
+    {
+        // Arrange
+        var context = new FilingContext(holdsAccount: true);
+        context.Held!.Folders.Phase = MailAccountCustodyPhase.Restoring;
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        context.Filing.FileSentCopies(Account);
+        context.Filing.AppendAnswer = new AppendedMailCopy(
+            RemoteEmailPlacement.Reported(ImapUidValidity.Create(42), ImapUid.Create(7)),
+            "mint-1@mailfathom.invalid");
+        var delivered = await context.DeliverAsync();
+
+        // Act
+        await context.Filing.Pass.SettleFiledCopiesAsync(delivered, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([delivered], context.Released);
+        Assert.Equal([OutgoingMailFilingStage.Confirmed], context.FilingStagesAtRelease);
+    }
+
+    /// <summary>An append the server never answered is never issued again, so it is as settled as a confirmed one and needs the bytes no more.</summary>
+    [Fact]
+    public async Task SettleFiledCopiesAsync_AnAppendTheServerNeverAnswered_ReleasesTheStoredMime()
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        context.Filing.FileSentCopies(Account);
+        context.Filing.WriteSession
+            .AppendAsync(
+                Arg.Any<ReadOnlyMemory<byte>>(),
+                Arg.Any<AppendedMailFlags>(),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<CancellationToken>())
+            .ThrowsAsync(new MailboxUnavailableException(
+                Account,
+                MailFolderAlias.Create("sent"),
+                new TimeoutException("The append was issued and the server never answered.")));
+        var delivered = await context.DeliverAsync();
+
+        // Act
+        await context.Filing.Pass.SettleFiledCopiesAsync(delivered, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([delivered], context.Released);
+        Assert.Equal([OutgoingMailFilingStage.Issued], context.FilingStagesAtRelease);
+    }
+
+    /// <summary>A release that could not be committed leaves the payload for the sweep and changes nothing the filing reports.</summary>
+    [Fact]
+    public async Task SettleFiledCopiesAsync_AReleaseThatFails_StillReportsTheFiledCopy()
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        context.Filing.FileSentCopies(Account);
+        context.Filing.AppendAnswer = new AppendedMailCopy(
+            RemoteEmailPlacement.Reported(ImapUidValidity.Create(42), ImapUid.Create(7)),
+            "mint-1@mailfathom.invalid");
+        context.Content
+            .ReleaseDeliveredOutgoingContentAsync(
+                Arg.Any<IPersistenceSession>(),
+                Arg.Any<IReadOnlyCollection<OutgoingEmailId>>(),
+                Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("The database refused the release."));
+        var delivered = await context.DeliverAsync();
+
+        // Act
+        var results = await context.Filing.Pass.SettleFiledCopiesAsync(
+            delivered,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutgoingMailFilingOutcome.Filed, Assert.Single(results).Outcome);
     }
 
     /// <summary>The provider filed its own copy beside MailFathom's, so the one MailFathom appended goes.</summary>
@@ -578,6 +728,12 @@ public sealed class OutgoingMailFilingPassTests
             this.Content
                 .FindOutgoingContentAsync(Arg.Any<OutgoingEmailId>(), Arg.Any<CancellationToken>())
                 .Returns(new StoredEmailContent(RawMime, RawMime.Length, SHA256.HashData(RawMime.Span)));
+            this.Content
+                .ReleaseDeliveredOutgoingContentAsync(
+                    Arg.Any<IPersistenceSession>(),
+                    Arg.Any<IReadOnlyCollection<OutgoingEmailId>>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(call => this.RecordRelease(call.ArgAt<IReadOnlyCollection<OutgoingEmailId>>(1)));
 
             var settings = MailOutboxSettings.Create(
                 maxDeliveriesPerPass: 10,
@@ -607,6 +763,12 @@ public sealed class OutgoingMailFilingPassTests
         internal IEmailContentStore Content { get; }
 
         internal OutgoingMailFilingHarness Filing { get; }
+
+        /// <summary>Gets every send whose stored message the pass asked to release, in the order it asked.</summary>
+        internal List<OutgoingEmailId> Released { get; } = [];
+
+        /// <summary>Gets the stage of each filed copy of a released send at the moment its release was asked for.</summary>
+        internal List<OutgoingMailFilingStage> FilingStagesAtRelease { get; } = [];
 
         /// <summary>Moves the clock on, which is how a send that was waiting becomes one a claim may take.</summary>
         internal void Advance(TimeSpan delay) => this.clock.Advance(delay);
@@ -693,6 +855,16 @@ public sealed class OutgoingMailFilingPassTests
                 stage,
                 replyCode: 250,
                 TestContext.Current.CancellationToken);
+        }
+
+        private int RecordRelease(IReadOnlyCollection<OutgoingEmailId> released)
+        {
+            this.Released.AddRange(released);
+            this.FilingStagesAtRelease.AddRange(released
+                .SelectMany(this.Filing.Filings.Read)
+                .Select(filing => filing.Stage));
+
+            return released.Count;
         }
 
         private async Task DeferAsync(OutgoingEmailId outgoingEmailId, DateTimeOffset availableAt)

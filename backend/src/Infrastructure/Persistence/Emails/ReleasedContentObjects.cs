@@ -5,6 +5,7 @@
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Persistence;
 using MailFathom.CodeCoverage;
+using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
 using Microsoft.EntityFrameworkCore;
 
@@ -151,6 +152,32 @@ internal static class ReleasedContentObjects
             sessionContext.StoredFiles
                 .Where(file => storedFileIds.Contains(file.Id) && file.Backend == ContentStorageBackend.ObjectStorage)
                 .Select(file => file.ObjectLocator!),
+            cancellationToken);
+    }
+
+    /// <summary>States the objects a set of outgoing payloads is held in, read with the condition the caller deletes them under.</summary>
+    /// <param name="session">The session the deletion is staged in.</param>
+    /// <param name="releasedContents">The rows the caller is about to remove, filtered exactly as its deletion is.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>A task that completes once the session holds every key the deletion frees.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <remarks>
+    /// The caller's query rather than a list of identifiers, because these rows are removed under a condition on their
+    /// record rather than with it: a key read from an identifier alone would name the object of a send the condition
+    /// then left standing, and erase the payload of a message still waiting to leave.
+    /// </remarks>
+    public static Task ReleaseForOutgoingContentsAsync(
+        IPersistenceSession session,
+        IQueryable<OutgoingEmailContentEntity> releasedContents,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(releasedContents);
+
+        return ReleaseAsync(
+            session,
+            releasedContents
+                .Where(content => content.Backend == ContentStorageBackend.ObjectStorage)
+                .Select(content => content.ObjectLocator!),
             cancellationToken);
     }
 
