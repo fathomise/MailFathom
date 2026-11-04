@@ -698,7 +698,11 @@ a username rather than an entry.
 
 **A refusal says nothing about which half was wrong.** No credential at all, a header that does not decode, an unknown
 username, an organization nobody holds, a wrong password, a credential somebody disabled, and a caller that has spent its attempts each receive the
-same answer, and the deployment spends the same work reaching it:
+same answer. Every one of them that names a usable login and is admitted by the bound below — an unknown username, an
+organization nobody holds, a wrong password, a disabled credential — costs one derivation, exactly as a right password
+does, so the time a refusal takes says nothing about which of them it was. No credential, a header that does not decode,
+a login no username could be, and a spent allowance are refused before any derivation, because none of them has
+anything left to learn about a password:
 
 ```http
 HTTP/1.1 401 Unauthorized
@@ -760,10 +764,10 @@ reached this process, whether or not anything is named in front, and both axes a
 `Basic` block of its own, from a password credential that lists `admin` — which is how
 [the default administrator](admin-endpoint.md#the-default-administrator) signs in.
 
-**Every request presenting a password pays one verification**, on this surface and on the administrative one alike.
-Verifying a password derives a PBKDF2 record sized for authenticating a person — around half a second of the
-deployment's own processor, whether the password is right or wrong — and a request presenting no credential, a key, or
-a token derives nothing. The client endpoint pays that cost once per sign-in instead, because its client draws a screen
+**Every request presenting a password the bound admits pays one verification**, on this surface and on the
+administrative one alike. Verifying a password derives a PBKDF2 record sized for authenticating a person — around half
+a second of the deployment's own processor, whether the password is right or wrong — and a request presenting no
+credential, a key, or a token derives nothing. The client endpoint pays that cost once per sign-in instead, because its client draws a screen
 from several requests and [exchanges the password for a session token](client-endpoint.md#the-session-token-routes)
 first. Neither of these two surfaces offers that exchange, deliberately:
 
