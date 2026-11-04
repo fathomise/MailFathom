@@ -460,7 +460,8 @@ public sealed class MailFolderDirectoryReaderTests
                     scopeResolver,
                     new RecordingMailboxReadTelemetry(),
                     authorization),
-                runLedger),
+                runLedger,
+                new InMemoryMailboxMutationRecordStore()),
             scopeResolver,
             storedFolders,
             new UserOutbox(

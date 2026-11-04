@@ -22,7 +22,7 @@ budget or the coordinator loop itself are marked *restart* below.
 | `MailSynchronization:MaxConcurrentFoldersPerAccount` | int | `1` | 1 – 20 | reload |
 | `MailSynchronization:MaxConcurrentConnectionsPerHost` | int | `20` | 2 – 1000; shared by every account on the same IMAP host, with one slot reserved from long-lived push sessions | restart |
 | `MailSynchronization:WriteConnectionIdlePeriod` | TimeSpan | `00:02:00` | 5 s – 30 min; how long an account's single write connection keeps its slot after the last change it carried | restart |
-| `MailSynchronization:MaxMutationAttempts` | int | `5` | 1 – 100; how many attempts one recorded change to a mailbox may spend before it is given up on and left visible as stuck | restart |
+| `MailSynchronization:MutationRefusalWindow` | TimeSpan | `00:15:00` | 1 s – 7 days; how long a change the mail server keeps refusing in a way asking again might alter is asked again, measured from its first refusal, before it is undone and the person who made it is told. A permanent refusal ends a change at once, and an outage counts against no change however long it lasts | restart |
 | `MailSynchronization:MaxMutationsPerConvergencePass` | int | `50` | 1 – 1000; how many unfinished changes one account run takes in hand before the rest wait for the next run | reload |
 | `MailSynchronization:UnknownMutationOutcomeGrace` | TimeSpan | `06:00:00` | 1 min – 7 days; how long a change whose placement was never acknowledged waits to be settled by observation before it is given up on | reload |
 | `MailSynchronization:ShutdownDrainTimeout` | TimeSpan | `00:00:10` | 0 – 2 min | restart |

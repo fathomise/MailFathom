@@ -294,10 +294,11 @@ public sealed class MailboxMutationConvergerTests
 
     /// <summary>
     /// A server that is not answering fails the pass rather than spinning inside it, and the failure is what the caller
-    /// backs the account off on. The record keeps the code, so what an operator reads is why rather than only that.
+    /// backs the account off on. The record keeps the code, so what an operator reads is why rather than only that, and
+    /// counts no attempt, because a server that could not be reached was asked nothing.
     /// </summary>
     [Fact]
-    public async Task ConvergeAsync_WhenTheServerIsUnreachable_ReportsTheFailureAndAttemptsTheMutationOnce()
+    public async Task ConvergeAsync_WhenTheServerIsUnreachable_ReportsTheFailureAndCountsNoAttempt()
     {
         // Arrange
         var context = new ConvergerContext();
@@ -313,7 +314,7 @@ public sealed class MailboxMutationConvergerTests
         var record = context.Store.RecordOf(request);
         Assert.Equal(1, report.FailedCount);
         Assert.Equal(0, report.CompletedCount);
-        Assert.Equal(1, record.AttemptCount);
+        Assert.Equal(0, record.AttemptCount);
         Assert.Equal(MailFathomErrorCode.MailboxUnavailable, record.LastFailure);
     }
 
@@ -338,8 +339,8 @@ public sealed class MailboxMutationConvergerTests
     }
 
     /// <summary>
-    /// A refusal the server has already given is an answer rather than a bad moment, so the change stops at once
-    /// instead of being attempted once per run until its bound is spent — and the pass counts it as given up on rather
+    /// A refusal asking again cannot alter is an answer rather than a bad moment, so the change stops at once instead of
+    /// being asked again until its refusal window passes — and the pass counts it as given up on rather
     /// than as failed, because counting it as failed would promise an attempt nobody will make and would back the
     /// account off from a server that is working.
     /// </summary>
@@ -380,6 +381,133 @@ public sealed class MailboxMutationConvergerTests
         Assert.Contains(
             report.Outstanding,
             group => group.Lifecycle == MailboxMutationLifecycle.DeadLettered && group.Count == 1);
+    }
+
+    /// <summary>
+    /// A refusal asking again might alter keeps the change waiting and the pass healthy: the server answered, so the
+    /// account is not backed off, and the change is counted as deferred to the next pass rather than failed.
+    /// </summary>
+    [Fact]
+    public async Task ConvergeAsync_WhenTheServerRefusesTheChangeTransiently_DefersItWithoutFailingThePass()
+    {
+        // Arrange
+        var context = new ConvergerContext();
+        var request = await context.LeaveOutstandingAsync(RelocationRequest(), record => record);
+        context.FailRelocationWith(Declined(MailboxMutationRefusalClass.Transient));
+
+        // Act
+        var report = await context.Converger.ConvergeAsync(Account, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(MailboxMutationStage.Recorded, context.Store.RecordOf(request).Stage);
+        Assert.Equal((1, 0, 0), (report.DeferredCount, report.FailedCount, report.DeadLetteredCount));
+    }
+
+    /// <summary>
+    /// The deadline holds between runs: a change whose window has passed is given up on and its person told, without a
+    /// connection being opened to be refused once more, while one still inside its window is left and its deadline named.
+    /// </summary>
+    [Fact]
+    public async Task AbandonExpiredRefusalsAsync_RefusalsAtAndBeforeTheirDeadline_AbandonsTheExpiredAndNamesTheNextDeadline()
+    {
+        // Arrange
+        var context = new ConvergerContext();
+        var now = context.Clock.GetUtcNow();
+        var expired = await context.LeaveOutstandingAsync(PersonsRelocationRequest(), record => record with
+        {
+            AttemptCount = 3,
+            FirstRefusedAt = now - TimeSpan.FromMinutes(15),
+            LastFailure = MailFathomErrorCode.MailboxMutationDeclined,
+        });
+        var waiting = await context.LeaveOutstandingAsync(DeleteRequest(43U), record => record with
+        {
+            AttemptCount = 1,
+            FirstRefusedAt = now - TimeSpan.FromMinutes(5),
+            LastFailure = MailFathomErrorCode.MailboxMutationDeclined,
+        });
+
+        // Act
+        var nextDeadline = await context.Converger.AbandonExpiredRefusalsAsync(Account, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(now + TimeSpan.FromMinutes(10), nextDeadline);
+        Assert.Equal(
+            (MailboxMutationStage.Abandoned, MailboxMutationStage.Recorded),
+            (context.Store.RecordOf(expired).Stage, context.Store.RecordOf(waiting).Stage));
+        var notification = Assert.Single(context.Notifications.Recorded);
+        Assert.Equal(NotificationCause.MailboxChangeAbandoned, notification.Statement?.Cause);
+        await context.WriteSessionFactory.DidNotReceive().OpenForWritingAsync(
+            Arg.Any<MailAccountId>(),
+            Arg.Any<MailFolderResolution>(),
+            Arg.Any<MailTransportSecurityPolicy>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A change nobody has refused has no deadline, however long it has waited through an outage.</summary>
+    [Fact]
+    public async Task AbandonExpiredRefusalsAsync_AChangeOnlyAnOutageHeldBack_IsLeftWaiting()
+    {
+        // Arrange
+        var context = new ConvergerContext();
+        var request = await context.LeaveOutstandingAsync(PersonsRelocationRequest(), record => record with
+        {
+            RecordedAt = context.Clock.GetUtcNow() - TimeSpan.FromDays(2),
+            LastFailure = MailFathomErrorCode.MailboxUnavailable,
+        });
+
+        // Act
+        var nextDeadline = await context.Converger.AbandonExpiredRefusalsAsync(Account, CancellationToken.None);
+
+        // Assert
+        Assert.Null(nextDeadline);
+        Assert.Equal(MailboxMutationStage.Recorded, context.Store.RecordOf(request).Stage);
+        Assert.Empty(context.Notifications.Recorded);
+    }
+
+    /// <summary>
+    /// A change refused once and then placed without an answer may already be on the server, so its refusal window does
+    /// not undo it; the unknown-outcome settlement owns it.
+    /// </summary>
+    [Fact]
+    public async Task AbandonExpiredRefusalsAsync_ARefusedChangeWhosePlacementWentUnanswered_IsNeitherAbandonedNorReverted()
+    {
+        // Arrange
+        var context = new ConvergerContext();
+        var request = await context.LeaveOutstandingAsync(PersonsRelocationRequest(), record => record with
+        {
+            Stage = MailboxMutationStage.PlacementIssued,
+            AttemptCount = 1,
+            FirstRefusedAt = context.Clock.GetUtcNow() - TimeSpan.FromHours(1),
+            LastFailure = MailFathomErrorCode.MailboxMutationDeclined,
+        });
+
+        // Act
+        var nextDeadline = await context.Converger.AbandonExpiredRefusalsAsync(Account, CancellationToken.None);
+
+        // Assert
+        Assert.Null(nextDeadline);
+        Assert.Equal(MailboxMutationStage.PlacementIssued, context.Store.RecordOf(request).Stage);
+        Assert.Empty(context.Notifications.Recorded);
+    }
+
+    /// <summary>A held account's changes never reach the source, so no refusal of one is waiting to run out.</summary>
+    [Fact]
+    public async Task AbandonExpiredRefusalsAsync_AHeldAccount_LeavesEveryRecordAsItIs()
+    {
+        // Arrange
+        var context = new ConvergerContext(
+            localFolders: new InMemoryLocalMailFolderStore(Account, MailAccountCustodyPhase.Held));
+        var request = await context.LeaveOutstandingAsync(RelocationRequest(), record => record with
+        {
+            FirstRefusedAt = context.Clock.GetUtcNow() - TimeSpan.FromHours(1),
+        });
+
+        // Act
+        var nextDeadline = await context.Converger.AbandonExpiredRefusalsAsync(Account, CancellationToken.None);
+
+        // Assert
+        Assert.Null(nextDeadline);
+        Assert.Equal(MailboxMutationStage.Recorded, context.Store.RecordOf(request).Stage);
     }
 
     /// <summary>
@@ -699,6 +827,15 @@ public sealed class MailboxMutationConvergerTests
         MailboxMutationRequester.Rule("keep-a-copy", "4"),
         ArchivePath);
 
+    private static MailboxMutationRequest PersonsRelocationRequest() => MailboxMutationRequest.Relocate(
+        StoredEmailId.Create(Guid.CreateVersion7()),
+        Occurrence(42U),
+        MailboxMutationRequester.Command("client-move-1"),
+        ArchivePath);
+
+    private static MailboxMutationDeclinedException Declined(MailboxMutationRefusalClass refusalClass) =>
+        new(Account, InboxFolder.Alias, refusalClass, new InvalidOperationException("The server answered NO."));
+
     private static MailboxMutationRequest DeleteRequest(uint uid) => MailboxMutationRequest.Delete(
         StoredEmailId.Create(Guid.CreateVersion7()), Occurrence(uid),
         MailboxMutationRequester.Rule("drop-notifications", "5"),
@@ -707,8 +844,8 @@ public sealed class MailboxMutationConvergerTests
 
     /// <summary>Assembles the converger over the same in-memory record store the performer's own tests use.</summary>
     /// <remarks>
-    /// The performer is the real one rather than a substitute, because what convergence delegates to it — the attempt
-    /// count, the settled answers, the stage a resumed sequence continues from — is exactly what these tests are about.
+    /// The performer is the real one rather than a substitute, because what convergence delegates to it — the refusal
+    /// window, the settled answers, the stage a resumed sequence continues from — is exactly what these tests are about.
     /// Only the mail server below it is substituted.
     /// </remarks>
     private sealed class ConvergerContext
@@ -716,7 +853,6 @@ public sealed class MailboxMutationConvergerTests
         internal ConvergerContext(
             int maxMutationsPerPass = 50,
             TimeSpan? unknownOutcomeGrace = null,
-            int maximumAttempts = 5,
             ILocalMailFolderStore? localFolders = null,
             ILocalEmailStateStore? states = null)
         {
@@ -764,7 +900,9 @@ public sealed class MailboxMutationConvergerTests
                 failures,
                 this.Delays,
                 ClientSignalPublishers.ReachingNobody,
-                new MailboxMutationOptions { MaximumAttempts = maximumAttempts });
+                new MailboxMutationOptions(),
+                this.Clock);
+            this.Store.RefusalClock = this.Clock;
 
             var transportSecurityPolicyReader = Substitute.For<IMailTransportSecurityPolicyReader>();
             transportSecurityPolicyReader.GetPolicy(Account).Returns(TransportPolicy);
@@ -784,7 +922,9 @@ public sealed class MailboxMutationConvergerTests
                 },
                 this.Clock,
                 localFolders is InMemoryLocalMailFolderStore held ? held.Custody : Substitute.For<IMailAccountCustodyStore>(),
-                MailboxChangeSubmissions.Over(this.Store, localFolders, states));
+                MailboxChangeSubmissions.Over(this.Store, localFolders, states),
+                ClientSignalPublishers.ReachingNobody,
+                new MailboxMutationOptions());
         }
 
         internal InMemoryMailboxMutationRecordStore Store { get; } = new();

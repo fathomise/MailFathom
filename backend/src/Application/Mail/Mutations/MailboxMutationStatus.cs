@@ -33,4 +33,11 @@ public enum MailboxMutationStatus
     /// who asked for the change has since said they do not want it.
     /// </remarks>
     Withdrawn = 4,
+
+    /// <summary>The server answered and did not take the change, and asking again might alter that, so it is asked again on a later pass.</summary>
+    /// <remarks>
+    /// The change stays as the person made it and nothing marks it. The record carries when the server first declined
+    /// it, and once the refusal window has passed since then the next ending is <see cref="Abandoned" />.
+    /// </remarks>
+    Refused = 5,
 }

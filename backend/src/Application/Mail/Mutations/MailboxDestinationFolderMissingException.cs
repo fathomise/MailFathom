@@ -12,12 +12,11 @@ namespace MailFathom.Application.Mail.Mutations;
 /// <summary>Indicates that the folder a relocation or a copy names as its destination does not exist on the server.</summary>
 /// <remarks>
 /// <para>
-/// It is raised rather than returned, and it is terminal on its first occurrence, because it says the same thing about
-/// repeating the work as <see cref="MailboxMutationUnsupportedException" /> does: a folder the server does not have will
-/// not be there on the next run either. Somebody deleted or renamed it, or whatever asked for the change named a path
-/// that was never right, and both remedies are an operator's rather than a wait's. Letting it spend the mutation's
-/// attempt bound instead would cost a login and a round trip per attempt to be told the same thing, and would leave the
-/// operator reading a change that merely looks busy.
+/// It is raised rather than returned, and it is a permanent refusal, because it says the same thing about repeating the
+/// work as <see cref="MailboxMutationUnsupportedException" /> does: a folder the server does not have will not be there
+/// on the next run either. Somebody deleted or renamed it, or whatever asked for the change named a path that was never
+/// right, and both remedies are an operator's rather than a wait's. Asking again within the refusal window instead would
+/// cost a login and a round trip per attempt to be told the same thing.
 /// </para>
 /// <para>
 /// It is separate from <see cref="Synchronization.Sessions.MailboxUnavailableException" /> for that reason alone. A mail
@@ -50,6 +49,10 @@ public sealed class MailboxDestinationFolderMissingException : MailboxMutationRe
 
     /// <inheritdoc />
     public override MailFathomErrorCode ErrorCode => MailFathomErrorCode.MailboxMutationDestinationMissing;
+
+    /// <inheritdoc />
+    /// <remarks>A folder the server does not have will not be there on the next attempt either.</remarks>
+    public override MailboxMutationRefusalClass RefusalClass => MailboxMutationRefusalClass.Permanent;
 
     /// <summary>Gets the account the mutation was requested for.</summary>
     public MailAccountId AccountId { get; }

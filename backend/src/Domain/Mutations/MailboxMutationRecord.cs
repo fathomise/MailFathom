@@ -104,12 +104,20 @@ public sealed record MailboxMutationRecord
     /// </remarks>
     public MailboxMutationOverlay? Overlay { get; init; }
 
-    /// <summary>Gets how many times this mutation has been attempted, counted before each attempt rather than after it.</summary>
+    /// <summary>Gets how many times the mail server has answered this mutation and not taken it.</summary>
     /// <remarks>
-    /// Counting first is what makes the bound survive a crash loop: an attempt that kills the process still counted, so a
-    /// mutation that crashes the host every time reaches its terminal stage instead of being retried forever.
+    /// Only an answer counts. A server that could not be reached was asked nothing, so an outage of any length leaves the
+    /// count where it was — which is what keeps it from reading as a change the server keeps turning down.
     /// </remarks>
     public required int AttemptCount { get; init; }
+
+    /// <summary>Gets when the mail server first declined this mutation in a way asking again might alter, or <see langword="null" /> while it has not.</summary>
+    /// <remarks>
+    /// It is what bounds a transient refusal: the change is given up on once the configured window has passed since this
+    /// instant, however many attempts that took and whatever outage followed it. A permanent refusal ends the change at
+    /// once and never needs it.
+    /// </remarks>
+    public DateTimeOffset? FirstRefusedAt { get; init; }
 
     /// <summary>Gets when the intent was first written down.</summary>
     public required DateTimeOffset RecordedAt { get; init; }

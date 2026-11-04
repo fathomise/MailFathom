@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Mail.Mutations;
+
 namespace MailFathom.Application.Accounts;
 
 /// <summary>How current one account's local copy is, and how current each of the folders that answer for it is.</summary>
@@ -35,4 +37,20 @@ public sealed record MailAccountFreshness(
     MailSynchronizationState State,
     DateTimeOffset? LastSynchronizedAt,
     bool IsBehind,
-    IReadOnlyList<MailFolderFreshness> Folders);
+    IReadOnlyList<MailFolderFreshness> Folders)
+{
+    /// <summary>Gets since when the account has been in <see cref="State" />, as far as this process has watched, or <see langword="null" /> where nothing it observed says.</summary>
+    /// <remarks>
+    /// While the state is <see cref="MailSynchronizationState.Unreachable" /> it is since when the mail server could not
+    /// be reached, which the client's freshness line measures its sixty seconds from rather than from when it first read
+    /// the state.
+    /// </remarks>
+    public DateTimeOffset? StateSince { get; init; }
+
+    /// <summary>Gets since when the account has been behind, or <see langword="null" /> while it is not.</summary>
+    public DateTimeOffset? BehindSince { get; init; }
+
+    /// <summary>Gets the changes MailFathom holds for the account that its mail server does not have yet, or <see langword="null" /> when none waits.</summary>
+    /// <remarks>Sends are not among them: the outbox reports those.</remarks>
+    public MailboxWaitingChanges? WaitingChanges { get; init; }
+}

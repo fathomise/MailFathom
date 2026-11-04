@@ -1117,7 +1117,7 @@ internal sealed record ClientMailChangesResponse(IReadOnlyList<ClientMailChangeS
 /// <param name="Mutation">The change that was asked for.</param>
 /// <param name="State">Whether it is waiting, on its way, done, stuck, or withdrawn.</param>
 /// <param name="OutcomeUnknown">Whether a command that may never be issued twice went out and its answer never came back.</param>
-/// <param name="AttemptCount">How many times it has been attempted, which is what says a retried change is making no progress.</param>
+/// <param name="AttemptCount">How many times the mail server has answered it and not taken it; an outage counts none.</param>
 /// <param name="LastFailure">The code identifying what the last attempt ended in, or <see langword="null" /> while none has failed.</param>
 /// <param name="RecordedAt">When the change was written down.</param>
 /// <param name="StateChangedAt">When it last moved, which is what says how long a stuck change has been stuck.</param>

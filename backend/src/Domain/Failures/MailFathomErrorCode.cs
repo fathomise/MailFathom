@@ -243,10 +243,11 @@ public readonly record struct MailFathomErrorCode
     /// </remarks>
     public static MailFathomErrorCode MailboxMutationOutcomeUnknown { get; } = new(25002);
 
-    /// <summary>Gets subcategory 5, mutation support: a mutation spent its bounded attempts without completing.</summary>
+    /// <summary>Gets subcategory 5, mutation support: a mutation spent a bounded number of attempts without completing.</summary>
     /// <remarks>
-    /// The code names the bound rather than whatever failed on the way, which stays on the record as the last failure.
-    /// A mutation reaching this is visible as stuck instead of being retried forever.
+    /// Nothing raises it any more: a change is now given up on by how long the server has been refusing it, and the
+    /// refusal itself is what the record keeps. It stays declared because a record that ended this way still carries it,
+    /// and a code is never reused.
     /// </remarks>
     public static MailFathomErrorCode MailboxMutationAttemptsExhausted { get; } = new(25003);
 
@@ -264,9 +265,18 @@ public readonly record struct MailFathomErrorCode
     /// reason that one does: a folder the server does not have is not a round trip that went badly, and asking again
     /// every interval would spend a login apiece to be told the same thing. The remedy is an operator's — recreate the
     /// folder, or correct whatever asked for that path — so the mutation is given up on visibly at the first refusal
-    /// instead of after its attempt bound.
+    /// instead of being asked again.
     /// </remarks>
     public static MailFathomErrorCode MailboxMutationDestinationMissing { get; } = new(25005);
+
+    /// <summary>Gets subcategory 5, mutation support: the mail server answered a change and did not take it.</summary>
+    /// <remarks>
+    /// It is the server's own answer rather than a failure to reach it, which is what the whole refusal path turns on: an
+    /// answer is an attempt, counted and bounded, and an unreachable server is neither. Whether trying again can help is
+    /// carried beside the code rather than in it, because the same answer — a <c>NO</c>, a folder that is gone — is read
+    /// one way or the other by the command it answered.
+    /// </remarks>
+    public static MailFathomErrorCode MailboxMutationDeclined { get; } = new(25006);
 
     /// <summary>Gets subcategory 6, folder creation: a mail server refused to create the folder a mapping asked for.</summary>
     /// <remarks>
@@ -1193,6 +1203,7 @@ public readonly record struct MailFathomErrorCode
         MailboxMutationAttemptsExhausted,
         MailboxMutationFailedUnexpectedly,
         MailboxMutationDestinationMissing,
+        MailboxMutationDeclined,
         RemoteFolderCreationRefused,
         RemoteFolderEditRefused,
         MailDeliveryUnavailable,

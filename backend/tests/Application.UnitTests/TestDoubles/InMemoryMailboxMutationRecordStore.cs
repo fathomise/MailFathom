@@ -49,6 +49,10 @@ internal sealed class InMemoryMailboxMutationRecordStore : IMailboxMutationRecor
     /// </remarks>
     internal bool AuditsMutations { get; set; }
 
+    /// <summary>Gets or sets the clock a refusal is stamped from, which a test shares with the performer measuring the refusal window.</summary>
+    /// <remarks>Left unset, a refusal is stamped from the store's own advancing instant, as every other write here is.</remarks>
+    internal TimeProvider? RefusalClock { get; set; }
+
     /// <inheritdoc />
     public Task<MailboxMutationRecord> OpenAsync(
         IPersistenceSession session,
@@ -260,16 +264,26 @@ internal sealed class InMemoryMailboxMutationRecordStore : IMailboxMutationRecor
     }
 
     /// <inheritdoc />
-    public Task<int> CountAttemptAsync(
+    public Task<DateTimeOffset> RecordRefusalAsync(
         IPersistenceSession session,
         MailboxMutationRecordId recordId,
+        MailFathomErrorCode failure,
         CancellationToken cancellationToken)
     {
         var record = this.Require(recordId);
-        var counted = record with { AttemptCount = record.AttemptCount + 1 };
-        this.recordsById[recordId] = counted;
+        var refusedAt = this.RefusalClock?.GetUtcNow() ?? this.Advance();
+        var placementAnswered = record.Stage is MailboxMutationStage.PlacementIssued;
+        var refused = record with
+        {
+            AttemptCount = record.AttemptCount + 1,
+            LastFailure = failure,
+            FirstRefusedAt = record.FirstRefusedAt ?? refusedAt,
+            Stage = placementAnswered ? MailboxMutationStage.Recorded : record.Stage,
+            RequiresSourceRemoval = !placementAnswered && record.RequiresSourceRemoval,
+        };
+        this.recordsById[recordId] = refused;
 
-        return Task.FromResult(counted.AttemptCount);
+        return Task.FromResult(refused.FirstRefusedAt!.Value);
     }
 
     /// <inheritdoc />
@@ -391,6 +405,46 @@ internal sealed class InMemoryMailboxMutationRecordStore : IMailboxMutationRecor
         ];
 
         return Task.FromResult(counts);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<OutstandingMailboxMutation>> ReadRefusedAsync(
+        MailAccountId account,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+
+        IReadOnlyList<OutstandingMailboxMutation> refused =
+        [
+            .. this.UnsettledOf(account)
+                .Where(record => record.FirstRefusedAt is not null && !record.IsTerminal && !record.HasUnknownOutcome)
+                .OrderBy(record => record.FirstRefusedAt)
+                .Take(limit)
+                .Select(record => new OutstandingMailboxMutation(record, this.BindingOf(record))),
+        ];
+
+        return Task.FromResult(refused);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<MailAccountId, MailboxWaitingChanges>> ReadWaitingChangesAsync(
+        IReadOnlyCollection<MailAccountId> accounts,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(accounts);
+
+        IReadOnlyDictionary<MailAccountId, MailboxWaitingChanges> waiting = accounts
+            .Distinct()
+            .Select(account => (Account: account, Records: this.UnsettledOf(account)
+                .Where(record => !record.IsTerminal && record.LocalChange is not MailboxMutationLocalChange.Erasure)
+                .ToArray()))
+            .Where(entry => entry.Records.Length > 0)
+            .ToDictionary(
+                entry => entry.Account,
+                entry => new MailboxWaitingChanges(entry.Records.Length, entry.Records.Min(record => record.RecordedAt)));
+
+        return Task.FromResult(waiting);
     }
 
     /// <summary>States the remote folder one alias binding names, for the records read back through it.</summary>

@@ -268,11 +268,6 @@ public sealed class MailSynchronizationOptionsTests
     }
 
     /// <summary>Every bound is enforced at run time, so a value outside its range has to fail startup rather than reach a scheduler.</summary>
-    /// <remarks>
-    /// The mutation attempt bound is here rather than beside the connection bounds because it is validated the same
-    /// way, and because zero is the value worth catching: it would let a change be recorded and then never attempted,
-    /// which is the one state the record exists to make impossible.
-    /// </remarks>
     [Theory]
     [InlineData("MaxConcurrentAccounts", 0)]
     [InlineData("MaxConcurrentAccounts", 101)]
@@ -280,8 +275,6 @@ public sealed class MailSynchronizationOptionsTests
     [InlineData("MaxConcurrentFoldersPerAccount", 21)]
     [InlineData("MaxConcurrentConnectionsPerHost", 1)]
     [InlineData("MaxConcurrentConnectionsPerHost", 1001)]
-    [InlineData("MaxMutationAttempts", 0)]
-    [InlineData("MaxMutationAttempts", 101)]
     public void Bind_ConcurrencyBoundOutsideItsRange_FailsDataAnnotationValidation(string settingName, int configuredValue)
     {
         // Arrange
@@ -298,6 +291,42 @@ public sealed class MailSynchronizationOptionsTests
 
         // Assert
         Assert.False(results);
+    }
+
+    /// <summary>
+    /// A window of zero would give a change up at its first refusal, which is the permanent class's answer rather than a
+    /// transient one's, and a window of weeks would hold a person's change undone in front of them for that long.
+    /// </summary>
+    [Theory]
+    [InlineData("00:00:00")]
+    [InlineData("7.00:00:01")]
+    public void Bind_MutationRefusalWindowOutsideItsRange_FailsDataAnnotationValidation(string configuredWindow)
+    {
+        // Arrange
+        var options = new MailSynchronizationOptions();
+        new ConfigurationBuilder()
+            .AddInMemoryCollection([
+                new KeyValuePair<string, string?>(nameof(MailSynchronizationOptions.MutationRefusalWindow), configuredWindow),
+            ])
+            .Build()
+            .Bind(options);
+
+        // Act
+        var results = Validator.TryValidateObject(options, new ValidationContext(options), null, validateAllProperties: true);
+
+        // Assert
+        Assert.False(results);
+    }
+
+    /// <summary>The window ships at the fifteen minutes a person is promised to hear about a change the server refuses.</summary>
+    [Fact]
+    public void MutationRefusalWindow_Unconfigured_IsFifteenMinutes()
+    {
+        // Act
+        var window = new MailSynchronizationOptions().MutationRefusalWindow;
+
+        // Assert
+        Assert.Equal(TimeSpan.FromMinutes(15), window);
     }
 
     /// <summary>A drain the host stops waiting for is a drain that was never honored, so the budget has to cover it.</summary>

@@ -260,7 +260,8 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
                 scope.GetRequiredService<MailFailureNotifications>(),
                 scope.GetRequiredService<IMailboxConvergenceDelayTelemetry>(),
                 ClientSignalPublishers.ReachingNobody,
-                new MailboxMutationOptions()),
+                new MailboxMutationOptions(),
+                TimeProvider.System),
             scope.GetRequiredService<IMailTransportSecurityPolicyReader>(),
             commitPolicy,
             scope.GetRequiredService<IMailboxMutationAuditTrail>(),
@@ -269,7 +270,9 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
             new MailboxConvergenceOptions { UnknownOutcomeGrace = TimeSpan.Zero },
             TimeProvider.System,
             scope.GetRequiredService<IMailAccountCustodyStore>(),
-            scope.GetRequiredService<MailboxChangeSubmission>());
+            scope.GetRequiredService<MailboxChangeSubmission>(),
+            ClientSignalPublishers.ReachingNobody,
+            new MailboxMutationOptions());
 
         return await converger.ConvergeAsync(SyntheticMailAccount.Account, cancellationToken);
     }
@@ -313,7 +316,6 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
                 async (scope, session, token) =>
                 {
                     var store = scope.GetRequiredService<IMailboxMutationRecordStore>();
-                    await store.CountAttemptAsync(session, recordId, token);
                     await store.RecordPlacementIssuedAsync(session, recordId, requiresSourceRemoval: false, token);
                 },
                 cancellationToken));
@@ -342,7 +344,8 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
                 scope.GetRequiredService<MailFailureNotifications>(),
                 scope.GetRequiredService<IMailboxConvergenceDelayTelemetry>(),
                 ClientSignalPublishers.ReachingNobody,
-                new MailboxMutationOptions()),
+                new MailboxMutationOptions(),
+                TimeProvider.System),
             scope.GetRequiredService<IMailTransportSecurityPolicyReader>(),
             commitPolicy,
             scope.GetRequiredService<IMailboxMutationAuditTrail>(),
@@ -351,7 +354,9 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
             new MailboxConvergenceOptions(),
             TimeProvider.System,
             scope.GetRequiredService<IMailAccountCustodyStore>(),
-            scope.GetRequiredService<MailboxChangeSubmission>());
+            scope.GetRequiredService<MailboxChangeSubmission>(),
+            ClientSignalPublishers.ReachingNobody,
+            new MailboxMutationOptions());
 
         return await converger.ConvergeAsync(SyntheticMailAccount.Account, cancellationToken);
     }
@@ -391,7 +396,6 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
                 async (scope, session, token) =>
                 {
                     var store = scope.GetRequiredService<IMailboxMutationRecordStore>();
-                    await store.CountAttemptAsync(session, recordId, token);
                     await store.RecordPlacementIssuedAsync(session, recordId, requiresSourceRemoval: true, token);
                     await store.AdvanceAsync(
                         session,

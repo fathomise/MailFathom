@@ -3,22 +3,22 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Mutations;
 
 namespace MailFathom.Application.Mail.Mutations;
 
-/// <summary>Indicates that a mail server was reached, answered, and will answer the same way every later time.</summary>
+/// <summary>Indicates that a mail server was reached, answered a change, and did not take it.</summary>
 /// <remarks>
 /// <para>
 /// It exists so the two callers that act on that fact name one type instead of each keeping a list of the concrete
-/// refusals. The performer abandons a mutation raising one of these on its first occurrence rather than spending the
-/// attempt bound, and a convergence pass counts it as given up on rather than as failed — and those two decisions would
-/// silently disagree the moment a third refusal was added to one list and not the other.
+/// refusals: the performer, which decides from <see cref="RefusalClass" /> whether the change ends now or is asked again
+/// within the refusal window, and a convergence pass, which reads the performer's answer rather than this exception.
 /// </para>
 /// <para>
-/// What every subclass asserts is the same thing, and it is the opposite of what
+/// What every subclass asserts is the opposite of what
 /// <see cref="Synchronization.Sessions.MailboxUnavailableException" /> asserts: the server did not fail to answer, it
-/// answered, and the answer is a decision an operator has to change something to alter. A failure that might clear on
-/// its own is not one of these, however certain it looks.
+/// answered. That is what makes a refusal an attempt and an outage none. A failure to reach the server is not one of
+/// these, however certain it looks.
 /// </para>
 /// <para>
 /// It carries no <see cref="MailFathomErrorCode" /> of its own, because a code names one failure a boundary reports and
@@ -42,4 +42,7 @@ public abstract class MailboxMutationRefusedException : MailFathomException
         : base(operatorSafeMessage, innerException)
     {
     }
+
+    /// <summary>Gets whether asking again could alter the server's answer.</summary>
+    public abstract MailboxMutationRefusalClass RefusalClass { get; }
 }

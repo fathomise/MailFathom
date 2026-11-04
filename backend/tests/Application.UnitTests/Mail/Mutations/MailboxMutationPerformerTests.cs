@@ -185,14 +185,14 @@ public sealed class MailboxMutationPerformerTests
             Arg.Any<CancellationToken>());
     }
 
-    /// <summary>Counting first is what makes an attempt that kills the process count against the bound.</summary>
+    /// <summary>A server that could not be reached was asked nothing, so an outage counts no attempt and starts no window.</summary>
     [Fact]
-    public async Task PerformAsync_WhenTheAttemptFails_HasAlreadyCountedItAndKeepsTheStageItReached()
+    public async Task PerformAsync_WhenTheServerCannotBeReached_CountsNoAttemptAndKeepsTheStageItReached()
     {
         // Arrange
         var context = new PerformerContext();
         var request = RelocationRequest();
-        context.FailRelocationWith(new MailboxUnavailableException(Account, InboxFolder.Alias, new TimeoutException()));
+        context.FailRelocationWith(Outage());
 
         // Act
         await Assert.ThrowsAsync<MailboxUnavailableException>(
@@ -200,30 +200,212 @@ public sealed class MailboxMutationPerformerTests
 
         // Assert
         var record = context.Store.RecordOf(request);
-        Assert.Equal(1, record.AttemptCount);
-        Assert.Equal(MailboxMutationStage.Recorded, record.Stage);
-        Assert.Equal(MailFathomErrorCode.MailboxUnavailable, record.LastFailure);
+        Assert.Equal(
+            (0, (DateTimeOffset?)null, MailboxMutationStage.Recorded, (MailFathomErrorCode?)MailFathomErrorCode.MailboxUnavailable),
+            (record.AttemptCount, record.FirstRefusedAt, record.Stage, record.LastFailure));
     }
 
-    /// <summary>The bound exists so a change that cannot be made becomes visible instead of being retried forever.</summary>
+    /// <summary>
+    /// An outage is the deployment's to report, on the account line, and never a reason to undo what a person did: a
+    /// change held through more than a day of it is still waiting, with nobody told.
+    /// </summary>
     [Fact]
-    public async Task PerformAsync_WhenTheLastPermittedAttemptFails_AbandonsTheRecordWithThatFailure()
+    public async Task PerformAsync_WhenTheServerStaysUnreachableForMoreThanADay_NeverAbandonsTheChangeNorTellsAnybody()
     {
         // Arrange
-        var context = new PerformerContext(maximumAttempts: 2);
-        var request = RelocationRequest();
-        context.FailRelocationWith(new MailboxUnavailableException(Account, InboxFolder.Alias, new TimeoutException()));
+        var context = new PerformerContext();
+        var request = PersonsRelocationRequest();
+        context.FailRelocationWith(Outage());
 
         // Act
         await Assert.ThrowsAsync<MailboxUnavailableException>(
             () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+        context.Clock.Advance(TimeSpan.FromHours(25));
         await Assert.ThrowsAsync<MailboxUnavailableException>(
             () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
 
         // Assert
+        Assert.Equal(MailboxMutationStage.Recorded, context.Store.RecordOf(request).Stage);
+        Assert.Empty(context.Notifications.Recorded);
+    }
+
+    /// <summary>A refusal asking again might alter is kept and asked again, from the instant the server first gave it.</summary>
+    [Fact]
+    public async Task PerformAsync_WhenTheServerRefusesTheChangeTransiently_ReportsItRefusedAndStartsTheWindow()
+    {
+        // Arrange
+        var context = new PerformerContext();
+        var request = PersonsRelocationRequest();
+        var firstRefusedAt = context.Clock.GetUtcNow();
+        context.FailRelocationWith(Declined(MailboxMutationRefusalClass.Transient));
+
+        // Act
+        var outcome = await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
+
+        // Assert
         var record = context.Store.RecordOf(request);
-        Assert.Equal(MailboxMutationStage.Abandoned, record.Stage);
-        Assert.Equal(MailFathomErrorCode.MailboxUnavailable, record.LastFailure);
+        Assert.Equal(MailboxMutationStatus.Refused, outcome.Status);
+        Assert.Equal(
+            (1, (DateTimeOffset?)firstRefusedAt, MailboxMutationStage.Recorded, (MailFathomErrorCode?)MailFathomErrorCode.MailboxMutationDeclined),
+            (record.AttemptCount, record.FirstRefusedAt, record.Stage, record.LastFailure));
+        Assert.Empty(context.Notifications.Recorded);
+    }
+
+    /// <summary>The window is measured from the first refusal, so asking again does not move it.</summary>
+    [Fact]
+    public async Task PerformAsync_WhenTheServerRefusesAgain_KeepsTheInstantItFirstRefused()
+    {
+        // Arrange
+        var context = new PerformerContext();
+        var request = RelocationRequest();
+        var firstRefusedAt = context.Clock.GetUtcNow();
+        context.FailRelocationWith(Declined(MailboxMutationRefusalClass.Transient));
+        await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
+        context.Clock.Advance(TimeSpan.FromMinutes(5));
+
+        // Act
+        await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
+
+        // Assert
+        var record = context.Store.RecordOf(request);
+        Assert.Equal((2, (DateTimeOffset?)firstRefusedAt), (record.AttemptCount, record.FirstRefusedAt));
+    }
+
+    /// <summary>
+    /// A transient refusal is asked again for the shipped fifteen minutes and no longer, then undone and put in front of
+    /// the person with the act offered again.
+    /// </summary>
+    [Fact]
+    public async Task PerformAsync_WhenTheShippedRefusalWindowPasses_AbandonsTheChangeAndOffersItAgain()
+    {
+        // Arrange
+        var context = new PerformerContext();
+        var request = PersonsRelocationRequest();
+        context.FailRelocationWith(Declined(MailboxMutationRefusalClass.Transient));
+        await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
+        context.Clock.Advance(TimeSpan.FromMinutes(15) - TimeSpan.FromSeconds(1));
+        var withinTheWindow = await context.Performer.PerformAsync(
+            request,
+            InboxFolder,
+            TransportPolicy,
+            CancellationToken.None);
+        context.Clock.Advance(TimeSpan.FromSeconds(1));
+
+        // Act
+        var outcome = await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(
+            (MailboxMutationStatus.Refused, MailboxMutationStatus.Abandoned),
+            (withinTheWindow.Status, outcome.Status));
+        Assert.Equal(MailboxMutationStage.Abandoned, context.Store.RecordOf(request).Stage);
+        var notification = Assert.Single(context.Notifications.Recorded);
+        Assert.Equal(NotificationCause.MailboxChangeAbandoned, notification.Statement?.Cause);
+    }
+
+    /// <summary>
+    /// Asking again is a new act under a new invocation identity, so it opens a record of its own and reaches the server
+    /// afresh rather than reviving the one given up on — which would answer from its record without asking anybody.
+    /// </summary>
+    [Fact]
+    public async Task PerformAsync_TheSameActAskedAgainAfterItWasGivenUp_OpensANewRecordAndPerformsIt()
+    {
+        // Arrange
+        var context = new PerformerContext();
+        var abandoned = PersonsRelocationRequest();
+        context.FailRelocationWith(Declined(MailboxMutationRefusalClass.Permanent));
+        var givenUp = await context.Performer.PerformAsync(abandoned, InboxFolder, TransportPolicy, CancellationToken.None);
+        context.AnswerRelocationWith(ArchivedAt);
+        var askedAgain = MailboxMutationRequest.Relocate(
+            abandoned.StoredEmailId,
+            abandoned.Occurrence,
+            MailboxMutationRequester.Command("client-move-2"),
+            ArchivePath);
+
+        // Act
+        var outcome = await context.Performer.PerformAsync(askedAgain, InboxFolder, TransportPolicy, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(MailboxMutationStatus.Performed, outcome.Status);
+        Assert.NotEqual(givenUp.RecordId, outcome.RecordId);
+        Assert.Equal(
+            (MailboxMutationStage.Abandoned, MailboxMutationStage.Completed),
+            (context.Store.RecordOf(abandoned).Stage, context.Store.RecordOf(askedAgain).Stage));
+    }
+
+    /// <summary>
+    /// The deadline is the first refusal plus the window, whatever happened after: a record whose window passed while
+    /// nothing asked is given up on without opening a connection to be refused once more.
+    /// </summary>
+    [Fact]
+    public async Task PerformAsync_WhenTheWindowPassedBeforeTheNextCall_AbandonsWithoutReachingTheServer()
+    {
+        // Arrange
+        var context = new PerformerContext();
+        var request = RelocationRequest();
+        await context.OpenRecordFor(request);
+        context.Store.Arrange(request, record => record with
+        {
+            AttemptCount = 1,
+            FirstRefusedAt = context.Clock.GetUtcNow() - TimeSpan.FromMinutes(15),
+            LastFailure = MailFathomErrorCode.MailboxMutationDeclined,
+        });
+
+        // Act
+        var outcome = await context.Performer.PerformAsync(
+            request,
+            InboxFolder,
+            TransportPolicy,
+            CancellationToken.None);
+
+        // Assert
+        var record = context.Store.RecordOf(request);
+        Assert.Equal(MailboxMutationStatus.Abandoned, outcome.Status);
+        Assert.Equal(
+            (MailboxMutationStage.Abandoned, (MailFathomErrorCode?)MailFathomErrorCode.MailboxMutationDeclined),
+            (record.Stage, record.LastFailure));
+        await context.WriteSessionFactory.DidNotReceive().OpenForWritingAsync(
+            Arg.Any<MailAccountId>(),
+            Arg.Any<MailFolderResolution>(),
+            Arg.Any<MailTransportSecurityPolicy>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// A copy the server answered and did not take placed nothing, so the record is back to where nothing was issued and
+    /// the next pass asks again rather than leaving it for a person to resolve.
+    /// </summary>
+    [Fact]
+    public async Task PerformAsync_WhenTheServerRefusesAPlacementItWasAsked_AsksAgainOnTheNextCall()
+    {
+        // Arrange
+        var context = new PerformerContext();
+        var request = RelocationRequest();
+        context.WriteSession.RelocateAsync(
+                Arg.Any<EmailOccurrenceId>(),
+                Arg.Any<RemoteFolderPath>(),
+                Arg.Any<IMailboxMutationJournal>(),
+                Arg.Any<CancellationToken>())
+            .Returns(
+                call => IssueThenRefuseAsync(call.Arg<IMailboxMutationJournal>()),
+                _ => Task.FromResult(ArchivedAt));
+        var refused = await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
+
+        // Act
+        var outcome = await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(
+            (MailboxMutationStatus.Refused, MailboxMutationStatus.Performed),
+            (refused.Status, outcome.Status));
+        Assert.Equal(MailboxMutationStage.Completed, context.Store.RecordOf(request).Stage);
+
+        static async Task<RemoteEmailPlacement> IssueThenRefuseAsync(IMailboxMutationJournal journal)
+        {
+            await journal.PlacementIssuedAsync(requiresSourceRemoval: true, CancellationToken.None);
+
+            throw Declined(MailboxMutationRefusalClass.Transient);
+        }
     }
 
     /// <summary>A change the server made has waited as long as it ever will, so its wait is measured, once.</summary>
@@ -243,37 +425,35 @@ public sealed class MailboxMutationPerformerTests
             record.Request == request && record.Stage == MailboxMutationStage.Completed));
     }
 
-    /// <summary>A change that failed with attempts left is still waiting, and measuring it would cut its wait short.</summary>
+    /// <summary>A change refused inside its window is still waiting, and measuring it would cut its wait short.</summary>
     [Fact]
-    public async Task PerformAsync_WhenAnAttemptFailsWithAttemptsLeft_MeasuresNothing()
+    public async Task PerformAsync_WhenTheServerRefusesInsideTheWindow_MeasuresNothing()
     {
         // Arrange
-        var context = new PerformerContext(maximumAttempts: 2);
+        var context = new PerformerContext();
         var request = RelocationRequest();
-        context.FailRelocationWith(new MailboxUnavailableException(Account, InboxFolder.Alias, new TimeoutException()));
+        context.FailRelocationWith(Declined(MailboxMutationRefusalClass.Transient));
 
         // Act
-        await Assert.ThrowsAsync<MailboxUnavailableException>(
-            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+        await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
 
         // Assert
         context.Delays.DidNotReceive().Ended(Arg.Any<MailboxMutationRecord>());
     }
 
-    /// <summary>A change given up has ended too, and is measured once, at the attempt that gave it up.</summary>
+    /// <summary>A change given up has ended too, and is measured once, at the call that gave it up.</summary>
     [Fact]
-    public async Task PerformAsync_WhenTheLastPermittedAttemptFails_MeasuresTheWaitOnceAsAbandoned()
+    public async Task PerformAsync_WhenTheWindowPasses_MeasuresTheWaitOnceAsAbandoned()
     {
         // Arrange
-        var context = new PerformerContext(maximumAttempts: 2);
+        var context = new PerformerContext();
         var request = RelocationRequest();
-        context.FailRelocationWith(new MailboxUnavailableException(Account, InboxFolder.Alias, new TimeoutException()));
+        context.FailRelocationWith(Declined(MailboxMutationRefusalClass.Transient));
+        await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
+        context.Clock.Advance(TimeSpan.FromMinutes(15));
 
         // Act
-        await Assert.ThrowsAsync<MailboxUnavailableException>(
-            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
-        await Assert.ThrowsAsync<MailboxUnavailableException>(
-            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+        await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
 
         // Assert
         context.Delays.Received(1).Ended(Arg.Any<MailboxMutationRecord>());
@@ -282,17 +462,16 @@ public sealed class MailboxMutationPerformerTests
     }
 
     /// <summary>
-    /// An attempt that kills the process records no failure of its own, so the bound has to be read from the count
-    /// rather than from a failure being present. Otherwise a mutation that crashes the host would be retried forever.
+    /// A server that advertises no way to carry the change safely will advertise none tomorrow, so asking it again for
+    /// fifteen minutes would only delay the same answer while looking busy.
     /// </summary>
     [Fact]
-    public async Task PerformAsync_WhenEveryAttemptCrashedWithoutRecordingAFailure_AbandonsOnTheNextCall()
+    public async Task PerformAsync_WhenTheServerCannotCarryTheMutation_AbandonsAtTheFirstRefusal()
     {
         // Arrange
-        var context = new PerformerContext(maximumAttempts: 3);
+        var context = new PerformerContext();
         var request = RelocationRequest();
-        await context.OpenRecordFor(request);
-        context.Store.Arrange(request, record => record with { AttemptCount = 3 });
+        context.FailRelocationWith(Unsupported());
 
         // Act
         var outcome = await context.Performer.PerformAsync(
@@ -304,66 +483,50 @@ public sealed class MailboxMutationPerformerTests
         // Assert
         var record = context.Store.RecordOf(request);
         Assert.Equal(MailboxMutationStatus.Abandoned, outcome.Status);
-        Assert.Equal(MailboxMutationStage.Abandoned, record.Stage);
-        Assert.Equal(MailFathomErrorCode.MailboxMutationAttemptsExhausted, record.LastFailure);
-        await context.WriteSessionFactory.DidNotReceive().OpenForWritingAsync(
-            Arg.Any<MailAccountId>(),
-            Arg.Any<MailFolderResolution>(),
-            Arg.Any<MailTransportSecurityPolicy>(),
-            Arg.Any<CancellationToken>());
+        Assert.Equal(
+            (MailboxMutationStage.Abandoned, 1, (MailFathomErrorCode?)MailFathomErrorCode.MailboxMutationUnsupported),
+            (record.Stage, record.AttemptCount, record.LastFailure));
+    }
+
+    /// <summary>A server answering that it will never take the change ends it at once, whatever the window says.</summary>
+    [Fact]
+    public async Task PerformAsync_WhenTheServerRefusesTheChangePermanently_AbandonsAtTheFirstRefusal()
+    {
+        // Arrange
+        var context = new PerformerContext();
+        var request = RelocationRequest();
+        context.FailRelocationWith(Declined(MailboxMutationRefusalClass.Permanent));
+
+        // Act
+        var outcome = await context.Performer.PerformAsync(
+            request,
+            InboxFolder,
+            TransportPolicy,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(MailboxMutationStatus.Abandoned, outcome.Status);
+        Assert.Equal(MailboxMutationStage.Abandoned, context.Store.RecordOf(request).Stage);
     }
 
     /// <summary>
-    /// A server that advertises no way to carry the change safely will advertise none tomorrow, so spending the attempt
-    /// bound on it would only delay the same answer while looking busy.
+    /// A change a person asked for and the server will never take is put in front of them, leading to the message, and
+    /// without offering an act that would only be refused the same way.
     /// </summary>
     [Fact]
-    public async Task PerformAsync_WhenTheServerCannotCarryTheMutation_AbandonsOnTheFirstAttempt()
+    public async Task PerformAsync_WhenAPersonsChangeIsRefusedPermanently_TellsTheAccountsUsersWithoutOfferingItAgain()
     {
         // Arrange
-        var context = new PerformerContext(maximumAttempts: 5);
-        var request = RelocationRequest();
-        context.FailRelocationWith(new MailboxMutationUnsupportedException(
-            Account,
-            InboxFolder.Alias,
-            MailboxMutation.Relocate.Name,
-            "UIDPLUS extension (RFC 4315)"));
+        var context = new PerformerContext();
+        var request = PersonsRelocationRequest();
+        context.FailRelocationWith(Unsupported());
 
         // Act
-        await Assert.ThrowsAsync<MailboxMutationUnsupportedException>(
-            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
-
-        // Assert
-        var record = context.Store.RecordOf(request);
-        Assert.Equal(MailboxMutationStage.Abandoned, record.Stage);
-        Assert.Equal(1, record.AttemptCount);
-        Assert.Equal(MailFathomErrorCode.MailboxMutationUnsupported, record.LastFailure);
-    }
-
-    /// <summary>A change a person asked for and the server would not take is put in front of them, leading to the message.</summary>
-    [Fact]
-    public async Task PerformAsync_WhenAPersonsChangeIsGivenUp_TellsTheAccountsUsersWhichActFailed()
-    {
-        // Arrange
-        var context = new PerformerContext(maximumAttempts: 5);
-        var request = MailboxMutationRequest.Relocate(
-            StoredEmailId.Create(Guid.CreateVersion7()),
-            Occurrence(42U),
-            MailboxMutationRequester.Command("client-move-1"),
-            ArchivePath);
-        context.FailRelocationWith(new MailboxMutationUnsupportedException(
-            Account,
-            InboxFolder.Alias,
-            MailboxMutation.Relocate.Name,
-            "UIDPLUS extension (RFC 4315)"));
-
-        // Act
-        await Assert.ThrowsAsync<MailboxMutationUnsupportedException>(
-            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+        await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
 
         // Assert
         var notification = Assert.Single(context.Notifications.Recorded);
-        Assert.Equal(NotificationCause.MailboxChangeAbandoned, notification.Statement?.Cause);
+        Assert.Equal(NotificationCause.MailboxChangeRefused, notification.Statement?.Cause);
         Assert.Equal((int)MailboxChangeAct.Move, notification.Statement?.Counted);
         Assert.Equal(context.Store.RecordOf(request).Id, notification.Target.MailboxChange);
         Assert.Equal(request.StoredEmailId, notification.Target.Message);
@@ -374,22 +537,13 @@ public sealed class MailboxMutationPerformerTests
     public async Task PerformAsync_WhenTheNotificationOfAGivenUpChangeCannotBeWritten_StillAbandonsTheRecord()
     {
         // Arrange
-        var context = new PerformerContext(maximumAttempts: 5);
-        var request = MailboxMutationRequest.Relocate(
-            StoredEmailId.Create(Guid.CreateVersion7()),
-            Occurrence(42U),
-            MailboxMutationRequester.Command("client-move-1"),
-            ArchivePath);
-        context.FailRelocationWith(new MailboxMutationUnsupportedException(
-            Account,
-            InboxFolder.Alias,
-            MailboxMutation.Relocate.Name,
-            "UIDPLUS extension (RFC 4315)"));
+        var context = new PerformerContext();
+        var request = PersonsRelocationRequest();
+        context.FailRelocationWith(Unsupported());
         context.Notifications.RefusesRecords = true;
 
         // Act
-        await Assert.ThrowsAsync<MailboxMutationUnsupportedException>(
-            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+        await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
 
         // Assert
         Assert.Equal(MailboxMutationStage.Abandoned, context.Store.RecordOf(request).Stage);
@@ -401,17 +555,12 @@ public sealed class MailboxMutationPerformerTests
     public async Task PerformAsync_WhenARulesChangeIsGivenUp_TellsNobody()
     {
         // Arrange
-        var context = new PerformerContext(maximumAttempts: 5);
+        var context = new PerformerContext();
         var request = RelocationRequest();
-        context.FailRelocationWith(new MailboxMutationUnsupportedException(
-            Account,
-            InboxFolder.Alias,
-            MailboxMutation.Relocate.Name,
-            "UIDPLUS extension (RFC 4315)"));
+        context.FailRelocationWith(Unsupported());
 
         // Act
-        await Assert.ThrowsAsync<MailboxMutationUnsupportedException>(
-            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+        await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
 
         // Assert
         Assert.Empty(context.Notifications.Recorded);
@@ -419,29 +568,24 @@ public sealed class MailboxMutationPerformerTests
 
     /// <summary>
     /// A destination folder the server does not have is an answer rather than a bad moment, so the change is given up
-    /// on at once instead of spending a login per attempt to be told the same thing five times.
+    /// on at once instead of spending a login per pass to be told the same thing for fifteen minutes.
     /// </summary>
     [Fact]
-    public async Task PerformAsync_WhenTheDestinationFolderIsMissing_AbandonsOnTheFirstAttempt()
+    public async Task PerformAsync_WhenTheDestinationFolderIsMissing_AbandonsAtTheFirstRefusal()
     {
         // Arrange
-        var context = new PerformerContext(maximumAttempts: 5);
+        var context = new PerformerContext();
         var request = RelocationRequest();
-        context.FailRelocationWith(new MailboxDestinationFolderMissingException(
-            Account,
-            InboxFolder.Alias,
-            MailboxMutation.Relocate,
-            new InvalidOperationException("The folder could not be found.")));
+        context.FailRelocationWith(DestinationMissing());
 
         // Act
-        await Assert.ThrowsAsync<MailboxDestinationFolderMissingException>(
-            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+        await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
 
         // Assert
         var record = context.Store.RecordOf(request);
-        Assert.Equal(MailboxMutationStage.Abandoned, record.Stage);
-        Assert.Equal(1, record.AttemptCount);
-        Assert.Equal(MailFathomErrorCode.MailboxMutationDestinationMissing, record.LastFailure);
+        Assert.Equal(
+            (MailboxMutationStage.Abandoned, (MailFathomErrorCode?)MailFathomErrorCode.MailboxMutationDestinationMissing),
+            (record.Stage, record.LastFailure));
     }
 
     /// <summary>A failure MailFathom did not raise itself still has to leave a code on the record an operator can read.</summary>
@@ -741,19 +885,10 @@ public sealed class MailboxMutationPerformerTests
         // Arrange
         var context = new PerformerContext();
         context.Store.AuditsMutations = true;
-        context.FailRelocationWith(new MailboxDestinationFolderMissingException(
-            Account,
-            InboxFolder.Alias,
-            MailboxMutation.Relocate,
-            new InvalidOperationException("The folder could not be found.")));
+        context.FailRelocationWith(DestinationMissing());
 
         // Act
-        await Assert.ThrowsAsync<MailboxDestinationFolderMissingException>(
-            () => context.Performer.PerformAsync(
-                RelocationRequest(),
-                InboxFolder,
-                TransportPolicy,
-                CancellationToken.None));
+        await context.Performer.PerformAsync(RelocationRequest(), InboxFolder, TransportPolicy, CancellationToken.None);
 
         // Assert
         var entry = Assert.Single(context.AuditTrail.Entries);
@@ -790,10 +925,9 @@ public sealed class MailboxMutationPerformerTests
     public async Task PerformAsync_TrailSwitchedOnAfterTheRecordWasOpened_LeavesThatMutationOut()
     {
         // Arrange
-        var context = new PerformerContext(maximumAttempts: 3);
+        var context = new PerformerContext();
         var request = RelocationRequest();
-        context.FailRelocationWith(
-            new MailboxUnavailableException(Account, InboxFolder.Alias, new TimeoutException()));
+        context.FailRelocationWith(Outage());
 
         await Assert.ThrowsAsync<MailboxUnavailableException>(
             () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
@@ -806,6 +940,30 @@ public sealed class MailboxMutationPerformerTests
         // Assert
         Assert.Empty(context.AuditTrail.Entries);
     }
+
+    private static MailboxMutationRequest PersonsRelocationRequest() => MailboxMutationRequest.Relocate(
+        StoredEmailId.Create(Guid.CreateVersion7()),
+        Occurrence(42U),
+        MailboxMutationRequester.Command("client-move-1"),
+        ArchivePath);
+
+    private static MailboxUnavailableException Outage() =>
+        new(Account, InboxFolder.Alias, new TimeoutException());
+
+    private static MailboxMutationDeclinedException Declined(MailboxMutationRefusalClass refusalClass) =>
+        new(Account, InboxFolder.Alias, refusalClass, new InvalidOperationException("The server answered NO."));
+
+    private static MailboxMutationUnsupportedException Unsupported() => new(
+        Account,
+        InboxFolder.Alias,
+        MailboxMutation.Relocate.Name,
+        "UIDPLUS extension (RFC 4315)");
+
+    private static MailboxDestinationFolderMissingException DestinationMissing() => new(
+        Account,
+        InboxFolder.Alias,
+        MailboxMutation.Relocate,
+        new InvalidOperationException("The folder could not be found."));
 
     private static MailboxMutationRequest RequestFor(string mutationName)
     {
@@ -951,8 +1109,10 @@ public sealed class MailboxMutationPerformerTests
     /// <summary>Assembles the performer over an in-memory record store and a substituted write session.</summary>
     private sealed class PerformerContext
     {
-        internal PerformerContext(int maximumAttempts = 5, ClientSignals? signals = null)
+        internal PerformerContext(ClientSignals? signals = null)
         {
+            this.Store.RefusalClock = this.Clock;
+
             var persistenceSession = Substitute.For<IPersistenceSession>();
             persistenceSession.CommitAsync(Arg.Any<CancellationToken>()).Returns(PersistenceCommitResult.Committed);
             var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
@@ -994,8 +1154,12 @@ public sealed class MailboxMutationPerformerTests
                     TimeProvider.System),
                 this.Delays,
                 signals ?? ClientSignalPublishers.ReachingNobody,
-                new MailboxMutationOptions { MaximumAttempts = maximumAttempts });
+                new MailboxMutationOptions(),
+                this.Clock);
         }
+
+        /// <summary>Gets the clock the refusal window is measured on, shared with the store that stamps a refusal.</summary>
+        internal FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero));
 
         internal InMemoryMailboxMutationRecordStore Store { get; } = new();
 

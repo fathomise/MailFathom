@@ -34,6 +34,8 @@ public sealed record MailFolderRunReport
         this.SkippedOversizedEmailCount = skippedOversizedEmailCount;
         this.UnreadableMimeEmailCount = unreadableMimeEmailCount;
         this.HasMoreEmails = hasMoreEmails;
+        this.OutcomeSince = endedAt;
+        this.BehindSince = hasMoreEmails ? endedAt : null;
     }
 
     /// <summary>Gets how the folder's turn ended.</summary>
@@ -53,6 +55,17 @@ public sealed record MailFolderRunReport
 
     /// <summary>Gets whether the folder still held unprocessed mail when the run's batch budget ran out, which is what the next run resumes.</summary>
     public bool HasMoreEmails { get; }
+
+    /// <summary>Gets when the folder's turns began ending the way this one did, which this process has watched without a break since.</summary>
+    /// <remarks>
+    /// A report carries it forward from the one it replaces while the outcome stays the same, and starts it at its own end
+    /// otherwise, so it says since when a folder has been unreachable or failing rather than when it was last found so.
+    /// It is what the client's freshness line measures its sixty seconds from.
+    /// </remarks>
+    public DateTimeOffset OutcomeSince { get; private init; }
+
+    /// <summary>Gets since when the folder's turns have ended with mail still to take in, or <see langword="null" /> while this one did not.</summary>
+    public DateTimeOffset? BehindSince { get; private init; }
 
     /// <summary>Reports a folder the run reached.</summary>
     /// <param name="endedAt">When the folder finished.</param>
@@ -98,4 +111,15 @@ public sealed record MailFolderRunReport
             unreadableMimeEmailCount: 0,
             hasMoreEmails: false);
     }
+
+    /// <summary>Carries the instants a run of the same reading began at forward from the report this one replaces.</summary>
+    /// <param name="previous">The folder's report before this one, or <see langword="null" /> for its first turn in this process.</param>
+    /// <returns>This report, with its instants carried from <paramref name="previous" /> where the reading did not change.</returns>
+    internal MailFolderRunReport Following(MailFolderRunReport? previous) => previous is null
+        ? this
+        : this with
+        {
+            OutcomeSince = previous.Outcome == this.Outcome ? previous.OutcomeSince : this.OutcomeSince,
+            BehindSince = this.HasMoreEmails ? previous.BehindSince ?? this.BehindSince : null,
+        };
 }

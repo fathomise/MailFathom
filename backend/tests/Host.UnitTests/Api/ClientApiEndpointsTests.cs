@@ -14,6 +14,7 @@ using MailFathom.Application.Mail.Delivery;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Screening;
 using MailFathom.Application.Mail.Delivery.Tracking;
+using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Synchronization.Administration;
@@ -1266,7 +1267,8 @@ public sealed class ClientApiEndpointsTests
                 UnreachedScopeResolver(),
                 Substitute.For<IMailboxReadTelemetry>(),
                 granted),
-            new MailSynchronizationRunLedger(new FakeTimeProvider()));
+            new MailSynchronizationRunLedger(new FakeTimeProvider()),
+            Substitute.For<IMailboxMutationRecordStore>());
 
     private static UserOutbox UnreachedOutbox(AccessAuthorization granted) =>
         new(

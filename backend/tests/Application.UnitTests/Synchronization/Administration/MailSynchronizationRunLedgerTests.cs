@@ -82,7 +82,7 @@ public sealed class MailSynchronizationRunLedgerTests
         // Assert
         var lastRun = ledger.ReadAccount(Work).LastRun;
         Assert.NotNull(lastRun);
-        Assert.Equal(new MailAccountRunReport(Start, 4, 1, MutationConvergenceFailed: false), lastRun);
+        Assert.Equal(new MailAccountRunReport(Start, 4, 1, MutationConvergenceFailed: false) { FailedSince = Start }, lastRun);
         Assert.True(lastRun.Failed);
     }
 
@@ -188,6 +188,71 @@ public sealed class MailSynchronizationRunLedgerTests
                 MailFolderRunOutcome.DeferredAfterConcurrencyConflict,
                 Start + TimeSpan.FromMinutes(5)),
             ledger.ReadFolder(Inbox));
+    }
+
+    /// <summary>
+    /// A folder unreachable turn after turn has been so since the first of them, which is what the client's freshness
+    /// line measures from, and a turn that ends otherwise starts the instant again.
+    /// </summary>
+    [Fact]
+    public void RecordFolderRun_TheSameOutcomeAgain_KeepsTheInstantItBeganAndADifferentOneRestartsIt()
+    {
+        // Arrange
+        var clock = new FakeTimeProvider(Start);
+        var ledger = new MailSynchronizationRunLedger(clock);
+        ledger.RecordFolderUnsynchronized(Inbox, MailFolderRunOutcome.DeferredAfterMailServerUnavailable);
+        clock.Advance(TimeSpan.FromMinutes(5));
+
+        // Act
+        ledger.RecordFolderUnsynchronized(Inbox, MailFolderRunOutcome.DeferredAfterMailServerUnavailable);
+        var stillUnreachable = ledger.ReadFolder(Inbox)?.OutcomeSince;
+        clock.Advance(TimeSpan.FromMinutes(5));
+        ledger.RecordFolderSynchronized(Inbox, 1, 0, 0, hasMoreEmails: false);
+
+        // Assert
+        Assert.Equal(
+            ((DateTimeOffset?)Start, (DateTimeOffset?)(Start + TimeSpan.FromMinutes(10))),
+            (stillUnreachable, ledger.ReadFolder(Inbox)?.OutcomeSince));
+    }
+
+    /// <summary>A folder behind turn after turn has been behind since the first, and stops being behind with the turn that caught up.</summary>
+    [Fact]
+    public void RecordFolderSynchronized_BehindTwiceThenCaughtUp_ReportsWhenItFellBehindThenNothing()
+    {
+        // Arrange
+        var clock = new FakeTimeProvider(Start);
+        var ledger = new MailSynchronizationRunLedger(clock);
+        ledger.RecordFolderSynchronized(Inbox, 200, 0, 0, hasMoreEmails: true);
+        clock.Advance(TimeSpan.FromMinutes(1));
+
+        // Act
+        ledger.RecordFolderSynchronized(Inbox, 200, 0, 0, hasMoreEmails: true);
+        var stillBehind = ledger.ReadFolder(Inbox)?.BehindSince;
+        clock.Advance(TimeSpan.FromMinutes(1));
+        ledger.RecordFolderSynchronized(Inbox, 12, 0, 0, hasMoreEmails: false);
+
+        // Assert
+        Assert.Equal(((DateTimeOffset?)Start, (DateTimeOffset?)null), (stillBehind, ledger.ReadFolder(Inbox)?.BehindSince));
+    }
+
+    /// <summary>An account's runs failing one after another have failed since the first, and a run that succeeds clears it.</summary>
+    [Fact]
+    public void RecordRunEnded_FailingTwiceThenSucceeding_ReportsWhenTheFailuresBeganThenNothing()
+    {
+        // Arrange
+        var clock = new FakeTimeProvider(Start);
+        var ledger = new MailSynchronizationRunLedger(clock);
+        ledger.RecordRunEnded(Work, scheduledFolderCount: 1, failedFolderCount: 1, mutationConvergenceFailed: false);
+        clock.Advance(TimeSpan.FromMinutes(2));
+
+        // Act
+        ledger.RecordRunEnded(Work, scheduledFolderCount: 1, failedFolderCount: 1, mutationConvergenceFailed: false);
+        var stillFailing = ledger.ReadAccount(Work).LastRun?.FailedSince;
+        clock.Advance(TimeSpan.FromMinutes(2));
+        ledger.RecordRunEnded(Work, scheduledFolderCount: 1, failedFolderCount: 0, mutationConvergenceFailed: false);
+
+        // Assert
+        Assert.Equal(((DateTimeOffset?)Start, (DateTimeOffset?)null), (stillFailing, ledger.ReadAccount(Work).LastRun?.FailedSince));
     }
 
     /// <summary>One supervisor's failures never reach another account, which is the whole reason a supervisor is per account.</summary>

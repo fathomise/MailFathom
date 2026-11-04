@@ -5,6 +5,7 @@
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Mutations;
 
 namespace MailFathom.Application.Mail.Mutations;
 
@@ -56,6 +57,10 @@ public sealed class MailboxMutationUnsupportedException : MailboxMutationRefused
 
     /// <inheritdoc />
     public override MailFathomErrorCode ErrorCode => MailFathomErrorCode.MailboxMutationUnsupported;
+
+    /// <inheritdoc />
+    /// <remarks>A server that advertises no safe way to carry the change will advertise none on the next attempt either.</remarks>
+    public override MailboxMutationRefusalClass RefusalClass => MailboxMutationRefusalClass.Permanent;
 
     /// <summary>Gets the account whose mail server advertises no way to carry the mutation.</summary>
     public MailAccountId AccountId { get; }

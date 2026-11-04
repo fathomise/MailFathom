@@ -6,12 +6,16 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
+using MailFathom.Application.Mail.Mutations;
+using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization.Administration;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Mutations;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -221,6 +225,72 @@ public sealed class MailAccountFreshnessReaderTests
     }
 
     /// <summary>
+    /// An account unreachable run after run has been so since its first unreachable turn, and that instant is what a
+    /// client measures its sixty seconds from rather than whenever it first read the state.
+    /// </summary>
+    [Fact]
+    public async Task ReadAsync_AnAccountUnreachableAcrossSeveralTurns_SaysSinceTheFirstOfThem()
+    {
+        // Arrange
+        var clock = new FakeTimeProvider(Now);
+        var ledger = new MailSynchronizationRunLedger(clock);
+        ledger.RecordFolderUnsynchronized(Folder(Work.Id, "inbox"), MailFolderRunOutcome.DeferredAfterMailServerUnavailable);
+        ledger.RecordRunEnded(Work.Id, scheduledFolderCount: 1, failedFolderCount: 1, mutationConvergenceFailed: false);
+        clock.Advance(TimeSpan.FromMinutes(2));
+        ledger.RecordFolderUnsynchronized(Folder(Work.Id, "inbox"), MailFolderRunOutcome.DeferredAfterMailServerUnavailable);
+        ledger.RecordRunEnded(Work.Id, scheduledFolderCount: 1, failedFolderCount: 1, mutationConvergenceFailed: false);
+        var reader = ReaderOver(Freshness((Work.Id, "inbox", Now)), OwningAccounts(Work), ledger);
+
+        // Act
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
+
+        // Assert
+        var account = Assert.Single(directory.Accounts);
+        Assert.Equal(
+            (MailSynchronizationState.Unreachable, (DateTimeOffset?)Now),
+            (account.State, account.StateSince));
+    }
+
+    /// <summary>
+    /// The changes an account holds that its server does not have yet are counted beside the oldest one's commit, and a
+    /// local erasure is none of them, because it never waits on the server.
+    /// </summary>
+    [Fact]
+    public async Task ReadAsync_AnAccountHoldingChangesForItsServer_CountsThemAndNamesTheOldest()
+    {
+        // Arrange
+        var mutations = new InMemoryMailboxMutationRecordStore();
+        var persistence = Substitute.For<IPersistenceSession>();
+        var first = await mutations.OpenAsync(
+            persistence,
+            SetSeen(Work.Id, 1U),
+            heldUntil: null,
+            MailboxMutationLocalChange.None,
+            TestContext.Current.CancellationToken);
+        await mutations.OpenAsync(
+            persistence,
+            SetSeen(Work.Id, 2U),
+            heldUntil: null,
+            MailboxMutationLocalChange.None,
+            TestContext.Current.CancellationToken);
+        await mutations.OpenAsync(
+            persistence,
+            SetSeen(Work.Id, 3U),
+            heldUntil: null,
+            MailboxMutationLocalChange.Erasure,
+            TestContext.Current.CancellationToken);
+        var reader = ReaderOver(Freshness(), OwningAccounts(Work, Private), mutations: mutations);
+
+        // Act
+        var directory = await reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [new MailboxWaitingChanges(2, first.RecordedAt), null],
+            directory.Accounts.Select(account => account.WaitingChanges));
+    }
+
+    /// <summary>
     /// A run that also failed some other way reached the server, so the account is failing rather than unreachable — the
     /// unreachable folder is still named as one, because that is the folder's own answer.
     /// </summary>
@@ -406,6 +476,16 @@ public sealed class MailAccountFreshnessReaderTests
             reader.ReadAsync(MailboxReaderKind.Agent, TestContext.Current.CancellationToken));
     }
 
+    private static MailboxMutationRequest SetSeen(MailAccountId accountId, uint uid) => MailboxMutationRequest.SetSeen(
+        StoredEmailId.Create(Guid.CreateVersion7()),
+        EmailOccurrenceId.Create(
+            accountId,
+            MailFolderResolution.FirstBindingOf(MailFolderAlias.Create("inbox"), RemoteFolderPath.Create("INBOX", '/')).Id,
+            ImapUidValidity.Create(1U),
+            ImapUid.Create(uid)),
+        MailboxMutationRequester.Command($"client-read-{uid}"),
+        isSeen: true);
+
     /// <summary>Names one folder of one account, which is the pair the run ledger records a turn against.</summary>
     private static MailFolderIdentity Folder(MailAccountId accountId, string folderAlias) =>
         new(accountId, MailFolderAlias.Create(folderAlias));
@@ -430,18 +510,21 @@ public sealed class MailAccountFreshnessReaderTests
     private static MailAccountFreshnessReader ReaderOver(
         ISynchronizationFreshnessReader freshnessReader,
         ICallerMailAccountCatalog catalog,
-        MailSynchronizationRunLedger? runLedger = null) =>
+        MailSynchronizationRunLedger? runLedger = null,
+        IMailboxMutationRecordStore? mutations = null) =>
         ReaderOver(
             freshnessReader,
             catalog,
             runLedger ?? Ledger(),
-            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            mutations);
 
     private static MailAccountFreshnessReader ReaderOver(
         ISynchronizationFreshnessReader freshnessReader,
         ICallerMailAccountCatalog catalog,
         MailSynchronizationRunLedger runLedger,
-        AccessAuthorization authorization) =>
+        AccessAuthorization authorization,
+        IMailboxMutationRecordStore? mutations = null) =>
         new(
             new MailAccountDirectoryReader(
                 catalog,
@@ -454,7 +537,8 @@ public sealed class MailAccountFreshnessReaderTests
                     StubMailFolderMappings.ResolvingNothing),
                 new RecordingMailboxReadTelemetry(),
                 authorization),
-            runLedger);
+            runLedger,
+            mutations ?? new InMemoryMailboxMutationRecordStore());
 
     /// <summary>Answers the folders local state knows of, which is what the account-level instant is reduced from.</summary>
     private static ISynchronizationFreshnessReader Freshness(

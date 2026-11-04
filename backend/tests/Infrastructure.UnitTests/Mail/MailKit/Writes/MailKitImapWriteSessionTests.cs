@@ -12,6 +12,7 @@ using MailFathom.Infrastructure.UnitTests.TestDoubles;
 using MailKit;
 using MailKit.Net.Imap;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 using Xunit;
 using static MailFathom.Infrastructure.UnitTests.TestDoubles.MailKitImapSessionTestContext;
 using static MailFathom.Infrastructure.UnitTests.TestDoubles.MailKitImapWriteSessionTestContext;
@@ -783,10 +784,11 @@ public sealed class MailKitImapWriteSessionTests
         var staleOccurrence = CreateOccurrenceId(42U, uidValidity: 9U);
 
         // Act
-        await Assert.ThrowsAsync<ArgumentException>(
+        var refusal = await Assert.ThrowsAsync<MailboxMutationDeclinedException>(
             () => session.RelocateAsync(staleOccurrence, Archive, new RecordingMailboxMutationJournal(), CancellationToken.None));
 
         // Assert
+        Assert.Equal(MailboxMutationRefusalClass.Permanent, refusal.RefusalClass);
         await openFolder.DidNotReceive().MoveToAsync(
             Arg.Any<IList<UniqueId>>(),
             Arg.Any<IMailFolder>(),
@@ -795,6 +797,44 @@ public sealed class MailKitImapWriteSessionTests
             Arg.Any<IList<UniqueId>>(),
             Arg.Any<IMailFolder>(),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// The server's own answer leaves the session as a refusal the performer can class, never as a mail-library type:
+    /// a <c>NO</c> may be answered differently later, while a <c>BAD</c> and a folder held read-only will not.
+    /// </summary>
+    [Theory]
+    [InlineData("no", MailboxMutationRefusalClass.Transient)]
+    [InlineData("bad", MailboxMutationRefusalClass.Permanent)]
+    [InlineData("read-only", MailboxMutationRefusalClass.Permanent)]
+    public async Task RelocateAsync_TheServerAnswersAndDoesNotTakeIt_IsDeclinedInTheClassItsAnswerCarries(
+        string answer,
+        MailboxMutationRefusalClass expectedClass)
+    {
+        // Arrange
+        using var resilience = CreateSingleAttemptResilience();
+        var client = new FakeImapClient { Capabilities = ImapCapabilities.Move | ImapCapabilities.UidPlus };
+        var openFolder = CreateWritableFolder();
+        Exception serverAnswer = answer switch
+        {
+            "no" => new ImapCommandException(ImapCommandResponse.No, "Mailbox is busy"),
+            "bad" => new ImapCommandException(ImapCommandResponse.Bad, "Unknown command"),
+            _ => new FolderNotOpenException("INBOX", FolderAccess.ReadWrite),
+        };
+        openFolder.MoveToAsync(Arg.Any<IList<UniqueId>>(), Arg.Any<IMailFolder>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(serverAnswer);
+        await using var harness = CreateHarness(resilience, client, openFolder);
+        await using var session = await harness.OpenSessionAsync();
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailboxMutationDeclinedException>(
+            () => session.RelocateAsync(CreateOccurrenceId(42U), Archive, new RecordingMailboxMutationJournal(), CancellationToken.None));
+
+        // Assert
+        Assert.Equal(
+            (expectedClass, MailFathomErrorCode.MailboxMutationDeclined),
+            (refusal.RefusalClass, refusal.ErrorCode));
+        Assert.DoesNotContain("busy", refusal.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>A session covers one selection, and a UID from another folder names a different email in this one.</summary>

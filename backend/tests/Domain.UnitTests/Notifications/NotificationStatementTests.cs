@@ -168,6 +168,31 @@ public sealed class NotificationStatementTests
         Assert.Null(statement.OutOf);
     }
 
+    /// <summary>A refused change counts the act it was too, under the cause that tells a client not to offer it again.</summary>
+    [Fact]
+    public void MailboxChangeRefused_AnyDeclaredAct_CountsTheAct()
+    {
+        // Arrange, Act
+        var statement = NotificationStatement.MailboxChangeRefused(MailboxChangeAct.Delete);
+
+        // Assert
+        Assert.Equal(
+            (NotificationCause.MailboxChangeRefused, (int)MailboxChangeAct.Delete, (int?)null),
+            (statement.Cause, statement.Counted, statement.OutOf));
+    }
+
+    /// <summary>An act no client could word is refused rather than written down.</summary>
+    [Fact]
+    public void MailboxChangeRefused_UndeclaredAct_IsRefused()
+    {
+        // Act
+        var refusal = Assert.Throws<ArgumentOutOfRangeException>(
+            () => NotificationStatement.MailboxChangeRefused((MailboxChangeAct)99));
+
+        // Assert
+        Assert.Equal("act", refusal.ParamName);
+    }
+
     /// <summary>An act no client could word is refused rather than written down.</summary>
     [Fact]
     public void MailboxChangeAbandoned_UndeclaredAct_IsRefused()

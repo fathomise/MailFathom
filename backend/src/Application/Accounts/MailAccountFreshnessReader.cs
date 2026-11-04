@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Synchronization.Administration;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Domain.Access;
@@ -37,28 +38,39 @@ namespace MailFathom.Application.Accounts;
 /// one this process is applying.
 /// </para>
 /// <para>
+/// Beside the state it reports the instants that state and being behind began at, as this process watched them, and
+/// how many changes MailFathom holds for the account that its mail server does not have yet — the facts the client's
+/// account freshness line is drawn from, each measured from an instant the deployment knows rather than from when a
+/// client first noticed.
+/// </para>
+/// <para>
 /// It reaches no mail server and returns no mail: an account's generated identifier, its display name, its folders'
-/// aliases, one instant apiece, and one state apiece are the whole of what a caller receives.
+/// aliases, a few instants apiece, one state apiece, and a count are the whole of what a caller receives.
 /// </para>
 /// </remarks>
 public sealed class MailAccountFreshnessReader
 {
     private readonly MailAccountDirectoryReader directoryReader;
     private readonly MailSynchronizationRunLedger runLedger;
+    private readonly IMailboxMutationRecordStore mutations;
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="directoryReader">Reads which accounts the caller's user owns and how current each of their folders is.</param>
     /// <param name="runLedger">Reports how this process's most recent run of each account and each folder ended.</param>
+    /// <param name="mutations">Counts the changes each account holds that its mail server does not have yet.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailAccountFreshnessReader(
         MailAccountDirectoryReader directoryReader,
-        MailSynchronizationRunLedger runLedger)
+        MailSynchronizationRunLedger runLedger,
+        IMailboxMutationRecordStore mutations)
     {
         ArgumentNullException.ThrowIfNull(directoryReader);
         ArgumentNullException.ThrowIfNull(runLedger);
+        ArgumentNullException.ThrowIfNull(mutations);
 
         this.directoryReader = directoryReader;
         this.runLedger = runLedger;
+        this.mutations = mutations;
     }
 
     /// <summary>Reads the caller's accounts and how current each one and each of its folders is.</summary>
@@ -75,10 +87,18 @@ public sealed class MailAccountFreshnessReader
     public async Task<MailAccountFreshnessDirectory> ReadAsync(MailboxReaderKind reader, CancellationToken cancellationToken)
     {
         var directory = await this.directoryReader.ReadAsync(reader, cancellationToken);
+        var waiting = await this.mutations.ReadWaitingChangesAsync(
+            [.. directory.Accounts.Select(static account => account.Account.Id)],
+            cancellationToken);
 
         return new MailAccountFreshnessDirectory(
             directory.SynchronizationEnabled,
-            [.. directory.Accounts.Select(this.Summarize)]);
+            [
+                .. directory.Accounts.Select(account => this.Summarize(account) with
+                {
+                    WaitingChanges = waiting.GetValueOrDefault(account.Account.Id),
+                }),
+            ]);
     }
 
     /// <summary>Reduces one account's folders and its last run to the facts a reader deciding whether to trust the copy needs.</summary>
@@ -90,14 +110,46 @@ public sealed class MailAccountFreshnessReader
         ];
 
         var lastSynchronizedAt = folders.Max(static folder => folder.SynchronizedAt);
-        var lastRunFailed = this.runLedger.ReadAccount(account.Account.Id).LastRun?.Failed is true;
+        var lastRun = this.runLedger.ReadAccount(account.Account.Id).LastRun;
+        var lastRunFailed = lastRun?.Failed is true;
+        var state = StateOf(folders, lastRunFailed, lastSynchronizedAt);
 
         return new MailAccountFreshness(
             account.Account,
-            StateOf(folders, lastRunFailed, lastSynchronizedAt),
+            state,
             lastSynchronizedAt,
             folders.Any(static folder => folder.IsBehind),
-            folders);
+            folders)
+        {
+            StateSince = StateSinceOf(state, folders, lastRun),
+            BehindSince = folders.Min(static folder => folder.BehindSince),
+        };
+    }
+
+    /// <summary>Reads since when the account has been in its state, from the folders and the run that put it there.</summary>
+    /// <remarks>
+    /// A failing or unreachable account has been so since the first of its folders that still is became so, because the
+    /// account read that way from that moment on. A failure only the account's own run reports began when its runs began
+    /// failing. A current account has been current since the last of its folders came back, because until then one of
+    /// them was not.
+    /// </remarks>
+    private static DateTimeOffset? StateSinceOf(
+        MailSynchronizationState state,
+        IReadOnlyList<MailFolderFreshness> folders,
+        MailAccountRunReport? lastRun)
+    {
+        var sinceOfFoldersInState = folders
+            .Where(folder => folder.State == state)
+            .Select(static folder => folder.StateSince)
+            .ToArray();
+
+        return state switch
+        {
+            MailSynchronizationState.Failing or MailSynchronizationState.Unreachable =>
+                sinceOfFoldersInState.Min() ?? lastRun?.FailedSince,
+            MailSynchronizationState.Synchronized => sinceOfFoldersInState.Max(),
+            _ => null,
+        };
     }
 
     /// <summary>Reduces one folder's durable progress and its last turn through a run to the reading a screen draws it by.</summary>
@@ -105,11 +157,20 @@ public sealed class MailAccountFreshnessReader
     {
         var lastRun = this.runLedger.ReadFolder(new MailFolderIdentity(accountId, folder.FolderAlias));
 
+        var state = StateOf(lastRun, folder.SynchronizedAt);
+        var stateCameFromTheRun = lastRun is not null
+            && (state is MailSynchronizationState.Unreachable or MailSynchronizationState.Failing
+                || lastRun.Outcome == MailFolderRunOutcome.Synchronized);
+
         return new MailFolderFreshness(
             folder.FolderAlias,
-            StateOf(lastRun, folder.SynchronizedAt),
+            state,
             folder.SynchronizedAt,
-            lastRun?.HasMoreEmails is true);
+            lastRun?.HasMoreEmails is true)
+        {
+            StateSince = stateCameFromTheRun ? lastRun!.OutcomeSince : null,
+            BehindSince = lastRun?.BehindSince,
+        };
     }
 
     /// <summary>Names where one folder stands, from how its last turn ended and how much of it had already been stored.</summary>

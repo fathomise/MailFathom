@@ -362,16 +362,30 @@ internal sealed class MailboxMutationRecordStore(
     }
 
     /// <inheritdoc />
-    public async Task<int> CountAttemptAsync(
+    public async Task<DateTimeOffset> RecordRefusalAsync(
         IPersistenceSession session,
         MailboxMutationRecordId recordId,
+        MailFathomErrorCode failure,
         CancellationToken cancellationToken)
     {
         var entity = await RequireEntityAsync(session, recordId, cancellationToken);
+        var refusedAt = timeProvider.GetUtcNow();
 
         entity.AttemptCount++;
+        entity.LastFailureCode = failure.Value;
+        entity.FirstRefusedAt ??= refusedAt;
 
-        return entity.AttemptCount;
+        // A placement whose command the server answered with a refusal placed nothing. The stage that says its answer
+        // never came would otherwise hold the change as an unknown outcome nobody may ask again, so the answer returns it
+        // to the stage it was issued from; this is the one movement back a stage makes, and it is made on an answer.
+        if (entity.Stage is MailboxMutationStage.PlacementIssued)
+        {
+            entity.Stage = MailboxMutationStage.Recorded;
+            entity.RequiresSourceRemoval = false;
+            entity.StageChangedAt = refusedAt;
+        }
+
+        return entity.FirstRefusedAt.Value;
     }
 
     /// <inheritdoc />
@@ -546,6 +560,73 @@ internal sealed class MailboxMutationRecordStore(
                     group.Sum(stage => stage.Count),
                     group.Min(stage => stage.OldestRecordedAt))),
         ];
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<OutstandingMailboxMutation>> ReadRefusedAsync(
+        MailAccountId account,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+
+        var accountValue = account.Value;
+
+        var entities = await readContext.MailboxMutations
+            .AsNoTracking()
+            .Include(mutation => mutation.MailFolderBinding)
+            .Where(mutation => mutation.MailboxAccountId == accountValue &&
+                mutation.FirstRefusedAt != null &&
+                mutation.Stage != MailboxMutationStage.PlacementIssued &&
+                mutation.Stage != MailboxMutationStage.Completed &&
+                mutation.Stage != MailboxMutationStage.Abandoned &&
+                mutation.Stage != MailboxMutationStage.Cancelled)
+            .OrderBy(mutation => mutation.FirstRefusedAt)
+            .ThenBy(mutation => mutation.Id)
+            .Take(limit)
+            .ToArrayAsync(cancellationToken);
+
+        return
+        [
+            .. entities.Select(entity => new OutstandingMailboxMutation(
+                MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding),
+                MailFolderBindingResolver.ToResolution(entity.MailFolderBinding))),
+        ];
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<MailAccountId, MailboxWaitingChanges>> ReadWaitingChangesAsync(
+        IReadOnlyCollection<MailAccountId> accounts,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(accounts);
+
+        if (accounts.Count == 0)
+        {
+            return new Dictionary<MailAccountId, MailboxWaitingChanges>();
+        }
+
+        var accountValues = AccountValuesOf([.. accounts]);
+
+        var waiting = await readContext.MailboxMutations
+            .AsNoTracking()
+            .Where(mutation => accountValues.Contains(mutation.MailboxAccountId) &&
+                mutation.Stage != MailboxMutationStage.Completed &&
+                mutation.Stage != MailboxMutationStage.Abandoned &&
+                mutation.Stage != MailboxMutationStage.Cancelled &&
+                mutation.LocalChange != MailboxMutationLocalChange.Erasure)
+            .GroupBy(mutation => mutation.MailboxAccountId)
+            .Select(group => new
+            {
+                Account = group.Key,
+                Count = group.Count(),
+                OldestCommittedAt = group.Min(mutation => mutation.RecordedAt),
+            })
+            .ToArrayAsync(cancellationToken);
+
+        return waiting.ToDictionary(
+            group => MailAccountId.Create(group.Account),
+            group => new MailboxWaitingChanges(group.Count, group.OldestCommittedAt));
     }
 
     /// <summary>Reads a stored mutation name back, refusing one this build does not permit.</summary>

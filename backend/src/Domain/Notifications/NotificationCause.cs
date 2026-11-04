@@ -34,9 +34,12 @@ public enum NotificationCause
     /// <summary>The mail server refused a message handed to an account's outbox, so it waits there for somebody to decide about it.</summary>
     SendRefused = 6,
 
-    /// <summary>A change somebody asked of their mailbox never reached the mail server, and MailFathom stopped trying to make it.</summary>
+    /// <summary>The mail server did not take a change somebody asked of their mailbox for as long as MailFathom kept asking, so the change was undone and may be asked for again.</summary>
     MailboxChangeAbandoned = 7,
 
     /// <summary>A draft's copy in the mail server's drafts folder could not be kept there, or nobody knows whether it was.</summary>
     DraftCopyNotKept = 8,
+
+    /// <summary>The mail server refused a change somebody asked of their mailbox in a way asking again cannot alter, so the change was undone.</summary>
+    MailboxChangeRefused = 9,
 }

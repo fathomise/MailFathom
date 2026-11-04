@@ -7,6 +7,7 @@ using MailFathom.Application.Notifications;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
+using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
@@ -24,6 +25,13 @@ namespace MailFathom.Application.Mail.Mutations;
 /// the stage the record names.
 /// </para>
 /// <para>
+/// How a change ends is decided here too, from what the server answered. An answer that refuses the change for good
+/// ends it at once; one that might come out differently later is asked again until the refusal window has passed since
+/// the first, and a failure to reach the server is no answer at all, so it counts nothing and ends nothing. See
+/// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>
+/// axis G.
+/// </para>
+/// <para>
 /// Which commands a resumed attempt skips is not decided here. That depends on what the connection advertises, which is
 /// the write session's business, so the stage travels into it through the journal and the session continues from it.
 /// </para>
@@ -37,9 +45,10 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
     private readonly MailFailureNotifications failures;
     private readonly IMailboxConvergenceDelayTelemetry delays;
     private readonly ClientSignals signals;
-    private readonly int maximumAttempts;
+    private readonly TimeProvider timeProvider;
+    private readonly TimeSpan refusalWindow;
 
-    /// <summary>Initializes the performer from the record store, the write session it acts through, and its attempt bound.</summary>
+    /// <summary>Initializes the performer from the record store, the write session it acts through, and its refusal window.</summary>
     /// <param name="store">Keeps the durable record every mutation is written to.</param>
     /// <param name="writeSessionFactory">Opens the one session able to change a mailbox.</param>
     /// <param name="commitPolicy">Commits the record's first write, retrying an optimistic conflict.</param>
@@ -47,9 +56,10 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
     /// <param name="failures">Tells the account's users about a change that was given up.</param>
     /// <param name="delays">Measures how long a change waited before it ended.</param>
     /// <param name="signals">Tells an open client that a change it may be drawing as pending has settled.</param>
-    /// <param name="options">Supplies how many attempts one mutation may spend.</param>
+    /// <param name="options">Supplies how long a change the server keeps declining is asked again.</param>
+    /// <param name="timeProvider">Measures how long the server has been declining a change.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when the configured attempt bound is below one.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the configured refusal window is not positive.</exception>
     public MailboxMutationPerformer(
         IMailboxMutationRecordStore store,
         IMailboxWriteSessionFactory writeSessionFactory,
@@ -58,7 +68,8 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
         MailFailureNotifications failures,
         IMailboxConvergenceDelayTelemetry delays,
         ClientSignals signals,
-        MailboxMutationOptions options)
+        MailboxMutationOptions options,
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(writeSessionFactory);
@@ -68,7 +79,8 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
         ArgumentNullException.ThrowIfNull(delays);
         ArgumentNullException.ThrowIfNull(signals);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentOutOfRangeException.ThrowIfLessThan(options.MaximumAttempts, 1, nameof(options));
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.RefusalWindow, TimeSpan.Zero, nameof(options));
 
         this.store = store;
         this.writeSessionFactory = writeSessionFactory;
@@ -77,7 +89,8 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
         this.failures = failures;
         this.delays = delays;
         this.signals = signals;
-        this.maximumAttempts = options.MaximumAttempts;
+        this.timeProvider = timeProvider;
+        this.refusalWindow = options.RefusalWindow;
     }
 
     /// <inheritdoc />
@@ -100,9 +113,15 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
             cancellationToken);
 
         // A change committed locally first was announced when it committed, and the server taking it moves nothing a
-        // client draws, so its completion says nothing more. Every other ending of it still does.
-        if (record.Overlay is null
-            || outcome.Status is not (MailboxMutationStatus.Performed or MailboxMutationStatus.AlreadyPerformed))
+        // client draws, so its completion says nothing more. An abandonment this call made announced itself where it was
+        // written, and a refusal still inside its window leaves the change as the person made it, so neither says
+        // anything here; a record found already abandoned is answered from the record and named to be read again.
+        var announced = outcome.Status is MailboxMutationStatus.Refused
+            || (outcome.Status is MailboxMutationStatus.Abandoned && record.Stage is not MailboxMutationStage.Abandoned)
+            || (record.Overlay is not null
+                && outcome.Status is MailboxMutationStatus.Performed or MailboxMutationStatus.AlreadyPerformed);
+
+        if (!announced)
         {
             this.AnnounceSettledChange(request, outcome);
         }
@@ -113,10 +132,10 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
     /// <summary>Tells an open client that a change it may be showing as pending has stopped being pending.</summary>
     /// <remarks>
     /// <para>
-    /// Every status this answers with is the mailbox having settled the change — performed, already performed,
-    /// abandoned, or an outcome nobody can establish — and each of those alters what a client draws for that message.
-    /// A change the server merely deferred leaves here as an exception rather than as a status, so a run that reached
-    /// no conclusion announces nothing and the pending row on the screen stays the true one.
+    /// Every status this is reached with is the mailbox having settled the change — performed, already performed, an
+    /// outcome nobody can establish, or withdrawn — and each of those alters what a client draws for that message. A
+    /// change the server could not be reached for leaves here as an exception rather than as a status, so a run that
+    /// reached no conclusion announces nothing and the screen stays as the person left it.
     /// </para>
     /// <para>
     /// A change that names a destination moves two folders rather than one, so the statement names no folder and reaches
@@ -200,21 +219,16 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
 
         var journal = this.OpenJournal(record, folder);
 
-        // The bound is checked before the attempt is counted, so a mutation whose every attempt crashed the process
-        // reaches its terminal stage on the next run rather than counting a further attempt it will not survive either.
-        if (record.AttemptCount >= this.maximumAttempts)
+        // The window is read before anything is issued, so a change whose window ran out while the account was waiting —
+        // backing off, or unable to reach its server — is given up on without asking the server once more.
+        if (this.RefusalWindowHasPassed(journal))
         {
-            await journal.AbandonAsync(
-                record.LastFailure ?? MailFathomErrorCode.MailboxMutationAttemptsExhausted,
+            return await AbandonAsync(
+                journal,
+                record.LastFailure ?? MailFathomErrorCode.MailboxMutationDeclined,
+                MailboxMutationRefusalClass.Transient,
                 cancellationToken);
-
-            return new MailboxMutationOutcome(
-                record.Id,
-                MailboxMutationStatus.Abandoned,
-                journal.Placement);
         }
-
-        await journal.CountAttemptAsync(cancellationToken);
 
         return await this.AttemptAsync(request, folder, transportSecurityPolicy, journal, cancellationToken);
     }
@@ -286,7 +300,23 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
 
     /// <summary>Opens the single writer of one record, which is also what appends its audit entry when it ends.</summary>
     private MailboxMutationJournal OpenJournal(MailboxMutationRecord record, MailFolderResolution folder) =>
-        new(this.store, this.commitPolicy, this.auditTrail, this.failures, this.delays, record, folder);
+        new(this.store, this.commitPolicy, this.auditTrail, this.failures, this.delays, this.signals, record, folder);
+
+    /// <summary>Reports whether the server first declined the change at least the refusal window ago.</summary>
+    private bool RefusalWindowHasPassed(MailboxMutationJournal journal) =>
+        journal.FirstRefusedAt is { } firstRefusedAt
+        && this.timeProvider.GetUtcNow() - firstRefusedAt >= this.refusalWindow;
+
+    private static async Task<MailboxMutationOutcome> AbandonAsync(
+        MailboxMutationJournal journal,
+        MailFathomErrorCode failure,
+        MailboxMutationRefusalClass refusalClass,
+        CancellationToken cancellationToken)
+    {
+        await journal.AbandonAsync(failure, refusalClass, cancellationToken);
+
+        return new MailboxMutationOutcome(journal.RecordId, MailboxMutationStatus.Abandoned, journal.Placement);
+    }
 
     private async Task<MailboxMutationOutcome> AttemptAsync(
         MailboxMutationRequest request,
@@ -310,43 +340,37 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
         }
         catch (MailboxMutationRefusedException refusal)
         {
-            // A server that advertises no way to carry the change safely will advertise none tomorrow either, and a
-            // folder it does not have is not one it is about to grow, so both are terminal on their first occurrence
-            // rather than after the attempt bound has been spent finding that out one login at a time.
-            await journal.AbandonAsync(refusal.ErrorCode, cancellationToken);
+            await journal.RecordRefusalAsync(refusal.ErrorCode, cancellationToken);
 
-            throw;
+            return refusal.RefusalClass is MailboxMutationRefusalClass.Permanent || this.RefusalWindowHasPassed(journal)
+                ? await AbandonAsync(journal, refusal.ErrorCode, refusal.RefusalClass, cancellationToken)
+                : new MailboxMutationOutcome(journal.RecordId, MailboxMutationStatus.Refused, journal.Placement);
+        }
+        catch (MailboxFolderRecreatedException recreated)
+        {
+            // The server came back under a new UIDVALIDITY, so the occurrence the change names no longer exists there.
+            // That is an answer, and one asking again cannot alter.
+            return await AbandonAsync(
+                journal,
+                recreated.ErrorCode,
+                MailboxMutationRefusalClass.Permanent,
+                cancellationToken);
         }
         catch (MailFathomException failure)
         {
-            await this.RecordAttemptFailureAsync(journal, failure.ErrorCode, cancellationToken);
+            // Not an answer: the server could not be reached, would not let this deployment in, or the session failed
+            // before the change was taken in hand. Nothing is counted against the change and nothing ends it, so an
+            // outage of any length leaves it waiting in MailFathom for the server to come back.
+            await journal.RecordFailureAsync(failure.ErrorCode, cancellationToken);
 
             throw;
         }
         catch (Exception failure) when (failure is not OperationCanceledException)
         {
-            await this.RecordAttemptFailureAsync(
-                journal,
-                MailFathomErrorCode.MailboxMutationFailedUnexpectedly,
-                cancellationToken);
+            await journal.RecordFailureAsync(MailFathomErrorCode.MailboxMutationFailedUnexpectedly, cancellationToken);
 
             throw;
         }
-    }
-
-    private async Task RecordAttemptFailureAsync(
-        MailboxMutationJournal journal,
-        MailFathomErrorCode failure,
-        CancellationToken cancellationToken)
-    {
-        if (journal.AttemptCount >= this.maximumAttempts)
-        {
-            await journal.AbandonAsync(failure, cancellationToken);
-
-            return;
-        }
-
-        await journal.RecordFailureAsync(failure, cancellationToken);
     }
 
     /// <summary>Issues the change the request names, resuming from whatever stage the journal carries into the session.</summary>

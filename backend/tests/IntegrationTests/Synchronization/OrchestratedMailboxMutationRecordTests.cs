@@ -220,8 +220,6 @@ public sealed class OrchestratedMailboxMutationRecordTests(MailFathomOrchestrati
                 async (scope, session, token) =>
                 {
                     var store = scope.GetRequiredService<IMailboxMutationRecordStore>();
-                    await store.CountAttemptAsync(session, recordId, token);
-
                     // The same call the fallback path makes, so the row says a source removal is still owed. Reaching
                     // the stage through the generic advance would leave that false and arrange a relocation the copy
                     // had already finished — which is not the state this test exists to resume from.
@@ -256,7 +254,8 @@ public sealed class OrchestratedMailboxMutationRecordTests(MailFathomOrchestrati
             scope.GetRequiredService<MailFailureNotifications>(),
             scope.GetRequiredService<IMailboxConvergenceDelayTelemetry>(),
             ClientSignalPublishers.ReachingNobody,
-            new MailboxMutationOptions());
+            new MailboxMutationOptions(),
+            TimeProvider.System);
 
         return await performer.PerformAsync(
             request,

@@ -89,10 +89,20 @@ public sealed class MailFailureNotifications
 
     /// <summary>Reports a change somebody asked of a mailbox that MailFathom gave up on, to everybody assigned the account.</summary>
     /// <param name="change">The change record, as giving it up left it.</param>
+    /// <param name="refusalClass">Whether asking for the change again could come out differently, which decides whether it is offered again.</param>
     /// <param name="cancellationToken">Cancels the raise.</param>
     /// <returns><see langword="true" /> when a notification was kept for anybody, and <see langword="false" /> for a change nobody asked for in person.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="change" /> is <see langword="null" />.</exception>
-    public async Task<bool> ReportAbandonedChangeAsync(MailboxMutationRecord change, CancellationToken cancellationToken)
+    /// <remarks>
+    /// A change committed locally first was shown as made, so its body says it was undone; one that never moved what
+    /// MailFathom shows — carried server-first, or a restoring account's, whose local state is the truth — says the
+    /// message is still where it was. The two causes differ in what a client offers: a transient refusal the act again,
+    /// a permanent one nothing but the explanation.
+    /// </remarks>
+    public async Task<bool> ReportAbandonedChangeAsync(
+        MailboxMutationRecord change,
+        MailboxMutationRefusalClass refusalClass,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(change);
 
@@ -105,16 +115,29 @@ public sealed class MailFailureNotifications
 
         var act = ActOf(request);
         var users = await this.assignments.ReadUsersAssignedToAsync(request.Account, cancellationToken);
+        var outcome = change.Overlay is null
+            ? "the message is still where the server holds it"
+            : "MailFathom undid it";
 
-        return await this.RecordAsync(
-            users,
-            request.Account,
-            title: "A change did not reach your mailbox",
-            body: $"{ActSaid(act)} - the mail server would not take it, so the message is still where the server holds it.",
-            NotificationStatement.MailboxChangeAbandoned(act),
-            NotificationTarget.ToMailboxChange(change.Id, request.StoredEmailId),
-            NotificationDeduplicationKey.For("mailbox-change-abandoned", change.Id.ToString()),
-            cancellationToken);
+        return refusalClass is MailboxMutationRefusalClass.Permanent
+            ? await this.RecordAsync(
+                users,
+                request.Account,
+                title: "Your mail server refused a change",
+                body: $"{ActSaid(act)} - the mail server refused it, and asking again would be refused the same way, so {outcome}.",
+                NotificationStatement.MailboxChangeRefused(act),
+                NotificationTarget.ToMailboxChange(change.Id, request.StoredEmailId),
+                NotificationDeduplicationKey.For("mailbox-change-refused", change.Id.ToString()),
+                cancellationToken)
+            : await this.RecordAsync(
+                users,
+                request.Account,
+                title: "A change did not reach your mailbox",
+                body: $"{ActSaid(act)} - the mail server did not take it, so {outcome}. You can ask for it again.",
+                NotificationStatement.MailboxChangeAbandoned(act),
+                NotificationTarget.ToMailboxChange(change.Id, request.StoredEmailId),
+                NotificationDeduplicationKey.For("mailbox-change-abandoned", change.Id.ToString()),
+                cancellationToken);
     }
 
     /// <summary>Reports a draft whose copy on the mail server stopped following it, to the person who wrote it.</summary>

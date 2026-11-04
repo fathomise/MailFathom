@@ -4,23 +4,23 @@
 
 namespace MailFathom.Application.Mail.Mutations;
 
-/// <summary>Bounds how many times one recorded mutation may be attempted before it is given up on.</summary>
+/// <summary>Bounds how long a change the mail server keeps declining is asked again before it is given up on.</summary>
 public sealed class MailboxMutationOptions
 {
-    /// <summary>Gets or sets how many attempts one mutation may spend before it reaches its terminal failed stage.</summary>
+    /// <summary>Gets or sets how long after the server first declined a change, in a way asking again might alter, it is given up on.</summary>
     /// <remarks>
     /// <para>
-    /// The bound exists so a change that cannot be made becomes visible instead of pending forever. A mail server that
-    /// is refusing, a destination folder somebody deleted, or a message another client already removed are all failures
-    /// that will fail identically tomorrow, and repeating them costs a login and a round trip each time while hiding the
-    /// problem behind an operation that always looks busy.
+    /// It is a period rather than an attempt count, because what a person waits on is time: a change the server keeps
+    /// refusing reaches them, undone and explained, no later than this after the first refusal, however the account's
+    /// runs were spaced in between. Only an answer starts it — a server that could not be reached was asked nothing, so an
+    /// outage of any length neither starts nor spends it, and a refusal that turns out permanent ends the change at once.
     /// </para>
     /// <para>
-    /// It counts attempts of the whole mutation rather than retries inside one. The account's resilience pipeline
-    /// already bounds a single command, so this is the outer bound over separate runs, each of which may be minutes or
-    /// days apart. The count survives a crash because it is written before the attempt, which is what makes an attempt
-    /// that kills the process count against it.
+    /// The deadline is kept by the account's supervision without opening a connection, so neither a backoff nor an outage
+    /// that follows the refusal defers it. See
+    /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>
+    /// axis G.
     /// </para>
     /// </remarks>
-    public int MaximumAttempts { get; set; } = 5;
+    public TimeSpan RefusalWindow { get; set; } = TimeSpan.FromMinutes(15);
 }
