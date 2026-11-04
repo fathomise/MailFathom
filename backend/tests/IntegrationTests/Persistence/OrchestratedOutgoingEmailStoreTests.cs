@@ -456,6 +456,10 @@ public sealed class OrchestratedOutgoingEmailStoreTests(MailFathomOrchestrationF
         Assert.Null(await FindContentAsync(services, delivered.Id, cancellationToken));
         Assert.NotNull(await FindContentAsync(services, waiting.Id, cancellationToken));
 
+        var repeated = await EnqueueAsync(services, deliveredRequest, MimeOf("release-delivered"), cancellationToken);
+        Assert.Equal(delivered.Id, repeated.Id);
+        Assert.Null(await FindContentAsync(services, delivered.Id, cancellationToken));
+
         var record = await FindAsync(services, delivered.Id, cancellationToken);
         Assert.NotNull(record);
         Assert.Equal(OutgoingEmailStage.Sent, record.Stage);

@@ -246,8 +246,10 @@ internal sealed class EmailContentStore(
     /// meet an existing payload is one working from a record an earlier request already committed.
     /// </para>
     /// <para>
-    /// A record still being inserted in this very session can carry no persisted content, so the database pass is
-    /// skipped for one — the change-tracker pass is the whole answer there.
+    /// So a record an earlier request committed is never written to at all: its message was stored in the transaction
+    /// that created it, and a record now holding none is one whose message was released once it was delivered. Writing
+    /// again there would hold a delivered send's message a second time. Only a record still being inserted in this very
+    /// session takes a payload, and the change-tracker pass is the whole answer for one.
     /// </para>
     /// <para>
     /// Leaving an existing payload alone abandons the object this attempt's own placement wrote, which becomes an
@@ -286,9 +288,7 @@ internal sealed class EmailContentStore(
             return;
         }
 
-        var isRecordPending = writeContext.Entry(outgoingEmail).State == EntityState.Added;
-        if (!isRecordPending
-            && await writeContext.OutgoingEmailContents.AnyAsync(matchesRecord, cancellationToken))
+        if (writeContext.Entry(outgoingEmail).State != EntityState.Added)
         {
             return;
         }

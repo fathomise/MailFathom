@@ -2455,7 +2455,8 @@ account.
 `stored_emails` and for the same reason: keeping the `bytea` out of the record means listing what is queued never loads
 a single message's bytes. It is written **once** and read back for every attempt rather than recomposed, which is not an
 optimization — a message rebuilt between attempts carries a different `Message-ID` and would thread as a second message
-in every recipient's client. A second enqueue of the same identity therefore leaves the stored payload exactly as it is.
+in every recipient's client. A second enqueue of the same identity therefore writes nothing here: it leaves the stored
+payload exactly as it is, and leaves a released one released.
 
 **The row lives exactly as long as a reader of it can.** Once the record is at `Sent` and its sent copy has settled,
 the row is deleted by one statement conditioned on the record's committed stage, while the `outgoing_emails` row and its
@@ -2835,7 +2836,8 @@ reason [the calendar](#the-calendar) gives.
 nothing else on this page holds: an outgoing record says who this mailbox's user wrote to and when, and the recipients
 it names are people other than the user. They are stored because a send cannot be resumed without knowing who is still
 owed it, and the columns above are the minimum that supports that — which is why a recipient's display name is not among
-them, and why the record carries no subject, no body, and no header of its own. The message stays in
+them, and why the record carries no body and no header of its own — its one exception is the subject, kept so a page of
+the outbox can name each send without loading its message. The message stays in
 `outgoing_email_contents` and is reached by identifier, so listing the outbox, advancing a stage, or answering about a
 recipient never loads it — and it stays there only while something still reads it, which for a delivered send ends when
 its sent copy settles: storage limitation applied to a copy that would otherwise sit beside the sent folder's own for

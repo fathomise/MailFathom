@@ -592,7 +592,7 @@ of the reports that come back is [delivery and read receipts](delivery-and-read-
 
 **The message is written once and read back, never recomposed.** A message rebuilt between attempts carries a different
 `Message-ID`, which threads one send as two in every recipient's client, so a second enqueue of the same identity leaves
-the stored payload exactly as it is. Raw MIME is reached through `IEmailContentStore` here as it is everywhere else, and
+the stored payload exactly as it is — and a delivered send's released payload stays released. Raw MIME is reached through `IEmailContentStore` here as it is everywhere else, and
 nothing above that port handles it as a byte array. It is kept until the send no longer needs it, which for a delivered
 send is shortly after it leaves: [a delivered send keeps its record](#a-delivered-send-keeps-its-record-and-lets-go-of-its-message).
 
@@ -1226,8 +1226,9 @@ Releasing the payload returns its space to PostgreSQL rather than to the volume:
 backup carries, and the file system follows the database's own reclamation, which is the operator's maintenance.
 
 A delivered send read back as a preview — through the client's outbox route or `get_outgoing_email` — therefore
-carries its subject from the record and no sender, text, or attachments once its message has been released, which is
-the same answer a preview gives for a stored message it cannot read.
+carries no sender, text, or attachments once its message has been released, which is the same answer a preview gives
+for a stored message it cannot read. It keeps its subject where the record holds one; a send recorded by a build that
+did not keep the subject on the record read it from the message, so its preview loses the subject with the message.
 
 ## A message that is written and not sent
 

@@ -283,6 +283,33 @@ public sealed class OutgoingMailFilingPassTests
         Assert.Equal(MailFathomErrorCode.OutgoingEmailFilingDestinationUnavailable, record.LastFilingFailure);
         Assert.Empty(record.Filings);
         Assert.Equal(1, record.AttemptCount);
+        Assert.Equal([delivered], context.Released);
+    }
+
+    /// <summary>
+    /// A copy that failed is settled too, because nothing files a delivered send's copy again: the pass is asked once,
+    /// right after the delivery, so bytes kept for a second attempt would be kept for one that never comes.
+    /// </summary>
+    [Fact]
+    public async Task SettleFiledCopiesAsync_AFilingThatFailed_ReleasesTheStoredMime()
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        context.Filing.FileSentCopies(Account);
+        var delivered = await context.DeliverAsync();
+        context.Content
+            .FindOutgoingContentAsync(Arg.Any<OutgoingEmailId>(), Arg.Any<CancellationToken>())
+            .Returns((StoredEmailContent?)null);
+
+        // Act
+        var results = await context.Filing.Pass.SettleFiledCopiesAsync(
+            delivered,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutgoingMailFilingOutcome.Failed, Assert.Single(results).Outcome);
+        Assert.Equal([delivered], context.Released);
     }
 
     /// <summary>
