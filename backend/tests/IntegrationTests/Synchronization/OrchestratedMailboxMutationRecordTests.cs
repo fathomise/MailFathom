@@ -7,6 +7,7 @@ using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Notifications;
+using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Resilience;
 using MailFathom.Domain.Emails;
@@ -253,6 +254,7 @@ public sealed class OrchestratedMailboxMutationRecordTests(MailFathomOrchestrati
             scope.GetRequiredService<OptimisticConcurrencyRetryPolicy>(),
             scope.GetRequiredService<IMailboxMutationAuditTrail>(),
             scope.GetRequiredService<MailFailureNotifications>(),
+            scope.GetRequiredService<IMailboxConvergenceDelayTelemetry>(),
             ClientSignalPublishers.ReachingNobody,
             new MailboxMutationOptions());
 

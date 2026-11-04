@@ -27,6 +27,9 @@ namespace MailFathom.Infrastructure.Observability;
 /// account, by the place a copy was meant for, and by outcome. It is a counter of its own rather than a dimension of
 /// the attempts, because the two say different things about the same message: a copy that could not be filed never
 /// means the message failed to reach anybody, and summing them would produce a failure rate nobody could act on.
+/// Beside it a histogram says how long after the delivery was acknowledged the attempt at the sent copy ended, which is
+/// how long the user's other mail clients went without it. It carries the outcome alone: the wait is a property of when
+/// the outbox pass reaches the append, not of whose account it is.
 /// </para>
 /// <para>
 /// The fourth is whether the drafts folder shows what this deployment holds, which the draft counter answers by
@@ -82,6 +85,7 @@ public sealed class MailDeliveryTelemetry
     private readonly Counter<long> attemptCount;
     private readonly Counter<long> retryCount;
     private readonly Counter<long> filingCount;
+    private readonly Histogram<double> sentCopyDelay;
     private readonly Counter<long> draftCount;
     private readonly Histogram<double> submissionDuration;
 
@@ -105,6 +109,10 @@ public sealed class MailDeliveryTelemetry
             "mailfathom.mail.filing.attempts",
             unit: "{attempt}",
             description: "Attempts to put a copy of an outgoing message into a folder, by account, place, and outcome.");
+        this.sentCopyDelay = Telemetry.Meter.CreateHistogram<double>(
+            "mailfathom.mail.filing.sent_copy_delay",
+            unit: "s",
+            description: "How long after a delivery was acknowledged the attempt to file its sent copy ended, by outcome.");
         this.draftCount = Telemetry.Meter.CreateCounter<long>(
             "mailfathom.mail.draft.attempts",
             unit: "{attempt}",
@@ -174,6 +182,13 @@ public sealed class MailDeliveryTelemetry
                     { FilingTagName, filing.FilingName },
                     { FilingOutcomeTagName, NameOf(filing.Outcome) },
                 });
+
+            if (filing.WaitedAfterDelivery is { } waited)
+            {
+                this.sentCopyDelay.Record(
+                    Math.Max(0, waited.TotalSeconds),
+                    new TagList { { FilingOutcomeTagName, NameOf(filing.Outcome) } });
+            }
         }
 
         foreach (var draft in report.DraftResults)

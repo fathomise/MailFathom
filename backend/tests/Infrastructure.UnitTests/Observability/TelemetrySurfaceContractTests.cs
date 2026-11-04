@@ -659,6 +659,8 @@ public sealed class TelemetrySurfaceContractTests
                         OldestRecordedAt: Moment.AddMinutes(-5)),
                 ]));
 
+        Convergence.Ended(PoisonedMutationRecord());
+
         Drain.Report(
             Account,
             new MailboxDrainReport(
@@ -716,7 +718,8 @@ public sealed class TelemetrySurfaceContractTests
                         OutgoingEmailId.Create(Guid.CreateVersion7()),
                         OutgoingMailFiling.Sent,
                         outcome,
-                        MailFathomErrorCode.OutgoingEmailFilingFailedUnexpectedly)),
+                        MailFathomErrorCode.OutgoingEmailFilingFailedUnexpectedly,
+                        WaitedAfterDelivery: TimeSpan.FromSeconds(42))),
                 ],
                 [
                     .. Enum.GetValues<MailDraftFilingOutcome>().Select(outcome => new MailDraftFilingResult(
@@ -745,6 +748,33 @@ public sealed class TelemetrySurfaceContractTests
 
         MutationAudit.RecordRefusedAppend(PoisonedAuditEntry(), new InvalidOperationException("refused"));
     }
+
+    /// <summary>Builds a finished record whose requester and folder path are sentinels, which its ending must not carry.</summary>
+    private static MailboxMutationRecord PoisonedMutationRecord() => new()
+    {
+        Id = MailboxMutationRecordId.Create(Guid.CreateVersion7()),
+        Request = MailboxMutationRequest.SetSeen(
+            StoredEmailId.Create(Guid.CreateVersion7()),
+            EmailOccurrenceId.Create(
+                Account,
+                MailFolderResolution.FirstBindingOf(
+                    FolderAlias,
+                    RemoteFolderPath.Create(TelemetryRedactionContract.MailDerivedSentinel)).Id,
+                ImapUidValidity.Create(1),
+                ImapUid.Create(2)),
+            MailboxMutationRequester.Command(TelemetryRedactionContract.CallerSuppliedSentinel),
+            isSeen: true),
+        Stage = MailboxMutationStage.Completed,
+        IsAudited = false,
+        RequiresSourceRemoval = false,
+        Placement = RemoteEmailPlacement.NotReported(),
+        AttemptCount = 1,
+        RecordedAt = Moment.AddSeconds(-30),
+        StageChangedAt = Moment,
+        LastFailure = null,
+        PlacementObservedAt = null,
+        SourceRemovalObservedAt = null,
+    };
 
     /// <summary>Builds an entry whose every mail-derived field is a sentinel, above all the remote folder path.</summary>
     private static MailboxMutationAuditEntry PoisonedAuditEntry() => new()

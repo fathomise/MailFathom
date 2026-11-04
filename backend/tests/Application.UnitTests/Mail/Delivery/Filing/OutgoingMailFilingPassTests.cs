@@ -125,6 +125,66 @@ public sealed class OutgoingMailFilingPassTests
         Assert.Equal("mint-1@mailfathom.invalid", filed.InternetMessageId);
     }
 
+    /// <summary>The attempt that ends a sent copy carries how long after the delivery it ended, which is the wait measured.</summary>
+    [Fact]
+    public async Task SettleFiledCopiesAsync_ACopyFiledAfterTheDelivery_CarriesTheWaitSinceTheDeliveryWasAcknowledged()
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        context.Filing.FileSentCopies(Account);
+        var delivered = await context.DeliverAsync();
+        context.Advance(TimeSpan.FromSeconds(90));
+
+        // Act
+        var results = await context.Filing.Pass.SettleFiledCopiesAsync(
+            delivered,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var result = Assert.Single(results);
+        Assert.Equal(OutgoingMailFilingOutcome.Filed, result.Outcome);
+        Assert.Equal(TimeSpan.FromSeconds(90), result.WaitedAfterDelivery);
+    }
+
+    /// <summary>A copy already filed is answered from the record, so asking again measures no second wait for it.</summary>
+    [Fact]
+    public async Task SettleFiledCopiesAsync_AskedAgainAfterTheCopyWasFiled_CarriesNoSecondWait()
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        var delivered = await context.FileSentCopyAsync();
+
+        // Act
+        var results = await context.Filing.Pass.SettleFiledCopiesAsync(
+            delivered,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var result = Assert.Single(results);
+        Assert.Equal(OutgoingMailFilingOutcome.AlreadyFiled, result.Outcome);
+        Assert.Null(result.WaitedAfterDelivery);
+    }
+
+    /// <summary>An account that files no sent copy has no copy waiting, so there is no wait to measure.</summary>
+    [Fact]
+    public async Task SettleFiledCopiesAsync_AnAccountThatFilesNoSentCopy_CarriesNoWait()
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        var delivered = await context.DeliverAsync();
+
+        // Act
+        var results = await context.Filing.Pass.SettleFiledCopiesAsync(
+            delivered,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(Assert.Single(results).WaitedAfterDelivery);
+    }
+
     /// <summary>A restoring account files its sent copy on the source as a mirrored one does, from the same stored, signed bytes.</summary>
     [Fact]
     public async Task SettleFiledCopiesAsync_ARestoringAccount_AppendsTheStoredMimeToTheSentFolder()
