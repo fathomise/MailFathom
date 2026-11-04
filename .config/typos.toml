@@ -198,12 +198,20 @@ extend-ignore-re = [
   # transformation. Entered whole so neither `Ines` nor `OT` is silenced anywhere else.
   '\bInes Caetano\b',
   '\bOT-aware\b',
+  # `/DecodeParms`, the PDF stream-dictionary key a filter's parameters live under, spelled as the
+  # PDF specification spells it. A test composing a stream writes the key verbatim because the
+  # library reading it looks for exactly that name; entered whole so `Parms` is caught elsewhere.
+  '\bDecodeParms\b',
 ]
 
 [default.extend-identifiers]
 HashiCorp = "HashiCorp"
 
 [default.extend-words]
+# `Flate`, the PDF filter that holds a stream as zlib-compressed deflate data. It is the name the PDF
+# specification gives the filter (`/FlateDecode`) and the name the PDF library gives its decoder
+# (`FlateFilter`), so the attachment reader names it that way too.
+flate = "flate"
 # `passt`, the project whose `pasta` binary rootless Podman starts to hold a network namespace open.
 # The Compose and Quadlet deployment pages name the package because that is what owns the AppArmor
 # profile an operator has to edit, and a dictionary reads the name as a misspelling of `passed`.
