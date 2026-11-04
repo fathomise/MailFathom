@@ -164,8 +164,8 @@ internal sealed class MailboxCustodianComposition
         retryMaxDelay: TimeSpan.FromMinutes(10),
         allowedLateness: TimeSpan.FromDays(1));
 
-    /// <summary>Gets what each account's server last advertised, which is nothing unless a test states an observation.</summary>
-    internal IMailboxServerCapabilityStore ServerCapabilities { get; init; } = NeverObservedCapabilities();
+    /// <summary>Gets what each account's server last advertised, which is never observed unless a test states it.</summary>
+    internal IMailboxServerCapabilityStore Capabilities { get; init; } = NeverObservedCapabilities();
 
     /// <summary>
     /// Gets the deployment's live work leases, which by default include one held by a build that does not know the
@@ -190,20 +190,21 @@ internal sealed class MailboxCustodianComposition
         return leases;
     }
 
-    /// <summary>Builds a capability store that reports an observation for every account.</summary>
-    /// <param name="observation">The observation.</param>
+    /// <summary>Builds a capability store answering every account as one no session has reached.</summary>
+    /// <returns>The store.</returns>
+    internal static IMailboxServerCapabilityStore NeverObservedCapabilities() =>
+        CapabilitiesObserved(MailboxServerCapabilityObservation.NeverObserved);
+
+    /// <summary>Builds a capability store answering every account with one observation.</summary>
+    /// <param name="observation">What every account's server is answered as having advertised.</param>
     /// <returns>The store.</returns>
     internal static IMailboxServerCapabilityStore CapabilitiesObserved(MailboxServerCapabilityObservation observation)
     {
-        var capabilities = Substitute.For<IMailboxServerCapabilityStore>();
+        var store = Substitute.For<IMailboxServerCapabilityStore>();
+        store.ReadAsync(default, default).ReturnsForAnyArgs(observation);
 
-        capabilities.ReadAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>()).Returns(observation);
-
-        return capabilities;
+        return store;
     }
-
-    private static IMailboxServerCapabilityStore NeverObservedCapabilities() =>
-        CapabilitiesObserved(MailboxServerCapabilityObservation.NeverObserved);
 
     /// <summary>Gets the resolver, which is the one reader of an account's custody phase for an act.</summary>
     internal MailboxCustodianResolver Custodians => field ??= new(
@@ -222,7 +223,7 @@ internal sealed class MailboxCustodianComposition
         this.DraftFiler,
         this.OutgoingFilings,
         this.Changes,
-        this.ServerCapabilities,
+        this.Capabilities,
         this.Leases);
 
     /// <summary>Gets the custodian of an account MailFathom holds alone.</summary>

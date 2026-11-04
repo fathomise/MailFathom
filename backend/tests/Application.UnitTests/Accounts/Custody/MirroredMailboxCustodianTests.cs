@@ -342,7 +342,7 @@ public sealed class MirroredMailboxCustodianTests
             States = this.states,
             LocalFolders = this.folders,
             Leases = leases,
-            ServerCapabilities = MailboxCustodianComposition.CapabilitiesObserved(
+            Capabilities = MailboxCustodianComposition.CapabilitiesObserved(
                 capabilities ?? MailboxServerCapabilityObservation.NeverObserved),
         };
     }
