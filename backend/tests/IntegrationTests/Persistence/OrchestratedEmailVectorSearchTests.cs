@@ -24,8 +24,8 @@ namespace MailFathom.IntegrationTests.Persistence;
 /// returns.
 /// </summary>
 /// <remarks>
-/// Neither claim is reachable without a real server. The ranking is a correlated minimum over a message's own passages,
-/// measured by a pgvector operator inside an ordering clause; a substitute would answer whatever the arrangement said
+/// Neither claim is reachable without a real server. The ranking is a minimum over a message's own passages, grouped
+/// by message and measured by a pgvector operator inside an aggregate and an ordering clause; a substitute would answer whatever the arrangement said
 /// and would report the order as correct however the statement had been composed. The vectors are written directly so
 /// that the distances are the test's own values rather than a generator's, which is what lets the expected order be
 /// stated rather than guessed.

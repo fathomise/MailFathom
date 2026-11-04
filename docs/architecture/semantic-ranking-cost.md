@@ -42,8 +42,9 @@ is what the concurrency section below turns on.
 
 ## What the exact ranking costs
 
-The query is the one `EmailVectorSearchIndexReader` composes, taken from the provider verbatim, with the user's
-accounts, the folders configuration admits, and the junk folder withheld.
+The query is the one `EmailVectorSearchIndexReader` composed when the decision below was taken — a correlated minimum
+per message, which [the shape that shipped](#the-shape-that-shipped) has since replaced — taken from the provider
+verbatim, with the user's accounts, the folders configuration admits, and the junk folder withheld.
 
 | The caller asked for | Messages ranked | Buffers | Time |
 |---|---|---|---|
@@ -70,8 +71,8 @@ request that narrows nothing.
 
 [ADR 0030](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0030-describing-an-image-attachment-in-words-and-ranking-a-depicted-match-below-a-written-one.md)
 partitions the semantic half into a written ranking and a depicted one, and `EmailVectorSearchIndexReader` reads them as
-two statements of the shape measured above rather than as one — the two differ only in the value of the correlated
-predicate that asks what kind of passage each vector belongs to, so a hybrid search issues the table's query twice,
+two statements of the shape measured above rather than as one — the two differ only in the value of the predicate
+that asks what kind of passage each vector belongs to, so a hybrid search issues the table's query twice,
 sequentially, on the one scoped context a request holds.
 
 **Treat the numbers above as the cost of one of the two.** The upper bound on a whole hybrid search is therefore twice
@@ -83,9 +84,9 @@ statement reads the same heap pages the first one has just brought into the buff
 mailbox is the smaller of the two by a wide margin on any mailbox that is mostly text. That expectation is reasoning
 rather than evidence, so nothing here rests on it.
 
-What the partition does not change is the shape. It adds no join and no index — the predicate is a correlated `EXISTS`
-on the composite primary key of `email_attachment_texts`, which the attachment row is already looked up by — so the
-readings above hold for each statement, the caller's own filters remain the effective lever, and the request that
+What the partition does not change is the shape. It adds no index and multiplies no row — the predicate reads the
+attachment row through the composite primary key of `email_attachment_texts`, which matches at most one row per
+passage — so the readings above hold for each statement, the caller's own filters remain the effective lever, and the request that
 narrows nothing remains the expensive one. Measuring the pair, and deciding whether the two rankings are worth reading
 as one statement, belongs to whatever revisits this page's decision.
 
@@ -103,19 +104,80 @@ Reading the rows is free. Fetching the vectors is the whole of it — and the ar
 cosine distances at 1536 dimensions is under a GFLOP, which is tenths of a second of one core. **An exact vector
 ranking is an I/O problem.**
 
-That has a consequence for the query rather than for the feature. The ranking's ordering key is a correlated subquery
-re-entered once per candidate message; the same exact answer, written as one join and a `min()` grouped by message,
-reads each vector once:
+That had a consequence for the query rather than for the feature. The ranking's ordering key was a correlated subquery
+re-entered once per candidate message; the same exact answer, written by hand as one join and a `min()` grouped by
+message, reads each vector once:
 
 | The same result, two shapes | Buffers | Time |
 |---|---|---|
-| the correlated minimum the reader composes today | 2 152 957 | 7.9 s |
+| the correlated minimum the reader composed | 2 152 957 | 7.9 s |
 | one pass, grouped by message | 921 874 | 1.7 s |
 
-**4.7 times the speed for an identical answer**, and near enough the floor above. That is a defect in the query rather
-than in exactness, and it is not fixed here: the flat form is the projection
-`EmailVectorSearchIndexReader`'s own remarks record the provider refusing to translate, so reaching it means writing the
-statement by hand. [Issue #1252](https://github.com/fathomise/MailFathom/issues/1252) carries it.
+**4.7 times the speed for an identical answer**, and near enough the floor above. That was a defect in the query rather
+than in exactness, and the reader now composes the one-pass shape; the next section measures it.
+
+## The shape that shipped
+
+`EmailVectorSearchIndexReader` now joins the eligible mail to its passages and their vectors and keeps the nearest
+distance per message as a `min()` grouped by message. It is still a LINQ query composed over
+`StoredEmailSelectionPredicate`, so what a caller may see is stated in the one place every other read model states it,
+and nothing about the scope is written by hand: the passages are grouped by message with the distance as the group's
+element, and the provider translates that into one `GROUP BY` with the distance inside `min()`.
+
+Two details of the statement decide its plan, and both were found by measuring rather than by reading it.
+
+- **The passage's kind is read through an outer join on the attachment row's primary key, not an existence test.** A
+  correlated `EXISTS` is a subplan PostgreSQL keeps out of parallel workers, so it held every join beneath the
+  aggregate to one process. The outer join matches at most one row per passage, so it multiplies nothing.
+- **Whether that join matched is read from one column of its key.** Tested as the row, the provider writes a
+  conjunction over both key columns, and tested on a column outside the key, PostgreSQL cannot tell that a missing
+  value means an unmatched row. Either way the planner estimated that a single row survives, reached every vector
+  through a nested loop, and pinned 2.73 million buffers for the full-mailbox search. On the key it plans the written
+  ranking as an anti-join and the depicted one as an inner join.
+
+### Measured against the shape it replaced
+
+The corpus #991 measured was not kept, so a second one was built the same way — this repository's schema, every
+migration applied whole, synthetic vectors as the normalized sum of three of 512 random directions — and both shapes
+were measured on it, each statement taken from the provider verbatim and run twice with the second run recorded:
+
+| | |
+|---|---|
+| Deployment | 4 accounts, 16 folders, 150 000 messages |
+| The measured user | 2 accounts, **100 000 messages**, **290 000 vectors** |
+| Passages | 435 000 chunks, one vector each, 1536 dimensions, cosine; 2.9 per message, one message in ten with none, one in twenty-five carrying a described picture |
+| `email_embeddings` | 38 MB heap, 3505 MB in total |
+| Server | `pgvector/pgvector:0.8.7-pg18`, PostgreSQL 18.6, pgvector 0.8.7 — the image the Compose deployment and the Helm chart name today |
+| Settings | the server's own defaults, as above |
+
+The written ranking, which is the one a text mailbox spends its time in:
+
+| The caller asked for | Messages ranked | Correlated minimum | One pass |
+|---|---|---|---|
+| everything the user may read | 85 000 | 2 690 921 buffers, 7.4 s | **1 099 938 buffers, 3.1 s** |
+| one folder and a three-month range | 1 869 | 81 661 buffers, 0.12 s | 58 115 buffers, 0.14 s |
+| one sender | 200 | 20 175 buffers, 0.03 s | 9 257 buffers, 0.02 s |
+| *the same, over every user's mail* | 127 500 | 4 013 889 buffers, 10.3 s | 2 009 659 buffers, 6.5 s |
+
+And the depicted ranking over everything the user may read: 98 856 buffers and 1.83 s for the correlated shape against
+**62 509 buffers and 0.13 s** for the one-pass one.
+
+**The full-mailbox search is at the floor.** The one-pass ranking measures 266 000 vectors with 1 099 938 pins, 4.1 per
+vector, which is what [the floor above](#where-the-cost-is-which-is-not-where-it-looks) costs per vector — the four
+TOAST chunks a 1536-dimension vector is stored as. The correlated shape pinned 2.4 times that.
+
+**The time falls by less than the buffers do, and the plan says why.** The joins run in parallel workers and finish in
+under 0.3 s; the aggregate above them, where each vector is fetched and measured, runs in the leader alone, because the
+planner chose one aggregate above the workers rather than a partial one inside each of them. So the search is 2.4 times
+faster rather than the 4.7 times the hand-written statement reached on #991's host, and the time left is one process
+fetching 2.1 GB of vectors. The levers on that are the ones [Several users searching at
+once](#several-users-searching-at-once) names: fewer bytes per vector.
+
+**The answer is unchanged.** Over ten query vectors, both rankings, and all four requests above, the two shapes
+returned the same messages in the same order with the same distances in every one of the 80 comparisons — the
+tie-break by the timeline key included, since it is applied in the same order before the same window is cut. The
+folder and date range hold 83 messages with a described picture and the one sender none, so those two depicted
+rankings returned 83 and no rows under both shapes; every other comparison was a full window of 200.
 
 ## What an approximate path would buy, and what it would cost
 
@@ -220,11 +282,11 @@ cost an exact ranking has.
 4. **Keeping it costs a hundredfold on every embedding write**, three gigabytes of storage, and three quarters of an
    hour of blocked writes per activation, for the query in point 1.
 
-One thing pulls the other way and is recorded rather than argued away. The exact ranking as written is slower than the
-exact ranking needs to be: the same answer, read in one pass instead of as a correlated minimum per message, is 4.7
-times faster and needs no index. An approximate path should therefore be judged against 1.7 s rather than against
-7.9 s, which makes its remaining win narrower still. That rewrite is a change of its own, carried by
-[issue #1252](https://github.com/fathomise/MailFathom/issues/1252).
+One thing pulled the other way and is recorded rather than argued away. The exact ranking as it was then written was
+slower than the exact ranking needs to be: the same answer, read in one pass instead of as a correlated minimum per
+message, reads each vector once and needs no index. The reader now composes that shape, which
+[the shape that shipped](#the-shape-that-shipped) measures, so an approximate path is judged against the one-pass
+ranking rather than against the correlated one, which makes its remaining win narrower still.
 
 What would reopen this: a mailbox whose embedding table no longer fits the deployment's page cache, a pgvector release
 in which a filtered index scan keeps a total order rather than a relaxed one, or a decision that the semantic half of

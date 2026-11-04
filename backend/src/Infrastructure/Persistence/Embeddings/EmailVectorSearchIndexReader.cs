@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Linq.Expressions;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Mailboxes;
@@ -9,7 +10,6 @@ using MailFathom.Application.Emails.Search;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Emails;
 using MailFathom.Infrastructure.Persistence.Emails;
-using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Pgvector;
 using Pgvector.EntityFrameworkCore;
@@ -43,9 +43,8 @@ namespace MailFathom.Infrastructure.Persistence.Embeddings;
 /// A profile-partial HNSW index built over that corpus was never chosen by this query's plan, and it cost 3073 MB
 /// beside a 3137 MB table, forty-five minutes to build, and a hundredfold slowdown on every embedding write — so
 /// MailFathom builds none. <see href="https://github.com/fathomise/MailFathom/blob/main/docs/architecture/semantic-ranking-cost.md">What
-/// a semantic search costs</see> holds the whole measurement, including the one thing it found that is worth changing:
-/// the ordering key below is a correlated subquery re-entered per message, and the same exact answer written as one
-/// pass costs less than a quarter of it.
+/// a semantic search costs</see> holds the whole measurement, including what the one-pass ranking below costs against
+/// the correlated minimum per message it replaced.
 /// </para>
 /// <para>
 /// Two rankings come out of one eligible set, on the partition
@@ -92,10 +91,33 @@ internal sealed class EmailVectorSearchIndexReader(MailFathomDbContext dbContext
     /// <param name="depicted">Whether the ranking measures descriptions of pictures rather than words a person wrote.</param>
     /// <returns>The composed query, which nothing has executed yet.</returns>
     /// <remarks>
+    /// <para>
     /// Exposed for the reason the lexical ranking query is: that the query vector arrives as a parameter, that the
     /// profile narrows the rows before any distance is measured, and that the two rankings read disjoint passages of one
     /// eligible set are claims about the generated command, and a test asserting them against anything else would pass
     /// whatever this method did.
+    /// </para>
+    /// <para>
+    /// The eligible mail is joined to its passages and their vectors, and the distances are grouped by message, so
+    /// PostgreSQL reads each eligible vector once and keeps the nearest one per message. A minimum per message is what
+    /// makes each email one row: ranking passages instead would let a single long message fill a window with its own
+    /// paragraphs while a shorter message that answers the query better never appeared. Mail this profile has no vector
+    /// for falls out of the join rather than being ranked as infinitely distant, and the kind narrows the same way, so a
+    /// message whose only vectors are descriptions is absent from the written ranking rather than present in it at some
+    /// distance.
+    /// </para>
+    /// <para>
+    /// The kind test is written as an equality against the caller's choice rather than as two predicates, because the
+    /// two sides are exactly complementary: a passage hangs on a described picture or it does not, and a body passage —
+    /// which hangs on no attachment at all — falls to the written side by the same test. It is an outer join on the
+    /// attachment row's primary key, which can match at most one row and so multiplies nothing, rather than an
+    /// existence test, because a correlated existence test is a subplan PostgreSQL keeps out of parallel workers and
+    /// would hold every join beneath the aggregate to one process. What the test reads is one column of that key
+    /// rather than the row: tested as the row, it becomes a conjunction over both key columns, and tested on a column
+    /// outside the key, PostgreSQL cannot tell that a missing value means an unmatched row. Either way the planner
+    /// estimates that a single row survives and reaches every vector through a nested loop, pinning more than twice the
+    /// buffers; on the key, it plans the written side as an anti-join and the depicted side as an inner one.
+    /// </para>
     /// </remarks>
     internal IQueryable<StoredEmailVectorHitRow> NearestHitsQuery(
         MailboxEmailSelection selection,
@@ -107,20 +129,47 @@ internal sealed class EmailVectorSearchIndexReader(MailFathomDbContext dbContext
         var profileId = profile.Id.Value;
         var target = new Vector(queryVector.Components);
 
-        // Mail this profile has no vector for is excluded here rather than ranked as infinitely distant: the nearest
-        // passage of a message with no embedded passage is nothing at all, and letting the aggregate answer that would
-        // be a null where a distance belongs. The kind narrows the same way, so a message whose only vectors are
-        // descriptions is absent from the written ranking rather than present in it at some distance.
-        var eligibleEmails = StoredEmailSelectionPredicate
-            .Matching(dbContext.StoredEmails.AsNoTracking(), selection)
-            .Where(email => email.Chunks.Any(chunk =>
-                email.AttachmentTexts.Any(text =>
-                    text.AttachmentPosition == chunk.AttachmentPosition
-                    && text.Kind == AttachmentTextKind.ImageDescription) == depicted
-                && chunk.Embeddings.Any(vector => vector.EmbeddingProfileId == profileId)));
+        var passages =
+            from email in StoredEmailSelectionPredicate.Matching(dbContext.StoredEmails.AsNoTracking(), selection)
+            from chunk in email.Chunks
+            from describedEmailId in email.AttachmentTexts
+                .Where(text => text.AttachmentPosition == chunk.AttachmentPosition
+                    && text.Kind == AttachmentTextKind.ImageDescription)
+                .Select(text => (Guid?)text.StoredEmailId)
+                .DefaultIfEmpty()
+            where (describedEmailId != null) == depicted
+            from vector in chunk.Embeddings
+            where vector.EmbeddingProfileId == profileId
+            select new EmbeddedPassage
+            {
+                StoredEmailId = email.Id,
+                ReceivedAt = email.ReceivedAt,
+                Embedding = vector.Embedding,
+            };
 
-        return NearestFirst(eligibleEmails, profile.Identity.DistanceMetric, profileId, target, depicted, limit);
+        var nearestPerEmail = passages
+            .GroupBy(
+                static passage => new { passage.StoredEmailId, passage.ReceivedAt },
+                DistanceFrom(target, profile.Identity.DistanceMetric))
+            .Select(static distances => new StoredEmailVectorHitRow
+            {
+                StoredEmailId = distances.Key.StoredEmailId,
+                ReceivedAt = distances.Key.ReceivedAt,
+                Distance = distances.Min(),
+            });
+
+        return NewestFirstAmongEqual(nearestPerEmail.OrderBy(static hit => hit.Distance)).Take(limit);
     }
+
+    /// <summary>Breaks a tie in distance the same way under every metric: dated mail before undated, newest first, then by identity.</summary>
+    /// <param name="ranked">Mail already ordered by its distance from the query.</param>
+    /// <returns>The same mail in a total order, so the ranking is the same on every run.</returns>
+    internal static IOrderedQueryable<StoredEmailVectorHitRow> NewestFirstAmongEqual(
+        IOrderedQueryable<StoredEmailVectorHitRow> ranked) =>
+        ranked
+            .ThenBy(static hit => hit.ReceivedAt == null)
+            .ThenByDescending(static hit => hit.ReceivedAt)
+            .ThenByDescending(static hit => hit.StoredEmailId);
 
     /// <summary>Runs one of the two rankings and reads it into candidates.</summary>
     private async Task<IReadOnlyList<RankedEmailCandidate>> RankAsync(
@@ -142,105 +191,32 @@ internal sealed class EmailVectorSearchIndexReader(MailFathomDbContext dbContext
         ];
     }
 
-    /// <summary>Breaks a tie in distance the same way under every metric: dated mail before undated, newest first, then by identity.</summary>
-    /// <param name="ranked">Mail already ordered by its distance from the query.</param>
-    /// <returns>The same mail in a total order, so the ranking is the same on every run.</returns>
-    internal static IOrderedQueryable<StoredEmailEntity> NewestFirstAmongEqual(IOrderedQueryable<StoredEmailEntity> ranked) =>
-        ranked
-            .ThenBy(email => email.ReceivedAt == null)
-            .ThenByDescending(email => email.ReceivedAt)
-            .ThenByDescending(email => email.Id);
-
-    /// <summary>Ranks the eligible emails nearest first, each measured by its own nearest passage of the chosen kind.</summary>
+    /// <summary>Measures a passage against the query with the operator the profile's metric names.</summary>
     /// <remarks>
-    /// <para>
-    /// One branch per metric, each restating the whole query, because the distance operator has to be part of the
-    /// expression tree PostgreSQL is handed: a method or a local choosing it would either fail to translate or be
-    /// evaluated once on the client against vectors that never left the database. The alternative — projecting the
-    /// distance into a row and grouping over that row — is what the provider refuses to translate, so the shape here
-    /// is a consequence of the query rather than a preference.
-    /// </para>
-    /// <para>
-    /// A correlated minimum over the message's own passages is what makes each email one row, scored by its nearest
-    /// one. Ranking passages instead would let a single long message fill a window with its own paragraphs while a
-    /// shorter message that answers the query better never appeared. The same subquery is written into the ordering and
-    /// into the projection, exactly as the lexical ranking writes its rank expression twice, and PostgreSQL computes it
-    /// once.
-    /// </para>
-    /// <para>
-    /// The kind test is written as an equality against the caller's choice rather than as two predicates, because the
-    /// two sides are exactly complementary: a passage hangs on a described picture or it does not, and a body passage —
-    /// which hangs on no attachment at all — falls to the written side by the same test.
-    /// </para>
+    /// The choice returns an expression rather than a delegate because the operator has to be part of the tree
+    /// PostgreSQL is handed: a delegate would either fail to translate or be evaluated in the process against vectors
+    /// that never left the database.
     /// </remarks>
-    private static IQueryable<StoredEmailVectorHitRow> NearestFirst(
-        IQueryable<StoredEmailEntity> eligibleEmails,
-        EmbeddingDistanceMetric distanceMetric,
-        Guid profileId,
+    private static Expression<Func<EmbeddedPassage, double>> DistanceFrom(
         Vector target,
-        bool depicted,
-        int limit) => distanceMetric switch
+        EmbeddingDistanceMetric distanceMetric) => distanceMetric switch
         {
-            EmbeddingDistanceMetric.Cosine => NewestFirstAmongEqual(eligibleEmails
-                .OrderBy(email => email.Chunks
-                    .Where(chunk => email.AttachmentTexts.Any(text =>
-                        text.AttachmentPosition == chunk.AttachmentPosition
-                        && text.Kind == AttachmentTextKind.ImageDescription) == depicted)
-                    .SelectMany(chunk => chunk.Embeddings)
-                    .Where(vector => vector.EmbeddingProfileId == profileId)
-                    .Min(vector => vector.Embedding.CosineDistance(target))))
-                .Take(limit)
-                .Select(email => new StoredEmailVectorHitRow(
-                    email.Id,
-                    email.ReceivedAt,
-                    email.Chunks
-                        .Where(chunk => email.AttachmentTexts.Any(text =>
-                            text.AttachmentPosition == chunk.AttachmentPosition
-                            && text.Kind == AttachmentTextKind.ImageDescription) == depicted)
-                        .SelectMany(chunk => chunk.Embeddings)
-                        .Where(vector => vector.EmbeddingProfileId == profileId)
-                        .Min(vector => vector.Embedding.CosineDistance(target)))),
-            EmbeddingDistanceMetric.InnerProduct => NewestFirstAmongEqual(eligibleEmails
-                .OrderBy(email => email.Chunks
-                    .Where(chunk => email.AttachmentTexts.Any(text =>
-                        text.AttachmentPosition == chunk.AttachmentPosition
-                        && text.Kind == AttachmentTextKind.ImageDescription) == depicted)
-                    .SelectMany(chunk => chunk.Embeddings)
-                    .Where(vector => vector.EmbeddingProfileId == profileId)
-                    .Min(vector => vector.Embedding.MaxInnerProduct(target))))
-                .Take(limit)
-                .Select(email => new StoredEmailVectorHitRow(
-                    email.Id,
-                    email.ReceivedAt,
-                    email.Chunks
-                        .Where(chunk => email.AttachmentTexts.Any(text =>
-                            text.AttachmentPosition == chunk.AttachmentPosition
-                            && text.Kind == AttachmentTextKind.ImageDescription) == depicted)
-                        .SelectMany(chunk => chunk.Embeddings)
-                        .Where(vector => vector.EmbeddingProfileId == profileId)
-                        .Min(vector => vector.Embedding.MaxInnerProduct(target)))),
-            EmbeddingDistanceMetric.EuclideanDistance => NewestFirstAmongEqual(eligibleEmails
-                .OrderBy(email => email.Chunks
-                    .Where(chunk => email.AttachmentTexts.Any(text =>
-                        text.AttachmentPosition == chunk.AttachmentPosition
-                        && text.Kind == AttachmentTextKind.ImageDescription) == depicted)
-                    .SelectMany(chunk => chunk.Embeddings)
-                    .Where(vector => vector.EmbeddingProfileId == profileId)
-                    .Min(vector => vector.Embedding.L2Distance(target))))
-                .Take(limit)
-                .Select(email => new StoredEmailVectorHitRow(
-                    email.Id,
-                    email.ReceivedAt,
-                    email.Chunks
-                        .Where(chunk => email.AttachmentTexts.Any(text =>
-                            text.AttachmentPosition == chunk.AttachmentPosition
-                            && text.Kind == AttachmentTextKind.ImageDescription) == depicted)
-                        .SelectMany(chunk => chunk.Embeddings)
-                        .Where(vector => vector.EmbeddingProfileId == profileId)
-                        .Min(vector => vector.Embedding.L2Distance(target)))),
+            EmbeddingDistanceMetric.Cosine => passage => passage.Embedding.CosineDistance(target),
+            EmbeddingDistanceMetric.InnerProduct => passage => passage.Embedding.MaxInnerProduct(target),
+            EmbeddingDistanceMetric.EuclideanDistance => passage => passage.Embedding.L2Distance(target),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(distanceMetric),
                 distanceMetric,
                 "The distance metric has no pgvector operator."),
         };
+
+    /// <summary>One embedded passage of an eligible email, before its distance from the query is measured.</summary>
+    private sealed class EmbeddedPassage
+    {
+        public required Guid StoredEmailId { get; init; }
+
+        public required DateTimeOffset? ReceivedAt { get; init; }
+
+        public required Vector Embedding { get; init; }
+    }
 }

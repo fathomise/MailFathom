@@ -7,7 +7,6 @@ using MailFathom.Domain.Emails;
 using MailFathom.Evaluations.Corpus;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Infrastructure.Persistence.Embeddings;
-using MailFathom.Infrastructure.Persistence.Entities;
 
 namespace MailFathom.Evaluations.Retrieval;
 
@@ -30,28 +29,22 @@ internal static class SemanticRanking
         EmbeddingVector question)
     {
         var metric = new EmbeddingEndpointOptions().DistanceMetric;
-        var distances = mailbox
+        var hits = mailbox
             .Where(static entry => entry.Passages.Count > 0)
-            .ToDictionary(
-                static entry => entry.Message.Id.Value,
-                entry => entry.Passages.Min(passage => DistanceBetween(passage, question, metric)));
-        var ranked = mailbox
-            .Where(entry => distances.ContainsKey(entry.Message.Id.Value))
-            .Select(static entry => new StoredEmailEntity
+            .Select(entry => new StoredEmailVectorHitRow
             {
-                Id = entry.Message.Id.Value,
-                MailboxAccountId = string.Empty,
-                MailFolderBinding = null!,
+                StoredEmailId = entry.Message.Id.Value,
                 ReceivedAt = entry.Message.ReceivedAt,
+                Distance = entry.Passages.Min(passage => DistanceBetween(passage, question, metric)),
             })
             .AsQueryable();
 
         return
         [
             .. EmailVectorSearchIndexReader
-                .NewestFirstAmongEqual(ranked.OrderBy(email => distances[email.Id]))
+                .NewestFirstAmongEqual(hits.OrderBy(static hit => hit.Distance))
                 .AsEnumerable()
-                .Select(static email => StoredEmailId.Create(email.Id)),
+                .Select(static hit => StoredEmailId.Create(hit.StoredEmailId)),
         ];
     }
 
