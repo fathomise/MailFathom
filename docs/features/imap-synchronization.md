@@ -789,9 +789,13 @@ binds the occurrence the server's `COPYUID` names onto that row instead of stori
 
 Three rules keep two changes to one message from fighting. **A later change replaces an earlier one to the same field
 that was never issued** — a read state, a flagged state, or keywords the later change names in full — and the earlier
-record is withdrawn in the same transaction, the later one inheriting its reading of the server. **A move waits for
-every earlier change to the same message, and every later change waits for an earlier move**, because each names the
-occurrence it was asked for; changes to other messages are not held back by it. **A change is committed locally first
+record is withdrawn in the same transaction, the later one inheriting its reading of the server. **A change waits for
+an earlier unfinished change to the same message wherever the two could reach the server in the wrong order**: a move
+or a delete waits for every earlier change, and every later change waits for an earlier move or delete, because each
+names the occurrence it was asked for; a change also waits for an earlier change of the same kind, and a keyword change
+for an earlier keyword change of any kind, because the later one is the state the person last asked for. A read mark
+and a flag on one message are issued without waiting for each other, and changes to other messages are not held back
+by any of it. **A change is committed locally first
 only while every replica knows the overlay**: every live work lease names the build that took it, and while any of them
 names a build older than the overlay — a rolling upgrade — a mirrored change is recorded alone, exactly as before,
 because the older build's synchronization would write over a field left outstanding. Nobody switches anything; the

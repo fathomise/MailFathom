@@ -10,10 +10,11 @@ namespace MailFathom.Mcp.Tools.Results;
 /// <summary>Publishes what a request to write flags and keywords was written down as.</summary>
 /// <remarks>
 /// <para>
-/// It answers with records rather than with a mailbox, because at the moment it is produced no IMAP command has gone
-/// out. Saying that plainly is what stops a caller reading the result as the star already being on the message: the
-/// account's own run carries each record to the server, and a change that never arrives is found by its record. A held
-/// account has no server: it applies the change at once, says so, and publishes no record.
+/// It answers with what MailFathom's copy of the email shows and with the records still owed to the mail server, because
+/// at the moment it is produced no IMAP command has gone out. <c>applied</c> says the copy already shows the change — on a
+/// held account, on a restoring one, and on a mirrored one that committed it locally first — and whenever records stand
+/// beside it they are what carries the change to the server: the account's own run issues each one, and a change that
+/// never arrives is found by its record. A held account has no server, so it publishes none.
 /// </para>
 /// <para>
 /// Nothing derived from the message appears. The email's own identifier, the account, the folder alias, and MailFathom's

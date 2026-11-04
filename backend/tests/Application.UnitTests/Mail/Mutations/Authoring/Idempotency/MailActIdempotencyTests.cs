@@ -23,8 +23,8 @@ namespace MailFathom.Application.UnitTests.Mail.Mutations.Authoring.Idempotency;
 
 /// <summary>Covers what a person's key makes of a repeated mailbox act: one outcome across replicas, and a refusal for a key reused for another act.</summary>
 /// <remarks>
-/// The flag recorder stands for all four recorders, because every one of them asks the same service the same two
-/// questions in the same two places. The unique-index race is stated through <see cref="InMemoryMailActKeyStore.CompetingWriter" />
+/// The flag recorder is what drives the shared service here; each other recorder's own tests cover its keyed path, the
+/// outcome it rebuilds from a stored answer, and a key reused for another act. The unique-index race is stated through <see cref="InMemoryMailActKeyStore.CompetingWriter" />
 /// and a session whose commit loses, since neither a database nor a second connection is available to a unit test.
 /// </remarks>
 public sealed class MailActIdempotencyTests
@@ -157,8 +157,7 @@ public sealed class MailActIdempotencyTests
         // Act
         var recording = recorder.RecordAsync(MarkRead, Requester, MailboxReaderKind.Person, Key, TestContext.Current.CancellationToken);
         await firstCommitObserved.Task;
-        clock.Advance(TimeSpan.FromMilliseconds(50));
-        var result = await recording;
+        var result = await AdvanceUntilCompletedAsync(clock, recording);
 
         // Assert
         Assert.Equal(2, attempts);
@@ -261,6 +260,26 @@ public sealed class MailActIdempotencyTests
     /// <summary>The window is the day the contract states, which the sweep's cutoff is measured from.</summary>
     [Fact]
     public void Window_IsTwentyFourHours() => Assert.Equal(TimeSpan.FromHours(24), MailActKeyRetention.Window);
+
+    /// <summary>Moves the clock on until the recording completes, because the backoff's timer is created after the losing commit reports.</summary>
+    /// <remarks>
+    /// One advance can land before the retry policy has created its delay, and is then lost; advancing again on every turn
+    /// reaches the timer whenever it is created, and the guard reports a recording that never completes as a failure
+    /// rather than as a suite that stopped.
+    /// </remarks>
+    private static async Task<T> AdvanceUntilCompletedAsync<T>(FakeTimeProvider clock, Task<T> recording)
+    {
+        var guarded = recording.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+
+        while (!guarded.IsCompleted)
+        {
+            clock.Advance(TimeSpan.FromSeconds(2));
+
+            await Task.Yield();
+        }
+
+        return await guarded;
+    }
 
     private static MailActIdempotency IdempotencyOver(InMemoryMailActKeyStore keys) => new(
         AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite),

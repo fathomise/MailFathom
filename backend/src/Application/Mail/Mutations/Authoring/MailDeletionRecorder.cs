@@ -203,7 +203,7 @@ public sealed class MailDeletionRecorder
 
         MailActOutcome? replayed = null;
 
-        var submitted = await this.commitPolicy.CommitAsync<SubmittedMailboxChange?>(
+        var submitted = await this.commitPolicy.CommitAsync(
             async (session, attemptCancellationToken) =>
             {
                 replayed = null;

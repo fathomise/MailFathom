@@ -13,6 +13,7 @@ using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Authoring;
+using MailFathom.Application.Mail.Mutations.Authoring.Failures;
 using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Mail.Mutations.Local;
@@ -758,12 +759,62 @@ public sealed class MailRelocationRecorderTests
         this.advertisedFolders.Add(new RemoteFolder(RemoteFolderPath.Create(remotePath), []));
     }
 
+    /// <summary>A repeat under the act's key, reaching another replica after the message is gone, answers the first move and opens nothing.</summary>
+    [Fact]
+    public async Task RecordAsync_ARepeatUnderTheSameKey_AnswersTheFirstOutcomeAndRecordsNothingAgain()
+    {
+        // Arrange
+        this.MapMirrored(Archive, "Archive/2026");
+        var keys = new InMemoryMailActKeyStore();
+        var key = MailActIdempotencyKey.Create("call-1", "moves", [$"{LocalEmail.Value:N}|{IdOf(Archive)}"]);
+        var first = await this.Recorder(TargetIn(Inbox), keys: keys)
+            .RecordAsync(LocalEmail, IdOf(Archive), Requester, MailboxReaderKind.Person, key, TestContext.Current.CancellationToken);
+
+        // Act
+        var repeat = await this.Recorder(target: null, keys: keys.AnotherReplica())
+            .RecordAsync(LocalEmail, IdOf(Archive), Requester, MailboxReaderKind.Person, key, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.Recorded, repeat.Outcome);
+        Assert.Equal(
+            (first.Outcome, first.Destination, first.RecordId, first.Lifecycle),
+            (repeat.Outcome, repeat.Destination, repeat.RecordId, repeat.Lifecycle));
+        Assert.Equal(first.SpamMarkRecords, repeat.SpamMarkRecords);
+        Assert.Equal(1, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A key the person already used for another act is refused rather than answered with that act's outcome.</summary>
+    [Fact]
+    public async Task RecordAsync_AKeyAlreadyUsedForADifferentAct_IsRefusedAndRecordsNothing()
+    {
+        // Arrange
+        this.MapMirrored(Archive, "Archive/2026");
+        var keys = new InMemoryMailActKeyStore();
+        await this.Recorder(TargetIn(Inbox), keys: keys).RecordAsync(
+            LocalEmail,
+            IdOf(Archive),
+            Requester,
+            MailboxReaderKind.Person,
+            MailActIdempotencyKey.Create("call-1", "moves", [$"{LocalEmail.Value:N}|{IdOf(Archive)}"]),
+            TestContext.Current.CancellationToken);
+        var otherAct = MailActIdempotencyKey.Create("call-1", "deletes", [$"{LocalEmail.Value:N}"]);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailFlagChangeInvalidException>(() => this.Recorder(TargetIn(Inbox), keys: keys.AnotherReplica())
+            .RecordAsync(LocalEmail, IdOf(Archive), Requester, MailboxReaderKind.Person, otherAct, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFlagChangeInvalidException.RequestIdReusedForAnotherAct().Message, refusal.Message);
+        Assert.Equal(1, this.records.OpenedRecordCount);
+    }
+
     private MailRelocationRecorder Recorder(
         AuthoredMailboxTarget? target,
         AccessAuthorization? authorization = null,
         MailAccountRunSignal? runSignal = null,
         MailAccountCustodyPhase? phase = null,
-        InMemoryLocalEmailStateStore? states = null)
+        InMemoryLocalEmailStateStore? states = null,
+        IMailActKeyStore? keys = null)
     {
         var callerAuthorization =
             authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailMove);
@@ -819,7 +870,7 @@ public sealed class MailRelocationRecorderTests
                 Substitute.For<IDerivedWorkGateTelemetry>(),
                 submission,
                 clock),
-            new MailActIdempotency(callerAuthorization, Substitute.For<IMailActKeyStore>(), clock));
+            new MailActIdempotency(callerAuthorization, keys ?? Substitute.For<IMailActKeyStore>(), clock));
     }
 
     /// <summary>Gives every folder these tests name a row, which is what a destination is named by.</summary>

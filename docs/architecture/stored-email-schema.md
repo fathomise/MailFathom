@@ -1580,9 +1580,11 @@ account opens beside a change it has just made to the stored message, which exis
 source, and the row a mirrored account opens beside a change it committed locally first. It is written down rather than worked out from the account's phase, because the phase moves while a row waits —
 once an account is held again all three kinds are deletes against a trashed message. A convergence pass erases the rows
 marked `Erasure` and leaves the rest, so a delete whose `LocalDisposition` asked for the copy to be kept is carried or
-deferred rather than destroying it; and a withdrawal cancels neither an `AlreadyCommitted` row nor anything past
-`Recorded`, because the change it names has happened and taking the row back would leave nothing to tell the source
-with.
+deferred rather than destroying it. A withdrawal cancels nothing past `Recorded`, and cancels no restoring account's
+`AlreadyCommitted` row, because the change it names has happened and taking the row back would leave nothing to tell
+the source with. A mirrored account's `AlreadyCommitted` row — `OverlaysStoredState` true and no
+`LocalCopyStoredEmailId` — is withdrawable while it is `Recorded`, because the source never saw its change and the
+withdrawal undoes it locally, as the next paragraph says.
 
 `OverlaysStoredState` tells those two `AlreadyCommitted` rows apart, and is true only on the mirrored one: the change it
 names has been made to the stored message while the source is still the truth, so the field it wrote overlays what

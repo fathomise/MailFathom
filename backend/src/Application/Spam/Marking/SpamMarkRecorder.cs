@@ -248,7 +248,7 @@ public sealed class SpamMarkRecorder
 
         try
         {
-            staged = await this.commitPolicy.CommitAsync<StagedSpamMark?>(
+            staged = await this.commitPolicy.CommitAsync(
                 async (session, attemptCancellationToken) =>
                 {
                     replayed = null;
