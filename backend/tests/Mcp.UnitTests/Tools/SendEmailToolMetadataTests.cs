@@ -95,7 +95,7 @@ public sealed class SendEmailToolMetadataTests
         Assert.NotNull(description);
         Assert.Contains("will not attach files", description, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("will not reply to or forward", description, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("will not schedule a send for later", description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("will not repeat a send on a schedule", description, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("will not send to a mailing list", description, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -130,7 +130,7 @@ public sealed class SendEmailToolMetadataTests
     {
         // Arrange
         string[] expectedProperties =
-            ["account", "to", "cc", "bcc", "subject", "plainTextBody", "htmlBody", "idempotencyKey"];
+            ["account", "to", "cc", "bcc", "subject", "plainTextBody", "htmlBody", "idempotencyKey", "sendAt", "sendAtTimeZone"];
 
         // Act
         var advertisedProperties = AdvertisedSendEmailTool()
@@ -215,6 +215,46 @@ public sealed class SendEmailToolMetadataTests
         Assert.Contains("string", TypesOf(advertised.GetProperty("items")), StringComparer.Ordinal);
     }
 
+    /// <summary>
+    /// The send time is optional text on all three tools that send, and omitting it is what every call written before
+    /// it existed does — so neither half may be required, and a client reads that from the schema.
+    /// </summary>
+    [Theory]
+    [InlineData("send_email", "sendAt")]
+    [InlineData("send_email", "sendAtTimeZone")]
+    [InlineData("reply_to_email", "sendAt")]
+    [InlineData("reply_to_email", "sendAtTimeZone")]
+    [InlineData("forward_email", "sendAt")]
+    [InlineData("forward_email", "sendAtTimeZone")]
+    public void AddMailFathomServer_AdvertisesTheSendTimeAsOptionalTextOnEveryToolThatSends(string toolName, string argument)
+    {
+        // Arrange, Act
+        var schema = RegisteredMcpToolSurface.AdvertisedTool(toolName).InputSchema;
+
+        // Assert
+        Assert.Equal(["string", "null"], TypesOf(schema.GetProperty("properties").GetProperty(argument)));
+        Assert.DoesNotContain(
+            argument,
+            schema.GetProperty("required").EnumerateArray().Select(value => value.GetString()),
+            StringComparer.Ordinal);
+    }
+
+    /// <summary>Omitting the time sends at once and naming it holds the message, and the descriptor says both where a caller decides.</summary>
+    [Theory]
+    [InlineData("send_email")]
+    [InlineData("reply_to_email")]
+    [InlineData("forward_email")]
+    public void AddMailFathomServer_AdvertisesADescriptionStatingThatOmittingTheSendTimeSendsNow(string toolName)
+    {
+        // Arrange, Act
+        var description = RegisteredMcpToolSurface.AdvertisedTool(toolName).Description;
+
+        // Assert
+        Assert.NotNull(description);
+        Assert.Contains("Omit sendAt to send now", description, StringComparison.Ordinal);
+        Assert.Contains("a held message can be stopped until it leaves", description, StringComparison.Ordinal);
+    }
+
     /// <summary>The cancellation token the tool takes is the host's concern and must never become a protocol argument.</summary>
     [Fact]
     public void AddMailFathomServer_DoesNotAdvertiseTheCancellationTokenAsAnArgument()
@@ -239,6 +279,8 @@ public sealed class SendEmailToolMetadataTests
         Assert.Contains("outgoingEmailId", advertisedSchema, StringComparison.Ordinal);
         Assert.Contains("recipientCount", advertisedSchema, StringComparison.Ordinal);
         Assert.Contains("queuedAt", advertisedSchema, StringComparison.Ordinal);
+        Assert.Contains("sendAt", advertisedSchema, StringComparison.Ordinal);
+        Assert.Contains("sendAtTimeZone", advertisedSchema, StringComparison.Ordinal);
     }
 
     /// <summary>The states are a closed set, and <c>queued</c> among them is what stops a caller reporting a delivery.</summary>

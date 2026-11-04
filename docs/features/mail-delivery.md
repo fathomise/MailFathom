@@ -746,6 +746,13 @@ time are opposite — somebody who meant tomorrow and typed yesterday's date wan
 would not have named a time — so a system that guessed would sometimes send a message its author was still writing. The
 refusal states the rule and never repeats the instant, the address, or the subject.
 
+**A caller's send is held for a bounded span.** `MailDelivery:MaxSendHold`, 90 days by default, is how far ahead of the
+moment a send is asked for an MCP caller may name its due time; a later time is refused with `51015` naming the bound.
+A held message keeps its composed MIME in the content store until it leaves, so the bound is a storage limitation as
+much as a guard against a mistyped year. It is judged in the two submission use cases rather than at any tool, beside the
+past-time refusal, and it does not bound a draft the person sends from the client, whose date they choose and read back
+before sending.
+
 **A moment that came and went while nothing was running is the case with no obviously right answer**, and the deployment
 decides it. `MailDelivery:AllowedSendLateness` is how much later than its due time a message may still be delivered as
 written; the default is a working day. Up to that, the pass sends it. Past it, the send is refused with `28016`, stands
@@ -767,11 +774,17 @@ a record an attempt holds a live lease on is refused to both. During the hold th
 [its account's outbox](../operations/client-endpoint.md#the-outbox-routes), which is read from the record itself, so
 what a client shows waiting is exactly what will be sent.
 
-One surface names a due time today: a draft sent from the client, through
-[the draft send route](../operations/client-endpoint.md#the-drafts-routes), which hands the instant and its zone to the
-promotion. The time belongs to that send rather than to the draft — a retry of a draft already promoted answers with the
-first send and leaves its time where it was. No MCP tool takes one: [`send_email`](mcp-tools.md#send_email) and
-`send_draft` name no time, so every message a tool call submits is due at once.
+Two kinds of route name a due time. A draft sent from the client, through
+[the draft send route](../operations/client-endpoint.md#the-drafts-routes), hands the instant and its zone to the
+promotion; the time belongs to that send rather than to the draft, so a retry of a draft already promoted answers with
+the first send and leaves its time where it was. And the three MCP tools that send —
+[`send_email`, `reply_to_email`, and `forward_email`](mcp-tools.md#a-send-held-until-a-named-time) — take an optional
+`sendAt`, either an instant with its offset or a wall-clock time beside an IANA zone, which the tool resolves once and
+hands to the submission as the due time. A tool call naming none is due at once, which is every call written before
+the argument existed, and a retry under a key already used answers with the first call's record and its time — unless
+the retry names a time that has passed or lies beyond `MailDelivery:MaxSendHold`, which both submission use cases judge
+before the outbox is read, so such a retry is refused with `51015` whether or not the first call queued the message.
+`send_draft` names no time.
 
 ## A message the user asked to be sent again
 

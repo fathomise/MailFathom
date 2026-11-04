@@ -18,6 +18,7 @@ using MailFathom.Application.Mail.Delivery;
 using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.Mail.Delivery.Composition;
+using MailFathom.Application.Mail.Delivery.Governance;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Submission;
@@ -120,7 +121,9 @@ internal static class AnsweredMailSubmissions
             composer,
             Outbox(granted),
             AuthoredSendGovernors.Permitting(granted),
-            granted);
+            granted,
+            AuthoredSendSettings.Permissive,
+            new FakeTimeProvider(RecordedAt));
     }
 
     /// <summary>Gets a mapping that mirrors the answered email's folder for the person and withholds it from AI.</summary>

@@ -462,6 +462,42 @@ public sealed class MailDeliveryOptionsTests
         Assert.Contains(nameof(MailDeliveryOptions.UnvouchedRecipients), result.MemberNames);
     }
 
+    /// <summary>Both keys deciding what a caller may ask for reach the settings the submission use cases read, and none is read off a neighbour.</summary>
+    [Fact]
+    public void ToAuthoredSendSettings_ConfiguredSection_CarriesThePostureAndTheHold()
+    {
+        // Arrange
+        var options = new MailDeliveryOptions
+        {
+            UnvouchedRecipients = UnvouchedRecipientPosture.Refuse,
+            MaxSendHold = TimeSpan.FromDays(14),
+        };
+
+        // Act
+        var settings = options.ToAuthoredSendSettings();
+
+        // Assert
+        Assert.Equal(UnvouchedRecipientPosture.Refuse, settings.UnvouchedRecipients);
+        Assert.Equal(TimeSpan.FromDays(14), settings.MaxSendHold);
+    }
+
+    /// <summary>A hold shorter than an hour or longer than a year is outside the documented range and refused at startup.</summary>
+    [Theory]
+    [InlineData(0.5)]
+    [InlineData(367 * 24)]
+    public void Validate_SendHoldOutsideTheDocumentedRange_IsRefused(double hours)
+    {
+        // Arrange
+        var options = new MailDeliveryOptions { MaxSendHold = TimeSpan.FromHours(hours) };
+
+        // Act
+        var results = ValidateWithDataAnnotations(options);
+
+        // Assert
+        var result = Assert.Single(results);
+        Assert.Contains(nameof(MailDeliveryOptions.MaxSendHold), result.MemberNames);
+    }
+
     private static EmailAddress Mailbox(string address)
     {
         Assert.True(EmailAddress.TryCreate(displayName: null, address, out var mailbox));

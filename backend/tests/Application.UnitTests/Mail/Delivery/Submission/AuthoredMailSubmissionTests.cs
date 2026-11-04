@@ -656,6 +656,60 @@ public sealed class AuthoredMailSubmissionTests
         Assert.Equal(0, signal.Depth);
     }
 
+    /// <summary>A time further ahead than the deployment holds a message is refused naming how far it may lie, and nothing is written down.</summary>
+    [Theory]
+    [InlineData(720, "30 days")]
+    [InlineData(24, "1 day")]
+    [InlineData(36, "36 hours")]
+    [InlineData(1, "1 hour")]
+    public async Task SubmitAsync_ADueTimeBeyondTheHold_IsRefusedNamingTheBound(int holdHours, string namedBound)
+    {
+        // Arrange
+        var hold = TimeSpan.FromHours(holdHours);
+        var store = new InMemoryOutgoingEmailStore();
+        var submission = SubmissionOver(
+            store,
+            out var composer,
+            out _,
+            settings: AuthoredSendSettings.Permissive with { MaxSendHold = hold });
+        var request = RequestTo("anna@example.test") with
+        {
+            DueAt = ZonedInstant.At(Recorded.Add(hold).AddMinutes(1)),
+        };
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailSubmissionRefusedException>(
+            () => submission.SubmitAsync(request, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.AuthoredMailScheduleRefused, refusal.ErrorCode);
+        Assert.Contains($"at most {namedBound} before", refusal.Message, StringComparison.Ordinal);
+        Assert.Empty(store.OpenRequests);
+        composer.DidNotReceiveWithAnyArgs().Compose(default!, SyntheticUser.Deployment, default!, default!, default!);
+    }
+
+    /// <summary>A time exactly as far ahead as the deployment holds a message is still one it holds.</summary>
+    [Fact]
+    public async Task SubmitAsync_ADueTimeAtTheEdgeOfTheHold_RecordsTheSendHeldUntilIt()
+    {
+        // Arrange
+        var store = new InMemoryOutgoingEmailStore();
+        var submission = SubmissionOver(
+            store,
+            out _,
+            out _,
+            settings: AuthoredSendSettings.Permissive with { MaxSendHold = TimeSpan.FromDays(30) });
+        var dueAt = ZonedInstant.At(Recorded.AddDays(30));
+
+        // Act
+        var record = await submission.SubmitAsync(
+            RequestTo("anna@example.test") with { DueAt = dueAt },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(dueAt, record.DueAt);
+    }
+
     private static MailSubmissionRequest RequestTo(string address) => new()
     {
         Account = MailAccountSelector.For(Account),
@@ -673,7 +727,8 @@ public sealed class AuthoredMailSubmissionTests
         AccessAuthorization? authorization = null,
         AuthoredSendGovernor? governor = null,
         IMailAccountAssignments? assignments = null,
-        ServedMailAccount[]? servedAccounts = null)
+        ServedMailAccount[]? servedAccounts = null,
+        AuthoredSendSettings? settings = null)
     {
         composer = ComposingAuthoredEmails.ThatComposes(ComposedMime);
         signal = new MailOutboxSignal(capacity: 8);
@@ -721,6 +776,7 @@ public sealed class AuthoredMailSubmissionTests
                 ClientSignalPublishers.ReachingNobody),
             governor ?? AuthoredSendGovernors.Permitting(granted),
             granted,
+            settings ?? AuthoredSendSettings.Permissive,
             new FakeTimeProvider(Recorded));
     }
 

@@ -822,6 +822,7 @@ how long it holds it, and how patient this deployment is with a submission serve
 | `MailDelivery:RetryBaseDelay` | TimeSpan | `00:01:00` | 1 s – 1 h | restart |
 | `MailDelivery:RetryMaxDelay` | TimeSpan | `01:00:00` | 1 s – 24 h, and never below `RetryBaseDelay` | restart |
 | `MailDelivery:AllowedSendLateness` | TimeSpan | `08:00:00` | 1 min – 30 d | restart |
+| `MailDelivery:MaxSendHold` | TimeSpan | `90.00:00:00` | 1 h – 366 d | restart |
 | `MailDelivery:SignalQueueCapacity` | int | `64` | 1 – 1000 | restart |
 
 **`AttemptTimeout` below `LeaseDuration` is one of the two orderings startup refuses rather than warns about**, the
@@ -846,6 +847,13 @@ operator sees it, and reports the outcome `missed_due_time` on
 [the delivery counter](telemetry.md). Neither outcome is silent. The default is a working day, which is the span over
 which a message written for nine in the morning still reads as the message its author meant; what to do about one later
 than that is a person's decision rather than a bound's.
+
+**`MaxSendHold` is how far ahead an MCP caller may name the time a send leaves**, measured from the moment the call is
+made, and it covers `send_email`, `reply_to_email`, and `forward_email` alike. A later time is refused with `51015`
+naming the bound, before anything is composed or written. A held message keeps its composed MIME in the content store
+for the whole of the hold, so this key bounds that retention as well as catching a mistyped year; the default of a
+quarter of a year holds every plan made around a week, a month, or a season. It does not bound a draft the person sends
+from the client, whose date they choose and read back before sending.
 
 `SignalQueueCapacity` bounds only how promptly a send leaves, never whether it leaves. The queue holds accounts rather
 than messages and an account already waiting is not queued twice, so it cannot grow past the number of configured

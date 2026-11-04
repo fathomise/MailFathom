@@ -283,7 +283,19 @@ behalf.
 answers with the record it was written as; a delivery pass offers it to your mail server seconds later. So the `state`
 you get back is `queued`, never `sent` — a message reported as delivered by this call would be a message reported as
 delivered before anything was offered to anybody. Keep the `outgoingEmailId`: it is what `get_outgoing_email` answers
-about, and what `cancel_outgoing_email` stops during the seconds before the message leaves.
+about, and what `cancel_outgoing_email` stops until the message leaves.
+
+**It can wait until a time you name.** Omit `sendAt` and the message leaves now. Name it and the message is held until
+then: either as an exact instant with its offset, such as `2026-11-09T09:00:00+01:00`, or — better, when the person
+named a local time — as a wall-clock time with no offset beside `sendAtTimeZone`, such as `2026-11-09T09:00` in
+`Europe/Warsaw`, so the zone's own daylight-saving rules decide the offset. The answer is still `queued`, and its
+`sendAt` says when the message will leave. A time already gone, or further ahead than the deployment holds a message,
+is refused with `51015`; [the reference](../features/mcp-tools.md#a-send-held-until-a-named-time) lists every form and
+refusal. A held message is stopped with `cancel_outgoing_email` at any time before it leaves, and a retry with the same
+`idempotencyKey` never moves its time. A retry made after the time it names has passed is the exception: it is refused
+with `51015` before anything looks for the message the first call queued, so after that refusal read
+`list_outgoing_emails` before sending again instead of choosing a new key. `reply_to_email` and `forward_email` take the
+same two arguments.
 
 **You never say who it is from.** There is no `from` argument and there never will be one. The message is sent as the
 account you name, from the address that account's configuration declares, which is what stops anything a client sends
@@ -327,8 +339,8 @@ this tool, the reply and forward tools, and `send_draft` alike. A body that alre
 A draft never holds it, so `save_draft` and `update_draft` are written without it as well.
 
 What this tool will not do, and says so in its own description rather than leaving you to discover it: it attaches
-nothing, it replies to and forwards nothing — `reply_to_email` and `forward_email` are those two acts — it schedules
-nothing, and it is not a mailing list — a message reaches at
+nothing, it replies to and forwards nothing — `reply_to_email` and `forward_email` are those two acts — it repeats
+nothing on a schedule, and it is not a mailing list — a message reaches at
 most the few dozen people the deployment configures.
 
 It needs its own grant, `mailfathom.mail.send`, which comes with neither reading mail nor writing flags. It is the one

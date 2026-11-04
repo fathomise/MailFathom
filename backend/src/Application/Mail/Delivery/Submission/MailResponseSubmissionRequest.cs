@@ -7,6 +7,7 @@ using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Scheduling;
 
 namespace MailFathom.Application.Mail.Delivery.Submission;
 
@@ -50,4 +51,8 @@ public sealed record MailResponseSubmissionRequest
 
     /// <summary>Gets the authored act asking, which is what makes the same submission twice one delivery.</summary>
     public required OutgoingEmailRequester Requester { get; init; }
+
+    /// <summary>Gets the time the author asked the answer to leave at, or <see langword="null" /> when they asked for it to leave at once.</summary>
+    /// <remarks>It arrives resolved, for the reason <see cref="MailSubmissionRequest.DueAt" /> does.</remarks>
+    public ZonedInstant? DueAt { get; init; }
 }

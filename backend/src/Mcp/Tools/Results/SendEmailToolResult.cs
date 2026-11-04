@@ -33,7 +33,7 @@ internal sealed record SendEmailToolResult
     public required string AccountId { get; init; }
 
     /// <summary>Gets how far the record has durably got.</summary>
-    [Description("How far this message has got. A fresh send is queued, meaning it is written down and has not been transmitted. A repeated call carrying an idempotencyKey already used answers with whatever the first message has reached since.")]
+    [Description("How far this message has got. A fresh send is queued, meaning it is written down and has not been transmitted, whether it leaves at once or is held until sendAt. A repeated call carrying an idempotencyKey already used answers with whatever the first message has reached since.")]
     public required SendEmailState State { get; init; }
 
     /// <summary>Gets how many people the message is addressed to.</summary>
@@ -43,6 +43,14 @@ internal sealed record SendEmailToolResult
     /// <summary>Gets when the send was first written down.</summary>
     [Description("When the send was first written down, as an ISO 8601 timestamp. For a repeated call it is when the first identical call wrote the record, not when this one was made.")]
     public required DateTimeOffset QueuedAt { get; init; }
+
+    /// <summary>Gets the instant the message is held until, or <see langword="null" /> where it leaves as soon as it can.</summary>
+    [Description("The time the message is held until, as an ISO 8601 timestamp, or null where it leaves as soon as a delivery pass reaches it. It is the time the record was written with: a repeated call carrying an idempotencyKey already used that is answered at all is answered with the first call's time, because a retry never reschedules. While the message is held, cancel_outgoing_email stops it.")]
+    public DateTimeOffset? SendAt { get; init; }
+
+    /// <summary>Gets the zone the held time was named in, or <see langword="null" /> where the message is not held.</summary>
+    [Description("The IANA zone the held time was named in, such as Europe/Warsaw, or UTC where it was named with an offset. Null where the message is not held.")]
+    public string? SendAtTimeZone { get; init; }
 
     /// <summary>Publishes the record the submission wrote down.</summary>
     /// <param name="record">The durable record.</param>
@@ -60,6 +68,8 @@ internal sealed record SendEmailToolResult
             State = SendEmailStateMapping.Published(record.Stage),
             RecipientCount = record.Recipients.Count,
             QueuedAt = record.RecordedAt,
+            SendAt = record.DueAt?.Instant,
+            SendAtTimeZone = record.DueAt?.ZoneId,
         };
     }
 }

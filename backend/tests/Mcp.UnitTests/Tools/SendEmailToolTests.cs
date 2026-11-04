@@ -22,6 +22,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Scheduling;
 using MailFathom.Mcp.Failures;
 using MailFathom.Mcp.Tools;
 using MailFathom.Mcp.Tools.Outgoing;
@@ -419,6 +420,176 @@ public sealed class SendEmailToolTests
         Assert.Empty(store.OpenRequests);
     }
 
+    /// <summary>A time carrying its own offset is that instant, recorded as named in no zone of its own, and the result states it back.</summary>
+    [Fact]
+    public async Task SendEmailAsync_ASendTimeWithAnOffset_HoldsTheMessageUntilThatInstant()
+    {
+        // Arrange
+        var tool = ToolOver(out _);
+
+        // Act
+        var result = await tool.SendEmailAsync(
+            Account,
+            ["anna@example.test"],
+            "Lunch",
+            "Shall we?",
+            "send-1",
+            sendAt: "2026-08-20T09:00:00+02:00",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SendEmailState.Queued, result.State);
+        Assert.Equal(new DateTimeOffset(2026, 8, 20, 7, 0, 0, TimeSpan.Zero), result.SendAt);
+        Assert.Equal(ZonedInstant.CoordinatedZoneId, result.SendAtTimeZone);
+    }
+
+    /// <summary>
+    /// A wall-clock time beside a zone is read on that zone's clock on that day, so nine in the morning after the
+    /// clocks went back is an hour later in UTC than nine in the morning the day before the call — the offset the
+    /// caller never had to know.
+    /// </summary>
+    [Fact]
+    public async Task SendEmailAsync_AWallClockTimeInAZone_ResolvesItWithTheOffsetThatZoneStandsAtThatDay()
+    {
+        // Arrange
+        var tool = ToolOver(out _);
+
+        // Act
+        var result = await tool.SendEmailAsync(
+            Account,
+            ["anna@example.test"],
+            "Lunch",
+            "Shall we?",
+            "send-1",
+            sendAt: "2026-10-26T09:00",
+            sendAtTimeZone: "Europe/Warsaw",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new DateTimeOffset(2026, 10, 26, 8, 0, 0, TimeSpan.Zero), result.SendAt);
+        Assert.Equal("Europe/Warsaw", result.SendAtTimeZone);
+    }
+
+    /// <summary>A message sent at once names no time and no zone, which is what tells a caller it was not held.</summary>
+    [Fact]
+    public async Task SendEmailAsync_NoSendTime_PublishesNoHold()
+    {
+        // Arrange
+        var tool = ToolOver(out _);
+
+        // Act
+        var result = await tool.SendEmailAsync(
+            Account,
+            ["anna@example.test"],
+            "Lunch",
+            "Shall we?",
+            "send-1",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(result.SendAt);
+        Assert.Null(result.SendAtTimeZone);
+    }
+
+    /// <summary>A retry under a key already used is the same message at the same time, whatever time the retry named.</summary>
+    [Fact]
+    public async Task SendEmailAsync_TheSameIdempotencyKeyWithAnotherSendTime_KeepsTheTimeTheFirstCallNamed()
+    {
+        // Arrange
+        var tool = ToolOver(out _);
+        var first = await tool.SendEmailAsync(
+            Account,
+            ["anna@example.test"],
+            "Lunch",
+            "Shall we?",
+            "send-1",
+            sendAt: "2026-08-20T09:00:00Z",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Act
+        var retried = await tool.SendEmailAsync(
+            Account,
+            ["anna@example.test"],
+            "Lunch",
+            "Shall we?",
+            "send-1",
+            sendAt: "2026-08-21T09:00:00Z",
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(first.OutgoingEmailId, retried.OutgoingEmailId);
+        Assert.Equal(first.SendAt, retried.SendAt);
+    }
+
+    /// <summary>A send time this boundary cannot read as one instant is refused as the caller's own argument, before anything is composed.</summary>
+    [Theory]
+    [InlineData("2026-08-20T09:00:00+02:00", "Europe/Warsaw")]
+    [InlineData("2026-08-20T09:00:00Z", "Europe/Warsaw")]
+    [InlineData("2026-08-20T09:00", "Mars/Olympus_Mons")]
+    [InlineData("2026-08-20T09:00", "Europe/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")]
+    [InlineData("2026-08-20T09:00", null)]
+    [InlineData("next Thursday at nine", null)]
+    [InlineData("08/20/2026 09:00 +02:00", null)]
+    [InlineData("2026-08-20T09:00:00.12345678901234567890123+02:00", null)]
+    [InlineData(null, "Europe/Warsaw")]
+    [InlineData("9999-12-31T23:59", "America/New_York")]
+    [InlineData("0001-01-01T00:00", "Europe/Warsaw")]
+    [InlineData("9999-12-31T23:59-05:00", null)]
+    [InlineData("0001-01-01T00:00+01:00", null)]
+    public async Task SendEmailAsync_ASendTimeNoInstantCanBeReadFrom_RefusesBeforeComposing(string? sendAt, string? sendAtTimeZone)
+    {
+        // Arrange
+        var tool = ToolOver(out var composer);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailSubmissionRefusedException>(
+            () => tool.SendEmailAsync(
+                Account,
+                ["anna@example.test"],
+                "Lunch",
+                "Shall we?",
+                "send-1",
+                sendAt: sendAt,
+                sendAtTimeZone: sendAtTimeZone,
+                cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.AuthoredMailScheduleRefused, refusal.ErrorCode);
+        Assert.True(McpToolFailure.CanDescribeToClient(refusal));
+        composer.DidNotReceiveWithAnyArgs().Compose(default, default, default!, default!, default!);
+    }
+
+    /// <summary>
+    /// A time that has gone and one further ahead than the deployment holds a message are the use case's to refuse, and
+    /// each reaches the caller as a coded result it can read rather than as a tool that failed.
+    /// </summary>
+    [Theory]
+    [InlineData("2026-08-19T08:59:00Z")]
+    [InlineData("2027-08-19T09:00:00Z")]
+    public async Task SendEmailAsync_ASendTimeTheDeploymentWillNotHoldUntil_RefusesReadablyAndQueuesNothing(string sendAt)
+    {
+        // Arrange
+        var store = new InMemoryOutgoingEmailStore(timeProvider: new FakeTimeProvider(Recorded));
+        var tool = ToolOver(out _, store: store);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailSubmissionRefusedException>(
+            () => tool.SendEmailAsync(
+                Account,
+                ["anna@example.test"],
+                "Lunch",
+                "Shall we?",
+                "send-1",
+                sendAt: sendAt,
+                cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.AuthoredMailScheduleRefused, refusal.ErrorCode);
+        Assert.True(McpToolFailure.CanDescribeToClient(refusal));
+        Assert.DoesNotContain("anna@example.test", refusal.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(store.OpenRequests);
+    }
+
     private static AuthoredEmail ComposedMessage(IAuthoredEmailComposer composer) => (AuthoredEmail)composer
         .ReceivedCalls()
         .Single(call => call.GetMethodInfo().Name == nameof(IAuthoredEmailComposer.Compose))
@@ -466,6 +637,7 @@ public sealed class SendEmailToolTests
                 ClientSignalPublishers.ReachingNobody),
             AuthoredSendGovernors.Permitting(granted),
             granted,
+            AuthoredSendSettings.Permissive,
             new FakeTimeProvider(Recorded)));
     }
 

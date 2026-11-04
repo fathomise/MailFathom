@@ -5,6 +5,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Mail.Delivery.Composition;
+using MailFathom.Application.Mail.Delivery.Governance;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Governance;
@@ -152,6 +153,22 @@ internal sealed class MailDeliveryOptions : IValidatableObject
     [Range(typeof(TimeSpan), "00:01:00", "30.00:00:00")]
     public TimeSpan AllowedSendLateness { get; set; } = TimeSpan.FromHours(8);
 
+    /// <summary>Gets or sets how far ahead a caller may ask for a message to be held before it leaves.</summary>
+    /// <remarks>
+    /// <para>
+    /// It bounds a send an MCP caller asks to leave at a named time — a new message, a reply, or a forward — and is
+    /// measured from the moment the send is asked for. A time further ahead is refused rather than held, because a held
+    /// message keeps its composed MIME in the content store until it leaves, and because a due time a year ahead is a
+    /// mistyped year far more often than it is a plan.
+    /// </para>
+    /// <para>
+    /// It does not bound a send a person schedules from the client's composer, whose date they choose and read back
+    /// before sending.
+    /// </para>
+    /// </remarks>
+    [Range(typeof(TimeSpan), "01:00:00", "366.00:00:00")]
+    public TimeSpan MaxSendHold { get; set; } = AuthoredSendSettings.DefaultMaxSendHold;
+
     /// <summary>Gets or sets how many accounts may be waiting for a prompt delivery pass at once.</summary>
     /// <remarks>
     /// The queue holds accounts rather than messages, and an account already waiting is not queued twice, so it cannot
@@ -173,6 +190,13 @@ internal sealed class MailDeliveryOptions : IValidatableObject
         this.RetryBaseDelay,
         this.RetryMaxDelay,
         this.AllowedSendLateness);
+
+    /// <summary>Reads the two keys that decide what a caller may ask this deployment to send.</summary>
+    /// <returns>The settings both submission use cases and the governor beneath them read.</returns>
+    internal AuthoredSendSettings ToAuthoredSendSettings() => new(this.UnvouchedRecipients)
+    {
+        MaxSendHold = this.MaxSendHold,
+    };
 
     /// <summary>Reads the five keys a message this deployment composes is bounded by.</summary>
     /// <returns>The bounds every authored message is checked against.</returns>
