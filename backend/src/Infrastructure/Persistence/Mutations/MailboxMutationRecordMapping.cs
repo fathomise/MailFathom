@@ -57,6 +57,7 @@ internal static class MailboxMutationRecordMapping
             Stage = entity.Stage,
             IsAudited = entity.AuditTrailEnabled,
             LocalChange = entity.LocalChange,
+            Overlay = ToOverlay(entity),
             RequiresSourceRemoval = entity.RequiresSourceRemoval,
             Placement = StoredRemotePlacement.Of(entity.PlacementUidValidity, entity.PlacementUid),
             AttemptCount = entity.AttemptCount,
@@ -108,6 +109,17 @@ internal static class MailboxMutationRecordMapping
         MailboxMutation mutation) =>
         mutation == MailboxMutation.Delete
             ? entity.ServerDisposition ?? AuthoredDeleteServerDisposition.Expunge
+            : null;
+
+    /// <summary>Restores what an overlaying change last knew of the server, or nothing for any other row.</summary>
+    internal static MailboxMutationOverlay? ToOverlay(MailboxMutationEntity entity) =>
+        entity.OverlaysStoredState
+            ? new MailboxMutationOverlay(
+                entity.ObservedSeenState,
+                entity.ObservedFlaggedState,
+                entity.ObservedKeywords is { } keywords ? RemoteEmailKeywords.Create(keywords) : null,
+                entity.ObservedFolderId is { } folder ? MailFolderId.Create(folder) : null,
+                entity.LocalCopyStoredEmailId is { } copy ? StoredEmailId.Create(copy) : null)
             : null;
 
     /// <summary>Restores the keywords a keyword mutation named, exactly as they were stored.</summary>

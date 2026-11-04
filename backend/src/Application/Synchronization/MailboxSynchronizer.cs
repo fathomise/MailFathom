@@ -316,15 +316,17 @@ public sealed class MailboxSynchronizer
                 {
                     var placement = FindPlacementOf(placements, folder, metadata.OccurrenceId);
 
+                    // A copy committed locally first already has its second stored message, so the occurrence its
+                    // COPYUID names is carried onto that row exactly as a relocation's is carried onto the moved one.
                     if (placement is { } relocation
-                        && relocation.Request.Mutation == MailboxMutation.Relocate
-                        && await this.TryCarryRelocatedEmailAsync(relocation, metadata.OccurrenceId, cancellationToken))
+                        && CarriedRowOf(relocation) is { } carriedRow
+                        && await this.TryCarryRelocatedEmailAsync(relocation, carriedRow, metadata.OccurrenceId, cancellationToken))
                     {
                         relocatedCount++;
                         suppressedChanges.Add(new SuppressedMailboxChange(
                             MailboxChangeKind.EmailAppearedInFolder,
                             relocation.Request.Mutation,
-                            relocation.Request.StoredEmailId,
+                            carriedRow,
                             relocation.Id));
                         processedThroughUid = metadata.OccurrenceId.Uid;
 
@@ -961,6 +963,7 @@ public sealed class MailboxSynchronizer
     /// </remarks>
     private async Task<bool> TryCarryRelocatedEmailAsync(
         MailboxMutationRecord record,
+        StoredEmailId carriedRow,
         EmailOccurrenceId occurrenceId,
         CancellationToken cancellationToken)
     {
@@ -971,7 +974,7 @@ public sealed class MailboxSynchronizer
             {
                 carried = await this.metadataRepository.TryCarryToOccurrenceAsync(
                     persistenceSession,
-                    record.Request.StoredEmailId,
+                    carriedRow,
                     occurrenceId,
                     attemptCancellationToken);
 
@@ -988,6 +991,13 @@ public sealed class MailboxSynchronizer
 
         return carried;
     }
+
+    /// <summary>Names the stored row a placement's occurrence belongs to: the moved message, or the copy a local commit already wrote.</summary>
+    /// <returns>The row, or <see langword="null" /> for a copy the server alone made, which is stored as a discovery.</returns>
+    private static StoredEmailId? CarriedRowOf(MailboxMutationRecord record) =>
+        record.Request.Mutation == MailboxMutation.Relocate ? record.Request.StoredEmailId
+        : record.Request.Mutation == MailboxMutation.Copy ? record.Overlay?.LocalCopy
+        : null;
 
     /// <summary>Reads, once per run, which of this deployment's own filed copies the folder being synchronized can hold.</summary>
     /// <remarks>

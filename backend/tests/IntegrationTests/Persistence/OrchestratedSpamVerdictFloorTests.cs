@@ -400,7 +400,7 @@ public sealed class OrchestratedSpamVerdictFloorTests(MailFathomOrchestrationFix
     {
         var commitResult = await services.CommitAsync(
             (scope, session, token) => scope.GetRequiredService<ILocalEmailStateStore>()
-                .WriteAsync(session, SyntheticMailAccount.Account, storedEmailId, state, token),
+                .WriteAsync(session, SyntheticMailAccount.Account, storedEmailId, state, isHeldFolder: true, token),
             cancellationToken);
 
         Assert.Equal(PersistenceCommitResult.Committed, commitResult);

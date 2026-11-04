@@ -10,6 +10,7 @@ import {
     type ClientSession,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
+import { newIdentifier } from '../agent/newIdentifier';
 import { usePendingChanges } from '../pendingChanges/usePendingChanges';
 import {
     ReadMarkingContext,
@@ -152,7 +153,7 @@ export function ReadMarkingProvider({
             }),
         );
 
-        void markMailOpened(asking, transport, batch).then((answer) => {
+        void markMailOpened(asking, transport, batch, newIdentifier()).then((answer) => {
             if (submitted.current.signedInAs !== askingFor) {
                 return;
             }

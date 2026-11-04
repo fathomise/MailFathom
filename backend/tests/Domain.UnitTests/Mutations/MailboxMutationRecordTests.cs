@@ -920,6 +920,30 @@ public sealed class MailboxMutationRecordTests
     }
 
     /// <summary>
+    /// A mirrored change committed locally first can still be withdrawn before it is issued, because what it overlaid is
+    /// restored from the record; a copy cannot, since its second stored message already exists.
+    /// </summary>
+    [Fact]
+    public void IsWithdrawable_ARecordedChangeCommittedLocallyFirst_IsWithdrawableUnlessItWroteACopy()
+    {
+        // Arrange
+        var overlaid = CompletedRelocation() with
+        {
+            Stage = MailboxMutationStage.Recorded,
+            LocalChange = MailboxMutationLocalChange.AlreadyCommitted,
+            Overlay = new MailboxMutationOverlay(null, null, null, ObservedFolder: null, LocalCopy: null),
+        };
+        var copied = overlaid with
+        {
+            Overlay = overlaid.Overlay! with { LocalCopy = StoredEmailId.Create(Guid.CreateVersion7()) },
+        };
+
+        // Assert
+        Assert.True(overlaid.IsWithdrawable);
+        Assert.False(copied.IsWithdrawable);
+    }
+
+    /// <summary>
     /// A withdrawn record is the second stage nothing was ever issued for, which is what every provenance question
     /// rests on: a record that stopped before a command went out explains no flag, no keyword, and no disappearance.
     /// </summary>

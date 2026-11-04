@@ -5,10 +5,13 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 
@@ -54,12 +57,16 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// </remarks>
 public sealed class MailFlagChangeRecorder
 {
+    private const string AppliedOutcome = "Applied";
+    private const string RecordedOutcome = "Recorded";
+
     private readonly AccessAuthorization authorization;
     private readonly MailboxScopeResolver scopeResolver;
     private readonly IAuthoredMailboxTargetReader targets;
     private readonly MailboxChangeSubmission submission;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly MailAccountRunSignal runSignal;
+    private readonly MailActIdempotency idempotency;
 
     /// <summary>Initializes the use case over the grant it asks first and the submission it writes through.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
@@ -68,6 +75,7 @@ public sealed class MailFlagChangeRecorder
     /// <param name="submission">Records one change, or commits it where the account is held.</param>
     /// <param name="commitPolicy">Commits a call's changes together, retrying an optimistic conflict.</param>
     /// <param name="runSignal">Brings the account's next synchronization run forward, which is what carries the change to the mail server.</param>
+    /// <param name="idempotency">Answers a repeat of an act the person already made, and keeps the key of one that commits.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public MailFlagChangeRecorder(
         AccessAuthorization authorization,
@@ -75,7 +83,8 @@ public sealed class MailFlagChangeRecorder
         IAuthoredMailboxTargetReader targets,
         MailboxChangeSubmission submission,
         OptimisticConcurrencyRetryPolicy commitPolicy,
-        MailAccountRunSignal runSignal)
+        MailAccountRunSignal runSignal,
+        MailActIdempotency idempotency)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(scopeResolver);
@@ -83,6 +92,7 @@ public sealed class MailFlagChangeRecorder
         ArgumentNullException.ThrowIfNull(submission);
         ArgumentNullException.ThrowIfNull(commitPolicy);
         ArgumentNullException.ThrowIfNull(runSignal);
+        ArgumentNullException.ThrowIfNull(idempotency);
 
         this.authorization = authorization;
         this.scopeResolver = scopeResolver;
@@ -90,6 +100,7 @@ public sealed class MailFlagChangeRecorder
         this.submission = submission;
         this.commitPolicy = commitPolicy;
         this.runSignal = runSignal;
+        this.idempotency = idempotency;
     }
 
     /// <summary>Writes down every value one change asks for, against the email it names.</summary>
@@ -113,16 +124,46 @@ public sealed class MailFlagChangeRecorder
     /// the case where both hold at once — it applies the change and opens the record its source is owed — so a repeat
     /// there is matched against that record and refused where it asks for another value, exactly as a mirrored one is.
     /// </remarks>
+    public Task<AuthoredMailFlagChangeResult> RecordAsync(
+        AuthoredMailFlagChange change,
+        MailboxMutationRequester requester,
+        MailboxReaderKind reader,
+        CancellationToken cancellationToken) =>
+        this.RecordAsync(change, requester, reader, key: null, cancellationToken);
+
+    /// <summary>Writes down every value one change asks for, as one act of a person that a repeat under the same key answers again.</summary>
+    /// <param name="change">What the caller asked for.</param>
+    /// <param name="requester">The invocation asking.</param>
+    /// <param name="reader">Who the act is asked for.</param>
+    /// <param name="key">The key the person's client generated for the act, or <see langword="null" /> for a caller that makes none.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>What this call wrote down, or, where the person already used the key on this email, what the first attempt answered.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="change" /> or <paramref name="requester" /> is <see langword="null" />.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the writing grant.</exception>
+    /// <exception cref="AuthoredMailChangeTargetNotFoundException">Thrown when this deployment serves no readable email under that identity, or when the email it serves names a remote occurrence the mail server no longer holds.</exception>
+    /// <exception cref="MailFlagChangeInvalidException">Thrown when a reader other than the person names a junk keyword or asks for a replacement, when the requester identity already names one of these mutations on this occurrence with a different value, or when the key was used for a different act.</exception>
+    /// <remarks>
+    /// The key is asked about before the email is looked up, because a repeat after the email was deleted has no email
+    /// to resolve and is owed its answer all the same, and again inside the commit, where the entry is staged beside the
+    /// change so the two are one transaction. A repeat that finds the entry changes nothing and announces nothing.
+    /// </remarks>
     public async Task<AuthoredMailFlagChangeResult> RecordAsync(
         AuthoredMailFlagChange change,
         MailboxMutationRequester requester,
         MailboxReaderKind reader,
+        MailActIdempotencyKey? key,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(change);
         ArgumentNullException.ThrowIfNull(requester);
 
         this.authorization.RequirePermission(MailFathomPermission.MailFlagsWrite);
+
+        if (key is not null
+            && await this.idempotency.FindAsync(key, change.StoredEmailId, cancellationToken) is { } answered)
+        {
+            return ReplayOf(change.StoredEmailId, answered);
+        }
 
         var target = await this.targets.FindAsync(change.StoredEmailId, cancellationToken);
 
@@ -152,6 +193,7 @@ public sealed class MailFlagChangeRecorder
 
         var opened = new List<RecordedMailFlagMutation>(requests.Length);
         var applied = new List<AppliedMailboxChange>(requests.Length);
+        MailActOutcome? replayed = null;
 
         await this.commitPolicy.CommitAsync(
             async (session, attemptCancellationToken) =>
@@ -160,6 +202,15 @@ public sealed class MailFlagChangeRecorder
                 // losing attempt's rows beside the winning one's.
                 opened.Clear();
                 applied.Clear();
+                replayed = null;
+
+                if (key is not null
+                    && await this.idempotency.FindAsync(session, key, change.StoredEmailId, attemptCancellationToken) is { } first)
+                {
+                    replayed = first;
+
+                    return;
+                }
 
                 foreach (var request in requests)
                 {
@@ -192,8 +243,28 @@ public sealed class MailFlagChangeRecorder
                         opened.Add(new RecordedMailFlagMutation(request.Mutation, record.Id, record.Lifecycle));
                     }
                 }
+
+                if (key is not null)
+                {
+                    await this.idempotency.StageAsync(
+                        session,
+                        key,
+                        change.StoredEmailId,
+                        new MailActOutcome(
+                            applied.Count > 0 ? AppliedOutcome : RecordedOutcome,
+                            [.. opened],
+                            SpamMarkChanges: [],
+                            target.Occurrence.AccountId.Value,
+                            target.StoredIn.ToString()),
+                        attemptCancellationToken);
+                }
             },
             cancellationToken);
+
+        if (replayed is not null)
+        {
+            return ReplayOf(change.StoredEmailId, replayed);
+        }
 
         foreach (var committed in applied)
         {
@@ -217,6 +288,17 @@ public sealed class MailFlagChangeRecorder
             opened,
             IsApplied: applied.Count > 0);
     }
+
+    /// <summary>Rebuilds the answer the first attempt gave for an email.</summary>
+    private static AuthoredMailFlagChangeResult ReplayOf(StoredEmailId storedEmailId, MailActOutcome first) =>
+        new(
+            storedEmailId,
+            MailAccountId.Create(first.Account!),
+            MailFolderId.TryParse(first.Folder, out var folder)
+                ? folder
+                : throw new InvalidOperationException("A stored flag outcome names the folder the email was in."),
+            first.Changes,
+            IsApplied: first.Outcome == AppliedOutcome);
 
     /// <summary>Reports whether the record this call was answered with asks for what this call asked for.</summary>
     /// <remarks>

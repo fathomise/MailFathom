@@ -452,7 +452,7 @@ describe('what the whole of this package records', () => {
         await readMailMessage(session, refusing, storedEmailId);
         await readMailBody(session, refusing, storedEmailId, { remoteImages: true, fullHtml: true });
         await readMailAttachment(session, storedEmailId, 1, 2_048, delivered, nothingFailed);
-        await markMailRead(session, refusing, [storedEmailId, threadId]);
+        await markMailRead(session, refusing, [storedEmailId, threadId], 'act-1');
     }
 
     it.each([

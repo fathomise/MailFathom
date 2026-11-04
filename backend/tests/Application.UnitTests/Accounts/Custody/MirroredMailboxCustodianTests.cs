@@ -3,27 +3,35 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Accounts.Custody;
+using MailFathom.Application.Coordination;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
+using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Accounts.Custody;
 
-/// <summary>Covers how an account whose source is the truth carries its acts: through the source, with nothing committed locally.</summary>
+/// <summary>Covers how an account whose source is the truth carries its acts: through the source, committed locally first where every replica and the server allow it.</summary>
 public sealed class MirroredMailboxCustodianTests
 {
     private static readonly MailAccountId Account = MailAccountId.Create("primary");
 
     private static readonly MailFolderResolution Inbox =
         MailFolderResolution.FirstBindingOf(MailFolderAlias.Create("INBOX"), RemoteFolderPath.Create("INBOX"));
+
+    private static readonly MailFolderResolution Archive =
+        MailFolderResolution.FirstBindingOf(MailFolderAlias.Create("Archive"), RemoteFolderPath.Create("Archive"));
+
+    private static readonly MailFolderId ArchiveFolder = MailFolderId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000f1"));
 
     private static readonly StoredEmailId Email = StoredEmailId.Create(Guid.Parse("0199c1a2-0000-7000-8000-0000000000a1"));
 
@@ -37,6 +45,8 @@ public sealed class MirroredMailboxCustodianTests
     private readonly InMemoryLocalEmailStateStore states = new(Account);
 
     private readonly IPersistenceSession session = Substitute.For<IPersistenceSession>();
+
+    private readonly InMemoryLocalMailFolderStore folders = new(Account, MailAccountCustodyPhase.Mirrored);
 
     /// <summary>A change on a message is owed to the source, so it is written down for the converger and committed nowhere else.</summary>
     [Fact]
@@ -124,6 +134,173 @@ public sealed class MirroredMailboxCustodianTests
         Assert.Equal(MailFolderActRefusal.AccountMissing, outcome.Refusal);
     }
 
+    /// <summary>
+    /// Once every replica knows the overlay, a change on a message is committed to stored state beside its record, and
+    /// the record keeps what the server was last seen holding so synchronization leaves the field alone.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAsync_AFlagChangeOnceEveryReplicaKnowsTheOverlay_CommitsItLocallyBesideItsRecord()
+    {
+        // Arrange
+        this.StoreUnread();
+
+        // Act
+        var submitted = await this.LocalFirstCustodian().SubmitAsync(this.session, Change(SeenRequest()), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Applied, submitted.Outcome);
+        Assert.True(this.states.States[Email].IsSeen);
+        Assert.Equal(MailboxMutationLocalChange.AlreadyCommitted, submitted.Record!.LocalChange);
+        Assert.False(submitted.Record.Overlay!.ObservedSeenState);
+    }
+
+    /// <summary>
+    /// During a rolling upgrade an older replica's synchronization would write over a field left outstanding, so a
+    /// change is recorded alone while any live lease names a build that does not know the overlay.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAsync_WhileAnOlderBuildHoldsALease_RecordsTheChangeAlone()
+    {
+        // Arrange
+        this.StoreUnread();
+        var custodian = this.Composition(
+            MailboxCustodianComposition.LeasesHeldBy(WorkLeaseHolder.ForBuild("0.9.0"), WorkLeaseHolder.NewHold()),
+            capabilities: null).Mirrored;
+
+        // Act
+        var submitted = await custodian.SubmitAsync(this.session, Change(SeenRequest()), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Recorded, submitted.Outcome);
+        Assert.False(this.states.States[Email].IsSeen);
+    }
+
+    /// <summary>
+    /// A later change to the same field withdraws the earlier one that was never issued, and keeps the earlier one's
+    /// reading of the server, since that is still what the server holds.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAsync_ReadThenUnread_WithdrawsTheReadAndKeepsTheServersOriginalState()
+    {
+        // Arrange
+        this.StoreUnread();
+        var custodian = this.LocalFirstCustodian();
+        var read = SeenRequest();
+        var unread = MailboxMutationRequest.SetSeen(Email, Occurrence, MailboxMutationRequester.Command("call-2"), false);
+        await custodian.SubmitAsync(this.session, Change(read), Token);
+
+        // Act
+        var submitted = await custodian.SubmitAsync(this.session, Change(unread), Token);
+
+        // Assert
+        Assert.Equal(MailboxMutationStage.Cancelled, this.records.RecordOf(read).Stage);
+        Assert.False(this.states.States[Email].IsSeen);
+        Assert.False(submitted.Record!.Overlay!.ObservedSeenState);
+    }
+
+    /// <summary>A request already recorded answers with its record, and the state it committed is not written twice.</summary>
+    [Fact]
+    public async Task SubmitAsync_TheSameRequestTwice_OpensOneRecord()
+    {
+        // Arrange
+        this.StoreUnread();
+        var custodian = this.LocalFirstCustodian();
+        var first = await custodian.SubmitAsync(this.session, Change(SeenRequest()), Token);
+
+        // Act
+        var second = await custodian.SubmitAsync(this.session, Change(SeenRequest()), Token);
+
+        // Assert
+        Assert.Equal(first.Record!.Id, second.Record!.Id);
+        Assert.Equal(1, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A delete is committed by its record alone, which hides the message; its stored state is left as it was.</summary>
+    [Fact]
+    public async Task SubmitAsync_ADeleteOnAServerThatExpungesByUid_IsAppliedThroughItsRecord()
+    {
+        // Arrange
+        this.StoreUnread();
+
+        // Act
+        var submitted = await this.LocalFirstCustodian().SubmitAsync(this.session, Change(DeleteRequest()), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Applied, submitted.Outcome);
+        Assert.NotNull(submitted.Record!.Overlay);
+        Assert.Equal(MailboxMutationLocalChange.AlreadyCommitted, submitted.Record.LocalChange);
+    }
+
+    /// <summary>A delete the server could only expunge with everything else flagged waits for the server rather than vanishing and coming back.</summary>
+    [Fact]
+    public async Task SubmitAsync_ADeleteOnAServerThatCannotExpungeByUid_IsRecordedAlone()
+    {
+        // Arrange
+        this.StoreUnread();
+
+        // Act
+        var submitted = await this.LocalFirstCustodian(MailboxServerCapabilities.None)
+            .SubmitAsync(this.session, Change(DeleteRequest()), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Recorded, submitted.Outcome);
+        Assert.Null(submitted.Record!.Overlay);
+    }
+
+    /// <summary>A move creates an occurrence the server has to name, so it waits for the server where none was seen advertising how.</summary>
+    [Fact]
+    public async Task SubmitAsync_AMoveOnAServerThatNamesNoNewOccurrence_IsRecordedAlone()
+    {
+        // Arrange
+        this.StoreUnread();
+        var move = MoveToArchive();
+
+        // Act
+        var submitted = await this.LocalFirstCustodian(MailboxServerCapabilities.None).SubmitAsync(this.session, move, Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Recorded, submitted.Outcome);
+        Assert.Null(this.states.States[Email].Folder);
+    }
+
+    /// <summary>Where the server was seen advertising UIDPLUS, a move puts the message in its local folder at once.</summary>
+    [Fact]
+    public async Task SubmitAsync_AMoveOnAServerThatNamesTheNewOccurrence_PutsTheMessageInItsFolderAtOnce()
+    {
+        // Arrange
+        this.StoreUnread();
+
+        // Act
+        var submitted = await this.LocalFirstCustodian(MailboxServerCapabilities.UidPlus)
+            .SubmitAsync(this.session, MoveToArchive(), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Applied, submitted.Outcome);
+        Assert.Equal(ArchiveFolder, this.states.States[Email].Folder);
+        Assert.Null(submitted.Record!.Overlay!.ObservedFolder);
+    }
+
+    /// <summary>A person moving a message into the folder a local commit already put it in is told it is there.</summary>
+    [Fact]
+    public async Task SubmitAsync_APersonsMoveIntoTheFolderALocalCommitPutItIn_AnswersAlreadyThere()
+    {
+        // Arrange
+        this.StoreUnread();
+        var custodian = this.LocalFirstCustodian(MailboxServerCapabilities.Imap4Rev2);
+        await custodian.SubmitAsync(this.session, MoveToArchive(), Token);
+        var again = MoveToArchive() with
+        {
+            Request = MailboxMutationRequest.Relocate(Email, Occurrence, MailboxMutationRequester.Command("call-2"), Archive.RemotePath),
+        };
+
+        // Act
+        var submitted = await custodian.SubmitAsync(this.session, again, Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.AlreadyInDestination, submitted.Outcome);
+        Assert.Equal(1, this.records.OpenedRecordCount);
+    }
+
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     private static MailboxMutationRequest SeenRequest() => MailboxMutationRequest.SetSeen(Email, Occurrence, Requester, true);
@@ -133,6 +310,46 @@ public sealed class MirroredMailboxCustodianTests
 
     private static MailboxChange Change(MailboxMutationRequest request) =>
         new(request, Destination: null, HeldUntil: null, PersonsMove: false, CrossesDraftsOrSentTreeOnTheServer: false, PreparedCopy: null);
+
+    private static MailboxMutationRequest DeleteRequest() => MailboxMutationRequest.Delete(
+        Email,
+        Occurrence,
+        Requester,
+        AuthoredDeleteEmailDisposition.RetainTombstone,
+        AuthoredDeleteServerDisposition.Expunge);
+
+    private static MailboxChange MoveToArchive() =>
+        Change(MailboxMutationRequest.Relocate(Email, Occurrence, Requester, Archive.RemotePath)) with
+        {
+            Destination = new MailboxDestination(Archive, IsMirrored: true),
+            PersonsMove = true,
+        };
+
+    private MirroredMailboxCustodian LocalFirstCustodian(MailboxServerCapabilities advertised = MailboxServerCapabilities.UidPlus) =>
+        this.Composition(
+            MailboxCustodianComposition.LeasesHeldBy(WorkLeaseHolder.ForBuild("0.9.0")),
+            MailboxServerCapabilityObservation.Observed(advertised, DateTimeOffset.UnixEpoch)).Mirrored;
+
+    private MailboxCustodianComposition Composition(
+        IWorkLeaseStore leases,
+        MailboxServerCapabilityObservation? capabilities)
+    {
+        this.folders.Add(new LocalMailFolder(ArchiveFolder, ParentId: null, LocalMailFolderName.Create("Archive"), Role: null, Archive.Alias));
+
+        return new MailboxCustodianComposition(new FakeTimeProvider())
+        {
+            Records = this.records,
+            States = this.states,
+            LocalFolders = this.folders,
+            Leases = leases,
+            Capabilities = MailboxCustodianComposition.CapabilitiesObserved(
+                capabilities ?? MailboxServerCapabilityObservation.NeverObserved),
+        };
+    }
+
+    private void StoreUnread() => this.states.Store(
+        Email,
+        new LocalEmailState(Inbox, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, RemoteEmailKeywords.Create([])));
 
     private MirroredMailboxCustodian Custodian() =>
         MailboxChangeSubmissions.Composing(this.records, states: this.states).Mirrored;

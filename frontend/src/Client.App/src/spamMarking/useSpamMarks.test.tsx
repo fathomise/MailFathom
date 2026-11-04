@@ -178,11 +178,15 @@ function drawn(
     );
 }
 
+/** What the deployment was asked, without the key the act is repeated under, which every request is asserted to carry. */
 function submitted(deployment: Deployment): unknown[] {
-    return deployment.requests.map((request) => ({
-        path: request.path,
-        body: JSON.parse(request.body ?? '{}') as unknown,
-    }));
+    return deployment.requests.map((request) => {
+        const { requestId, ...body } = JSON.parse(request.body ?? '{}') as { requestId?: string };
+
+        expect(requestId).toMatch(/\S/u);
+
+        return { path: request.path, body };
+    });
 }
 
 /** Opens the chooser over the messages, picks the kind, and confirms it. */
@@ -270,6 +274,24 @@ describe('useSpamMarks', () => {
         await markedSpam(/^Marketing/u);
 
         expect(await screen.findByRole('button', { name: 'Not spam' })).toBeDefined();
+    });
+
+    it('gives each batch of a selection its own key, because each is an act of its own', async () => {
+        const deployment = recording();
+        const many = Array.from({ length: mostMessagesPerMutation + 1 }, (_, at) => ({
+            ...invoice,
+            storedEmailId: `message-${String(at)}`,
+        }));
+
+        drawn(many, deployment);
+        await markedSpam(/^Marketing/u);
+
+        await screen.findByText(`Marked as spam - ${String(many.length)} messages`);
+        const keys = deployment.requests.map(
+            (request) => (JSON.parse(request.body ?? '{}') as { requestId: string }).requestId,
+        );
+
+        expect(new Set(keys).size).toBe(2);
     });
 
     it.each([

@@ -10,6 +10,8 @@ using MailFathom.Application.Folders;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Authoring;
+using MailFathom.Application.Mail.Mutations.Authoring.Failures;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Rules.Actions;
@@ -359,7 +361,7 @@ public sealed class SpamMarkRecorderTests
 
         // Assert
         Assert.Equal(SpamMarkOutcome.Applied, result.Outcome);
-        Assert.Contains(result.Records, static record => record.Request.Mutation == MailboxMutation.AddKeywords);
+        Assert.Contains(result.Records, static record => record.Mutation == MailboxMutation.AddKeywords);
         Assert.Equal(["$JUNK"], states.States[Email].Keywords.Values);
     }
 
@@ -558,6 +560,57 @@ public sealed class SpamMarkRecorderTests
         Assert.Equal(opened, this.records.OpenedRecordCount);
     }
 
+    /// <summary>
+    /// A repeat under the act's key, reaching another replica after the message is gone, answers the first mark's outcome
+    /// and records — the stored outcome read back by name — and writes nothing again.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_ARepeatUnderTheSameKey_AnswersTheFirstOutcomeAndRecordsNothingAgain()
+    {
+        // Arrange
+        var keys = new InMemoryMailActKeyStore();
+        var key = MailActIdempotencyKey.Create("call-1", "spam:Spam:", [$"{Email.Value:N}"]);
+        var first = await MarkAsync(this.Recorder(Filing(off: true), keys: keys), SpamMark.Spam(subcategory: null), key);
+        var openedByTheFirst = this.records.OpenedRecordCount;
+
+        // Act
+        var repeat = await MarkAsync(this.Recorder(Filing(off: true), target: false, keys: keys.AnotherReplica()), SpamMark.Spam(subcategory: null), key);
+
+        // Assert
+        Assert.Equal(SpamMarkOutcome.Recorded, repeat.Outcome);
+        Assert.Equal((first.Outcome, first.IsMoved), (repeat.Outcome, repeat.IsMoved));
+        Assert.Equal(first.Records, repeat.Records);
+        Assert.Equal(openedByTheFirst, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A key the person already used for another act is refused rather than answered with that act's outcome.</summary>
+    [Fact]
+    public async Task RecordAsync_AKeyAlreadyUsedForADifferentAct_IsRefused()
+    {
+        // Arrange
+        var keys = new InMemoryMailActKeyStore();
+        await MarkAsync(
+            this.Recorder(Filing(off: true), keys: keys),
+            SpamMark.Spam(subcategory: null),
+            MailActIdempotencyKey.Create("call-1", "spam:Spam:", [$"{Email.Value:N}"]));
+        var otherAct = MailActIdempotencyKey.Create("call-1", "spam:NotSpam:", [$"{Email.Value:N}"]);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailFlagChangeInvalidException>(() =>
+            MarkAsync(this.Recorder(Filing(off: true), keys: keys.AnotherReplica()), SpamMark.NotSpam, otherAct));
+
+        // Assert
+        Assert.Equal(MailFlagChangeInvalidException.RequestIdReusedForAnotherAct().Message, refusal.Message);
+    }
+
+    /// <summary>Marks the one message under a key, as the route asks for a batch of its own.</summary>
+    private static async Task<SpamMarkResult> MarkAsync(SpamMarkRecorder recorder, SpamMark mark, MailActIdempotencyKey key)
+    {
+        var batch = await recorder.RequireGrantsAsync([Email], TestContext.Current.CancellationToken);
+
+        return await recorder.RecordAsync(Email, mark, Requester, batch, key, TestContext.Current.CancellationToken);
+    }
+
     /// <summary>Marks the one message these tests name as a batch of its own, which is how the route asks.</summary>
     private static async Task<SpamMarkResult> MarkAsync(
         SpamMarkRecorder recorder,
@@ -659,7 +712,8 @@ public sealed class SpamMarkRecorderTests
         AccessAuthorization? authorization = null,
         bool target = true,
         StubMailFolderParticipation? participation = null,
-        SpamActionSettings? reloadedTo = null)
+        SpamActionSettings? reloadedTo = null,
+        IMailActKeyStore? keys = null)
     {
         var folderAlias = folder ?? Inbox;
         var composition = this.Composition(localFolders, states);
@@ -696,7 +750,8 @@ public sealed class SpamMarkRecorderTests
             CommitPolicyOver(composition),
             new MailAccountRunSignal(),
             this.mappings.Resolver,
-            this.bindings);
+            this.bindings,
+            new MailActIdempotency(caller, keys ?? Substitute.For<IMailActKeyStore>(), composition.Clock));
     }
 
     private static OptimisticConcurrencyRetryPolicy CommitPolicyOver(MailboxCustodianComposition composition) =>

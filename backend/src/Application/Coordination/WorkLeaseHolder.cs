@@ -38,6 +38,8 @@ public sealed record WorkLeaseHolder
     /// <summary>The greatest length the build part may have, so a long informational version cannot crowd out the hold.</summary>
     private const int MaximumBuildLength = 64;
 
+    private const string MailboxOverlayMarker = "overlay";
+
     private WorkLeaseHolder(string value) => this.Value = value;
 
     /// <summary>Gets the text a stored lease is compared against.</summary>
@@ -52,6 +54,18 @@ public sealed record WorkLeaseHolder
     public string? Build => this.Value.IndexOf(BuildSeparator, StringComparison.Ordinal) is var separator and > 0
         ? this.Value[..separator]
         : null;
+
+    /// <summary>Gets whether the build that took this hold knows the overlay a change committed locally first puts on a mirrored message.</summary>
+    /// <remarks>
+    /// The marker sits between the build and the hold's own identifier, so <see cref="Build" /> reads the same from a
+    /// holder that carries it and from one that does not. Its presence is the statement and no version is compared: a
+    /// mirrored account commits a change locally first only while every live lease carries it, because an older build's
+    /// synchronization writes every observation and would write over a field such a change left outstanding. See
+    /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>
+    /// § <em>A rolling upgrade</em>.
+    /// </remarks>
+    public bool KnowsMailboxOverlay => this.Value.Split(BuildSeparator) is [_, .. var markers, _]
+        && markers.Contains(MailboxOverlayMarker, StringComparer.Ordinal);
 
     /// <summary>Creates a holder for one hold.</summary>
     /// <param name="value">The generated identity of the hold.</param>
@@ -116,7 +130,8 @@ public sealed record WorkLeaseHolder
                 nameof(build));
         }
 
-        return new WorkLeaseHolder($"{trimmedBuild}{BuildSeparator}{Guid.CreateVersion7()}");
+        return new WorkLeaseHolder(
+            $"{trimmedBuild}{BuildSeparator}{MailboxOverlayMarker}{BuildSeparator}{Guid.CreateVersion7()}");
     }
 
     /// <inheritdoc />

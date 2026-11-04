@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
@@ -43,28 +44,33 @@ public sealed class MailboxChangeWithdrawer
     private readonly MailboxScopeResolver scopeResolver;
     private readonly IMailboxMutationRecordStore records;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
+    private readonly ClientSignals signals;
 
     /// <summary>Initializes the use case over the grant it asks first and the records it withdraws.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
     /// <param name="scopeResolver">Answers whose records these are and which folders the caller may reach.</param>
     /// <param name="records">Reads and withdraws the durable records.</param>
     /// <param name="commitPolicy">Commits a call's withdrawals together, retrying an optimistic conflict.</param>
+    /// <param name="signals">Tells clients that a change committed locally first was withdrawn and its message restored.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public MailboxChangeWithdrawer(
         AccessAuthorization authorization,
         MailboxScopeResolver scopeResolver,
         IMailboxMutationRecordStore records,
-        OptimisticConcurrencyRetryPolicy commitPolicy)
+        OptimisticConcurrencyRetryPolicy commitPolicy,
+        ClientSignals signals)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(scopeResolver);
         ArgumentNullException.ThrowIfNull(records);
         ArgumentNullException.ThrowIfNull(commitPolicy);
+        ArgumentNullException.ThrowIfNull(signals);
 
         this.authorization = authorization;
         this.scopeResolver = scopeResolver;
         this.records = records;
         this.commitPolicy = commitPolicy;
+        this.signals = signals;
     }
 
     /// <summary>Withdraws flag and keyword changes this caller authored.</summary>
@@ -165,7 +171,7 @@ public sealed class MailboxChangeWithdrawer
             return [];
         }
 
-        IReadOnlyList<MailboxChangeProgress> withdrawn = [];
+        IReadOnlyList<MailboxMutationRecord> withdrawn = [];
 
         await this.commitPolicy.CommitAsync(
             async (session, attemptCancellationToken) =>
@@ -178,11 +184,29 @@ public sealed class MailboxChangeWithdrawer
                     withdrawable,
                     attemptCancellationToken);
 
-                withdrawn = [.. records.Select(MailboxChangeProgress.Of)];
+                withdrawn = records;
             },
             cancellationToken);
 
-        return withdrawn;
+        this.AnnounceRestored(withdrawn);
+
+        return [.. withdrawn.Select(MailboxChangeProgress.Of)];
+    }
+
+    /// <summary>Tells the clients of each account that a change committed locally first was withdrawn and its message returned to what the server holds.</summary>
+    /// <remarks>Published only once the withdrawal has committed, so no client reads a restoration that rolled back.</remarks>
+    private void AnnounceRestored(IReadOnlyList<MailboxMutationRecord> withdrawn)
+    {
+        if (!this.signals.Reaches)
+        {
+            return;
+        }
+
+        foreach (var record in withdrawn.Where(static record =>
+            record.Overlay is not null && record.Stage == MailboxMutationStage.Cancelled))
+        {
+            this.signals.Publish(ClientSignal.MailChanged(record.Request.Account, folder: null, [record.Request.StoredEmailId]));
+        }
     }
 
     /// <summary>Reports whether the caller may still reach the mailbox the change was recorded in.</summary>

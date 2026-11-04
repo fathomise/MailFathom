@@ -32,6 +32,7 @@ internal sealed class InMemoryLocalEmailStateStore(MailAccountId account) : ILoc
         MailAccountId account1,
         StoredEmailId email,
         LocalEmailState state,
+        bool isHeldFolder,
         CancellationToken cancellationToken)
     {
         if (account1 != account || !this.states.ContainsKey(email))

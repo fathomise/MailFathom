@@ -26,8 +26,10 @@ namespace MailFathom.Mcp.Tools;
 /// still not the thing that talks to a mail server: the use case behind it writes a durable record per value asked for,
 /// and the account's own convergence pass issues the <c>STORE</c>. So a protocol request never waits on IMAP, never
 /// opens a connection against an account's budget, and a crash between the record and the command leaves a change that
-/// converges rather than a value that quietly disagrees with the mailbox. On an account MailFathom holds itself there is
-/// no server to issue it to, so the use case commits the change to the stored email at once and writes no record.
+/// converges rather than a value that quietly disagrees with the mailbox. The use case also commits the change to the
+/// stored email as the call commits wherever the account allows it — on a mirrored account once every replica knows the
+/// overlay that leaves, and always on a held or a restoring one — and on a held account it writes no record, there being
+/// no server to issue it to.
 /// </para>
 /// <para>
 /// The three values are one tool because they are one act. A caller triaging a message decides what to do with it once,
@@ -98,12 +100,14 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
         "Marks one email read or unread, stars or unstars it, and adds or removes its keywords — the labels "
         + "a mail client shows as tags. Every value is optional and at least one is required; a call that names none is "
         + "refused. The change is written down durably and issued to the mail server by the account's next "
-        + "synchronization run, so the result reports the records rather than a mailbox that has already changed: each "
-        + "carries a changeRecordId and the lifecycle it has reached. To read where a change has got to, call again with "
-        + "the same requestId, which answers with the same records and their current lifecycle. On an account MailFathom "
-        + "holds on its own there is no mail server to wait on: the result says applied, the change has already "
-        + "happened, and no records are returned; requestId matches a repeated call only against a record, so there a "
-        + "repeat under the same requestId applies the change again rather than answering with the first call. Every change is "
+        + "synchronization run, and each record in the result carries a changeRecordId and the lifecycle it has reached. "
+        + "When the result says applied, MailFathom's own copy of the email already shows the change, and any records "
+        + "returned are what carries it to the mail server; when it does not, the email changes once the server has "
+        + "taken it. To read where a change has got to, call again with the same requestId, which answers with the "
+        + "same records and their current lifecycle. On an account MailFathom holds on its own there is no mail server "
+        + "to wait on: the result says applied and no records are returned; requestId matches a repeated call only "
+        + "against a record, so there a repeat under the same requestId applies the change again rather than "
+        + "answering with the first call. Every change is "
         + "reversible: call again with the opposite value. Keywords are changed with keywordChange add and remove, which "
         + "touch only what they name; replace, which would state the whole set and take off whatever it does not list, "
         + "is refused. The junk keywords $Junk, $NotJunk, and $Phishing are refused too: they carry the spam verdict and "

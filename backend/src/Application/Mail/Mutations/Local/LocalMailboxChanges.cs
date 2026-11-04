@@ -145,15 +145,15 @@ public sealed class LocalMailboxChanges
 
         var mutation = request.Mutation;
 
-        if (mutation == MailboxMutation.SetSeen || mutation == MailboxMutation.SetFlagged
-            || mutation == MailboxMutation.AddKeywords || mutation == MailboxMutation.RemoveKeywords
-            || mutation == MailboxMutation.SetKeywords)
+        if (IsFlagChange(mutation))
         {
-            var flagged = mutation == MailboxMutation.SetSeen ? state with { IsSeen = request.DesiredSeenState!.Value }
-                : mutation == MailboxMutation.SetFlagged ? state with { IsFlagged = request.DesiredFlaggedState!.Value }
-                : state with { Keywords = KeywordsAfter(request, state.Keywords) };
-
-            return await this.WriteAsync(session, request, state, flagged, carriesToSource, cancellationToken);
+            return await this.WriteAsync(
+                session,
+                request,
+                state,
+                FlaggedAfter(request, state),
+                carriesToSource,
+                cancellationToken);
         }
 
         // Every other change moves the message, so the hierarchy is saved with it: a save is what makes the commit
@@ -205,6 +205,81 @@ public sealed class LocalMailboxChanges
             cancellationToken);
     }
 
+    /// <summary>Commits one change to stored state on a mirrored account, beside the record that carries it to the server.</summary>
+    /// <param name="session">The transaction the change commits in.</param>
+    /// <param name="change">The change, already cleared of the refusals the custodian answers from the server's folders.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>The local change committed with its record, why nothing was written, or <see langword="null" /> where the change cannot be committed locally and is to be recorded server-first.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> or <paramref name="change" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// <para>
+    /// The fields the act writes overlay what synchronization observes for as long as the record has not ended, and the
+    /// record starts out holding the values the act replaced, so withdrawing or giving it up returns each field to the
+    /// server's. No local audit entry is written: the record is audited when it ends, as every record carried to a
+    /// server is. A request already recorded commits nothing a second time.
+    /// </para>
+    /// <para>
+    /// A delete writes no field: the record hides its message from every reader while it is outstanding, and the
+    /// disposition the delete carries retires it once the server has removed it. A move and a copy commit locally only
+    /// into a folder the account synchronizes, and a copy only with its payload placed beforehand; anything else is
+    /// answered with <see langword="null" />. A person's move into the folder the message is stored in is refused as
+    /// already there, and a rule's is answered with <see langword="null" />, which records it as it always was.
+    /// </para>
+    /// </remarks>
+    public async Task<SubmittedMailboxChange?> CommitOverlaidAsync(
+        IPersistenceSession session,
+        MailboxChange change,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(change);
+
+        var request = change.Request;
+        var state = await this.states.ReadAsync(session, request.Account, request.StoredEmailId, cancellationToken);
+
+        if (state is null)
+        {
+            return SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.MessageMissing);
+        }
+
+        var mutation = request.Mutation;
+
+        if (IsFlagChange(mutation) || mutation == MailboxMutation.Delete)
+        {
+            var after = mutation == MailboxMutation.Delete ? state : FlaggedAfter(request, state);
+
+            return await this.WriteOverlaidAsync(session, change, state, after, cancellationToken);
+        }
+
+        var holding = await this.localFolders.ReadAsync(session, request.Account, cancellationToken);
+        var target = change.Destination is { } destination
+            ? holding?.Folders.FirstOrDefault(folder => folder.SourceFolderAlias == destination.Alias)
+            : null;
+
+        if (target is null)
+        {
+            return null;
+        }
+
+        // Judged by the folder the message is stored in rather than by the one its occurrence names, because a move
+        // committed locally first has already put it somewhere the server does not show yet.
+        if (state.Folder == target.Id)
+        {
+            return change.PersonsMove
+                ? SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.AlreadyInDestination)
+                : null;
+        }
+
+        if (mutation != MailboxMutation.Copy)
+        {
+            return await this.WriteOverlaidAsync(session, change, state, state with { Folder = target.Id }, cancellationToken);
+        }
+
+        return change.PreparedCopy is { } preparedCopy
+            ? await this.CopyOverlaidAsync(session, change, state, target.Id, preparedCopy, cancellationToken)
+            : null;
+    }
+
     /// <summary>Finds the local folder a destination resolved on the source corresponds to.</summary>
     /// <remarks>
     /// The correspondence is the one arrivals follow: a protected role is that role's own local folder, and any other
@@ -216,6 +291,109 @@ public sealed class LocalMailboxChanges
             ? tree.Folders.FirstOrDefault(folder => folder.Role == role)
             : tree.Folders.FirstOrDefault(folder =>
                 folder.SourceFolderAlias == destination.Alias && !tree.IsInTrash(folder.Id));
+
+    private static bool IsFlagChange(MailboxMutation mutation) =>
+        mutation == MailboxMutation.SetSeen
+        || mutation == MailboxMutation.SetFlagged
+        || MailboxMutationRequest.IsKeywordChange(mutation);
+
+    /// <summary>Builds the state a flag or keyword change leaves the message in.</summary>
+    private static LocalEmailState FlaggedAfter(MailboxMutationRequest request, LocalEmailState state) =>
+        request.Mutation == MailboxMutation.SetSeen ? state with { IsSeen = request.DesiredSeenState!.Value }
+        : request.Mutation == MailboxMutation.SetFlagged ? state with { IsFlagged = request.DesiredFlaggedState!.Value }
+        : state with { Keywords = KeywordsAfter(request, state.Keywords) };
+
+    private static MailboxMutationOverlay Replaced(LocalEmailState before) =>
+        new(before.IsSeen, before.IsFlagged, before.Keywords, before.Folder, LocalCopy: null);
+
+    private static SignalledEmailFlags? SignalledFlagsOf(MailboxMutationRequest request) =>
+        request.Mutation == MailboxMutation.SetSeen || request.Mutation == MailboxMutation.SetFlagged
+            ? new SignalledEmailFlags(request.StoredEmailId, request.DesiredSeenState, request.DesiredFlaggedState)
+            : null;
+
+    /// <summary>Opens the overlaying record and writes the state it overlays, unless the same request was already recorded.</summary>
+    private async Task<SubmittedMailboxChange> WriteOverlaidAsync(
+        IPersistenceSession session,
+        MailboxChange change,
+        LocalEmailState before,
+        LocalEmailState after,
+        CancellationToken cancellationToken)
+    {
+        var request = change.Request;
+        var opened = await this.records.OpenOverlayAsync(
+            session,
+            request,
+            change.HeldUntil,
+            Replaced(before),
+            cancellationToken);
+
+        if (opened.IsNew && after != before)
+        {
+            await this.states.WriteAsync(
+                session,
+                request.Account,
+                request.StoredEmailId,
+                after,
+                isHeldFolder: false,
+                cancellationToken);
+        }
+
+        return SubmittedMailboxChange.Applied(
+            new AppliedMailboxChange(
+                request.Account,
+                before.Folder == after.Folder ? after.Folder : null,
+                request.StoredEmailId,
+                SignalledFlagsOf(request)),
+            opened.Record);
+    }
+
+    /// <summary>Writes the second stored message a copy produces on a mirrored account, beside the record whose placement binds it.</summary>
+    /// <remarks>
+    /// The record is opened first, so a request already recorded writes no second copy; the copy's row is then named on
+    /// the record, which is what the destination's forward pass binds the server's occurrence to.
+    /// </remarks>
+    private async Task<SubmittedMailboxChange> CopyOverlaidAsync(
+        IPersistenceSession session,
+        MailboxChange change,
+        LocalEmailState state,
+        MailFolderId target,
+        PreparedLocalCopy preparedCopy,
+        CancellationToken cancellationToken)
+    {
+        var request = change.Request;
+        var opened = await this.records.OpenOverlayAsync(
+            session,
+            request,
+            change.HeldUntil,
+            Replaced(state),
+            cancellationToken);
+
+        if (!opened.IsNew)
+        {
+            return SubmittedMailboxChange.Applied(
+                new AppliedMailboxChange(request.Account, target, opened.Record.Overlay?.LocalCopy ?? request.StoredEmailId, Flags: null),
+                opened.Record);
+        }
+
+        var copied = await this.copier.CommitAsync(
+            session,
+            preparedCopy,
+            state.SourceFolder.Id,
+            target,
+            new CopiedMailFlags(state.IsSeen, state.IsFlagged, state.Keywords),
+            cancellationToken);
+
+        // Nothing written means the copied message's own binding went while this ran. The record still stands, so the
+        // copy reaches the server and comes back as the destination's own discovery, as a copy did before it was local.
+        if (copied is not { } copy)
+        {
+            return SubmittedMailboxChange.Recorded(opened.Record);
+        }
+
+        var record = await this.records.RecordLocalCopyAsync(session, opened.Record.Id, copy, cancellationToken);
+
+        return SubmittedMailboxChange.Applied(new AppliedMailboxChange(request.Account, target, copy, Flags: null), record);
+    }
 
     /// <summary>Builds the keyword set a keyword change leaves on a message that carried the earlier one.</summary>
     private static RemoteEmailKeywords KeywordsAfter(MailboxMutationRequest request, RemoteEmailKeywords carried)
@@ -355,7 +533,13 @@ public sealed class LocalMailboxChanges
         CancellationToken cancellationToken)
     {
         await this.AuditAsync(session, request, before, cancellationToken);
-        await this.states.WriteAsync(session, request.Account, request.StoredEmailId, after, cancellationToken);
+        await this.states.WriteAsync(
+            session,
+            request.Account,
+            request.StoredEmailId,
+            after,
+            isHeldFolder: true,
+            cancellationToken);
 
         var carried = carriesToSource && before.HoldsSourceOccurrence
             ? await this.records.OpenAsync(
@@ -366,16 +550,12 @@ public sealed class LocalMailboxChanges
                 cancellationToken)
             : null;
 
-        var flags = request.Mutation == MailboxMutation.SetSeen || request.Mutation == MailboxMutation.SetFlagged
-            ? new SignalledEmailFlags(request.StoredEmailId, request.DesiredSeenState, request.DesiredFlaggedState)
-            : (SignalledEmailFlags?)null;
-
         return SubmittedMailboxChange.Applied(
             new AppliedMailboxChange(
                 request.Account,
                 before.Folder == after.Folder ? after.Folder : null,
                 request.StoredEmailId,
-                flags),
+                SignalledFlagsOf(request)),
             carried);
     }
 

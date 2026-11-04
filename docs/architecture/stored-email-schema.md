@@ -630,6 +630,9 @@ A row holds no part of the message: a position in a mailbox and MailFathom's own
 On `stored_emails`, `authored_delete_flagged_at` marks a kept row whose message still carries the `\Deleted` a
 `FlagDeleted` delete set. Every mailbox query excludes such a row unless `is_retained_after_authored_delete` keeps it
 readable, and the reconciliation window skips it; the marker is cleared when the server removes `\Deleted`.
+`LocalDeleteCommittedAt` hides a row the same way from the moment a mirrored account commits a delete locally
+first, before any server has removed it; withdrawing or giving up that delete clears it, and so does the server being
+seen to have restored the message.
 
 ## What a person set about their own client
 
@@ -1083,6 +1086,24 @@ every few minutes is cheaper than anything that would have to coordinate them. T
 path rather than on a timer, so a deployment whose assertion traffic stops keeps whatever rows it held at that moment
 until the next assertion arrives. A cap with an eviction policy would be worse than none: evicting a row that has not
 expired is precisely the replay this exists to refuse.
+
+## The keys a client sent its mailbox acts under
+
+`mail_act_keys` holds one row per message an act of the client's [mutation routes](../operations/client-endpoint.md#the-mutation-routes)
+reached, under the `requestId` the client generated for that act. It is what answers a repeat of a request whose first
+answer never arrived with that first answer rather than performing the act again. It is a table of its own rather
+than a column of the mutation record, for two reasons: a held account's act opens no record at all, and a record goes
+with the message it describes, while a repeat arriving after the message was deleted still has to be answered.
+
+| Column | What it records |
+|---|---|
+| `Id` | The row's own identity, a version 7 UUID, which the sweep removes rows by |
+| `UserId` | Whose act it was. A key is the person's own, so another person's request under the same text is another request. It is the foreign key onto `settings_accounts` with `ON DELETE CASCADE`, because an erasure of the person takes their keys with them |
+| `Key` | The `requestId` as the client sent it, at most 128 characters. `ix_mail_act_keys_user_key_email` is unique over `(UserId, Key, StoredEmailId)` and is written in the transaction that commits the act on that message, so two replicas racing one repeat leave one row: the loser violates the index, `PersistenceConcurrencyConflicts` recognizes the constraint by name, and the retry reads the winner's row and answers its outcome |
+| `StoredEmailId` | The message the act reached. It carries no foreign key, so the row outlives the message and a repeat after its deletion is still answered rather than performed |
+| `Fingerprint` | The SHA-256 digest, as hexadecimal, of what the request asked: the act and, for each message, its value or destination. A repeat whose digest differs is a key reused for another act and is refused rather than answered with somebody else's outcome |
+| `Outcome` | The first answer for that message as `jsonb`: the outcome, the account, the folder and the destination where the act had one, and the records it opened with the lifecycle the answer reported. It holds identifiers and names MailFathom chose, and nothing from the message |
+| `RecordedAt` | When the act committed. A sweep removes a row 24 hours after it, once an hour, in bounded deletes in the order `ix_mail_act_keys_recorded` keeps until one comes back short, and a request carrying the key afterwards is a new act |
 
 ## The unspent signal connection tickets
 
@@ -1551,17 +1572,31 @@ settles that delete, since the server goes on holding the message. `ix_mailbox_m
 removed, so it holds only what the next run of each folder is about to settle.
 
 `LocalChange` says what the row was opened to do to MailFathom's own copy rather than what it asks of a server, and it
-names one of three things. `None` is every row a mirrored account writes, and the row a restoring account writes for a
-message the drain has already taken off the source: nothing local happens, now or later. `Erasure` is the delete of a
+names one of three things. `None` is the row a mirrored account writes for a change it records alone, and the row a
+restoring account writes for a message the drain has already taken off the source: nothing local happens, now or later. `Erasure` is the delete of a
 message already in the local trash on an account holding or restoring its own mailbox, which erases MailFathom's copy
 once the person's withdrawal window has passed and reaches no server at all. `AlreadyCommitted` is the row a restoring
 account opens beside a change it has just made to the stored message, which exists only to carry that change to the
-source. It is written down rather than worked out from the account's phase, because the phase moves while a row waits —
+source, and the row a mirrored account opens beside a change it committed locally first. It is written down rather than worked out from the account's phase, because the phase moves while a row waits —
 once an account is held again all three kinds are deletes against a trashed message. A convergence pass erases the rows
 marked `Erasure` and leaves the rest, so a delete whose `LocalDisposition` asked for the copy to be kept is carried or
-deferred rather than destroying it; and a withdrawal cancels neither an `AlreadyCommitted` row nor anything past
-`Recorded`, because the change it names has happened and taking the row back would leave nothing to tell the source
-with.
+deferred rather than destroying it. A withdrawal cancels nothing past `Recorded`, and cancels no restoring account's
+`AlreadyCommitted` row, because the change it names has happened and taking the row back would leave nothing to tell
+the source with. A mirrored account's `AlreadyCommitted` row — `OverlaysStoredState` true and no
+`LocalCopyStoredEmailId` — is withdrawable while it is `Recorded`, because the source never saw its change and the
+withdrawal undoes it locally, as the next paragraph says.
+
+`OverlaysStoredState` tells those two `AlreadyCommitted` rows apart, and is true only on the mirrored one: the change it
+names has been made to the stored message while the source is still the truth, so the field it wrote overlays what
+synchronization observes until the row ends. It is a column of its own rather than a fourth `LocalChange` value
+because an older build reads that column, and an `AlreadyCommitted` row is one it already leaves alone. Beside it,
+`ObservedSeenState`, `ObservedFlaggedState`, `ObservedKeywords`, and `ObservedFolderId` hold what the server was last
+seen holding for the one field the row's mutation writes, and are null for the others: the reconciliation pass writes
+what it reads of an overlaid field onto them instead of onto the message, compares against them to tell a change on
+the server from its own, and a withdrawn or abandoned row writes them back onto the message unless a later outstanding
+row holds the same field. `LocalCopyStoredEmailId` is the second stored message a copy committed locally first wrote,
+which the destination's forward pass binds the placement onto rather than storing the occurrence again; it names a row
+without a foreign key, because that row is erased on its own lifecycle and the record has to survive it.
 
 `DesiredSeenState`, `DesiredFlaggedState`, and `Keywords` are the other parameters, and each belongs to the mutations
 that take it: the two booleans carry the direction a flag change asked for, and `Keywords` is a `text[]` carrying the

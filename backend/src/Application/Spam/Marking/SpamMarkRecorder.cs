@@ -9,6 +9,7 @@ using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Actions;
@@ -69,6 +70,7 @@ public sealed class SpamMarkRecorder
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly MailAccountRunSignal runSignal;
     private readonly KeptMailTrees keptTrees;
+    private readonly MailActIdempotency idempotency;
 
     /// <summary>Initializes the use case over the grant it asks first, what decides a move, and the writer the verdict goes through.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
@@ -85,6 +87,7 @@ public sealed class SpamMarkRecorder
     /// <param name="runSignal">Brings the account's next synchronization run forward, which carries what was written down to the mail server.</param>
     /// <param name="folderReferences">Answers which folder of the account plays the drafts role and which the sent role.</param>
     /// <param name="bindings">Answers where on the server those two folders were last found.</param>
+    /// <param name="idempotency">Answers a repeat of an act the person already made, and keeps the key of one that commits.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public SpamMarkRecorder(
         AccessAuthorization authorization,
@@ -100,7 +103,8 @@ public sealed class SpamMarkRecorder
         OptimisticConcurrencyRetryPolicy commitPolicy,
         MailAccountRunSignal runSignal,
         MailFolderReferenceResolver folderReferences,
-        IMailFolderResolutionStore bindings)
+        IMailFolderResolutionStore bindings,
+        MailActIdempotency idempotency)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(scopeResolver);
@@ -116,6 +120,7 @@ public sealed class SpamMarkRecorder
         ArgumentNullException.ThrowIfNull(runSignal);
         ArgumentNullException.ThrowIfNull(folderReferences);
         ArgumentNullException.ThrowIfNull(bindings);
+        ArgumentNullException.ThrowIfNull(idempotency);
 
         this.authorization = authorization;
         this.scopeResolver = scopeResolver;
@@ -130,6 +135,7 @@ public sealed class SpamMarkRecorder
         this.commitPolicy = commitPolicy;
         this.runSignal = runSignal;
         this.keptTrees = new KeptMailTrees(folderReferences, bindings);
+        this.idempotency = idempotency;
     }
 
     /// <summary>Asks for every grant a batch of marks needs, before any message of it is written.</summary>
@@ -182,11 +188,34 @@ public sealed class SpamMarkRecorder
     /// because resolving a folder the account does not mirror can reach the mail server. A message on an account the batch
     /// did not reach when it was admitted is reported as not found, since its grants were never decided.
     /// </remarks>
+    public Task<SpamMarkResult> RecordAsync(
+        StoredEmailId storedEmailId,
+        SpamMark mark,
+        MailboxMutationRequester requester,
+        SpamMarkBatch batch,
+        CancellationToken cancellationToken) =>
+        this.RecordAsync(storedEmailId, mark, requester, batch, key: null, cancellationToken);
+
+    /// <summary>Records one message's spam mark as one act of a person that a repeat under the same key answers again.</summary>
+    /// <param name="storedEmailId">The message to mark.</param>
+    /// <param name="mark">The verdict and subcategory the person chose.</param>
+    /// <param name="requester">The invocation asking.</param>
+    /// <param name="batch">The switches read for the whole batch by <see cref="RequireGrantsAsync" />.</param>
+    /// <param name="key">The key the person's client generated for the act, or <see langword="null" /> for a caller that makes none.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>What this call wrote down, or, where the person already used the key on this message, what the first attempt answered.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument other than <paramref name="key" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// The key is asked about before the message is looked up, because a repeat after the message was deleted has none
+    /// to resolve and is owed its answer all the same, and again inside the commit, where the entry is staged beside the
+    /// mark so the two are one transaction.
+    /// </remarks>
     public async Task<SpamMarkResult> RecordAsync(
         StoredEmailId storedEmailId,
         SpamMark mark,
         MailboxMutationRequester requester,
         SpamMarkBatch batch,
+        MailActIdempotencyKey? key,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(mark);
@@ -194,6 +223,12 @@ public sealed class SpamMarkRecorder
         ArgumentNullException.ThrowIfNull(batch);
 
         this.authorization.RequirePermission(MailFathomPermission.MailFlagsWrite);
+
+        if (key is not null
+            && await this.idempotency.FindAsync(key, storedEmailId, cancellationToken) is { } answered)
+        {
+            return ReplayOf(storedEmailId, answered);
+        }
 
         if (await this.ReadableTargetAsync(storedEmailId, cancellationToken) is not { } target
             || batch.SettingsFor(target.Occurrence.AccountId) is not { } settings)
@@ -207,14 +242,26 @@ public sealed class SpamMarkRecorder
 
         var prepared = this.writer.Prepare(account, mark);
 
-        StagedSpamMark staged;
+        StagedSpamMark? staged;
         SubmittedMailboxChange? moved = null;
+        MailActOutcome? replayed = null;
 
         try
         {
             staged = await this.commitPolicy.CommitAsync(
                 async (session, attemptCancellationToken) =>
                 {
+                    replayed = null;
+                    moved = null;
+
+                    if (key is not null
+                        && await this.idempotency.FindAsync(session, key, storedEmailId, attemptCancellationToken) is { } first)
+                    {
+                        replayed = first;
+
+                        return null;
+                    }
+
                     var written = await this.writer.StageAsync(
                         session,
                         storedEmailId,
@@ -226,6 +273,16 @@ public sealed class SpamMarkRecorder
                     moved = move is null
                         ? null
                         : await this.MoveAsync(session, storedEmailId, target, mark, move, requester, attemptCancellationToken);
+
+                    if (key is not null)
+                    {
+                        await this.idempotency.StageAsync(
+                            session,
+                            key,
+                            storedEmailId,
+                            OutcomeOf(ResultOf(storedEmailId, written, moved)),
+                            attemptCancellationToken);
+                    }
 
                     return written;
                 },
@@ -240,6 +297,11 @@ public sealed class SpamMarkRecorder
             return SpamMarkResult.NotRecorded(storedEmailId, SpamMarkOutcome.RequestIdAlreadyAskedForAnother);
         }
 
+        if (staged is null)
+        {
+            return ReplayOf(storedEmailId, replayed!);
+        }
+
         this.writer.Announce(staged);
 
         if (moved?.Change is { } movedLocally)
@@ -247,12 +309,22 @@ public sealed class SpamMarkRecorder
             this.submission.Announce(movedLocally);
         }
 
-        MailboxMutationRecord[] records = moved?.Record is { } moveRecord ? [.. staged.Records, moveRecord] : [.. staged.Records];
+        var result = ResultOf(storedEmailId, staged, moved);
 
-        if (records.Length > 0)
+        if (result.Records.Count > 0)
         {
             this.runSignal.BringForward(account);
         }
+
+        return result;
+    }
+
+    /// <summary>Answers what the mark and the move beside it made of the message.</summary>
+    private static SpamMarkResult ResultOf(StoredEmailId storedEmailId, StagedSpamMark staged, SubmittedMailboxChange? moved)
+    {
+        RecordedMailFlagMutation[] records = moved?.Record is { } moveRecord
+            ? [.. staged.Records.Select(RecordedMailFlagMutation.Of), RecordedMailFlagMutation.Of(moveRecord)]
+            : [.. staged.Records.Select(RecordedMailFlagMutation.Of)];
 
         var isMoved = moved?.Outcome is MailboxChangeSubmissionOutcome.Recorded or MailboxChangeSubmissionOutcome.Applied;
         var outcome = staged.Applied.Count > 0 || moved?.Change is not null || records.Length == 0
@@ -261,6 +333,14 @@ public sealed class SpamMarkRecorder
 
         return new SpamMarkResult(storedEmailId, outcome, records, isMoved);
     }
+
+    /// <summary>States what a mark answered in the shape the key keeps.</summary>
+    private static MailActOutcome OutcomeOf(SpamMarkResult result) =>
+        new(result.Outcome.ToString(), result.Records, SpamMarkChanges: [], IsMoved: result.IsMoved);
+
+    /// <summary>Rebuilds the answer the first attempt gave.</summary>
+    private static SpamMarkResult ReplayOf(StoredEmailId storedEmailId, MailActOutcome first) =>
+        new(storedEmailId, Enum.Parse<SpamMarkOutcome>(first.Outcome), first.Changes, first.IsMoved);
 
     /// <summary>Decides where the mark moves the message, or that it moves it nowhere.</summary>
     /// <remarks>

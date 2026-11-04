@@ -2,8 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Domain.Emails;
-using MailFathom.Domain.Mutations;
 
 namespace MailFathom.Application.Spam.Marking;
 
@@ -15,7 +15,7 @@ namespace MailFathom.Application.Spam.Marking;
 public sealed record SpamMarkResult(
     StoredEmailId StoredEmailId,
     SpamMarkOutcome Outcome,
-    IReadOnlyList<MailboxMutationRecord> Records,
+    IReadOnlyList<RecordedMailFlagMutation> Records,
     bool IsMoved)
 {
     /// <summary>Describes a message the mark was not recorded for, and why.</summary>

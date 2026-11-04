@@ -42,6 +42,13 @@ internal static class PersistenceConcurrencyConflicts
     /// trail in fact holds exactly the one entry it should.
     /// </para>
     /// <para>
+    /// The one after is a person's key for a mailbox act, and it is the mutation identity's case for the client's own
+    /// retries. A transport retry reaching a second replica while the first attempt is still running passes that
+    /// replica's read of the key before anything is committed; its insert then waits for the first attempt's commit and
+    /// loses here, and the retry reads back the row the winner wrote and answers the first outcome — which is how one
+    /// act made twice changes the mailbox once, on whichever replica each attempt landed.
+    /// </para>
+    /// <para>
     /// The next two are the embedding profile's, and both are races between two activations. A collision on the
     /// identity fingerprint is the mutation identity's case again: the retry resolves to the profile the winner
     /// registered, which is what makes activating one declaration twice register one row. A collision on the
@@ -247,6 +254,7 @@ internal static class PersistenceConcurrencyConflicts
                 or PersistenceConstraintNames.MailboxRestoreAppendEmailUniqueIndexName
                 or PersistenceConstraintNames.MailboxRestoreAppendPrimaryKeyConstraintName
                 or PersistenceConstraintNames.MailboxMutationAuditEntryMutationUniqueIndexName
+                or PersistenceConstraintNames.MailActKeyUniqueIndexName
                 or PersistenceConstraintNames.EmbeddingProfileFingerprintUniqueIndexName
                 or PersistenceConstraintNames.EmbeddingProfileLifecycleUniqueIndexName
                 or PersistenceConstraintNames.MailRuleEvaluationRunPrimaryKeyConstraintName

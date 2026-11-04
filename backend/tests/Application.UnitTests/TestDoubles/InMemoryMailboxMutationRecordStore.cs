@@ -93,6 +93,74 @@ internal sealed class InMemoryMailboxMutationRecordStore : IMailboxMutationRecor
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Reproduces the three rules the real store applies when a change is committed locally first: an identity already
+    /// written answers with its record and nothing new, an earlier unissued change the request supersedes is withdrawn,
+    /// and what the server was last seen holding is carried over from an earlier outstanding change on the same field.
+    /// </remarks>
+    public async Task<OpenedMailboxMutationRecord> OpenOverlayAsync(
+        IPersistenceSession session,
+        MailboxMutationRequest request,
+        DateTimeOffset? heldUntil,
+        MailboxMutationOverlay replaced,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(replaced);
+
+        if (this.identities.ContainsKey(IdentityOf(request)))
+        {
+            return new OpenedMailboxMutationRecord(this.RecordOf(request), IsNew: false);
+        }
+
+        MailboxMutationRecord[] earlier =
+        [
+            .. this.recordsById.Values
+                .Where(record => record.Overlay is not null
+                    && !record.IsTerminal
+                    && record.Request.StoredEmailId == request.StoredEmailId)
+                .OrderBy(record => record.RecordedAt),
+        ];
+        var overlay = CarriedOver(request.Mutation, earlier, replaced);
+        var record = await this.OpenAsync(
+            session,
+            request,
+            heldUntil,
+            MailboxMutationLocalChange.AlreadyCommitted,
+            cancellationToken);
+
+        record = record with { Overlay = overlay };
+        this.recordsById[record.Id] = record;
+
+        foreach (var superseded in earlier.Where(earlierRecord =>
+            earlierRecord.Stage == MailboxMutationStage.Recorded && request.Supersedes(earlierRecord.Request)))
+        {
+            this.recordsById[superseded.Id] = superseded with
+            {
+                Stage = MailboxMutationStage.Cancelled,
+                StageChangedAt = this.now,
+            };
+        }
+
+        return new OpenedMailboxMutationRecord(record, IsNew: true);
+    }
+
+    /// <inheritdoc />
+    public Task<MailboxMutationRecord> RecordLocalCopyAsync(
+        IPersistenceSession session,
+        MailboxMutationRecordId recordId,
+        StoredEmailId copy,
+        CancellationToken cancellationToken)
+    {
+        var record = this.Require(recordId);
+        var recorded = record with { Overlay = (record.Overlay ?? EmptyOverlay) with { LocalCopy = copy } };
+
+        this.recordsById[recordId] = recorded;
+
+        return Task.FromResult(recorded);
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<MailboxMutationRecord>> ReleaseAsync(
         IPersistenceSession session,
         IReadOnlyList<MailAccountId> accounts,
@@ -350,6 +418,32 @@ internal sealed class InMemoryMailboxMutationRecordStore : IMailboxMutationRecor
     {
         var recordId = this.identities[IdentityOf(request)];
         this.recordsById[recordId] = arrange(this.recordsById[recordId]);
+    }
+
+    private static readonly MailboxMutationOverlay EmptyOverlay = new(null, null, null, null, null);
+
+    private static MailboxMutationOverlay CarriedOver(
+        MailboxMutation mutation,
+        IReadOnlyList<MailboxMutationRecord> earlier,
+        MailboxMutationOverlay replaced)
+    {
+        MailboxMutationOverlay? EarliestOf(Func<MailboxMutation, bool> writesTheField) =>
+            earlier.FirstOrDefault(record => writesTheField(record.Request.Mutation))?.Overlay;
+
+        return new MailboxMutationOverlay(
+            mutation == MailboxMutation.SetSeen
+                ? EarliestOf(earlierMutation => earlierMutation == MailboxMutation.SetSeen)?.ObservedSeenState ?? replaced.ObservedSeenState
+                : null,
+            mutation == MailboxMutation.SetFlagged
+                ? EarliestOf(earlierMutation => earlierMutation == MailboxMutation.SetFlagged)?.ObservedFlaggedState ?? replaced.ObservedFlaggedState
+                : null,
+            MailboxMutationRequest.IsKeywordChange(mutation)
+                ? EarliestOf(MailboxMutationRequest.IsKeywordChange)?.ObservedKeywords ?? replaced.ObservedKeywords
+                : null,
+            mutation == MailboxMutation.Relocate
+                ? EarliestOf(earlierMutation => earlierMutation == MailboxMutation.Relocate)?.ObservedFolder ?? replaced.ObservedFolder
+                : null,
+            mutation == MailboxMutation.Copy ? replaced.LocalCopy : null);
     }
 
     private static string IdentityOf(MailboxMutationRequest request) => string.Join(

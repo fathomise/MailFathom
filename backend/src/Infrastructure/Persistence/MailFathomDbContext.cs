@@ -250,6 +250,8 @@ internal sealed class MailFathomDbContext : DbContext
     internal DbSet<MailboxMutationAuditEntryEntity> MailboxMutationAuditEntries =>
         this.Set<MailboxMutationAuditEntryEntity>();
 
+    internal DbSet<MailActKeyEntity> MailActKeys => this.Set<MailActKeyEntity>();
+
     internal DbSet<MailAnsweringSpendPeriodEntity> MailAnsweringSpendPeriods =>
         this.Set<MailAnsweringSpendPeriodEntity>();
 
@@ -392,6 +394,7 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new MailDraftAttachmentConfiguration());
         modelBuilder.ApplyConfiguration(new MailDraftAttachmentContentConfiguration());
         modelBuilder.ApplyConfiguration(new MailboxMutationAuditEntryConfiguration());
+        modelBuilder.ApplyConfiguration(new MailActKeyConfiguration());
         modelBuilder.ApplyConfiguration(new MailAnsweringSpendPeriodConfiguration());
         modelBuilder.ApplyConfiguration(new MailAnsweringAuditEntryConfiguration());
         modelBuilder.ApplyConfiguration(new MailAnsweringAuditedEmailConfiguration());

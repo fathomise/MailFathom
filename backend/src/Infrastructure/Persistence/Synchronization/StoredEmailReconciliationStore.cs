@@ -8,6 +8,7 @@ using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Mutations;
 using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
@@ -23,6 +24,11 @@ namespace MailFathom.Infrastructure.Persistence.Synchronization;
 [RequiresIntegrationCoverage]
 internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readContext) : IStoredEmailReconciliationStore
 {
+    private static readonly string SetSeenMutationName = MailboxMutation.SetSeen.Name;
+    private static readonly string SetFlaggedMutationName = MailboxMutation.SetFlagged.Name;
+    private static readonly string[] KeywordMutationNames =
+        [MailboxMutation.AddKeywords.Name, MailboxMutation.RemoveKeywords.Name, MailboxMutation.SetKeywords.Name];
+
     /// <inheritdoc />
     /// <remarks>
     /// The two groups are read as two bounded queries rather than as one ordered scan, because the reservation the port
@@ -50,14 +56,39 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             .OrderBy(email => email.RemoteFlagsObservedAt)
             .ThenBy(email => email.Uid)
             .Take(maxEmailCount)
+
+            // A field a change committed locally first is still outstanding on stores what the change wrote, so the
+            // server's last reading of it is the one that change recorded rather than the stored column: compared
+            // against the column, the server's own unchanged value would read as somebody else's change.
             .Select(email => new
             {
                 email.Id,
                 Uid = email.Uid!.Value,
                 ObservedAt = email.RemoteFlagsObservedAt,
-                email.IsRemotelySeen,
-                email.IsRemotelyFlagged,
-                email.RemoteKeywords,
+                IsRemotelySeen = email.Mutations
+                    .Where(mutation => mutation.OverlaysStoredState
+                        && mutation.Mutation == SetSeenMutationName
+                        && mutation.Stage != MailboxMutationStage.Completed
+                        && mutation.Stage != MailboxMutationStage.Abandoned
+                        && mutation.Stage != MailboxMutationStage.Cancelled)
+                    .Select(mutation => mutation.ObservedSeenState)
+                    .FirstOrDefault() ?? email.IsRemotelySeen,
+                IsRemotelyFlagged = email.Mutations
+                    .Where(mutation => mutation.OverlaysStoredState
+                        && mutation.Mutation == SetFlaggedMutationName
+                        && mutation.Stage != MailboxMutationStage.Completed
+                        && mutation.Stage != MailboxMutationStage.Abandoned
+                        && mutation.Stage != MailboxMutationStage.Cancelled)
+                    .Select(mutation => mutation.ObservedFlaggedState)
+                    .FirstOrDefault() ?? email.IsRemotelyFlagged,
+                RemoteKeywords = email.Mutations
+                    .Where(mutation => mutation.OverlaysStoredState
+                        && KeywordMutationNames.Contains(mutation.Mutation)
+                        && mutation.Stage != MailboxMutationStage.Completed
+                        && mutation.Stage != MailboxMutationStage.Abandoned
+                        && mutation.Stage != MailboxMutationStage.Cancelled)
+                    .Select(mutation => mutation.ObservedKeywords)
+                    .FirstOrDefault() ?? email.RemoteKeywords,
             })
             .ToArrayAsync(cancellationToken);
 
@@ -337,6 +368,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
         foreach (var row in KeptRowsOf(settlement.Restored, rowsById))
         {
             row.AuthoredDeleteFlaggedAt = null;
+            row.LocalDeleteCommittedAt = null;
             row.IsRetainedAfterAuthoredDelete = false;
             row.IsRemotelyDeleted = false;
             row.RemoteFlagsObservedAt = null;
@@ -459,7 +491,13 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             .Concat(outcome.RemovedByOwnMutation.Select(static attributed => attributed.StoredEmailId.Value))
             .ToArray();
 
+        // The changes committed locally first and still outstanding come with their rows, because each is where an
+        // observation of a field it overlays is written instead of the row.
         var rows = await sessionContext.StoredEmails
+            .Include(email => email.Mutations.Where(mutation => mutation.OverlaysStoredState
+                && mutation.Stage != MailboxMutationStage.Completed
+                && mutation.Stage != MailboxMutationStage.Abandoned
+                && mutation.Stage != MailboxMutationStage.Cancelled))
             .Where(email => windowIds.Contains(email.Id))
             .ToArrayAsync(cancellationToken);
 
@@ -476,14 +514,62 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
     private static bool HasNewerObservationThan(StoredEmailEntity row, DateTimeOffset observedAt) =>
         row.RemoteFlagsObservedAt is { } recordedAt && recordedAt > observedAt;
 
+    /// <summary>Writes what the server reported onto the row, except a field a change committed locally first still overlays.</summary>
+    /// <remarks>
+    /// Such a field keeps the value the act wrote, and what the server reported for it is recorded on every change still
+    /// outstanding on it as the field's last observation, so the rest of the message follows the server meanwhile. A
+    /// keyword is overlaid by name: an addition or a removal holds the keywords it named, and a replacement every one.
+    /// See <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>
+    /// axis F.
+    /// </remarks>
     private static void ApplyFlagSnapshot(StoredEmailEntity row, RemoteEmailFlagSnapshot snapshot)
     {
+        var overlays = row.Mutations.Where(static mutation => mutation.OverlaysStoredState).ToArray();
+        var observedKeywords = snapshot.Keywords.Values.ToArray();
+
         row.RemoteFlagsObservedAt = snapshot.ObservedAt;
-        row.IsRemotelySeen = snapshot.IsSeen;
         row.IsRemotelyAnswered = snapshot.IsAnswered;
-        row.IsRemotelyFlagged = snapshot.IsFlagged;
         row.IsRemotelyDraft = snapshot.IsDraft;
         row.IsRemotelyDeleted = snapshot.IsDeleted;
-        row.RemoteKeywords = [.. snapshot.Keywords.Values];
+        row.IsRemotelySeen = Overlaid(overlays, SetSeenMutationName, row.IsRemotelySeen, snapshot.IsSeen, static (mutation, seen) => mutation.ObservedSeenState = seen);
+        row.IsRemotelyFlagged = Overlaid(overlays, SetFlaggedMutationName, row.IsRemotelyFlagged, snapshot.IsFlagged, static (mutation, flagged) => mutation.ObservedFlaggedState = flagged);
+
+        var keywordChanges = overlays.Where(static mutation => KeywordMutationNames.Contains(mutation.Mutation)).ToArray();
+
+        foreach (var change in keywordChanges)
+        {
+            change.ObservedKeywords = observedKeywords;
+        }
+
+        if (keywordChanges.Any(static mutation => mutation.Mutation == MailboxMutation.SetKeywords.Name))
+        {
+            return;
+        }
+
+        var held = keywordChanges.SelectMany(static mutation => mutation.Keywords ?? []).ToHashSet(StringComparer.Ordinal);
+
+        row.RemoteKeywords =
+        [
+            .. RemoteEmailKeywords.Create(observedKeywords.Where(keyword => !held.Contains(keyword))
+                .Concat(row.RemoteKeywords.Where(held.Contains))).Values,
+        ];
+    }
+
+    /// <summary>Answers the stored value of one overlaid field: the act's where a change on it is outstanding, the server's otherwise.</summary>
+    private static bool Overlaid(
+        IReadOnlyList<MailboxMutationEntity> overlays,
+        string mutation,
+        bool stored,
+        bool observed,
+        Action<MailboxMutationEntity, bool> recordObservation)
+    {
+        var outstanding = overlays.Where(overlay => overlay.Mutation == mutation).ToArray();
+
+        foreach (var overlay in outstanding)
+        {
+            recordObservation(overlay, observed);
+        }
+
+        return outstanding.Length == 0 ? observed : stored;
     }
 }

@@ -484,6 +484,71 @@ public sealed class MailboxMutationRequestTests
         Assert.Equal("keywords", refusal.ParamName);
     }
 
+    /// <summary>A later direction for one field replaces an earlier one, since only the later one says what the person wants.</summary>
+    [Fact]
+    public void Supersedes_AnUnreadAfterARead_ReplacesTheRead()
+    {
+        // Arrange
+        var read = MailboxMutationRequest.SetSeen(LocalEmail, Occurrence(), Requester, isSeen: true);
+        var unread = MailboxMutationRequest.SetSeen(LocalEmail, Occurrence(), Requester, isSeen: false);
+
+        // Act and assert
+        Assert.True(unread.Supersedes(read));
+    }
+
+    /// <summary>Two fields are two writers' business, so a change to one leaves the other's change standing.</summary>
+    [Fact]
+    public void Supersedes_AFlagAfterARead_LeavesTheReadStanding()
+    {
+        // Arrange
+        var read = MailboxMutationRequest.SetSeen(LocalEmail, Occurrence(), Requester, isSeen: true);
+        var flag = MailboxMutationRequest.SetFlagged(LocalEmail, Occurrence(), Requester, isFlagged: true);
+
+        // Act and assert
+        Assert.False(flag.Supersedes(read));
+    }
+
+    /// <summary>A change to another message replaces nothing of this one's.</summary>
+    [Fact]
+    public void Supersedes_TheSameFieldOnAnotherMessage_LeavesItStanding()
+    {
+        // Arrange
+        var read = MailboxMutationRequest.SetSeen(StoredEmailId.Create(Guid.CreateVersion7()), Occurrence(), Requester, isSeen: true);
+        var unread = MailboxMutationRequest.SetSeen(LocalEmail, Occurrence(), Requester, isSeen: false);
+
+        // Act and assert
+        Assert.False(unread.Supersedes(read));
+    }
+
+    /// <summary>A keyword change replaces an earlier one only where it names every keyword the earlier one did.</summary>
+    [Theory]
+    [InlineData(new[] { "project" }, new[] { "project", "urgent" }, true)]
+    [InlineData(new[] { "project", "urgent" }, new[] { "project" }, false)]
+    public void Supersedes_AKeywordChangeAfterAnother_ReplacesItWhereItNamesEveryKeywordItDid(
+        string[] earlierKeywords,
+        string[] laterKeywords,
+        bool supersedes)
+    {
+        // Arrange
+        var earlier = MailboxMutationRequest.AddKeywords(LocalEmail, Occurrence(), Requester, AuthoredMailKeywords.Create(earlierKeywords));
+        var later = MailboxMutationRequest.RemoveKeywords(LocalEmail, Occurrence(), Requester, AuthoredMailKeywords.Create(laterKeywords));
+
+        // Act and assert
+        Assert.Equal(supersedes, later.Supersedes(earlier));
+    }
+
+    /// <summary>A move is never replaced, because what came after it waits on it rather than withdrawing it.</summary>
+    [Fact]
+    public void Supersedes_AMoveAfterAMove_LeavesTheEarlierMoveStanding()
+    {
+        // Arrange
+        var earlier = MailboxMutationRequest.Relocate(LocalEmail, Occurrence(), Requester, Archive);
+        var later = MailboxMutationRequest.Relocate(LocalEmail, Occurrence(), Requester, RemoteFolderPath.Create("Projects", '/'));
+
+        // Act and assert
+        Assert.False(later.Supersedes(earlier));
+    }
+
     private static EmailOccurrenceId Occurrence() => EmailOccurrenceId.Create(
         MailAccountId.Create("personal"),
         MailFolderResolution.FirstBindingOf(

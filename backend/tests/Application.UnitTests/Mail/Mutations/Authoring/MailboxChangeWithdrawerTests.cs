@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Signals;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -59,6 +60,37 @@ public sealed class MailboxChangeWithdrawerTests
         Assert.Equal(opened.Id, entry.RecordId);
         Assert.Equal(MailboxMutationLifecycle.Cancelled, entry.Lifecycle);
         Assert.Empty(await this.records.ReadOutstandingAsync(Account, 10, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    /// A change a mirrored account committed locally first has already moved the message, so withdrawing it puts the
+    /// message back and every client of the account is told, the way a commit itself is announced.
+    /// </summary>
+    [Fact]
+    public async Task WithdrawFlagChangesAsync_AChangeCommittedLocallyFirst_TellsTheAccountsClientsTheMessageWasRestored()
+    {
+        // Arrange
+        var clock = new FakeTimeProvider(WithdrawnAt);
+        var channel = new RecordingClientSignalChannel();
+        await using var signals = new ClientSignals([channel], clock);
+        var opened = await this.records.OpenOverlayAsync(
+            Substitute.For<IPersistenceSession>(),
+            FlagRequestIn(Inbox, uid: 7),
+            heldUntil: null,
+            new MailboxMutationOverlay(ObservedSeenState: false, null, null, null, null),
+            TestContext.Current.CancellationToken);
+        var withdrawer = this.Withdrawer(signals: signals);
+
+        // Act
+        await withdrawer.WithdrawFlagChangesAsync(
+            [opened.Record.Id],
+            MailboxReaderKind.Agent,
+            TestContext.Current.CancellationToken);
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Single(channel.Published);
     }
 
     /// <summary>
@@ -354,7 +386,7 @@ public sealed class MailboxChangeWithdrawerTests
         return session;
     }
 
-    private MailboxChangeWithdrawer Withdrawer(AccessAuthorization? authorization = null)
+    private MailboxChangeWithdrawer Withdrawer(AccessAuthorization? authorization = null, ClientSignals? signals = null)
     {
         var callerAuthorization =
             authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite);
@@ -377,6 +409,7 @@ public sealed class MailboxChangeWithdrawerTests
             new OptimisticConcurrencyRetryPolicy(
                 sessions,
                 new PersistenceConcurrencyOptions(),
-                new FakeTimeProvider(WithdrawnAt)));
+                new FakeTimeProvider(WithdrawnAt)),
+            signals ?? ClientSignalPublishers.ReachingNobody);
     }
 }

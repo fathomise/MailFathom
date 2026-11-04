@@ -19,6 +19,7 @@ import {
     type MailSpamSubcategory,
     type MailSpamVerdict,
 } from '@mailfathom/client-backend';
+import { newIdentifier } from '../agent/newIdentifier';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import type { ActedMessage, MarkedSpam } from '../mailboxActs/useMailboxActs';
@@ -260,6 +261,7 @@ export function useSpamMarks({
                     transport,
                     spamMark,
                     batch.map((message) => message.storedEmailId),
+                    newIdentifier(),
                 ).then((answer) => ({ messages: batch, answer })),
             );
         }

@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
@@ -58,6 +59,7 @@ public sealed class MailDeletionRecorder
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly MailAccountRunSignal runSignal;
     private readonly TimeProvider timeProvider;
+    private readonly MailActIdempotency idempotency;
 
     /// <summary>Initializes the use case over the grant it asks first, the email it is about, and the submission it writes through.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
@@ -68,6 +70,7 @@ public sealed class MailDeletionRecorder
     /// <param name="commitPolicy">Commits the record, retrying an optimistic conflict.</param>
     /// <param name="runSignal">Brings the account's next synchronization run forward, which is what carries the delete to the mail server.</param>
     /// <param name="timeProvider">Measures the withdrawal window a caller asks for, from the moment the record is written.</param>
+    /// <param name="idempotency">Answers a repeat of an act the person already made, and keeps the key of one that commits.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public MailDeletionRecorder(
         AccessAuthorization authorization,
@@ -77,7 +80,8 @@ public sealed class MailDeletionRecorder
         MailboxChangeSubmission submission,
         OptimisticConcurrencyRetryPolicy commitPolicy,
         MailAccountRunSignal runSignal,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        MailActIdempotency idempotency)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(scopeResolver);
@@ -87,6 +91,7 @@ public sealed class MailDeletionRecorder
         ArgumentNullException.ThrowIfNull(commitPolicy);
         ArgumentNullException.ThrowIfNull(runSignal);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(idempotency);
 
         this.authorization = authorization;
         this.scopeResolver = scopeResolver;
@@ -96,6 +101,7 @@ public sealed class MailDeletionRecorder
         this.commitPolicy = commitPolicy;
         this.runSignal = runSignal;
         this.timeProvider = timeProvider;
+        this.idempotency = idempotency;
     }
 
     /// <summary>Writes down one delete, against the email a caller named.</summary>
@@ -108,11 +114,36 @@ public sealed class MailDeletionRecorder
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="requester" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="withdrawalWindow" /> is negative.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the deleting grant.</exception>
+    public Task<AuthoredMailDeletionResult> RecordAsync(
+        StoredEmailId storedEmailId,
+        MailboxMutationRequester requester,
+        TimeSpan? withdrawalWindow,
+        MailboxReaderKind reader,
+        CancellationToken cancellationToken) =>
+        this.RecordAsync(storedEmailId, requester, withdrawalWindow, reader, key: null, cancellationToken);
+
+    /// <summary>Writes down one delete as one act of a person that a repeat under the same key answers again.</summary>
+    /// <param name="storedEmailId">The email to delete, as a listing, a search, or a read returned it.</param>
+    /// <param name="requester">The invocation asking.</param>
+    /// <param name="withdrawalWindow">How long the record waits before a convergence pass may take it in hand, or <see langword="null" /> where nothing waits.</param>
+    /// <param name="reader">Who the act is asked for.</param>
+    /// <param name="key">The key the person's client generated for the act, or <see langword="null" /> for a caller that makes none.</param>
+    /// <param name="cancellationToken">Cancels the resolution and the write.</param>
+    /// <returns>What this call wrote down, or, where the person already used the key on this email, what the first attempt answered.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="requester" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="withdrawalWindow" /> is negative.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the deleting grant.</exception>
+    /// <remarks>
+    /// The key is asked about before the email is looked up, because a repeat after the email was deleted has no email
+    /// to resolve and is owed its answer all the same, and again inside the commit, where the entry is staged beside the
+    /// record so the two are one transaction. A repeat that finds the entry changes nothing and announces nothing.
+    /// </remarks>
     public async Task<AuthoredMailDeletionResult> RecordAsync(
         StoredEmailId storedEmailId,
         MailboxMutationRequester requester,
         TimeSpan? withdrawalWindow,
         MailboxReaderKind reader,
+        MailActIdempotencyKey? key,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(requester);
@@ -125,6 +156,12 @@ public sealed class MailDeletionRecorder
         if (withdrawalWindow is { } window)
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(window, TimeSpan.Zero, nameof(withdrawalWindow));
+        }
+
+        if (key is not null
+            && await this.idempotency.FindAsync(key, storedEmailId, cancellationToken) is { } answered)
+        {
+            return ReplayOf(answered);
         }
 
         var target = await this.targets.FindAsync(storedEmailId, cancellationToken);
@@ -164,14 +201,46 @@ public sealed class MailDeletionRecorder
             ? this.timeProvider.GetUtcNow() + granted
             : (DateTimeOffset?)null;
 
+        MailActOutcome? replayed = null;
+
         var submitted = await this.commitPolicy.CommitAsync(
-            (session, attemptCancellationToken) => this.submission.SubmitAsync(
-                session,
-                request,
-                destination: null,
-                heldUntil,
-                attemptCancellationToken),
+            async (session, attemptCancellationToken) =>
+            {
+                replayed = null;
+
+                if (key is not null
+                    && await this.idempotency.FindAsync(session, key, storedEmailId, attemptCancellationToken) is { } first)
+                {
+                    replayed = first;
+
+                    return null;
+                }
+
+                var written = await this.submission.SubmitAsync(
+                    session,
+                    request,
+                    destination: null,
+                    heldUntil,
+                    attemptCancellationToken);
+
+                if (key is not null)
+                {
+                    await this.idempotency.StageAsync(
+                        session,
+                        key,
+                        storedEmailId,
+                        OutcomeOf(ResultOf(written)),
+                        attemptCancellationToken);
+                }
+
+                return written;
+            },
             cancellationToken);
+
+        if (submitted is null)
+        {
+            return ReplayOf(replayed!);
+        }
 
         if (submitted.Outcome == MailboxChangeSubmissionOutcome.Applied && submitted.Change is { } change)
         {
@@ -209,5 +278,39 @@ public sealed class MailDeletionRecorder
         }
 
         return AuthoredMailDeletionResult.Recorded(record.Id, record.Lifecycle);
+    }
+
+    /// <summary>Answers what the submission made of the delete.</summary>
+    private static AuthoredMailDeletionResult ResultOf(SubmittedMailboxChange submitted)
+    {
+        if (submitted.Outcome == MailboxChangeSubmissionOutcome.Applied && submitted.Change is not null)
+        {
+            return submitted.Record is { } carried
+                ? AuthoredMailDeletionResult.Applied(carried.Id, carried.Lifecycle)
+                : AuthoredMailDeletionResult.Applied();
+        }
+
+        return submitted.Record is { } record
+            ? AuthoredMailDeletionResult.Recorded(record.Id, record.Lifecycle)
+            : AuthoredMailDeletionResult.NotRecorded(MailDeletionOutcome.MessageNotFound);
+    }
+
+    /// <summary>States what a delete answered in the shape the key keeps.</summary>
+    private static MailActOutcome OutcomeOf(AuthoredMailDeletionResult result) => new(
+        result.Outcome.ToString(),
+        result is { RecordId: { } recordId, Lifecycle: { } lifecycle }
+            ? [new RecordedMailFlagMutation(MailboxMutation.Delete, recordId, lifecycle)]
+            : [],
+        SpamMarkChanges: []);
+
+    /// <summary>Rebuilds the answer the first attempt gave.</summary>
+    private static AuthoredMailDeletionResult ReplayOf(MailActOutcome first)
+    {
+        var carried = first.Changes.Count > 0 ? first.Changes[0] : null;
+
+        return new AuthoredMailDeletionResult(
+            Enum.Parse<MailDeletionOutcome>(first.Outcome),
+            carried?.RecordId,
+            carried?.Lifecycle);
     }
 }

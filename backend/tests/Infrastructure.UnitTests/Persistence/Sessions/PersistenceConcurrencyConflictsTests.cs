@@ -21,6 +21,7 @@ public sealed class PersistenceConcurrencyConflictsTests
         PersistenceConstraintNames.MailboxAccountPrimaryKeyConstraintName,
         PersistenceConstraintNames.MailboxMutationIdentityUniqueIndexName,
         PersistenceConstraintNames.MailboxMutationAuditEntryMutationUniqueIndexName,
+        PersistenceConstraintNames.MailActKeyUniqueIndexName,
         PersistenceConstraintNames.EmbeddingProfileFingerprintUniqueIndexName,
         PersistenceConstraintNames.EmbeddingProfileLifecycleUniqueIndexName,
         PersistenceConstraintNames.MailRuleEvaluationRunPrimaryKeyConstraintName,

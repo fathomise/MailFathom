@@ -25,6 +25,7 @@ const session: ClientSession = {
 
 const storedEmailId = '2f7d4f2a-6c1e-4e0a-9a2f-1b0c9d8e7f60';
 const recordId = '0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a91';
+const requestId = '0199c1a2-0000-7000-8000-00000000a001';
 
 type Answer = Omit<ClientResponse, 'headers'>;
 
@@ -58,10 +59,11 @@ describe('markMailOpened', () => {
     it('marks each message read and says the batch is an opening', async () => {
         const { transport, requests } = recording(recorded(storedEmailId));
 
-        await markMailOpened(session, transport, [storedEmailId]);
+        await markMailOpened(session, transport, [storedEmailId], requestId);
 
         expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/mutations/flags');
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
+            requestId,
             changes: [{ storedEmailId, flags: { seen: true } }],
             opened: true,
         });
@@ -72,13 +74,14 @@ describe('markMailRead', () => {
     it('states the seen flag on the client surface’s flag route for each message named', async () => {
         const { transport, requests } = recording(recorded(storedEmailId));
 
-        await markMailRead(session, transport, [storedEmailId]);
+        await markMailRead(session, transport, [storedEmailId], requestId);
 
         expect(requests[0]?.method).toBe('POST');
         expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/mutations/flags');
         expect(requests[0]?.headers['Authorization']).toBe('Basic dGVzdA==');
         expect(requests[0]?.headers['Content-Type']).toBe('application/json');
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
+            requestId,
             changes: [{ storedEmailId, flags: { seen: true } }],
         });
     });
@@ -96,6 +99,7 @@ describe('markMailRead', () => {
                 }),
             }),
             [storedEmailId, 'gone'],
+            requestId,
         );
 
         expect(answer).toStrictEqual({
@@ -123,6 +127,7 @@ describe('markMailRead', () => {
                 }),
             }),
             [storedEmailId],
+            requestId,
         );
 
         expect(answer).toStrictEqual({
@@ -139,6 +144,7 @@ describe('markMailRead', () => {
                 body: JSON.stringify({ results: [{ storedEmailId, outcome: 'applied', changes: [] }] }),
             }),
             [storedEmailId],
+            requestId,
         );
 
         expect(answer).toStrictEqual({
@@ -157,6 +163,7 @@ describe('markMailRead', () => {
                 }),
             }),
             [storedEmailId],
+            requestId,
         );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
@@ -168,7 +175,7 @@ describe('markMailRead', () => {
         const asked = Array.from({ length: mostMessagesPerMutation + 5 }, (_, at) => `message-${String(at)}`);
         const { transport, requests } = recording(recorded());
 
-        await markMailRead(session, transport, asked);
+        await markMailRead(session, transport, asked, requestId);
 
         const sent = JSON.parse(requests[0]?.body ?? '') as { changes: readonly { storedEmailId: string }[] };
 
@@ -179,15 +186,18 @@ describe('markMailRead', () => {
     });
 
     it('says the deployment could not be reached where nothing answered', async () => {
-        const answer = await markMailRead(session, () => Promise.reject(new Error('the connection was refused')), [
-            storedEmailId,
-        ]);
+        const answer = await markMailRead(
+            session,
+            () => Promise.reject(new Error('the connection was refused')),
+            [storedEmailId],
+            requestId,
+        );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: null } });
     });
 
     it('says the credential may not do this where the deployment refused it', async () => {
-        const answer = await markMailRead(session, answering({ status: 403, body: '' }), [storedEmailId]);
+        const answer = await markMailRead(session, answering({ status: 403, body: '' }), [storedEmailId], requestId);
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unauthorized', status: 403 } });
     });
@@ -200,6 +210,7 @@ describe('markMailRead', () => {
                 body: JSON.stringify({ results: [{ storedEmailId, outcome: 'partly-recorded' }] }),
             }),
             [storedEmailId],
+            requestId,
         );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
@@ -210,13 +221,19 @@ describe('markMailRead', () => {
             session,
             answering(recorded(...Array.from({ length: mostMessagesPerMutation + 1 }, () => storedEmailId))),
             [storedEmailId],
+            requestId,
         );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
     it('refuses an answer that is not a batch of results at all', async () => {
-        const answer = await markMailRead(session, answering({ status: 200, body: 'not json' }), [storedEmailId]);
+        const answer = await markMailRead(
+            session,
+            answering({ status: 200, body: 'not json' }),
+            [storedEmailId],
+            requestId,
+        );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
@@ -231,6 +248,7 @@ describe('markMailRead', () => {
                 body: JSON.stringify({ results: [{ storedEmailId, outcome: 'recorded', changes: 'one' }] }),
             }),
             [storedEmailId],
+            requestId,
         );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
@@ -257,6 +275,7 @@ describe('markMailRead', () => {
                 }),
             }),
             [storedEmailId],
+            requestId,
         );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
@@ -267,10 +286,11 @@ describe('changeMailFlags', () => {
     it('states only the flags a change named, so an unstated one is left where it stands', async () => {
         const { transport, requests } = recording(recorded(storedEmailId));
 
-        await changeMailFlags(session, transport, [{ storedEmailId, flagged: true }]);
+        await changeMailFlags(session, transport, [{ storedEmailId, flagged: true }], requestId);
 
         expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/mutations/flags');
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
+            requestId,
             changes: [{ storedEmailId, flags: { flagged: true } }],
         });
     });
@@ -278,13 +298,19 @@ describe('changeMailFlags', () => {
     it('carries a whole batch of changes in one submission', async () => {
         const { transport, requests } = recording(recorded(storedEmailId, 'second'));
 
-        await changeMailFlags(session, transport, [
-            { storedEmailId, seen: false },
-            { storedEmailId: 'second', seen: false },
-        ]);
+        await changeMailFlags(
+            session,
+            transport,
+            [
+                { storedEmailId, seen: false },
+                { storedEmailId: 'second', seen: false },
+            ],
+            requestId,
+        );
 
         expect(requests).toHaveLength(1);
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
+            requestId,
             changes: [
                 { storedEmailId, flags: { seen: false } },
                 { storedEmailId: 'second', flags: { seen: false } },
@@ -299,7 +325,7 @@ describe('changeMailFlags', () => {
         }));
         const { transport, requests } = recording(recorded());
 
-        await changeMailFlags(session, transport, asked);
+        await changeMailFlags(session, transport, asked, requestId);
 
         const sent = JSON.parse(requests[0]?.body ?? '') as { changes: readonly unknown[] };
 
@@ -311,11 +337,12 @@ describe('moveMail', () => {
     it('names the destination folder on the client surface’s move route', async () => {
         const { transport, requests } = recording(recorded(storedEmailId));
 
-        await moveMail(session, transport, [{ storedEmailId, destinationFolder: 'work-archive' }]);
+        await moveMail(session, transport, [{ storedEmailId, destinationFolder: 'work-archive' }], requestId);
 
         expect(requests[0]?.method).toBe('POST');
         expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/mutations/moves');
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
+            requestId,
             moves: [{ storedEmailId, destinationFolder: 'work-archive' }],
         });
     });
@@ -349,6 +376,7 @@ describe('moveMail', () => {
                 }),
             }),
             [{ storedEmailId, destinationFolder: 'work-archive' }],
+            requestId,
         );
 
         expect(answer).toStrictEqual({
@@ -371,6 +399,7 @@ describe('moveMail', () => {
                 body: JSON.stringify({ results: [{ storedEmailId, outcome: 'recorded', change: 'one' }] }),
             }),
             [{ storedEmailId, destinationFolder: 'work-archive' }],
+            requestId,
         );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
@@ -383,7 +412,7 @@ describe('moveMail', () => {
         }));
         const { transport, requests } = recording(recorded());
 
-        await moveMail(session, transport, asked);
+        await moveMail(session, transport, asked, requestId);
 
         const sent = JSON.parse(requests[0]?.body ?? '') as { moves: readonly unknown[] };
 
@@ -391,9 +420,12 @@ describe('moveMail', () => {
     });
 
     it('says the credential may not move mail where the deployment refused it', async () => {
-        const answer = await moveMail(session, answering({ status: 403, body: '' }), [
-            { storedEmailId, destinationFolder: 'work-archive' },
-        ]);
+        const answer = await moveMail(
+            session,
+            answering({ status: 403, body: '' }),
+            [{ storedEmailId, destinationFolder: 'work-archive' }],
+            requestId,
+        );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unauthorized', status: 403 } });
     });
@@ -403,11 +435,18 @@ describe('markMailSpam', () => {
     it('states the verdict and the kind on the client surface’s spam route for each message named', async () => {
         const { transport, requests } = recording(recorded());
 
-        await markMailSpam(session, transport, { verdict: 'Spam', spamSubcategory: 'Phishing' }, [storedEmailId]);
+        await markMailSpam(
+            session,
+            transport,
+            { verdict: 'Spam', spamSubcategory: 'Phishing' },
+            [storedEmailId],
+            requestId,
+        );
 
         expect(requests[0]?.method).toBe('POST');
         expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/mutations/spam');
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
+            requestId,
             verdict: 'Spam',
             spamSubcategory: 'Phishing',
             storedEmailIds: [storedEmailId],
@@ -417,9 +456,10 @@ describe('markMailSpam', () => {
     it('names no kind on a not-spam mark', async () => {
         const { transport, requests } = recording(recorded());
 
-        await markMailSpam(session, transport, { verdict: 'NotSpam' }, [storedEmailId]);
+        await markMailSpam(session, transport, { verdict: 'NotSpam' }, [storedEmailId], requestId);
 
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
+            requestId,
             verdict: 'NotSpam',
             spamSubcategory: null,
             storedEmailIds: [storedEmailId],
@@ -446,6 +486,7 @@ describe('markMailSpam', () => {
             }),
             { verdict: 'Spam', spamSubcategory: null },
             [storedEmailId, 'kept', 'gone'],
+            requestId,
         );
 
         expect(answer).toStrictEqual({
@@ -467,6 +508,7 @@ describe('markMailSpam', () => {
             }),
             { verdict: 'NotSpam' },
             [storedEmailId],
+            requestId,
         );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
@@ -476,7 +518,7 @@ describe('markMailSpam', () => {
         const asked = Array.from({ length: mostMessagesPerMutation + 5 }, (_, at) => `message-${String(at)}`);
         const { transport, requests } = recording(recorded());
 
-        await markMailSpam(session, transport, { verdict: 'NotSpam' }, asked);
+        await markMailSpam(session, transport, { verdict: 'NotSpam' }, asked, requestId);
 
         const sent = JSON.parse(requests[0]?.body ?? '') as { storedEmailIds: readonly unknown[] };
 
@@ -484,9 +526,13 @@ describe('markMailSpam', () => {
     });
 
     it('says the credential may not mark mail where the deployment refused it', async () => {
-        const answer = await markMailSpam(session, answering({ status: 403, body: '' }), { verdict: 'NotSpam' }, [
-            storedEmailId,
-        ]);
+        const answer = await markMailSpam(
+            session,
+            answering({ status: 403, body: '' }),
+            { verdict: 'NotSpam' },
+            [storedEmailId],
+            requestId,
+        );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unauthorized', status: 403 } });
     });
@@ -496,11 +542,11 @@ describe('deleteMail', () => {
     it('names the messages alone on the client surface’s delete route, and no folder in either direction', async () => {
         const { transport, requests } = recording(recorded(storedEmailId));
 
-        await deleteMail(session, transport, [storedEmailId]);
+        await deleteMail(session, transport, [storedEmailId], requestId);
 
         expect(requests[0]?.method).toBe('POST');
         expect(requests[0]?.path).toBe('https://mail.example.invalid/api/client/mutations/deletes');
-        expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({ deletes: [{ storedEmailId }] });
+        expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({ requestId, deletes: [{ storedEmailId }] });
     });
 
     it('answers what became of each message, a deployment no longer holding one being its own answer', async () => {
@@ -520,6 +566,7 @@ describe('deleteMail', () => {
                 }),
             }),
             [storedEmailId, 'second'],
+            requestId,
         );
 
         // The record is what ending the wait in front of a permanent delete names, so it is read off the answer here.
@@ -544,6 +591,7 @@ describe('deleteMail', () => {
                 }),
             }),
             [storedEmailId],
+            requestId,
         );
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
@@ -553,7 +601,7 @@ describe('deleteMail', () => {
         const asked = Array.from({ length: mostMessagesPerMutation + 5 }, (_, at) => `message-${String(at)}`);
         const { transport, requests } = recording(recorded());
 
-        await deleteMail(session, transport, asked);
+        await deleteMail(session, transport, asked, requestId);
 
         const sent = JSON.parse(requests[0]?.body ?? '') as { deletes: readonly unknown[] };
 
@@ -561,7 +609,7 @@ describe('deleteMail', () => {
     });
 
     it('says the credential may not delete mail where the deployment refused it, which is its own grant', async () => {
-        const answer = await deleteMail(session, answering({ status: 403, body: '' }), [storedEmailId]);
+        const answer = await deleteMail(session, answering({ status: 403, body: '' }), [storedEmailId], requestId);
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unauthorized', status: 403 } });
     });

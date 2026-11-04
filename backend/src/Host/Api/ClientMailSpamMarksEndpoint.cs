@@ -3,10 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.ComponentModel.DataAnnotations;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Spam.Marking;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
-using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Spam;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -55,14 +55,17 @@ internal static class ClientMailSpamMarksEndpoint
     /// <summary>Records the person's verdict on each message one batch names.</summary>
     /// <param name="request">The verdict, the subcategory for spam, and the messages it is about.</param>
     /// <param name="recorder">Records one message's mark.</param>
+    /// <param name="idempotency">Answers whether the batch's request identifier already named a different act.</param>
     /// <param name="cancellationToken">Cancels the resolutions and the writes when the client disconnects.</param>
     /// <returns><c>200</c> with one result per message, <c>400</c> when the batch itself is not one this boundary accepts, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.flags.write</c>, or <c>mailfathom.mail.move</c> where the account's switch makes a mark move mail.</returns>
     internal static async Task<Results<Ok<ClientMailSpamMarksResponse>, ProblemHttpResult>> SubmitSpamMarksAsync(
         [FromBody] ClientMailSpamMarksRequest? request,
         [FromServices] SpamMarkRecorder recorder,
+        [FromServices] MailActIdempotency idempotency,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(recorder);
+        ArgumentNullException.ThrowIfNull(idempotency);
 
         if (request?.StoredEmailIds is not { Count: > 0 } storedEmailIds)
         {
@@ -74,6 +77,11 @@ internal static class ClientMailSpamMarksEndpoint
             return Refusal($"One request carries at most {ClientMailMutationsEndpoint.MaximumChangesPerRequest} changes.");
         }
 
+        if (ClientMailMutationsEndpoint.NamesAMessageTwice(storedEmailIds.Select(static id => (Guid?)id)))
+        {
+            return ClientMailMutationsEndpoint.MessageNamedTwice();
+        }
+
         if (MarkOf(request) is not { } mark)
         {
             return Refusal(
@@ -83,9 +91,17 @@ internal static class ClientMailSpamMarksEndpoint
 
         if (ClientMailMutationsEndpoint.RequesterOf(request.RequestId) is not { } requester)
         {
-            return Refusal(
-                "A stated request identifier is at most "
-                + $"{MailboxMutationRequester.MaximumIdentityLength} characters and carries no control character.");
+            return ClientMailMutationsEndpoint.UnusableRequestId();
+        }
+
+        var key = MailActIdempotencyKey.Create(
+            requester.Identity,
+            $"spam:{request.Verdict}:{request.SpamSubcategory}",
+            storedEmailIds.Select(static id => id.ToString("N")));
+
+        if (await ClientMailMutationsEndpoint.RefusalForReusedKeyAsync(idempotency, key, cancellationToken) is { } reused)
+        {
+            return reused;
         }
 
         // Every grant the batch needs is asked for before any message is written, so a refusal is the request's answer
@@ -101,7 +117,7 @@ internal static class ClientMailSpamMarksEndpoint
             results.Add(storedEmailId == Guid.Empty
                 ? ClientMailSpamMarkResultResponse.MessageNotFound(storedEmailId)
                 : ClientMailSpamMarkResultResponse.For(
-                    await recorder.RecordAsync(StoredEmailId.Create(storedEmailId), mark, requester, batch, cancellationToken)));
+                    await recorder.RecordAsync(StoredEmailId.Create(storedEmailId), mark, requester, batch, key, cancellationToken)));
         }
 
         return TypedResults.Ok(new ClientMailSpamMarksResponse(results));
@@ -139,7 +155,7 @@ internal static class ClientMailSpamMarksEndpoint
 }
 
 /// <summary>One batch of the person's verdicts, one direction for every message it names.</summary>
-/// <param name="RequestId">The caller's own identity for this request, or <see langword="null" /> to have one generated.</param>
+/// <param name="RequestId">The key the client generated once for this act, which is required.</param>
 /// <param name="Verdict"><c>Spam</c> or <c>NotSpam</c>, the member names the spam object every message carries uses.</param>
 /// <param name="SpamSubcategory">The kind of spam for the whole batch, or <see langword="null" /> where the person named none; never beside <c>NotSpam</c>.</param>
 /// <param name="StoredEmailIds">The messages, as a list row, a conversation, or a search published them, at most the batch bound this surface publishes.</param>
@@ -191,10 +207,7 @@ internal sealed record ClientMailSpamMarkResultResponse(
                     "A spam mark outcome is one this surface publishes."),
             },
             result.IsMoved,
-            [.. result.Records.Select(static record => new ClientMailRecordedChangeResponse(
-                record.Request.Mutation.Name,
-                record.Id.Value,
-                record.Lifecycle.Name))]);
+            [.. result.Records.Select(ClientMailRecordedChangeResponse.For)]);
     }
 
     /// <summary>Describes a message the boundary could not name, before the use case was reached.</summary>

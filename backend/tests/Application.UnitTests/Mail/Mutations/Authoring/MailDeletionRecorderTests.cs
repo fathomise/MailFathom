@@ -6,6 +6,8 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Authoring;
+using MailFathom.Application.Mail.Mutations.Authoring.Failures;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
@@ -45,6 +47,9 @@ public sealed class MailDeletionRecorderTests
     private static readonly MailboxMutationRequester Requester = MailboxMutationRequester.Command("call-1");
 
     private static readonly DateTimeOffset RecordedAt = new(2026, 9, 9, 9, 0, 0, TimeSpan.Zero);
+
+    private static readonly MailActIdempotencyKey DeleteKey =
+        MailActIdempotencyKey.Create("call-1", "deletes", [$"{LocalEmail.Value:N}"]);
 
     private readonly InMemoryMailboxMutationRecordStore records = new();
 
@@ -396,12 +401,71 @@ public sealed class MailDeletionRecorderTests
         Assert.Equal(0, this.records.OpenedRecordCount);
     }
 
+    /// <summary>A repeat under the act's key, reaching another replica, answers the first delete's record and opens no second one.</summary>
+    [Fact]
+    public async Task RecordAsync_ARepeatUnderTheSameKey_AnswersTheFirstOutcomeAndRecordsNothingAgain()
+    {
+        // Arrange
+        var keys = new InMemoryMailActKeyStore();
+        var first = await this.Recorder(TargetIn(Trash), keys: keys)
+            .RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Person, DeleteKey, TestContext.Current.CancellationToken);
+
+        // Act
+        var repeat = await this.Recorder(TargetIn(Trash), keys: keys.AnotherReplica())
+            .RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Person, DeleteKey, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(first, repeat);
+        Assert.Equal(1, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>
+    /// The key is asked for before the email is looked up, so a repeat arriving after the delete erased the message is
+    /// still answered with the first outcome rather than as a message that is not there.
+    /// </summary>
+    [Fact]
+    public async Task RecordAsync_ARepeatAfterTheStoredEmailIsGone_StillAnswersTheFirstOutcome()
+    {
+        // Arrange
+        var keys = new InMemoryMailActKeyStore();
+        var first = await this.Recorder(TargetIn(Trash), keys: keys)
+            .RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Person, DeleteKey, TestContext.Current.CancellationToken);
+
+        // Act
+        var repeat = await this.Recorder(target: null, keys: keys.AnotherReplica())
+            .RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Person, DeleteKey, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailDeletionOutcome.Recorded, repeat.Outcome);
+        Assert.Equal(first, repeat);
+    }
+
+    /// <summary>A key the person already used for another act is refused rather than answered with that act's outcome.</summary>
+    [Fact]
+    public async Task RecordAsync_AKeyAlreadyUsedForADifferentAct_IsRefusedAndRecordsNothing()
+    {
+        // Arrange
+        var keys = new InMemoryMailActKeyStore();
+        await this.Recorder(TargetIn(Trash), keys: keys)
+            .RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Person, DeleteKey, TestContext.Current.CancellationToken);
+        var otherAct = MailActIdempotencyKey.Create("call-1", "moves", [$"{LocalEmail.Value:N}|archive"]);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailFlagChangeInvalidException>(() => this.Recorder(TargetIn(Trash), keys: keys.AnotherReplica())
+            .RecordAsync(LocalEmail, Requester, withdrawalWindow: null, MailboxReaderKind.Person, otherAct, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFlagChangeInvalidException.RequestIdReusedForAnotherAct().Message, refusal.Message);
+        Assert.Equal(1, this.records.OpenedRecordCount);
+    }
+
     private MailDeletionRecorder Recorder(
         AuthoredMailboxTarget? target,
         AccessAuthorization? authorization = null,
         MailAccountRunSignal? runSignal = null,
         InMemoryLocalMailFolderStore? localFolders = null,
-        InMemoryLocalEmailStateStore? states = null)
+        InMemoryLocalEmailStateStore? states = null,
+        IMailActKeyStore? keys = null)
     {
         var callerAuthorization =
             authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailDelete);
@@ -434,7 +498,8 @@ public sealed class MailDeletionRecorderTests
                 new PersistenceConcurrencyOptions(),
                 new FakeTimeProvider(RecordedAt)),
             runSignal ?? new MailAccountRunSignal(),
-            new FakeTimeProvider(RecordedAt));
+            new FakeTimeProvider(RecordedAt),
+            new MailActIdempotency(callerAuthorization, keys ?? Substitute.For<IMailActKeyStore>(), new FakeTimeProvider(RecordedAt)));
     }
 
     /// <summary>Arranges a restoring account whose message still stands on the source and is not yet in the local trash.</summary>

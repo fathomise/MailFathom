@@ -342,9 +342,21 @@ export function notice(page: Page, title: string): Locator {
     return page.getByRole('list', { name: 'Notices' }).getByRole('listitem').filter({ hasText: title });
 }
 
-/** What the client sent to one write route, in the order it sent it. */
+/**
+ * What the client sent to one write route, in the order it sent it, without the key a mailbox act is sent under. The
+ * key is drawn afresh for every act, so a check states what the act carried and the unit suite states the key.
+ */
 export function bodiesOf(deployment: FakeDeployment, route: string): unknown[] {
-    return deployment.requests('POST', route).map(({ body }) => body);
+    return deployment.requests('POST', route).map(({ body }) => {
+        if (typeof body !== 'object' || body === null || !('requestId' in body)) {
+            return body;
+        }
+
+        const { requestId, ...carried } = body;
+        expect(requestId).toEqual(expect.any(String));
+
+        return carried;
+    });
 }
 
 /**

@@ -73,6 +73,12 @@ public sealed class MailFlagChangeInvalidException : MailFathomException
     public static MailFlagChangeInvalidException RequestIdAlreadyAskedForAnother() =>
         new("A request identity already names this change on this email with different terms. Retry with the value the earlier call sent, or send a new request identity.");
 
+    /// <summary>Refuses a key a person already used for a different act.</summary>
+    /// <returns>The failure to raise.</returns>
+    /// <remarks>The key is what makes a retry the same act, so answering the earlier outcome to a request that asks for something else would report a change that never happened as the one now asked for.</remarks>
+    public static MailFlagChangeInvalidException RequestIdReusedForAnotherAct() =>
+        new("This request identifier was already used for a different act. Retry with exactly what the earlier request sent, or generate a new request identifier for a new act.");
+
     /// <summary>Refuses a change by an agent or an MCP caller that names a junk keyword or replaces a message's keywords.</summary>
     /// <returns>The failure to raise.</returns>
     /// <remarks>The keywords are named because they are RFC 9051's own, not text the caller wrote.</remarks>

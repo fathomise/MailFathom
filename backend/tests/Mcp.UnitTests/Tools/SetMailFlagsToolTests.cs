@@ -11,6 +11,7 @@ using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Convergence;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
@@ -459,7 +460,11 @@ public sealed class SetMailFlagsToolTests
                 sessionFactory,
                 new PersistenceConcurrencyOptions(),
                 new FakeTimeProvider()),
-            new MailAccountRunSignal()));
+            new MailAccountRunSignal(),
+            new MailActIdempotency(
+                authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite),
+                Substitute.For<IMailActKeyStore>(),
+                new FakeTimeProvider())));
     }
 
     /// <summary>A record store that keeps what a call asked to have written down.</summary>
@@ -499,6 +504,21 @@ public sealed class SetMailFlagsToolTests
                 SourceRemovalObservedAt = null,
             });
         }
+
+        public Task<OpenedMailboxMutationRecord> OpenOverlayAsync(
+            IPersistenceSession session,
+            MailboxMutationRequest request,
+            DateTimeOffset? heldUntil,
+            MailboxMutationOverlay replaced,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<MailboxMutationRecord> RecordLocalCopyAsync(
+            IPersistenceSession session,
+            MailboxMutationRecordId recordId,
+            StoredEmailId copy,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<bool> HasRecordAsync(
             StoredEmailId storedEmailId,

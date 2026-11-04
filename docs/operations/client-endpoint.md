@@ -2446,9 +2446,22 @@ under *moving to trash* for minutes.
 per read, because a read names them in the request line. The route enforces that hundred itself, answering a longer one
 with an ordinary `400`; it is set well under the request line Kestrel will actually accept, so a longer path or a proxy
 that rewrites the prefix never turns a documented read into a raw `414` nobody can act on. A refusal about one of the messages is that message's own result rather than the request's — so a batch composed from a list that has moved on since
-the screen drew it reports exactly which entries did not apply and writes the rest down. `requestId` is the caller's own
-identity for the request: repeating a request under the same one is the same request and produces the same records
-rather than a second set, and omitting it has one generated, which makes every submission distinct.
+the screen drew it reports exactly which entries did not apply and writes the rest down. `requestId` is the key the
+client generates once for each act and is required: a request without one, with one longer than 128 characters, or with
+one carrying a control character is refused with a `400`.
+
+**A repeat under the same key answers what the first attempt answered, and changes nothing a second time.** The key is
+the person's own, so another person's request under the same text is a different request. It is kept in the database
+rather than in any one replica's memory, so a retry that reaches another replica — or arrives while the first attempt is
+still running — is answered with the first outcome for each message: the same outcome, the same detail, and the same
+records, each in the state the first answer reported. `GET /api/client/mutations` reads where those records stand now.
+A message the first attempt never reached, because it stopped partway through the batch, is carried out by the repeat.
+A key reused for a different act — another route, other messages, or other values — is refused whole with a `400` before
+any message is touched, and so is a batch naming one message in more than one entry, since the key answers per message
+and the second entry would be answered with the first's outcome. A key is kept for 24 hours after its act committed,
+still answering after the message and its records have been deleted, and is deleted within the hour after; a request
+carrying it afterwards is a new act. The flag, move, delete, and spam-mark submissions all take a key; a withdrawal or a
+release names records rather than mail and takes none.
 
 ```http
 POST /api/client/mutations/flags
@@ -2545,8 +2558,8 @@ to, so a flag, a keyword, a move, or a delete on a [held account](#the-folder-ma
 message in the same transaction as its audit entry where the account keeps one, the answer is `applied`, and `changes` is empty because no record
 exists to follow. Treat an `applied` result carrying no change as finished: nothing converges afterwards and no later
 state will be reported.
-`requestId` matches a repeat only against a record, so a submission repeated on a held account applies its changes
-again. A move
+A repeat on a held account is answered from its key like any other, although no record exists for it to be matched
+against. A move
 files into the local folder the destination's role names, or into the local folder the destination's source folder
 created; a destination with neither is `destination-not-found`, and a message already in that local folder is
 `already-in-destination`. A delete moves the message into the local trash, which a person can move it back out of — though never into the drafts
@@ -2570,8 +2583,21 @@ message. A delete answered `applied` on such an account moves the message into t
 the source has not heard about; the erasure a second delete asks for is `recorded` and reaches no server, exactly as on
 a held account.
 
-**The record beside an `applied` change is not one a withdrawal takes back**, which is the one thing a client has to
-treat differently about it. `withdrawal_window_seconds` buys the stretch in which a change that has only been
+**On a mirrored account a change is made and recorded wherever the source allows it.** The source is the truth there,
+yet the person should not wait a synchronization run to see their own act, so a flag and a keyword, and — on a server
+last seen advertising `UIDPLUS` or `IMAP4rev2` — a delete and a move, are committed to the stored message in the transaction
+that opens the record carrying them to the server, and the answer is `applied` with that record named beside it. Unlike
+a restoring account's, this record is held for the same withdrawal window as any change only `recorded`, and a
+withdrawal inside it does take the change back: the record kept what the server was last seen holding, and withdrawing
+it puts the message back to that and tells every client of the account. So on a mirrored account `applied` means the
+mail has changed here, the record beside it is what reaches the server, and the undo affordance follows the record's
+state rather than the answer. Two things leave a mirrored change `recorded` alone, exactly as before: a move or a delete
+on a server last seen advertising neither, and a deployment part-way through a rolling upgrade, while any replica runs a build that
+does not know about the local commit; [IMAP synchronization](../features/imap-synchronization.md#a-mirrored-account-commits-a-change-locally-first)
+holds both rules and what synchronization does with a field such a change overlays.
+
+**The record beside a restoring account's `applied` change is not one a withdrawal takes back**, which is the one thing
+a client has to treat differently about it. `withdrawal_window_seconds` buys the stretch in which a change that has only been
 `recorded` may still be stopped, and a change answered `applied` has already happened to the stored message — so the
 record carrying it to the source is opened with no window at all, and the withdrawal routes leave it exactly where it
 stands and answer it `pending` rather than `cancelled`. The answer is what says which case a client is in: an undo
@@ -2701,6 +2727,10 @@ Content-Type: application/json
   ]
 }
 ```
+
+`requestId` is required and is the key of the act, with the guarantee [the mutation routes](#the-mutation-routes) state:
+generated once per act, at most 128 characters, answered with the first outcome when repeated — on any replica — refused
+when reused for a different act, and kept for 24 hours.
 
 Each result carries `recorded`, `applied`, `message-not-found`, or `change-not-usable` — the last where `requestId`
 already asked the same message for other keywords. **The verdict itself is recorded at once in every case but the two

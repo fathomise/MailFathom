@@ -119,6 +119,30 @@ internal sealed class MailboxMutationEntity
     /// </remarks>
     public MailboxMutationLocalChange LocalChange { get; set; }
 
+    /// <summary>Gets or sets whether the change was committed locally on a mirrored account first and overlays the stored message until it ends.</summary>
+    /// <remarks>
+    /// A row carrying it also carries <see cref="MailboxMutationLocalChange.AlreadyCommitted" />, so a build that has
+    /// neither this column nor the four beside it reads a change it still carries to the server and still refuses to
+    /// withdraw.
+    /// </remarks>
+    public bool OverlaysStoredState { get; set; }
+
+    /// <summary>Gets or sets the server's <c>\Seen</c> as last observed, on an overlaying change that wrote it.</summary>
+    public bool? ObservedSeenState { get; set; }
+
+    /// <summary>Gets or sets the server's <c>\Flagged</c> as last observed, on an overlaying change that wrote it.</summary>
+    public bool? ObservedFlaggedState { get; set; }
+
+    /// <summary>Gets or sets the server's whole keyword set as last observed, on an overlaying change that wrote a keyword.</summary>
+    public string[]? ObservedKeywords { get; set; }
+
+    /// <summary>Gets or sets the folder the message was in before an overlaying move wrote another one.</summary>
+    public Guid? ObservedFolderId { get; set; }
+
+    /// <summary>Gets or sets the second stored message an overlaying copy wrote, which the copy's placement binds.</summary>
+    /// <remarks>Not a foreign key: the copy's own row is the first thing a cascade from it removes.</remarks>
+    public Guid? LocalCopyStoredEmailId { get; set; }
+
     public MailboxMutationStage Stage { get; set; }
 
     /// <summary>Gets or sets whether the placement left a source occurrence that still has to be removed separately.</summary>

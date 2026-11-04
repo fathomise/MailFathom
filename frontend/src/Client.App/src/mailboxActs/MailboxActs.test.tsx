@@ -356,11 +356,25 @@ function acting(
     };
 }
 
-/** What was submitted to a mutation route, which is the whole of what the deployment was asked to write down. */
+/**
+ * What was submitted to a mutation route, which is the whole of what the deployment was asked to write down.
+ *
+ * Every act carries the key it is repeated under, which is asserted here and left out of the body each test compares:
+ * the key is generated, and what a test states is what the act asked for. A release names records rather than mail
+ * and takes none.
+ */
 function submitted(deployment: Deployment): { readonly path: string; readonly body: unknown }[] {
     return deployment.requests
         .filter((request) => request.path.includes('/mutations/'))
-        .map((request) => ({ path: request.path, body: JSON.parse(request.body ?? '{}') as unknown }));
+        .map((request) => {
+            const { requestId, ...body } = JSON.parse(request.body ?? '{}') as { requestId?: string };
+
+            if (!request.path.endsWith('/releases')) {
+                expect(requestId).toMatch(/\S/u);
+            }
+
+            return { path: request.path, body };
+        });
 }
 
 function perform(held: () => MailboxActs, ...asked: Parameters<MailboxActs['perform']>): void {

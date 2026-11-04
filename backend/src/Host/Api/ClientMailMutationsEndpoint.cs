@@ -2,11 +2,13 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Globalization;
 using System.Text.Json;
 using MailFathom.Application.Access;
 using MailFathom.Application.Mail.Delivery.Receipts;
 using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Preferences;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
@@ -240,23 +242,33 @@ internal static class ClientMailMutationsEndpoint
     /// <param name="request">The messages to change and what to change about each.</param>
     /// <param name="recorder">Writes one message's changes down.</param>
     /// <param name="openings">Reports a colleague's send as read where the batch says the reader opened it.</param>
+    /// <param name="idempotency">Answers whether the batch's request identifier already named a different act.</param>
     /// <param name="cancellationToken">Cancels the writes when the client disconnects.</param>
     /// <returns><c>200</c> with one result per message, <c>400</c> when the batch itself is not one this boundary accepts, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.flags.write</c>.</returns>
     /// <remarks>
+    /// <para>
+    /// The request identifier is the key of the act and is required, so a batch repeated under it is answered with what
+    /// its first attempt answered for each message rather than changed again, and a batch asking for anything else under
+    /// a key already used is refused as a whole.
+    /// </para>
+    /// <para>
     /// A refusal about one message is that message's result rather than the request's, which is what lets a batch over
     /// mail that has moved on since the screen drew it report exactly which entries did not apply. The refusals are
     /// caught here because this is where the caller acts on them and carries on; every other failure travels. Where the
     /// batch is an opening, every message it marked read is an opening too, which is the one act a colleague's send is
     /// reported read by.
+    /// </para>
     /// </remarks>
     internal static async Task<Results<Ok<ClientMailFlagChangesResponse>, ProblemHttpResult>> SubmitFlagChangesAsync(
         [FromBody] ClientMailFlagChangesRequest? request,
         [FromServices] MailFlagChangeRecorder recorder,
         [FromServices] OpenedMailReceipts openings,
+        [FromServices] MailActIdempotency idempotency,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(recorder);
         ArgumentNullException.ThrowIfNull(openings);
+        ArgumentNullException.ThrowIfNull(idempotency);
 
         if (request?.Changes is not { Count: > 0 } changes)
         {
@@ -268,6 +280,11 @@ internal static class ClientMailMutationsEndpoint
             return TooMany();
         }
 
+        if (NamesAMessageTwice(changes.Select(static change => change?.StoredEmailId)))
+        {
+            return MessageNamedTwice();
+        }
+
         var requester = RequesterOf(request.RequestId);
 
         if (requester is null)
@@ -275,11 +292,21 @@ internal static class ClientMailMutationsEndpoint
             return UnusableRequestId();
         }
 
+        var key = MailActIdempotencyKey.Create(
+            requester.Identity,
+            $"flags:{request.Opened is true}",
+            changes.Select(AskedOf));
+
+        if (await RefusalForReusedKeyAsync(idempotency, key, cancellationToken) is { } reused)
+        {
+            return reused;
+        }
+
         var results = new List<ClientMailFlagChangeResultResponse>(changes.Count);
 
         foreach (var change in changes)
         {
-            results.Add(await RecordFlagChangeAsync(recorder, change, requester, cancellationToken));
+            results.Add(await RecordFlagChangeAsync(recorder, change, requester, key, cancellationToken));
         }
 
         if (request.Opened is true)
@@ -293,15 +320,18 @@ internal static class ClientMailMutationsEndpoint
     /// <summary>Writes down the moves one batch asks for, one message at a time.</summary>
     /// <param name="request">The messages to move and where each is going.</param>
     /// <param name="recorder">Writes one move down.</param>
+    /// <param name="idempotency">Answers whether the batch's request identifier already named a different act.</param>
     /// <param name="cancellationToken">Cancels the resolutions and the writes when the client disconnects.</param>
     /// <returns><c>200</c> with one result per message, <c>400</c> when the batch itself is not one this boundary accepts, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.move</c>.</returns>
     /// <remarks>Every per-message refusal is already a result rather than a failure, so nothing is caught here: the use case reports a message that has gone, a folder that is not there, and a message already filed as the three separate answers a person needs.</remarks>
     internal static async Task<Results<Ok<ClientMailMovesResponse>, ProblemHttpResult>> SubmitMovesAsync(
         [FromBody] ClientMailMovesRequest? request,
         [FromServices] MailRelocationRecorder recorder,
+        [FromServices] MailActIdempotency idempotency,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(recorder);
+        ArgumentNullException.ThrowIfNull(idempotency);
 
         if (request?.Moves is not { Count: > 0 } moves)
         {
@@ -313,6 +343,11 @@ internal static class ClientMailMutationsEndpoint
             return TooMany();
         }
 
+        if (NamesAMessageTwice(moves.Select(static move => move?.StoredEmailId)))
+        {
+            return MessageNamedTwice();
+        }
+
         var requester = RequesterOf(request.RequestId);
 
         if (requester is null)
@@ -320,11 +355,21 @@ internal static class ClientMailMutationsEndpoint
             return UnusableRequestId();
         }
 
+        var key = MailActIdempotencyKey.Create(
+            requester.Identity,
+            "moves",
+            moves.Select(static move => move is null ? string.Empty : $"{move.StoredEmailId:N}|{move.DestinationFolder}"));
+
+        if (await RefusalForReusedKeyAsync(idempotency, key, cancellationToken) is { } reused)
+        {
+            return reused;
+        }
+
         var results = new List<ClientMailMoveResultResponse>(moves.Count);
 
         foreach (var move in moves)
         {
-            results.Add(await RecordMoveAsync(recorder, move, requester, cancellationToken));
+            results.Add(await RecordMoveAsync(recorder, move, requester, key, cancellationToken));
         }
 
         return TypedResults.Ok(new ClientMailMovesResponse(results));
@@ -334,6 +379,7 @@ internal static class ClientMailMutationsEndpoint
     /// <param name="request">The messages to delete from the mail server.</param>
     /// <param name="recorder">Writes one delete down.</param>
     /// <param name="preferences">Answers how long the acting person's own notification stands, which is what the window is measured from.</param>
+    /// <param name="idempotency">Answers whether the batch's request identifier already named a different act.</param>
     /// <param name="cancellationToken">Cancels the resolutions and the writes when the client disconnects.</param>
     /// <returns><c>200</c> with one result per message, <c>400</c> when the batch itself is not one this boundary accepts, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.delete</c>.</returns>
     /// <remarks>
@@ -349,10 +395,12 @@ internal static class ClientMailMutationsEndpoint
         [FromBody] ClientMailDeletesRequest? request,
         [FromServices] MailDeletionRecorder recorder,
         [FromServices] OwnClientPreferences preferences,
+        [FromServices] MailActIdempotency idempotency,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(recorder);
         ArgumentNullException.ThrowIfNull(preferences);
+        ArgumentNullException.ThrowIfNull(idempotency);
 
         if (request?.Deletes is not { Count: > 0 } deletes)
         {
@@ -364,11 +412,26 @@ internal static class ClientMailMutationsEndpoint
             return TooMany();
         }
 
+        if (NamesAMessageTwice(deletes.Select(static deletion => deletion?.StoredEmailId)))
+        {
+            return MessageNamedTwice();
+        }
+
         var requester = RequesterOf(request.RequestId);
 
         if (requester is null)
         {
             return UnusableRequestId();
+        }
+
+        var key = MailActIdempotencyKey.Create(
+            requester.Identity,
+            "deletes",
+            deletes.Select(static deletion => deletion is null ? string.Empty : deletion.StoredEmailId.ToString("N")));
+
+        if (await RefusalForReusedKeyAsync(idempotency, key, cancellationToken) is { } reused)
+        {
+            return reused;
         }
 
         var withdrawalWindow = await WithdrawalWindowAsync(preferences, cancellationToken);
@@ -377,7 +440,7 @@ internal static class ClientMailMutationsEndpoint
 
         foreach (var deletion in deletes)
         {
-            results.Add(await RecordDeleteAsync(recorder, deletion, requester, withdrawalWindow, cancellationToken));
+            results.Add(await RecordDeleteAsync(recorder, deletion, requester, key, withdrawalWindow, cancellationToken));
         }
 
         return TypedResults.Ok(new ClientMailDeletesResponse(results));
@@ -491,6 +554,7 @@ internal static class ClientMailMutationsEndpoint
         MailFlagChangeRecorder recorder,
         ClientMailFlagChangeRequest? change,
         MailboxMutationRequester requester,
+        MailActIdempotencyKey key,
         CancellationToken cancellationToken)
     {
         if (change is null || change.StoredEmailId == Guid.Empty)
@@ -510,7 +574,7 @@ internal static class ClientMailMutationsEndpoint
                 KeywordDirectionOf(change.Tags),
                 change.Tags?.Keywords);
 
-            var recorded = await recorder.RecordAsync(authored, requester, MailboxReaderKind.Person, cancellationToken);
+            var recorded = await recorder.RecordAsync(authored, requester, MailboxReaderKind.Person, key, cancellationToken);
 
             return ClientMailFlagChangeResultResponse.Recorded(recorded);
         }
@@ -537,6 +601,7 @@ internal static class ClientMailMutationsEndpoint
         MailRelocationRecorder recorder,
         ClientMailMoveRequest? move,
         MailboxMutationRequester requester,
+        MailActIdempotencyKey key,
         CancellationToken cancellationToken)
     {
         if (move is null || move.StoredEmailId == Guid.Empty)
@@ -558,6 +623,7 @@ internal static class ClientMailMutationsEndpoint
             destination,
             requester,
             MailboxReaderKind.Person,
+            key,
             cancellationToken);
 
         return ClientMailMoveResultResponse.For(move.StoredEmailId, destination, result);
@@ -600,6 +666,7 @@ internal static class ClientMailMutationsEndpoint
         MailDeletionRecorder recorder,
         ClientMailDeleteRequest? deletion,
         MailboxMutationRequester requester,
+        MailActIdempotencyKey key,
         TimeSpan withdrawalWindow,
         CancellationToken cancellationToken)
     {
@@ -615,27 +682,23 @@ internal static class ClientMailMutationsEndpoint
             requester,
             withdrawalWindow,
             MailboxReaderKind.Person,
+            key,
             cancellationToken);
 
         return ClientMailDeleteResultResponse.For(deletion.StoredEmailId, result);
     }
 
-    /// <summary>Names the invocation asking, from what the caller supplied or from an identity of MailFathom's own.</summary>
-    /// <returns>The requester, or <see langword="null" /> where the caller supplied text no record could be written under.</returns>
+    /// <summary>Names the invocation asking, from the request identifier the client generated for the act.</summary>
+    /// <returns>The requester, or <see langword="null" /> where the caller supplied no identifier or text no record could be written under.</returns>
     /// <remarks>
     /// One identity covers the whole batch, because what a repeated request has to be recognized by is the occurrence,
-    /// the requester, and the mutation together — and the occurrences in one batch are all different. A caller that sent
-    /// nothing gets a fresh identity, which is the honest reading of a request that declined to say whether it was a
-    /// retry: two such calls are two requests, and collapsing them would silently discard the second of a star and an
-    /// unstar.
+    /// the requester, and the mutation together — and the occurrences in one batch are all different. The client
+    /// generates it once per act, so two calls with different identifiers are two acts, and collapsing them would
+    /// silently discard the second of a star and an unstar; a caller that sent none is refused rather than given one,
+    /// because an identifier minted here could never be repeated by the retry it exists for.
     /// </remarks>
     internal static MailboxMutationRequester? RequesterOf(string? requestId)
     {
-        if (requestId is null)
-        {
-            return MailboxMutationRequester.Command(Guid.CreateVersion7().ToString());
-        }
-
         if (string.IsNullOrWhiteSpace(requestId)
             || requestId.Length > MailboxMutationRequester.MaximumIdentityLength
             || requestId.Any(char.IsControl))
@@ -665,10 +728,60 @@ internal static class ClientMailMutationsEndpoint
     private static ProblemHttpResult TooManyRead() =>
         Refusal($"One read names at most {MaximumChangesPerRead} records.");
 
+    /// <summary>Answers whether a batch names one message in more than one of its entries.</summary>
+    /// <param name="storedEmailIds">The message each entry names, where it names one.</param>
+    /// <returns><see langword="true" /> when a message other than the empty identifier appears twice.</returns>
+    /// <remarks>
+    /// A batch is one act under one key, and a repeat of it answers each message's first outcome. A second entry for
+    /// the same message would find the first entry's answer under that key and report success for a change that was
+    /// never made, so the batch is refused before anything is written. The empty identifier is left to the per-entry
+    /// answer, which reports it as a message that is not there.
+    /// </remarks>
+    internal static bool NamesAMessageTwice(IEnumerable<Guid?> storedEmailIds)
+    {
+        var named = new HashSet<Guid>();
+
+        return storedEmailIds.Any(id => id is { } message && message != Guid.Empty && !named.Add(message));
+    }
+
+    /// <summary>Answers that a batch named one message in more than one entry.</summary>
+    internal static ProblemHttpResult MessageNamedTwice() =>
+        Refusal("A batch names each message at most once; ask for everything one message needs in one entry.");
+
     /// <summary>Answers that the identity the caller stated is not one a record can be written under.</summary>
-    private static ProblemHttpResult UnusableRequestId() => Refusal(
-        "A stated request identifier is at most "
-        + $"{MailboxMutationRequester.MaximumIdentityLength} characters and carries no control character.");
+    internal static ProblemHttpResult UnusableRequestId() => Refusal(
+        "A request identifier is required, generated once for each act, at most "
+        + $"{MailboxMutationRequester.MaximumIdentityLength} characters, and carries no control character.");
+
+    /// <summary>Refuses a request whose key the person already used for a different act.</summary>
+    /// <param name="idempotency">Reads what the key was first used for.</param>
+    /// <param name="key">The key the request was made under.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The refusal, or <see langword="null" /> when the key is new or names this same act.</returns>
+    internal static async Task<ProblemHttpResult?> RefusalForReusedKeyAsync(
+        MailActIdempotency idempotency,
+        MailActIdempotencyKey key,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await idempotency.RequireSameActAsync(key, cancellationToken);
+
+            return null;
+        }
+        catch (MailFlagChangeInvalidException refusal)
+        {
+            // The sentence is relayed because the type takes operator-safe text and carries nothing the caller sent.
+            return Refusal(refusal.Message);
+        }
+    }
+
+    /// <summary>States what one flag change asks for, which is what the key's digest covers beside the message.</summary>
+    private static string AskedOf(ClientMailFlagChangeRequest? change) => change is null
+        ? string.Empty
+        : string.Create(
+            CultureInfo.InvariantCulture,
+            $"{change.StoredEmailId:N}|{change.Flags?.Seen}|{change.Flags?.Flagged}|{change.Tags?.Change}|{string.Join('\u001f', change.Tags?.Keywords ?? [])}");
 
     private static ProblemHttpResult Refusal(string detail) =>
         TypedResults.Problem(detail, statusCode: StatusCodes.Status400BadRequest);
@@ -732,14 +845,14 @@ internal static class ClientMailTagChanges
 }
 
 /// <summary>One batch of flag and tag changes, each naming the message it is about.</summary>
-/// <param name="RequestId">The caller's own identity for this request, or <see langword="null" /> to have one generated.</param>
+/// <param name="RequestId">The key the client generated once for this act, which is required.</param>
 /// <param name="Changes">The messages to change, at most the batch bound this surface publishes.</param>
 /// <param name="Opened">
 /// <see langword="true" /> where the reader opened the messages and that is why they are being marked read (ADR 0026),
 /// and <see langword="null" /> or <see langword="false" /> for every other change, <em>mark as read</em> among them. An
 /// opening is what reports a colleague's message read to its sender, so nothing else may claim to be one.
 /// </param>
-/// <remarks>The identity makes a retried request the same request: the batch is answered from the records the first call opened rather than opening a second set. A new value, or none, is a new request, which is what lets somebody star a message, unstar it, and star it again.</remarks>
+/// <remarks>The identity makes a retried request the same request: the batch is answered with what the first call answered rather than changing the mailbox again. A new value is a new request, which is what lets somebody star a message, unstar it, and star it again.</remarks>
 internal sealed record ClientMailFlagChangesRequest(
     string? RequestId,
     IReadOnlyList<ClientMailFlagChangeRequest> Changes,
@@ -814,7 +927,7 @@ internal sealed record ClientMailFlagChangeResultResponse(
 }
 
 /// <summary>One batch of folder moves, each naming the message it is about and where it is going.</summary>
-/// <param name="RequestId">The caller's own identity for this request, or <see langword="null" /> to have one generated.</param>
+/// <param name="RequestId">The key the client generated once for this act, which is required.</param>
 /// <param name="Moves">The messages to move, at most the batch bound this surface publishes.</param>
 internal sealed record ClientMailMovesRequest(string? RequestId, IReadOnlyList<ClientMailMoveRequest> Moves);
 
@@ -864,10 +977,7 @@ internal sealed record ClientMailMoveResultResponse(
                     recordId.Value,
                     lifecycle.Name)
                 : null,
-            [.. result.SpamMarkRecords.Select(static record => new ClientMailRecordedChangeResponse(
-                record.Request.Mutation.Name,
-                record.Id.Value,
-                record.Lifecycle.Name))]);
+            [.. result.SpamMarkRecords.Select(ClientMailRecordedChangeResponse.For)]);
     }
 
     /// <summary>Describes a move the boundary refused before the use case was reached.</summary>
@@ -896,7 +1006,7 @@ internal sealed record ClientMailMoveResultResponse(
 }
 
 /// <summary>One batch of deletes, each naming the message it is about.</summary>
-/// <param name="RequestId">The caller's own identity for this request, or <see langword="null" /> to have one generated.</param>
+/// <param name="RequestId">The key the client generated once for this act, which is required.</param>
 /// <param name="Deletes">The messages to delete, at most the batch bound this surface publishes.</param>
 internal sealed record ClientMailDeletesRequest(string? RequestId, IReadOnlyList<ClientMailDeleteRequest> Deletes);
 
