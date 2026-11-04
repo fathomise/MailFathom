@@ -97,6 +97,7 @@ using MailFathom.Application.Mail.Maintenance;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Authoring;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Convergence;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Mail.Mutations.Local;
@@ -1484,6 +1485,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<LocalMailCopier>();
         services.AddScoped<LocalMailboxChanges>();
         services.AddScoped<MailboxChangeSubmission>();
+        // What lets a person's retry of an act be answered rather than made twice: the keys their client generated and
+        // what each answered the first time, kept in PostgreSQL so any replica finds them, and the pass that ages them out.
+        services.AddScoped<IMailActKeyStore, MailActKeyStore>();
+        services.AddScoped<MailActIdempotency>();
+        services.AddScoped<MailActKeyRetention>();
         services.AddScoped<MailFlagChangeRecorder>();
 
         // The relocation half of what a caller may author, beside the flag half and registered the same way: it writes

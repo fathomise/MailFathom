@@ -8,6 +8,7 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Marking;
@@ -78,6 +79,7 @@ public sealed class MailRelocationRecorder
     private readonly IJunkMailFolderCatalog junkFolders;
     private readonly KeptMailTrees keptTrees;
     private readonly SpamMarkWriter spamMarks;
+    private readonly MailActIdempotency idempotency;
 
     /// <summary>Initializes the use case over the grant it asks first, the folder it files into, and the submission it writes through.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
@@ -93,6 +95,7 @@ public sealed class MailRelocationRecorder
     /// <param name="runSignal">Brings the account's next synchronization run forward, which is what carries the move to the mail server.</param>
     /// <param name="junkFolders">Answers whether the destination is the account's junk folder, which makes the person's move a spam mark.</param>
     /// <param name="spamMarks">Writes the person's spam verdict a move into the junk folder makes.</param>
+    /// <param name="idempotency">Answers a repeat of an act the person already made, and keeps the key of one that commits.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public MailRelocationRecorder(
         AccessAuthorization authorization,
@@ -107,7 +110,8 @@ public sealed class MailRelocationRecorder
         OptimisticConcurrencyRetryPolicy commitPolicy,
         MailAccountRunSignal runSignal,
         IJunkMailFolderCatalog junkFolders,
-        SpamMarkWriter spamMarks)
+        SpamMarkWriter spamMarks,
+        MailActIdempotency idempotency)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(scopeResolver);
@@ -122,6 +126,7 @@ public sealed class MailRelocationRecorder
         ArgumentNullException.ThrowIfNull(runSignal);
         ArgumentNullException.ThrowIfNull(junkFolders);
         ArgumentNullException.ThrowIfNull(spamMarks);
+        ArgumentNullException.ThrowIfNull(idempotency);
 
         this.authorization = authorization;
         this.scopeResolver = scopeResolver;
@@ -135,6 +140,7 @@ public sealed class MailRelocationRecorder
         this.junkFolders = junkFolders;
         this.keptTrees = new KeptMailTrees(folderReferences, bindings);
         this.spamMarks = spamMarks;
+        this.idempotency = idempotency;
     }
 
     /// <summary>Writes down one move, against the email and the folder a caller named.</summary>
@@ -150,11 +156,36 @@ public sealed class MailRelocationRecorder
     /// The destination is resolved before the commit is opened, because resolving a folder the account maps and does not
     /// mirror reaches the mail server, and a transaction must never be held open across one.
     /// </remarks>
+    public Task<AuthoredMailRelocationResult> RecordAsync(
+        StoredEmailId storedEmailId,
+        MailFolderId destination,
+        MailboxMutationRequester requester,
+        MailboxReaderKind reader,
+        CancellationToken cancellationToken) =>
+        this.RecordAsync(storedEmailId, destination, requester, reader, key: null, cancellationToken);
+
+    /// <summary>Writes down one move as one act of a person that a repeat under the same key answers again.</summary>
+    /// <param name="storedEmailId">The email to move, as a listing, a search, or a read returned it.</param>
+    /// <param name="destination">The identity of the folder to move it into.</param>
+    /// <param name="requester">The invocation asking.</param>
+    /// <param name="reader">Who the act is asked for.</param>
+    /// <param name="key">The key the person's client generated for the act, or <see langword="null" /> for a caller that makes none.</param>
+    /// <param name="cancellationToken">Cancels the resolution and the write.</param>
+    /// <returns>What this call wrote down, or, where the person already used the key on this email, what the first attempt answered.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="requester" /> is <see langword="null" />.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the moving grant.</exception>
+    /// <remarks>
+    /// The key is asked about before the email is looked up, because a repeat after the email was deleted has no email
+    /// to resolve and is owed its answer all the same, and again inside the commit, where the entry is staged beside the
+    /// move so the two are one transaction. A repeat that finds the entry changes nothing and announces nothing. A move
+    /// the commit does not keep — nothing moved, so the spam mark beside it was taken back — leaves no entry.
+    /// </remarks>
     public async Task<AuthoredMailRelocationResult> RecordAsync(
         StoredEmailId storedEmailId,
         MailFolderId destination,
         MailboxMutationRequester requester,
         MailboxReaderKind reader,
+        MailActIdempotencyKey? key,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(requester);
@@ -162,6 +193,12 @@ public sealed class MailRelocationRecorder
         // The grant is asked for before the destination is read at all, so a caller that holds nothing is refused as
         // unauthorized rather than told whether the folder it named exists.
         this.authorization.RequirePermission(MailFathomPermission.MailMove);
+
+        if (key is not null
+            && await this.idempotency.FindAsync(key, storedEmailId, cancellationToken) is { } answered)
+        {
+            return ReplayOf(answered);
+        }
 
         var target = await this.targets.FindAsync(storedEmailId, cancellationToken);
 
@@ -223,16 +260,28 @@ public sealed class MailRelocationRecorder
             ? await this.spamMarks.PrepareMoveIntoJunkAsync(storedEmailId, account, cancellationToken)
             : null;
 
-        SubmittedMailboxChange submitted;
+        SubmittedMailboxChange? submitted;
         StagedSpamMark? markedSpam = null;
+        MailActOutcome? replayed = null;
 
         try
         {
             // Whether the message is already there is the submission's to answer, because it is a different question on a
             // held account: the alias a message was stored under is its source folder, and the folder it is in is local.
-            submitted = await this.commitPolicy.CommitAsync(
+            submitted = await this.commitPolicy.CommitAsync<SubmittedMailboxChange?>(
                 async (session, attemptCancellationToken) =>
                 {
+                    replayed = null;
+                    markedSpam = null;
+
+                    if (key is not null
+                        && await this.idempotency.FindAsync(session, key, storedEmailId, attemptCancellationToken) is { } first)
+                    {
+                        replayed = first;
+
+                        return null;
+                    }
+
                     markedSpam = spamMark is null
                         ? null
                         : await this.spamMarks.StageAsync(
@@ -255,6 +304,16 @@ public sealed class MailRelocationRecorder
                         await this.FinishSpamMarkAsync(session, storedEmailId, moved, attemptCancellationToken);
                     }
 
+                    if (key is not null)
+                    {
+                        await this.idempotency.StageAsync(
+                            session,
+                            key,
+                            storedEmailId,
+                            OutcomeOf(ResultOf(moved, folder.Alias), markedSpam),
+                            attemptCancellationToken);
+                    }
+
                     return moved;
                 },
                 cancellationToken);
@@ -273,6 +332,11 @@ public sealed class MailRelocationRecorder
             return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.RequestIdAlreadyAskedForAnother);
         }
 
+        if (replayed is not null)
+        {
+            return ReplayOf(replayed);
+        }
+
         if (markedSpam is not null)
         {
             this.spamMarks.Announce(markedSpam);
@@ -283,35 +347,50 @@ public sealed class MailRelocationRecorder
             }
         }
 
-        var moved = this.ResultOf(submitted, folder.Alias, account);
+        this.BringForwardForRecordOf(submitted!, account);
 
-        return markedSpam is null ? moved : moved with { SpamMarkRecords = markedSpam.Records };
+        var moved = ResultOf(submitted!, folder.Alias);
+
+        return markedSpam is null ? moved : moved with { SpamMarkRecords = SpamMarkChangesOf(markedSpam) };
     }
 
-    /// <summary>Answers what the submission made of the move, bringing the account's run forward for a record it opened.</summary>
-    private AuthoredMailRelocationResult ResultOf(SubmittedMailboxChange submitted, MailFolderAlias destination, MailAccountId account)
+    /// <summary>Brings the account's run forward for a record the move opened, and announces a move a held account applied.</summary>
+    private void BringForwardForRecordOf(SubmittedMailboxChange submitted, MailAccountId account)
     {
         switch (submitted.Outcome)
         {
-            case MailboxChangeSubmissionOutcome.Recorded when submitted.Record is { } record:
+            case MailboxChangeSubmissionOutcome.Recorded when submitted.Record is not null:
                 // Raised once the record is durable, for the reason MailFlagChangeRecorder gives: the run reads the
                 // records rather than the raise.
                 this.runSignal.BringForward(account);
-
-                return AuthoredMailRelocationResult.Recorded(destination, record.Id, record.Lifecycle);
+                break;
             case MailboxChangeSubmissionOutcome.Applied when submitted.Change is { } change:
                 this.submission.Announce(change);
 
                 // A restoring account's move is applied and recorded at once, so the record its source is still owed is
                 // brought forward exactly as a mirrored account's is and reported beside the move that already happened.
-                if (submitted.Record is { } carried)
+                if (submitted.Record is not null)
                 {
                     this.runSignal.BringForward(account);
-
-                    return AuthoredMailRelocationResult.Applied(destination, carried.Id, carried.Lifecycle);
                 }
 
-                return AuthoredMailRelocationResult.Applied(destination);
+                break;
+            default:
+                break;
+        }
+    }
+
+    /// <summary>Answers what the submission made of the move.</summary>
+    private static AuthoredMailRelocationResult ResultOf(SubmittedMailboxChange submitted, MailFolderAlias destination)
+    {
+        switch (submitted.Outcome)
+        {
+            case MailboxChangeSubmissionOutcome.Recorded when submitted.Record is { } record:
+                return AuthoredMailRelocationResult.Recorded(destination, record.Id, record.Lifecycle);
+            case MailboxChangeSubmissionOutcome.Applied when submitted.Change is not null:
+                return submitted.Record is { } carried
+                    ? AuthoredMailRelocationResult.Applied(destination, carried.Id, carried.Lifecycle)
+                    : AuthoredMailRelocationResult.Applied(destination);
             case MailboxChangeSubmissionOutcome.AlreadyInDestination:
                 return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.AlreadyInDestination);
             case MailboxChangeSubmissionOutcome.DestinationMissing:
@@ -321,6 +400,34 @@ public sealed class MailRelocationRecorder
             default:
                 return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.MessageNotFound);
         }
+    }
+
+    /// <summary>Names the records a spam mark staged beside the move.</summary>
+    private static IReadOnlyList<RecordedMailFlagMutation> SpamMarkChangesOf(StagedSpamMark markedSpam) =>
+        [.. markedSpam.Records.Select(RecordedMailFlagMutation.Of)];
+
+    /// <summary>States what a move answered in the shape the key keeps.</summary>
+    private static MailActOutcome OutcomeOf(AuthoredMailRelocationResult result, StagedSpamMark? markedSpam) => new(
+        result.Outcome.ToString(),
+        result is { RecordId: { } recordId, Lifecycle: { } lifecycle }
+            ? [new RecordedMailFlagMutation(MailboxMutation.Relocate, recordId, lifecycle)]
+            : [],
+        markedSpam is null ? [] : SpamMarkChangesOf(markedSpam),
+        Destination: result.Destination?.Value);
+
+    /// <summary>Rebuilds the answer the first attempt gave.</summary>
+    private static AuthoredMailRelocationResult ReplayOf(MailActOutcome first)
+    {
+        var carried = first.Changes.Count > 0 ? first.Changes[0] : null;
+
+        return new AuthoredMailRelocationResult(
+            Enum.Parse<MailRelocationOutcome>(first.Outcome),
+            first.Destination is { } alias ? MailFolderAlias.Create(alias) : null,
+            carried?.RecordId,
+            carried?.Lifecycle)
+        {
+            SpamMarkRecords = first.SpamMarkChanges,
+        };
     }
 
     /// <summary>Answers whether a destination is the account's junk folder, by the role it plays or the mapping that carries the role.</summary>

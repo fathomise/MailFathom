@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -472,7 +473,8 @@ public sealed class MailFlagChangeRecorderTests
                 sessions,
                 new PersistenceConcurrencyOptions(),
                 clock ?? new FakeTimeProvider()),
-            runSignal ?? new MailAccountRunSignal());
+            runSignal ?? new MailAccountRunSignal(),
+            new MailActIdempotency(callerAuthorization, Substitute.For<IMailActKeyStore>(), clock ?? new FakeTimeProvider()));
     }
 
     private static AuthoredMailboxTarget TargetIn(MailFolderAlias folderAlias)

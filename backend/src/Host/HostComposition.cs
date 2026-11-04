@@ -1402,6 +1402,10 @@ internal static class HostComposition
         // so how long it is kept is an obligation rather than housekeeping — and a deployment whose client endpoint was
         // switched off still holds the runs it answered while it was on.
         builder.Services.AddHostedService<DiscoveryRunRetentionWorker>();
+        // Unconditional because the keys a person's client generated for their mailbox acts are held in a table of their
+        // own that no account run ages out, and a deployment whose client endpoint was switched off still holds the keys
+        // it accepted while it was on.
+        builder.Services.AddHostedService<MailActKeyRetentionWorker>();
 
         // Registered unconditionally, because a calendar and a task list are stores every deployment has rather than
         // capabilities an operator switches on, and a deployment carrying no reminder at all is answered by an empty

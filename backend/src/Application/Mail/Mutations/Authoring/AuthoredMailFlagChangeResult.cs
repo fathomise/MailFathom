@@ -43,4 +43,16 @@ public sealed record AuthoredMailFlagChangeResult(
 public sealed record RecordedMailFlagMutation(
     MailboxMutation Mutation,
     MailboxMutationRecordId RecordId,
-    MailboxMutationLifecycle Lifecycle);
+    MailboxMutationLifecycle Lifecycle)
+{
+    /// <summary>Describes a record a mutation was written down as.</summary>
+    /// <param name="record">The record.</param>
+    /// <returns>The mutation, the record's identity, and the lifecycle it stands in.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="record" /> is <see langword="null" />.</exception>
+    public static RecordedMailFlagMutation Of(MailboxMutationRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+
+        return new RecordedMailFlagMutation(record.Request.Mutation, record.Id, record.Lifecycle);
+    }
+}

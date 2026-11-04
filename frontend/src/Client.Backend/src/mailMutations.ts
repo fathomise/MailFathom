@@ -223,17 +223,21 @@ export interface MailMove {
  * @param session Who is asking and where.
  * @param transport How a request reaches the deployment.
  * @param storedEmailIds The messages to mark read, at most {@link mostMessagesPerMutation} of them.
+ * @param requestId The key generated once for this act. A repeat under it is answered with the first outcome rather
+ *   than changing the mailbox again, which is what makes a re-sent request safe; a new act takes a new key.
  * @returns One result per message the deployment answered for, or an expected failure as a value.
  */
 export function markMailRead(
     session: ClientSession,
     transport: MailFathomTransport,
     storedEmailIds: readonly string[],
+    requestId: string,
 ): Promise<ClientResult<readonly MailMutationResult[]>> {
     return changeMailFlags(
         session,
         transport,
         storedEmailIds.map((storedEmailId) => ({ storedEmailId, seen: true })),
+        requestId,
     );
 }
 
@@ -247,18 +251,22 @@ export function markMailRead(
  * @param session Who is asking and where.
  * @param transport How a request reaches the deployment.
  * @param storedEmailIds The messages the reader opened, at most {@link mostMessagesPerMutation} of them.
+ * @param requestId The key generated once for this act. A repeat under it is answered with the first outcome rather
+ *   than changing the mailbox again, which is what makes a re-sent request safe; a new act takes a new key.
  * @returns One result per message the deployment answered for, or an expected failure as a value.
  */
 export function markMailOpened(
     session: ClientSession,
     transport: MailFathomTransport,
     storedEmailIds: readonly string[],
+    requestId: string,
 ): Promise<ClientResult<readonly MailMutationResult[]>> {
     return submitFlagChanges(
         session,
         transport,
         storedEmailIds.map((storedEmailId) => ({ storedEmailId, seen: true })),
         true,
+        requestId,
     );
 }
 
@@ -268,14 +276,17 @@ export function markMailOpened(
  * @param session Who is asking and where.
  * @param transport How a request reaches the deployment.
  * @param changes The messages to change, at most {@link mostMessagesPerMutation} of them.
+ * @param requestId The key generated once for this act. A repeat under it is answered with the first outcome rather
+ *   than changing the mailbox again, which is what makes a re-sent request safe; a new act takes a new key.
  * @returns One result per message the deployment answered for, or an expected failure as a value.
  */
 export function changeMailFlags(
     session: ClientSession,
     transport: MailFathomTransport,
     changes: readonly MailFlagChange[],
+    requestId: string,
 ): Promise<ClientResult<readonly MailMutationResult[]>> {
-    return submitFlagChanges(session, transport, changes, false);
+    return submitFlagChanges(session, transport, changes, false, requestId);
 }
 
 function submitFlagChanges(
@@ -283,6 +294,7 @@ function submitFlagChanges(
     transport: MailFathomTransport,
     changes: readonly MailFlagChange[],
     opened: boolean,
+    requestId: string,
 ): Promise<ClientResult<readonly MailMutationResult[]>> {
     const asked = changes.slice(0, mostMessagesPerMutation).map((change) => ({
         storedEmailId: change.storedEmailId,
@@ -293,6 +305,7 @@ function submitFlagChanges(
         session,
         transport,
         mailFlagMutationsRoute,
+        requestId,
         opened ? { changes: asked, opened } : { changes: asked },
         'changes',
     );
@@ -304,17 +317,21 @@ function submitFlagChanges(
  * @param session Who is asking and where.
  * @param transport How a request reaches the deployment.
  * @param moves The messages to file and where each is going, at most {@link mostMessagesPerMutation} of them.
+ * @param requestId The key generated once for this act. A repeat under it is answered with the first outcome rather
+ *   than changing the mailbox again, which is what makes a re-sent request safe; a new act takes a new key.
  * @returns One result per message the deployment answered for, or an expected failure as a value.
  */
 export function moveMail(
     session: ClientSession,
     transport: MailFathomTransport,
     moves: readonly MailMove[],
+    requestId: string,
 ): Promise<ClientResult<readonly MailMutationResult[]>> {
     return submit(
         session,
         transport,
         mailMoveMutationsRoute,
+        requestId,
         { moves: moves.slice(0, mostMessagesPerMutation) },
         'change',
     );
@@ -327,6 +344,8 @@ export function moveMail(
  * @param transport How a request reaches the deployment.
  * @param mark The verdict, and for spam the subcategory every message takes.
  * @param storedEmailIds The messages, at most {@link mostMessagesPerMutation} of them.
+ * @param requestId The key generated once for this act. A repeat under it is answered with the first outcome rather
+ *   than changing the mailbox again, which is what makes a re-sent request safe; a new act takes a new key.
  * @returns One result per message the deployment answered for, or an expected failure as a value.
  */
 export async function markMailSpam(
@@ -334,11 +353,13 @@ export async function markMailSpam(
     transport: MailFathomTransport,
     mark: MailSpamMark,
     storedEmailIds: readonly string[],
+    requestId: string,
 ): Promise<ClientResult<readonly MailSpamMarkResult[]>> {
     const answered = await submit(
         session,
         transport,
         mailSpamMarksRoute,
+        requestId,
         {
             verdict: mark.verdict,
             spamSubcategory: mark.verdict === 'Spam' ? mark.spamSubcategory : null,
@@ -361,17 +382,21 @@ export async function markMailSpam(
  * @param session Who is asking and where.
  * @param transport How a request reaches the deployment.
  * @param storedEmailIds The messages to delete, at most {@link mostMessagesPerMutation} of them.
+ * @param requestId The key generated once for this act. A repeat under it is answered with the first outcome rather
+ *   than changing the mailbox again, which is what makes a re-sent request safe; a new act takes a new key.
  * @returns One result per message the deployment answered for, or an expected failure as a value.
  */
 export function deleteMail(
     session: ClientSession,
     transport: MailFathomTransport,
     storedEmailIds: readonly string[],
+    requestId: string,
 ): Promise<ClientResult<readonly MailMutationResult[]>> {
     return submit(
         session,
         transport,
         mailDeleteMutationsRoute,
+        requestId,
         { deletes: storedEmailIds.slice(0, mostMessagesPerMutation).map((storedEmailId) => ({ storedEmailId })) },
         'change',
     );
@@ -429,11 +454,17 @@ type RecordsNamedIn = 'changes' | 'change' | 'marks';
 /** One result as read off the wire, carrying whether it moved the message where the route says so. */
 type ReadResult = MailMutationResult & { readonly moved?: boolean };
 
-/** Puts one batch on the wire and reads what came back, which is the same exchange whichever act asked for it. */
+/**
+ * Puts one batch on the wire and reads what came back, which is the same exchange whichever act asked for it.
+ *
+ * The key travels in the body beside what the act asks for, and the body is composed once, so a transport that re-sends
+ * a request after a failure that passes sends the same key.
+ */
 function submit(
     session: ClientSession,
     transport: MailFathomTransport,
     route: string,
+    requestId: string,
     body: object,
     recordsNamedIn: RecordsNamedIn,
 ): Promise<ClientResult<readonly ReadResult[]>> {
@@ -443,7 +474,7 @@ function submit(
                 method: 'POST',
                 path: routeFor(session, route),
                 headers: { ...headersFor(session), 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
+                body: JSON.stringify({ requestId, ...body }),
                 longestAnswer: longestMutationAnswer,
             }),
             recordsNamedIn,

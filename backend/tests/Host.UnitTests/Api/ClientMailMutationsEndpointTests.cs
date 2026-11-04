@@ -14,6 +14,7 @@ using MailFathom.Application.Mail.Delivery.Receipts;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Authoring;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
@@ -200,6 +201,7 @@ public sealed class ClientMailMutationsEndpointTests
             new ClientMailFlagChangesRequest(RequestId: null, []),
             this.FlagRecorder(),
             this.Openings(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -215,6 +217,7 @@ public sealed class ClientMailMutationsEndpointTests
             request: null,
             this.FlagRecorder(),
             this.Openings(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -239,6 +242,7 @@ public sealed class ClientMailMutationsEndpointTests
             new ClientMailFlagChangesRequest(RequestId: null, changes),
             this.FlagRecorder(),
             this.Openings(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -250,9 +254,10 @@ public sealed class ClientMailMutationsEndpointTests
     /// character set here rather than reaching the record it would be stored on.
     /// </summary>
     [Theory]
+    [InlineData(null)]
     [InlineData("")]
     [InlineData("has\0a control character")]
-    public async Task SubmitFlagChangesAsync_ARequestIdentityThisSurfaceCannotStore_IsRefused(string requestId)
+    public async Task SubmitFlagChangesAsync_ARequestIdentityThisSurfaceCannotStore_IsRefused(string? requestId)
     {
         // Act
         var result = await ClientMailMutationsEndpoint.SubmitFlagChangesAsync(
@@ -261,6 +266,52 @@ public sealed class ClientMailMutationsEndpointTests
                 [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(true, null), null)]),
             this.FlagRecorder(),
             this.Openings(),
+            Idempotency(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, RefusalOf(result).StatusCode);
+    }
+
+    /// <summary>
+    /// A key the person already used for a different act is refused as a whole before any message is touched, because
+    /// answering the earlier outcome would report a change that never happened as the one now asked for.
+    /// </summary>
+    [Fact]
+    public async Task SubmitFlagChangesAsync_AKeyAlreadyUsedForADifferentAct_IsRefusedAndRecordsNothing()
+    {
+        // Arrange
+        this.RecordEveryRequest();
+
+        // Act
+        var result = await ClientMailMutationsEndpoint.SubmitFlagChangesAsync(
+            new ClientMailFlagChangesRequest(
+                "call-1",
+                [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null)]),
+            this.FlagRecorder(TargetInInbox()),
+            this.Openings(),
+            Idempotency(firstFingerprint: new string('0', 64)),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, RefusalOf(result).StatusCode);
+        await this.records.DidNotReceive().OpenAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<MailboxMutationRequest>(),
+            Arg.Any<DateTimeOffset?>(),
+            Arg.Any<MailboxMutationLocalChange>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A move, a delete, and a spam mark carry the same requirement as a flag change: no key, no act.</summary>
+    [Fact]
+    public async Task SubmitMovesAsync_NoRequestId_IsRefused()
+    {
+        // Act
+        var result = await ClientMailMutationsEndpoint.SubmitMovesAsync(
+            new ClientMailMovesRequest(RequestId: null, [new ClientMailMoveRequest(Message, ArchiveId.ToString())]),
+            this.RelocationRecorder(TargetInInbox()),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -275,6 +326,7 @@ public sealed class ClientMailMutationsEndpointTests
         var result = await ClientMailMutationsEndpoint.SubmitMovesAsync(
             new ClientMailMovesRequest(RequestId: null, []),
             this.RelocationRecorder(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -299,6 +351,7 @@ public sealed class ClientMailMutationsEndpointTests
                 [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null)]),
             this.FlagRecorder(TargetInInbox()),
             this.Openings(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -330,6 +383,7 @@ public sealed class ClientMailMutationsEndpointTests
                 Opened: true),
             this.FlagRecorder(TargetInInbox(), held: held),
             this.Openings(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -354,6 +408,7 @@ public sealed class ClientMailMutationsEndpointTests
                 [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null)]),
             this.FlagRecorder(TargetInInbox()),
             this.Openings(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -372,6 +427,7 @@ public sealed class ClientMailMutationsEndpointTests
                 Opened: true),
             this.FlagRecorder(),
             this.Openings(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -406,6 +462,7 @@ public sealed class ClientMailMutationsEndpointTests
                 Opened: true),
             this.FlagRecorder(TargetInInbox(), gone: gone),
             this.Openings(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -430,6 +487,7 @@ public sealed class ClientMailMutationsEndpointTests
                 [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null)]),
             this.FlagRecorder(TargetInInbox(), participation: InboxWithheldFromAI()),
             this.Openings(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -453,6 +511,7 @@ public sealed class ClientMailMutationsEndpointTests
                 [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null)]),
             this.FlagRecorder(TargetInInbox(), held: true),
             this.Openings(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -493,6 +552,7 @@ public sealed class ClientMailMutationsEndpointTests
                 [new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null)]),
             this.FlagRecorder(),
             this.Openings(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -521,6 +581,7 @@ public sealed class ClientMailMutationsEndpointTests
                 ]),
             this.FlagRecorder(TargetInInbox()),
             this.Openings(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -543,6 +604,7 @@ public sealed class ClientMailMutationsEndpointTests
         var result = await ClientMailMutationsEndpoint.SubmitMovesAsync(
             new ClientMailMovesRequest("call-1", [new ClientMailMoveRequest(Message, ArchiveId.ToString())]),
             this.RelocationRecorder(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -562,6 +624,7 @@ public sealed class ClientMailMutationsEndpointTests
         var result = await ClientMailMutationsEndpoint.SubmitMovesAsync(
             new ClientMailMovesRequest("call-1", [new ClientMailMoveRequest(Message, "Archive")]),
             this.RelocationRecorder(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -585,6 +648,7 @@ public sealed class ClientMailMutationsEndpointTests
         var result = await ClientMailMutationsEndpoint.SubmitMovesAsync(
             new ClientMailMovesRequest("call-1", [new ClientMailMoveRequest(Message, ArchiveId.ToString())]),
             this.RelocationRecorder(TargetInInbox(), participation),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -608,6 +672,7 @@ public sealed class ClientMailMutationsEndpointTests
         var result = await ClientMailMutationsEndpoint.SubmitMovesAsync(
             new ClientMailMovesRequest("call-1", [new ClientMailMoveRequest(Message, ArchiveId.ToString())]),
             this.RelocationRecorder(TargetInInbox(), participation),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -626,6 +691,7 @@ public sealed class ClientMailMutationsEndpointTests
             new ClientMailDeletesRequest(RequestId: null, []),
             this.DeletionRecorder(),
             Preferences(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -647,6 +713,7 @@ public sealed class ClientMailMutationsEndpointTests
             new ClientMailDeletesRequest("call-1", [new ClientMailDeleteRequest(Message)]),
             this.DeletionRecorder(TargetInInbox()),
             Preferences(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -669,6 +736,7 @@ public sealed class ClientMailMutationsEndpointTests
             new ClientMailDeletesRequest("call-1", [new ClientMailDeleteRequest(Message)]),
             this.DeletionRecorder(TargetInInbox(), participation: InboxWithheldFromAI()),
             Preferences(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -687,6 +755,7 @@ public sealed class ClientMailMutationsEndpointTests
             new ClientMailDeletesRequest("call-1", [new ClientMailDeleteRequest(Message)]),
             this.DeletionRecorder(TargetInInbox(), held: true),
             Preferences(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -713,6 +782,7 @@ public sealed class ClientMailMutationsEndpointTests
             new ClientMailDeletesRequest("call-1", [new ClientMailDeleteRequest(Message)]),
             this.DeletionRecorder(TargetInInbox()),
             Preferences(ClientPreferences.Unset with { NotificationSeconds = 8 }),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -740,6 +810,7 @@ public sealed class ClientMailMutationsEndpointTests
             new ClientMailDeletesRequest("call-1", [new ClientMailDeleteRequest(Message)]),
             this.DeletionRecorder(TargetInInbox()),
             Preferences(ClientPreferences.Unset with { NotificationSeconds = 8 }, MailFathomPermission.MailDelete),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -765,6 +836,7 @@ public sealed class ClientMailMutationsEndpointTests
             new ClientMailDeletesRequest("call-1", [new ClientMailDeleteRequest(Message)]),
             this.DeletionRecorder(),
             Preferences(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -783,6 +855,7 @@ public sealed class ClientMailMutationsEndpointTests
             new ClientMailDeletesRequest("call-1", [new ClientMailDeleteRequest(Guid.Empty)]),
             this.DeletionRecorder(TargetInInbox()),
             Preferences(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -953,7 +1026,7 @@ public sealed class ClientMailMutationsEndpointTests
             MailboxMutationRecordId.Create(Guid.CreateVersion7()),
             MailboxMutationLifecycle.Pending) with
         {
-            SpamMarkRecords = [keywords],
+            SpamMarkRecords = [RecordedMailFlagMutation.Of(keywords)],
         };
 
         // Act
@@ -988,6 +1061,7 @@ public sealed class ClientMailMutationsEndpointTests
         var result = await ClientMailSpamMarksEndpoint.SubmitSpamMarksAsync(
             new ClientMailSpamMarksRequest(RequestId: null, "Spam", SpamSubcategory: null, []),
             this.SpamMarkRecorder(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -1005,6 +1079,7 @@ public sealed class ClientMailMutationsEndpointTests
         var result = await ClientMailSpamMarksEndpoint.SubmitSpamMarksAsync(
             new ClientMailSpamMarksRequest(RequestId: null, "NotSpam", SpamSubcategory: null, messages),
             this.SpamMarkRecorder(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -1028,6 +1103,7 @@ public sealed class ClientMailMutationsEndpointTests
         var result = await ClientMailSpamMarksEndpoint.SubmitSpamMarksAsync(
             new ClientMailSpamMarksRequest(RequestId: null, verdict, subcategory, [Message]),
             this.SpamMarkRecorder(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -1042,6 +1118,7 @@ public sealed class ClientMailMutationsEndpointTests
         var result = await ClientMailSpamMarksEndpoint.SubmitSpamMarksAsync(
             new ClientMailSpamMarksRequest("call-1", "Spam", "Phishing", [Message, Guid.Empty]),
             this.SpamMarkRecorder(),
+            Idempotency(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -1067,6 +1144,7 @@ public sealed class ClientMailMutationsEndpointTests
             ClientMailSpamMarksEndpoint.SubmitSpamMarksAsync(
                 new ClientMailSpamMarksRequest("call-1", "Spam", SpamSubcategory: null, [Message, Guid.CreateVersion7()]),
                 recorder,
+                Idempotency(),
                 TestContext.Current.CancellationToken));
 
         // Assert
@@ -1086,7 +1164,7 @@ public sealed class ClientMailMutationsEndpointTests
 
         // Act
         var response = ClientMailSpamMarkResultResponse.For(
-            new SpamMarkResult(StoredEmailId.Create(Message), SpamMarkOutcome.Recorded, [record], IsMoved: true));
+            new SpamMarkResult(StoredEmailId.Create(Message), SpamMarkOutcome.Recorded, [RecordedMailFlagMutation.Of(record)], IsMoved: true));
 
         // Assert
         Assert.Equal((ClientMailChangeOutcomes.Recorded, true), (response.Outcome, response.Moved));
@@ -1221,6 +1299,20 @@ public sealed class ClientMailMutationsEndpointTests
             new FakeTimeProvider(RecordedAt));
     }
 
+    /// <summary>Builds the service every route and use case here asks about the request's key.</summary>
+    /// <param name="firstFingerprint">The digest the key was first used with, defaulting to none, which is a key nobody has used.</param>
+    private static MailActIdempotency Idempotency(string? firstFingerprint = null)
+    {
+        var keys = Substitute.For<IMailActKeyStore>();
+        keys.FindFingerprintAsync(Arg.Any<UserId>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(firstFingerprint));
+
+        return new MailActIdempotency(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite),
+            keys,
+            new FakeTimeProvider(RecordedAt));
+    }
+
     private OpenedMailReceipts Openings() => new(
         this.receipts,
         Substitute.For<IClientPreferencesStore>(),
@@ -1323,7 +1415,8 @@ public sealed class ClientMailMutationsEndpointTests
             targets,
             this.Submission(held),
             CommitPolicy(),
-            new MailAccountRunSignal());
+            new MailAccountRunSignal(),
+            Idempotency());
     }
 
     /// <summary>Builds the moving use case the route is given, over an account that mirrors its archive and has bound it.</summary>
@@ -1368,7 +1461,8 @@ public sealed class ClientMailMutationsEndpointTests
             CommitPolicy(),
             new MailAccountRunSignal(),
             StubJunkMailFolderCatalog.None,
-            this.SpamMarks());
+            this.SpamMarks(),
+            Idempotency());
     }
 
     /// <summary>Builds the use case the spam route is given, under the grant that route carries.</summary>
@@ -1397,7 +1491,8 @@ public sealed class ClientMailMutationsEndpointTests
             CommitPolicy(),
             new MailAccountRunSignal(),
             StubMailFolderMappings.Nothing.Resolver,
-            Substitute.For<IMailFolderResolutionStore>());
+            Substitute.For<IMailFolderResolutionStore>(),
+            Idempotency());
     }
 
     /// <summary>Builds what writes the person's verdict and its keywords, over an account that permits keywords.</summary>
@@ -1445,7 +1540,8 @@ public sealed class ClientMailMutationsEndpointTests
             this.Submission(held),
             CommitPolicy(),
             new MailAccountRunSignal(),
-            new FakeTimeProvider(RecordedAt));
+            new FakeTimeProvider(RecordedAt),
+            Idempotency());
     }
 
     /// <summary>Builds the preferences the delete route reads the withdrawal window from.</summary>

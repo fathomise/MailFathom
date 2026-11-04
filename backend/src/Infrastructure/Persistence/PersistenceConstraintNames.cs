@@ -335,6 +335,12 @@ internal static class PersistenceConstraintNames
     internal const string MailboxMutationAuditEntryMutationUniqueIndexName =
         "ix_mailbox_mutation_audit_entries_mutation";
 
+    /// <summary>The constraint that keeps one key row per person, key, and message, which is what two replicas answering one retried act race on.</summary>
+    internal const string MailActKeyUniqueIndexName = "ix_mail_act_keys_user_key_email";
+
+    /// <summary>The order the retention sweep takes expired keys in.</summary>
+    internal const string MailActKeyRecordedIndexName = "ix_mail_act_keys_recorded";
+
     /// <summary>The index the trail is both read and aged through.</summary>
     internal const string MailboxMutationAuditEntryTimelineIndexName =
         "ix_mailbox_mutation_audit_entries_account_completed";

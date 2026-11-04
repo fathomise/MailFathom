@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Authoring;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
@@ -434,7 +435,8 @@ public sealed class MailDeletionRecorderTests
                 new PersistenceConcurrencyOptions(),
                 new FakeTimeProvider(RecordedAt)),
             runSignal ?? new MailAccountRunSignal(),
-            new FakeTimeProvider(RecordedAt));
+            new FakeTimeProvider(RecordedAt),
+            new MailActIdempotency(callerAuthorization, Substitute.For<IMailActKeyStore>(), new FakeTimeProvider(RecordedAt)));
     }
 
     /// <summary>Arranges a restoring account whose message still stands on the source and is not yet in the local trash.</summary>

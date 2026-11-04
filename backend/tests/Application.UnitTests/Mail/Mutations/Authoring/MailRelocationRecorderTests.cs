@@ -13,6 +13,7 @@ using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Authoring;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
@@ -555,7 +556,7 @@ public sealed class MailRelocationRecorderTests
         Assert.Equal([SpamVerdictAct.FiledIntoJunk, SpamVerdictAct.MarkedJunk], this.verdictActs.Of(LocalEmail).Order());
         Assert.Equal(
             [MailboxMutation.AddKeywords, MailboxMutation.RemoveKeywords],
-            result.SpamMarkRecords.Select(static record => record.Request.Mutation));
+            result.SpamMarkRecords.Select(static record => record.Mutation));
     }
 
     /// <summary>
@@ -817,7 +818,8 @@ public sealed class MailRelocationRecorderTests
                 Substitute.For<IStoredEmailAttachmentTextStore>(),
                 Substitute.For<IDerivedWorkGateTelemetry>(),
                 submission,
-                clock));
+                clock),
+            new MailActIdempotency(callerAuthorization, Substitute.For<IMailActKeyStore>(), clock));
     }
 
     /// <summary>Gives every folder these tests name a row, which is what a destination is named by.</summary>

@@ -21,6 +21,7 @@ import {
     type MailFolderRole,
     type MailMutationResult,
 } from '@mailfathom/client-backend';
+import { newIdentifier } from '../agent/newIdentifier';
 import { useFolderMaintenance } from '../folders/useFolderMaintenance';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
@@ -510,6 +511,7 @@ export function MailboxActsProvider({
                         asking,
                         transport,
                         batch.map((message) => message.storedEmailId),
+                        newIdentifier(),
                     ).then((answer) => ({ messages: batch, answer })),
                 );
             }
@@ -540,8 +542,9 @@ export function MailboxActsProvider({
                               ? { storedEmailId: message.storedEmailId, seen: act === 'markRead' }
                               : { storedEmailId: message.storedEmailId, flagged: act === 'flag' },
                       ),
+                      newIdentifier(),
                   )
-                : moveMail(asking, transport, filing.slice(from, from + mostMessagesPerMutation));
+                : moveMail(asking, transport, filing.slice(from, from + mostMessagesPerMutation), newIdentifier());
 
             batches.push(answering.then((answer) => ({ messages: batch, answer })));
         }
@@ -766,6 +769,7 @@ export function MailboxActsProvider({
                         storedEmailId: message.storedEmailId,
                         destinationFolder: message.folder,
                     })),
+                    newIdentifier(),
                 ).then((answer) => ({ messages: batch, answer })),
             );
         }

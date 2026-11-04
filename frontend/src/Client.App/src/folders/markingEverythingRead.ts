@@ -12,6 +12,7 @@ import {
     type ClientSession,
     type MailFathomTransport,
 } from '@mailfathom/client-backend';
+import { newIdentifier } from '../agent/newIdentifier';
 import type { MessageMarkedRead } from '../readMarking/useReadMarking';
 
 // *Mark all as read*, which the client surface serves no route for and which is therefore composed here out of the two
@@ -131,6 +132,7 @@ async function submit(
                 session,
                 transport,
                 batch.map(({ storedEmailId }) => storedEmailId),
+                newIdentifier(),
             ).then((answer) => {
                 if (answer.outcome === 'failed' && wentUnanswered(answer.failure)) {
                     return { markedRead: [], failure: null, unknown: batch };

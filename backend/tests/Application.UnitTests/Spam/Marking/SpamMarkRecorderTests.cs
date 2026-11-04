@@ -10,6 +10,7 @@ using MailFathom.Application.Folders;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Authoring;
+using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Rules.Actions;
@@ -359,7 +360,7 @@ public sealed class SpamMarkRecorderTests
 
         // Assert
         Assert.Equal(SpamMarkOutcome.Applied, result.Outcome);
-        Assert.Contains(result.Records, static record => record.Request.Mutation == MailboxMutation.AddKeywords);
+        Assert.Contains(result.Records, static record => record.Mutation == MailboxMutation.AddKeywords);
         Assert.Equal(["$JUNK"], states.States[Email].Keywords.Values);
     }
 
@@ -696,7 +697,8 @@ public sealed class SpamMarkRecorderTests
             CommitPolicyOver(composition),
             new MailAccountRunSignal(),
             this.mappings.Resolver,
-            this.bindings);
+            this.bindings,
+            new MailActIdempotency(caller, Substitute.For<IMailActKeyStore>(), composition.Clock));
     }
 
     private static OptimisticConcurrencyRetryPolicy CommitPolicyOver(MailboxCustodianComposition composition) =>

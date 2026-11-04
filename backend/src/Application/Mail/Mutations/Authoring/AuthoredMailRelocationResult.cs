@@ -66,7 +66,7 @@ public sealed record AuthoredMailRelocationResult(
 {
     /// <summary>Gets the keyword records the person's move into the junk folder opened when it marked the message spam, empty for every other move.</summary>
     /// <remarks>Reported beside the move so a caller follows them as it follows the move, rather than learning of keyword changes it never saw.</remarks>
-    public IReadOnlyList<MailboxMutationRecord> SpamMarkRecords { get; init; } = [];
+    public IReadOnlyList<RecordedMailFlagMutation> SpamMarkRecords { get; init; } = [];
 
     /// <summary>Reports a move that was written down.</summary>
     /// <param name="destination">The folder it was recorded against.</param>
