@@ -74,9 +74,9 @@ public readonly record struct JobType
     /// <summary>Gets the type whose work is telling one account's outbox that a message it holds is now due to leave.</summary>
     /// <remarks>
     /// Its payload contract is <see cref="HeldSendJobPayload" />, which names the account and the record and nothing in
-    /// the message. The work is short and transmits nothing: a send held until a named time is already durable, and
-    /// what this job carries is the moment, so the queue's own available-at column is what holds the message and no
-    /// timer exists anywhere for it to be held by.
+    /// the message. The work is short and transmits nothing: a send held until a named time, or until its next attempt
+    /// after a failure that could clear, is already durable, and what this job carries is the moment, so the queue's
+    /// own available-at column is what holds the message and no timer exists anywhere for it to be held by.
     /// </remarks>
     public static JobType DispatchHeldSend { get; } = new("dispatch-held-send");
 

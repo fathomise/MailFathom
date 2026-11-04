@@ -58,6 +58,7 @@ internal static class OutgoingEmailRecordMapping
             DeliveryNotificationCarried = entity.DeliveryNotificationCarried,
             Dismissal = ToDismissal(entity),
             AttemptLeaseExpiresAt = entity.LeaseExpiresAt,
+            FirstFailedAt = entity.FirstFailedAt,
         };
     }
 

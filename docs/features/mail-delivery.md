@@ -979,8 +979,22 @@ A server that answered settles the outcome by itself, and only a non-answer cons
   doubles per attempt from `RetryBaseDelay` up to `RetryMaxDelay`, drawn with jitter so a provider that refused every
   account at once is not offered all of them back together. The same backoff the durable job queue uses, rather than a
   second implementation of one.
+- **A retry is taken up when it is due.** The deferral puts the instant of the next attempt on the durable job queue,
+  as the same `dispatch-held-send` job a send held until a named time rides, and that job signals the account's
+  outbox. So a retry is attempted by the same pass, on the same one loop, as every other send, within the queue's poll
+  interval of the moment it was due rather than at the account's next synchronization run. A job that could not be
+  queued costs the retry its punctuality and nothing else: the account's next run claims the send.
+- **A send that keeps failing for a passing reason is refused within `RetryWindow` of its first failure** — fifteen
+  minutes by default, whether the server refused it for now or could not be reached at all. The record keeps when its
+  first attempt failed, and a send is deferred only where its next attempt, run out to its whole `AttemptTimeout`,
+  still ends before the window closes; otherwise it is refused at once. A retry taken up too late to end inside the
+  window — behind a slow batch, or by a pass that ran long after it was due — is refused before anything is opened. The
+  refusal raises the notification offering *Send again*, which clears the first-failure time so the attempts start
+  over. A message is time-sensitive, so the person then decides whether to send it again rather than the deployment
+  retrying it for an hour.
 - **A send that spends `MaxAttempts` stops being attempted** and stands in the outbox with error code `28010`, rather
-  than being retried forever.
+  than being retried forever. `MaxAttempts` and `RetryWindow` bound the same retries, and whichever runs out first ends
+  the send with that code.
 - **Host shutdown is neither.** A send the host stopped before it transmitted anything gives its lease back together
   with the attempt it had counted, so a restart is not a spent attempt; a send it stopped after an acceptance is the
   undecidable case above.
@@ -998,7 +1012,7 @@ The code the record carries says which of these ended it, and it is what an oper
 | `28001` | The account configures no address to send from, so nothing could be offered |
 | `28005` | The composed message exceeds what the submission server said it accepts |
 | `28009` | A server permanently refused the message, or refused every one of its recipients |
-| `28010` | Every attempt was spent, the last of them on a failure that could still have cleared |
+| `28010` | Every attempt, or the whole retry window, was spent, the last attempt on a failure that could still have cleared |
 | `28011` | A transmission was begun and the server never answered it |
 | `28012` | The attempt ended in something none of the above describes |
 

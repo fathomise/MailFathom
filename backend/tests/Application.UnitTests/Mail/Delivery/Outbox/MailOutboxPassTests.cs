@@ -5,6 +5,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using MailFathom.Application.EmailContent.Storage;
+using MailFathom.Application.Jobs;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Drafts;
@@ -535,7 +536,8 @@ public sealed class MailOutboxPassTests
                 LocalMailFilers.HoldingNothing(this.clock),
                 this.settings,
                 this.clock,
-                ClientSignalPublishers.ReachingNobody);
+                ClientSignalPublishers.ReachingNobody,
+                Substitute.For<IJobStore>());
         }
 
         internal InMemoryOutgoingEmailStore Store { get; }

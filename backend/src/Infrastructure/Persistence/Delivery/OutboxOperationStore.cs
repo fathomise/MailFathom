@@ -150,6 +150,7 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
                  "StageChangedAt" = {requeuedAt},
                  "AvailableAt" = {requeuedAt},
                  "AttemptCount" = 0,
+                 "FirstFailedAt" = NULL,
                  "LeaseOwner" = NULL,
                  "LeaseExpiresAt" = NULL,
                  "DismissedAt" = NULL,

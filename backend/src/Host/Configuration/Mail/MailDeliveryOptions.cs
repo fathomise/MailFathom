@@ -104,6 +104,22 @@ internal sealed class MailDeliveryOptions : IValidatableObject
     [Range(typeof(TimeSpan), "00:00:01", "24:00:00")]
     public TimeSpan RetryMaxDelay { get; set; } = TimeSpan.FromHours(1);
 
+    /// <summary>Gets or sets how long after its first failed attempt a send may still be attempted before it is refused.</summary>
+    /// <remarks>
+    /// <para>
+    /// It is the latest a person learns that a message is not going out, whether the submission server refused it for
+    /// now or could not be reached at all: a message is time-sensitive, so the send is refused in the open once this has
+    /// passed and its author decides whether to send it again. It bounds the retries beside <see cref="MaxAttempts" />,
+    /// and whichever runs out first ends the send.
+    /// </para>
+    /// <para>
+    /// A retry is taken up only where it can run out its whole <see cref="AttemptTimeout" /> before the window closes,
+    /// so the refusal is never recorded after it.
+    /// </para>
+    /// </remarks>
+    [Range(typeof(TimeSpan), "00:01:00", "1.00:00:00")]
+    public TimeSpan RetryWindow { get; set; } = MailOutboxSettings.DefaultRetryWindow;
+
     /// <summary>Gets or sets what this deployment does about a recipient a caller named that nothing it holds vouches for.</summary>
     /// <remarks>
     /// <para>
@@ -179,7 +195,7 @@ internal sealed class MailDeliveryOptions : IValidatableObject
     [Range(1, 1000)]
     public int SignalQueueCapacity { get; set; } = 64;
 
-    /// <summary>Reads the seven keys one pass over the outbox is bounded by.</summary>
+    /// <summary>Reads the eight keys one pass over the outbox is bounded by.</summary>
     /// <returns>The settings the pass claims, retries, and gives up under.</returns>
     /// <remarks>Create refuses a pair the options validator has already rejected at startup, so nothing here has to decide what an unusable one would have meant.</remarks>
     internal MailOutboxSettings ToOutboxSettings() => MailOutboxSettings.Create(
@@ -189,7 +205,10 @@ internal sealed class MailDeliveryOptions : IValidatableObject
         this.MaxAttempts,
         this.RetryBaseDelay,
         this.RetryMaxDelay,
-        this.AllowedSendLateness);
+        this.AllowedSendLateness) with
+    {
+        RetryWindow = this.RetryWindow,
+    };
 
     /// <summary>Reads the two keys that decide what a caller may ask this deployment to send.</summary>
     /// <returns>The settings both submission use cases and the governor beneath them read.</returns>
@@ -236,6 +255,17 @@ internal sealed class MailDeliveryOptions : IValidatableObject
             yield return new ValidationResult(
                 "RetryMaxDelay must not be below RetryBaseDelay, because it is the ceiling the growing delay is capped at.",
                 [nameof(this.RetryMaxDelay)]);
+        }
+
+        // A retry is taken up only where its whole attempt still ends inside the window, so a window shorter than the
+        // first retry's delay and one attempt would refuse every passing failure on its first attempt while MaxAttempts
+        // promises more. Refused rather than left to arithmetic, because the retries an operator configured would
+        // silently never happen.
+        if (this.MaxAttempts > 1 && this.RetryBaseDelay + this.AttemptTimeout > this.RetryWindow)
+        {
+            yield return new ValidationResult(
+                "RetryWindow must be at least RetryBaseDelay plus AttemptTimeout, so the first retry of a send can run its whole attempt before the window measured from its first failure closes.",
+                [nameof(this.RetryWindow)]);
         }
 
         // A numeric value binds onto an enum without complaint, so a posture nobody declared would otherwise read as

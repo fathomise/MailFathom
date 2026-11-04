@@ -359,6 +359,7 @@ internal sealed class InMemoryOutgoingEmailStore(
             StageChangedAt = this.clock.GetUtcNow(),
             AvailableAt = availableAt,
             LastFailure = failure ?? row.Record.LastFailure,
+            FirstFailedAt = row.Record.FirstFailedAt ?? this.clock.GetUtcNow(),
         };
 
         row.LeaseOwner = null;

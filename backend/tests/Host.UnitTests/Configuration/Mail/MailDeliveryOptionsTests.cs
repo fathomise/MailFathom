@@ -191,6 +191,7 @@ public sealed class MailDeliveryOptionsTests
         {
             RetryBaseDelay = TimeSpan.FromMinutes(10),
             RetryMaxDelay = TimeSpan.FromMinutes(1),
+            RetryWindow = TimeSpan.FromHours(1),
         };
 
         // Act
@@ -201,7 +202,45 @@ public sealed class MailDeliveryOptionsTests
         Assert.Contains(nameof(MailDeliveryOptions.RetryMaxDelay), result.MemberNames);
     }
 
-    /// <summary>The defaults deliver: every outbox bound is inside its documented range and the two orderings hold.</summary>
+    /// <summary>A window too short for the first retry to run its whole attempt would quietly turn every retry the operator configured into none.</summary>
+    [Fact]
+    public void Validate_RetryWindowShorterThanTheFirstRetryAndItsAttempt_IsRefused()
+    {
+        // Arrange
+        var options = new MailDeliveryOptions
+        {
+            AttemptTimeout = TimeSpan.FromMinutes(7),
+            RetryBaseDelay = TimeSpan.FromMinutes(1),
+            RetryWindow = TimeSpan.FromMinutes(7) + TimeSpan.FromSeconds(59),
+        };
+
+        // Act
+        var results = Validate(options);
+
+        // Assert
+        var result = Assert.Single(results);
+        Assert.Contains(nameof(MailDeliveryOptions.RetryWindow), result.MemberNames);
+    }
+
+    /// <summary>A deployment that retries nothing has no first retry to fit, so any window it states is one it keeps.</summary>
+    [Fact]
+    public void Validate_ShortRetryWindowWhereNothingIsRetried_IsAccepted()
+    {
+        // Arrange
+        var options = new MailDeliveryOptions
+        {
+            MaxAttempts = 1,
+            RetryWindow = TimeSpan.FromMinutes(1),
+        };
+
+        // Act
+        var results = Validate(options);
+
+        // Assert
+        Assert.Empty(results);
+    }
+
+    /// <summary>The defaults deliver: every outbox bound is inside its documented range and the orderings hold.</summary>
     [Fact]
     public void Defaults_UnconfiguredSection_AreOutboxBoundsThatDeliver()
     {
@@ -209,8 +248,10 @@ public sealed class MailDeliveryOptionsTests
         var options = new MailDeliveryOptions();
 
         // Assert
+        Assert.Equal(TimeSpan.FromMinutes(15), options.RetryWindow);
         Assert.True(options.AttemptTimeout < options.LeaseDuration);
         Assert.True(options.RetryBaseDelay <= options.RetryMaxDelay);
+        Assert.True(options.RetryBaseDelay + options.AttemptTimeout <= options.RetryWindow);
         Assert.True(options.MaxDeliveriesPerPass > 0);
         Assert.True(options.MaxAttempts > 0);
         Assert.True(options.SignalQueueCapacity > 0);
@@ -518,6 +559,7 @@ public sealed class MailDeliveryOptionsTests
             MaxAttempts = 4,
             RetryBaseDelay = TimeSpan.FromSeconds(45),
             RetryMaxDelay = TimeSpan.FromMinutes(20),
+            RetryWindow = TimeSpan.FromMinutes(25),
             AllowedSendLateness = TimeSpan.FromHours(2),
         };
 
@@ -531,6 +573,7 @@ public sealed class MailDeliveryOptionsTests
         Assert.Equal(4, settings.MaxAttempts);
         Assert.Equal(TimeSpan.FromSeconds(45), settings.RetryBaseDelay);
         Assert.Equal(TimeSpan.FromMinutes(20), settings.RetryMaxDelay);
+        Assert.Equal(TimeSpan.FromMinutes(25), settings.RetryWindow);
         Assert.Equal(TimeSpan.FromHours(2), settings.AllowedLateness);
     }
 

@@ -372,10 +372,11 @@ public readonly record struct MailFathomErrorCode
     /// </remarks>
     public static MailFathomErrorCode OutgoingEmailRefused { get; } = new(28009);
 
-    /// <summary>Gets subcategory 8, message composition: a send spent every attempt it was allowed on failures that could have cleared.</summary>
+    /// <summary>Gets subcategory 8, message composition: a send spent every attempt, or all the time, it was allowed on failures that could have cleared.</summary>
     /// <remarks>
-    /// The last answer was one worth returning for and there is no return left, so the send stops being attempted and
-    /// stands where an operator can see it. It is separate from a permanent refusal because an operator acts on it
+    /// The last answer was one worth returning for and there is no return left — no attempt, or no time to run one
+    /// before the window measured from the first failure closes — so the send stops being attempted and stands where an
+    /// operator and its author can see it. It is separate from a permanent refusal because an operator acts on it
     /// differently: this one is a provider that stayed unreachable rather than a message it will never take.
     /// </remarks>
     public static MailFathomErrorCode OutgoingEmailAttemptsExhausted { get; } = new(28010);

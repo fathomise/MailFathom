@@ -3,7 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using MailFathom.Application.EmailContent.Storage;
+using MailFathom.Application.Jobs;
+using MailFathom.Application.Jobs.Payloads;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Transmission;
@@ -51,6 +54,8 @@ namespace MailFathom.Application.Mail.Delivery.Outbox;
 /// </remarks>
 public sealed class MailOutboxDelivery
 {
+    private const string RetryKeyPrefix = "send-retry";
+
     private readonly IMailDeliverySessionFactory sessions;
     private readonly IOutgoingEmailStore outgoingEmails;
     private readonly IEmailContentStore contentStore;
@@ -60,6 +65,7 @@ public sealed class MailOutboxDelivery
     private readonly MailOutboxSettings settings;
     private readonly TimeProvider timeProvider;
     private readonly ClientSignals clientSignals;
+    private readonly IJobStore jobs;
 
     /// <summary>Initializes the attempt from the session it submits through and the record it settles.</summary>
     /// <param name="sessions">Opens the one session able to reach a submission server.</param>
@@ -71,6 +77,7 @@ public sealed class MailOutboxDelivery
     /// <param name="settings">Bounds the attempt and says when the next one may happen.</param>
     /// <param name="timeProvider">Measures the attempt's budget and stamps what it records.</param>
     /// <param name="clientSignals">Tells an open client that a send in the account's outbox moved.</param>
+    /// <param name="jobs">Carries the moment a deferred send's next attempt is due, so it is taken up then.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public MailOutboxDelivery(
         IMailDeliverySessionFactory sessions,
@@ -81,7 +88,8 @@ public sealed class MailOutboxDelivery
         LocalMailFiler localFiler,
         MailOutboxSettings settings,
         TimeProvider timeProvider,
-        ClientSignals clientSignals)
+        ClientSignals clientSignals,
+        IJobStore jobs)
     {
         ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(outgoingEmails);
@@ -92,6 +100,7 @@ public sealed class MailOutboxDelivery
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(clientSignals);
+        ArgumentNullException.ThrowIfNull(jobs);
 
         this.sessions = sessions;
         this.outgoingEmails = outgoingEmails;
@@ -102,6 +111,7 @@ public sealed class MailOutboxDelivery
         this.settings = settings;
         this.timeProvider = timeProvider;
         this.clientSignals = clientSignals;
+        this.jobs = jobs;
     }
 
     /// <summary>Attempts one claimed send and records what became of it.</summary>
@@ -178,6 +188,19 @@ public sealed class MailOutboxDelivery
                 MailFathomErrorCode.OutgoingEmailDueTimeMissed,
                 replyCode: null,
                 MailOutboxDeliveryOutcome.MissedItsDueTime);
+        }
+
+        // A retry is scheduled only where it fits the window, so this is reached by one taken up late — behind a slow
+        // batch, or by a pass that ran long after the moment it was due. Ending it here keeps the refusal inside the
+        // time a person was promised it by, where attempting it could run out its whole budget past that time.
+        if (record.FirstFailedAt is { } firstFailedAt
+            && !this.settings.AdmitsRetry(firstFailedAt, this.timeProvider.GetUtcNow()))
+        {
+            return await this.RefuseAsync(
+                claimed,
+                outcomes: [],
+                MailFathomErrorCode.OutgoingEmailAttemptsExhausted,
+                replyCode: null);
         }
 
         if (this.senderIdentities.FindSenderIdentity(record.AccountId) is not { } sender)
@@ -374,10 +397,17 @@ public sealed class MailOutboxDelivery
         return Result(claimed, reportedAs, failure, replyCode);
     }
 
-    /// <summary>Gives a send back for another attempt, or ends it when it has spent the attempts it was allowed.</summary>
+    /// <summary>Gives a send back for another attempt, or ends it when it has spent the attempts or the time it was allowed.</summary>
     /// <remarks>
-    /// The bound is read from the record's own attempt count, which the claim wrote before this attempt began, so a
-    /// send that kills the process on every attempt reaches the same ending as one that merely fails.
+    /// <para>
+    /// The attempt bound is read from the record's own attempt count, which the claim wrote before this attempt began,
+    /// so a send that kills the process on every attempt reaches the same ending as one that merely fails.
+    /// </para>
+    /// <para>
+    /// The time bound is measured from the first failure, and a send is given back only where its next attempt, run out
+    /// to its whole budget, still ends inside the window. One that would not is refused now rather than when that
+    /// attempt ends, because waiting for an attempt that cannot end in time only delays telling the person.
+    /// </para>
     /// </remarks>
     private async Task<MailOutboxDeliveryResult> DeferOrExhaustAsync(
         ClaimedOutgoingEmail claimed,
@@ -385,7 +415,15 @@ public sealed class MailOutboxDelivery
         MailFathomErrorCode? failure,
         int? replyCode)
     {
-        if (claimed.Record.AttemptCount >= this.settings.MaxAttempts)
+        var failedAt = this.timeProvider.GetUtcNow();
+        var availableAt = failedAt + JitteredRetryBackoff.DelayBeforeNextAttempt(
+            this.settings.RetryBaseDelay,
+            this.settings.RetryMaxDelay,
+            minimumDelay: TimeSpan.Zero,
+            claimed.Record.AttemptCount);
+
+        if (claimed.Record.AttemptCount >= this.settings.MaxAttempts
+            || !this.settings.AdmitsRetry(claimed.Record.FirstFailedAt ?? failedAt, availableAt))
         {
             return await this.RefuseAsync(
                 claimed,
@@ -393,12 +431,6 @@ public sealed class MailOutboxDelivery
                 MailFathomErrorCode.OutgoingEmailAttemptsExhausted,
                 replyCode);
         }
-
-        var availableAt = this.timeProvider.GetUtcNow() + JitteredRetryBackoff.DelayBeforeNextAttempt(
-            this.settings.RetryBaseDelay,
-            this.settings.RetryMaxDelay,
-            minimumDelay: TimeSpan.Zero,
-            claimed.Record.AttemptCount);
 
         await this.CommitAsync(claimed, async (session, token) =>
         {
@@ -413,7 +445,46 @@ public sealed class MailOutboxDelivery
                 token);
         });
 
+        await this.ScheduleRetryAsync(claimed.Record, availableAt);
+
         return Result(claimed, MailOutboxDeliveryOutcome.Deferred, failure, replyCode);
+    }
+
+    /// <summary>Puts the moment a deferred send's next attempt is due onto the durable queue, so a pass takes it up then.</summary>
+    /// <remarks>
+    /// <para>
+    /// It is the job a send held until a named time already rides, because the work is the same: signal the account's
+    /// outbox once the record may be claimed. So the retry is attempted by the same pass as every other send, on the
+    /// same one loop, and nothing watches a clock for it. The key names the instant as well as the record, because a
+    /// send offered again starts its attempts over and must not be answered by the job an earlier run of them left.
+    /// </para>
+    /// <para>
+    /// The deferral is already durable, so a queue that refuses the job, or a store that fails to write it, costs the
+    /// retry its punctuality and nothing else: the account's next synchronization run claims the send, and one claimed
+    /// too late to fit the window is refused on the spot. That is why the failure is swallowed rather than reported as
+    /// an attempt that went wrong.
+    /// </para>
+    /// </remarks>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "The deferral has already committed; a retry job that could not be written costs the send its punctuality, which the account's synchronization run restores, and must not turn a recorded deferral into a failed attempt.")]
+    [SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception", Justification = "There is no second action to take: the record already says when the send may be attempted again.")]
+    private async Task ScheduleRetryAsync(OutgoingEmailRecord record, DateTimeOffset availableAt)
+    {
+        try
+        {
+            await this.jobs.EnqueueAsync(
+                JobEnqueueRequest.CreateAvailableAt(
+                    JobIdempotencyKey.Create(string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"{RetryKeyPrefix}:{record.Id}:{availableAt.UtcTicks}")),
+                    HeldSendJobPayload.For(record.AccountId, record.Id),
+                    record.AccountId,
+                    availableAt),
+                CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            // The account's synchronization run claims the send instead.
+        }
     }
 
     /// <summary>Records an attempt the server never answered, and decides from the envelope what that leaves.</summary>

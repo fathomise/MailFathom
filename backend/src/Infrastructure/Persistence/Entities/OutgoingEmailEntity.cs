@@ -71,6 +71,13 @@ internal sealed class OutgoingEmailEntity
     /// </remarks>
     public DateTimeOffset AvailableAt { get; set; }
 
+    /// <summary>Gets or sets when an attempt first failed for a reason that could clear, and <see langword="null" /> while none has.</summary>
+    /// <remarks>
+    /// The first deferral writes it and no later one moves it, because it is what the time a send may be retried for is
+    /// measured from; offering the send again clears it so the attempts start over.
+    /// </remarks>
+    public DateTimeOffset? FirstFailedAt { get; set; }
+
     /// <summary>Gets or sets the instant the author asked the message to leave at, and <see langword="null" /> when they asked for it to leave at once.</summary>
     /// <remarks>
     /// It is a column of its own rather than the available instant read differently, because a failed attempt moves
