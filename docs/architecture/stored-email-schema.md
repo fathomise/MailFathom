@@ -1715,6 +1715,34 @@ mutation is kept in the table below. It is stored for the reason `LocalDispositi
 and reading the setting there would apply whatever an operator had changed it to in the meantime, producing a history
 whose gaps look like changes nobody made.
 
+## A message filed into another account
+
+`cross_account_filings` holds the append half of a message a person filed into a folder of another account they hold.
+A mail server moves a message only between folders of one account, so such a filing is an append on the destination and
+a removal from the source. The removal is an ordinary delete row in `mailbox_mutations`; the append is a row here,
+because a change names an occurrence and the appended message has none until the destination's `APPENDUID` answer gives
+it one. The row is written in the transaction that writes the destination's stored copy, and it is what holds the
+source's delete back: the outstanding read of `mailbox_mutations` skips a delete this table names on a filing that has
+not reached `Appended`.
+
+| Column | What it records |
+|---|---|
+| `Id` | The filing's identity, a version 7 UUID MailFathom mints |
+| `DestinationAccountId` | The account the message is filed into, whose run carries the append |
+| `DestinationStoredEmailId` | The stored copy the filing wrote on the destination. The append binds the server's occurrence onto it, and a filing given up erases it |
+| `DestinationFolderPath` | Where on the destination's server the copy is appended |
+| `SourceAccountId`, `SourceStoredEmailId` | The account and the message the person filed, which shows again where the filing is given up |
+| `RemovalMutationId` | The delete row on a mirrored source that waits for the append, and null on a held source, which has none. `ix_cross_account_filings_removal` is unique over it where it is set, so one delete is held back by at most one filing |
+| `ErasesHeldSource` | Whether the source is a held account whose hidden row is erased once the append lands |
+| `Stage` | `Recorded`, `AppendIssued`, `Appended`, or `Abandoned`. `AppendIssued` is committed before the command goes out and is never issued from again, because a second append is a second copy on the destination's server |
+| `RecordedAt`, `StageChangedAt` | When the filing was committed and when its stage last moved. `ix_cross_account_filings_outstanding` is `(DestinationAccountId, RecordedAt, Id)` filtered on the two stages still open, which is what a destination's run reads, oldest first |
+| `xmin` | PostgreSQL's row version, which is the concurrency token every stage change is written against |
+
+**Every identity is a value rather than an association, and no foreign key leaves the row.** The two stored messages
+belong to two accounts, each erased by its own paths, and the row only ever reads them through those accounts' own
+stores, so a cascade from either side would decide the other account's half. Nothing from a message's content is here:
+two stored identities, two account names, a folder path, and instants.
+
 ## The audit trail of finished mutations
 
 `mailbox_mutation_audit_entries` holds one row per change MailFathom **finished** making to a remote mailbox, written
@@ -2731,6 +2759,8 @@ account reach these four tables through the same cascade every other table is re
 | `ix_mailbox_mutations_identity` | `(MailFolderId, UidValidity, Uid, RequesterOrigin, RequesterIdentity, Mutation)`, unique | A mutation's idempotency identity, which is what makes the same request twice perform one change |
 | `ix_mailbox_mutations_outstanding` | `(MailboxAccountId, RecordedAt)` where the stage is not `Completed` | The changes an operator asks about: those in flight and those given up on |
 | `ix_mailbox_mutations_placement` | `(MailboxAccountId, DestinationFolderPath, PlacementUidValidity, PlacementUid)` where `PlacementObservedAt` is null | The question the forward pass asks of every batch it discovers: is one of these UIDs where a relocation or a copy put an email |
+| `ix_cross_account_filings_outstanding` | `(DestinationAccountId, RecordedAt, Id)` where the stage is `Recorded` or `AppendIssued` | The filings a destination's run still owes an append or an ending, oldest first |
+| `ix_cross_account_filings_removal` | `(RemovalMutationId)`, unique, where it is set | The filing that holds a source's delete back, which the outstanding read of `mailbox_mutations` asks for every delete |
 | `ix_mailbox_mutation_audit_entries_mutation` | `(MutationRecordId)`, unique | One audit entry per mutation ending, whatever a repeated append attempts |
 | `ix_outgoing_emails_identity` | `(MailboxAccountId, UserId, RequesterOrigin, RequesterIdentity)`, unique | An outgoing message's idempotency identity, which is what makes the same authored request twice one delivery. The account leads it because the message belongs to the mailbox; the author stays in the key behind it, which is what ADR 0014 means by an outgoing email keeping its author in its identity — two people writing from one shared mailbox under the same requester identity are two sends rather than one. It spans terminal rows deliberately: a row that was sent is what stops the same request asking again |
 | `ix_outgoing_emails_claimable` | `(MailboxAccountId, AvailableAt, Id)` where the stage is `Recorded` | The batch a delivery pass claims, oldest first. The filter is what keeps it proportionate to the outbox rather than to everything the deployment has ever sent: a claim reads only rows nothing has transmitted for, and in steady state that is almost none of the table. The identity is in the key because two sends recorded in one instant need a total order for the claim to be deterministic |

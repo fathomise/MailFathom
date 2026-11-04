@@ -2566,7 +2566,7 @@ Content-Type: application/json
 ```
 
 Each result carries one of `recorded`, `applied`, `message-not-found`, `destination-not-found`,
-`destination-not-allowed`, `already-in-destination`, or `account-no-longer-configured`, and a flag change may also answer
+`destination-not-allowed`, `already-in-destination`, `move-across-accounts-refused`, or `account-no-longer-configured`, and a flag change may also answer
 `change-not-usable` when the values asked for are not values one request can name. A move into the junk folder may
 answer `change-not-usable` as well, where `requestId` already asked the same message for other keywords, because that
 move is also [the person's spam mark](#marking-mail-spam-or-not-spam): its result carries `spamMarkChanges`, the keyword
@@ -2575,6 +2575,16 @@ that is not made — the message is already there, or the destination is not all
 reported as a destination that is not there, on the same rule that makes mail in a withheld folder a message that is not
 there: filing mail into a folder the caller cannot read would move it out of sight rather than be a capability of its
 own.
+
+**A destination in another account the caller holds files the message there.** The answer is `applied`, because both
+accounts take the change locally at once, and
+[how each account's server is told](../features/imap-synchronization.md#filing-a-message-into-another-account) follows
+from each account's custody. A filing one half could not keep is `move-across-accounts-refused` before anything is
+written, and that result also carries `refusal` — `source-without-uidplus`, `destination-without-uidplus`,
+`account-restoring`, `upgrade-in-progress`, `move-not-permitted`, `filed-from-outgoing-record`, or
+`destination-keeps-outgoing-mail` — and `detail`, the same reason as one English sentence for a client with no
+sentence of its own for the name; both are absent on every other result. `mailfathom.mail.move` is required on both
+accounts, and a Drafts or Sent folder of another account is never a destination.
 
 **The drafts folder and the sent folder keep their own mail, each together with the subfolders beneath it.** A draft
 is a message standing in the folder the account's `Drafts` role names, and a sent copy one standing in the folder its
@@ -4309,7 +4319,8 @@ The deduplication key is absent: it is the rule's own name for a condition rathe
 
 **What a notification says is a condition and its numbers, and the sentence is the client's.** `statement` carries a
 `cause` — `MailArrived`, `MessageArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`,
-`TaskReminderDue`, `SendRefused`, `MailboxChangeAbandoned`, `DraftCopyNotKept`, or `MailboxChangeRefused` — beside
+`TaskReminderDue`, `SendRefused`, `MailboxChangeAbandoned`, `DraftCopyNotKept`, `MailboxChangeRefused`, or
+`MailInBothAccounts` — beside
 `counted` and `outOf`, whose meaning is the cause's to give: merged mail counts the messages that arrived, one arrived
 message counts whether it carried a subject — so a client words a missing one itself — an unfinished run
 counts the folders that did not finish out of the folders it scheduled, a due reminder counts the minutes between now
@@ -4374,7 +4385,12 @@ however often it is asked — a `BAD`, a destination folder it does not have, a 
 longer at its occurrence, or a server that cannot carry the change — and a client explains it and offers nothing to
 repeat. A server that could not be reached raises neither, however long it stays out of reach: the change waits and
 the [accounts route](#the-accounts-route) counts it.
-A change a rule or the spam classifier asked for raises none, because nobody watched it happen. A draft whose copy on
+A change a rule or the spam classifier asked for raises none, because nobody watched it happen. A message filed into
+another account whose source would not let it go after the destination took it is a `MailInBothAccounts` row instead
+of either, however the delete was refused, counting nothing and leading to the change and the message, because the
+message is now in both accounts rather than lost or unmoved; a filing whose destination would not take it, or never
+answered the append, is a `MailboxChangeAbandoned` row for the move, leading to the message, which shows again where it
+was. A draft whose copy on
 the mail server stopped following it — an append the server never answered, or an earlier revision's copy that could
 not be taken back out — is a `DraftCopyNotKept` row for the draft's writer alone, leading to the draft. Each is
 deduplicated per send, per change, and per draft while it stands unread, and each goes with the record it names: a

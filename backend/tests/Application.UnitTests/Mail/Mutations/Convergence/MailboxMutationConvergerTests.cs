@@ -293,6 +293,44 @@ public sealed class MailboxMutationConvergerTests
     }
 
     /// <summary>
+    /// A change that waited on an earlier move of its message is issued where the move left the message, not at the
+    /// source occurrence it was recorded against, which the move took away.
+    /// </summary>
+    [Fact]
+    public async Task ConvergeAsync_AChangeThatWaitedOnACompletedMove_IsIssuedAtTheOccurrenceTheMoveProduced()
+    {
+        // Arrange
+        var context = new ConvergerContext();
+        var archiveFolder = MailFolderResolution.FirstBindingOf(MailFolderAlias.Create("archive"), ArchivePath);
+        context.Store.BindFolder(InboxFolder);
+        context.Store.BindFolder(archiveFolder);
+        var email = StoredEmailId.Create(Guid.CreateVersion7());
+        var placement = RemoteEmailPlacement.Reported(ImapUidValidity.Create(9U), ImapUid.Create(700U));
+        await context.LeaveOutstandingAsync(
+            MailboxMutationRequest.Relocate(email, Occurrence(42U), MailboxMutationRequester.Command("move-1"), ArchivePath),
+            record => record with { Stage = MailboxMutationStage.Completed, Placement = placement });
+        await context.LeaveOutstandingAsync(
+            MailboxMutationRequest.SetSeen(email, Occurrence(42U), MailboxMutationRequester.Command("read-1"), isSeen: true),
+            record => record);
+        var produced = EmailOccurrenceId.Create(Account, archiveFolder.Id, placement.UidValidity!.Value, placement.Uid!.Value);
+
+        // Act
+        await context.Converger.ConvergeAsync(Account, CancellationToken.None);
+
+        // Assert
+        await context.WriteSessionFactory.Received(1).OpenForWritingAsync(
+            Account,
+            archiveFolder,
+            TransportPolicy,
+            Arg.Any<CancellationToken>());
+        await context.WriteSession.Received(1).SetSeenAsync(
+            produced,
+            true,
+            Arg.Any<IMailboxMutationJournal>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
     /// A server that is not answering fails the pass rather than spinning inside it, and the failure is what the caller
     /// backs the account off on. The record keeps the code, so what an operator reads is why rather than only that, and
     /// counts no attempt, because a server that could not be reached was asked nothing.
@@ -890,7 +928,8 @@ public sealed class MailboxMutationConvergerTests
             var failures = new MailFailureNotifications(
                 new NotificationRaiser(this.Notifications, ClientSignalPublishers.ReachingNobody),
                 new StubMailAccountAssignments().Assigning(SyntheticUser.Deployment, Account),
-                this.Clock);
+                this.Clock,
+                new InMemoryCrossAccountFilingStore());
 
             this.Performer = new MailboxMutationPerformer(
                 this.Store,

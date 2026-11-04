@@ -17,6 +17,7 @@ using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
@@ -308,6 +309,7 @@ public sealed class OutboxDeliveryWorkerTests
             // that reaches nobody, which keeps these tests about when the loop takes a pass.
             collection.AddSingleton(Substitute.For<INotificationStore>());
             collection.AddSingleton<IMailAccountAssignments>(new StubMailAccountAssignments());
+            collection.AddSingleton(Substitute.For<ICrossAccountFilingStore>());
             collection.AddScoped<NotificationRaiser>();
             collection.AddScoped<MailFailureNotifications>();
 

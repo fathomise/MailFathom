@@ -819,6 +819,51 @@ upgrade ending is what turns it on. A move, a copy, or a delete on a server last
 `IMAP4rev2`, or never seen at all, is recorded alone too, since nothing would name where the message lands or remove
 exactly the one occurrence asked for.
 
+A change waiting on an earlier move or copy of the same message is issued at the occurrence that move produced, not at
+the one it was asked for: by the time the later change is taken in hand the earlier one has completed, so the message
+it names has been bound to where the server put it, and that is what the later change acts on. A local copy the
+destination's server never named — a copy whose record was given up, or one committed while its record was still
+recorded and then withdrawn — is erased with the record, and a completed copy whose server occurrence nobody bound is
+retired by the destination's forward pass rather than left as a second message with nowhere to be.
+
+### Filing a message into another account
+
+**A person can file a message into a folder of another account they hold, and it lands there at once.** A mail server
+moves a message only between folders of one account, so this is two acts: an append on the destination and a removal
+from the source, each carried by its own account. Both halves commit locally in the transaction that answers the
+request — the destination gains a stored copy with the source's read state, flag, and keywords, the source's message is
+hidden — and what each account's server is then told depends on that account's custody:
+
+| Source | Destination | What reaches the servers |
+| --- | --- | --- |
+| Mirrored | Mirrored | The destination appends the message, and only once its `APPENDUID` answer has bound the copy does the source's delete, recorded in the same transaction, become free to issue |
+| Mirrored | Held | Nothing on the destination; the source's delete is issued as an ordinary one |
+| Held | Mirrored | The destination appends the message; the source's row stays hidden until the append lands and is then erased |
+| Held | Held | Nothing; the source's row is erased in the same transaction |
+
+The append half is a row of its own, in `cross_account_filings`, rather than a mailbox change, because a change names
+an occurrence and the appended message has none until the server's answer gives it one. The destination's run carries
+it before its other changes, and issues it **at most once**: an append whose answer never arrived is never repeated,
+because a second one would leave two copies on that server. A server that takes the message and names nowhere for it
+— a folder answering `UIDNOTSTICKY` — completes the filing all the same: the destination's own copy gives way to the
+message its next forward pass discovers there, as a move with no placement does, and the source's delete goes ahead.
+
+**A half that fails takes back what it can, and never leaves the message in no account.** An append the destination
+refused, or one whose answer never arrived, reverts the whole act: the destination's copy is erased, the source's delete
+is withdrawn, the source's message shows again where it was, and the person is told the move did not reach the other
+account. Where the append did land unseen, the destination's next forward pass imports the server's copy as an
+ordinary arrival, so the message is in both accounts rather than in neither. A source delete given up after the append
+landed restores the message to the source and keeps the destination's copy, and the person is told it is now in both
+accounts. An outage on the destination is neither: the append waits for the next run, and the source's delete waits
+with it.
+
+**A filing is refused, with a sentence, before anything is written** wherever one half could not keep the promise:
+either account is restoring, a replica is still on a build that predates filing across accounts, a mirrored account's
+server was last seen advertising neither `UIDPLUS` nor `IMAP4rev2`, the person may not move mail in either account, the
+message is a sent copy or draft an outgoing record filed, or the destination is a Drafts or Sent folder. It is the
+person's act alone and reached only from [the client](../operations/client-endpoint.md#the-mutation-routes); a rule, the
+spam classifier, and an MCP caller file only within one account.
+
 ### An account can keep a record of what was done to it, and none does by default
 
 The record above exists to make a change correct, and its useful life ends when the change does. A durable answer to

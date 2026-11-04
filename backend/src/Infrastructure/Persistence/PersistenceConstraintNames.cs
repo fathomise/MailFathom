@@ -310,6 +310,13 @@ internal static class PersistenceConstraintNames
 
     internal const string MailboxMutationFlaggedDeleteIndexName = "ix_mailbox_mutations_flagged_delete";
 
+    internal const string CrossAccountFilingPrimaryKeyConstraintName = "pk_cross_account_filings";
+
+    internal const string CrossAccountFilingOutstandingIndexName = "ix_cross_account_filings_outstanding";
+
+    /// <summary>The removal record one filing holds back, which no second filing may name.</summary>
+    internal const string CrossAccountFilingRemovalUniqueIndexName = "ix_cross_account_filings_removal";
+
     /// <summary>The occurrence a delete left flagged on its server, which is followed once however often its settlement is replayed.</summary>
     internal const string MailboxFlaggedDeleteOccurrenceUniqueIndexName = "ix_mailbox_flagged_deletes_occurrence";
 

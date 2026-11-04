@@ -2,7 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Notifications;
+using MailFathom.Application.Persistence;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -14,6 +16,7 @@ using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Notifications;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Notifications;
@@ -139,6 +142,47 @@ public sealed class MailFailureNotificationsTests
         });
     }
 
+    /// <summary>A removal the server would not let go after the other account took the message says it is now in both.</summary>
+    [Fact]
+    public async Task ReportAbandonedChangeAsync_TheRemovalOfAFilingIntoAnotherAccount_SaysTheMessageIsInBothAccounts()
+    {
+        // Arrange
+        var store = new InMemoryNotificationStore();
+        var filings = new InMemoryCrossAccountFilingStore();
+        var change = Abandoned(MailboxMutationRequest.Delete(
+            StoredEmailId.Create(Guid.CreateVersion7()),
+            Occurrence(),
+            MailboxMutationRequester.Command("client-move-1"),
+            AuthoredDeleteEmailDisposition.EraseLocalCopy,
+            AuthoredDeleteServerDisposition.Expunge));
+        await filings.RecordAsync(
+            Substitute.For<IPersistenceSession>(),
+            new NewCrossAccountFiling(
+                MailAccountId.Create("personal"),
+                StoredEmailId.Create(Guid.CreateVersion7()),
+                RemoteFolderPath.Create("Clients"),
+                Account,
+                change.Request.StoredEmailId,
+                change.Id,
+                ErasesHeldSource: false),
+            TestContext.Current.CancellationToken);
+
+        // Act
+        var kept = await Create(store, filings).ReportAbandonedChangeAsync(
+            change,
+            MailboxMutationRefusalClass.Permanent,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(kept);
+        Assert.Equal(2, store.Recorded.Count);
+        Assert.All(store.Recorded, notification =>
+        {
+            Assert.Equal(NotificationStatement.MailInBothAccounts(), notification.Statement);
+            Assert.Equal(change.Id, notification.Target.MailboxChange);
+        });
+    }
+
     /// <summary>A rule's or a classifier's change is nobody's act in person, so nobody is told it was given up.</summary>
     [Fact]
     public async Task ReportAbandonedChangeAsync_ARulesChange_TellsNobody()
@@ -199,12 +243,15 @@ public sealed class MailFailureNotificationsTests
         Assert.Equal(draft.Id, notification.Target.MailDraft);
     }
 
-    private static MailFailureNotifications Create(InMemoryNotificationStore store) => new(
+    private static MailFailureNotifications Create(
+        InMemoryNotificationStore store,
+        InMemoryCrossAccountFilingStore? filings = null) => new(
         new NotificationRaiser(store, ClientSignalPublishers.ReachingNobody),
         new StubMailAccountAssignments()
             .Assigning(SyntheticUser.Deployment, Account)
             .Assigning(Colleague, Account),
-        new FakeTimeProvider(DecidedAt));
+        new FakeTimeProvider(DecidedAt),
+        filings ?? new InMemoryCrossAccountFilingStore());
 
     private static OutgoingEmailRecord RefusedSend()
     {

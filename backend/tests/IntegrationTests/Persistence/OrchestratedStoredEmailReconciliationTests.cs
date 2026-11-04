@@ -7,14 +7,17 @@ using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Summaries;
+using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Reconciliation;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Mutations;
 using MailFathom.Infrastructure.Persistence;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.IntegrationTests.Orchestration;
+using MailFathom.IntegrationTests.Synchronization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -319,6 +322,185 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
         Assert.Equal(LaterObservation, spared.RemoteFlagsObservedAt);
         Assert.Null(spared.RemoteExpungeObservedAt);
     }
+
+    /// <summary>
+    /// A window reporting two fields of a message, one of which a change committed locally first still overlays. The
+    /// overlaid field keeps the value the act wrote, so the person's own act is not undone by the server not yet having
+    /// heard of it, while the field no change holds follows the server — and the reading of the overlaid one is written
+    /// onto the outstanding record, which is what restores it if that record ends without reaching the server.
+    /// </summary>
+    [Fact]
+    public async Task ApplyReconciliationOutcomeAsync_AWindowReportingAFieldAnOutstandingChangeOverlays_LeavesItAndRecordsTheObservation()
+    {
+        // Arrange
+        const uint OverlaidUid = 700;
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, "reconciliation-overlay", cancellationToken);
+        var storedEmailId = (await StoreEmailsAsync(services, binding, [OverlaidUid], cancellationToken))[OverlaidUid];
+
+        var opened = await OverlayingMutationRecords.OpenAsync(
+            services,
+            MailboxMutationRequest.SetSeen(
+                storedEmailId,
+                SyntheticEmail.OccurrenceIn(binding, OverlaidUid),
+                MailboxMutationRequester.Command("reconciliation-overlay-seen"),
+                isSeen: true),
+            OverlayingMutationRecords.NothingObserved with { ObservedSeenState = false },
+            cancellationToken);
+        await OverlayingMutationRecords.SetStoredStateAsync(
+            services,
+            storedEmailId,
+            row => row.IsRemotelySeen = true,
+            cancellationToken);
+
+        // Act
+        await ApplyOutcomeAsync(
+            services,
+            new ReconciledFolderOutcome(
+                [new ObservedEmailFlags(storedEmailId, FlaggedAt(LaterObservation))],
+                ConfirmedUnchanged: [],
+                Disappeared: [],
+                RemovedByOwnMutation: [],
+                RemotelyDeletedEmailDisposition.RetainTombstone,
+                AppliesRemoteDeletions: true,
+                LaterObservation),
+            cancellationToken);
+
+        // Assert
+        var row = (await ReadRowsAsync(services, binding, cancellationToken))[OverlaidUid];
+        Assert.True(row.IsRemotelySeen);
+        Assert.True(row.IsRemotelyFlagged);
+        Assert.Equal(LaterObservation, row.RemoteFlagsObservedAt);
+
+        var record = await OverlayingMutationRecords.ReadAsync(services, opened.Record.Id, cancellationToken);
+        Assert.Equal(MailboxMutationStage.Recorded, record.Stage);
+        Assert.Equal(false, record.Overlay!.ObservedSeenState);
+    }
+
+    /// <summary>
+    /// A keyword the server reports while an addition of another is outstanding. The stored set holds the server's
+    /// keywords and the one the act added, the record's last reading is the server's set alone, and once the record is
+    /// abandoned the act's keyword leaves the stored set while the server's stays — so the stored message ends showing
+    /// what the server holds rather than a change it will never be told about.
+    /// </summary>
+    [Fact]
+    public async Task ApplyReconciliationOutcomeAsync_AKeywordSetDifferingFromTheActsWhileItIsOutstanding_RestoresTheObservedSetOnceTheRecordIsAbandoned()
+    {
+        // Arrange
+        const uint KeywordedUid = 701;
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, "reconciliation-overlay", cancellationToken);
+        var storedEmailId = (await StoreEmailsAsync(services, binding, [KeywordedUid], cancellationToken))[KeywordedUid];
+
+        var opened = await OverlayingMutationRecords.OpenAsync(
+            services,
+            MailboxMutationRequest.AddKeywords(
+                storedEmailId,
+                SyntheticEmail.OccurrenceIn(binding, KeywordedUid),
+                MailboxMutationRequester.Command("reconciliation-overlay-keywords"),
+                AuthoredMailKeywords.Create(["act-keyword"])),
+            OverlayingMutationRecords.NothingObserved with { ObservedKeywords = RemoteEmailKeywords.None },
+            cancellationToken);
+        await OverlayingMutationRecords.SetStoredStateAsync(
+            services,
+            storedEmailId,
+            row => row.RemoteKeywords = ["act-keyword"],
+            cancellationToken);
+
+        await ApplyOutcomeAsync(
+            services,
+            new ReconciledFolderOutcome(
+                [new ObservedEmailFlags(storedEmailId, KeywordedAt(LaterObservation, "server-keyword"))],
+                ConfirmedUnchanged: [],
+                Disappeared: [],
+                RemovedByOwnMutation: [],
+                RemotelyDeletedEmailDisposition.RetainTombstone,
+                AppliesRemoteDeletions: true,
+                LaterObservation),
+            cancellationToken);
+
+        // The arrangement is asserted: the act's keyword is kept beside the server's, and the record has the server's set.
+        var whileOutstanding = (await ReadRowsAsync(services, binding, cancellationToken))[KeywordedUid];
+        Assert.Equal(["act-keyword", "server-keyword"], whileOutstanding.RemoteKeywords.Order());
+        var record = await OverlayingMutationRecords.ReadAsync(services, opened.Record.Id, cancellationToken);
+        Assert.Equal(["server-keyword"], record.Overlay!.ObservedKeywords!.Values);
+
+        // Act
+        await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IMailboxMutationRecordStore>().AdvanceAsync(
+                session,
+                opened.Record.Id,
+                MailboxMutationStage.Abandoned,
+                placement: null,
+                token),
+            cancellationToken);
+
+        // Assert
+        var restored = (await ReadRowsAsync(services, binding, cancellationToken))[KeywordedUid];
+        Assert.Equal(["server-keyword"], restored.RemoteKeywords);
+    }
+
+    /// <summary>
+    /// A delete committed locally first hides its message from every reader at once, through a column of the row, while
+    /// the row stays; withdrawing the delete clears the column and the message is listed and read again.
+    /// </summary>
+    [Fact]
+    public async Task ReadPageAsync_AMessageWithALocallyCommittedDelete_IsHiddenWhileTheDeleteIsOutstandingAndListedOnceItIsWithdrawn()
+    {
+        // Arrange
+        const uint KeptUid = 702;
+        const uint DeletedUid = 703;
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, "reconciliation-local-delete", cancellationToken);
+        var storedEmailIds = await StoreEmailsAsync(services, binding, [KeptUid, DeletedUid], cancellationToken);
+
+        var opened = await OverlayingMutationRecords.OpenAsync(
+            services,
+            MailboxMutationRequest.Delete(
+                storedEmailIds[DeletedUid],
+                SyntheticEmail.OccurrenceIn(binding, DeletedUid),
+                MailboxMutationRequester.Command("reconciliation-local-delete"),
+                AuthoredDeleteEmailDisposition.RetainTombstone,
+                AuthoredDeleteServerDisposition.Expunge),
+            OverlayingMutationRecords.NothingObserved,
+            cancellationToken);
+
+        // Act
+        var rowsWhileHidden = await ReadRowsAsync(services, binding, cancellationToken);
+        var timelineWhileHidden = await ReadTimelineAsync(services, binding, cancellationToken);
+        var summaryWhileHidden = await FindSummaryAsync(services, storedEmailIds[DeletedUid], cancellationToken);
+
+        await services.CommitProducingAsync(
+            (scope, session, token) => scope.GetRequiredService<IMailboxMutationRecordStore>()
+                .WithdrawAsync(session, [SyntheticMailAccount.AccountId], [opened.Record.Id], token),
+            cancellationToken);
+
+        var rowsAfterWithdrawal = await ReadRowsAsync(services, binding, cancellationToken);
+        var timelineAfterWithdrawal = await ReadTimelineAsync(services, binding, cancellationToken);
+        var summaryAfterWithdrawal = await FindSummaryAsync(services, storedEmailIds[DeletedUid], cancellationToken);
+
+        // Assert
+        Assert.NotNull(rowsWhileHidden[DeletedUid].LocalDeleteCommittedAt);
+        Assert.Equal(new[] { KeptUid }, StoredUidsOf(timelineWhileHidden, rowsWhileHidden));
+        Assert.Null(summaryWhileHidden);
+
+        Assert.Null(rowsAfterWithdrawal[DeletedUid].LocalDeleteCommittedAt);
+        Assert.Equal(new[] { KeptUid, DeletedUid }, StoredUidsOf(timelineAfterWithdrawal, rowsAfterWithdrawal));
+        Assert.NotNull(summaryAfterWithdrawal);
+    }
+
+    private static Task<EmailSummary?> FindSummaryAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId storedEmailId,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IStoredEmailSummaryReader>().FindAsync(storedEmailId, token),
+            cancellationToken);
 
     private static RemoteEmailFlagSnapshot SeenAt(DateTimeOffset observedAt) => new(
         observedAt,

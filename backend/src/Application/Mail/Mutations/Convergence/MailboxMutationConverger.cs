@@ -277,9 +277,17 @@ public sealed class MailboxMutationConverger
                 return;
             }
 
+            // A change that waited on an earlier move of its message is issued where that move left the message, which
+            // only the moment of issue can know.
+            var issued = candidate.Record.Stage == MailboxMutationStage.Recorded
+                ? await this.commitPolicy.CommitAsync(
+                    (session, token) => this.store.ResolveIssuedOccurrenceAsync(session, candidate, token),
+                    cancellationToken)
+                : candidate;
+
             var outcome = await this.performer.PerformAsync(
-                candidate.Record.Request,
-                candidate.Folder,
+                issued.Record.Request,
+                issued.Folder,
                 transportSecurityPolicy,
                 cancellationToken);
 

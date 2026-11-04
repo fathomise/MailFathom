@@ -16,6 +16,7 @@ using MailFathom.Application.Folders;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Convergence;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
@@ -570,12 +571,17 @@ internal sealed partial class AccountSynchronizationSupervisor
 
             scope.ServiceProvider.GetRequiredService<ScopedMailSynchronizationSettings>().UseRunSnapshot(runSettings);
 
+            // The appends this account owes for mail filed into it from another account go first, since the removal
+            // each of them holds back on that other account waits for nothing else.
+            var uncarriedFilings = await scope.ServiceProvider.GetRequiredService<CrossAccountFilingPass>()
+                .CarryAsync(this.account, cancellationToken);
+
             var converger = scope.ServiceProvider.GetRequiredService<MailboxMutationConverger>();
             var report = await converger.ConvergeAsync(this.account, cancellationToken);
 
             scope.ServiceProvider.GetRequiredService<MailboxConvergenceTelemetry>().Report(this.account, report);
 
-            return report.FailedCount > 0;
+            return report.FailedCount > 0 || uncarriedFilings > 0;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

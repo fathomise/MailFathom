@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Linq.Expressions;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.CodeCoverage;
@@ -230,6 +231,46 @@ internal sealed partial class MailboxMutationReconciliationStore(
     }
 
     /// <inheritdoc />
+    public Task<bool> HasUnboundLocalCopiesAsync(
+        MailAccountId account,
+        RemoteFolderPath destinationPath,
+        DateTimeOffset completedBefore,
+        CancellationToken cancellationToken) =>
+        readContext.MailboxMutations
+            .AsNoTracking()
+            .AnyAsync(UnboundCopiesOf(account, destinationPath, completedBefore), cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<StoredEmailId>> RetireUnboundLocalCopiesAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        RemoteFolderPath destinationPath,
+        DateTimeOffset completedBefore,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        var unbound = await writeContext.MailboxMutations
+            .Where(UnboundCopiesOf(account, destinationPath, completedBefore))
+            .ToArrayAsync(cancellationToken);
+
+        var retired = new List<StoredEmailId>(unbound.Length);
+
+        foreach (var record in unbound)
+        {
+            record.PlacementObservedAt = completedBefore;
+
+            if (await LocalCopyErasure.EraseAsync(session, writeContext, record.LocalCopyStoredEmailId!.Value, cancellationToken))
+            {
+                retired.Add(StoredEmailId.Create(record.LocalCopyStoredEmailId.Value));
+            }
+        }
+
+        return retired;
+    }
+
+    /// <inheritdoc />
     public async Task RecordSourceRemovalObservedAsync(
         IPersistenceSession session,
         MailboxMutationRecordId recordId,
@@ -288,6 +329,25 @@ internal sealed partial class MailboxMutationReconciliationStore(
         var entity = await RequireEntityAsync(session, recordId, cancellationToken);
 
         entity.DeleteFlagSettledAt ??= settledAt;
+    }
+
+    private static Expression<Func<MailboxMutationEntity, bool>> UnboundCopiesOf(
+        MailAccountId account,
+        RemoteFolderPath destinationPath,
+        DateTimeOffset completedBefore)
+    {
+        var accountValue = account.Value;
+        var destinationValue = destinationPath.Value;
+        var copy = MailboxMutation.Copy.Name;
+
+        return mutation => mutation.MailboxAccountId == accountValue
+            && mutation.Mutation == copy
+            && mutation.DestinationFolderPath == destinationValue
+            && mutation.Stage == MailboxMutationStage.Completed
+            && mutation.StageChangedAt < completedBefore
+            && mutation.PlacementUid == null
+            && mutation.PlacementObservedAt == null
+            && mutation.LocalCopyStoredEmailId != null;
     }
 
     private static async Task<MailboxMutationEntity> RequireEntityAsync(

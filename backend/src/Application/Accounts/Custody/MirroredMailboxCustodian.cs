@@ -9,6 +9,7 @@ using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
@@ -239,6 +240,26 @@ public sealed class MirroredMailboxCustodian : IMailboxCustodian
             cancellationToken);
 
         return SubmittedMailboxChange.Recorded(record);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Carried only where both halves can be local-first: the destination's copy is bound from <c>APPENDUID</c> and the
+    /// source's removal is a <c>UID EXPUNGE</c> naming the one message, so a server last seen without <c>UIDPLUS</c> is
+    /// refused rather than filed server-first, and so is every account while a replica does not know the overlay.
+    /// </remarks>
+    public async Task<CrossAccountFilingHalf> TakesCrossAccountFilingAsync(
+        MailAccountId account,
+        CancellationToken cancellationToken)
+    {
+        if (!await this.EveryReplicaKnowsTheOverlayAsync(cancellationToken))
+        {
+            return CrossAccountFilingHalf.RefusedDuringUpgrade;
+        }
+
+        return (await this.capabilities.ReadAsync(account, cancellationToken)).NamesWhereMessagesLand
+            ? CrossAccountFilingHalf.Carried
+            : CrossAccountFilingHalf.RefusedWithoutUidPlus;
     }
 
     /// <inheritdoc />

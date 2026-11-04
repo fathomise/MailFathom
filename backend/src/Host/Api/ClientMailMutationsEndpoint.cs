@@ -9,6 +9,7 @@ using MailFathom.Application.Mail.Delivery.Receipts;
 using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
 using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Preferences;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
@@ -824,6 +825,9 @@ internal static class ClientMailChangeOutcomes
 
     /// <summary>The move would file mail into the drafts or the sent folder's tree from outside it, or out of either tree into anything but the trash.</summary>
     internal const string DestinationNotAllowed = "destination-not-allowed";
+
+    /// <summary>The destination is a folder of another account the person holds, and filing the message there is refused for the reason stated beside it.</summary>
+    internal const string MoveAcrossAccountsRefused = "move-across-accounts-refused";
 }
 
 /// <summary>The names this surface accepts for what a caller wants done with the tags it listed.</summary>
@@ -954,6 +958,13 @@ internal sealed record ClientMailMoveResultResponse(
     ClientMailRecordedChangeResponse? Change,
     IReadOnlyList<ClientMailRecordedChangeResponse> SpamMarkChanges)
 {
+    /// <summary>Gets why a move into another account's folder was refused, as a published name, and <see langword="null" /> for every other outcome.</summary>
+    /// <remarks>A name rather than the sentence alone, so a client says it in its reader's language and draws it where the design draws it.</remarks>
+    public string? Refusal { get; init; }
+
+    /// <summary>Gets the refusal said as an English sentence, which names no account, folder, or message.</summary>
+    public string? Detail { get; init; }
+
     /// <summary>Describes what the use case answered about one move.</summary>
     /// <param name="storedEmailId">The message the entry answers for.</param>
     /// <param name="destination">The folder the request named.</param>
@@ -977,7 +988,11 @@ internal sealed record ClientMailMoveResultResponse(
                     recordId.Value,
                     lifecycle.Name)
                 : null,
-            [.. result.SpamMarkRecords.Select(ClientMailRecordedChangeResponse.For)]);
+            [.. result.SpamMarkRecords.Select(ClientMailRecordedChangeResponse.For)])
+        {
+            Refusal = result.CrossAccountRefusal is { } refusal ? RefusalNameOf(refusal) : null,
+            Detail = result.CrossAccountRefusal is { } said ? DetailOf(said) : null,
+        };
     }
 
     /// <summary>Describes a move the boundary refused before the use case was reached.</summary>
@@ -998,10 +1013,42 @@ internal sealed record ClientMailMoveResultResponse(
         MailRelocationOutcome.Applied => ClientMailChangeOutcomes.Applied,
         MailRelocationOutcome.DestinationNotAllowed => ClientMailChangeOutcomes.DestinationNotAllowed,
         MailRelocationOutcome.RequestIdAlreadyAskedForAnother => ClientMailChangeOutcomes.ChangeNotUsable,
+        MailRelocationOutcome.RefusedAcrossAccounts => ClientMailChangeOutcomes.MoveAcrossAccountsRefused,
         _ => throw new ArgumentOutOfRangeException(
             nameof(outcome),
             outcome,
             "A move outcome is one this surface publishes."),
+    };
+
+    /// <summary>Reads the published name of why a move into another account was refused.</summary>
+    private static string RefusalNameOf(CrossAccountFilingRefusal refusal) => refusal switch
+    {
+        CrossAccountFilingRefusal.SourceWithoutUidPlus => "source-without-uidplus",
+        CrossAccountFilingRefusal.DestinationWithoutUidPlus => "destination-without-uidplus",
+        CrossAccountFilingRefusal.AccountRestoring => "account-restoring",
+        CrossAccountFilingRefusal.UpgradeInProgress => "upgrade-in-progress",
+        CrossAccountFilingRefusal.MoveNotPermitted => "move-not-permitted",
+        CrossAccountFilingRefusal.FiledFromOutgoingRecord => "filed-from-outgoing-record",
+        CrossAccountFilingRefusal.DestinationKeepsOutgoingMail => "destination-keeps-outgoing-mail",
+        _ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, "A refusal is one this surface publishes."),
+    };
+
+    /// <summary>Says why a move into another account was refused, for a client that has no sentence of its own for the name.</summary>
+    private static string DetailOf(CrossAccountFilingRefusal refusal) => refusal switch
+    {
+        CrossAccountFilingRefusal.SourceWithoutUidPlus =>
+            "This account's mail server cannot let a message go to another account safely, so mail moves out of it only within the account.",
+        CrossAccountFilingRefusal.DestinationWithoutUidPlus =>
+            "The other account's mail server cannot say which message it took, so mail moves into it only from within that account.",
+        CrossAccountFilingRefusal.AccountRestoring =>
+            "One of the two accounts is being restored, so nothing moves between it and another account until that is done.",
+        CrossAccountFilingRefusal.UpgradeInProgress =>
+            "The server is being upgraded, so mail moves between accounts once the upgrade has finished.",
+        CrossAccountFilingRefusal.MoveNotPermitted =>
+            "You may read one of the two accounts but not move its mail, so nothing moves into or out of it from another account.",
+        CrossAccountFilingRefusal.FiledFromOutgoingRecord =>
+            "A sent message or a draft stays with the account that sent or wrote it, so it moves only within that account.",
+        _ => "A Drafts or Sent folder holds only what its own account wrote or sent, so nothing from another account is filed there.",
     };
 }
 

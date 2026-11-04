@@ -689,6 +689,70 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.CrossAccountFilingEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<uint>("ConcurrencyVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<string>("DestinationAccountId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("DestinationFolderPath")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<Guid>("DestinationStoredEmailId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("ErasesHeldSource")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RemovalMutationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceAccountId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("SourceStoredEmailId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("StageChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id")
+                        .HasName("pk_cross_account_filings");
+
+                    b.HasIndex("RemovalMutationId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_cross_account_filings_removal")
+                        .HasFilter("\"RemovalMutationId\" IS NOT NULL");
+
+                    b.HasIndex("DestinationAccountId", "RecordedAt", "Id")
+                        .HasDatabaseName("ix_cross_account_filings_outstanding")
+                        .HasFilter("\"Stage\" IN ('Recorded', 'AppendIssued')");
+
+                    b.ToTable("cross_account_filings", (string)null);
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.DefaultAdministratorEntity", b =>
                 {
                     b.Property<short>("Id")

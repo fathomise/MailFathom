@@ -31,6 +31,9 @@ internal sealed class InMemoryMailboxMutationRecordStore : IMailboxMutationRecor
     private readonly Dictionary<MailboxMutationRecordId, DateTimeOffset> heldUntilByRecord = [];
     private DateTimeOffset now = new(2026, 8, 7, 12, 0, 0, TimeSpan.Zero);
 
+    /// <summary>Gets or sets which records a filing into another account still holds back, as the real outstanding read leaves them out.</summary>
+    internal Func<MailboxMutationRecordId, bool> HeldBackByFiling { get; set; } = static _ => false;
+
     /// <summary>Gets how many requests were written down, which is one per idempotency identity however often it was asked.</summary>
     internal int OpenedRecordCount => this.recordsById.Count;
 
@@ -389,6 +392,85 @@ internal sealed class InMemoryMailboxMutationRecordStore : IMailboxMutationRecor
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Follows the message's completed moves that named a placement, as the real store does, and names each destination
+    /// by a binding a test bound with <see cref="BindFolder" />; there is no stored message here to start from, so the
+    /// walk starts at the occurrence the change was recorded against.
+    /// </remarks>
+    public Task<OutstandingMailboxMutation> ResolveIssuedOccurrenceAsync(
+        IPersistenceSession session,
+        OutstandingMailboxMutation outstanding,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(outstanding);
+
+        var record = this.Require(outstanding.Record.Id);
+
+        if (record.Stage != MailboxMutationStage.Recorded)
+        {
+            return Task.FromResult(outstanding);
+        }
+
+        MailboxMutationRecord[] moves =
+        [
+            .. this.recordsById.Values.Where(move => move.Id != record.Id
+                && move.Request.StoredEmailId == record.Request.StoredEmailId
+                && move.Request.Mutation == MailboxMutation.Relocate
+                && move.Stage == MailboxMutationStage.Completed
+                && move.Placement.IsReported
+                && move.PlacementObservedAt is null),
+        ];
+        var occurrence = record.Request.Occurrence;
+
+        for (var step = 0; step < moves.Length; step++)
+        {
+            var move = moves.FirstOrDefault(candidate => candidate.Request.Occurrence == occurrence);
+            var destination = move is null
+                ? null
+                : this.folderBindings.Values.FirstOrDefault(binding => binding.RemotePath == move.Request.DestinationPath);
+
+            if (move is null || destination is null)
+            {
+                break;
+            }
+
+            occurrence = EmailOccurrenceId.Create(
+                occurrence.AccountId,
+                destination.Id,
+                move.Placement.UidValidity!.Value,
+                move.Placement.Uid!.Value);
+        }
+
+        if (occurrence == record.Request.Occurrence)
+        {
+            return Task.FromResult(outstanding);
+        }
+
+        var request = record.Request;
+        var identity = IdentityOf(request);
+        var retargeted = record with
+        {
+            Request = MailboxMutationRequest.Create(
+                request.StoredEmailId,
+                occurrence,
+                request.Mutation,
+                request.Requester,
+                request.DestinationPath,
+                request.DesiredSeenState,
+                request.DesiredFlaggedState,
+                request.Keywords,
+                request.LocalDisposition,
+                request.ServerDisposition),
+        };
+
+        this.identities.Remove(identity);
+        this.identities[IdentityOf(retargeted.Request)] = retargeted.Id;
+        this.recordsById[retargeted.Id] = retargeted;
+
+        return Task.FromResult(new OutstandingMailboxMutation(retargeted, this.BindingOf(retargeted)));
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<MailboxMutationLifecycleCount>> ReadLifecycleCountsAsync(
         MailAccountId account,
         CancellationToken cancellationToken)
@@ -518,7 +600,8 @@ internal sealed class InMemoryMailboxMutationRecordStore : IMailboxMutationRecor
 
     private IEnumerable<MailboxMutationRecord> OutstandingOf(MailAccountId accountId) =>
         this.UnsettledOf(accountId)
-            .Where(record => this.heldUntilByRecord.GetValueOrDefault(record.Id, this.now) <= this.now);
+            .Where(record => this.heldUntilByRecord.GetValueOrDefault(record.Id, this.now) <= this.now
+                && !this.HeldBackByFiling(record.Id));
 
     private MailFolderResolution BindingOf(MailboxMutationRecord record)
     {

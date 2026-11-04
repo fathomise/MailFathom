@@ -10,6 +10,7 @@ using MailFathom.Application.Folders.Local;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
 using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Marking;
 using MailFathom.Application.Synchronization;
@@ -80,6 +81,7 @@ public sealed class MailRelocationRecorder
     private readonly KeptMailTrees keptTrees;
     private readonly SpamMarkWriter spamMarks;
     private readonly MailActIdempotency idempotency;
+    private readonly CrossAccountFiler filer;
 
     /// <summary>Initializes the use case over the grant it asks first, the folder it files into, and the submission it writes through.</summary>
     /// <param name="authorization">Answers which principal reached this use case.</param>
@@ -96,6 +98,7 @@ public sealed class MailRelocationRecorder
     /// <param name="junkFolders">Answers whether the destination is the account's junk folder, which makes the person's move a spam mark.</param>
     /// <param name="spamMarks">Writes the person's spam verdict a move into the junk folder makes.</param>
     /// <param name="idempotency">Answers a repeat of an act the person already made, and keeps the key of one that commits.</param>
+    /// <param name="filer">Files a message into a folder of another account the person holds.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public MailRelocationRecorder(
         AccessAuthorization authorization,
@@ -111,7 +114,8 @@ public sealed class MailRelocationRecorder
         MailAccountRunSignal runSignal,
         IJunkMailFolderCatalog junkFolders,
         SpamMarkWriter spamMarks,
-        MailActIdempotency idempotency)
+        MailActIdempotency idempotency,
+        CrossAccountFiler filer)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(scopeResolver);
@@ -127,6 +131,7 @@ public sealed class MailRelocationRecorder
         ArgumentNullException.ThrowIfNull(junkFolders);
         ArgumentNullException.ThrowIfNull(spamMarks);
         ArgumentNullException.ThrowIfNull(idempotency);
+        ArgumentNullException.ThrowIfNull(filer);
 
         this.authorization = authorization;
         this.scopeResolver = scopeResolver;
@@ -141,6 +146,7 @@ public sealed class MailRelocationRecorder
         this.keptTrees = new KeptMailTrees(folderReferences, bindings);
         this.spamMarks = spamMarks;
         this.idempotency = idempotency;
+        this.filer = filer;
     }
 
     /// <summary>Writes down one move, against the email and the folder a caller named.</summary>
@@ -219,6 +225,15 @@ public sealed class MailRelocationRecorder
         var account = target.Occurrence.AccountId;
         var named = (await this.folders.ReadFoldersAsync(account, cancellationToken))
             .FirstOrDefault(folder => folder.Id == destination);
+
+        // Only the person files into another account, through the client: a rule names destinations within its own
+        // account, a verdict files into the account's own junk, and an agent authors the flag tier alone.
+        if (named is null
+            && reader is MailboxReaderKind.Person
+            && await this.FindInAnotherAccountAsync(assignedAccounts, account, destination, reader, cancellationToken) is { } elsewhere)
+        {
+            return await this.FileIntoAnotherAccountAsync(storedEmailId, target, elsewhere, requester, key, cancellationToken);
+        }
 
         if (named is null
             || ReferenceTo(named) is not { } reference
@@ -354,6 +369,145 @@ public sealed class MailRelocationRecorder
         return markedSpam is null ? moved : moved with { SpamMarkRecords = SpamMarkChangesOf(markedSpam) };
     }
 
+    /// <summary>Finds the folder a person named among the other accounts they hold and may read it in.</summary>
+    private async Task<FolderOfAnotherAccount?> FindInAnotherAccountAsync(
+        IReadOnlyList<MailAccountId> assignedAccounts,
+        MailAccountId source,
+        MailFolderId destination,
+        MailboxReaderKind reader,
+        CancellationToken cancellationToken)
+    {
+        foreach (var other in assignedAccounts.Where(assigned => assigned != source))
+        {
+            var folder = (await this.folders.ReadFoldersAsync(other, cancellationToken))
+                .FirstOrDefault(candidate => candidate.Id == destination);
+
+            if (folder is not null)
+            {
+                return ReferenceTo(folder) is { } reference
+                    && this.scopeResolver.IsReadable(reader, assignedAccounts, other, folder.SourceFolderAlias)
+                    ? new FolderOfAnotherAccount(other, folder, reference)
+                    : null;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Files a message into a folder of another account the person holds, or says why it may not be.</summary>
+    /// <remarks>
+    /// <para>
+    /// The act needs the moving grant over both accounts, because it takes mail out of one and puts it into the other.
+    /// Everything that may be refused is refused here, before anything is recorded: the grant, the drafts and sent trees
+    /// on either side, and what each account's custody phase and server allow.
+    /// </para>
+    /// <para>
+    /// A move into another account's junk folder is a move and no spam mark: a verdict belongs to the account the message
+    /// arrived in, and the destination's own copy is withheld from spam classification as every copy MailFathom files is.
+    /// </para>
+    /// </remarks>
+    private async Task<AuthoredMailRelocationResult> FileIntoAnotherAccountAsync(
+        StoredEmailId storedEmailId,
+        AuthoredMailboxTarget target,
+        FolderOfAnotherAccount elsewhere,
+        MailboxMutationRequester requester,
+        MailActIdempotencyKey? key,
+        CancellationToken cancellationToken)
+    {
+        var account = target.Occurrence.AccountId;
+
+        if (!await this.authorization.PermitsOverAsync(MailFathomPermission.MailMove, account, cancellationToken)
+            || !await this.authorization.PermitsOverAsync(MailFathomPermission.MailMove, elsewhere.Account, cancellationToken))
+        {
+            return AuthoredMailRelocationResult.RefusedAcrossAccounts(CrossAccountFilingRefusal.MoveNotPermitted);
+        }
+
+        var resolved = await this.destinations.ResolveAsync(elsewhere.Account, [elsewhere.Reference], cancellationToken);
+
+        if (resolved.Find(elsewhere.Reference).Destination is not { } folder)
+        {
+            return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.DestinationNotFound);
+        }
+
+        if (await this.keptTrees.HoldsAsync(account, target.Folder.Alias, target.Folder.RemotePath, cancellationToken))
+        {
+            return AuthoredMailRelocationResult.RefusedAcrossAccounts(CrossAccountFilingRefusal.FiledFromOutgoingRecord);
+        }
+
+        if (folder.Role is MailFolderSpecialUse.Drafts or MailFolderSpecialUse.Sent
+            || await this.keptTrees.HoldsAsync(elsewhere.Account, folder.Alias, folder.Path, cancellationToken))
+        {
+            return AuthoredMailRelocationResult.RefusedAcrossAccounts(CrossAccountFilingRefusal.DestinationKeepsOutgoingMail);
+        }
+
+        var preparation = await this.filer.PrepareAsync(
+            target,
+            storedEmailId,
+            elsewhere.Account,
+            folder.Alias,
+            elsewhere.Folder.Id,
+            cancellationToken);
+
+        if (preparation.Refusal is { } refusal)
+        {
+            return AuthoredMailRelocationResult.RefusedAcrossAccounts(refusal);
+        }
+
+        if (preparation.Plan is not { } plan)
+        {
+            return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.MessageNotFound);
+        }
+
+        var applied = AuthoredMailRelocationResult.Applied(folder.Alias);
+        FiledAcrossAccounts? filed = null;
+        MailActOutcome? replayed = null;
+
+        await this.commitPolicy.CommitAsync(
+            async (session, attemptCancellationToken) =>
+            {
+                filed = null;
+                replayed = null;
+
+                if (key is not null
+                    && await this.idempotency.FindAsync(session, key, storedEmailId, attemptCancellationToken) is { } first)
+                {
+                    replayed = first;
+
+                    return;
+                }
+
+                filed = await this.filer.CommitAsync(session, plan, requester, attemptCancellationToken);
+
+                if (filed is not null && key is not null)
+                {
+                    await this.idempotency.StageAsync(
+                        session,
+                        key,
+                        storedEmailId,
+                        OutcomeOf(applied, markedSpam: null),
+                        attemptCancellationToken);
+                }
+            },
+            cancellationToken);
+
+        if (replayed is not null)
+        {
+            return ReplayOf(replayed);
+        }
+
+        if (filed is null)
+        {
+            return AuthoredMailRelocationResult.NotRecorded(MailRelocationOutcome.MessageNotFound);
+        }
+
+        this.submission.Announce(filed.Source);
+        this.submission.Announce(filed.Destination);
+        this.runSignal.BringForward(elsewhere.Account);
+        this.runSignal.BringForward(account);
+
+        return applied;
+    }
+
     /// <summary>Brings the account's run forward for a record the move opened, and announces a move a held account applied.</summary>
     private void BringForwardForRecordOf(SubmittedMailboxChange submitted, MailAccountId account)
     {
@@ -467,6 +621,9 @@ public sealed class MailRelocationRecorder
         folder.SourceFolderAlias is { } alias ? MailFolderReference.ToAlias(alias)
         : folder.Role is { } role ? MailFolderReference.ToRole(role)
         : null;
+
+    /// <summary>A folder of another account the person holds, found by the identity they named.</summary>
+    private sealed record FolderOfAnotherAccount(MailAccountId Account, LocalMailFolder Folder, MailFolderReference Reference);
 
     /// <summary>Ends a commit whose move into the junk folder was refused, so the spam mark staged before it is rolled back with it.</summary>
     [SuppressMessage("Design", "CA1064:Exceptions should be public", Justification = "A control-flow signal from the commit body to the method around it that never leaves this type.")]

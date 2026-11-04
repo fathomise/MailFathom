@@ -520,6 +520,12 @@ public sealed class SetMailFlagsToolTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<OutstandingMailboxMutation> ResolveIssuedOccurrenceAsync(
+            IPersistenceSession session,
+            OutstandingMailboxMutation outstanding,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<bool> HasRecordAsync(
             StoredEmailId storedEmailId,
             MailboxMutation mutation,

@@ -1151,7 +1151,8 @@ public sealed class MailboxMutationPerformerTests
                 new MailFailureNotifications(
                     new NotificationRaiser(this.Notifications, ClientSignalPublishers.ReachingNobody),
                     new StubMailAccountAssignments().Assigning(SyntheticUser.Deployment, Account),
-                    TimeProvider.System),
+                    TimeProvider.System,
+                    new InMemoryCrossAccountFilingStore()),
                 this.Delays,
                 signals ?? ClientSignalPublishers.ReachingNobody,
                 new MailboxMutationOptions(),
