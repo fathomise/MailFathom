@@ -182,6 +182,23 @@ internal static class DocumentFixtures
             slides,
             declaredSlides);
 
+    /// <summary>Builds a presentation declaring its slides in the order given, followed by a custom show naming some of them again.</summary>
+    /// <param name="slides">One entry per slide part, in part-name order, each the line it carries or empty for none.</param>
+    /// <param name="customShowSlides">The one-based part numbers the custom show names, each also in the slide list.</param>
+    /// <param name="declaredSlides">The one-based part numbers the slide list names, in the order it names them.</param>
+    /// <returns>The package's octets.</returns>
+    public static byte[] PresentationWithCustomShowInDeclaredOrder(
+        string[] slides,
+        int[] customShowSlides,
+        params int[] declaredSlides) =>
+        PresentationInDeclaredOrderIn(
+            DrawingNamespace,
+            PresentationNamespace,
+            RelationshipNamespace,
+            slides,
+            declaredSlides,
+            customShowSlides);
+
     /// <summary>Builds a workbook whose sheet list names its worksheet parts in the order given rather than by number.</summary>
     /// <param name="sheets">One entry per worksheet part, in part-name order, each the cell values it holds.</param>
     /// <param name="declaredSheets">The one-based part numbers the sheet list names, in the order it names them.</param>
@@ -465,17 +482,23 @@ internal static class DocumentFixtures
         string presentationNamespace,
         string relationshipNamespace,
         string[] slides,
-        int[] declaredSlides)
+        int[] declaredSlides,
+        int[]? customShowSlides = null)
     {
         var slideList = string.Concat(declaredSlides.Select((_, position) =>
             $"""<p:sldId id="{(256 + position).ToString(CultureInfo.InvariantCulture)}" r:id="{RelationshipIdentifier(position)}"/>"""));
+        var customShowEntries = string.Concat((customShowSlides ?? []).Select(number =>
+            $"""<p:sldId r:id="{RelationshipIdentifier(Array.IndexOf(declaredSlides, number))}"/>"""));
+        var customShows = customShowSlides is null
+            ? string.Empty
+            : $"""<p:custShowLst><p:custShow name="Short" id="0"><p:sldLst>{customShowEntries}</p:sldLst></p:custShow></p:custShowLst>""";
 
         return Package(
         [
             .. SlideParts(drawingNamespace, slides),
             ("ppt/presentation.xml", $"""
                 <?xml version="1.0" encoding="UTF-8"?>
-                <p:presentation xmlns:p="{presentationNamespace}" xmlns:r="{relationshipNamespace}"><p:sldIdLst>{slideList}</p:sldIdLst></p:presentation>
+                <p:presentation xmlns:p="{presentationNamespace}" xmlns:r="{relationshipNamespace}"><p:sldIdLst>{slideList}</p:sldIdLst>{customShows}</p:presentation>
                 """),
             ("ppt/_rels/presentation.xml.rels", RelationshipsNaming(NumberedTargets("slides/slide", declaredSlides))),
         ]);

@@ -75,9 +75,21 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
         "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
         "http://purl.oclc.org/ooxml/officeDocument/relationships");
 
+    /// <summary>Where a presentation declares the order its slides are shown in.</summary>
+    private static readonly PageOrderDeclaration SlideOrder = new(
+        "ppt/presentation.xml",
+        "sldIdLst",
+        "sldId",
+        PresentationNamespaces);
+
+    /// <summary>Where a workbook declares the order its tabs are in.</summary>
+    private static readonly PageOrderDeclaration SheetOrder = new(
+        "xl/workbook.xml",
+        "sheets",
+        "sheet",
+        SpreadsheetNamespaces);
+
     private const string WordDocumentPart = "word/document.xml";
-    private const string PresentationPart = "ppt/presentation.xml";
-    private const string WorkbookPart = "xl/workbook.xml";
     private const string SharedStringsPart = "xl/sharedStrings.xml";
 
     /// <summary>The parts a word-processing document keeps its notes in, read after the body and in this order.</summary>
@@ -204,9 +216,7 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
         var slides = this.InDeclaredOrder(
             archive,
             OrderedParts(archive, SlidePartPattern()),
-            PresentationPart,
-            "sldId",
-            PresentationNamespaces,
+            SlideOrder,
             budget,
             cancellationToken);
 
@@ -276,9 +286,7 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
         var sheets = this.InDeclaredOrder(
             archive,
             OrderedParts(archive, WorksheetPartPattern()),
-            WorkbookPart,
-            "sheet",
-            SpreadsheetNamespaces,
+            SheetOrder,
             budget,
             cancellationToken);
 
@@ -386,9 +394,7 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
     /// <summary>Puts the page parts found by name into the order the package declares for them, where it declares one.</summary>
     /// <param name="archive">The package.</param>
     /// <param name="named">The page parts, in part-name order.</param>
-    /// <param name="orderingPartName">The part whose list of relationship identifiers is the declared order.</param>
-    /// <param name="orderElementName">The element in that list naming one page.</param>
-    /// <param name="orderNamespaces">The namespaces that element is admitted in.</param>
+    /// <param name="declaration">Where the format declares its pages' order.</param>
     /// <param name="budget">What the whole container has left to inflate to.</param>
     /// <param name="cancellationToken">Cancels the read between elements.</param>
     /// <returns>The same parts in the declared order, or in part-name order when the package declares none worth taking.</returns>
@@ -409,16 +415,14 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
     private List<ZipArchiveEntry> InDeclaredOrder(
         ZipArchive archive,
         List<ZipArchiveEntry> named,
-        string orderingPartName,
-        string orderElementName,
-        FrozenSet<string> orderNamespaces,
+        PageOrderDeclaration declaration,
         DecompressionBudget budget,
         CancellationToken cancellationToken)
     {
-        var separator = orderingPartName.LastIndexOf('/') + 1;
-        var folder = orderingPartName[..separator];
-        var orderingPart = archive.GetEntry(orderingPartName);
-        var relationshipsPart = archive.GetEntry($"{folder}_rels/{orderingPartName[separator..]}.rels");
+        var separator = declaration.PartName.LastIndexOf('/') + 1;
+        var folder = declaration.PartName[..separator];
+        var orderingPart = archive.GetEntry(declaration.PartName);
+        var relationshipsPart = archive.GetEntry($"{folder}_rels/{declaration.PartName[separator..]}.rels");
 
         if (named.Count == 0 || orderingPart is null || relationshipsPart is null)
         {
@@ -437,14 +441,7 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
                 budget,
                 cancellationToken);
 
-            declared = this.DeclaredPages(
-                orderingPart,
-                orderElementName,
-                orderNamespaces,
-                targets,
-                named.Count,
-                budget,
-                cancellationToken);
+            declared = this.DeclaredPages(orderingPart, declaration, targets, named.Count, budget, cancellationToken);
         }
         catch (XmlException)
         {
@@ -506,16 +503,20 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
         return targets;
     }
 
-    /// <summary>Reads the pages an ordering part lists, in its order, resolved through its relationships.</summary>
+    /// <summary>Reads the pages an ordering part's list names, in its order, resolved through its relationships.</summary>
     /// <returns>
     /// The pages listed, skipping an entry that names a part which is not a page, or <see langword="null" /> once an
     /// entry names no part the package holds or the list grows past the pages there are — either of which already
-    /// means the declared order cannot be taken.
+    /// means the declared order cannot be taken. An ordering part with no such list yields no pages.
     /// </returns>
+    /// <remarks>
+    /// Only the list's own children are entries. The same element name is reused elsewhere in the part — a
+    /// presentation's custom slide shows each list <c>sldId</c> entries naming the same slides again — and counting
+    /// those would read every deck carrying a custom show as one that names its slides twice.
+    /// </remarks>
     private List<ZipArchiveEntry>? DeclaredPages(
         ZipArchiveEntry orderingPart,
-        string orderElementName,
-        FrozenSet<string> orderNamespaces,
+        PageOrderDeclaration declaration,
         Dictionary<string, ZipArchiveEntry?> targets,
         int pageCount,
         DecompressionBudget budget,
@@ -525,11 +526,19 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
 
         using var reader = this.parts.OpenPart(orderingPart, budget);
 
-        while (this.parts.ReadNode(reader, cancellationToken))
+        if (!this.MoveIntoDeclaredList(reader, declaration, cancellationToken))
+        {
+            return declared;
+        }
+
+        var listDepth = reader.Depth;
+
+        while (this.parts.ReadNode(reader, cancellationToken)
+            && !(reader.NodeType == XmlNodeType.EndElement && reader.Depth == listDepth))
         {
             if (reader.NodeType != XmlNodeType.Element
-                || reader.LocalName != orderElementName
-                || !orderNamespaces.Contains(reader.NamespaceURI))
+                || reader.Depth != listDepth + 1
+                || !declaration.Declares(reader, declaration.EntryElementName))
             {
                 continue;
             }
@@ -554,6 +563,24 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
         }
 
         return declared;
+    }
+
+    /// <summary>Advances a reader onto the start of the list declaring the pages' order.</summary>
+    /// <returns><see langword="true" /> when the reader stands on a list holding entries; otherwise <see langword="false" />.</returns>
+    private bool MoveIntoDeclaredList(
+        XmlReader reader,
+        PageOrderDeclaration declaration,
+        CancellationToken cancellationToken)
+    {
+        while (this.parts.ReadNode(reader, cancellationToken))
+        {
+            if (reader.NodeType == XmlNodeType.Element && declaration.Declares(reader, declaration.ListElementName))
+            {
+                return !reader.IsEmptyElement;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Reads the relationship identifier an element names, in whichever conformance class it is written.</summary>
@@ -923,4 +950,20 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
                 : int.MaxValue)
             .Select(candidate => candidate.entry),
     ];
+
+    /// <summary>Where a format declares the order of its pages.</summary>
+    /// <param name="PartName">The part holding the list, whose relationship part resolves each entry.</param>
+    /// <param name="ListElementName">The element whose children are the declared order.</param>
+    /// <param name="EntryElementName">The child naming one page by relationship identifier.</param>
+    /// <param name="Namespaces">The namespaces both elements are admitted in, one per conformance class.</param>
+    private sealed record PageOrderDeclaration(
+        string PartName,
+        string ListElementName,
+        string EntryElementName,
+        FrozenSet<string> Namespaces)
+    {
+        /// <summary>Tells whether the reader stands on the named element of this declaration's markup.</summary>
+        public bool Declares(XmlReader reader, string localName) =>
+            reader.LocalName == localName && this.Namespaces.Contains(reader.NamespaceURI);
+    }
 }

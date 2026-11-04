@@ -141,8 +141,9 @@ elements, and therefore the same bounds. The three OpenDocument formats have no 
 
 Pages are reported in the order the document itself declares, which for the two Office Open XML formats is not the
 order their parts are named: moving or deleting a slide or a tab leaves every part name where it was. A presentation's
-slides are read in the order its `ppt/presentation.xml` lists them and a workbook's sheets in the order the `<sheets>`
-element of `xl/workbook.xml` lists them, each resolved through the package's own relationship part, so a deck or a
+slides are read in the order the `sldIdLst` of its `ppt/presentation.xml` lists them — a custom slide show listed beside
+it chooses which slides it shows and changes nothing here — and a workbook's sheets in the order the `<sheets>` element
+of `xl/workbook.xml` lists them, each resolved through the package's own relationship part, so a deck or a
 workbook somebody reordered before sending reads back in the order a person sees it — and the pages named as carrying no
 text are the ones a person would count to. Both parts are read under the same bounds as every other part, so crossing one
 there stops the read as it would anywhere else. An entry in that list naming a part that is not a page — a workbook's

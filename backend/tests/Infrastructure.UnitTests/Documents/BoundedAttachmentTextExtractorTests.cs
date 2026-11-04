@@ -239,6 +239,33 @@ public sealed class BoundedAttachmentTextExtractorTests
         Assert.Equal([0, 0, 8], result.Text?.Segments.Select(segment => segment.StartOffset));
     }
 
+    /// <summary>
+    /// A custom slide show names some of a deck's slides again under the same element name, after the slide list; it
+    /// chooses what one showing presents and is not a second declaration of the deck's order, so it changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task ExtractTextAsync_APresentationCarryingACustomShow_ReadsItsSlidesInTheSlideListsOrder()
+    {
+        // Arrange
+        await using var attachment = new FakeOpenedEmailAttachment(
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "deck.pptx",
+            DocumentFixtures.PresentationWithCustomShowInDeclaredOrder(
+                ["Closing", "Opening", string.Empty],
+                customShowSlides: [2, 1],
+                3,
+                2,
+                1));
+
+        // Act
+        var result = await ExtractAsync(attachment);
+
+        // Assert
+        Assert.Equal(AttachmentTextExtractionOutcome.Extracted, result.Outcome);
+        Assert.Equal("Opening\nClosing", result.Text?.Text);
+        Assert.Equal([1], result.Text?.PagesWithoutText);
+    }
+
     /// <summary>A workbook whose tabs were moved is read in the order its sheet list declares, empty sheet included.</summary>
     [Theory]
     [InlineData(false)]
