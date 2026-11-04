@@ -1590,8 +1590,8 @@ records the decision.
 
 Every preview member is absent from the send-only answer rather than empty, so a caller tells a message with no
 subject from an answer that carries none. A `sent` message's preview carries no `sentAs`, no `text`, and no
-`attachments` once its sent copy has settled, because the outgoing record then no longer holds the message — the copy in
-the account's sent folder is what it said, as
+`attachments` once its sent copy has settled, because the outgoing record then no longer holds the message — where a
+copy was filed in the account's sent folder that copy is what it said, and where none was nothing holds it, as
 [mail delivery](mail-delivery.md#a-delivered-send-keeps-its-record-and-lets-go-of-its-message) states. The subject, the sender, and the text pass the deployment's sensitive-content
 scan before they are published, exactly as `get_email_content`'s do.
 

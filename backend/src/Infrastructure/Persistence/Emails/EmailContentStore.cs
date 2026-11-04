@@ -241,18 +241,14 @@ internal sealed class EmailContentStore(
     /// <inheritdoc />
     /// <remarks>
     /// <para>
-    /// The existence check is what enforces "written once", and it is here rather than in the caller because a caller
-    /// cannot close the window: the record and its message are inserted in one transaction, so the only writer that can
-    /// meet an existing payload is one working from a record an earlier request already committed.
+    /// "Written once" is enforced here rather than in the caller, by writing only for a record still being inserted in
+    /// this very session. The record and its message are inserted in one transaction, so a record an earlier request
+    /// committed already had its message stored, and one now holding none is one whose message was released once it was
+    /// delivered — writing there would hold a delivered send's message a second time. A second write within the
+    /// inserting session is answered by the change tracker, which already holds the first.
     /// </para>
     /// <para>
-    /// So a record an earlier request committed is never written to at all: its message was stored in the transaction
-    /// that created it, and a record now holding none is one whose message was released once it was delivered. Writing
-    /// again there would hold a delivered send's message a second time. Only a record still being inserted in this very
-    /// session takes a payload, and the change-tracker pass is the whole answer for one.
-    /// </para>
-    /// <para>
-    /// Leaving an existing payload alone abandons the object this attempt's own placement wrote, which becomes an
+    /// Writing nothing for a committed record abandons the object this attempt's own placement wrote, which becomes an
     /// orphan nothing ever pointed at. That is the designed cost of placing before the record is known, and reclamation
     /// removes it on the same path it removes a crashed write.
     /// </para>

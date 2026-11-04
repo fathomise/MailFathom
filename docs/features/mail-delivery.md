@@ -219,8 +219,9 @@ the outgoing record, how many people it names, and how many of those nothing her
 line a user looking for an odd send is looking for. What is **not** recorded is everything about the message — no
 prompt, no mail content, no subject, no body, and no address. The record answers *who asked for this and under what*,
 which turns "an agent sent something odd" from a suspicion into something a user can read; what was sent is the
-outgoing record itself — its recipients, its subject, and its `Message-ID` — while the message waits, and the copy in
-the account's sent folder once it has left, because the record lets go of its own stored MIME when that copy settles,
+outgoing record itself — its recipients, its subject, and its `Message-ID` — and, while the message waits, its stored
+MIME. Once it has left, the message itself survives only as the copy in the account's sent folder, and only where that
+copy was filed, because the record lets go of its stored MIME when the filing settles whatever its outcome,
 as [a delivered send keeps its record](#a-delivered-send-keeps-its-record-and-lets-go-of-its-message) states. Today it is written to the structured log, under the deployment's
 own log retention; the port behind it is what a durable evidence store would replace without any caller changing. One
 send is one entry: a call repeated under the idempotency key it first carried is answered with the record the first one
@@ -1193,8 +1194,12 @@ Once a send is **sent**, nothing reads its stored MIME again but the filing of i
 answered, so no attempt transmits it, and neither the outbox listing nor anything that advances a send loads it. So the
 payload is released the moment that copy settles, and the outgoing record and its recipients stay as the metadata of
 what was sent — the identity a retried command reads back, the send a notification or the outbox may still name, and
-the record of who asked for it. Keeping the bytes any longer would hold every message the account ever sent twice, once
-here and once as the stored message in its sent folder, for no purpose.
+the record of who asked for it. Where a sent copy was filed, keeping the bytes any longer would hold the message twice,
+once here and once as the stored message in its sent folder. Where none was — `Delivery:FileSentCopy` is off, the
+filing failed or found no sent folder, or an append went out and was never confirmed — the release leaves MailFathom
+holding no stored message for the send at all: the record, its recipients, its subject, and its `Message-ID` are then
+all that says what was sent. Nothing would ever read the bytes again in either case, because nothing files a delivered
+send's copy a second time.
 
 When the copy has settled depends on the account's [custody phase](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0034-holding-a-mailbox-mailfathom-alone-keeps.md),
 and the release follows it in each:

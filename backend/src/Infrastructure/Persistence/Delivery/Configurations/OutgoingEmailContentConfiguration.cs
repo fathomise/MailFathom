@@ -23,8 +23,9 @@ namespace MailFathom.Infrastructure.Persistence.Delivery.Configurations;
 /// cannot outlive the record that says who it was for.
 /// </para>
 /// <para>
-/// The opposite does not hold: a delivered send's row is deleted once its sent copy settles, and the record stays as
-/// what was sent. Nothing reads the message after that, so keeping it would be a second copy of the sent folder's own.
+/// The opposite does not hold: a delivered send's row is deleted once its sent copy settles, whatever the filing's
+/// outcome, and the record stays as what was sent. Nothing reads the message after that, because nothing files a
+/// delivered send's copy a second time.
 /// </para>
 /// </remarks>
 internal sealed class OutgoingEmailContentConfiguration : IEntityTypeConfiguration<OutgoingEmailContentEntity>
