@@ -394,6 +394,7 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
             (scope, token) => scope.GetRequiredService<IMailDraftStore>().ReadOutstandingAsync(
                 SyntheticMailAccount.Account,
                 maxCount: 50,
+                localCopySettles: false,
                 token),
             cancellationToken)).Select(draft => draft.Id),
     ];

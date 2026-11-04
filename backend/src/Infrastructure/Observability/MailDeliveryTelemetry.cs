@@ -299,7 +299,8 @@ public sealed class MailDeliveryTelemetry
         OutgoingMailFilingOutcome.DestinationUnavailable => "destination_unavailable",
         OutgoingMailFilingOutcome.OutcomeUnknown => "outcome_unknown",
         OutgoingMailFilingOutcome.Failed => "failed",
-        OutgoingMailFilingOutcome.Withdrawn => "withdrawn",
+        OutgoingMailFilingOutcome.ProviderCopyRemoved => "provider_copy_removed",
+        OutgoingMailFilingOutcome.ProviderCopyKept => "provider_copy_kept",
         _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "No metric dimension is defined for this filing outcome."),
     };
 }

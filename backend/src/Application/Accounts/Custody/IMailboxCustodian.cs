@@ -139,10 +139,11 @@ public interface IMailboxCustodian
     /// <param name="account">The account the draft belongs to.</param>
     /// <param name="rawMime">The revision's message.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
-    /// <returns>The prepared copy, or <see langword="null" /> where the revision is filed on the server by <see cref="SettleDraftAsync" /> instead, or no bound folder plays the drafts role.</returns>
+    /// <returns>The prepared copy, or <see langword="null" /> where the revision is only appended to the server by <see cref="SettleDraftAsync" />, or no bound folder plays the drafts role.</returns>
     /// <remarks>
-    /// Only a local custodian prepares one, and <see cref="LocalMailFiler.FileAsync" /> files it only once the resolver,
-    /// asked again inside that transaction, still answers with the held custodian.
+    /// A held account's copy is the whole of its filing. Where the source is the truth, a copy is prepared only where the
+    /// server last named where it puts an appended message, and <see cref="SettleDraftAsync" /> then appends it for
+    /// synchronization to bind onto the message stored here.
     /// </remarks>
     Task<LocalMailCopy?> PrepareDraftCopyAsync(
         MailAccountId account,
@@ -162,10 +163,17 @@ public interface IMailboxCustodian
     /// <summary>Prepares the sent copy of a delivered message, before the transaction that records the delivery and files it.</summary>
     /// <param name="send">The send that was accepted.</param>
     /// <param name="cancellationToken">Stops the preparation when the host is shutting down.</param>
-    /// <returns>The prepared copy, or <see langword="null" /> where the copy is filed on the server afterwards instead, or none could be prepared.</returns>
+    /// <returns>The prepared copy, or <see langword="null" /> where the copy is only appended on the server afterwards, or none could be prepared.</returns>
     /// <remarks>
+    /// <para>
+    /// A held account's copy is the whole of its filing. Where the source is the truth, a copy is prepared only where the
+    /// server last named where it puts an appended message, and <see cref="SettleFiledCopiesAsync" /> then appends it for
+    /// synchronization to bind onto the message stored here.
+    /// </para>
+    /// <para>
     /// A failure is raised; <see cref="LocalMailFiler.PrepareSentCopyAsync" /> is the entry that records it against the
     /// send, because the delivery the copy belongs to has already reached its recipients.
+    /// </para>
     /// </remarks>
     Task<LocalMailCopy?> PrepareSentCopyAsync(OutgoingEmailRecord send, CancellationToken cancellationToken);
 
@@ -177,11 +185,11 @@ public interface IMailboxCustodian
         OutgoingEmailRecord send,
         CancellationToken cancellationToken);
 
-    /// <summary>Takes back the sent copies whose provider has since filed one of its own beside them.</summary>
+    /// <summary>Removes the copies providers filed of the account's sends beside the copies this deployment appended.</summary>
     /// <param name="account">The account.</param>
-    /// <param name="cancellationToken">Cancels the read and the withdrawals.</param>
-    /// <returns>What each withdrawal did, which is empty where no copy of a send is kept on a server.</returns>
-    Task<IReadOnlyList<OutgoingMailFilingResult>> WithdrawDuplicatedSentCopiesAsync(
+    /// <param name="cancellationToken">Cancels the read and the removals.</param>
+    /// <returns>What each removal did, which is empty where no copy of a send is kept on a server.</returns>
+    Task<IReadOnlyList<OutgoingMailFilingResult>> RemoveProviderSentCopiesAsync(
         MailAccountId account,
         CancellationToken cancellationToken);
 }

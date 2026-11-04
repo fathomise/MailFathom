@@ -88,6 +88,7 @@ public sealed class MailDraftPass
         var outstanding = await this.drafts.ReadOutstandingAsync(
             account,
             this.maxDraftsPerPass,
+            await this.filer.SettlesLocallyAsync(account, cancellationToken),
             cancellationToken);
 
         var results = new List<MailDraftFilingResult>(outstanding.Count);

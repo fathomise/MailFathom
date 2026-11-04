@@ -166,13 +166,15 @@ internal sealed class MailDraftStore(MailFathomDbContext readContext) : IMailDra
     /// else is true of it, a promoted draft owes its own give-up until delivery writes one, a revision nobody has
     /// appended owes an append, and a superseded copy still standing owes a removal. An append the server never
     /// answered is deliberately none of them — nothing appends it again, and nothing can remove what nobody can name.
-    /// A draft whose current revision a held account filed into its local drafts folder is deliberately none of them
-    /// either, because it owes no server anything; one whose filed message is behind its revision is outstanding, so the
-    /// pass files the current revision over it.
+    /// Where a local copy settles the draft, a draft whose current revision was filed into the local drafts folder is
+    /// deliberately none of them either, because it owes no server anything; one whose filed message is behind its
+    /// revision is outstanding, so the pass files the current revision over it. Where it does not, the local message
+    /// says nothing about the server and the copies alone decide.
     /// </remarks>
     public async Task<IReadOnlyList<MailDraftRecord>> ReadOutstandingAsync(
         MailAccountId account,
         int maxCount,
+        bool localCopySettles,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCount);
@@ -183,7 +185,7 @@ internal sealed class MailDraftStore(MailFathomDbContext readContext) : IMailDra
             .Where(draft => draft.MailboxAccountId == accountValue
                 && (draft.DiscardedAt != null
                     || draft.PromotedToOutgoingEmailId != null
-                    || (draft.FiledRevision != draft.Revision
+                    || ((!localCopySettles || draft.FiledRevision != draft.Revision)
                         && !draft.Copies.Any(copy => copy.Stage == MailDraftCopyStage.Issued)
                         && (!draft.Copies.Any(copy => copy.Revision == draft.Revision)
                             || draft.Copies.Any(copy => copy.Revision != draft.Revision

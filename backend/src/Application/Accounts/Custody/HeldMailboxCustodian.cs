@@ -165,8 +165,8 @@ public sealed class HeldMailboxCustodian : IMailboxCustodian
         Task.FromResult<IReadOnlyList<OutgoingMailFilingResult>>([]);
 
     /// <inheritdoc />
-    /// <remarks>Its source is drained, and a copy appended there while it was still mirrored is the drain's to remove.</remarks>
-    public Task<IReadOnlyList<OutgoingMailFilingResult>> WithdrawDuplicatedSentCopiesAsync(
+    /// <remarks>Its source is drained, and a provider's copy met there while it was still mirrored is the drain's to remove.</remarks>
+    public Task<IReadOnlyList<OutgoingMailFilingResult>> RemoveProviderSentCopiesAsync(
         MailAccountId account,
         CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<OutgoingMailFilingResult>>([]);

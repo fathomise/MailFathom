@@ -101,29 +101,14 @@ public sealed class MailAccountDeliveryOptions
     /// user with mail they sent and no record of it in the client they read.
     /// </para>
     /// <para>
-    /// It is turned off for the account whose provider files the copy itself, which several webmail providers do for
-    /// mail submitted through their own servers. That is configured rather than detected: a provider files the copy
-    /// asynchronously, so looking in the folder after a delivery cannot tell a copy that is about to appear from one
-    /// that never will, and guessing wrong leaves either a duplicate or a gap.
+    /// Several webmail providers also file a copy of mail submitted through their own servers. Synchronization recognizes
+    /// that copy by the <c>Message-ID</c> this deployment minted and, where the server named where the appended copy
+    /// landed, advertises <c>UIDPLUS</c>, keeps no folders as labels, and the copy is met within fifteen minutes of the
+    /// append, removes it so the folder holds MailFathom's copy alone; otherwise both stay. Turning this off keeps the
+    /// provider's copy as the only record of the send, which is the posture for a provider whose folders are labels.
     /// </para>
     /// </remarks>
     public bool FileSentCopy { get; set; } = true;
-
-    /// <summary>Gets or sets whether this account's own filed copy is taken back out once the provider files one too.</summary>
-    /// <remarks>
-    /// <para>
-    /// It defaults to on, and it is what leaves one copy of each sent message in the folder without an operator having
-    /// to know in advance what their provider does. Where the provider files nothing it never acts, because there is
-    /// never a second occurrence to meet.
-    /// </para>
-    /// <para>
-    /// Turning it off keeps both copies, which is the answer for a provider whose own copy differs from what was
-    /// submitted in a way the user wants to keep. Turning <see cref="FileSentCopy" /> off instead is the stronger form
-    /// of the same decision: it stops the copy being appended at all, at the cost of a mailbox with no record of the
-    /// send should the provider turn out to file nothing.
-    /// </para>
-    /// </remarks>
-    public bool WithdrawDuplicateSentCopy { get; set; } = true;
 
     /// <summary>Gets or sets the submission credential, or nothing to present the account's reading credential.</summary>
     /// <remarks>

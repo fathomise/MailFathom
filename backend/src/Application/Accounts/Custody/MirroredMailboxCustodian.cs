@@ -13,6 +13,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
+using MailFathom.Domain.Delivery.Filing;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
@@ -30,7 +31,9 @@ namespace MailFathom.Application.Accounts.Custody;
 /// <para>
 /// A change on a message is written down as the durable record the account's convergence pass carries under ADR 0007,
 /// in the caller's transaction, and a copy there is a command for the server rather than a second stored message.
-/// Drafts and sent copies are appended to the server by the filing passes rather than filed locally.
+/// Drafts and sent copies are appended to the server by the filing passes; where the server last named where it puts an
+/// appended message, each is stored first, in the transaction that saves the revision or settles the delivery, and the
+/// append that follows is bound onto it.
 /// </para>
 /// </remarks>
 public sealed class MirroredMailboxCustodian : IMailboxCustodian
@@ -39,6 +42,7 @@ public sealed class MirroredMailboxCustodian : IMailboxCustodian
     private readonly ILocalMailFolderStore folders;
     private readonly IMailboxMutationRecordStore records;
     private readonly OnDemandMailboxDestinationResolver onDemandDestinations;
+    private readonly LocalMailFiler localFiler;
     private readonly MailDraftFiler draftFiler;
     private readonly OutgoingMailFilingPass outgoingFilings;
 
@@ -47,14 +51,16 @@ public sealed class MirroredMailboxCustodian : IMailboxCustodian
     /// <param name="folders">Reads the folder rows synchronization projects the source hierarchy into.</param>
     /// <param name="records">Opens the durable record a change on a message is carried by.</param>
     /// <param name="onDemandDestinations">Resolves a destination the account maps but does not synchronize.</param>
+    /// <param name="localFiler">Prepares a draft revision or a sent copy that is stored before it is appended.</param>
     /// <param name="draftFiler">Appends a draft's revisions to the drafts folder and withdraws its copies.</param>
-    /// <param name="outgoingFilings">Appends and withdraws the server copies of the account's sends.</param>
+    /// <param name="outgoingFilings">Appends the server copies of the account's sends and removes the provider's own.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public MirroredMailboxCustodian(
         MirroredMailFolderEditor folderEditor,
         ILocalMailFolderStore folders,
         IMailboxMutationRecordStore records,
         OnDemandMailboxDestinationResolver onDemandDestinations,
+        LocalMailFiler localFiler,
         MailDraftFiler draftFiler,
         OutgoingMailFilingPass outgoingFilings)
     {
@@ -62,6 +68,7 @@ public sealed class MirroredMailboxCustodian : IMailboxCustodian
         ArgumentNullException.ThrowIfNull(folders);
         ArgumentNullException.ThrowIfNull(records);
         ArgumentNullException.ThrowIfNull(onDemandDestinations);
+        ArgumentNullException.ThrowIfNull(localFiler);
         ArgumentNullException.ThrowIfNull(draftFiler);
         ArgumentNullException.ThrowIfNull(outgoingFilings);
 
@@ -69,6 +76,7 @@ public sealed class MirroredMailboxCustodian : IMailboxCustodian
         this.folders = folders;
         this.records = records;
         this.onDemandDestinations = onDemandDestinations;
+        this.localFiler = localFiler;
         this.draftFiler = draftFiler;
         this.outgoingFilings = outgoingFilings;
     }
@@ -196,7 +204,7 @@ public sealed class MirroredMailboxCustodian : IMailboxCustodian
         MailAccountId account,
         ReadOnlyMemory<byte> rawMime,
         CancellationToken cancellationToken) =>
-        Task.FromResult<LocalMailCopy?>(null);
+        this.localFiler.PrepareAheadOfAppendAsync(account, OutgoingMailFiling.Draft, rawMime, cancellationToken);
 
     /// <inheritdoc />
     public Task<MailDraftFilingResult> SettleDraftAsync(MailDraftRecord draft, CancellationToken cancellationToken) =>
@@ -204,7 +212,7 @@ public sealed class MirroredMailboxCustodian : IMailboxCustodian
 
     /// <inheritdoc />
     public Task<LocalMailCopy?> PrepareSentCopyAsync(OutgoingEmailRecord send, CancellationToken cancellationToken) =>
-        Task.FromResult<LocalMailCopy?>(null);
+        this.localFiler.PrepareStoredSentCopyAheadOfAppendAsync(send, cancellationToken);
 
     /// <inheritdoc />
     public Task<IReadOnlyList<OutgoingMailFilingResult>> SettleFiledCopiesAsync(
@@ -213,10 +221,10 @@ public sealed class MirroredMailboxCustodian : IMailboxCustodian
         this.outgoingFilings.SettleFiledCopiesOnSourceAsync(send, cancellationToken);
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<OutgoingMailFilingResult>> WithdrawDuplicatedSentCopiesAsync(
+    public Task<IReadOnlyList<OutgoingMailFilingResult>> RemoveProviderSentCopiesAsync(
         MailAccountId account,
         CancellationToken cancellationToken) =>
-        this.outgoingFilings.WithdrawDuplicatedSentCopiesOnSourceAsync(account, cancellationToken);
+        this.outgoingFilings.RemoveProviderSentCopiesOnSourceAsync(account, cancellationToken);
 
     // Absence of a parent is what names the top of the hierarchy, so an identity that names no declared folder must not
     // be read as it: the folder would be created or moved somewhere the request never asked for.

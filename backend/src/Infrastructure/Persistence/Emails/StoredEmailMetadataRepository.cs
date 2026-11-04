@@ -10,9 +10,11 @@ using MailFathom.Application.Synchronization;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Delivery.Filing;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Infrastructure.Persistence.Delivery;
 using MailFathom.Infrastructure.Persistence.Emails.Threads;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
@@ -216,7 +218,7 @@ internal sealed class StoredEmailMetadataRepository(
     }
 
     /// <inheritdoc />
-    public Task<StoredEmailId?> StoreFiledEmailAsync(
+    public async Task<StoredFiledEmail?> StoreFiledEmailAsync(
         IPersistenceSession session,
         MailAccountId account,
         MailFolderResolutionId binding,
@@ -225,7 +227,7 @@ internal sealed class StoredEmailMetadataRepository(
         AppendedMailFlags flags,
         OutgoingEmailId? filedFrom,
         CancellationToken cancellationToken) =>
-        this.StoreWithoutOccurrenceAsync(
+        await this.StoreWithoutOccurrenceAsync(
             session,
             account,
             binding,
@@ -245,7 +247,7 @@ internal sealed class StoredEmailMetadataRepository(
             cancellationToken);
 
     /// <inheritdoc />
-    public Task<StoredEmailId?> StoreLocalCopyAsync(
+    public async Task<StoredEmailId?> StoreLocalCopyAsync(
         IPersistenceSession session,
         MailAccountId account,
         MailFolderResolutionId binding,
@@ -253,7 +255,7 @@ internal sealed class StoredEmailMetadataRepository(
         long sizeOctets,
         CopiedMailFlags flags,
         CancellationToken cancellationToken) =>
-        this.StoreWithoutOccurrenceAsync(
+        (await this.StoreWithoutOccurrenceAsync(
             session,
             account,
             binding,
@@ -269,7 +271,67 @@ internal sealed class StoredEmailMetadataRepository(
                 // and a rule meeting its own copy would copy it again.
                 entity.RulesEvaluatedAt = storedAt;
             },
-            cancellationToken);
+            cancellationToken))?.Email;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Joined through the draft's own stored message, and only while that message holds no occurrence, so a revision
+    /// already bound is never moved onto a second one. What the answer can hold is bounded by what was asked, as the
+    /// filings a batch reads are.
+    /// </remarks>
+    public async Task<IReadOnlyList<FiledDraftCopy>> FindFiledDraftCopiesAsync(
+        MailAccountId account,
+        RemoteFolderPath folderPath,
+        ImapUidValidity uidValidity,
+        IReadOnlyCollection<ImapUid> uids,
+        IReadOnlyCollection<string> internetMessageIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(uids);
+        ArgumentNullException.ThrowIfNull(internetMessageIds);
+
+        if (uids.Count == 0 && internetMessageIds.Count == 0)
+        {
+            return [];
+        }
+
+        var accountValue = account.Value;
+        var folderValue = folderPath.Value;
+        var uidValidityValue = uidValidity.Value;
+        uint?[] placedUids = [.. uids.Select(static uid => (uint?)uid.Value)];
+        string[] messageIds = [.. internetMessageIds];
+
+        var copies = await readContext.MailDraftCopies
+            .AsNoTracking()
+            .Where(copy => copy.MailDraft!.MailboxAccountId == accountValue
+                && copy.FolderPath == folderValue
+                && copy.Stage == MailDraftCopyStage.Standing
+                && copy.MailDraft.FiledRevision == copy.Revision
+                && copy.MailDraft.FiledStoredEmailId != null
+                && ((copy.PlacementUidValidity == uidValidityValue && placedUids.Contains(copy.PlacementUid))
+                    || (copy.PlacementUid == null
+                        && copy.InternetMessageId != null
+                        && messageIds.Contains(copy.InternetMessageId)))
+                && readContext.StoredEmails.Any(stored => stored.Id == copy.MailDraft.FiledStoredEmailId
+                    && stored.UidValidity == null))
+            .OrderBy(copy => copy.AppendedAt)
+            .Select(copy => new
+            {
+                Email = copy.MailDraft!.FiledStoredEmailId!.Value,
+                copy.PlacementUidValidity,
+                copy.PlacementUid,
+                copy.InternetMessageId,
+            })
+            .ToArrayAsync(cancellationToken);
+
+        return
+        [
+            .. copies.Select(copy => new FiledDraftCopy(
+                StoredEmailId.Create(copy.Email),
+                StoredRemotePlacement.Of(copy.PlacementUidValidity, copy.PlacementUid),
+                copy.InternetMessageId)),
+        ];
+    }
 
     /// <inheritdoc />
     public async Task<IReadOnlyDictionary<string, StoredEmailId>> FindFiledSentCopiesAsync(
@@ -310,7 +372,7 @@ internal sealed class StoredEmailMetadataRepository(
     /// Everything else is one statement: the row is written as a synchronized one is, with its search document and its
     /// conversation placed in the same session, so it is found and threaded exactly as a message a server returned.
     /// </remarks>
-    private async Task<StoredEmailId?> StoreWithoutOccurrenceAsync(
+    private async Task<StoredFiledEmail?> StoreWithoutOccurrenceAsync(
         IPersistenceSession session,
         MailAccountId account,
         MailFolderResolutionId binding,
@@ -382,7 +444,7 @@ internal sealed class StoredEmailMetadataRepository(
             currentThreadId: null,
             cancellationToken);
 
-        return StoredEmailId.Create(entity.Id);
+        return new StoredFiledEmail(StoredEmailId.Create(entity.Id), MailFolderId.Create(entity.FolderId));
     }
 
     /// <summary>Reads whatever row already occupies one occurrence, including one this session has staged and not committed.</summary>

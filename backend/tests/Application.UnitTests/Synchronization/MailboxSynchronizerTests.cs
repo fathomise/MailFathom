@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.EmailContent.Storage;
@@ -76,6 +77,14 @@ public sealed class MailboxSynchronizerTests
 
     private static readonly MailFolderResolution HeldSentFolder =
         MailFolderResolution.FirstBindingOf(HeldSentAlias, RemoteFolderPath.Create("Sent", '/'));
+
+    private static readonly MailFolderAlias DraftsAlias = MailFolderAlias.Create("drafts");
+
+    private static readonly MailFolderMapping DraftsMapping =
+        MailFolderMapping.ToSpecialUse(DraftsAlias, MailFolderSpecialUse.Drafts);
+
+    private static readonly MailFolderResolution DraftsFolder =
+        MailFolderResolution.FirstBindingOf(DraftsAlias, RemoteFolderPath.Create("Drafts", '/'));
 
     private static readonly MailTransportSecurityPolicy RequiredTlsPolicy = MailTransportSecurityPolicy.Create(
         MailConnectionSecurity.TlsOnConnect,
@@ -302,6 +311,253 @@ public sealed class MailboxSynchronizerTests
             Arg.Any<IPersistenceSession>(),
             Arg.Any<StoredEmailId>(),
             Arg.Any<EmailOccurrenceId>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// The copy this deployment appended of a sent copy it already stored is the occurrence its filing's placement names,
+    /// so it is bound onto the stored copy and the filing observed — with no fetch and no second row.
+    /// </summary>
+    [Theory]
+    [InlineData(MailAccountCustodyPhase.Mirrored)]
+    [InlineData(MailAccountCustodyPhase.Restoring)]
+    public async Task SynchronizeAsync_TheAppendedCopyOfASentCopyStoredLocally_IsBoundOntoTheStoredCopy(MailAccountCustodyPhase phase)
+    {
+        // Arrange
+        var appended = SentOccurrence(10);
+        var filings = FilingsAnswering(SentFiling(placedAt: appended.Uid));
+        var sent = SentFolderRun(appended, filings, MailboxServerCapabilities.UidPlus, phase);
+        var storedCopy = StoreSentCopyLocally(sent);
+
+        // Act
+        var result = await sent.Synchronizer.SynchronizeAsync(appended.AccountId, HeldSentMapping, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(0, result.StoredEmailCount);
+        await sent.MetadataRepository.Received(1).TryCarryToOccurrenceAsync(
+            Arg.Any<IPersistenceSession>(),
+            storedCopy,
+            appended,
+            Arg.Any<CancellationToken>());
+        await filings.Received(1).RecordFilingObservedAsync(
+            Arg.Any<IPersistenceSession>(),
+            FiledSend,
+            OutgoingMailFiling.Sent,
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<CancellationToken>());
+        await AssertNothingFetchedOrStoredAsync(sent);
+    }
+
+    /// <summary>
+    /// A copy the provider filed of the same send beside the one this deployment appended is intercepted when every
+    /// condition for removing it holds: it is recorded for the outbox pass to remove, and nothing is fetched or stored.
+    /// </summary>
+    [Theory]
+    [InlineData(MailAccountCustodyPhase.Mirrored)]
+    [InlineData(MailAccountCustodyPhase.Restoring)]
+    public async Task SynchronizeAsync_AProviderCopyMetWithinTheWindowOnAServerNamingPlacements_IsRecordedForRemovalAndStoredAsNoRow(
+        MailAccountCustodyPhase phase)
+    {
+        // Arrange
+        var providerCopy = SentOccurrence(11);
+        var filings = FilingsAnswering(SentFiling(placedAt: ImapUid.Create(10)));
+        var sent = SentFolderRun(providerCopy, filings, MailboxServerCapabilities.UidPlus, phase);
+        StoreSentCopyLocally(sent);
+
+        // Act
+        var result = await sent.Synchronizer.SynchronizeAsync(providerCopy.AccountId, HeldSentMapping, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(0, result.StoredEmailCount);
+        await filings.Received(1).RecordProviderCopyAsync(
+            Arg.Any<IPersistenceSession>(),
+            FiledSend,
+            OutgoingMailFiling.Sent,
+            providerCopy.UidValidity,
+            providerCopy.Uid,
+            Arg.Any<CancellationToken>());
+        await sent.MetadataRepository.DidNotReceive().TryCarryToOccurrenceAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<StoredEmailId>(),
+            Arg.Any<EmailOccurrenceId>(),
+            Arg.Any<CancellationToken>());
+        await AssertNothingFetchedOrStoredAsync(sent);
+    }
+
+    /// <summary>A provider copy already recorded for removal is passed over again, so a run repeated before its checkpoint committed stores no row for it.</summary>
+    [Fact]
+    public async Task SynchronizeAsync_AProviderCopyAlreadyRecordedForRemoval_IsPassedOverWithoutARow()
+    {
+        // Arrange
+        var providerCopy = SentOccurrence(11);
+        var filings = FilingsAnswering(SentFiling(placedAt: ImapUid.Create(10)) with
+        {
+            ProviderCopy = RemoteEmailPlacement.Reported(providerCopy.UidValidity, providerCopy.Uid),
+        });
+        var sent = SentFolderRun(providerCopy, filings, MailboxServerCapabilities.UidPlus);
+
+        // Act
+        var result = await sent.Synchronizer.SynchronizeAsync(providerCopy.AccountId, HeldSentMapping, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(0, result.StoredEmailCount);
+        await filings.DidNotReceive().RecordProviderCopyAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<OutgoingEmailId>(),
+            Arg.Any<OutgoingMailFiling>(),
+            Arg.Any<ImapUidValidity>(),
+            Arg.Any<ImapUid>(),
+            Arg.Any<CancellationToken>());
+        await AssertNothingFetchedOrStoredAsync(sent);
+    }
+
+    /// <summary>
+    /// Where removing the provider's copy is not safe — a server that named no placement for appends, one whose folders
+    /// are labels over one store, or a copy met too long after the append — it is stored as a second row of the send.
+    /// </summary>
+    [Theory]
+    [InlineData(MailboxServerCapabilities.None, 2)]
+    [InlineData(MailboxServerCapabilities.UidPlus | MailboxServerCapabilities.FoldersAreLabels, 2)]
+    [InlineData(MailboxServerCapabilities.UidPlus, 16)]
+    public async Task SynchronizeAsync_AProviderCopyWhoseRemovalIsNotSafe_IsStoredAsASecondRowOfTheSend(
+        MailboxServerCapabilities advertised,
+        int minutesSinceTheAppend)
+    {
+        // Arrange
+        var providerCopy = SentOccurrence(11);
+        var filings = FilingsAnswering(SentFiling(
+            placedAt: ImapUid.Create(10),
+            appendedAt: SentFolderRunStartedAt - TimeSpan.FromMinutes(minutesSinceTheAppend)));
+        var sent = SentFolderRun(providerCopy, filings, advertised);
+        StoreSentCopyLocally(sent);
+
+        // Act
+        var result = await sent.Synchronizer.SynchronizeAsync(providerCopy.AccountId, HeldSentMapping, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(1, result.StoredEmailCount);
+        await filings.DidNotReceive().RecordProviderCopyAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<OutgoingEmailId>(),
+            Arg.Any<OutgoingMailFiling>(),
+            Arg.Any<ImapUidValidity>(),
+            Arg.Any<ImapUid>(),
+            Arg.Any<CancellationToken>());
+        await sent.MetadataRepository.DidNotReceive().TryCarryToOccurrenceAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<StoredEmailId>(),
+            Arg.Any<EmailOccurrenceId>(),
+            Arg.Any<CancellationToken>());
+        await sent.MetadataRepository.Received(1).RecordFiledFromOutgoingAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<StoredEmailId>(),
+            FiledSend,
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// A send whose own append never answered, or was never made, leaves the provider's copy the only one on the server,
+    /// so that copy is bound onto the sent copy stored locally rather than stored again or removed.
+    /// </summary>
+    [Fact]
+    public async Task SynchronizeAsync_TheProviderCopyOfASendWhoseAppendNeverAnswered_IsBoundOntoTheStoredCopy()
+    {
+        // Arrange
+        var providerCopy = SentOccurrence(11);
+        var filings = FilingsAnswering(filing: null);
+        var sent = SentFolderRun(providerCopy, filings, MailboxServerCapabilities.UidPlus);
+        var storedCopy = StoreSentCopyLocally(sent);
+
+        // Act
+        var result = await sent.Synchronizer.SynchronizeAsync(providerCopy.AccountId, HeldSentMapping, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(0, result.StoredEmailCount);
+        await sent.MetadataRepository.Received(1).TryCarryToOccurrenceAsync(
+            Arg.Any<IPersistenceSession>(),
+            storedCopy,
+            providerCopy,
+            Arg.Any<CancellationToken>());
+        await filings.DidNotReceive().RecordProviderCopyAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<OutgoingEmailId>(),
+            Arg.Any<OutgoingMailFiling>(),
+            Arg.Any<ImapUidValidity>(),
+            Arg.Any<ImapUid>(),
+            Arg.Any<CancellationToken>());
+        await AssertNothingFetchedOrStoredAsync(sent);
+    }
+
+    /// <summary>The appended copy of a draft revision stored locally is bound onto the stored revision, with no fetch and no second row.</summary>
+    [Fact]
+    public async Task SynchronizeAsync_TheAppendedCopyOfADraftRevisionStoredLocally_IsBoundOntoTheStoredRevision()
+    {
+        // Arrange
+        var options = new MailboxSynchronizationOptions { MaxMetadataBatchSize = 25, MaxRawMimeBytes = 1024 };
+        var account = MailAccountId.Create("primary");
+        var appended = EmailOccurrenceId.Create(account, DraftsFolder.Id, ImapUidValidity.Create(5), ImapUid.Create(4));
+        var drafts = ArrangeContentRun(
+            options,
+            appended.UidValidity,
+            [MetadataOf(appended, 600)],
+            appended.Uid,
+            runFolder: DraftsFolder,
+            localFolderArrivals: ArrivalsIn(account, MailAccountCustodyPhase.Mirrored));
+        StubRetrievedContent(drafts.Session, options, appended, 600);
+        var storedRevision = StoredEmailId.Create(Guid.CreateVersion7(SentFolderRunStartedAt));
+        drafts.MetadataRepository
+            .FindFiledDraftCopiesAsync(
+                account,
+                DraftsFolder.RemotePath,
+                appended.UidValidity,
+                Arg.Any<IReadOnlyCollection<ImapUid>>(),
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<CancellationToken>())
+            .Returns([new FiledDraftCopy(storedRevision, RemoteEmailPlacement.Reported(appended.UidValidity, appended.Uid), InternetMessageId: null)]);
+        drafts.MetadataRepository
+            .TryCarryToOccurrenceAsync(Arg.Any<IPersistenceSession>(), storedRevision, appended, Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        // Act
+        var result = await drafts.Synchronizer.SynchronizeAsync(account, DraftsMapping, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(0, result.StoredEmailCount);
+        await drafts.MetadataRepository.Received(1).TryCarryToOccurrenceAsync(
+            Arg.Any<IPersistenceSession>(),
+            storedRevision,
+            appended,
+            Arg.Any<CancellationToken>());
+        await AssertNothingFetchedOrStoredAsync(drafts);
+    }
+
+    /// <summary>A held account appends no draft, so its drafts folder asks for no filed revision to bind.</summary>
+    [Fact]
+    public async Task SynchronizeAsync_AHeldAccountsDraftsFolder_AsksForNoFiledRevision()
+    {
+        // Arrange
+        var options = new MailboxSynchronizationOptions { MaxMetadataBatchSize = 25, MaxRawMimeBytes = 1024 };
+        var account = MailAccountId.Create("primary");
+        var discovered = EmailOccurrenceId.Create(account, DraftsFolder.Id, ImapUidValidity.Create(5), ImapUid.Create(4));
+        var drafts = ArrangeContentRun(
+            options,
+            discovered.UidValidity,
+            [MetadataOf(discovered, 600)],
+            discovered.Uid,
+            runFolder: DraftsFolder,
+            localFolderArrivals: HeldArrivals(account));
+        StubRetrievedContent(drafts.Session, options, discovered, 600);
+
+        // Act
+        await drafts.Synchronizer.SynchronizeAsync(account, DraftsMapping, CancellationToken.None);
+
+        // Assert
+        await drafts.MetadataRepository.DidNotReceive().FindFiledDraftCopiesAsync(
+            Arg.Any<MailAccountId>(),
+            Arg.Any<RemoteFolderPath>(),
+            Arg.Any<ImapUidValidity>(),
+            Arg.Any<IReadOnlyCollection<ImapUid>>(),
+            Arg.Any<IReadOnlyCollection<string>>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -2414,6 +2670,7 @@ public sealed class MailboxSynchronizerTests
                     new RemoteFolder(InboxRemotePath, [MailFolderSpecialUse.Inbox]),
                     new RemoteFolder(ArchiveRemotePath, [MailFolderSpecialUse.Archive]),
                     new RemoteFolder(HeldSentFolder.RemotePath, [MailFolderSpecialUse.Sent]),
+                    new RemoteFolder(DraftsFolder.RemotePath, [MailFolderSpecialUse.Drafts]),
                 ]));
 
         var resolutionStore = Substitute.For<IMailFolderResolutionStore>();
@@ -2423,6 +2680,7 @@ public sealed class MailboxSynchronizerTests
             {
                 var alias when alias == ArchiveMapping.Alias => ArchiveFolder,
                 var alias when alias == HeldSentMapping.Alias => HeldSentFolder,
+                var alias when alias == DraftsMapping.Alias => DraftsFolder,
                 _ => InboxFolder,
             }));
 
@@ -3206,7 +3464,8 @@ public sealed class MailboxSynchronizerTests
         IOutgoingMailFilingStore? filingStore = null,
         LocalMailFolderArrivals? localFolderArrivals = null,
         InMemoryMailAccountCustodyStore? custodyStore = null,
-        ReceiptArrivals? receiptArrivals = null)
+        ReceiptArrivals? receiptArrivals = null,
+        IMailboxServerCapabilityStore? serverCapabilities = null)
     {
         var concurrencyRetryPolicy = new OptimisticConcurrencyRetryPolicy(
             persistenceSessionFactory,
@@ -3272,15 +3531,20 @@ public sealed class MailboxSynchronizerTests
                 new MailboxCustodianComposition(timeProvider).Custodians,
                 ClientSignalPublishers.ReachingNobody,
                 timeProvider),
+            serverCapabilities ?? MailboxCustodianComposition.NeverObservedCapabilities(),
             concurrencyRetryPolicy,
             timeProvider,
             options);
     }
 
     /// <summary>Builds the arrivals of an account MailFathom holds alone, over a store of its own.</summary>
-    private static LocalMailFolderArrivals HeldArrivals(MailAccountId account)
+    private static LocalMailFolderArrivals HeldArrivals(MailAccountId account) =>
+        ArrivalsIn(account, MailAccountCustodyPhase.Held);
+
+    /// <summary>Builds the arrivals of an account in one custody phase, over a store of its own.</summary>
+    private static LocalMailFolderArrivals ArrivalsIn(MailAccountId account, MailAccountCustodyPhase phase)
     {
-        var store = new InMemoryLocalMailFolderStore(account, MailAccountCustodyPhase.Held);
+        var store = new InMemoryLocalMailFolderStore(account, phase);
 
         return new LocalMailFolderArrivals(
             store,
@@ -3909,7 +4173,9 @@ public sealed class MailboxSynchronizerTests
         SpamClassificationSettings? classificationSettings = null,
         MailFolderResolution? runFolder = null,
         LocalMailFolderArrivals? localFolderArrivals = null,
-        IEmailMimeReader? mimeReader = null)
+        IEmailMimeReader? mimeReader = null,
+        IOutgoingMailFilingStore? filingStore = null,
+        IMailboxServerCapabilityStore? serverCapabilities = null)
     {
         var folder = runFolder ?? InboxFolder;
         var checkpointStore = Substitute.For<ISynchronizationCheckpointStore>();
@@ -3964,7 +4230,9 @@ public sealed class MailboxSynchronizerTests
             classificationSettings: classificationSettings,
             jobStore: jobStore,
             localFolderArrivals: localFolderArrivals,
-            mimeReader: mimeReader);
+            mimeReader: mimeReader,
+            filingStore: filingStore,
+            serverCapabilities: serverCapabilities);
 
         return new ContentRunArrangement(
             synchronizer,
@@ -3975,6 +4243,104 @@ public sealed class MailboxSynchronizerTests
             contentInventory,
             jobStore,
             stagedSessions);
+    }
+
+    /// <summary>When every sent-folder run below starts, which is the clock <see cref="ArrangeContentRun" /> composes.</summary>
+    private static readonly DateTimeOffset SentFolderRunStartedAt = new(2026, 7, 24, 12, 0, 0, TimeSpan.Zero);
+
+    /// <summary>The send every sent-folder run below files a copy of.</summary>
+    private static readonly OutgoingEmailId FiledSend =
+        OutgoingEmailId.Create(Guid.Parse("0198f0a0-4444-7000-8000-000000000001"));
+
+    /// <summary>The identity this deployment minted for that send.</summary>
+    private const string FiledSendMessageId = "send-2745@mailfathom.invalid";
+
+    /// <summary>Names one occurrence in the sent folder.</summary>
+    private static EmailOccurrenceId SentOccurrence(uint uid) =>
+        EmailOccurrenceId.Create(MailAccountId.Create("primary"), HeldSentFolder.Id, ImapUidValidity.Create(5), ImapUid.Create(uid));
+
+    /// <summary>Builds the confirmed filing of <see cref="FiledSend" />'s sent copy, at the placement the server named.</summary>
+    private static OutgoingMailFilingRecord SentFiling(ImapUid placedAt, DateTimeOffset? appendedAt = null) => new()
+    {
+        OutgoingEmailId = FiledSend,
+        Filing = OutgoingMailFiling.Sent,
+        FolderAlias = HeldSentAlias,
+        FolderPath = HeldSentFolder.RemotePath,
+        Stage = OutgoingMailFilingStage.Confirmed,
+        Placement = RemoteEmailPlacement.Reported(ImapUidValidity.Create(5), placedAt),
+        InternetMessageId = FiledSendMessageId,
+        AppendedAt = appendedAt ?? SentFolderRunStartedAt - TimeSpan.FromMinutes(2),
+        ObservedAt = null,
+        WithdrawnAt = null,
+    };
+
+    /// <summary>Builds a filing store answering every batch with one filing, or with none.</summary>
+    private static IOutgoingMailFilingStore FilingsAnswering(OutgoingMailFilingRecord? filing)
+    {
+        var filings = Substitute.For<IOutgoingMailFilingStore>();
+        filings
+            .ReadFilingsAtAsync(
+                Arg.Any<MailAccountId>(),
+                Arg.Any<RemoteFolderPath>(),
+                Arg.Any<ImapUidValidity>(),
+                Arg.Any<IReadOnlyCollection<ImapUid>>(),
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => filing is null ? [] : [filing]);
+
+        return filings;
+    }
+
+    /// <summary>Composes a run over the sent folder of an account that sends, holding one discovery of <see cref="FiledSend" />.</summary>
+    private static ContentRunArrangement SentFolderRun(
+        EmailOccurrenceId discovered,
+        IOutgoingMailFilingStore filings,
+        MailboxServerCapabilities advertised,
+        MailAccountCustodyPhase phase = MailAccountCustodyPhase.Mirrored)
+    {
+        var options = new MailboxSynchronizationOptions { MaxMetadataBatchSize = 25, MaxRawMimeBytes = 1024 };
+        var arrangement = ArrangeContentRun(
+            options,
+            discovered.UidValidity,
+            [MetadataOf(discovered, 600) with { InternetMessageId = FiledSendMessageId }],
+            discovered.Uid,
+            runFolder: HeldSentFolder,
+            localFolderArrivals: ArrivalsIn(discovered.AccountId, phase),
+            filingStore: filings,
+            serverCapabilities: MailboxCustodianComposition.CapabilitiesObserved(
+                MailboxServerCapabilityObservation.Observed(advertised, SentFolderRunStartedAt - TimeSpan.FromHours(1))));
+        StubRetrievedContent(arrangement.Session, options, discovered, 600);
+
+        return arrangement;
+    }
+
+    /// <summary>Says that the sent copy of <see cref="FiledSend" /> was stored locally when it was delivered, and lets it be bound.</summary>
+    private static StoredEmailId StoreSentCopyLocally(ContentRunArrangement run)
+    {
+        var storedCopy = StoredEmailId.Create(Guid.CreateVersion7(SentFolderRunStartedAt));
+        run.MetadataRepository
+            .FindFiledSentCopiesAsync(Arg.Any<MailAccountId>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, StoredEmailId> { [FiledSendMessageId] = storedCopy });
+        run.MetadataRepository
+            .TryCarryToOccurrenceAsync(Arg.Any<IPersistenceSession>(), storedCopy, Arg.Any<EmailOccurrenceId>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        return storedCopy;
+    }
+
+    /// <summary>Asserts that a run recognized its discovery without reading its payload or storing a row for it.</summary>
+    private static async Task AssertNothingFetchedOrStoredAsync(ContentRunArrangement run)
+    {
+        await run.MetadataRepository.DidNotReceive().UpsertMetadataAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<RemoteEmailMetadata>(),
+            Arg.Any<ExtractedEmailMetadata?>(),
+            Arg.Any<StoredEmailContentAvailability>(),
+            Arg.Any<CancellationToken>());
+        await run.Session.DidNotReceive().FetchEmailContentWithoutSettingSeenAsync(
+            Arg.Any<EmailOccurrenceId>(),
+            Arg.Any<long>(),
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>Composes a run over a held account's sent folder holding one message, with its payload retrievable.</summary>

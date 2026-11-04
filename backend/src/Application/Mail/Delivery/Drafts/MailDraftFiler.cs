@@ -159,6 +159,13 @@ public sealed class MailDraftFiler
         }
     }
 
+    /// <summary>Reports whether a revision filed into the account's local drafts folder settles a draft, which it does only where MailFathom holds the mailbox.</summary>
+    /// <param name="account">The account the drafts belong to.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns><see langword="true" /> on a held account, where no server is owed anything for a filed revision.</returns>
+    internal async Task<bool> SettlesLocallyAsync(MailAccountId account, CancellationToken cancellationToken) =>
+        (await this.custodians.ResolveAsync(account, cancellationToken)).PlacesMailInLocalFolders;
+
     /// <summary>Reads and places a revision's local copy, where the account's custodian files one, before the transaction that writes the revision.</summary>
     /// <param name="account">The account the draft belongs to.</param>
     /// <param name="rawMime">The revision's message.</param>
@@ -326,11 +333,36 @@ public sealed class MailDraftFiler
 
         var divergence = withdrawal ?? unanswered;
 
-        await this.commitPolicy.CommitAsync(
-            (session, token) => this.drafts.RemoveAsync(session, draft.Id, token),
-            CancellationToken.None);
+        await this.RemoveWithFiledEmailAsync(draft);
 
         return Result(draft, MailDraftFilingOutcome.Discarded, divergence: divergence);
+    }
+
+    /// <summary>Removes a given-up draft's record and erases the message filed of it locally, in one commit.</summary>
+    /// <remarks>
+    /// The message goes with the record because nothing else names it once the record is gone. Whether its source
+    /// occurrence is left for the drain is the local filer's to decide from the account's phase, so on a mirrored account
+    /// the server copies are only what the caller has already withdrawn.
+    /// </remarks>
+    private async Task RemoveWithFiledEmailAsync(MailDraftRecord draft)
+    {
+        MailFolderId? erasedFrom = null;
+
+        await this.commitPolicy.CommitAsync(
+            async (session, token) =>
+            {
+                erasedFrom = draft.FiledEmail is { } filedEmail
+                    ? await this.localFiler.EraseAsync(session, draft.AccountId, filedEmail, token)
+                    : null;
+
+                await this.drafts.RemoveAsync(session, draft.Id, token);
+            },
+            CancellationToken.None);
+
+        if (erasedFrom is { } folder && draft.FiledEmail is { } erased)
+        {
+            this.localFiler.AnnounceErased(draft.AccountId, folder, erased);
+        }
     }
 
     /// <summary>Withdraws the copies it still can, and abandons the ones it cannot with the reason it could not.</summary>
@@ -545,23 +577,7 @@ public sealed class MailDraftFiler
     {
         if (draft.IsDiscarded)
         {
-            MailFolderId? erasedFrom = null;
-
-            await this.commitPolicy.CommitAsync(
-                async (session, token) =>
-                {
-                    erasedFrom = draft.FiledEmail is { } filedEmail
-                        ? await this.localFiler.EraseAsync(session, draft.AccountId, filedEmail, token)
-                        : null;
-
-                    await this.drafts.RemoveAsync(session, draft.Id, token);
-                },
-                CancellationToken.None);
-
-            if (erasedFrom is { } folder && draft.FiledEmail is { } erased)
-            {
-                this.localFiler.AnnounceErased(draft.AccountId, folder, erased);
-            }
+            await this.RemoveWithFiledEmailAsync(draft);
 
             return Result(draft, MailDraftFilingOutcome.Discarded);
         }

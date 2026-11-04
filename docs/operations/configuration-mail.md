@@ -707,8 +707,7 @@ what it does not.
 | `…:Delivery:Secrets:Password` | secret block | unset (the account's) | A block naming no reference reads as absent and falls back to the account's credential | reload; material per connection |
 | `…:Delivery:FromAddress` | string | unset (the account's `UserName` when it is a mailbox address) | A mailbox address; startup refuses an endpoint that resolves to none | reload |
 | `…:Delivery:FromDisplayName` | string | unset (the address alone) | The name recipients see this mailbox sign itself with; deliberately not the account's `DisplayName` | reload |
-| `…:Delivery:FileSentCopy` | bool | `true` | Whether a delivered message is appended to the folder this account maps to the `Sent` role | reload |
-| `…:Delivery:WithdrawDuplicateSentCopy` | bool | `true` | Whether that appended copy is taken back out once the provider files one of its own beside it | reload |
+| `…:Delivery:FileSentCopy` | bool | `true` | Whether a delivered message is filed into the folder this account maps to the `Sent` role | reload |
 | `…:Delivery:SmimeSigningCertificate:Bundle` | secret block | unset | A PKCS#12 bundle holding the signing certificate, its private key, and any intermediates; its nested `Password` opens it. Never beside the PEM pair below | reload |
 | `…:Delivery:SmimeSigningCertificate:CertificateChain` | secret block | unset | PEM; the first certificate is the signing certificate and the rest are its chain. Never without `PrivateKey` beside it | reload |
 | `…:Delivery:SmimeSigningCertificate:PrivateKey` | secret block | unset | The PEM private key of that certificate; its nested `Password` decrypts it when it is encrypted. Never without `CertificateChain` beside it | reload |
@@ -725,15 +724,15 @@ account. What an enabled account may then write, and how much of it, is
 [`Deployment:ReadOnly`](configuration-runtime.md#deployment).
 
 `FileSentCopy` is on because a submission server files nothing: without it the user's own mail client shows a Sent
-folder that is empty however much this account sends. `WithdrawDuplicateSentCopy` is what answers the provider that
-files the copy itself: the append still happens, and the copy this deployment made is taken back out once
-synchronization has actually met the provider's own beside it, so neither setting has to be decided in advance from
-what a provider is believed to do. Turning `WithdrawDuplicateSentCopy` off keeps both copies, and turning
-`FileSentCopy` off is the stronger form of the same decision — no copy is appended at all, at the cost of a mailbox
-with no record of the send should the provider turn out to file nothing.
-[The copy in the account's own folders](../features/mail-delivery.md#the-copy-in-the-accounts-own-folders) states what
-is detected and what is not, the window a duplicate is recognized within, and what an account that maps no `Sent`
-folder does instead.
+folder that is empty however much this account sends. A provider that files the copy itself is answered without a
+setting: the copy this deployment filed is kept, and the provider's own is recognized as synchronization meets it and
+removed from the server where that is safe, so the setting need not be decided in advance from what a provider is
+believed to do. Turning `FileSentCopy` off keeps the provider's copy instead — no copy is filed at all, at the cost of
+a mailbox with no record of the send should the provider turn out to file nothing — and it is the answer for a
+provider whose folders are labels over one store, where the provider's copy is never removed.
+[The copy in the account's own folders](../features/mail-delivery.md#the-copy-in-the-accounts-own-folders) states when
+the copy is stored before it is appended, what is detected and what is not, the window a provider's copy is removed
+within, and what an account that maps no `Sent` folder does instead.
 
 The permitted mechanisms, both weakenings, and the certificate authority are **not** repeated here: they are one
 decision the account makes about itself in `TransportSecurity` above, and both endpoints are reached under it. What

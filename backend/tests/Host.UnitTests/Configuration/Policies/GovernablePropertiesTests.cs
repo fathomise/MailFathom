@@ -72,7 +72,6 @@ public sealed class GovernablePropertiesTests
                 "Delivery:SmimeSigningCertificate:CertificateChain Secret",
                 "Delivery:SmimeSigningCertificate:PrivateKey Secret",
                 "Delivery:UserName Value",
-                "Delivery:WithdrawDuplicateSentCopy Value",
                 "DisplayName Value",
                 "EarliestEmailReceivedDate Value",
                 "EmailAddress Value",

@@ -90,6 +90,8 @@ internal static class OutgoingEmailRecordMapping
             AppendedAt = entity.AppendedAt,
             ObservedAt = entity.ObservedAt,
             WithdrawnAt = entity.WithdrawnAt,
+            ProviderCopy = StoredRemotePlacement.Of(entity.ProviderCopyUidValidity, entity.ProviderCopyUid),
+            ProviderCopySettledAt = entity.ProviderCopySettledAt,
         };
     }
 

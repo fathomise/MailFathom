@@ -17,8 +17,8 @@ namespace MailFathom.Application.Mail.Delivery.Filing;
 /// <remarks>
 /// <para>
 /// Two moments, and they are the two an outbox pass already reaches. After a send has settled it files the sent copy
-/// where the account asked for one, and once synchronization has met a second occurrence of a filed sent copy it takes
-/// the appended one back out where the account asked for that.
+/// where the account asked for one, and once synchronization has recorded a copy the provider filed of the same send
+/// beside it, it removes the provider's copy, so the copy this deployment stored and appended is the one the folder keeps.
 /// </para>
 /// <para>
 /// Nothing here files a copy of a send that has not left. What is waiting is the account's outbox, which MailFathom
@@ -34,18 +34,13 @@ namespace MailFathom.Application.Mail.Delivery.Filing;
 /// </remarks>
 public sealed class OutgoingMailFilingPass
 {
-    /// <summary>
-    /// How long after an append a second occurrence of the message is still read as the provider having filed its own.
-    /// </summary>
+    /// <summary>How long after an append a provider's copy recorded for removal is still removed rather than kept.</summary>
     /// <remarks>
-    /// It bounds a race between one append and the synchronization run that meets what the provider filed, which is
-    /// minutes on any account being synchronized at all. Past it the copy has been in the user's folder long enough to
-    /// have been read, replied from, moved, or flagged, and a duplicate discovered then is more likely to be the user's
-    /// own act than the provider's — so both copies stand and the one the user does not want is the one they delete. It
-    /// is a constant rather than a setting because it measures how long this system waits to recognize its own copy,
-    /// which is not a quantity an operator has grounds to tune.
+    /// The copy was met within <see cref="OutgoingMailFilingRecord.ProviderCopyWindow" /> of the append, and a removal
+    /// the server could not serve is asked again on every pass for as long again. Past that the copy has stood beside the
+    /// person's own long enough for another client to have acted on it, so it is kept.
     /// </remarks>
-    private static readonly TimeSpan DuplicateSentCopyWindow = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan ProviderCopyRemovalDeadline = OutgoingMailFilingRecord.ProviderCopyWindow * 2;
 
     private readonly IOutgoingEmailStore outgoingEmails;
     private readonly OutgoingMailFiler filer;
@@ -55,21 +50,21 @@ public sealed class OutgoingMailFilingPass
     private readonly IEmailContentStore contents;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly TimeProvider timeProvider;
-    private readonly int maxWithdrawalsPerPass;
+    private readonly int maxRemovalsPerPass;
 
     /// <summary>Initializes the pass from the outbox it reads and the filer it acts through.</summary>
     /// <param name="outgoingEmails">Holds the records whose copies this pass keeps in step.</param>
-    /// <param name="filer">Appends and withdraws one copy.</param>
+    /// <param name="filer">Appends one copy, and removes the copy a provider filed beside it.</param>
     /// <param name="filingPolicies">Answers whether this account files a copy of what it sends.</param>
-    /// <param name="filings">Answers which filed sent copies the folder holds a second occurrence of.</param>
+    /// <param name="filings">Answers which provider copies synchronization recorded for removal.</param>
     /// <param name="custodians">Chooses whether an account keeps copies of its sends on a server at all.</param>
     /// <param name="contents">Releases a delivered send's stored message once its sent copy no longer needs it.</param>
     /// <param name="commitPolicy">Commits that release.</param>
     /// <param name="timeProvider">Decides how recently a sent copy was appended.</param>
-    /// <param name="settings">Bounds how many sent copies one pass withdraws.</param>
+    /// <param name="settings">Bounds how many provider copies one pass removes.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     /// <remarks>
-    /// The withdrawals are bounded by the same number as the deliveries, because both are one conversation with a server
+    /// The removals are bounded by the same number as the deliveries, because both are one conversation with a server
     /// per send and what one pass leaves the next one takes. A second bound would be a second number to keep in step for
     /// no difference an operator could observe.
     /// </remarks>
@@ -102,69 +97,59 @@ public sealed class OutgoingMailFilingPass
         this.contents = contents;
         this.commitPolicy = commitPolicy;
         this.timeProvider = timeProvider;
-        this.maxWithdrawalsPerPass = settings.MaxDeliveriesPerPass;
+        this.maxRemovalsPerPass = settings.MaxDeliveriesPerPass;
     }
 
-    /// <summary>Takes back the sent copies whose provider has since filed one of its own beside them.</summary>
+    /// <summary>Removes the copies providers filed of the account's sends beside the copies this deployment stored and appended.</summary>
     /// <param name="account">The account whose sent folder is brought back to one copy of each message.</param>
-    /// <param name="cancellationToken">Cancels the read and the withdrawals.</param>
-    /// <returns>What each withdrawal did, which is empty on an account that has asked for none.</returns>
+    /// <param name="cancellationToken">Cancels the read and the removals.</param>
+    /// <returns>What each removal did, which is empty on an account with nothing recorded.</returns>
     /// <remarks>
     /// <para>
     /// A provider that files the sent copy itself does it asynchronously, so nothing before the send can tell whether it
-    /// will. What can be told, once synchronization has met a second occurrence of the message in the same folder, is
-    /// that the folder now holds two — and the one this system appended is the one it may take back out.
+    /// will. Synchronization recognizes the provider's copy as it meets it, stores no row for it, and records it for
+    /// removal only where removing a message this deployment did not compose is safe; everything else about it is
+    /// decided there.
     /// </para>
     /// <para>
-    /// It runs on the outbox pass rather than on the synchronization run that discovers the duplicate, because taking a
-    /// message out of a folder is a write and no read path may obtain the session that makes one. The cost is one query
-    /// per pass on an account whose sent folder holds no duplicate, which is every account whose provider files
-    /// nothing. A held account withdraws nothing: its source is drained, and a copy appended there while it was still
-    /// mirrored is the drain's to remove.
-    /// </para>
-    /// <para>
-    /// One pass withdraws no more copies than it delivers sends: each is one conversation with a server, and what one pass leaves the next one takes. A record an erasure
-    /// removed between the read and the withdrawal is passed over rather than reported, because the copy it named
-    /// belongs to a message this deployment no longer holds.
+    /// It runs on the outbox pass rather than on the synchronization run that met the copy, because removing a message
+    /// is a write and no read path may obtain the session that makes one. The cost is one indexed query per pass on an
+    /// account with nothing recorded, which is every account whose provider files nothing. A held account removes
+    /// nothing: its source is drained.
     /// </para>
     /// </remarks>
-    public async Task<IReadOnlyList<OutgoingMailFilingResult>> WithdrawDuplicatedSentCopiesAsync(
+    public async Task<IReadOnlyList<OutgoingMailFilingResult>> RemoveProviderSentCopiesAsync(
         MailAccountId account,
         CancellationToken cancellationToken)
     {
-        if (!this.filingPolicies.WithdrawsDuplicateSentCopy(account))
-        {
-            return [];
-        }
-
         var custodian = await this.custodians.ResolveAsync(account, cancellationToken);
 
-        return await custodian.WithdrawDuplicatedSentCopiesAsync(account, cancellationToken);
+        return await custodian.RemoveProviderSentCopiesAsync(account, cancellationToken);
     }
 
-    /// <summary>Withdraws, over IMAP, the appended sent copies the provider filed a copy of its own beside.</summary>
+    /// <summary>Removes, over IMAP, the provider copies synchronization recorded beside the account's own sent copies.</summary>
     /// <param name="account">The account whose sent folder is brought back to one copy of each message.</param>
-    /// <param name="cancellationToken">Cancels the read and the withdrawals.</param>
-    /// <returns>What each withdrawal did.</returns>
-    internal async Task<IReadOnlyList<OutgoingMailFilingResult>> WithdrawDuplicatedSentCopiesOnSourceAsync(
+    /// <param name="cancellationToken">Cancels the read and the removals.</param>
+    /// <returns>What each removal did.</returns>
+    /// <remarks>
+    /// One pass removes no more copies than it delivers sends, and a copy whose removal the server could not serve before
+    /// <see cref="ProviderCopyRemovalDeadline" /> is kept without asking it again.
+    /// </remarks>
+    internal async Task<IReadOnlyList<OutgoingMailFilingResult>> RemoveProviderSentCopiesOnSourceAsync(
         MailAccountId account,
         CancellationToken cancellationToken)
     {
-        var duplicated = await this.filings.ReadDuplicatedSentCopiesAsync(
+        var awaiting = await this.filings.ReadProviderCopiesAwaitingRemovalAsync(
             account,
-            this.timeProvider.GetUtcNow() - DuplicateSentCopyWindow,
-            this.maxWithdrawalsPerPass,
+            this.maxRemovalsPerPass,
             cancellationToken);
 
-        var results = new List<OutgoingMailFilingResult>(duplicated.Count);
-        foreach (var outgoingEmailId in duplicated)
+        var results = new List<OutgoingMailFilingResult>(awaiting.Count);
+        foreach (var filing in awaiting)
         {
-            if (await this.outgoingEmails.FindAsync(outgoingEmailId, cancellationToken) is not { } record)
-            {
-                continue;
-            }
-
-            results.Add(await this.filer.WithdrawAsync(record, OutgoingMailFiling.Sent, cancellationToken));
+            results.Add(this.timeProvider.GetUtcNow() - filing.AppendedAt > ProviderCopyRemovalDeadline
+                ? await this.filer.SettleProviderCopyKeptAsync(filing)
+                : await this.filer.RemoveProviderCopyAsync(account, filing, cancellationToken));
         }
 
         return results;

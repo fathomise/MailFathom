@@ -34,27 +34,6 @@ internal sealed class InMemoryOutgoingMailFilingStore(InMemoryOutgoingEmailStore
 {
     private readonly Dictionary<(OutgoingEmailId Record, string Filing), OutgoingMailFilingRecord> rows = [];
     private readonly Dictionary<OutgoingEmailId, MailFathomErrorCode> failures = [];
-    private readonly List<DiscoveredOccurrence> discoveries = [];
-
-    /// <summary>Records that a folder holds one occurrence of a message, which is what a duplicate is found among.</summary>
-    /// <param name="folderPath">The folder the occurrence sits in.</param>
-    /// <param name="uidValidity">The UID space that folder is in.</param>
-    /// <param name="uid">The UID the occurrence carries.</param>
-    /// <param name="internetMessageId">The <c>Message-ID</c> it reports.</param>
-    /// <param name="expunged">Whether the row is a tombstone, which is a message the folder no longer holds.</param>
-    /// <remarks>
-    /// The real store finds the second occurrence by joining the filings to the messages synchronization has stored, so
-    /// the double is given those messages rather than the answer: a test says what the folder holds and the join is
-    /// still the thing under test. A tombstoned row is stored here too rather than left out, because the real query
-    /// reads the same table and excluding it is the behaviour under test.
-    /// </remarks>
-    internal void RecordDiscoveredOccurrence(
-        RemoteFolderPath folderPath,
-        ImapUidValidity uidValidity,
-        ImapUid uid,
-        string internetMessageId,
-        bool expunged = false) =>
-        this.discoveries.Add(new DiscoveredOccurrence(folderPath, uidValidity, uid, internetMessageId, expunged));
 
     /// <summary>Reads back what this store holds about one record's copies.</summary>
     /// <param name="outgoingEmailId">The record to read.</param>
@@ -134,22 +113,38 @@ internal sealed class InMemoryOutgoingMailFilingStore(InMemoryOutgoingEmailStore
         return Task.CompletedTask;
     }
 
-    public Task RecordWithdrawnAsync(
+    public Task RecordProviderCopyAsync(
         IPersistenceSession session,
         OutgoingEmailId outgoingEmailId,
         OutgoingMailFiling filing,
-        DateTimeOffset withdrawnAt,
+        ImapUidValidity uidValidity,
+        ImapUid uid,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
 
         var row = this.Require(outgoingEmailId, filing);
 
-        this.Write(row with
+        if (row.ProviderCopy.Uid is null)
         {
-            Stage = OutgoingMailFilingStage.Withdrawn,
-            WithdrawnAt = row.WithdrawnAt ?? withdrawnAt,
-        });
+            this.Write(row with { ProviderCopy = RemoteEmailPlacement.Reported(uidValidity, uid) });
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task RecordProviderCopySettledAsync(
+        IPersistenceSession session,
+        OutgoingEmailId outgoingEmailId,
+        OutgoingMailFiling filing,
+        DateTimeOffset settledAt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var row = this.Require(outgoingEmailId, filing);
+
+        this.Write(row with { ProviderCopySettledAt = row.ProviderCopySettledAt ?? settledAt });
 
         return Task.CompletedTask;
     }
@@ -189,30 +184,22 @@ internal sealed class InMemoryOutgoingMailFilingStore(InMemoryOutgoingEmailStore
         return Task.FromResult(found);
     }
 
-    public Task<IReadOnlyList<OutgoingEmailId>> ReadDuplicatedSentCopiesAsync(
+    public Task<IReadOnlyList<OutgoingMailFilingRecord>> ReadProviderCopiesAwaitingRemovalAsync(
         MailAccountId account,
-        DateTimeOffset appendedSince,
         int limit,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
 
-        IReadOnlyList<OutgoingEmailId> duplicated =
+        IReadOnlyList<OutgoingMailFilingRecord> awaiting =
         [
             .. this.rows.Values
-                .Where(row => this.AccountOf(row) == account
-                    && row.Filing == OutgoingMailFiling.Sent
-                    && row.Stage == OutgoingMailFilingStage.Confirmed
-                    && row.AppendedAt >= appendedSince
-                    && row.Placement is { UidValidity: not null, Uid: not null }
-                    && row.InternetMessageId is not null
-                    && this.discoveries.Any(occurrence => occurrence.IsSecondOccurrenceOf(row)))
+                .Where(row => this.AccountOf(row) == account && row.AwaitsProviderCopyRemoval)
                 .OrderBy(row => row.AppendedAt)
-                .Take(limit)
-                .Select(row => row.OutgoingEmailId),
+                .Take(limit),
         ];
 
-        return Task.FromResult(duplicated);
+        return Task.FromResult(awaiting);
     }
 
     public Task RecordFilingObservedAsync(
@@ -255,22 +242,4 @@ internal sealed class InMemoryOutgoingMailFilingStore(InMemoryOutgoingEmailStore
             outgoingEmailId,
             this.Read(outgoingEmailId),
             this.ReadFailure(outgoingEmailId));
-
-    /// <summary>One message the folder holds, as synchronization would have stored it.</summary>
-    private sealed record DiscoveredOccurrence(
-        RemoteFolderPath FolderPath,
-        ImapUidValidity UidValidity,
-        ImapUid Uid,
-        string InternetMessageId,
-        bool Expunged)
-    {
-        /// <summary>Reports whether this occurrence is the same message at a UID the filing's placement does not name.</summary>
-        internal bool IsSecondOccurrenceOf(OutgoingMailFilingRecord filing) =>
-            !this.Expunged
-            && this.FolderPath.NamesSameFolderAs(filing.FolderPath)
-            && filing.Placement is { UidValidity: { } placedUidValidity, Uid: { } placedUid }
-            && this.UidValidity == placedUidValidity
-            && this.Uid != placedUid
-            && string.Equals(this.InternetMessageId, filing.InternetMessageId, StringComparison.Ordinal);
-    }
 }

@@ -1167,9 +1167,11 @@ never counted here, so the two series are read together rather than one being a 
 outgoing message into one of this account's own folders, tagged with the account alias, `mailfathom.mail.filing.place`
 — `draft`, `sent`, or `undetermined` where a failure ended before any place was chosen — and
 `mailfathom.mail.filing.outcome`, whose values are `filed`, `already_filed`,
-`not_requested`, `destination_unavailable`, `outcome_unknown`, `failed`, and `withdrawn`. Most of them are ordinary:
-`not_requested` is an account that files no copy, `already_filed` is a settlement asked for twice, and `withdrawn` is a
-sent copy going away because the account's own provider filed one of its own beside it. Two are worth a dashboard. `destination_unavailable` is a deployment whose
+`not_requested`, `destination_unavailable`, `outcome_unknown`, `failed`, `provider_copy_removed`, and
+`provider_copy_kept`. Most of them are ordinary: `not_requested` is an account that files no copy, `already_filed` is a
+settlement asked for twice, `provider_copy_removed` is the account's own provider having filed a second copy of a send
+that was then removed beside the one this deployment stored, and `provider_copy_kept` is such a copy left standing
+because removing it was refused or no longer safe. Two are worth a dashboard. `destination_unavailable` is a deployment whose
 `Sent` folder mapping resolves to nothing, so every message it sends goes unrecorded in the mailbox — a configuration
 answer rather than a server one. And `outcome_unknown` means the same here as it does above and for the same reason:
 the append may or may not have reached the folder, nothing will attempt it again, and repeating it would put a second

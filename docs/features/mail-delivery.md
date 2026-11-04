@@ -1089,37 +1089,51 @@ answered, and an earlier revision's copy that could not be taken back out, each 
 something other than what MailFathom holds. The filer raises one notification for the draft's writer when it first
 records either, leading to the draft; a draft being given up raises none.
 
-**The sent copy is appended after a delivery the server acknowledged, and only then.** Whether it is appended at all is
-`Delivery:FileSentCopy`, a per-account setting that defaults to on. Whether it is appended is never decided by looking
+**The sent copy is filed after a delivery the server acknowledged, and only then.** Whether it is filed at all is
+`Delivery:FileSentCopy`, a per-account setting that defaults to on. Whether it is filed is never decided by looking
 at the folder: a provider that files the copy itself does so asynchronously, so a look immediately after a delivery
 cannot tell *will appear shortly* from *will never appear*, and a record of what somebody sent that never existed is
 the worse of the two errors.
 
-**What the provider filed is answered afterwards, once it is a fact rather than a guess.** Where the same message turns
-up a second time in the same folder, the copy this system appended is taken back out and the provider's is what the
-user keeps. That is `Delivery:WithdrawDuplicateSentCopy`, per account and on by default, so an ordinary account ends
-with one copy of each message it sent whichever kind of provider it is on. Four things bound it, and each is the
-reason it can be done at all:
+**Where the account's server names where an appended message lands, the copy is stored locally first.** That is a
+server last observed advertising `UIDPLUS` or `IMAP4rev2` — what each account's server advertised is recorded after
+every login. On a mirrored or restoring account the sent copy is then a stored message written in the transaction that
+settles the delivery, so it is in the person's sent folder, searchable, and announced to their clients the moment the
+submission server accepts the message, before anything is appended. A draft revision is stored the same way in the
+transaction that saves it, replacing the message of the revision before it. The append follows as before, and
+synchronization binds the occurrence it produced onto the stored row rather than storing a second one: by the
+placement the `APPENDUID` response named, or by the `Message-ID` minted for the message where it named none. Binding
+fetches no body and announces nothing, because the row was announced when it was stored. Where the server was never
+observed with either capability the copy is appended first and stored when synchronization brings it back, as it was
+before. A held account files both locally and appends nothing.
 
-- **The occurrence has to have been named.** The withdrawal reaches the UID the `APPENDUID` response reported, so a
-  server advertising no `UIDPLUS` withdraws nothing: the two copies carry one `Message-ID` between them and nothing
-  says which of them is this deployment's, and guessing would be as likely to delete the provider's.
-- **The folder has to still hold the other copy.** The second occurrence is read from what synchronization stored, and
-  a row the server has since expunged is a tombstone rather than a copy — so a duplicate the user has already deleted
-  decides nothing, and this deployment's own copy stays as the one record of the send.
-- **It is recognized within fifteen minutes of the append.** That bounds the race between the append and the
+**What the provider filed is answered afterwards, once it is a fact rather than a guess.** A provider that files its
+own copy puts a second occurrence of the same message in the sent folder. Synchronization recognizes it by the
+`Message-ID` this deployment minted, and where removing a message MailFathom did not compose is safe it intercepts it:
+no row is stored for it, so it reaches no rule, spam classification, cut, embedding, or derivation, and the next outbox
+pass removes it from the server. The copy the person keeps is the one stored first, which is the one everything
+derived from the send already read. Four things bound the removal, and each is the reason it can be done at all:
+
+- **This deployment's own append was answered, and named its occurrence.** The provider's copy is told from this
+  deployment's by the `APPENDUID` the server reported, so it is another occurrence of the same identity in the same
+  UID space. An append that never answered, or one `Delivery:FileSentCopy` turned off, leaves the provider's copy the
+  only one on the server, and it is bound onto the stored row instead.
+- **The server advertises `UIDPLUS`.** The removal is `UID STORE +FLAGS (\Deleted)` and `UID EXPUNGE` naming the
+  provider's UID alone, through the write session, and it first reads that UID back and removes nothing whose
+  `Message-ID` is not the send's. A server whose folders are labels over one store (`X-GM-EXT-1`) removes nothing,
+  because an expunge there takes a label off a message rather than the message.
+- **It is met within fifteen minutes of the append.** That bounds the race between the append and the
   synchronization run that meets what the provider filed — three runs at the default
-  [`MailSynchronization:Interval`](../operations/configuration-mail.md#mailsynchronization), each of which drains the
-  outbox and looks for a duplicate as it goes, so a deployment that lengthened that interval past the window is the one
-  place a duplicate goes unnoticed. A second occurrence met later is left alone, because by then the copy has been in
-  the folder long enough to have been read, replied from, moved, or flagged, and what the user did with it is theirs to
-  undo.
-- **It runs on the outbox pass rather than on the run that discovers the duplicate.** Taking a message out of a folder
-  is a write, and [no read path may obtain the session](imap-synchronization.md) that makes one.
+  [`MailSynchronization:Interval`](../operations/configuration-mail.md#mailsynchronization). A copy met later stays on
+  the server and is stored as a second row of the send, because by then it has been in the folder long enough to have
+  been read, replied from, moved, or flagged, and a mirrored account shows what its server holds. A removal the server
+  could not serve is asked again on each pass for as long again, and kept after that.
+- **It runs on the outbox pass rather than on the run that meets the copy.** Removing a message from a folder is a
+  write, and [no read path may obtain the session](imap-synchronization.md) that makes one.
 
-Turning `WithdrawDuplicateSentCopy` off keeps both copies. Turning `FileSentCopy` off is the stronger form of the same
-decision and is still the right one where a provider is known to file, since it spends no append and no withdrawal at
-all; what it costs is a mailbox with no record of the send should that belief turn out to be wrong.
+Turning `FileSentCopy` off is still the right answer where a provider is known to file, since it spends no append and
+no removal at all, and the provider's copy is then stored as the record of the send; what it costs is a mailbox with
+no record of the send should that belief turn out to be wrong.
 
 **The bytes are the ones the recipients received.** The append reuses the stored MIME rather than recomposing it, for
 the reason a retry does: a recomposed message carries a different `Message-ID` and threads as a second message in every
@@ -1134,10 +1148,10 @@ again.
 
 **The copy comes back through synchronization and is recognized rather than guessed at.** Where the server advertises
 RFC 4315 `UIDPLUS`, its `APPENDUID` response names the occurrence exactly and that is the join; where it does not, the
-`Message-ID` this system minted, read back off the appended bytes, is what recognizes it. A second occurrence carrying
-that identity is recognized as well rather than only the first, because a provider that filed its own copy filed the
-user's own outgoing message and the copy that stays behind is as much this deployment's as the one withdrawn. Every
-such stored message
+`Message-ID` this system minted, read back off the appended bytes, is what recognizes it. Where the copy was stored
+locally first, the join binds the occurrence onto that row; otherwise the copy is stored as it is met. A second
+occurrence carrying that identity that is kept rather than removed is recognized as well rather than only the first,
+because a provider that filed its own copy filed the user's own outgoing message. Every such stored message
 is marked as this deployment's own, which is what keeps [a rule](mail-rules.md#when-rules-run) conditioned on arriving
 mail from firing on what the user just sent, and what keeps
 [spam classification](spam-classification.md#mail-is-classified-as-it-arrives) from scoring a message this system
@@ -1160,12 +1174,9 @@ what changes it, including
 [creating the folder](imap-synchronization.md#a-folder-the-mapping-asked-for-is-created) where the mapping asked for
 that — and the message is untouched either way.
 
-A sent copy is withdrawn by one thing only, which is the provider having filed its own beside it; nothing else takes
-it back out, because it is what the user keeps. The withdrawal reaches that copy and nothing else: `\Deleted` followed by
-`UID EXPUNGE` against the UID the append reported. A server without `UIDPLUS` leaves the copy standing rather than
-expunging the folder, and so does a copy the server never named. A copy whose append the server never answered is left
-alone entirely: nobody knows whether it reached the folder, so the record goes on reporting the outcome as unknown
-rather than claiming the copy was taken back out.
+A sent copy this deployment appended is never taken back out, because it is what the user keeps. A copy whose append
+the server never answered is left alone entirely: nobody knows whether it reached the folder, so the record goes on
+reporting the outcome as unknown, and a provider's copy met afterwards is bound onto the stored row rather than removed.
 
 **An account whose mailbox MailFathom holds alone is filed locally, and nothing above reaches its server.** Its source
 is drained, so a copy appended there would be drained straight back, and filing would wait on IMAP for a message that
@@ -1174,8 +1185,9 @@ account's local sent folder, in the same transaction that records the delivery �
 state the account can be in, and a delivery recorded once files once. The message is placed from the stored bytes and
 searched, threaded, and listed like any other; it is bound to the source folder mapped to the sent role, and an account
 that maps none, or whose binding of it is gone by the time the delivery commits, records the delivery and files
-nothing, with the reason on the filing. It withdraws nothing: a sent copy appended while the account was still
-mirrored stays in the source until the drain removes it.
+nothing, with the reason on the filing. It removes nothing from the source itself: a sent copy appended while the
+account was still mirrored, and a provider's copy recorded for removal then, stay in the source until the drain removes
+them.
 
 **A copy the provider files on its own is recognised rather than stored a second time.** When synchronization meets a
 message in the held account's sent folder carrying the `Message-ID` this deployment minted for a send, and a local sent
@@ -1298,6 +1310,14 @@ that follows files it once the role is mapped. The same holds for a revision sav
 the folder goes on showing the earlier revision, the draft is outstanding again because what it filed is behind it, and
 the pass files the current revision and erases the earlier message in one commit. Clients are told of the new message,
 and of the one it replaced, once the commit lands.
+
+**A mirrored or restoring account whose server names where appended messages land stores the revision first as
+well**, in the transaction that saves it, replacing the earlier revision's message in that commit and announcing both,
+and then appends it and removes the replaced copy as above. Synchronization binds the appended copy onto the stored
+revision by the placement its append recorded — or by the draft's `Message-ID` where none was named — rather than
+storing a second message, and giving the draft up erases the stored message with the record once the copies are
+settled. The source occurrence of a revision erased this way is never left for the drain: the appended copy it names
+is the one the replacement removes.
 
 **Giving a draft up removes what this system put there and nothing else.** The record is marked before anything is
 issued and removed once the copies are settled, so a process that dies in between leaves a draft the pass finishes. A

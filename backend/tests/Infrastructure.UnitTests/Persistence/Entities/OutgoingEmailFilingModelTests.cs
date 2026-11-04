@@ -38,7 +38,7 @@ public sealed class OutgoingEmailFilingModelTests
     }
 
     /// <summary>
-    /// All three read the copies a folder may still hold, so all three carry the same filter and it is the stage alone.
+    /// Both read the copies a folder may still hold, so both carry the same filter and it is the stage alone.
     /// Dropping the stage would leave every mirror withdrawn before a run saw it, and every append the server never
     /// answered, sitting in all of them for the life of the deployment; adding the meeting back would drop a copy out
     /// of them the moment it was recognized, which is what would leave the second occurrence of the same message — the
@@ -47,7 +47,6 @@ public sealed class OutgoingEmailFilingModelTests
     [Theory]
     [InlineData(PersistenceConstraintNames.OutgoingEmailFilingPlacementIndexName, "PlacementUid")]
     [InlineData(PersistenceConstraintNames.OutgoingEmailFilingMessageIdIndexName, "InternetMessageId")]
-    [InlineData(PersistenceConstraintNames.OutgoingEmailFilingRecentByFilingIndexName, "OutgoingEmailId")]
     public void OutgoingEmailFilingModel_TheFilingIndexes_AreFilteredToTheCopiesAFolderMayStillHold(
         string indexName,
         string expectedLastColumn)
@@ -63,20 +62,20 @@ public sealed class OutgoingEmailFilingModelTests
     }
 
     /// <summary>
-    /// The sweep for a copy the provider duplicated reads one account's standing copies of one kind, oldest append
-    /// first, and takes a few. The order of the key is what lets that be read rather than scanned and sorted: the
-    /// filing before the instant, because the filing is an equality and the instant is a range.
+    /// The provider copies an outbox pass still owes a removal are a handful in flight, so the index holding them is
+    /// filtered to exactly those rows and leaves one the moment its copy is settled.
     /// </summary>
     [Fact]
-    public void OutgoingEmailFilingModel_TheRecentByFilingIndex_LeadsWithTheFilingAndThenTheAppend()
+    public void OutgoingEmailFilingModel_TheProviderCopyIndex_HoldsOnlyTheCopiesStillOwedARemoval()
     {
         // Act
-        var index = FindFilingIndex(PersistenceConstraintNames.OutgoingEmailFilingRecentByFilingIndexName);
+        var index = FindFilingIndex(PersistenceConstraintNames.OutgoingEmailFilingProviderCopyIndexName);
 
         // Assert
         Assert.Equal(
-            ["MailboxAccountId", "Filing", "AppendedAt", "OutgoingEmailId"],
+            ["MailboxAccountId", "AppendedAt", "OutgoingEmailId"],
             index.Properties.Select(property => property.Name));
+        Assert.Equal("\"ProviderCopyUid\" IS NOT NULL AND \"ProviderCopySettledAt\" IS NULL", index.GetFilter());
     }
 
     private static IIndex FindFilingIndex(string indexName)

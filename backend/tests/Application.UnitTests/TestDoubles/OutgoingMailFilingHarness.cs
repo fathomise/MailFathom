@@ -151,9 +151,4 @@ internal sealed class OutgoingMailFilingHarness
     /// <param name="accountId">The account asking for the copy.</param>
     internal void FileSentCopies(MailAccountId accountId) =>
         this.filingPolicies.FilesSentCopy(accountId).Returns(true);
-
-    /// <summary>Says that this account takes its own sent copy back out when the provider files one beside it.</summary>
-    /// <param name="accountId">The account asking for the duplicate to go.</param>
-    internal void WithdrawDuplicateSentCopies(MailAccountId accountId) =>
-        this.filingPolicies.WithdrawsDuplicateSentCopy(accountId).Returns(true);
 }

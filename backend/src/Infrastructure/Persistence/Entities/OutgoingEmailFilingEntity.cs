@@ -65,6 +65,15 @@ internal sealed class OutgoingEmailFilingEntity
     /// <summary>Gets or sets when the copy was taken back out of the folder, and <see langword="null" /> while it stands.</summary>
     public DateTimeOffset? WithdrawnAt { get; set; }
 
+    /// <summary>Gets or sets the UID space of the copy the provider filed beside this one, where it is one to remove.</summary>
+    public uint? ProviderCopyUidValidity { get; set; }
+
+    /// <summary>Gets or sets the UID of the copy the provider filed beside this one, where it is one to remove.</summary>
+    public uint? ProviderCopyUid { get; set; }
+
+    /// <summary>Gets or sets when the provider's copy was removed or given up, and <see langword="null" /> while that is owed.</summary>
+    public DateTimeOffset? ProviderCopySettledAt { get; set; }
+
     /// <summary>Gets or sets the PostgreSQL <c>xmin</c> system column this row's optimistic concurrency is decided on.</summary>
     public uint ConcurrencyVersion { get; set; }
 }

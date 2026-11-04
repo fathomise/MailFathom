@@ -7,6 +7,7 @@ using System.Text;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Outbox;
+using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -525,194 +526,193 @@ public sealed class OutgoingMailFilingPassTests
         Assert.Equal(OutgoingMailFilingOutcome.Filed, Assert.Single(results).Outcome);
     }
 
-    /// <summary>The provider filed its own copy beside MailFathom's, so the one MailFathom appended goes.</summary>
+    /// <summary>The provider filed its own copy beside MailFathom's, so the provider's goes and the one MailFathom stored and appended stays.</summary>
     [Fact]
-    public async Task WithdrawDuplicatedSentCopiesAsync_ACopyTheProviderFiledToo_WithdrawsTheOneMailFathomAppended()
+    public async Task RemoveProviderSentCopiesAsync_AProviderCopyRecordedBesideTheAppendedOne_RemovesItAndSettlesTheFiling()
     {
         // Arrange
         var context = new FilingContext();
-        var sentFolder = context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
         var delivered = await context.FileSentCopyAsync();
-        context.Filing.Filings.RecordDiscoveredOccurrence(
-            sentFolder.RemotePath,
-            ImapUidValidity.Create(42),
-            ImapUid.Create(8),
-            "mint-1@mailfathom.invalid");
+        await context.RecordProviderCopyAsync(delivered);
+        context.Filing.WriteSession
+            .RemoveProviderSentCopyAsync(ImapUidValidity.Create(42), ImapUid.Create(8), "mint-1@mailfathom.invalid", Arg.Any<CancellationToken>())
+            .Returns(true);
 
         // Act
-        var results = await context.Filing.Pass.WithdrawDuplicatedSentCopiesAsync(
+        var results = await context.Filing.Pass.RemoveProviderSentCopiesAsync(
             Account,
             TestContext.Current.CancellationToken);
 
         // Assert
-        var result = Assert.Single(results);
-        Assert.Equal(OutgoingMailFilingOutcome.Withdrawn, result.Outcome);
-        await context.Filing.WriteSession.Received(1).WithdrawAppendedAsync(
-            ImapUidValidity.Create(42),
-            ImapUid.Create(7),
+        Assert.Equal(OutgoingMailFilingOutcome.ProviderCopyRemoved, Assert.Single(results).Outcome);
+        await context.Filing.WriteSession.DidNotReceiveWithAnyArgs().WithdrawAppendedAsync(
+            Arg.Any<ImapUidValidity>(),
+            Arg.Any<ImapUid>(),
             Arg.Any<CancellationToken>());
 
         var filed = Assert.Single(context.Filing.Filings.Read(delivered));
-        Assert.Equal(OutgoingMailFilingStage.Withdrawn, filed.Stage);
+        Assert.Equal(OutgoingMailFilingStage.Confirmed, filed.Stage);
+        Assert.False(filed.AwaitsProviderCopyRemoval);
     }
 
-    /// <summary>A sent copy appended before the account was drained is the drain's to remove, so a duplicate met afterwards withdraws nothing.</summary>
+    /// <summary>The message at the recorded UID is no longer the provider's copy of the send, so it is kept rather than removed.</summary>
     [Fact]
-    public async Task WithdrawDuplicatedSentCopiesAsync_ACopyAppendedBeforeTheAccountWasHeld_WithdrawsNothingFromTheSource()
+    public async Task RemoveProviderSentCopiesAsync_AMessageTheServerNoLongerReportsAsTheCopy_IsKept()
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        var delivered = await context.FileSentCopyAsync();
+        await context.RecordProviderCopyAsync(delivered);
+        context.Filing.WriteSession
+            .RemoveProviderSentCopyAsync(Arg.Any<ImapUidValidity>(), Arg.Any<ImapUid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        // Act
+        var results = await context.Filing.Pass.RemoveProviderSentCopiesAsync(
+            Account,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutgoingMailFilingOutcome.ProviderCopyKept, Assert.Single(results).Outcome);
+        Assert.False(Assert.Single(context.Filing.Filings.Read(delivered)).AwaitsProviderCopyRemoval);
+    }
+
+    /// <summary>
+    /// A removal the server refuses in a way it would repeat — the folder renumbered, or no message-scoped expunge — settles
+    /// the row with the copy kept, so no later pass asks again.
+    /// </summary>
+    /// <param name="refusal">Which refusal the server answers with.</param>
+    [Theory]
+    [InlineData(nameof(MailboxFolderRecreatedException))]
+    [InlineData(nameof(MailboxMutationUnsupportedException))]
+    public async Task RemoveProviderSentCopiesAsync_ARemovalTheServerRefuses_KeepsTheCopyAndSettlesTheFiling(string refusal)
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        var delivered = await context.FileSentCopyAsync();
+        await context.RecordProviderCopyAsync(delivered);
+        var sent = MailFolderAlias.Create("sent");
+        Exception refused = refusal == nameof(MailboxFolderRecreatedException)
+            ? new MailboxFolderRecreatedException(Account, sent, ImapUidValidity.Create(42), ImapUidValidity.Create(43))
+            : new MailboxMutationUnsupportedException(Account, sent, "provider copy removal", "UIDPLUS");
+        context.Filing.WriteSession
+            .RemoveProviderSentCopyAsync(Arg.Any<ImapUidValidity>(), Arg.Any<ImapUid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(refused);
+
+        // Act
+        var results = await context.Filing.Pass.RemoveProviderSentCopiesAsync(
+            Account,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutgoingMailFilingOutcome.ProviderCopyKept, Assert.Single(results).Outcome);
+        var settled = Assert.Single(context.Filing.Filings.Read(delivered));
+        Assert.False(settled.AwaitsProviderCopyRemoval);
+        Assert.NotNull(settled.ProviderCopySettledAt);
+    }
+
+    /// <summary>A removal the server could not serve is left owed, so the next pass asks again rather than giving up on one failure.</summary>
+    [Fact]
+    public async Task RemoveProviderSentCopiesAsync_ARemovalTheServerCouldNotServe_IsLeftOwed()
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        var delivered = await context.FileSentCopyAsync();
+        await context.RecordProviderCopyAsync(delivered);
+        context.Filing.WriteSession
+            .RemoveProviderSentCopyAsync(Arg.Any<ImapUidValidity>(), Arg.Any<ImapUid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("The mail server closed the connection."));
+
+        // Act
+        var results = await context.Filing.Pass.RemoveProviderSentCopiesAsync(
+            Account,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutgoingMailFilingOutcome.Failed, Assert.Single(results).Outcome);
+        Assert.True(Assert.Single(context.Filing.Filings.Read(delivered)).AwaitsProviderCopyRemoval);
+    }
+
+    /// <summary>
+    /// A removal still owed long after the append is given up without asking the server again: by then the copy has stood
+    /// beside the person's own long enough for another client to have acted on it.
+    /// </summary>
+    [Fact]
+    public async Task RemoveProviderSentCopiesAsync_ARemovalStillOwedPastTheDeadline_KeepsTheCopyWithoutAskingTheServer()
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        var delivered = await context.FileSentCopyAsync();
+        await context.RecordProviderCopyAsync(delivered);
+        context.Advance(TimeSpan.FromMinutes(31));
+
+        // Act
+        var results = await context.Filing.Pass.RemoveProviderSentCopiesAsync(
+            Account,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OutgoingMailFilingOutcome.ProviderCopyKept, Assert.Single(results).Outcome);
+        Assert.False(Assert.Single(context.Filing.Filings.Read(delivered)).AwaitsProviderCopyRemoval);
+        await context.Filing.WriteSession.DidNotReceiveWithAnyArgs().RemoveProviderSentCopyAsync(
+            Arg.Any<ImapUidValidity>(),
+            Arg.Any<ImapUid>(),
+            Arg.Any<string>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>An account whose sends nobody recorded a provider copy of asks its mail server nothing.</summary>
+    [Fact]
+    public async Task RemoveProviderSentCopiesAsync_NoProviderCopyRecorded_AsksTheServerNothing()
+    {
+        // Arrange
+        var context = new FilingContext();
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        await context.FileSentCopyAsync();
+
+        // Act
+        var results = await context.Filing.Pass.RemoveProviderSentCopiesAsync(
+            Account,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(results);
+        await context.Filing.WriteSession.DidNotReceiveWithAnyArgs().RemoveProviderSentCopyAsync(
+            Arg.Any<ImapUidValidity>(),
+            Arg.Any<ImapUid>(),
+            Arg.Any<string>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A held account's source is drained, so a provider copy recorded while it was mirrored is the drain's and nothing is removed here.</summary>
+    [Fact]
+    public async Task RemoveProviderSentCopiesAsync_AHeldAccount_RemovesNothingFromTheSource()
     {
         // Arrange
         var context = new FilingContext(holdsAccount: true);
         context.Held!.Folders.Phase = MailAccountCustodyPhase.Mirrored;
-        var sentFolder = context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
+        context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
         var delivered = await context.FileSentCopyAsync();
-        context.Filing.Filings.RecordDiscoveredOccurrence(
-            sentFolder.RemotePath,
-            ImapUidValidity.Create(42),
-            ImapUid.Create(8),
-            "mint-1@mailfathom.invalid");
+        await context.RecordProviderCopyAsync(delivered);
         context.Held.Folders.Phase = MailAccountCustodyPhase.Held;
 
         // Act
-        var results = await context.Filing.Pass.WithdrawDuplicatedSentCopiesAsync(
+        var results = await context.Filing.Pass.RemoveProviderSentCopiesAsync(
             Account,
             TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(results);
-        await context.Filing.WriteSession.DidNotReceiveWithAnyArgs().WithdrawAppendedAsync(
+        await context.Filing.WriteSession.DidNotReceiveWithAnyArgs().RemoveProviderSentCopyAsync(
             Arg.Any<ImapUidValidity>(),
             Arg.Any<ImapUid>(),
+            Arg.Any<string>(),
             Arg.Any<CancellationToken>());
-
-        var filed = Assert.Single(context.Filing.Filings.Read(delivered));
-        Assert.Equal(OutgoingMailFilingStage.Confirmed, filed.Stage);
-    }
-
-    /// <summary>An account that would rather keep both copies keeps both, and nothing is asked of its mail server.</summary>
-    [Fact]
-    public async Task WithdrawDuplicatedSentCopiesAsync_AnAccountThatWithdrawsNoDuplicate_LeavesBothCopiesStanding()
-    {
-        // Arrange
-        var context = new FilingContext();
-        var sentFolder = context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
-        var delivered = await context.FileSentCopyAsync(withdrawsDuplicate: false);
-        context.Filing.Filings.RecordDiscoveredOccurrence(
-            sentFolder.RemotePath,
-            ImapUidValidity.Create(42),
-            ImapUid.Create(8),
-            "mint-1@mailfathom.invalid");
-
-        // Act
-        var results = await context.Filing.Pass.WithdrawDuplicatedSentCopiesAsync(
-            Account,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Empty(results);
-        await context.Filing.WriteSession.DidNotReceiveWithAnyArgs().WithdrawAppendedAsync(
-            Arg.Any<ImapUidValidity>(),
-            Arg.Any<ImapUid>(),
-            Arg.Any<CancellationToken>());
-
-        var filed = Assert.Single(context.Filing.Filings.Read(delivered));
-        Assert.Equal(OutgoingMailFilingStage.Confirmed, filed.Stage);
-    }
-
-    /// <summary>
-    /// A second occurrence met long after the append is not read as the provider's doing. By then the copy has been in
-    /// the user's folder long enough to have been acted on, and what they did with it is theirs to undo.
-    /// </summary>
-    [Fact]
-    public async Task WithdrawDuplicatedSentCopiesAsync_ADuplicateMetPastTheWindow_LeavesBothCopiesStanding()
-    {
-        // Arrange
-        var context = new FilingContext();
-        var sentFolder = context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
-        var delivered = await context.FileSentCopyAsync();
-        context.Filing.Filings.RecordDiscoveredOccurrence(
-            sentFolder.RemotePath,
-            ImapUidValidity.Create(42),
-            ImapUid.Create(8),
-            "mint-1@mailfathom.invalid");
-        context.Advance(TimeSpan.FromMinutes(16));
-
-        // Act
-        var results = await context.Filing.Pass.WithdrawDuplicatedSentCopiesAsync(
-            Account,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Empty(results);
-        var filed = Assert.Single(context.Filing.Filings.Read(delivered));
-        Assert.Equal(OutgoingMailFilingStage.Confirmed, filed.Stage);
-    }
-
-    /// <summary>
-    /// Without UIDPLUS the server named no occurrence, so the two copies carry one identity between them and nothing
-    /// says which of them MailFathom put there. Both stand rather than a withdrawal guessing at the user's own mail.
-    /// </summary>
-    [Fact]
-    public async Task WithdrawDuplicatedSentCopiesAsync_AnAppendTheServerNamedNoPlacementFor_WithdrawsNothing()
-    {
-        // Arrange
-        var context = new FilingContext();
-        var sentFolder = context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
-        var delivered = await context.FileSentCopyAsync(
-            new AppendedMailCopy(RemoteEmailPlacement.NotReported(), "mint-1@mailfathom.invalid"));
-        context.Filing.Filings.RecordDiscoveredOccurrence(
-            sentFolder.RemotePath,
-            ImapUidValidity.Create(42),
-            ImapUid.Create(8),
-            "mint-1@mailfathom.invalid");
-
-        // Act
-        var results = await context.Filing.Pass.WithdrawDuplicatedSentCopiesAsync(
-            Account,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Empty(results);
-        await context.Filing.WriteSession.DidNotReceiveWithAnyArgs().WithdrawAppendedAsync(
-            Arg.Any<ImapUidValidity>(),
-            Arg.Any<ImapUid>(),
-            Arg.Any<CancellationToken>());
-
-        var filed = Assert.Single(context.Filing.Filings.Read(delivered));
-        Assert.Equal(OutgoingMailFilingStage.Confirmed, filed.Stage);
-    }
-
-    /// <summary>
-    /// The provider's copy is gone from the folder again, so the only copy left is this deployment's own. Withdrawing
-    /// it on the strength of a row the server no longer holds would leave the user with no record of the send at all.
-    /// </summary>
-    [Fact]
-    public async Task WithdrawDuplicatedSentCopiesAsync_ADuplicateTheServerNoLongerHolds_LeavesTheRemainingCopyStanding()
-    {
-        // Arrange
-        var context = new FilingContext();
-        var sentFolder = context.Filing.Map(Account, MailFolderSpecialUse.Sent, "sent", "INBOX.Sent");
-        var delivered = await context.FileSentCopyAsync();
-        context.Filing.Filings.RecordDiscoveredOccurrence(
-            sentFolder.RemotePath,
-            ImapUidValidity.Create(42),
-            ImapUid.Create(8),
-            "mint-1@mailfathom.invalid",
-            expunged: true);
-
-        // Act
-        var results = await context.Filing.Pass.WithdrawDuplicatedSentCopiesAsync(
-            Account,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Empty(results);
-        await context.Filing.WriteSession.DidNotReceiveWithAnyArgs().WithdrawAppendedAsync(
-            Arg.Any<ImapUidValidity>(),
-            Arg.Any<ImapUid>(),
-            Arg.Any<CancellationToken>());
-
-        var filed = Assert.Single(context.Filing.Filings.Read(delivered));
-        Assert.Equal(OutgoingMailFilingStage.Confirmed, filed.Stage);
     }
 
     /// <summary>Arranges an outbox whose sends a test settles by hand, beside the filing the pass performs.</summary>
@@ -796,18 +796,10 @@ public sealed class OutgoingMailFilingPassTests
 
         /// <summary>Carries one send through delivery and files the sent copy the account asked for.</summary>
         /// <param name="copy">What the server answered the append with, which defaults to one naming the placement.</param>
-        /// <param name="withdrawsDuplicate">Whether the account takes its own copy back out on meeting the provider's.</param>
         /// <returns>The send, with its sent copy already filed.</returns>
-        internal async Task<OutgoingEmailId> FileSentCopyAsync(
-            AppendedMailCopy? copy = null,
-            bool withdrawsDuplicate = true)
+        internal async Task<OutgoingEmailId> FileSentCopyAsync(AppendedMailCopy? copy = null)
         {
             this.Filing.FileSentCopies(Account);
-
-            if (withdrawsDuplicate)
-            {
-                this.Filing.WithdrawDuplicateSentCopies(Account);
-            }
 
             this.Filing.AppendAnswer = copy ?? new AppendedMailCopy(
                 RemoteEmailPlacement.Reported(ImapUidValidity.Create(42), ImapUid.Create(7)),
@@ -818,6 +810,16 @@ public sealed class OutgoingMailFilingPassTests
 
             return delivered;
         }
+
+        /// <summary>Records what synchronization records on meeting the provider's copy of a filed send at the next UID.</summary>
+        internal Task RecordProviderCopyAsync(OutgoingEmailId delivered) =>
+            this.Filing.Filings.RecordProviderCopyAsync(
+                Substitute.For<IPersistenceSession>(),
+                delivered,
+                OutgoingMailFiling.Sent,
+                ImapUidValidity.Create(42),
+                ImapUid.Create(8),
+                TestContext.Current.CancellationToken);
 
         /// <summary>Writes down one send that a submission server has already accepted.</summary>
         internal async Task<OutgoingEmailId> DeliverAsync()

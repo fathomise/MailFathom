@@ -88,6 +88,11 @@ public interface ILocalMailFolderStore
     /// <param name="session">The transaction the erasure commits in.</param>
     /// <param name="account">The account the message belongs to.</param>
     /// <param name="email">The message.</param>
+    /// <param name="recordsSourceRemoval">
+    /// Whether the source's occurrence of the message is recorded for the drain to remove, which only a held account
+    /// owes: on any other the source holds the mail rather than a copy of it, and whoever erases the row removes what
+    /// it put on the server itself.
+    /// </param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The folder the message was in, or <see langword="null" /> where the account holds no such message.</returns>
     /// <remarks>A message already gone is not an error, because the act that erases it may be replaying one that already did.</remarks>
@@ -95,5 +100,6 @@ public interface ILocalMailFolderStore
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId email,
+        bool recordsSourceRemoval,
         CancellationToken cancellationToken);
 }

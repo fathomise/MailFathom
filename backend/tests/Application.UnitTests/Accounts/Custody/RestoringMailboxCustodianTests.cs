@@ -98,17 +98,6 @@ public sealed class RestoringMailboxCustodianTests
         Assert.Equal(MailboxMutationLocalChange.AlreadyCommitted, submitted.Record!.LocalChange);
     }
 
-    /// <summary>Its source is not drained, so a draft revision is appended there rather than filed locally.</summary>
-    [Fact]
-    public async Task PrepareDraftCopyAsync_DuringARestore_PreparesNoLocalCopy()
-    {
-        // Act
-        var copy = await this.Composition().Restoring.PrepareDraftCopyAsync(Account, "Subject: draft\r\n\r\nbody"u8.ToArray(), Token);
-
-        // Assert
-        Assert.Null(copy);
-    }
-
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     private MailboxCustodianComposition Composition() => new(new FakeTimeProvider())

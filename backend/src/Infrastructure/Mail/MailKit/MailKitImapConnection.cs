@@ -605,6 +605,11 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
             recorded |= MailboxServerCapabilities.Imap4Rev2;
         }
 
+        if (advertised.HasFlag(ImapCapabilities.GMailExt1))
+        {
+            recorded |= MailboxServerCapabilities.FoldersAreLabels;
+        }
+
         return recorded;
     }
 

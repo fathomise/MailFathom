@@ -181,6 +181,7 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId email,
+        bool recordsSourceRemoval,
         CancellationToken cancellationToken)
     {
         var sessionContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
@@ -201,7 +202,10 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
 
         Guid[] removedIds = [row.Id];
 
-        this.RecordSourceRemovals(sessionContext, [row]);
+        if (recordsSourceRemoval)
+        {
+            this.RecordSourceRemovals(sessionContext, [row]);
+        }
 
         // The same cascade an erased folder's mail runs, in the same order, for the same reason.
         await AccountStoredContentLedger.RemoveAsync(sessionContext, removedIds, cancellationToken);
