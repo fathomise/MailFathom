@@ -22,8 +22,8 @@ namespace MailFathom.Application.Emails.Extraction.Attachments;
 /// <para>
 /// A segment carries no characters. <see cref="Label" /> is the one member that would be read out of the document, and
 /// it is a sheet name a sender chose — so it is mail content and would be treated as such wherever it is stored or
-/// shown. No reader records one yet: every reading writes <see langword="null" />, and resolving a workbook's sheet
-/// name is <see href="https://github.com/fathomise/MailFathom/issues/1682">#1682</see>. The member is serialized
+/// shown. No reader records one yet: every reading writes <see langword="null" />, and recording a workbook's sheet
+/// name is <see href="https://github.com/fathomise/MailFathom/issues/2990">#2990</see>. The member is serialized
 /// into the stored boundaries regardless, so a reading written before that lands stays readable after it.
 /// </para>
 /// </remarks>

@@ -29,6 +29,12 @@ internal static class DocumentFixtures
     private const string StrictSpreadsheetNamespace = "http://purl.oclc.org/ooxml/spreadsheetml/main";
     private const string StrictDrawingNamespace = "http://purl.oclc.org/ooxml/drawingml/main";
 
+    private const string PresentationNamespace = "http://schemas.openxmlformats.org/presentationml/2006/main";
+    private const string RelationshipNamespace = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    private const string StrictPresentationNamespace = "http://purl.oclc.org/ooxml/presentationml/main";
+    private const string StrictRelationshipNamespace = "http://purl.oclc.org/ooxml/officeDocument/relationships";
+    private const string PackageRelationshipsNamespace = "http://schemas.openxmlformats.org/package/2006/relationships";
+
     private const string OfficeNamespace = "urn:oasis:names:tc:opendocument:xmlns:office:1.0";
     private const string OpenDocumentTextNamespace = "urn:oasis:names:tc:opendocument:xmlns:text:1.0";
     private const string OpenDocumentTableNamespace = "urn:oasis:names:tc:opendocument:xmlns:table:1.0";
@@ -156,6 +162,39 @@ internal static class DocumentFixtures
     /// <returns>The package's octets.</returns>
     public static byte[] StrictWorkbook(params string[][] sheets) =>
         WorkbookIn(StrictSpreadsheetNamespace, sheets);
+
+    /// <summary>Builds a presentation whose slide list names its slide parts in the order given rather than by number.</summary>
+    /// <param name="slides">One entry per slide part, in part-name order, each the line it carries or empty for none.</param>
+    /// <param name="declaredSlides">The one-based part numbers the slide list names, in the order it names them.</param>
+    /// <returns>The package's octets.</returns>
+    public static byte[] PresentationInDeclaredOrder(string[] slides, params int[] declaredSlides) =>
+        PresentationInDeclaredOrderIn(DrawingNamespace, PresentationNamespace, RelationshipNamespace, slides, declaredSlides);
+
+    /// <summary>Builds the ISO 29500 Strict equivalent of <see cref="PresentationInDeclaredOrder(string[], int[])" />.</summary>
+    /// <param name="slides">One entry per slide part, in part-name order, each the line it carries or empty for none.</param>
+    /// <param name="declaredSlides">The one-based part numbers the slide list names, in the order it names them.</param>
+    /// <returns>The package's octets.</returns>
+    public static byte[] StrictPresentationInDeclaredOrder(string[] slides, params int[] declaredSlides) =>
+        PresentationInDeclaredOrderIn(
+            StrictDrawingNamespace,
+            StrictPresentationNamespace,
+            StrictRelationshipNamespace,
+            slides,
+            declaredSlides);
+
+    /// <summary>Builds a workbook whose sheet list names its worksheet parts in the order given rather than by number.</summary>
+    /// <param name="sheets">One entry per worksheet part, in part-name order, each the cell values it holds.</param>
+    /// <param name="declaredSheets">The one-based part numbers the sheet list names, in the order it names them.</param>
+    /// <returns>The package's octets.</returns>
+    public static byte[] WorkbookInDeclaredOrder(string[][] sheets, params int[] declaredSheets) =>
+        WorkbookInDeclaredOrderIn(SpreadsheetNamespace, RelationshipNamespace, sheets, declaredSheets);
+
+    /// <summary>Builds the ISO 29500 Strict equivalent of <see cref="WorkbookInDeclaredOrder(string[][], int[])" />.</summary>
+    /// <param name="sheets">One entry per worksheet part, in part-name order, each the cell values it holds.</param>
+    /// <param name="declaredSheets">The one-based part numbers the sheet list names, in the order it names them.</param>
+    /// <returns>The package's octets.</returns>
+    public static byte[] StrictWorkbookInDeclaredOrder(string[][] sheets, params int[] declaredSheets) =>
+        WorkbookInDeclaredOrderIn(StrictSpreadsheetNamespace, StrictRelationshipNamespace, sheets, declaredSheets);
 
     /// <summary>Builds an OpenDocument text package whose body carries the paragraphs given.</summary>
     /// <param name="paragraphs">The paragraphs, in order.</param>
@@ -375,18 +414,77 @@ internal static class DocumentFixtures
     }
 
     /// <summary>Builds a presentation package whose slides declare the namespace given.</summary>
-    private static byte[] PresentationIn(string namespaceUri, string[] slides) => Package(
+    private static byte[] PresentationIn(string namespaceUri, string[] slides) => Package(SlideParts(namespaceUri, slides));
+
+    /// <summary>Builds the slide parts of a presentation, numbered in the order given.</summary>
+    private static (string Name, string Content)[] SlideParts(string namespaceUri, string[] slides) =>
+    [
+        .. slides.Select((line, index) => (
+            $"ppt/slides/slide{(index + 1).ToString(CultureInfo.InvariantCulture)}.xml",
+            $"""
+             <?xml version="1.0" encoding="UTF-8"?>
+             <sld xmlns:a="{namespaceUri}"><a:p>{(line.Length == 0 ? string.Empty : $"<a:r><a:t>{Escaped(line)}</a:t></a:r>")}</a:p></sld>
+             """)),
+    ];
+
+    /// <summary>Builds a presentation whose slide list, and the relationships it resolves through, name the slides given.</summary>
+    private static byte[] PresentationInDeclaredOrderIn(
+        string drawingNamespace,
+        string presentationNamespace,
+        string relationshipNamespace,
+        string[] slides,
+        int[] declaredSlides)
+    {
+        var slideList = string.Concat(declaredSlides.Select((_, position) =>
+            $"""<p:sldId id="{(256 + position).ToString(CultureInfo.InvariantCulture)}" r:id="{RelationshipIdentifier(position)}"/>"""));
+
+        return Package(
         [
-            .. slides.Select((line, index) => (
-                $"ppt/slides/slide{(index + 1).ToString(CultureInfo.InvariantCulture)}.xml",
-                $"""
-                 <?xml version="1.0" encoding="UTF-8"?>
-                 <sld xmlns:a="{namespaceUri}"><a:p>{(line.Length == 0 ? string.Empty : $"<a:r><a:t>{Escaped(line)}</a:t></a:r>")}</a:p></sld>
-                 """)),
+            .. SlideParts(drawingNamespace, slides),
+            ("ppt/presentation.xml", $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <p:presentation xmlns:p="{presentationNamespace}" xmlns:r="{relationshipNamespace}"><p:sldIdLst>{slideList}</p:sldIdLst></p:presentation>
+                """),
+            ("ppt/_rels/presentation.xml.rels", RelationshipsNaming("slides/slide", declaredSlides)),
         ]);
+    }
+
+    /// <summary>Builds a workbook whose sheet list, and the relationships it resolves through, name the sheets given.</summary>
+    private static byte[] WorkbookInDeclaredOrderIn(
+        string spreadsheetNamespace,
+        string relationshipNamespace,
+        string[][] sheets,
+        int[] declaredSheets)
+    {
+        var sheetList = string.Concat(declaredSheets.Select((number, position) =>
+            $"""<sheet name="Tab {number.ToString(CultureInfo.InvariantCulture)}" sheetId="{(position + 1).ToString(CultureInfo.InvariantCulture)}" r:id="{RelationshipIdentifier(position)}"/>"""));
+
+        return Package(
+        [
+            .. WorkbookParts(spreadsheetNamespace, sheets),
+            ("xl/workbook.xml", $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <workbook xmlns="{spreadsheetNamespace}" xmlns:r="{relationshipNamespace}"><sheets>{sheetList}</sheets></workbook>
+                """),
+            ("xl/_rels/workbook.xml.rels", RelationshipsNaming("worksheets/sheet", declaredSheets)),
+        ]);
+    }
+
+    /// <summary>Builds a relationship part naming one numbered part per position, in the order given.</summary>
+    private static string RelationshipsNaming(string targetPrefix, int[] partNumbers) => $"""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <Relationships xmlns="{PackageRelationshipsNamespace}">{string.Concat(partNumbers.Select((number, position) =>
+            $"""<Relationship Id="{RelationshipIdentifier(position)}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/page" Target="{targetPrefix}{number.ToString(CultureInfo.InvariantCulture)}.xml"/>"""))}</Relationships>
+        """;
+
+    private static string RelationshipIdentifier(int position) =>
+        $"rId{(position + 1).ToString(CultureInfo.InvariantCulture)}";
 
     /// <summary>Builds a workbook whose string table and sheets declare the namespace given.</summary>
-    private static byte[] WorkbookIn(string namespaceUri, string[][] sheets)
+    private static byte[] WorkbookIn(string namespaceUri, string[][] sheets) => Package(WorkbookParts(namespaceUri, sheets));
+
+    /// <summary>Builds the string table and the worksheet parts of a workbook, numbered in the order given.</summary>
+    private static (string Name, string Content)[] WorkbookParts(string namespaceUri, string[][] sheets)
     {
         var sharedStrings = sheets.SelectMany(sheet => sheet).Distinct(StringComparer.Ordinal).ToList();
 
@@ -403,7 +501,7 @@ internal static class DocumentFixtures
                  $"""<c t="s"><v>{sharedStrings.IndexOf(value).ToString(CultureInfo.InvariantCulture)}</v></c>"""))}</row></sheetData></worksheet>
              """));
 
-        return Package([("xl/sharedStrings.xml", table), .. parts]);
+        return [("xl/sharedStrings.xml", table), .. parts];
     }
 
     /// <summary>Nests an element tree inside a word-processing document declaring the namespace given.</summary>
