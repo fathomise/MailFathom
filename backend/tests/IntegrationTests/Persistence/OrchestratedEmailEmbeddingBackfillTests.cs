@@ -46,6 +46,12 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
     /// <summary>Bounds the sweep loop. A run that has not finished by then is a defect rather than a slow database.</summary>
     private const int MaximumRunsPerSweep = 200;
 
+    /// <summary>The rule set before the one this build cuts to, which is what a boundary-rule change leaves passages on.</summary>
+    private static readonly int EarlierRuleSetVersion = EmailChunkingRules.Current.RuleSetVersion - 1;
+
+    /// <summary>The rule set after the one this build cuts to, which is what a newer build of a rolling upgrade writes.</summary>
+    private static readonly int LaterRuleSetVersion = EmailChunkingRules.Current.RuleSetVersion + 1;
+
     /// <summary>
     /// The whole walk over a real schema. A message stored before chunking existed carries extracted text and no
     /// passages, and this is what gives it both — in that order, because the vectors it ends up with can only have come
@@ -115,7 +121,12 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
         await SweepAsync(services, cancellationToken);
 
         var untouched = await ReadUntouchedPassageIdsAsync(services, message, cancellationToken);
-        var cutToEarlierRules = await MarkCutToEarlierRulesAsync(services, message, attachmentPosition: 0, cancellationToken);
+        var cutToEarlierRules = await MarkCutToRulesAsync(
+            services,
+            message,
+            attachmentPosition: 0,
+            EarlierRuleSetVersion,
+            cancellationToken);
         var readAt = await ReadAttachmentTextDerivedAtAsync(services, message, cancellationToken);
 
         // Act
@@ -153,7 +164,12 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
         await SweepAsync(services, cancellationToken);
 
         var attachmentPassages = await ReadPassageIdsAsync(services, message, attachmentPosition: 0, cancellationToken);
-        var cutToEarlierRules = await MarkCutToEarlierRulesAsync(services, message, attachmentPosition: null, cancellationToken);
+        var cutToEarlierRules = await MarkCutToRulesAsync(
+            services,
+            message,
+            attachmentPosition: null,
+            EarlierRuleSetVersion,
+            cancellationToken);
 
         // Act
         var sweep = await SweepAsync(services, cancellationToken);
@@ -170,6 +186,46 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
         Assert.Equal(
             await CountPassagesAsync(services, message, cancellationToken),
             await CountVectorsAsync(services, message, profileId, cancellationToken));
+    }
+
+    /// <summary>
+    /// Passages a newer build cut are left to that build: the walk does not select them, cut them, or embed anything for
+    /// them, which is what keeps two builds of a rolling upgrade from cutting each other's passages back and forth.
+    /// </summary>
+    /// <remarks>
+    /// The digest is replaced along with the version, so a walk that selected on a different version rather than an
+    /// earlier one would find passages the current rules do not reproduce and replace them — the failure this pins.
+    /// </remarks>
+    [Fact]
+    public async Task Sweeping_PassagesCutToLaterRules_LeavesThemAndTheirVectorsAlone()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var message = await StoreOneMessageAsync(services, uid: 9391, cancellationToken);
+        await OrchestratedPassages.CutAsync(services, message, cancellationToken);
+        var profileId = await OrchestratedEmbeddingProfile.EnsureActiveDeterministicAsync(services, cancellationToken);
+        await SweepAsync(services, cancellationToken);
+        var cutByANewerBuild = await MarkCutToRulesAsync(
+            services,
+            message,
+            attachmentPosition: null,
+            LaterRuleSetVersion,
+            cancellationToken);
+        var vectorCount = await CountVectorsAsync(services, message, profileId, cancellationToken);
+
+        // Act
+        var selected = await SelectAwaitingEmbeddingAsync(services, profileId, TimeSpan.Zero, cancellationToken);
+        var sweep = await SweepAsync(services, cancellationToken);
+
+        // Assert
+        Assert.True(cutByANewerBuild.Count > 0);
+        Assert.DoesNotContain(message, selected);
+        Assert.Equal(0, sweep.ChunkedEmailCount);
+        Assert.Equal(
+            cutByANewerBuild.Order(),
+            (await ReadPassageIdsAsync(services, message, attachmentPosition: null, cancellationToken)).Order());
+        Assert.Equal(vectorCount, await CountVectorsAsync(services, message, profileId, cancellationToken));
     }
 
     /// <summary>
@@ -592,11 +648,12 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
                 .ExecuteDeleteAsync(token),
             cancellationToken);
 
-    /// <summary>Leaves one text's passages as a rule change would: an earlier version, and a digest the current rules do not produce.</summary>
-    private static async Task<IReadOnlyList<Guid>> MarkCutToEarlierRulesAsync(
+    /// <summary>Leaves one text's passages as another rule set would: its version, and a digest the current rules do not produce.</summary>
+    private static async Task<IReadOnlyList<Guid>> MarkCutToRulesAsync(
         OrchestratedMailFathomServices services,
         StoredEmailId storedEmailId,
         int? attachmentPosition,
+        int ruleSetVersion,
         CancellationToken cancellationToken)
     {
         var marked = await ReadPassageIdsAsync(services, storedEmailId, attachmentPosition, cancellationToken);
@@ -606,7 +663,7 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
                 .Where(chunk => marked.Contains(chunk.Id))
                 .ExecuteUpdateAsync(
                     chunk => chunk
-                        .SetProperty(row => row.RuleSetVersion, EmailChunkingRules.Current.RuleSetVersion - 1)
+                        .SetProperty(row => row.RuleSetVersion, ruleSetVersion)
                         .SetProperty(row => row.ContentHash, new string('0', 64)),
                     token),
             cancellationToken);
