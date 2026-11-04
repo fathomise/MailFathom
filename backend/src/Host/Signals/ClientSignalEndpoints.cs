@@ -132,13 +132,13 @@ internal static partial class ClientSignalEndpoints
         }
         catch (ClientSignalTicketStoreUnavailableException unreachable)
         {
-            // The one refusal on this route an operator acts on, and the only record of why the database could not be
-            // reached: the status it answers with is the deployment's own ceiling's as well, and the error code below
-            // tells a client the two apart without telling anybody what failed.
+            // The one refusal on this route an operator acts on, so the store's own message — which names the table and
+            // the migration step — goes to the log and nowhere else. The answer carries a sentence written for the
+            // caller and the error code that tells it apart from the deployment's ceiling, which answers 503 as well.
             LogTicketStoreUnavailable(loggerFactory.CreateLogger(typeof(ClientSignalEndpoints)), unreachable);
 
             return TypedResults.Problem(
-                unreachable.Message,
+                "Live updates are unavailable right now; try again in a moment.",
                 statusCode: StatusCodes.Status503ServiceUnavailable,
                 extensions: new Dictionary<string, object?>(StringComparer.Ordinal)
                 {

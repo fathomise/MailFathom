@@ -49,6 +49,28 @@ public sealed class ClientSessionStoreUnavailableHandlerTests
             problem.GetProperty(RouteAuthorization.ErrorCodeExtension).GetInt32());
     }
 
+    /// <summary>
+    /// The store's own message names a table and a migration step for an operator, and this answer reaches callers the
+    /// deployment has not authenticated yet, so the message stays in the log and out of the problem document.
+    /// </summary>
+    [Fact]
+    public async Task TryHandleAsync_AStoreThatCouldNotBeReached_AnswersWithoutTheStoresOwnMessage()
+    {
+        // Arrange
+        using var log = new RecordingLoggerFactory();
+        var context = RequestWithABody();
+        var unreachable = Unreachable();
+
+        // Act
+        await Handler(log).TryHandleAsync(context, unreachable, TestContext.Current.CancellationToken);
+
+        // Assert
+        var detail = (await ReadBodyAsync(context)).GetProperty("detail").GetString();
+
+        Assert.NotNull(detail);
+        Assert.DoesNotContain(unreachable.Message, detail, StringComparison.Ordinal);
+    }
+
     /// <summary>The refusal a client reads as a password prompt is the one status this must never be.</summary>
     [Fact]
     public async Task TryHandleAsync_AStoreThatCouldNotBeReached_NeverAnswersAsUnauthenticated()
