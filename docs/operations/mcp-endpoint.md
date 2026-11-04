@@ -770,8 +770,10 @@ first. Neither of these two surfaces offers that exchange, deliberately:
 - **An MCP client has no step that could call one.** It presents what its configuration holds on every request of the
   protocol, so an exchange here would be a route no MCP client calls. A client that should not pay a derivation per
   call is given [an API key](#api-keys) or [a key pair](#key-pairs), neither of which derives anything.
-- **`mfctl` issues a handful of requests per command**, and a password there exists for the default administrator to
-  provision the first credential of any other kind; an operator who administers routinely can sign in with a key.
+- **`mfctl` issues a handful of requests per command.** A password there is how the default administrator provisions
+  the first credential of any other kind, and anybody else holding a password credential that lists `admin` pays the
+  derivation on each request exactly as the default administrator does — an operator who administers routinely can
+  sign in with a key instead.
 - **A verified password is never remembered to skip the next derivation.** A cache would have to recognize the
   password by something cheap to compute from it, and that value, read out of a replica's memory, could be guessed
   against at the speed the derivation exists to deny. The derivation's parameters are not lowered to the same end.
