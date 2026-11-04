@@ -428,6 +428,159 @@ internal static class DocumentFixtures
         return Encoding.ASCII.GetBytes(document.ToString());
     }
 
+    /// <summary>Builds a PDF whose every page's content stream is the octets given, under the stream entries given.</summary>
+    /// <param name="streamEntries">The stream dictionary's entries other than its length, such as its filter.</param>
+    /// <param name="encoded">The stream's octets, as the filter named in the entries encoded them.</param>
+    /// <param name="pageCount">How many pages carry that stream, each as a stream object of its own.</param>
+    /// <returns>The document's octets.</returns>
+    /// <remarks>
+    /// Assembled by hand because the library's own writer encodes every stream it writes as Flate, and what these
+    /// documents exist to show is a stream under whichever filter a sender chose.
+    /// </remarks>
+    public static byte[] PdfWithContentStream(string streamEntries, byte[] encoded, int pageCount = 1)
+    {
+        var pageObjectNumbers = Enumerable.Range(0, pageCount).Select(page => 3 + (2 * page)).ToArray();
+        var kids = string.Join(' ', pageObjectNumbers.Select(number => $"{number.ToString(CultureInfo.InvariantCulture)} 0 R"));
+
+        return AssembledPdf(
+        [
+            Encoding.ASCII.GetBytes("<< /Type /Catalog /Pages 2 0 R >>"),
+            Encoding.ASCII.GetBytes($"<< /Type /Pages /Kids [{kids}] /Count {pageCount.ToString(CultureInfo.InvariantCulture)} >>"),
+            .. pageObjectNumbers.SelectMany(number => new[]
+            {
+                Encoding.ASCII.GetBytes($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {(number + 1).ToString(CultureInfo.InvariantCulture)} 0 R >>"),
+                PdfStream(streamEntries, encoded),
+            }),
+        ]);
+    }
+
+    /// <summary>Builds a one-page PDF whose resources name a font whose embedded program is the Flate stream given.</summary>
+    /// <param name="deflatedProgram">The font program's octets, already deflated.</param>
+    /// <returns>The document's octets.</returns>
+    /// <remarks>
+    /// The library loads every font a page's resources name as it builds the page, inside a handler that swallows
+    /// whatever loading raises and skips the font instead — so a stream here reaches the decoder from a place a refusal
+    /// does not escape. The page draws nothing in the font, so nothing after the load depends on what was skipped.
+    /// </remarks>
+    public static byte[] PdfWithEmbeddedFontProgram(byte[] deflatedProgram) => AssembledPdf(
+        Encoding.ASCII.GetBytes("<< /Type /Catalog /Pages 2 0 R >>"),
+        Encoding.ASCII.GetBytes("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+        Encoding.ASCII.GetBytes("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>"),
+        PdfStream(string.Empty, Encoding.ASCII.GetBytes(" ")),
+        Encoding.ASCII.GetBytes($"<< /Type /Font /Subtype /Type1 /BaseFont /Embedded /FirstChar 32 /LastChar 126 /Widths [{string.Join(' ', Enumerable.Repeat(500, 95))}] /FontDescriptor 6 0 R >>"),
+        Encoding.ASCII.GetBytes("<< /Type /FontDescriptor /FontName /Embedded /Flags 32 /FontBBox [0 0 1000 1000] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 /FontFile 7 0 R >>"),
+        PdfStream("/Filter /FlateDecode", deflatedProgram));
+
+    /// <summary>Deflates octets under a zlib header, which is the form a PDF's Flate filter reads.</summary>
+    /// <param name="octets">The octets to deflate.</param>
+    /// <returns>The deflated octets.</returns>
+    public static byte[] Deflated(byte[] octets)
+    {
+        using var written = new MemoryStream();
+
+        using (var deflater = new ZLibStream(written, CompressionLevel.SmallestSize, leaveOpen: true))
+        {
+            deflater.Write(octets);
+        }
+
+        return written.ToArray();
+    }
+
+    /// <summary>Encodes the LZW stream whose every code extends the string the previous one wrote by one octet.</summary>
+    /// <param name="octet">The one octet every string the stream decodes to repeats.</param>
+    /// <param name="repeatsOnceTheTableIsFull">How many times the longest string is written again after the last code the table can name.</param>
+    /// <returns>The encoded octets: about five kibibytes that decode to about seven mebibytes, and a code and a half more per repeat.</returns>
+    /// <remarks>
+    /// Each code names the entry the decoder is about to add, so each one writes the previous string plus one octet:
+    /// the output grows with the square of the code count, which is the LZW form of a decompression bomb. Once the
+    /// twelve-bit codes are spent, repeating the last one writes the longest string again, and the decoder still adds
+    /// an entry no code can name. Code widths follow the early change a PDF's LZW filter assumes by default.
+    /// </remarks>
+    public static byte[] LzwStringTableBomb(byte octet, int repeatsOnceTheTableIsFull = 0)
+    {
+        const int firstEntry = 258;
+        const int lastCode = 4095;
+        const int endOfData = 257;
+
+        int[] codes =
+        [
+            octet,
+            .. Enumerable.Range(firstEntry, lastCode - firstEntry + 1),
+            .. Enumerable.Repeat(lastCode, repeatsOnceTheTableIsFull),
+            endOfData,
+        ];
+
+        var written = new List<byte>();
+        var accumulated = 0;
+        var accumulatedBits = 0;
+
+        for (var index = 0; index < codes.Length; index++)
+        {
+            var entryCount = index == 0 ? firstEntry : firstEntry + index - 1;
+            var width = entryCount >= 2047 ? 12 : entryCount >= 1023 ? 11 : entryCount >= 511 ? 10 : 9;
+
+            accumulated = (accumulated << width) | codes[index];
+            accumulatedBits += width;
+
+            while (accumulatedBits >= 8)
+            {
+                accumulatedBits -= 8;
+                written.Add((byte)(accumulated >> accumulatedBits));
+            }
+
+            accumulated &= (1 << accumulatedBits) - 1;
+        }
+
+        if (accumulatedBits > 0)
+        {
+            written.Add((byte)(accumulated << (8 - accumulatedBits)));
+        }
+
+        return [.. written];
+    }
+
+    /// <summary>Serializes numbered objects into a PDF with a cross-reference table and a trailer naming the first as its root.</summary>
+    private static byte[] AssembledPdf(params byte[][] objects)
+    {
+        using var document = new MemoryStream();
+        var offsets = new List<long>();
+
+        WriteAscii(document, "%PDF-1.4\n");
+
+        foreach (var (body, index) in objects.Select((body, index) => (body, index)))
+        {
+            offsets.Add(document.Position);
+            WriteAscii(document, $"{(index + 1).ToString(CultureInfo.InvariantCulture)} 0 obj\n");
+            document.Write(body);
+            WriteAscii(document, "\nendobj\n");
+        }
+
+        var startOfCrossReferences = document.Position;
+        var crossReferences = new StringBuilder();
+
+        crossReferences.Append(CultureInfo.InvariantCulture, $"xref\n0 {objects.Length + 1}\n0000000000 65535 f \n");
+
+        foreach (var offset in offsets)
+        {
+            crossReferences.Append(CultureInfo.InvariantCulture, $"{offset:D10} 00000 n \n");
+        }
+
+        crossReferences.Append(CultureInfo.InvariantCulture, $"trailer\n<< /Size {objects.Length + 1} /Root 1 0 R >>\nstartxref\n{startOfCrossReferences}\n%%EOF\n");
+        WriteAscii(document, crossReferences.ToString());
+
+        return document.ToArray();
+    }
+
+    /// <summary>Serializes a stream object's body: its dictionary, with the length it is given, and its octets.</summary>
+    private static byte[] PdfStream(string entries, byte[] octets) =>
+    [
+        .. Encoding.ASCII.GetBytes($"<< {entries} /Length {octets.Length.ToString(CultureInfo.InvariantCulture)} >>\nstream\n"),
+        .. octets,
+        .. Encoding.ASCII.GetBytes("\nendstream"),
+    ];
+
+    private static void WriteAscii(MemoryStream document, string text) => document.Write(Encoding.ASCII.GetBytes(text));
+
     /// <summary>Finds where each central-directory record states the compressed length of its part.</summary>
     /// <remarks>
     /// The central directory is what a reader takes <c>CompressedLength</c> from, so it is the field a sender would

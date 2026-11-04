@@ -23,9 +23,8 @@ namespace MailFathom.Infrastructure.Documents;
 /// its own path bounds instead. For a package format that is the inflation total, the per-part ratio, and the element
 /// depth, none of which is optional for that reason. A text file has no such parser at all — it is decoded a block at a
 /// time and the deadline is read between blocks — so the input ceiling is the whole of what bounds it. For a PDF it is
-/// the input ceiling alone as well, because the library
-/// inflates a page's content streams itself with no ceiling this code can set — <see cref="PdfAttachmentTextReader" />
-/// states that and issue #1684 is where it is tracked.
+/// what one page's streams may decode to, charged before the library decodes each of them, as
+/// <see cref="PdfAttachmentTextReader" /> describes.
 /// </para>
 /// </remarks>
 internal sealed class BoundedAttachmentTextExtractor(

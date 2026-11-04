@@ -34,11 +34,10 @@ namespace MailFathom.Application.Emails.Extraction.Attachments;
 /// <para>
 /// <b>One of those bounds does not hold on a single unit of work, and a caller-waited path is where that matters.</b>
 /// <see cref="AttachmentTextExtractionOptions.Timeout" /> is observed between units — a page, an archive part, an
-/// element — because no parser here takes a cancellation token, so a PDF whose one page inflates enormously is bounded
-/// by <see cref="AttachmentTextExtractionOptions.MaxInputOctets" /> on the octets that arrived and by nothing else. On
-/// a synchronization stage that costs a worker; on a send being screened or an attachment being served it costs the
-/// caller, on a request nothing here will cut short. It is recorded rather than defended, and issue #1684 is where the
-/// gap is tracked.
+/// element — because no parser here takes a cancellation token. What bounds the work inside one unit is therefore the
+/// size ceiling of its own path, which for a PDF page is
+/// <see cref="AttachmentTextExtractionOptions.MaxPdfPageDecodedOctets" />; a caller waiting on a screened send or a
+/// served attachment waits for at most that much decoding per page before the clock is read again.
 /// </para>
 /// <para>
 /// An attachment an antivirus pass has judged infected is not excluded here, because no such pass exists yet. When one
