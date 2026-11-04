@@ -75,7 +75,7 @@ public sealed class EmailEmbeddingBackfillTelemetry
         this.chunkedEmailCount = Telemetry.Meter.CreateCounter<long>(
             "mailfathom.embedding.backfill.chunked",
             unit: "{message}",
-            description: "Messages the backfill had to cut into passages before anything could be embedded.");
+            description: "Messages the backfill had to cut, or cut again after a boundary-rule change, before anything could be embedded.");
         this.embeddedEmailCount = Telemetry.Meter.CreateCounter<long>(
             "mailfathom.embedding.backfill.messages",
             unit: "{message}",

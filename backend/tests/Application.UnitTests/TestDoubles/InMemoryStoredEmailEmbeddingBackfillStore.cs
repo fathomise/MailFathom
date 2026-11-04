@@ -65,6 +65,16 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
         this.embeddingStore.AddPassages(storedEmailId, CreatePassages(storedEmailId, passageCount));
     }
 
+    /// <summary>Adds a message whose passages were cut, and embedded, before the boundary rules last changed.</summary>
+    /// <param name="storedEmailId">The message the walk will find.</param>
+    /// <param name="passageCount">How many passages cutting it again under the current rules yields.</param>
+    /// <remarks>
+    /// Its earlier passages are not registered with the embedding store, which stands for their vectors all being there:
+    /// the only thing outstanding about the message is that its passages describe rules nobody cuts to any more.
+    /// </remarks>
+    public void AddEmailCutToEarlierRules(StoredEmailId storedEmailId, int passageCount) =>
+        this.mail.Add(new WalkedEmail(storedEmailId, passageCount) { IsChunked = true, IsCutToEarlierRules = true });
+
     /// <summary>Cuts passages of a message a moment ago, which is what offered it to the live path.</summary>
     /// <param name="storedEmailId">The message, which is added to the walk when it is not already in it.</param>
     /// <param name="passageCount">How many passages the cut yields, beside any the message already has.</param>
@@ -148,7 +158,8 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
                 batch.Add(new StoredEmailAwaitingEmbedding(
                     email.StoredEmailId,
                     !email.IsChunked,
-                    email.Admission));
+                    email.Admission,
+                    email.IsCutToEarlierRules));
             }
         }
 
@@ -166,12 +177,13 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
         var email = this.mail.Single(candidate => candidate.StoredEmailId == storedEmailId);
         this.ChunkedEmails.Add(storedEmailId);
 
-        if (email.IsChunked)
+        if (email.IsChunked && !email.IsCutToEarlierRules)
         {
             return Task.CompletedTask;
         }
 
         email.IsChunked = true;
+        email.IsCutToEarlierRules = false;
         this.embeddingStore.AddPassages(storedEmailId, CreatePassages(storedEmailId, email.PassageCount));
 
         return Task.CompletedTask;
@@ -201,7 +213,7 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
                 $"{storedEmailId.Value} passage {ordinal}")),
         ];
 
-    /// <summary>Answers the two conditions the real query selects on, against the vectors that actually exist.</summary>
+    /// <summary>Answers the three conditions the real query selects on, against the vectors that actually exist.</summary>
     private async Task<bool> IsOutstandingAsync(
         WalkedEmail email,
         EmbeddingProfileId profileId,
@@ -210,6 +222,11 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
         if (!email.IsChunked)
         {
             return email.PassageCount > 0;
+        }
+
+        if (email.IsCutToEarlierRules)
+        {
+            return true;
         }
 
         var outstanding = await this.embeddingStore.GetChunksAwaitingEmbeddingAsync(
@@ -241,10 +258,12 @@ internal sealed class InMemoryStoredEmailEmbeddingBackfillStore : IStoredEmailEm
         ? this.mail.FindIndex(candidate => candidate.StoredEmailId == position) + 1
         : 0;
 
-    /// <summary>One stored message, and whether anything has cut it into passages yet.</summary>
+    /// <summary>One stored message, whether anything has cut it into passages yet, and whether to the current rules.</summary>
     private sealed record WalkedEmail(StoredEmailId StoredEmailId, int PassageCount)
     {
         public bool IsChunked { get; set; }
+
+        public bool IsCutToEarlierRules { get; set; }
 
         public DerivedWorkAdmission Admission { get; init; }
     }

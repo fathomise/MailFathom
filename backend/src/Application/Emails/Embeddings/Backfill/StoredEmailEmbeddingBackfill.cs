@@ -229,7 +229,7 @@ public sealed class StoredEmailEmbeddingBackfill
         return Ended(StoredEmailEmbeddingBackfillOutcome.BatchBudgetSpent, progress, outstandingAtSweepStart);
     }
 
-    /// <summary>Gives one message its passages when it has none, then whatever vectors it is missing.</summary>
+    /// <summary>Gives one message its passages when it has none or they were cut to an earlier rule set, then whatever vectors it is missing.</summary>
     /// <remarks>
     /// The two writes are separate transactions on purpose. Passages have to be committed before the generator can read
     /// them as outstanding, and the generator commits each provider call's vectors on its own so a crash leaves a whole
@@ -246,9 +246,13 @@ public sealed class StoredEmailEmbeddingBackfill
             // Cutting a message's first passages is where a message the classification gate held is let through, and the
             // only place the release is decidable one message at a time — the sweeps below it are narrowed by a
             // set-based predicate that answers about a batch rather than about a message. A message with passages
-            // already cut is ordinary outstanding work and says nothing about the gate, so it is not counted here.
+            // already cut is ordinary outstanding work and says nothing about the gate, so it is not counted here —
+            // and neither is one cut again because the boundary rules changed under it.
             this.gateTelemetry.RecordAdmission(email.Admission);
+        }
 
+        if (email.RequiresChunking || email.RequiresRecut)
+        {
             await this.concurrencyRetryPolicy.CommitAsync(
                 (persistenceSession, attemptCancellationToken) => this.backfillStore.DeriveChunksAsync(
                     persistenceSession,
@@ -315,7 +319,7 @@ public sealed class StoredEmailEmbeddingBackfill
 
         public RunProgress Add(StoredEmailAwaitingEmbedding email, StoredEmailEmbeddingRun turn) => this with
         {
-            ChunkedEmailCount = this.ChunkedEmailCount + (email.RequiresChunking ? 1 : 0),
+            ChunkedEmailCount = this.ChunkedEmailCount + (email.RequiresChunking || email.RequiresRecut ? 1 : 0),
             EmbeddedEmailCount = this.EmbeddedEmailCount
                 + (turn.Outcome == StoredEmailEmbeddingOutcome.Embedded ? 1 : 0),
             EmbeddedChunkCount = this.EmbeddedChunkCount + turn.EmbeddedChunkCount,

@@ -11,12 +11,14 @@ namespace MailFathom.Application.Emails.Embeddings.Backfill;
 /// <param name="StoredEmailId">The message to bring up to date.</param>
 /// <param name="RequiresChunking">Whether the message has extracted text and no passages at all, so passages have to be cut before anything can be embedded.</param>
 /// <param name="Admission">Why the classification gate lets this message be derived from, which is what the sweep reports when it cuts passages the gate was holding.</param>
+/// <param name="RequiresRecut">Whether the message carries a passage cut to an earlier rule set, so its passages have to be cut again from what is stored before anything can be embedded.</param>
 /// <remarks>
-/// Both facts are carried rather than re-derived, because the query that selected the message already answered them and
+/// These facts are carried rather than re-derived, because the query that selected the message already answered them and
 /// a second question per message would be a second round trip for something the first one knew. Nothing else about the
 /// message travels: its subject, its participants, and its text are mail content, and a walk reports counts.
 /// </remarks>
 public sealed record StoredEmailAwaitingEmbedding(
     StoredEmailId StoredEmailId,
     bool RequiresChunking,
-    DerivedWorkAdmission Admission = DerivedWorkAdmission.Admitted);
+    DerivedWorkAdmission Admission = DerivedWorkAdmission.Admitted,
+    bool RequiresRecut = false);

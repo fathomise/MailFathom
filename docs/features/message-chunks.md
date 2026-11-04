@@ -181,12 +181,12 @@ decides and what keeps a single search over a message and its attachment one ran
 - **Reconciliation is per attachment.** The reading that arrives later replaces the passages of the attachment it read
   and touches no other attachment's and none of the message's own, so an unchanged reading writes nothing exactly as an
   unchanged body does.
-- **A later re-cut would open no document.** The extracted text, its boundaries, and the words a picture's description
-  produced are all stored, so cutting an attachment's passages again is a computation over rows the deployment already
-  holds rather than a second parse or a second vision call. Nothing performs that re-cut today: the walk offers a
-  message whose attachments nothing has read yet and no other pass reaches one, and the backfill that re-cuts a changed
-  rule set narrows to a message's body passages. [#1698](https://github.com/fathomise/MailFathom/issues/1698) is
-  where the attachment half of it is tracked.
+- **A re-cut opens no document.** The extracted text, its boundaries, and the words a picture's description produced
+  are all stored, so when the boundary rules change the [embedding backfill](embedding-backfill.md#what-it-reaches-and-in-which-order)
+  cuts an attachment's passages again from rows the deployment already holds rather than by a second parse or a second
+  vision call, reconciling each attachment on its own and embedding only the passages whose digest moved. The marker
+  saying a message's attachments were read is left alone: it records that the file was read, not which rules its words
+  were cut to.
 
 An attachment reading is offered for embedding only where it produced words, and a message is stamped as read whether
 or not it did — which is what keeps a mailbox from being re-parsed on every run.
@@ -195,11 +195,15 @@ or not it did — which is what keeps a mailbox from being re-parsed on every ru
 
 Every chunk records the version of the rules it was cut to, in a column beside its hash. Nothing reads it to decide
 correctness — the hash already covers the rules, so a change to them is a changed digest whatever the column says. It
-exists so that a backfill can be asked how much of a mailbox is still cut to the previous rules, which is the one
-question a hash has no answer to.
+exists because a digest cannot be asked which rules it was cut to, and that is the one question finding the passages a
+rule change left behind needs: the [embedding backfill](embedding-backfill.md#what-it-reaches-and-in-which-order)
+selects every message carrying a passage cut to an **earlier** version than the running build's, cuts it again from
+what is stored, and embeds what moved.
 
-The version is not what makes a rule change take effect, and it is not checked against anything. It is a label, and it is
-accurate only because changing any rule and incrementing it are one edit.
+The version is a label, accurate only because changing any rule and incrementing it are one edit — and it only ever
+increases, since a build re-cuts what is older than its own rules and leaves what is newer to the build that wrote it.
+Only a deployment with an active embedding profile runs that walk; on one without, passages cut to earlier rules stay as
+they are, which costs nothing a search can see, because a passage's text and offsets still describe each other exactly.
 
 ## Privacy
 

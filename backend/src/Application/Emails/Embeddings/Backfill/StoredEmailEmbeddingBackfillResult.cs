@@ -8,7 +8,7 @@ namespace MailFathom.Application.Emails.Embeddings.Backfill;
 
 /// <summary>What one run of the embedding backfill did, and why it ended.</summary>
 /// <param name="Outcome">Why the run ended.</param>
-/// <param name="ChunkedEmailCount">How many messages this run had to cut into passages before anything could be embedded.</param>
+/// <param name="ChunkedEmailCount">How many messages this run had to cut into passages, or cut again because the boundary rules changed, before anything could be embedded.</param>
 /// <param name="EmbeddedEmailCount">How many messages this run brought up to date, or spent a provider call on.</param>
 /// <param name="EmbeddedChunkCount">How many passages this run committed vectors for.</param>
 /// <param name="CallBudgetExhaustedEmailCount">How many messages this run left part-way through because one turn spent every provider call a turn is allowed.</param>

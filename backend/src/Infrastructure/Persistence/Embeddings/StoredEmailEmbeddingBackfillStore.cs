@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Embeddings.Backfill;
 using MailFathom.Application.Folders;
@@ -25,6 +26,7 @@ internal sealed class StoredEmailEmbeddingBackfillStore(
     MailFathomDbContext dbContext,
     TimeProvider timeProvider,
     EmailChunkWriter chunkWriter,
+    EmailChunkingRules rules,
     IDeploymentMailFolders deploymentFolders,
     DerivedWorkGate derivedWorkGate)
     : IStoredEmailEmbeddingBackfillStore
@@ -92,6 +94,7 @@ internal sealed class StoredEmailEmbeddingBackfillStore(
                 email.Id,
                 // A body passage rather than any passage, for the reason the predicate below narrows the same way.
                 !email.Chunks.Any(chunk => chunk.AttachmentPosition == null),
+                email.Chunks.Any(chunk => chunk.RuleSetVersion < rules.RuleSetVersion),
                 new StoredDerivedWorkCandidateRow(
                     email.MailFolderBinding.MailboxAccountId,
                     email.MailFolderBinding.Alias,
@@ -105,7 +108,8 @@ internal sealed class StoredEmailEmbeddingBackfillStore(
             .. candidates.Select(row => new StoredEmailAwaitingEmbedding(
                 StoredEmailId.Create(row.Id),
                 row.RequiresChunking,
-                row.Candidate.AdmittedUnder(terms))),
+                row.Candidate.AdmittedUnder(terms),
+                row.RequiresRecut)),
         ];
     }
 
@@ -116,13 +120,14 @@ internal sealed class StoredEmailEmbeddingBackfillStore(
     /// earlier extraction already read the message and stored both the trimmed and the untrimmed reading, and cutting
     /// the stored reading again produces exactly the passages the same message would have been given had chunking
     /// existed when it arrived. A message whose extraction produced no text is left as it is, and the walk steps past
-    /// it.
+    /// it. Each attachment is cut from the words its stored reading holds, so a message cut to an earlier rule set is
+    /// brought to the current one without a document being parsed or a picture described again.
     /// </remarks>
     public async Task DeriveChunksAsync(
         IPersistenceSession session,
         StoredEmailId storedEmailId,
         CancellationToken cancellationToken) =>
-        await chunkWriter.SaveFromStoredExtractionAsync(
+        await chunkWriter.SaveFromStoredReadingsAsync(
             await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken),
             storedEmailId,
             cancellationToken);
@@ -194,7 +199,7 @@ internal sealed class StoredEmailEmbeddingBackfillStore(
             && !chunk.Embeddings.Any(vector => vector.EmbeddingProfileId == profileId)));
     }
 
-    /// <summary>Selects the messages that are not current for one profile, whichever of the two reasons applies.</summary>
+    /// <summary>Selects the messages that are not current for one profile, whichever of the three reasons applies.</summary>
     /// <remarks>
     /// A message with a passage that carries no vector under this profile was stored before the profile existed, or was
     /// turned away by the live backlog's bound, or was left part-way through by a failed turn. A message with extracted
@@ -220,6 +225,13 @@ internal sealed class StoredEmailEmbeddingBackfillStore(
     /// step behind that pass — rather than this sweep, which reaches what a run's own batch budget left behind.
     /// </remarks>
     /// <remarks>
+    /// A message carrying a passage cut to an earlier rule set is a third group, and the one a change to the boundary
+    /// rules creates: the version is part of every digest, so each such passage is cut again from the stored readings and
+    /// the vectors follow the new rows. Earlier rather than other, because a rolling upgrade runs two builds against one
+    /// table, and a build that re-cut whatever it did not recognize would cut a newer build's passages back to its own
+    /// rules on every sweep while the newer one cut them forward again, paying a provider each time.
+    /// </remarks>
+    /// <remarks>
     /// The walk is scoped to the folders a mapping admits to embedding, which is the same decision that stops their
     /// passages being cut and the same shape that decision takes everywhere: a folder configuration does not name at
     /// all is outside the walk rather than left in it by an exclusion that could not mention it. Both halves are needed.
@@ -236,7 +248,8 @@ internal sealed class StoredEmailEmbeddingBackfillStore(
                 .AsNoTracking()
                 .Where(StoredEmailTombstone.IsNotTombstoned)
                 .Where(email => email.Chunks.Any(chunk =>
-                        !chunk.Embeddings.Any(vector => vector.EmbeddingProfileId == profileId))
+                        !chunk.Embeddings.Any(vector => vector.EmbeddingProfileId == profileId)
+                        || chunk.RuleSetVersion < rules.RuleSetVersion)
                     // A body passage rather than any passage: email_chunks also holds what an attachment yielded, and
                     // a message whose attachments were read before its body was cut would otherwise read as cut here
                     // and never be cut by the sweep that exists to catch exactly that.
@@ -261,5 +274,6 @@ internal sealed class StoredEmailEmbeddingBackfillStore(
     private sealed record OutstandingEmailRow(
         Guid Id,
         bool RequiresChunking,
+        bool RequiresRecut,
         StoredDerivedWorkCandidateRow Candidate);
 }

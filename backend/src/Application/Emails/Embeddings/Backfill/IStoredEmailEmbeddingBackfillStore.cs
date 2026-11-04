@@ -28,7 +28,7 @@ public interface IStoredEmailEmbeddingBackfillStore
     /// <returns>The identity of the last message this sweep processed, or <see langword="null" /> to start at the beginning.</returns>
     Task<StoredEmailId?> FindResumePositionAsync(CancellationToken cancellationToken);
 
-    /// <summary>Counts the messages that still have passages without a vector under the given profile.</summary>
+    /// <summary>Counts the messages the walk would select under the given profile, by the same three conditions the batch is narrowed by.</summary>
     /// <param name="profileId">The profile whose vectors decide what is outstanding.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>How many stored messages the sweep about to start has to reach.</returns>
@@ -55,10 +55,11 @@ public interface IStoredEmailEmbeddingBackfillStore
     /// </exception>
     /// <remarks>
     /// <para>
-    /// Two conditions select a message, and they are the two halves of what this backfill exists for: a message whose
-    /// extraction produced text and which carries no passages at all was stored before chunking existed, and a message
-    /// carrying a passage with no vector under this profile was stored before the profile existed or was turned away by
-    /// the live backlog's bound. A message no one may search is not selected, because vectors nothing may retrieve are a
+    /// Three conditions select a message, and they are what this backfill exists for: a message whose extraction
+    /// produced text and which carries no passages at all was stored before chunking existed, a message carrying a
+    /// passage with no vector under this profile was stored before the profile existed or was turned away by the live
+    /// backlog's bound, and a message carrying a passage cut to an earlier rule set was cut before the boundary rules
+    /// last changed. A message no one may search is not selected, because vectors nothing may retrieve are a
     /// provider bill with no reader.
     /// </para>
     /// <para>
@@ -76,14 +77,15 @@ public interface IStoredEmailEmbeddingBackfillStore
         int batchSize,
         CancellationToken cancellationToken);
 
-    /// <summary>Cuts one message's already-extracted text into passages, inside the caller's open session.</summary>
+    /// <summary>Cuts one message's already-extracted text and its attachments' stored words into passages, inside the caller's open session.</summary>
     /// <param name="session">The session whose transaction this write joins.</param>
-    /// <param name="storedEmailId">The message whose passages are missing.</param>
+    /// <param name="storedEmailId">The message whose passages are missing or were cut to an earlier rule set.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>A task that completes when the passages have been staged.</returns>
     /// <remarks>
-    /// The text is the one an earlier extraction already stored, so nothing here re-reads raw MIME, reaches a mail
-    /// server, or asks a provider for anything. Cutting it applies the same rules synchronization applies, which is what
+    /// The text is the one an earlier extraction already stored, and an attachment's the one its reading stored, so
+    /// nothing here re-reads raw MIME, opens a document, reaches a mail server, or asks a provider for anything. A
+    /// passage whose digest did not move keeps its row and its vectors. Cutting it applies the same rules synchronization applies, which is what
     /// keeps a message this walk reaches from being cut differently than the message beside it.
     /// </remarks>
     Task DeriveChunksAsync(IPersistenceSession session, StoredEmailId storedEmailId, CancellationToken cancellationToken);
