@@ -657,19 +657,24 @@ public sealed class AuthoredMailSubmissionTests
     }
 
     /// <summary>A time further ahead than the deployment holds a message is refused naming how far it may lie, and nothing is written down.</summary>
-    [Fact]
-    public async Task SubmitAsync_ADueTimeBeyondTheHold_IsRefusedNamingTheBound()
+    [Theory]
+    [InlineData(720, "30 days")]
+    [InlineData(24, "1 day")]
+    [InlineData(36, "36 hours")]
+    [InlineData(1, "1 hour")]
+    public async Task SubmitAsync_ADueTimeBeyondTheHold_IsRefusedNamingTheBound(int holdHours, string namedBound)
     {
         // Arrange
+        var hold = TimeSpan.FromHours(holdHours);
         var store = new InMemoryOutgoingEmailStore();
         var submission = SubmissionOver(
             store,
             out var composer,
             out _,
-            settings: AuthoredSendSettings.Permissive with { MaxSendHold = TimeSpan.FromDays(30) });
+            settings: AuthoredSendSettings.Permissive with { MaxSendHold = hold });
         var request = RequestTo("anna@example.test") with
         {
-            DueAt = ZonedInstant.At(Recorded.AddDays(30).AddMinutes(1)),
+            DueAt = ZonedInstant.At(Recorded.Add(hold).AddMinutes(1)),
         };
 
         // Act
@@ -678,7 +683,7 @@ public sealed class AuthoredMailSubmissionTests
 
         // Assert
         Assert.Equal(MailFathomErrorCode.AuthoredMailScheduleRefused, refusal.ErrorCode);
-        Assert.Contains("30 days", refusal.Message, StringComparison.Ordinal);
+        Assert.Contains($"at most {namedBound} before", refusal.Message, StringComparison.Ordinal);
         Assert.Empty(store.OpenRequests);
         composer.DidNotReceiveWithAnyArgs().Compose(default!, SyntheticUser.Deployment, default!, default!, default!);
     }

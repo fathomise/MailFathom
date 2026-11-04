@@ -274,8 +274,11 @@ internal static class AuthoredMailRefusalPublication
 
     /// <summary>Writes a hold span the way an operator configured it, in days where it is a whole number of them and in hours otherwise.</summary>
     private static string HoldSpan(TimeSpan span) => span.Ticks % TimeSpan.TicksPerDay == 0
-        ? string.Create(CultureInfo.InvariantCulture, $"{span.TotalDays:0} days")
-        : string.Create(CultureInfo.InvariantCulture, $"{span.TotalHours:0.##} hours");
+        ? Counted(span.TotalDays, "day")
+        : Counted(span.TotalHours, "hour");
+
+    private static string Counted(double count, string unit) =>
+        string.Create(CultureInfo.InvariantCulture, $"{count:0.##} {unit}{(count == 1 ? string.Empty : "s")}");
 
     /// <summary>Writes the refusal a forward carrying more than this deployment composes produces.</summary>
     /// <remarks>
