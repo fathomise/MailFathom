@@ -691,10 +691,15 @@ Project repository: https://github.com/fathomise/MailFathom
           <sc-for list="{{ moveGroups }}" as="mg" hint-placeholder-count="2">
             <div style="{{ mg.wrapStyle }}">
               <div style="{{ mg.headStyle }}"><span style="{{ mg.dotStyle }}"></span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ mg.label }}</span><sc-if value="{{ mg.shared }}" hint-placeholder-val="{{ false }}"><span style="{{ mg.sharedStyle }}">Shared</span></sc-if></div>
+              <sc-if value="{{ mg.refused }}" hint-placeholder-val="{{ false }}">
+                <div style="{{ mg.refusalStyle }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1.2;color:var(--muted)">block</span><span style="flex:1;min-width:0">{{ mg.refusal }}</span></div>
+              </sc-if>
+              <sc-if value="{{ mg.offered }}" hint-placeholder-val="{{ true }}">
               <sc-for list="{{ mg.folders }}" as="mf" hint-placeholder-count="4">
                 <div onClick="{{ mf.pick }}" style="{{ mf.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)">{{ mf.icon }}</span>{{ mf.label }}</div>
               </sc-for>
               <div onClick="{{ mg.newFolder }}" style="{{ mg.newFolderStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">create_new_folder</span>New folder here</div>
+              </sc-if>
             </div>
           </sc-for>
         </div>
@@ -857,7 +862,28 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-for>
           </div>
           <sc-if value="{{ sideExpanded }}" hint-placeholder-val="{{ true }}">
-            <div style="flex:0 0 auto;border-top:1px solid var(--line);padding:10px 14px"><div role="status" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);text-wrap:pretty"><span aria-hidden="true" style="{{ freshDotStyle }}"></span>{{ freshText }}</div></div>
+            <div style="flex:0 0 auto;border-top:1px solid var(--line);padding:10px 14px;display:flex;flex-direction:column;gap:9px">
+              <sc-if value="{{ freshDetailsOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:9px;padding:10px 12px;border-radius:8px;background:var(--sub)">
+                  <sc-for list="{{ freshRows }}" as="fr" hint-placeholder-count="2">
+                    <div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+                      <div style="display:flex;align-items:center;gap:8px;font-size:13px;min-width:0"><span aria-hidden="true" style="{{ fr.accDotStyle }}"></span><span style="font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ fr.label }}</span></div>
+                      <div style="padding-left:15px;font-size:12px;font-weight:600;color:var(--warn-text)">{{ fr.state }}</div>
+                      <div style="padding-left:15px;font-size:12px;line-height:1.5;color:var(--text2);text-wrap:pretty">{{ fr.text }}</div>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ freshRest }}" hint-placeholder-val="{{ true }}">
+                    <div style="font-size:12px;color:var(--muted);border-top:1px solid var(--line2);padding-top:8px">{{ freshRest }}</div>
+                  </sc-if>
+                </div>
+              </sc-if>
+              <sc-if value="{{ freshStale }}" hint-placeholder-val="{{ false }}">
+                <div role="button" tabindex="0" aria-expanded="{{ freshDetailsOpen }}" onClick="{{ toggleFreshDetails }}" style="{{ freshLineStyle }}" style-hover="background:var(--hover)"><span aria-hidden="true" style="{{ freshDotStyle }}"></span><span role="status" style="flex:1;min-width:0">{{ freshText }}</span><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)">{{ freshChevron }}</span></div>
+              </sc-if>
+              <sc-if value="{{ freshQuiet }}" hint-placeholder-val="{{ true }}">
+                <div role="status" style="{{ freshLineStyle }}"><span aria-hidden="true" style="{{ freshDotStyle }}"></span>{{ freshText }}</div>
+              </sc-if>
+            </div>
           </sc-if>
         </div>
       </sc-if>
@@ -1277,7 +1303,7 @@ Project repository: https://github.com/fathomise/MailFathom
                           <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
                             <div style="{{ m.changeTitleStyle }}">{{ m.changeTitle }}</div>
                             <div style="font-size:13px;line-height:1.55;color:var(--text2);text-wrap:pretty">{{ m.changeText }}</div>
-                            <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><div role="button" tabindex="0" onClick="{{ m.changeAgain }}" style="{{ m.changeAgainStyle }}" style-hover="cursor:pointer;opacity:0.9">{{ m.changeAgainLabel }}</div><div role="button" tabindex="0" onClick="{{ m.changeLetGo }}" style="{{ m.changeQuietStyle }}" style-hover="cursor:pointer;background:var(--hover)">Let it go</div></div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px"><sc-if value="{{ m.changeAgainShown }}" hint-placeholder-val="{{ true }}"><div role="button" tabindex="0" onClick="{{ m.changeAgain }}" style="{{ m.changeAgainStyle }}" style-hover="cursor:pointer;opacity:0.9">{{ m.changeAgainLabel }}</div></sc-if><div role="button" tabindex="0" onClick="{{ m.changeLetGo }}" style="{{ m.changeQuietStyle }}" style-hover="cursor:pointer;background:var(--hover)">Let it go</div></div>
                           </div>
                         </div>
                       </sc-if>
@@ -3958,7 +3984,7 @@ Project repository: https://github.com/fathomise/MailFathom
     <div data-motion="pop" data-phase="{{ mo.agentReturn }}" role="button" tabIndex="0" aria-label="Back to the agent conversation you came from" onClick="{{ backToConv }}" onKeyDown="{{ backToConvKey }}" style="{{ convReturnStyle }}" style-hover="cursor:pointer;opacity:0.92" style-focus="outline:2px solid var(--accent);outline-offset:3px"><span style="{{ convReturnIconStyle }}">arrow_back</span>{{ convReturnLabel }}</div>
   </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;inOrganization&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;raise&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;send&quot;,&quot;change&quot;,&quot;draft&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;connection&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;connecting&quot;,&quot;online&quot;,&quot;delayed&quot;,&quot;delayedMailServer&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;inOrganization&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;raise&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;send&quot;,&quot;change&quot;,&quot;changePermanent&quot;,&quot;changeBoth&quot;,&quot;draft&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;connection&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;connecting&quot;,&quot;online&quot;,&quot;delayed&quot;,&quot;delayedMailServer&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;freshness&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;current&quot;,&quot;waiting&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
 const Component = MailFathomDesign.artboards.prototype(DCLogic, React);
 </script>
 </body>

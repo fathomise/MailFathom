@@ -9,7 +9,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     avatars: AVATARS, contacts: CONTACTS, contactInsights: CONTACT_AI, organization: ORGANIZATION,
     threads: THREADS, earlierMessages, threadMailBodies, conversationTitles: CONV_TITLES, newInThread: NEW_IN_THREAD, sentLast: SENT_LAST, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
     mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO, sendLater: SEND_LATER,
-    accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
+    accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, freshness: FRESHNESS, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
     home: HOME, savedAnswers: SAVED_ANSWERS, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
     calendarBriefing: CALENDAR_BRIEFING, eventFromThread: EVENT_FROM_THREAD, taskCapacity: TASK_CAPACITY,
     starterChips: STARTER_CHIPS, anotherTimeReply: ANOTHER_TIME, agentScheduledEvents: AGENT_SCHEDULED,
@@ -680,14 +680,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     draftcopy: { icon: "cloud_off", c: "var(--warn-text)", soft: "var(--warn-soft)", toast: "warning" },
   };
 
-  /* What a mailbox change asked, as a notice names it once the server did not take it: the exhausted title, then
-     the gerund an unknown outcome is said with. Archive is a change this tab followed; one known only from its
-     notification is named by the server's eight acts, where archiving is a move. */
+  /* What a mailbox change asked, as a notice names it once the server refused it and MailFathom undid it: the title,
+     then what undoing it did. Archive is a change this tab made; one known only from its notification is named by the
+     server's eight acts, where archiving is a move. */
   const CHANGE_ACT = {
-    move: ["Not moved", "Moving"], archive: ["Not archived", "Archiving"], delete: ["Not deleted", "Deleting"],
-    read: ["Not marked read", "Marking read"], unread: ["Not marked unread", "Marking unread"],
-    flag: ["Not flagged", "Flagging"], unflag: ["Not unflagged", "Unflagging"],
-    copy: ["Not copied", "Copying"], tags: ["Tags not changed", "Changing tags"],
+    move: ["Not moved", "put the message back where the server holds it"], archive: ["Not archived", "put the message back where the server holds it"],
+    delete: ["Not deleted", "put the message back where the server holds it"],
+    read: ["Not marked read", "marked it unread again"], unread: ["Not marked unread", "marked it read again"],
+    flag: ["Not flagged", "took the flag off again"], unflag: ["Not unflagged", "put the flag back"],
+    copy: ["Not copied", "took the copy away again"], tags: ["Tags not changed", "put its tags back as they were"],
   };
 
   const draftHtml = (paras) => (paras || []).map(p => "<p>" + String(p).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>") + "</p>").join("");
@@ -928,8 +929,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       else this.setState(patch);
     };
 
-    /* A mailbox change the server never took is decided on the message or on its notification row, and either one
-       marks the durable row read, so one failure is never shown as two. */
+    /* A mailbox change the server refused is decided on the message, on its notification row, or not at all, and
+       either decision marks the durable row read, so one failure is never shown as two. Only a transient refusal can
+       be asked again. */
     decideChange = (threadId, again, e) => {
       if (e && e.stopPropagation) e.stopPropagation();
       const n = CHANGE_NOTICES[threadId] || {};
@@ -942,7 +944,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     /* What the open client raises when one of the three failures is raised: the durable row's own toast. */
     raiseFailure = (which) => {
-      const n = this.notifAll().find(x => x.failure === which);
+      const n = this.notifAll().find(x => (x.raise || x.failure) === which);
       if (!n || !n.toast) return;
       let tid;
       tid = this.notify(n.toast.body, { kind: n.toast.kind, title: n.title, ms: 8000,
@@ -2730,8 +2732,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     /* This client's connection to its server, one status in four: connecting (grey, start-up only), online, delayed,
        offline. Delayed has two causes — the live channel, and a mail account that cannot reach its mail server for 60 s
        (`delayedMailServer`) — and red outranks both. The `connection` property pins one; `cycle` (the default) starts
-       online and moves online → delayed (channel) → delayed (mail server) → offline → online every 60 s, so every one
-       can be watched. `connCycleAt` is when the cycle's clock started, and Retry — or Refresh while offline — resets it
+       online and moves online → delayed (channel) → offline → delayed (mail server) → online every 60 s, so every one
+       can be watched, and the mail server's coming back is seen as the freshness line clearing to green. `connCycleAt` is when the cycle's clock started, and Retry — or Refresh while offline — resets it
        to online. A pinned status is dated by a sample offset, so its details read the inventory's sample sentence. */
     connNow() {
       const pinned = this.props.connection && this.props.connection !== "cycle" ? this.props.connection : null;
@@ -2741,7 +2743,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (pinned) return { status: pinned === "delayedMailServer" ? "delayed" : pinned, cause: pinned, since: this.connMountedAt - offset };
       const start = this.state.connCycleAt || this.connMountedAt;
       const step = Math.floor((now - start) / 60000);
-      const cause = ["online", "delayed", "delayedMailServer", "offline"][step % 4];
+      const cause = ["online", "delayed", "offline", "delayedMailServer"][step % 4];
       return { status: cause === "delayedMailServer" ? "delayed" : cause, cause, since: start + step * 60000 };
     }
 
@@ -2786,7 +2788,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const blocks = offline
         ? [{ text: "The server did not answer.", attempt: "Trying again - attempt 2 of 5.", since: sinceText }]
         : cause === "delayedMailServer"
-          ? [{ text: MAIL_ACCOUNTS[2].name + " cannot reach its mail server. Its changes are kept in MailFathom and reach the mail server once it is back.", attempt: "", since: sinceText }]
+          ? [{ text: ACCOUNTS[2].label + " cannot reach its mail server. Its changes are kept in MailFathom and reach the mail server once it is back.", attempt: "", since: sinceText }]
           : delayed
             ? [{ text: "Live updates from the server are not arriving, so what you see is current to the last refresh.", attempt: "", since: sinceText }]
             : [];
@@ -2829,13 +2831,61 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         moreConnDotShown: !offline,
         moreTileDotShown: offline,
         moreTileLabel: offline ? "More - not connected to the server" : "More",
-        /* The freshness line at the foot of Mail's folder column: without the server it does not know, so it says so. */
-        freshUnknown: offline,
-        freshDotStyle: "width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:" + (offline ? "var(--faint)" : "var(--ok)"),
-        freshText: offline ? "Mailbox status unknown: no connection to the MailFathom server." : "Every account is up to date.",
+        ...this.freshVals(st, touch, offline, cause, since),
         /* The composer stops promising the words are safe while offline: they are kept in this tab alone. */
         composeRefused: offline,
         composeRefusedNote: "No connection to the server. What you write is not saved on the server, and closing this tab or window loses it. It can be saved or sent once the connection is back.",
+      };
+    }
+
+    /* The account freshness line at the foot of Mail's folder column — the one place that says a change MailFathom
+       holds has not reached a mail server. Nothing else marks such a change: a message, a row and a toast show it as
+       made. An account turns the line not current only once its cause has held for 60 s without a break — changes
+       waiting for its mail server, or a mail server that cannot be reached (the connection's `delayedMailServer`, which
+       has already held 60 s). Sends are the Outbox's and never counted here. Without a connection to MailFathom it does
+       not know. The `freshness` property pins `current` or `waiting`; `cycle` (the default) runs on the connection's
+       clock: Personal mail's two changes are made as each turn starts, turn the line at 60 s, and reach the server at
+       105 s, and Board's mail server is unreachable for the cycle's last minute and clears to green after it. */
+    freshVals(st, touch, offline, cause, since) {
+      const pin = this.props.freshness && this.props.freshness !== "cycle" ? this.props.freshness : null;
+      const start = this.state.connCycleAt || this.connMountedAt;
+      const t = ((Date.now() - start) / 1000) % 240;
+      const w = FRESHNESS.acc2;
+      const waitedFor = t - w.since;
+      const waiting = pin ? pin === "waiting" : waitedFor >= 60 && t < w.reached;
+      const unreachable = cause === "delayedMailServer";
+      const hhmm = (ms) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      const behind = [];
+      if (unreachable) behind.push({ key: "acc3", state: "Mail server unreachable",
+        text: "Its mail server cannot be reached, since " + hhmm(this.props.connection === "delayedMailServer" ? since : since - 60000) + ". " +
+          FRESHNESS.acc3.waiting + " changes are waiting. They are kept in MailFathom and reach the mail server once it is back." });
+      if (waiting) behind.push({ key: "acc2", state: w.waiting + " changes waiting",
+        text: w.waiting + " changes have waited more than a minute for its mail server. They are kept in MailFathom, shown as made, and reach the server on their own." });
+      const stale = !offline && behind.length > 0;
+      const open = stale && !!st.freshDetails;
+      const dot = (c) => "width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:" + c;
+      return {
+        freshUnknown: offline,
+        freshStale: stale,
+        freshQuiet: !stale,
+        freshDetailsOpen: open,
+        toggleFreshDetails: () => { if (stale) this.setState(s => ({ freshDetails: !s.freshDetails })); },
+        freshDotStyle: dot(offline ? "var(--faint)" : stale ? "var(--warn)" : "var(--ok)"),
+        freshText: offline ? "Mailbox status unknown: no connection to the MailFathom server."
+          : !stale ? "Every account is up to date."
+          : behind.length === 1 ? ACCOUNTS.find(a => a.key === behind[0].key).label + " is not up to date."
+          : "Some accounts are not up to date.",
+        freshLineStyle: "display:flex;align-items:center;gap:8px;font-size:13px;color:" + (stale ? "var(--text2)" : "var(--muted)") + ";text-wrap:pretty" +
+          (stale ? ";cursor:pointer;border-radius:8px;margin:0 -6px;padding:0 6px;min-height:" + (touch ? 44 : 30) + "px" : ""),
+        freshChevron: open ? "expand_more" : "expand_less",
+        /* Only the accounts that are not current, each under its own name and colour, then one line for the rest. */
+        freshRows: behind.map(b => {
+          const a = ACCOUNTS.find(x => x.key === b.key);
+          return { label: a.label, accDotStyle: dot(a.dot), state: b.state, text: b.text };
+        }),
+        freshRest: ACCOUNTS.length > behind.length
+          ? (ACCOUNTS.length - behind.length === 1 ? ACCOUNTS.find(a => !behind.some(b => b.key === a.key)).label + " is up to date." : "Every other account is up to date.")
+          : "",
       };
     }
 
@@ -4244,7 +4294,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           .concat(m.mine && m.footer ? (FOOTERS[thread.acc || "acc1"] || []).map(l => ({ text: l.text })) : [], m.quoted) });
         /* A mailbox change the server never took, on the message it was asked for, until it is asked again or let go. */
         const chg = i === lastIdx && !(st.changeDecided || {})[thread.id] ? CHANGE_NOTICES[thread.id] : null;
-        const chgUnknown = !!chg && chg.fate === "unknown";
+        const chgBoth = !!chg && chg.fate === "both";
+        const chgAgain = !!chg && chg.fate === "transient";
         const chgAct = chg ? (CHANGE_ACT[chg.act] || CHANGE_ACT.move) : null;
         const chgBtn = "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:" + (touch ? 44 : 32) + "px;padding:0 14px;border-radius:8px;font-size:13px;";
         /* The sample data states a verdict per thread, which is every one of its messages' verdict, so each message of
@@ -4265,14 +4316,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ...(!m.mine && i === lastIdx && !threadSpam.spam ? readReceiptAsk(thread, m.from) : { mdnAskShown: false, mdnSentShown: false }),
           ...(threadSpam.spam && !m.mine ? spamWarning(threadSpam) : { spamWarn: false }),
           changeShown: !!chg,
-          changeIcon: chgUnknown ? "help" : "sync_problem",
-          changeTitle: !chg ? "" : chgUnknown ? chgAct[1] + " may not have happened" : chgAct[0] + " - your mailbox did not take this change",
-          changeText: !chg ? "" : chgUnknown
-            ? "The mail server never answered, so nobody knows whether it took the change. The message is shown as the server last reported it."
-            : "The mail server would not take it, so this message is shown where the server holds it.",
-          changeBoxStyle: "display:flex;align-items:flex-start;gap:11px;border-radius:12px;padding:12px 14px;border:1px solid " + (chgUnknown ? "var(--warn);background:var(--warn-soft)" : "var(--err);background:var(--err-soft)"),
-          changeIconStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:" + (chgUnknown ? "var(--warn-text)" : "var(--err-text)"),
-          changeTitleStyle: "font-size:14px;font-weight:600;color:" + (chgUnknown ? "var(--warn-text)" : "var(--err-text)"),
+          changeIcon: chgBoth ? "file_copy" : "sync_problem",
+          changeTitle: !chg ? "" : chgBoth ? "Now in both accounts" : chgAct[0] + " - your mailbox refused this change",
+          changeText: !chg ? "" : chgBoth
+            ? chg.to + " took this message into " + chg.toFolder + ", but " + chg.from + "'s mail server would not let it go, so it is in both accounts. Delete it here to keep only the one in " + chg.to + "."
+            : chgAgain
+              ? "The mail server would not take it, so MailFathom " + chgAct[1] + ". It may take it if you ask again."
+              : chg.why + ", so MailFathom " + chgAct[1] + ". Asking again would not help.",
+          changeAgainShown: chgAgain,
+          changeBoxStyle: "display:flex;align-items:flex-start;gap:11px;border-radius:12px;padding:12px 14px;border:1px solid var(--err);background:var(--err-soft)",
+          changeIconStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:var(--err-text)",
+          changeTitleStyle: "font-size:14px;font-weight:600;color:var(--err-text)",
           changeAgainLabel: chg && chg.act === "move" ? "Move again…" : "Ask again",
           changeAgain: (e) => this.decideChange(thread.id, true, e),
           changeLetGo: (e) => this.decideChange(thread.id, false, e),
@@ -7041,8 +7095,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         moveOpen: !!(st.moveFor && st.moveFor.length),
         moveTitle: st.moveFor ? "Move " + this.countWord(st.moveFor.length) : "",
         closeMove: this.closeMove,
-        moveGroups: ACCOUNTS.map(a => ({ key: a.key, label: a.label, dot: a.dot, shared: !!a.shared, folders: a.moveFolders })).map(g => ({
+        /* One group per account, under its own colour. A message from another account is filed there only where both
+           servers can carry it; where they cannot, the group says why in place of its folders. */
+        moveGroups: ACCOUNTS.map(a => ({ key: a.key, label: a.label, dot: a.dot, shared: !!a.shared, folders: a.moveFolders,
+          refusal: a.crossRefusal && (st.moveFor || []).some(id => ((THREADS.find(x => x.id === id) || {}).acc || "acc1") !== a.key) ? a.crossRefusal : "" })).map(g => ({
           label: g.label, shared: g.shared, sharedStyle: SHARED_MARK,
+          refused: !!g.refusal, offered: !g.refusal, refusal: g.refusal,
+          refusalStyle: "display:flex;align-items:flex-start;gap:9px;margin:2px 4px 4px;padding:9px 11px;border-radius:8px;background:var(--sub);font-size:13px;line-height:1.5;color:var(--text2);text-wrap:pretty",
           wrapStyle: "display:flex;flex-direction:column;gap:1px;padding-bottom:6px",
           headStyle: "display:flex;align-items:center;gap:8px;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);padding:8px 9px 5px;font-weight:600",
           dotStyle: "width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:" + g.dot,
@@ -7164,10 +7223,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
              every width so a finger reaches them; the same decisions stand in the row's menu. A change already decided on
              its message has nothing left to decide. */
           const changeOpen = n.failure === "change" && !(st.changeDecided || {})[n.change];
+          const chgN = CHANGE_NOTICES[n.change] || {};
+          const letGo = { icon: "close", label: "Let it go", run: (e) => this.decideChange(n.change, false, e) };
           const pills = n.failure === "send"
             ? [{ icon: "send", label: "Send again", run: (e) => this.decideRefusedNotif(n, "again", e) }, { icon: "edit", label: "Edit", run: (e) => this.decideRefusedNotif(n, "edit", e) }]
-            : changeOpen
-            ? [{ icon: "refresh", label: (CHANGE_NOTICES[n.change] || {}).act === "move" ? "Move again…" : "Ask again", run: (e) => this.decideChange(n.change, true, e) }, { icon: "close", label: "Let it go", run: (e) => this.decideChange(n.change, false, e) }]
+            : changeOpen && chgN.fate === "transient"
+            ? [{ icon: "refresh", label: chgN.act === "move" ? "Move again…" : "Ask again", run: (e) => this.decideChange(n.change, true, e) }, letGo]
+            : changeOpen ? [letGo]
             : [];
           const notifPress = this.pressFor("notifs", n.id, n.title, [
               { icon: "check_box", label: "Select notifications", run: () => this.selStart("notifs", n.id) },

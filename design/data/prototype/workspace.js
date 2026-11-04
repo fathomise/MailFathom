@@ -43,8 +43,10 @@ MailFathomDesign.data.accounts = [
       { icon: "folder", label: "Clients" }, { icon: "folder", label: "To decide" },
     ] },
   // A shared mailbox: several people read and send from it, so wherever an account is drawn or chosen it carries the
-  // shared mark beside its name.
+  // shared mark beside its name. `crossRefusal` is why Move offers none of its folders to a message from another
+  // account: its mail server last advertised no UIDPLUS, so MailFathom could not tell which message it took.
   { key: "acc3", label: "Board", address: "board@nordwind.example", dot: "#b0873a", shared: true, counts: { Inbox: "3" }, movesSpam: false,
+    crossRefusal: "Board's mail server cannot say which message it took, so mail moves into Board only from Board itself.",
     moveFolders: [
       { icon: "inbox", label: "Inbox" }, { icon: "archive", label: "Archive" }, { icon: "report", label: "Spam" },
       { icon: "folder", label: "Board minutes" },
@@ -111,11 +113,24 @@ MailFathomDesign.data.localDrafts = {
   ],
 };
 
-// A mailbox change the mail server never took, on the message it was asked for (the thread's newest). `fate` is
-// exhausted — MailFathom stopped trying — or unknown — the server never answered. `act` is what was asked.
+// A mailbox change the mail server answered and would not take, on the message it was asked for (the thread's
+// newest). MailFathom has already undone it when the notice appears. `fate` is transient — the server may take it
+// later, so it can be asked again — permanent — asking again cannot help, `why` says what the server said — or both — a
+// move into another account whose copy landed there while the source would not let the message go. `act` is what was
+// asked.
 MailFathomDesign.data.changeNotices = {
-  travel1: { act: "move", fate: "exhausted", notif: "nf2" },
-  devops1: { act: "flag", fate: "unknown" },
+  travel1: { act: "move", fate: "transient", notif: "nf2" },
+  devops1: { act: "flag", fate: "permanent", why: "The mail server cannot keep flags in this folder", notif: "nf8" },
+  klient3: { act: "move", fate: "both", to: "Personal mail", toFolder: "Clients", from: "Nordwind · work", notif: "nf9" },
+};
+
+// The changes MailFathom holds that have not reached an account's mail server yet, as the account freshness line reads
+// them: `waiting` is how many, `since` how many seconds into each turn of the prototype's cycle the oldest was made,
+// and `reached` when they reach the server. Only a change that has waited 60 s turns the line. Board's are the ones
+// kept while its mail server cannot be reached (the `delayedMailServer` connection).
+MailFathomDesign.data.freshness = {
+  acc2: { name: "Personal mail", waiting: 2, since: 0, reached: 105 },
+  acc3: { name: "Board", waiting: 3 },
 };
 
 // The unified view across every account at the top of the folder column.
