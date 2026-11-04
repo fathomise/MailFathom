@@ -164,9 +164,6 @@ internal sealed class MailboxCustodianComposition
         retryMaxDelay: TimeSpan.FromMinutes(10),
         allowedLateness: TimeSpan.FromDays(1));
 
-    /// <summary>Gets what each account's server last advertised, which is never observed unless a test states it.</summary>
-    internal IMailboxServerCapabilityStore Capabilities { get; init; } = NeverObservedCapabilities();
-
     /// <summary>
     /// Gets the deployment's live work leases, which by default include one held by a build that does not know the
     /// overlay, so a mirrored change is recorded alone unless a test states every replica has moved on.
@@ -188,22 +185,6 @@ internal sealed class MailboxCustodianComposition
         leases.ReadEveryHeldAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(held);
 
         return leases;
-    }
-
-    /// <summary>Builds a capability store answering every account as one no session has reached.</summary>
-    /// <returns>The store.</returns>
-    internal static IMailboxServerCapabilityStore NeverObservedCapabilities() =>
-        CapabilitiesObserved(MailboxServerCapabilityObservation.NeverObserved);
-
-    /// <summary>Builds a capability store answering every account with one observation.</summary>
-    /// <param name="observation">What every account's server is answered as having advertised.</param>
-    /// <returns>The store.</returns>
-    internal static IMailboxServerCapabilityStore CapabilitiesObserved(MailboxServerCapabilityObservation observation)
-    {
-        var store = Substitute.For<IMailboxServerCapabilityStore>();
-        store.ReadAsync(default, default).ReturnsForAnyArgs(observation);
-
-        return store;
     }
 
     /// <summary>Gets the resolver, which is the one reader of an account's custody phase for an act.</summary>
