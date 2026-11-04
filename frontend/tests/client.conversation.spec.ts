@@ -95,7 +95,9 @@ test('folds the footer of the reader’s own reply to one line, and opens it fro
     const opened = reply.getByRole('button', { name: 'Hide your footer' });
     await expect(opened).toHaveAttribute('aria-expanded', 'true');
     await expect(reply.getByText(role)).toBeVisible();
-    expect((await opened.boundingBox())?.y).toBe(before?.y);
+    // Within half a pixel rather than equal: the engine lays the control out in fractions of a pixel, and the footer
+    // growing beneath it can move it by one of them (474.0619 to 474.0625 in one CI run) without anything shifting.
+    expect((await opened.boundingBox())?.y).toBeCloseTo(before?.y ?? Number.NaN, 0);
 
     await opened.click();
 
