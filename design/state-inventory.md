@@ -1543,8 +1543,9 @@ clicking a preview.
   starts, stay unmarked for their first 60 s, turn the line at 60 s and clear it to green at about 105 s; Board's mail
   server is unreachable for the turn's last minute — the line not current beside the amber connection status — and the
   line clears to green as the turn starts over. So a preview opened and captured at once shows it green.
-  `freshness` pins `current` or `waiting`, and `connection` set to `delayedMailServer` pins the unreachable server;
-  pressing the line opens its details.
+  `freshness` pins `current` or `waiting`, and `connection` set to `delayedMailServer` pins the unreachable server.
+  Any pinned `connection` also holds the line still — `current`, unless `freshness` says otherwise — so a paired screen
+  is never captured with the line mid-cycle. Pressing the line opens its details.
 - **Filing into another account refused** (`mg.refused`). Reached by opening *Move* on any message outside Board;
   the other refusal sentences have no sample.
 - **The message source's four outcomes past the plain one** (`sourceCut`, `sourceFailed`, `sourceScreened`,

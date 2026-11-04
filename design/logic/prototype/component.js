@@ -2843,11 +2843,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        made. An account turns the line not current only once its cause has held for 60 s without a break — changes
        waiting for its mail server, or a mail server that cannot be reached (the connection's `delayedMailServer`, which
        has already held 60 s). Sends are the Outbox's and never counted here. Without a connection to MailFathom it does
-       not know. The `freshness` property pins `current` or `waiting`; `cycle` (the default) runs on the connection's
-       clock: Personal mail's two changes are made as each turn starts, turn the line at 60 s, and reach the server at
+       not know. The `freshness` property pins `current` or `waiting`, and a pinned `connection` pins `current` unless it
+       says otherwise; `cycle` (the default) runs on the connection's clock: Personal mail's two changes are made as each turn starts, turn the line at 60 s, and reach the server at
        105 s, and Board's mail server is unreachable for the cycle's last minute and clears to green after it. */
     freshVals(st, touch, offline, cause, since) {
-      const pin = this.props.freshness && this.props.freshness !== "cycle" ? this.props.freshness : null;
+      const connPinned = this.props.connection && this.props.connection !== "cycle";
+      const pin = this.props.freshness && this.props.freshness !== "cycle" ? this.props.freshness : connPinned ? "current" : null;
       const start = this.state.connCycleAt || this.connMountedAt;
       const t = ((Date.now() - start) / 1000) % 240;
       const w = FRESHNESS.acc2;
