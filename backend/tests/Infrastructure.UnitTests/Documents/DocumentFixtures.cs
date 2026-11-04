@@ -428,19 +428,31 @@ internal static class DocumentFixtures
         return Encoding.ASCII.GetBytes(document.ToString());
     }
 
-    /// <summary>Builds a one-page PDF whose content stream is the octets given, under the stream entries given.</summary>
+    /// <summary>Builds a PDF whose every page's content stream is the octets given, under the stream entries given.</summary>
     /// <param name="streamEntries">The stream dictionary's entries other than its length, such as its filter.</param>
     /// <param name="encoded">The stream's octets, as the filter named in the entries encoded them.</param>
+    /// <param name="pageCount">How many pages carry that stream, each as a stream object of its own.</param>
     /// <returns>The document's octets.</returns>
     /// <remarks>
     /// Assembled by hand because the library's own writer encodes every stream it writes as Flate, and what these
     /// documents exist to show is a stream under whichever filter a sender chose.
     /// </remarks>
-    public static byte[] PdfWithContentStream(string streamEntries, byte[] encoded) => AssembledPdf(
-        Encoding.ASCII.GetBytes("<< /Type /Catalog /Pages 2 0 R >>"),
-        Encoding.ASCII.GetBytes("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
-        Encoding.ASCII.GetBytes("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>"),
-        PdfStream(streamEntries, encoded));
+    public static byte[] PdfWithContentStream(string streamEntries, byte[] encoded, int pageCount = 1)
+    {
+        var pageObjectNumbers = Enumerable.Range(0, pageCount).Select(page => 3 + (2 * page)).ToArray();
+        var kids = string.Join(' ', pageObjectNumbers.Select(number => $"{number.ToString(CultureInfo.InvariantCulture)} 0 R"));
+
+        return AssembledPdf(
+        [
+            Encoding.ASCII.GetBytes("<< /Type /Catalog /Pages 2 0 R >>"),
+            Encoding.ASCII.GetBytes($"<< /Type /Pages /Kids [{kids}] /Count {pageCount.ToString(CultureInfo.InvariantCulture)} >>"),
+            .. pageObjectNumbers.SelectMany(number => new[]
+            {
+                Encoding.ASCII.GetBytes($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {(number + 1).ToString(CultureInfo.InvariantCulture)} 0 R >>"),
+                PdfStream(streamEntries, encoded),
+            }),
+        ]);
+    }
 
     /// <summary>Builds a one-page PDF whose resources name a font whose embedded program is the Flate stream given.</summary>
     /// <param name="deflatedProgram">The font program's octets, already deflated.</param>
@@ -476,19 +488,27 @@ internal static class DocumentFixtures
 
     /// <summary>Encodes the LZW stream whose every code extends the string the previous one wrote by one octet.</summary>
     /// <param name="octet">The one octet every string the stream decodes to repeats.</param>
-    /// <returns>The encoded octets, about five kibibytes that decode to about seven mebibytes.</returns>
+    /// <param name="repeatsOnceTheTableIsFull">How many times the longest string is written again after the last code the table can name.</param>
+    /// <returns>The encoded octets: about five kibibytes that decode to about seven mebibytes, and a code and a half more per repeat.</returns>
     /// <remarks>
     /// Each code names the entry the decoder is about to add, so each one writes the previous string plus one octet:
-    /// the output grows with the square of the code count, which is the LZW form of a decompression bomb. Code widths
-    /// follow the early change a PDF's LZW filter assumes by default.
+    /// the output grows with the square of the code count, which is the LZW form of a decompression bomb. Once the
+    /// twelve-bit codes are spent, repeating the last one writes the longest string again, and the decoder still adds
+    /// an entry no code can name. Code widths follow the early change a PDF's LZW filter assumes by default.
     /// </remarks>
-    public static byte[] LzwStringTableBomb(byte octet)
+    public static byte[] LzwStringTableBomb(byte octet, int repeatsOnceTheTableIsFull = 0)
     {
         const int firstEntry = 258;
         const int lastCode = 4095;
         const int endOfData = 257;
 
-        int[] codes = [octet, .. Enumerable.Range(firstEntry, lastCode - firstEntry + 1), endOfData];
+        int[] codes =
+        [
+            octet,
+            .. Enumerable.Range(firstEntry, lastCode - firstEntry + 1),
+            .. Enumerable.Repeat(lastCode, repeatsOnceTheTableIsFull),
+            endOfData,
+        ];
 
         var written = new List<byte>();
         var accumulated = 0;

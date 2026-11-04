@@ -981,6 +981,7 @@ public sealed class BoundedAttachmentTextExtractorTests
     [InlineData("ASCII85Decode")]
     [InlineData("ASCIIHexDecode")]
     [InlineData("CCITTFaxDecode")]
+    [InlineData("FlateDecode with a predictor")]
     public async Task ExtractTextAsync_APdfPageWhoseStreamDecodesPastItsAllowance_ReportsTheContainerBound(string filter)
     {
         // Arrange
@@ -989,7 +990,7 @@ public sealed class BoundedAttachmentTextExtractorTests
         await using var attachment = new FakeOpenedEmailAttachment(
             "application/pdf",
             "bomb.pdf",
-            ContentStreamDecodingToAMebibyteUnder(filter));
+            ContentStreamDecodingPast64KibibytesUnder(filter));
 
         // Act
         var result = await ExtractAsync(attachment, bounds);
@@ -1016,7 +1017,7 @@ public sealed class BoundedAttachmentTextExtractorTests
         await using var attachment = new FakeOpenedEmailAttachment(
             "application/pdf",
             "contract.pdf",
-            ContentStreamDecodingToAMebibyteUnder(filter));
+            ContentStreamDecodingPast64KibibytesUnder(filter));
 
         // Act
         var result = await ExtractAsync(attachment);
@@ -1024,6 +1025,55 @@ public sealed class BoundedAttachmentTextExtractorTests
         // Assert
         Assert.Equal(AttachmentTextExtractionOutcome.Extracted, result.Outcome);
         Assert.Equal([1], result.Text!.PagesWithoutText);
+    }
+
+    /// <summary>Each page opens an allowance of its own, so a document is not refused for what its pages decode together.</summary>
+    [Fact]
+    public async Task ExtractTextAsync_APdfWhosePagesTogetherDecodePastOnePagesAllowance_ReadsEveryPage()
+    {
+        // Arrange
+        var bounds = new AttachmentTextExtractionOptions { MaxPdfPageDecodedOctets = 64 * 1024 };
+        var aPagesWhitespace = DocumentFixtures.Deflated([.. Enumerable.Repeat((byte)' ', 24 * 1024)]);
+
+        await using var attachment = new FakeOpenedEmailAttachment(
+            "application/pdf",
+            "report.pdf",
+            DocumentFixtures.PdfWithContentStream("/Filter /FlateDecode", aPagesWhitespace, pageCount: 3));
+
+        // Act
+        var result = await ExtractAsync(attachment, bounds);
+
+        // Assert
+        Assert.Equal(AttachmentTextExtractionOutcome.Extracted, result.Outcome);
+        Assert.Equal([1, 2, 3], result.Text!.PagesWithoutText);
+    }
+
+    /// <summary>
+    /// The library keeps adding entries to its LZW table after twelve-bit codes can no longer name them, so what the stream
+    /// writes and adds past that point counts as well.
+    /// </summary>
+    /// <remarks>
+    /// The chain up to the full table charges about fourteen and three quarter million octets, inside the allowance; two
+    /// thousand repeats of its longest string charge about fifteen million more, which is what passes it.
+    /// </remarks>
+    [Fact]
+    public async Task ExtractTextAsync_APdfLzwStreamThatKeepsWritingOnceItsTableIsFull_ReportsTheContainerBound()
+    {
+        // Arrange
+        var bounds = new AttachmentTextExtractionOptions { MaxPdfPageDecodedOctets = 20 * 1024 * 1024 };
+
+        await using var attachment = new FakeOpenedEmailAttachment(
+            "application/pdf",
+            "bomb.pdf",
+            DocumentFixtures.PdfWithContentStream(
+                "/Filter /LZWDecode",
+                DocumentFixtures.LzwStringTableBomb((byte)' ', repeatsOnceTheTableIsFull: 2000)));
+
+        // Act
+        var result = await ExtractAsync(attachment, bounds);
+
+        // Assert
+        Assert.Equal(AttachmentTextExtractionOutcome.ContainerBoundExceeded, result.Outcome);
     }
 
     /// <summary>
@@ -1932,13 +1982,15 @@ public sealed class BoundedAttachmentTextExtractorTests
         return [.. written.GetPreamble(), .. written.GetBytes(text)];
     }
 
-    /// <summary>Builds a one-page PDF whose content stream, under the filter named, decodes to a mebibyte of whitespace or more.</summary>
+    /// <summary>Builds a one-page PDF whose content stream, under the filter named, decodes to whitespace past 64 KiB.</summary>
     /// <remarks>
     /// Each encoding is the cheapest a sender has under that filter: a run of one octet deflated, the LZW string-table
     /// chain, the longest repeat run-length coding allows, base-85's four-zero shorthand, two hexadecimal digits per
-    /// space, and a fax bitmap whose size is the declaration and not the data.
+    /// space, a fax bitmap whose size is the declaration and not the data, and a predictor whose two row buffers are
+    /// sized by its declared columns before a row is read. The base-85 stream is itself inside 64 KiB, so only its
+    /// shorthand carries it past the allowance.
     /// </remarks>
-    private static byte[] ContentStreamDecodingToAMebibyteUnder(string filter)
+    private static byte[] ContentStreamDecodingPast64KibibytesUnder(string filter)
     {
         const int mebibyte = 1024 * 1024;
 
@@ -1947,9 +1999,10 @@ public sealed class BoundedAttachmentTextExtractorTests
             "FlateDecode" => ("/Filter /FlateDecode", DocumentFixtures.Deflated([.. Enumerable.Repeat((byte)' ', mebibyte)])),
             "LZWDecode" => ("/Filter /LZWDecode", DocumentFixtures.LzwStringTableBomb((byte)' ')),
             "RunLengthDecode" => ("/Filter /RunLengthDecode", [.. Enumerable.Repeat<byte[]>([129, (byte)' '], mebibyte / 128).SelectMany(run => run), 128]),
-            "ASCII85Decode" => ("/Filter /ASCII85Decode", Encoding.ASCII.GetBytes(new string('z', mebibyte / 4) + "~>")),
+            "ASCII85Decode" => ("/Filter /ASCII85Decode", Encoding.ASCII.GetBytes(new string('z', 32 * 1024) + "~>")),
             "ASCIIHexDecode" => ("/Filter /ASCIIHexDecode", Encoding.ASCII.GetBytes(string.Concat(Enumerable.Repeat("20", mebibyte)) + ">")),
-            _ => ("/Filter /CCITTFaxDecode /DecodeParms << /Columns 8192 /Rows 1024 >>", new byte[64]),
+            "CCITTFaxDecode" => ("/Filter /CCITTFaxDecode /DecodeParms << /Columns 8192 /Rows 1024 >>", new byte[64]),
+            _ => ("/Filter /FlateDecode /DecodeParms << /Predictor 12 /Colors 4 /BitsPerComponent 16 /Columns 30000000 >>", DocumentFixtures.Deflated(Encoding.ASCII.GetBytes("  "))),
         };
 
         return DocumentFixtures.PdfWithContentStream(stream.Entries, stream.Encoded);

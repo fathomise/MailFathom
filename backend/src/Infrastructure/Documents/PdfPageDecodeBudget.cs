@@ -29,9 +29,13 @@ internal sealed class PdfPageDecodeBudget(long maxOctets)
     /// <summary>Records octets a filter is about to produce, before it produces them.</summary>
     /// <param name="octets">How many it will produce.</param>
     /// <exception cref="AttachmentTextExtractionStoppedException">Thrown when the page passes its allowance.</exception>
+    /// <remarks>
+    /// A charge read off a declaration can be as large as a long holds, so the count saturates rather than adding into
+    /// an overflow that would wrap it back under the allowance.
+    /// </remarks>
     public void Consume(long octets)
     {
-        this.consumed += octets;
+        this.consumed = octets > maxOctets - this.consumed ? long.MaxValue : this.consumed + octets;
 
         this.ThrowIfExceeded();
     }

@@ -44,12 +44,19 @@ internal static class PdfFilterOutputCharges
     /// <para>
     /// The two octets skipped are the zlib header, which the library skips the same way. A stream the inflater rejects
     /// part-way is charged what it produced until then: the library abandons such a stream and hands back its encoded
-    /// octets instead, which were already held.
+    /// octets instead, which were already held. A predictor the stream declares is charged first, as
+    /// <see cref="ChargePredictorRows" /> describes.
     /// </para>
     /// </remarks>
-    public static void ChargeInflation(Memory<byte> input, PdfPageDecodeBudget budget)
+    public static void ChargeInflation(
+        Memory<byte> input,
+        DictionaryToken dictionary,
+        int filterIndex,
+        PdfPageDecodeBudget budget)
     {
         const int zlibHeaderOctets = 2;
+
+        ChargePredictorRows(dictionary, filterIndex, budget);
 
         if (input.Length <= zlibHeaderOctets)
         {
@@ -83,7 +90,8 @@ internal static class PdfFilterOutputCharges
     /// every entry it ever adds, each one a copy of the previous output plus one octet, and it keeps adding them once
     /// the twelve-bit codes can no longer reach them. So each code is charged for what it writes and for the entry it
     /// adds, which is what the decoder holds after it. The replay follows the library's decoder at the pinned version —
-    /// its code widths, its early change, its clear and end codes — and stops where that decoder would stop or fail.
+    /// its code widths, its early change, its clear and end codes — and stops where that decoder would stop or fail. A
+    /// predictor the stream declares is charged first, as <see cref="ChargePredictorRows" /> describes.
     /// </para>
     /// </remarks>
     public static void ChargeLzw(
@@ -92,6 +100,8 @@ internal static class PdfFilterOutputCharges
         int filterIndex,
         PdfPageDecodeBudget budget)
     {
+        ChargePredictorRows(dictionary, filterIndex, budget);
+
         var parameters = DecodeParameterResolver.GetFilterParameters(dictionary, filterIndex);
         var lateChange = parameters.GetIntOrDefault(NameToken.EarlyChange, 1) == 1 ? 0 : 1;
 
@@ -202,6 +212,42 @@ internal static class PdfFilterOutputCharges
             dictionary.GetIntOrDefault(NameToken.Height, NameToken.H, 0));
 
         budget.Consume(Math.Max(0L, (columns + 7L) / 8 * rows));
+    }
+
+    /// <summary>Charges the rows a predictor declared on a Flate or LZW stream holds, before anything is decoded.</summary>
+    /// <remarks>
+    /// <para>
+    /// A predictor reverses a per-row encoding after the stream decodes, and the library allocates its two row buffers
+    /// from the row length the stream's parameters declare — columns times colours times bits per component — before
+    /// it reads a single octet, then writes whole rows, padding the last. So a few hundred compressed octets declaring
+    /// thirty million columns of sixteen-bit colour hold gigabytes that no measure of the decoded octets sees. The
+    /// declaration is the cost, as it is for a fax bitmap, and three rows are charged for it: the two buffers and the
+    /// padded row the output can end on. The decoded octets themselves are charged by the filter's own measure.
+    /// </para>
+    /// <para>
+    /// The row length is computed the way the library computes it, with its cap of thirty-two colours, but in a width
+    /// that cannot overflow: the library's own arithmetic is thirty-two-bit, so a declaration past that wraps there into
+    /// some smaller allocation, which the true figure charged here is never less than.
+    /// </para>
+    /// </remarks>
+    private static void ChargePredictorRows(DictionaryToken dictionary, int filterIndex, PdfPageDecodeBudget budget)
+    {
+        const int maxColors = 32;
+        const int rowsHeld = 3;
+
+        var parameters = DecodeParameterResolver.GetFilterParameters(dictionary, filterIndex);
+
+        if (parameters.GetIntOrDefault(NameToken.Predictor, -1) <= 1)
+        {
+            return;
+        }
+
+        var colors = Math.Min(parameters.GetIntOrDefault(NameToken.Colors, 1), maxColors);
+        var bitsPerComponent = parameters.GetIntOrDefault(NameToken.BitsPerComponent, 8);
+        var columns = parameters.GetIntOrDefault(NameToken.Columns, 1);
+        var rowLength = (((Int128)columns * colors * bitsPerComponent) + 7) / 8;
+
+        budget.Consume(rowLength <= 0 ? 0 : (long)Int128.Min(rowLength * rowsHeld, long.MaxValue));
     }
 
     private static MemoryStream ReadOnlyStreamOver(Memory<byte> octets) =>

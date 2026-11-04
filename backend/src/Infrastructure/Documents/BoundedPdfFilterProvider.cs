@@ -29,7 +29,7 @@ internal sealed class BoundedPdfFilterProvider(PdfPageDecodeBudget budget) : Bas
     {
         var flate = new ChargedFilter(
             new FlateFilter(),
-            (input, _, _) => PdfFilterOutputCharges.ChargeInflation(input, budget));
+            (input, dictionary, filterIndex) => PdfFilterOutputCharges.ChargeInflation(input, dictionary, filterIndex, budget));
         var lzw = new ChargedFilter(
             new LzwFilter(),
             (input, dictionary, filterIndex) => PdfFilterOutputCharges.ChargeLzw(input, dictionary, filterIndex, budget));

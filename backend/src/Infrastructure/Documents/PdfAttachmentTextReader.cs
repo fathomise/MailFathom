@@ -100,6 +100,10 @@ internal sealed partial class PdfAttachmentTextReader(AttachmentTextExtractionOp
             pageDecodeBudget.EndPage();
         }
 
+        // A refusal the library swallowed while the document opened has no page to be read at the end of when the
+        // document then declares none, so the allowance is read once more before anything is returned.
+        pageDecodeBudget.EndPage();
+
         return new ExtractedAttachmentText(text.ToText(), document.NumberOfPages, pagesWithoutText, segments)
         {
             Pictures = pictures.Pictures,
