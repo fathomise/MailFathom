@@ -15,6 +15,9 @@ internal sealed class RecordingMailboxServerCapabilityStore : IMailboxServerCapa
 
     internal IReadOnlyList<(MailAccountId Account, MailboxServerCapabilities Advertised)> Recordings => [.. this.recordings];
 
+    /// <summary>Gets the failures the next recordings raise, one each and in order, before recording resumes.</summary>
+    internal ConcurrentQueue<Exception> RefusedRecordings { get; } = new();
+
     public Task<MailboxServerCapabilityObservation> ReadAsync(MailAccountId account, CancellationToken cancellationToken) =>
         throw new InvalidOperationException("An IMAP connection records what a server advertised and never reads it back.");
 
@@ -23,6 +26,11 @@ internal sealed class RecordingMailboxServerCapabilityStore : IMailboxServerCapa
         MailboxServerCapabilities advertised,
         CancellationToken cancellationToken)
     {
+        if (this.RefusedRecordings.TryDequeue(out var refusal))
+        {
+            return Task.FromException(refusal);
+        }
+
         this.recordings.Enqueue((account, advertised));
 
         return Task.CompletedTask;

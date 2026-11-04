@@ -552,15 +552,42 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
             this.ConnectAuthenticateAndSelectFolderAsync,
             cancellationToken);
 
-        // Recorded on every establishment, a reconnection included, because a reconnection can land on a server that was
-        // upgraded or failed over behind the same address; and outside the establishment pipeline, so a database that
-        // refused the write is never retried as though the mail server had refused the connection.
-        await this.capabilityStore.RecordAsync(
-            this.accountId,
-            AdvertisedAfterAuthentication(establishedClient.Capabilities),
-            cancellationToken);
+        await this.RecordAdvertisedCapabilitiesAsync(establishedClient, cancellationToken);
 
         return establishedClient;
+    }
+
+    /// <summary>Records what the server just advertised, giving the connection up when the recording does not land.</summary>
+    /// <remarks>
+    /// <para>
+    /// Recorded on every establishment, a reconnection included, because a reconnection can land on a server that was
+    /// upgraded or failed over behind the same address. It runs after the establishment pipeline rather than inside it,
+    /// so a refused write is never retried as a refused connection; a reconnection made in the middle of a read still
+    /// runs under that read's retrieval pipeline, which repeats a transport failure and nothing a database raises.
+    /// </para>
+    /// <para>
+    /// A recording that failed discards the connection it was made for. The connection is otherwise already usable,
+    /// and the next caller would take it as it is and never record what its server advertised; discarding it makes the
+    /// next attempt establish a session of its own and record again.
+    /// </para>
+    /// </remarks>
+    private async Task RecordAdvertisedCapabilitiesAsync(
+        IImapClient establishedClient,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await this.capabilityStore.RecordAsync(
+                this.accountId,
+                AdvertisedAfterAuthentication(establishedClient.Capabilities),
+                cancellationToken);
+        }
+        catch
+        {
+            this.DiscardUnusableConnection();
+
+            throw;
+        }
     }
 
     /// <summary>Reads, from what the server advertised once authenticated, the capabilities MailFathom decides from without a session.</summary>

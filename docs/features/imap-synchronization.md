@@ -344,9 +344,11 @@ reconnection records again, because it can land on a server upgraded or failed o
 - **An account whose server was never reached reads as advertising nothing.** The row is created by the first run that
   binds one of the account's folders, so the folder discovery in front of that first binding records nothing, and the
   synchronization session right after it records the first observation.
-- **A failed recording fails the session that made it**, like any other database failure during a run, and the next
-  attempt records again. It is written outside the connection's establishment pipeline, so a refused write is never
-  retried as though the mail server had failed.
+- **A failed recording fails the session that made it**, like any other database failure during a run, and gives up
+  the connection it was made for, so the next attempt establishes a session of its own and records again. It is
+  written after the connection's establishment pipeline rather than inside it, so a refused write is never retried as
+  a refused connection. A reconnection made in the middle of a read records under that read's retrieval pipeline,
+  which repeats a transport failure and nothing a database raises, so a refused recording there ends the read.
 
 One application port, `IMailboxServerCapabilityStore`, reads the record, and it is what a decision taken with no IMAP
 session open — a custodian's, at the moment of a person's act — is taken from. A command the write session issues still
