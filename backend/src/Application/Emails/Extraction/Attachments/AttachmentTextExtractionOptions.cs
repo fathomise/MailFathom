@@ -35,6 +35,9 @@ public sealed class AttachmentTextExtractionOptions
     /// <summary>The inflation ratio one container part may reach where a deployment declares no ceiling of its own.</summary>
     public const int DefaultMaxDecompressionRatio = 200;
 
+    /// <summary>The octets one PDF page's streams may decode to where a deployment declares no ceiling of its own.</summary>
+    public const long DefaultMaxPdfPageDecodedOctets = 64L * 1024 * 1024;
+
     /// <summary>The parts a container may declare where a deployment declares no ceiling of its own.</summary>
     public const int DefaultMaxContainerParts = 2_000;
 
@@ -68,21 +71,43 @@ public sealed class AttachmentTextExtractionOptions
     /// </remarks>
     public int MaxExtractedTextCharacters { get; init; } = DefaultMaxExtractedTextCharacters;
 
-    /// <summary>Gets the total octets a container format may decompress to.</summary>
+    /// <summary>Gets the total octets an archive format may decompress to.</summary>
     /// <remarks>
-    /// Counted incrementally across every part read, so an archive declaring an enormous uncompressed size is abandoned
+    /// Counted incrementally across every part of an Office Open XML or OpenDocument archive read, so an archive declaring an enormous uncompressed size is abandoned
     /// while it inflates rather than after it has finished. The declared size is never read: it is the sender's
     /// number, and a bomb is precisely a file that lies about it.
     /// </remarks>
     public long MaxDecompressedOctets { get; init; } = DefaultMaxDecompressedOctets;
 
-    /// <summary>Gets the greatest ratio of decompressed to compressed octets one container part may reach.</summary>
+    /// <summary>Gets the greatest ratio of decompressed to compressed octets one archive part may reach.</summary>
     /// <remarks>
     /// The second half of the same guard, and the half that catches a small archive: a part whose inflation runs far
     /// past what its compressed length can honestly explain is abandoned before <see cref="MaxDecompressedOctets" />
-    /// would have been reached. Ordinary office markup compresses somewhere below twenty to one.
+    /// would have been reached. Ordinary office markup compresses somewhere below twenty to one. A PDF's streams are not
+    /// held to it: they include predictor-coded tables and fax-coded bitmaps, which compress far past what markup does,
+    /// so a ratio there would refuse ordinary documents while <see cref="MaxPdfPageDecodedOctets" /> already bounds what a
+    /// page may hold.
     /// </remarks>
     public int MaxDecompressionRatio { get; init; } = DefaultMaxDecompressionRatio;
+
+    /// <summary>Gets the octets a PDF's streams may decode to while one page is read.</summary>
+    /// <remarks>
+    /// <para>
+    /// Counted as each stream is about to decode rather than after, across every stream the page reaches — its content,
+    /// the forms it draws, the fonts and character maps it loads — with what the document decodes while it is opened
+    /// counting towards its first page. A page past it abandons the whole document, so a content stream that is a
+    /// decompression bomb is refused while its compressed octets are read rather than once it has inflated.
+    /// </para>
+    /// <para>
+    /// Per page rather than per document because the library decodes a form each time a page draws it: a letterhead
+    /// repeated on every page of a long report is decoded once per page, and a document total would refuse that report
+    /// for being long. Sixty-four mebibytes is four times the default input ceiling and far past what one honest page
+    /// holds once decoded — a page's content stream is rarely more than a few mebibytes, and the largest single stream an
+    /// ordinary document carries, a fully embedded font for a large script, is well inside it. It is also what bounds the
+    /// work inside one page, which <see cref="Timeout" /> cannot interrupt.
+    /// </para>
+    /// </remarks>
+    public long MaxPdfPageDecodedOctets { get; init; } = DefaultMaxPdfPageDecodedOctets;
 
     /// <summary>Gets the greatest number of parts a container format may hold.</summary>
     /// <remarks>
@@ -103,7 +128,7 @@ public sealed class AttachmentTextExtractionOptions
     /// Observed between units of work — a PDF page, an archive part, an element — because no parser here accepts a
     /// cancellation token of its own. A parser that never returns from one unit is therefore bounded by whatever else
     /// bounds its path rather than by this: for an archive that is the decompression, ratio, and depth ceilings above,
-    /// which is why those are not optional, and for a PDF it is <see cref="MaxInputOctets" /> alone.
+    /// and for a PDF it is <see cref="MaxPdfPageDecodedOctets" />, which is why none of those is optional.
     /// </remarks>
     public TimeSpan Timeout { get; init; } = DefaultTimeout;
 

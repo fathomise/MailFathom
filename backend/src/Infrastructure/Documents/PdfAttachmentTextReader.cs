@@ -24,12 +24,14 @@ namespace MailFathom.Infrastructure.Documents;
 /// a later optical-character-recognition pass would be given.
 /// </para>
 /// <para>
-/// What bounds this path is narrower than what bounds the two package formats, and stating it is the point of this
-/// paragraph. The inflation total, the per-part ratio, and the element depth all live in the archive readers and none
-/// of them reaches here: the library inflates a page's content streams itself, with no ceiling this code can set, and
-/// builds that page's whole text before the output ceiling below can refuse it. So a PDF is bounded by the input
-/// ceiling on the octets that arrive and by a timeout observed between pages, and a page whose content stream inflates
-/// enormously is bounded by neither. Issue #1684 is where that gap is tracked.
+/// What a page's streams decode to is bounded while they decode, by
+/// <see cref="AttachmentTextExtractionOptions.MaxPdfPageDecodedOctets" />. The library inflates streams itself, so the
+/// bound is applied through the filters it is handed: <see cref="BoundedPdfFilterProvider" /> charges each stream to the
+/// page's <see cref="PdfPageDecodeBudget" /> before the library's decoder produces it, and a page past its allowance is
+/// abandoned as <see cref="AttachmentTextExtractionOutcome.ContainerBoundExceeded" />. That is also what bounds the work
+/// inside one page, which the timeout cannot interrupt. The archive readers' inflation total, per-part ratio, and
+/// element depth do not reach here: the document is not an archive of markup, and the library still builds a page's
+/// whole text before the output ceiling below can refuse it.
 /// </para>
 /// <para>
 /// The one part-count bound that does reach here is the page count itself, refused against the same
@@ -51,15 +53,16 @@ internal sealed partial class PdfAttachmentTextReader(AttachmentTextExtractionOp
     /// <param name="content">The attachment's octets, positioned at the start.</param>
     /// <param name="cancellationToken">Cancels the read between pages.</param>
     /// <returns>What the document yielded.</returns>
-    /// <exception cref="AttachmentTextExtractionStoppedException">Thrown when the output ceiling is crossed, or when the document declares more pages than one container may hold.</exception>
+    /// <exception cref="AttachmentTextExtractionStoppedException">Thrown when the output ceiling is crossed, when the document declares more pages than one container may hold, or when a page's streams decode past what one page may.</exception>
     public ExtractedAttachmentText Read(Stream content, CancellationToken cancellationToken)
     {
         var text = new BoundedTextAccumulator(options.MaxExtractedTextCharacters);
         var pagesWithoutText = new List<int>();
         var segments = new List<AttachmentTextSegment>();
         var pictures = new EmbeddedPictureCollector(options.MaxPicturesPerDocument);
+        var pageDecodeBudget = new PdfPageDecodeBudget(options.MaxPdfPageDecodedOctets);
 
-        using var document = PdfDocument.Open(content, ReadOnlyParsingOptions());
+        using var document = PdfDocument.Open(content, ReadOnlyParsingOptions(pageDecodeBudget));
 
         // How many pages the document declares is the sender's, and one segment is recorded per page below, so without
         // a ceiling a file well inside the input bound could name hundreds of thousands of near-empty page objects and
@@ -87,11 +90,14 @@ internal sealed partial class PdfAttachmentTextReader(AttachmentTextExtractionOp
             {
                 pagesWithoutText.Add(page);
                 this.OfferPictures(pdfPage, page, pictures, cancellationToken);
-                continue;
+            }
+            else
+            {
+                text.Add(pageText);
+                text.EndLine();
             }
 
-            text.Add(pageText);
-            text.EndLine();
+            pageDecodeBudget.EndPage();
         }
 
         return new ExtractedAttachmentText(text.ToText(), document.NumberOfPages, pagesWithoutText, segments)
@@ -143,17 +149,20 @@ internal sealed partial class PdfAttachmentTextReader(AttachmentTextExtractionOp
         Message = "The images on page {PageNumber} of a PDF attachment could not be read ({FailureType}); that page's pictures are not sent to the describer, and the rest of the document is read as usual.")]
     private static partial void LogPicturesUnreadable(ILogger logger, int pageNumber, string failureType);
 
-    /// <summary>Builds the options every PDF here is opened under.</summary>
+    /// <summary>Builds the options one PDF is opened under.</summary>
+    /// <param name="pageDecodeBudget">The allowance every stream the document decodes is charged to.</param>
     /// <remarks>
-    /// Both settings widen what is readable rather than what is trusted. Real mail carries PDFs written by generators
-    /// that disagree with the specification in small ways, and a strict parse would report a contract somebody can open
-    /// in their reader as unreadable; a font the document names and does not embed is a defect in the document's
-    /// presentation rather than a reason to abandon its words. Neither relaxes a bound: what stops a hostile file is
-    /// the input ceiling, the output ceiling, and the timeout, none of which this touches.
+    /// The two lenient settings widen what is readable rather than what is trusted. Real mail carries PDFs written by
+    /// generators that disagree with the specification in small ways, and a strict parse would report a contract
+    /// somebody can open in their reader as unreadable; a font the document names and does not embed is a defect in the
+    /// document's presentation rather than a reason to abandon its words. Neither relaxes a bound: skipping a font the
+    /// library could not load also swallows a refusal raised while it was decoded, and the page is refused at its end
+    /// regardless, as <see cref="PdfPageDecodeBudget" /> describes.
     /// </remarks>
-    private static ParsingOptions ReadOnlyParsingOptions() => new()
+    private static ParsingOptions ReadOnlyParsingOptions(PdfPageDecodeBudget pageDecodeBudget) => new()
     {
         UseLenientParsing = true,
         SkipMissingFonts = true,
+        FilterProvider = new BoundedPdfFilterProvider(pageDecodeBudget),
     };
 }

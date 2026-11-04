@@ -27,6 +27,7 @@ public sealed class AttachmentTextOptionsTests
         Assert.Equal(AttachmentDocumentFormats.Extracted, bounds.Formats);
         Assert.Equal(AttachmentTextExtractionOptions.DefaultMaxInputOctets, bounds.MaxInputOctets);
         Assert.Equal(AttachmentTextExtractionOptions.DefaultMaxDecompressedOctets, bounds.MaxDecompressedOctets);
+        Assert.Equal(AttachmentTextExtractionOptions.DefaultMaxPdfPageDecodedOctets, bounds.MaxPdfPageDecodedOctets);
         Assert.Equal(AttachmentTextExtractionOptions.DefaultTimeout, bounds.Timeout);
     }
 
@@ -74,6 +75,7 @@ public sealed class AttachmentTextOptionsTests
             MaxExtractedTextCharacters = 3000,
             MaxDecompressedOctets = 4096,
             MaxDecompressionRatio = 7,
+            MaxPdfPageDecodedOctets = 8192,
             MaxContainerParts = 11,
             MaxElementDepth = 13,
             Timeout = TimeSpan.FromSeconds(17),
@@ -87,6 +89,7 @@ public sealed class AttachmentTextOptionsTests
         Assert.Equal(3000, bounds.MaxExtractedTextCharacters);
         Assert.Equal(4096, bounds.MaxDecompressedOctets);
         Assert.Equal(7, bounds.MaxDecompressionRatio);
+        Assert.Equal(8192, bounds.MaxPdfPageDecodedOctets);
         Assert.Equal(11, bounds.MaxContainerParts);
         Assert.Equal(13, bounds.MaxElementDepth);
         Assert.Equal(TimeSpan.FromSeconds(17), bounds.Timeout);
@@ -105,6 +108,8 @@ public sealed class AttachmentTextOptionsTests
     [InlineData(nameof(AttachmentTextOptions.MaxDecompressedOctets), 999_999_999_999L)]
     [InlineData(nameof(AttachmentTextOptions.MaxDecompressionRatio), 0L)]
     [InlineData(nameof(AttachmentTextOptions.MaxDecompressionRatio), 20_000L)]
+    [InlineData(nameof(AttachmentTextOptions.MaxPdfPageDecodedOctets), 512L)]
+    [InlineData(nameof(AttachmentTextOptions.MaxPdfPageDecodedOctets), 999_999_999_999L)]
     [InlineData(nameof(AttachmentTextOptions.MaxContainerParts), 0L)]
     [InlineData(nameof(AttachmentTextOptions.MaxContainerParts), 200_000L)]
     [InlineData(nameof(AttachmentTextOptions.MaxElementDepth), 1L)]
@@ -416,6 +421,10 @@ public sealed class AttachmentTextOptionsTests
 
             case nameof(AttachmentTextOptions.MaxDecompressionRatio):
                 settings.MaxDecompressionRatio = (int)value;
+                break;
+
+            case nameof(AttachmentTextOptions.MaxPdfPageDecodedOctets):
+                settings.MaxPdfPageDecodedOctets = value;
                 break;
 
             case nameof(AttachmentTextOptions.MaxContainerParts):

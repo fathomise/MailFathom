@@ -101,11 +101,14 @@ internal sealed class AttachmentTextOptions : IValidatableObject
     /// <summary>Gets or sets the characters one attachment may contribute.</summary>
     public int MaxExtractedTextCharacters { get; set; } = AttachmentTextExtractionOptions.DefaultMaxExtractedTextCharacters;
 
-    /// <summary>Gets or sets the total octets a container format may decompress to.</summary>
+    /// <summary>Gets or sets the total octets an archive format may decompress to.</summary>
     public long MaxDecompressedOctets { get; set; } = AttachmentTextExtractionOptions.DefaultMaxDecompressedOctets;
 
-    /// <summary>Gets or sets the greatest ratio of decompressed to compressed octets one container part may reach.</summary>
+    /// <summary>Gets or sets the greatest ratio of decompressed to compressed octets one archive part may reach.</summary>
     public int MaxDecompressionRatio { get; set; } = AttachmentTextExtractionOptions.DefaultMaxDecompressionRatio;
+
+    /// <summary>Gets or sets the octets a PDF's streams may decode to while one page is read.</summary>
+    public long MaxPdfPageDecodedOctets { get; set; } = AttachmentTextExtractionOptions.DefaultMaxPdfPageDecodedOctets;
 
     /// <summary>Gets or sets the parts a container format may declare.</summary>
     public int MaxContainerParts { get; set; } = AttachmentTextExtractionOptions.DefaultMaxContainerParts;
@@ -255,6 +258,7 @@ internal sealed class AttachmentTextOptions : IValidatableObject
         (nameof(this.MaxExtractedTextCharacters), this.MaxExtractedTextCharacters, 1_000, 10_000_000),
         (nameof(this.MaxDecompressedOctets), this.MaxDecompressedOctets, 1024, 2L * 1024 * 1024 * 1024),
         (nameof(this.MaxDecompressionRatio), this.MaxDecompressionRatio, 2, 10_000),
+        (nameof(this.MaxPdfPageDecodedOctets), this.MaxPdfPageDecodedOctets, 1024, 2L * 1024 * 1024 * 1024),
         (nameof(this.MaxContainerParts), this.MaxContainerParts, 1, 100_000),
         (nameof(this.MaxElementDepth), this.MaxElementDepth, 2, 10_000),
         (nameof(this.MaxAttachmentsPerEmail), this.MaxAttachmentsPerEmail, 1, 1_000),
@@ -273,6 +277,7 @@ internal sealed class AttachmentTextOptions : IValidatableObject
         MaxExtractedTextCharacters = this.MaxExtractedTextCharacters,
         MaxDecompressedOctets = this.MaxDecompressedOctets,
         MaxDecompressionRatio = this.MaxDecompressionRatio,
+        MaxPdfPageDecodedOctets = this.MaxPdfPageDecodedOctets,
         MaxContainerParts = this.MaxContainerParts,
         MaxElementDepth = this.MaxElementDepth,
         Timeout = this.Timeout,

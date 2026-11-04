@@ -114,7 +114,7 @@ Every outcome is one of a closed set, and each is distinguishable from every oth
 | `FormatNotExtracted` | The format is recognized and nothing here reads it — the three legacy binary formats, and any format the deployment excluded | Convert the document, or widen `Embeddings:AttachmentText:Formats` where it was narrowed |
 | `InputTooLarge` | The attachment holds more octets than `MaxInputOctets` | Raise the ceiling deliberately, having seen what it costs in memory |
 | `ExtractedTextTooLarge` | The attachment yielded more characters than `MaxExtractedTextCharacters` | Raise the ceiling; nothing is truncated into a partial answer |
-| `ContainerBoundExceeded` | An archive passed its decompression total, its inflation ratio, its part count, its element depth, or — for a workbook — the number of entries its string table may hold, and for an OpenDocument file the number of pages one content part may declare | Treat it as an attachment worth looking at rather than a ceiling to raise, unless the document really is that large: a workbook of more than `MaxExtractedTextCharacters` distinct strings, or a spreadsheet of more than `MaxContainerParts` sheets, is stopped here rather than by the ceiling those keys name for their own outcome |
+| `ContainerBoundExceeded` | An archive passed its decompression total, its inflation ratio, its part count, its element depth, or — for a workbook — the number of entries its string table may hold, and for an OpenDocument file the number of pages one content part may declare; a PDF declared more pages than `MaxContainerParts`, or one of its pages decoded past `MaxPdfPageDecodedOctets` | Treat it as an attachment worth looking at rather than a ceiling to raise, unless the document really is that large: a workbook of more than `MaxExtractedTextCharacters` distinct strings, or a spreadsheet of more than `MaxContainerParts` sheets, is stopped here rather than by the ceiling those keys name for their own outcome |
 | `Encrypted` | The document is password-protected and this system holds no password for it | Nothing automatic; no password is stored anywhere here |
 | `Malformed` | The bytes do not parse as the format they declare | Nothing; badly formed documents are expected of real mail |
 | `TimedOut` | The read passed `Timeout` | Raise the ceiling, or treat a document that needs more than thirty seconds as one worth looking at — the message keeps no stamp and is read again on a later run — which is the account run's answer alone, a screened send or a screened download having no later run to wait for and refusing the act instead |
@@ -245,7 +245,8 @@ somebody keeps.
   asserted by a test over the reader's own configuration rather than only stated here.
 - **Decompression is bounded while it happens.** An archive's declared uncompressed size is never read — it is the
   sender's number, and a bomb is precisely a file that lies about it. What is counted is what actually inflates,
-  against a total shared by every part and against each part's own compressed length.
+  against a total shared by every part and against each part's own compressed length. A PDF's streams are counted
+  per page instead, each one charged before the library decodes it.
 - **Nothing a parser raises reaches a caller.** Whatever a parser does with adversarial input becomes one of the
   outcomes above. The three things never swallowed are a caller's own cancellation, a process out of memory, and a
   failure reading the attachment's stored content, which propagates as whatever the content store raised — a connection
@@ -258,22 +259,26 @@ somebody keeps.
   read an attachment while their caller waits — a send or a draft being screened, and a download being screened — so a
   hostile document does delay the caller who supplied or requested it. The ceilings below are what bounds that delay,
   and they are applied per attachment and across the whole message together, so a hundred small files cost no more
-  than one large one. **With one exception, stated in the next paragraph and not softened here:** the timeout is
-  observed between units of work, so a single PDF page whose content stream inflates enormously is bounded by the input
-  ceiling alone and by no clock. On a synchronization stage that costs a worker; on a screened send or a screened
-  download it costs the caller, on a request nothing here will cut short.
+  than one large one. The timeout is observed between units of work, so the work inside one PDF page is bounded by
+  what that page may decode to rather than by the clock.
 
 The timeout is honest about its own limit: it is observed between units of work — a page, an archive part, an element —
 because no parser here accepts a cancellation token and .NET cannot abort a thread. A parser that never returns from a
 single unit is bounded by whatever else bounds its path, which is why none of those ceilings is optional.
 
-**The two package families and the PDF are not bounded to the same depth, and the difference is worth knowing before
-raising a ceiling.** An archive is read by this repository's own code, so the decompression total, the per-part ratio,
-and the element depth all apply to it while it inflates. A PDF is read by a library that inflates a page's content
-streams itself, with no ceiling MailFathom can set and no way to see the text before it is built — so on that path the
-input ceiling on the octets that arrive and the between-pages timeout are the whole of it, and a single page whose
-content stream inflates enormously is bounded by neither. Nothing here treats that as acceptable; it is recorded as a
-gap rather than described as a guard.
+**The two package families and the PDF are bounded by different ceilings, and the difference is worth knowing before
+raising one.** An archive is read by this repository's own code, so the decompression total, the per-part ratio, and the
+element depth all apply to it while it inflates. A PDF is read by a library that decodes its streams itself, so the
+bound is applied through the decoders MailFathom hands it: every stream a page reaches — its content, the forms it
+draws, the fonts and character maps it loads, and for the first page whatever opening the document decoded — is
+measured before it decodes and charged against `MaxPdfPageDecodedOctets`, and a page past it abandons the document as
+`ContainerBoundExceeded`. A Flate or LZW stream is measured by decoding it into nothing, which stops the moment the
+allowance is passed, so a bomb costs reading its compressed octets up to that point rather than holding what they
+inflate to; the other filters state their output in their own octets or parameters. The allowance is per page because
+the library decodes a form each time a page draws it, so a letterhead drawn on every page of a long report would
+exhaust a document-wide total. The per-part ratio does not reach a PDF: its streams include predictor-coded tables and
+fax-coded bitmaps that compress far past what markup does. What the library builds from a page once its streams have
+decoded — the page's whole text, before the output ceiling can refuse it — is still built whole.
 
 An attachment an antivirus pass has judged infected is not excluded, because no such pass exists yet. When one lands,
 this port is where it gates: an infected attachment is skipped before a parser is offered its bytes.
