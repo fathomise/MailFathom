@@ -13,8 +13,8 @@ namespace MailFathom.Application.Mail.Delivery.Outbox;
 /// above the lease duration is refused rather than warned about.
 /// </para>
 /// <para>
-/// The attempt bound and the two retry delays are the outbox's own budget for offering a message again, and there is
-/// exactly one of them. What an attempt calls is already retried inside itself by the delivery dependency's resilience
+/// The attempt bound, the two retry delays, and the retry window are the outbox's own budget for offering a message
+/// again, and there is exactly one of them. What an attempt calls is already retried inside itself by the delivery dependency's resilience
 /// pipeline, which repeats a submission server's explicit temporary rejection and nothing else; a second bound at this
 /// level would multiply against that one instead of bounding anything.
 /// </para>
@@ -70,6 +70,43 @@ public sealed record MailOutboxSettings
     /// answers and the deployment says which side of them a message falls on.
     /// </remarks>
     public TimeSpan AllowedLateness { get; }
+
+    /// <summary>Gets how long after its first failed attempt a send may still be attempted, which is the latest a person learns it is not going out.</summary>
+    /// <remarks>
+    /// <para>
+    /// It bounds the retries beside <see cref="MaxAttempts" />, and whichever ends first ends the send: a message is
+    /// time-sensitive, so a send refused for now or whose server cannot be reached is refused in the open once this has
+    /// passed, and the person decides whether to send it again. The default is fifteen minutes.
+    /// </para>
+    /// <para>
+    /// It is set beside the other bounds rather than taken by <see cref="Create" />, so every caller that has no reason
+    /// to name it gets the default the product promises.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the value set is not positive.</exception>
+    public TimeSpan RetryWindow
+    {
+        get;
+        init
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero);
+            field = value;
+        }
+    } = DefaultRetryWindow;
+
+    /// <summary>Gets the time a send may be retried for when a deployment names none.</summary>
+    public static TimeSpan DefaultRetryWindow { get; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>Reports whether an attempt starting at an instant would still end inside the time a send may be retried for.</summary>
+    /// <param name="firstFailedAt">When an attempt of the send first failed for a reason that could clear.</param>
+    /// <param name="attemptStartsAt">When the attempt in question would begin.</param>
+    /// <returns><see langword="true" /> when the attempt, run out to its whole budget, ends no later than the window closes.</returns>
+    /// <remarks>
+    /// The attempt's end is weighed rather than its start, because the refusal a person is told about is recorded when
+    /// the last attempt ends: one that began inside the window and ran on past it would tell them late.
+    /// </remarks>
+    public bool AdmitsRetry(DateTimeOffset firstFailedAt, DateTimeOffset attemptStartsAt) =>
+        attemptStartsAt + this.AttemptTimeout <= firstFailedAt + this.RetryWindow;
 
     /// <summary>States the bounds one pass runs under.</summary>
     /// <param name="maxDeliveriesPerPass">The greatest number of queued sends one pass claims.</param>

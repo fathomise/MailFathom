@@ -8,7 +8,7 @@ using MailFathom.Domain.Delivery;
 
 namespace MailFathom.Application.Jobs.Payloads;
 
-/// <summary>Points one job at a message already written down and waiting for the time it was written to leave at.</summary>
+/// <summary>Points one job at a message already written down and waiting for the time it was written to leave at, or for its next attempt.</summary>
 /// <remarks>
 /// <para>
 /// Every property is one of MailFathom's own identifiers: the account's generated identifier, which names one

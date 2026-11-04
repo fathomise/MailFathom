@@ -8,6 +8,7 @@ using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
+using MailFathom.Application.Jobs;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Delivery;
 using MailFathom.Application.Mail.Delivery.Composition;
@@ -233,6 +234,7 @@ public sealed class OutboxDeliveryWorkerTests
             collection.AddSingleton(Substitute.For<IMailDeliverySessionFactory>());
             collection.AddSingleton(Substitute.For<IOutgoingSenderIdentityReader>());
             collection.AddSingleton(Substitute.For<IPersistenceSessionFactory>());
+            collection.AddSingleton(Substitute.For<IJobStore>());
             collection.AddSingleton(new PersistenceConcurrencyOptions());
             collection.AddSingleton(MailOutboxSettings.Create(
                 MaxDeliveriesPerPass,

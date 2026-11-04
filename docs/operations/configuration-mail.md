@@ -821,13 +821,15 @@ how long it holds it, and how patient this deployment is with a submission serve
 | `MailDelivery:MaxAttempts` | int | `5` | 1 – 100; `1` leaves no retry at all | restart |
 | `MailDelivery:RetryBaseDelay` | TimeSpan | `00:01:00` | 1 s – 1 h | restart |
 | `MailDelivery:RetryMaxDelay` | TimeSpan | `01:00:00` | 1 s – 24 h, and never below `RetryBaseDelay` | restart |
+| `MailDelivery:RetryWindow` | TimeSpan | `00:15:00` | 1 min – 24 h, and at least `RetryBaseDelay` plus `AttemptTimeout` while `MaxAttempts` is above `1` | restart |
 | `MailDelivery:AllowedSendLateness` | TimeSpan | `08:00:00` | 1 min – 30 d | restart |
 | `MailDelivery:MaxSendHold` | TimeSpan | `90.00:00:00` | 1 h – 366 d | restart |
 | `MailDelivery:SignalQueueCapacity` | int | `64` | 1 – 1000 | restart |
 
-**`AttemptTimeout` below `LeaseDuration` is one of the two orderings startup refuses rather than warns about**, the
-other being `RetryMaxDelay` at or above `RetryBaseDelay`, which the table above states as a constraint of its own. The
-first is the one worth the paragraph, because what it protects is a message rather than a schedule. The lease is
+**`AttemptTimeout` below `LeaseDuration` is one of the three orderings startup refuses rather than warns about**, the
+others being `RetryMaxDelay` at or above `RetryBaseDelay`, which the table above states as a constraint of its own, and
+`RetryWindow` at or above `RetryBaseDelay` plus `AttemptTimeout`, which the paragraph on `RetryWindow` below explains.
+The first is the one worth the paragraph, because what it protects is a message rather than a schedule. The lease is
 what lets a crashed process's send be attempted again without anything being told the process died, and an attempt
 still transmitting when its own lease expires is a second attempt taking a message the first may already have sent. So
 the attempt is cancelled first, by a margin the operator chooses, and a configuration stating otherwise fails startup
@@ -837,6 +839,17 @@ A send that spends `MaxAttempts` stops being attempted and stands in the outbox 
 than being retried forever; a permanent refusal is terminal at the first answer and never spends the remaining
 attempts. Between attempts the delay doubles from `RetryBaseDelay`, drawn with jitter so a provider that refused every
 account at once is not offered all of them back together, and is capped at `RetryMaxDelay`.
+
+**`RetryWindow` is the latest a person learns that a message is not going out.** A send the submission server refused
+for now, or whose server could not be reached, is refused no later than this after its first failed attempt, and its
+author is notified then and offered *Send again*. It bounds the same retries `MaxAttempts` does, and whichever runs out
+first ends the send. A retry is scheduled only where its whole `AttemptTimeout` still ends inside the window, so the
+refusal is never recorded after it; that is why startup refuses a window shorter than `RetryBaseDelay` plus
+`AttemptTimeout` while `MaxAttempts` allows a retry at all, since such a window would end every passing failure on its
+first attempt and the retries configured beside it would never happen. Each retry is taken up from the durable job
+queue when it is due, so `MailSynchronization:Interval` does not stretch it. Raising the window, or the bounds it has
+to fit, lets a deployment wait longer for a provider before giving up; the default of fifteen minutes is the product's
+promise to a person and is kept by the shipped values of every key above.
 
 **`AllowedSendLateness` applies to a message written to leave at a named time and to nothing else.** A send that named
 no time is never late, however long a retry or an unreachable provider has held it, so raising or lowering this key

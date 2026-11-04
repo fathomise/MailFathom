@@ -113,4 +113,57 @@ public sealed class MailOutboxSettingsTests
         // Assert
         Assert.Equal("allowedLateness", thrown.ParamName);
     }
+
+    /// <summary>Bounds that name no retry window carry the fifteen minutes the product promises a person.</summary>
+    [Fact]
+    public void RetryWindow_NoneStated_IsFifteenMinutes()
+    {
+        // Act
+        var settings = Defaults();
+
+        // Assert
+        Assert.Equal(TimeSpan.FromMinutes(15), settings.RetryWindow);
+    }
+
+    /// <summary>A window of nothing would refuse every send on its first failure, so it is stated wrongly.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void RetryWindow_NotPositive_IsRefused(int minutes)
+    {
+        // Act
+        var thrown = Assert.Throws<ArgumentOutOfRangeException>(
+            () => Defaults() with { RetryWindow = TimeSpan.FromMinutes(minutes) });
+
+        // Assert
+        Assert.Equal("value", thrown.ParamName);
+    }
+
+    /// <summary>A retry is admitted exactly while its whole attempt still ends by the time the window closes.</summary>
+    [Theory]
+    [InlineData(8 * 60, true)]
+    [InlineData((8 * 60) + 1, false)]
+    public void AdmitsRetry_AttemptStartingAfterTheFirstFailure_AdmitsItOnlyWhileItsAttemptEndsInsideTheWindow(
+        int secondsAfterFirstFailure,
+        bool expected)
+    {
+        // Arrange
+        var settings = Defaults();
+        var firstFailedAt = new DateTimeOffset(2026, 11, 4, 9, 0, 0, TimeSpan.Zero);
+
+        // Act
+        var admitted = settings.AdmitsRetry(firstFailedAt, firstFailedAt.AddSeconds(secondsAfterFirstFailure));
+
+        // Assert
+        Assert.Equal(expected, admitted);
+    }
+
+    private static MailOutboxSettings Defaults() => MailOutboxSettings.Create(
+        maxDeliveriesPerPass: 10,
+        TimeSpan.FromMinutes(10),
+        TimeSpan.FromMinutes(7),
+        maxAttempts: 5,
+        TimeSpan.FromMinutes(1),
+        TimeSpan.FromHours(1),
+        TimeSpan.FromHours(8));
 }

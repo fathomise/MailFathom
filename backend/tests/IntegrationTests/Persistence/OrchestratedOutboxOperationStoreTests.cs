@@ -12,6 +12,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Failures;
 using MailFathom.IntegrationTests.Orchestration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -156,6 +157,51 @@ public sealed class OrchestratedOutboxOperationStoreTests(MailFathomOrchestratio
 
         // Left where the rest of the collection expects an account's outbox to be, rather than queued for a delivery
         // pass another class in this collection would then have to account for.
+        Assert.Equal(OutboxDecisionOutcome.Accepted, await CancelAsync(services, enqueued.Id, cancellationToken));
+    }
+
+    /// <summary>
+    /// The first deferral stamps when the send first failed and a later one leaves it, because the retry window is
+    /// measured from it; offering the send again clears it, so the window a person is promised starts over with the
+    /// attempts.
+    /// </summary>
+    [Fact]
+    public async Task RequeueAsync_ASendThatFailedForNowAndWasRefused_StartsItsRetryWindowOver()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var enqueued = await EnqueueAsync(services, "outbox-operations-retry-window", cancellationToken);
+
+        await DeferAsync(services, enqueued, cancellationToken);
+        var firstFailedAt = (await FindAsync(services, enqueued.Id, cancellationToken)).FirstFailedAt;
+        await DeferAsync(services, enqueued, cancellationToken);
+        var afterSecondFailure = (await FindAsync(services, enqueued.Id, cancellationToken)).FirstFailedAt;
+
+        var leases = await ClaimLeasesAsync(services, LiveLease, cancellationToken);
+        await AdvanceAsync(
+            services,
+            leases[enqueued.Id],
+            enqueued.Id,
+            OutgoingEmailStage.Refused,
+            replyCode: 451,
+            cancellationToken);
+
+        // Act
+        var requeued = await RequeueAsync(
+            services,
+            enqueued.Id,
+            refusalRestated: true,
+            reachesDismissedSend: true,
+            cancellationToken);
+
+        // Assert
+        Assert.NotNull(firstFailedAt);
+        Assert.Equal(firstFailedAt, afterSecondFailure);
+        Assert.Equal(OutboxDecisionOutcome.Accepted, requeued);
+        Assert.Null((await FindAsync(services, enqueued.Id, cancellationToken)).FirstFailedAt);
+
+        // Left where the rest of the collection expects an account's outbox to be.
         Assert.Equal(OutboxDecisionOutcome.Accepted, await CancelAsync(services, enqueued.Id, cancellationToken));
     }
 
@@ -498,6 +544,31 @@ public sealed class OrchestratedOutboxOperationStoreTests(MailFathomOrchestratio
         var committed = await services.CommitAsync(
             (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
                 .AdvanceAsync(session, lease, outgoingEmailId, stage, replyCode, token),
+            cancellationToken);
+
+        Assert.Equal(PersistenceCommitResult.Committed, committed);
+    }
+
+    /// <summary>Claims one send and gives it back for a later attempt after a failure that could clear, as a delivery attempt does.</summary>
+    /// <remarks>
+    /// It is given back claimable at once — at the instant it was recorded — so the next claim takes it without the test
+    /// waiting out a backoff. The write is asserted to have committed, for the reason <see cref="RecordTransmissionBegunAsync" /> gives.
+    /// </remarks>
+    private static async Task DeferAsync(
+        OrchestratedMailFathomServices services,
+        OutgoingEmailRecord record,
+        CancellationToken cancellationToken)
+    {
+        var leases = await ClaimLeasesAsync(services, LiveLease, cancellationToken);
+
+        var committed = await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>().DeferAsync(
+                session,
+                leases[record.Id],
+                record.Id,
+                record.AvailableAt,
+                MailFathomErrorCode.MailDeliveryUnavailable,
+                token),
             cancellationToken);
 
         Assert.Equal(PersistenceCommitResult.Committed, committed);

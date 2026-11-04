@@ -194,6 +194,14 @@ public sealed record OutgoingEmailRecord
     /// </remarks>
     public DateTimeOffset? AttemptLeaseExpiresAt { get; init; }
 
+    /// <summary>Gets when an attempt of this send first failed for a reason that could clear, or <see langword="null" /> while none has.</summary>
+    /// <remarks>
+    /// It is what the time a send may be retried for is measured from, so a person learns a message is not going out a
+    /// bounded time after it first did not, however the attempts in between were spaced. Offering the send again starts
+    /// it over.
+    /// </remarks>
+    public DateTimeOffset? FirstFailedAt { get; init; }
+
     /// <summary>Reports whether an attempt holds this send at an instant.</summary>
     /// <param name="asOf">The instant the question is asked at.</param>
     /// <returns><see langword="true" /> while the lease the last claim took has not run out.</returns>

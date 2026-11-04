@@ -19,6 +19,11 @@ namespace MailFathom.Application.Mail.Delivery.Scheduling;
 /// own.
 /// </para>
 /// <para>
+/// A send deferred after a failure that could clear is held the same way, until the instant its next attempt is due,
+/// and rides the same job: a retry is taken up when it is due rather than whenever the account's synchronization run
+/// next comes round, which is what keeps the time a refused send takes to reach a person bounded.
+/// </para>
+/// <para>
 /// A send that was cancelled while it was held, or one an earlier pass has already taken, is not signalled. The pass
 /// would find nothing to claim either way, so this is about what an operator reads rather than about correctness: a job
 /// that signalled an account for a message nobody is waiting for would report work that was not there.

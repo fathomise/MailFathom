@@ -305,6 +305,7 @@ internal sealed class OutgoingEmailStore(MailFathomDbContext readContext, TimePr
         entity.Stage = OutgoingEmailStage.Recorded;
         entity.StageChangedAt = timeProvider.GetUtcNow();
         entity.AvailableAt = availableAt;
+        entity.FirstFailedAt ??= entity.StageChangedAt;
         entity.LeaseOwner = null;
         entity.LeaseExpiresAt = null;
 

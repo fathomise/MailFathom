@@ -476,7 +476,8 @@ if (runsIntegrationTests)
         // does not resolve — so every send this host queues is claimed, attempted once, and deferred. Stretching the
         // first retry past the length of a run is what makes that one attempt the whole of what happens to a record: a
         // send stands recorded and withdrawable afterwards instead of being claimed again while a test is reading it.
-        .WithEnvironment("MailDelivery__RetryBaseDelay", OrchestrationContract.ComposedHostDeliveryRetryDelay);
+        .WithEnvironment("MailDelivery__RetryBaseDelay", OrchestrationContract.ComposedHostDeliveryRetryDelay)
+        .WithEnvironment("MailDelivery__RetryWindow", OrchestrationContract.ComposedHostDeliveryRetryWindow);
 
     // The probe section is handed the port the endpoint above allocated, which is what puts the two surfaces on one
     // socket. It is a second reference to the same endpoint rather than a second endpoint, because two endpoints are

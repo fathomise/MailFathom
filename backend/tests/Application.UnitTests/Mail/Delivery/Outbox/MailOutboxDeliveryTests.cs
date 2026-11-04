@@ -6,6 +6,8 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using MailFathom.Application.EmailContent.Storage;
+using MailFathom.Application.Jobs;
+using MailFathom.Application.Jobs.Payloads;
 using MailFathom.Application.Mail.Delivery;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Filing;
@@ -337,6 +339,151 @@ public sealed class MailOutboxDeliveryTests
         var record = context.Store.Read(claimed.Record.Id);
         Assert.Equal(OutgoingEmailStage.Refused, record.Stage);
         Assert.Equal(MailFathomErrorCode.OutgoingEmailAttemptsExhausted, record.LastFailure);
+    }
+
+    /// <summary>A deferred send is put on the durable queue for the instant its next attempt is due, rather than left for the account's next run.</summary>
+    [Fact]
+    public async Task DeliverAsync_ServerRefusesTheMessageForNow_SchedulesTheRetryForTheInstantItIsDue()
+    {
+        // Arrange
+        var context = new DeliveryContext();
+        var claimed = await context.ClaimAsync("anna@example.test");
+        context.Transmit = (_, _, _) =>
+            Task.FromResult(new MailTransmission(MailTransmissionOutcome.RefusedTemporarily, 451));
+
+        // Act
+        await context.DeliverAsync(claimed, TestContext.Current.CancellationToken);
+
+        // Assert
+        var availableAt = context.Store.ReadAvailableAt(claimed.Record.Id);
+        await context.Jobs.Received(1).EnqueueAsync(
+            Arg.Is<JobEnqueueRequest>(request =>
+                request.AvailableAt == availableAt
+                && request.Account == Account
+                && request.Payload is HeldSendJobPayload
+                && ((HeldSendJobPayload)request.Payload).OutgoingRecordId == claimed.Record.Id.Value),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A queue that cannot take the retry costs it its punctuality and nothing else: the deferral stands.</summary>
+    [Fact]
+    public async Task DeliverAsync_RetryCannotBeQueued_StillDefersTheSend()
+    {
+        // Arrange
+        var context = new DeliveryContext();
+        var claimed = await context.ClaimAsync("anna@example.test");
+        context.Transmit = (_, _, _) =>
+            Task.FromResult(new MailTransmission(MailTransmissionOutcome.RefusedTemporarily, 451));
+        context.Jobs
+            .EnqueueAsync(Arg.Any<JobEnqueueRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<JobEnqueueResult>(new InvalidOperationException("The queue is gone.")));
+
+        // Act
+        var result = await context.DeliverAsync(claimed, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailOutboxDeliveryOutcome.Deferred, result.Outcome);
+        Assert.Equal(OutgoingEmailStage.Recorded, context.Store.Read(claimed.Record.Id).Stage);
+    }
+
+    /// <summary>
+    /// Under the shipped defaults a send that keeps failing for a passing reason — refused for now, or a server that
+    /// cannot be reached — is refused, and its author told, no later than fifteen minutes after its first failure,
+    /// however long each attempt runs.
+    /// </summary>
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(false, 6)]
+    [InlineData(true, 0)]
+    [InlineData(true, 6)]
+    public async Task DeliverAsync_SendThatKeepsFailingForAPassingReason_IsRefusedWithinFifteenMinutesOfItsFirstFailure(
+        bool serverUnreachable,
+        int attemptMinutes)
+    {
+        // Arrange
+        var context = new DeliveryContext();
+        var claimed = await context.ClaimAsync("anna@example.test");
+        context.Transmit = (_, _, _) =>
+        {
+            context.Advance(TimeSpan.FromMinutes(attemptMinutes));
+
+            return serverUnreachable
+                ? throw new MailDeliveryUnavailableException(
+                    Account,
+                    new SocketException((int)SocketError.ConnectionRefused))
+                : Task.FromResult(new MailTransmission(MailTransmissionOutcome.RefusedTemporarily, 451));
+        };
+        DateTimeOffset? firstFailedAt = null;
+
+        // Act
+        var result = await context.DeliverAsync(claimed, TestContext.Current.CancellationToken);
+        while (result.Outcome == MailOutboxDeliveryOutcome.Deferred)
+        {
+            firstFailedAt ??= context.Now;
+            claimed = await context.ClaimAsync(claimed.Record.Id);
+            result = await context.DeliverAsync(claimed, TestContext.Current.CancellationToken);
+        }
+
+        // Assert
+        Assert.Equal(MailOutboxDeliveryOutcome.Refused, result.Outcome);
+        Assert.Equal(MailFathomErrorCode.OutgoingEmailAttemptsExhausted, result.Failure);
+        Assert.NotNull(firstFailedAt);
+        Assert.InRange(context.Now - firstFailedAt.Value, TimeSpan.Zero, TimeSpan.FromMinutes(15));
+        Assert.Equal(OutgoingEmailStage.Refused, context.Store.Read(claimed.Record.Id).Stage);
+    }
+
+    /// <summary>A retry taken up too late to end inside the window is refused before anything is opened, rather than told late.</summary>
+    [Fact]
+    public async Task DeliverAsync_RetryReachedTooLateToEndInsideTheWindow_IsRefusedWithoutTransmitting()
+    {
+        // Arrange
+        var context = new DeliveryContext();
+        var first = await context.ClaimAsync("anna@example.test");
+        context.Transmit = (_, _, _) =>
+            Task.FromResult(new MailTransmission(MailTransmissionOutcome.RefusedTemporarily, 451));
+        await context.DeliverAsync(first, TestContext.Current.CancellationToken);
+        var retry = await context.ClaimAsync(first.Record.Id, lateBy: TimeSpan.FromMinutes(8));
+        var transmitted = false;
+        context.Transmit = (_, _, _) =>
+        {
+            transmitted = true;
+
+            return Task.FromResult(new MailTransmission(MailTransmissionOutcome.Accepted, 250));
+        };
+
+        // Act
+        var result = await context.DeliverAsync(retry, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailOutboxDeliveryOutcome.Refused, result.Outcome);
+        Assert.Equal(MailFathomErrorCode.OutgoingEmailAttemptsExhausted, result.Failure);
+        Assert.False(transmitted);
+        Assert.Equal(OutgoingEmailStage.Refused, context.Store.Read(first.Record.Id).Stage);
+    }
+
+    /// <summary>A retry taken up when it is due runs, because the window was what scheduled it.</summary>
+    [Fact]
+    public async Task DeliverAsync_RetryReachedWhenItIsDue_IsAttempted()
+    {
+        // Arrange
+        var context = new DeliveryContext();
+        var first = await context.ClaimAsync("anna@example.test");
+        context.Transmit = (_, _, _) =>
+            Task.FromResult(new MailTransmission(MailTransmissionOutcome.RefusedTemporarily, 451));
+        await context.DeliverAsync(first, TestContext.Current.CancellationToken);
+        var retry = await context.ClaimAsync(first.Record.Id);
+        context.Transmit = (request, envelope, _) =>
+        {
+            AcceptEveryRecipient(request, envelope);
+
+            return Task.FromResult(new MailTransmission(MailTransmissionOutcome.Accepted, 250));
+        };
+
+        // Act
+        var result = await context.DeliverAsync(retry, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailOutboxDeliveryOutcome.Sent, result.Outcome);
     }
 
     /// <summary>
@@ -880,10 +1027,15 @@ public sealed class MailOutboxDeliveryTests
                     TimeSpan.FromHours(1),
                     allowedLateness ?? TimeSpan.FromHours(8)),
                 this.clock,
-                this.Signals);
+                this.Signals,
+                this.Jobs);
         }
 
         internal InMemoryOutgoingEmailStore Store { get; }
+
+        internal IJobStore Jobs { get; } = Substitute.For<IJobStore>();
+
+        internal DateTimeOffset Now => this.clock.GetUtcNow();
 
         internal ScriptedMailDeliverySession Session { get; }
 
@@ -949,11 +1101,13 @@ public sealed class MailOutboxDeliveryTests
             return claimed.Single();
         }
 
-        internal async Task<ClaimedOutgoingEmail> ClaimAsync(OutgoingEmailId outgoingEmailId)
+        internal async Task<ClaimedOutgoingEmail> ClaimAsync(
+            OutgoingEmailId outgoingEmailId,
+            TimeSpan? lateBy = null)
         {
             // The backoff the previous attempt wrote is in the future, so the clock is moved past it rather than the
             // record being made claimable some other way.
-            this.clock.SetUtcNow(this.Store.ReadAvailableAt(outgoingEmailId).AddSeconds(1));
+            this.clock.SetUtcNow(this.Store.ReadAvailableAt(outgoingEmailId).AddSeconds(1) + (lateBy ?? TimeSpan.Zero));
 
             var claimed = await this.Store.ClaimAsync(
                 OutgoingEmailClaimRequest.Create(Account, batchSize: 10, TimeSpan.FromMinutes(10)),

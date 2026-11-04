@@ -600,6 +600,15 @@ public static class OrchestrationContract
     /// </remarks>
     public const string ComposedHostDeliveryRetryDelay = "00:30:00";
 
+    /// <summary>How long after its first failure a send the composed host queues may still be retried.</summary>
+    /// <remarks>
+    /// A send is deferred only where its next attempt, run out to its whole attempt budget, ends inside this window, and
+    /// startup refuses a window shorter than the first retry's delay and that budget. So it is stretched past
+    /// <see cref="ComposedHostDeliveryRetryDelay" /> plus the default seven-minute attempt budget, which keeps the one
+    /// failed attempt a deferral — a recorded, withdrawable send — rather than a refusal.
+    /// </remarks>
+    public const string ComposedHostDeliveryRetryWindow = "01:00:00";
+
     /// <summary>The name the composed host's submission password is configured under.</summary>
     /// <remarks>
     /// A secret block is identified by its name rather than by where it sits in configuration, because a rotation, an
