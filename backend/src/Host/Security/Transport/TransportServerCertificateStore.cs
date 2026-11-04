@@ -97,7 +97,14 @@ internal sealed partial class TransportServerCertificateStore : IDisposable
 
         // The loop stays a loop rather than becoming a projection: each step awaits a retrieval, and each successful
         // step takes ownership of a certificate that has to be released even when a later step fails.
-        foreach (var (index, endpoint) in this.httpsSettings.Endpoints.Index())
+        // A profile carrying no certificate presents the one another surface's profile publishing the same name on the
+        // same socket carries, which the composition has already proven exists. That store loads it and the handshake
+        // finds it there, so it is proven against the domain once rather than once per surface sharing it.
+        var carryingCertificates = this.httpsSettings.Endpoints
+            .Index()
+            .Where(static entry => entry.Item.CarriesCertificate);
+
+        foreach (var (index, endpoint) in carryingCertificates)
         {
             var configurationPath = $"{this.configurationSectionPath}:{nameof(TransportHttpsOptions.Endpoints)}:{index}";
             var domain = endpoint.Domain.Trim();

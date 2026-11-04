@@ -95,6 +95,7 @@ internal static class ListenerComposition
             var sharing = socket.ToArray();
 
             errors.AddRange(FindDisagreements(socket.Key, sharing));
+            errors.AddRange(FindDomainsWithoutCertificate(socket.Key, sharing));
 
             var first = sharing[0];
 
@@ -175,17 +176,21 @@ internal static class ListenerComposition
             yield return $"{sections} — {sections} share the TLS socket {socket} while only one asks the client for a certificate. Whether a certificate is asked for is settled while the connection is established and is therefore one answer for the socket, so give one of them a port of its own.";
         }
 
-        var repeatedDomains = sharing
-            .SelectMany(static declaration => declaration.Profiles)
-            .Select(static profile => profile.Domain?.Trim() ?? string.Empty)
-            .Where(static domain => domain.Length > 0)
-            .GroupBy(static domain => domain, StringComparer.OrdinalIgnoreCase)
-            .Where(static group => group.Count() > 1)
-            .Select(static group => group.Key);
+        var repeatedDomains = PublishedDomains(sharing).Where(static publishers => publishers.Count() > 1);
 
-        foreach (var domain in repeatedDomains)
+        foreach (var publishers in repeatedDomains)
         {
-            yield return $"{sections} — '{domain}' is published on {socket} by more than one of {sections}, so which surface a client reaching that name is served by would be decided by composition order rather than by an operator.";
+            if (!publishers.All(static publisher => publisher.Declaration.SharesDomains))
+            {
+                yield return $"{sections} — '{publishers.Key}' is published on {socket} by more than one of {sections}, so which surface a client reaching that name is served by would be decided by composition order rather than by an operator.";
+
+                continue;
+            }
+
+            foreach (var error in FindSharedDomainDisagreements(address, publishers))
+            {
+                yield return error;
+            }
         }
 
         var declaredProtocolSets = sharing
@@ -199,6 +204,58 @@ internal static class ListenerComposition
             yield return $"{sections} — the profiles sharing {socket} name different HTTP versions ({string.Join(" and ", declaredProtocolSets)}); ALPN offers what the listener was bound with, which is before any server name has been read.";
         }
     }
+
+    /// <summary>Groups every profile on one socket by the domain it publishes, beside the surface that declared it.</summary>
+    private static IEnumerable<IGrouping<string, PublishedProfile>> PublishedDomains(IEnumerable<DeclaredListener> sharing) =>
+        sharing
+            .SelectMany(static declaration => declaration.Profiles.Select(profile => new PublishedProfile(declaration, profile)))
+            .Where(static publisher => !string.IsNullOrWhiteSpace(publisher.Profile.Domain))
+            .GroupBy(static publisher => publisher.Profile.Domain.Trim(), StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Refuses a domain whose surfaces agreed to share it while disagreeing about the handshake that answers it.</summary>
+    /// <remarks>
+    /// A handshake is answered before any path has been read, so a name the surfaces share is one identity: one
+    /// certificate at one TLS floor, whichever surface the request turns out to be for. Each profile still states the
+    /// floor so a surface's own section says what it is served at, and only one of them carries the certificate so the
+    /// identity presented is never decided by which surface was composed first.
+    /// </remarks>
+    private static IEnumerable<string> FindSharedDomainDisagreements(
+        TransportHttpsListenerAddress address,
+        IGrouping<string, PublishedProfile> publishers)
+    {
+        var sections = string.Join(" and ", publishers.Select(static publisher => publisher.Declaration.SectionName).Distinct(StringComparer.Ordinal));
+        var socket = $"{address.Address}:{address.Port}";
+
+        if (publishers.Select(static publisher => publisher.Profile.MinimumTlsVersion).Distinct().Count() > 1)
+        {
+            yield return $"{sections} — '{publishers.Key}' is shared on {socket} by {sections} at different 'MinimumTlsVersion' floors, and a handshake for one name is answered once, before the path saying which surface it is for has been read. State the same floor on every profile publishing it.";
+        }
+
+        if (publishers.Count(static publisher => publisher.Profile.CarriesCertificate) > 1)
+        {
+            yield return $"{sections} — '{publishers.Key}' is shared on {socket} by {sections}, and more than one of their profiles carries a 'ServerCertificate'. A handshake for one name presents one certificate, so state it on exactly one of them and leave it out of the others.";
+        }
+    }
+
+    /// <summary>Refuses a domain no profile on the socket carries a certificate for, where a surface left it out to share it.</summary>
+    /// <remarks>
+    /// Asked of every socket rather than of a shared one only, because the profile that left its certificate out may be
+    /// the only one publishing the name — a surface that agreed to share a domain no other surface published. A domain
+    /// published by a surface that did not agree is left alone: its profile's own validation already requires the
+    /// certificate, and reporting it again here would describe one mistake twice.
+    /// </remarks>
+    private static IEnumerable<string> FindDomainsWithoutCertificate(
+        TransportHttpsListenerAddress address,
+        IEnumerable<DeclaredListener> sharing) =>
+        PublishedDomains(sharing)
+            .Where(static publishers => publishers.All(static publisher => publisher.Declaration.SharesDomains))
+            .Where(static publishers => !publishers.Any(static publisher => publisher.Profile.CarriesCertificate))
+            .Select(publishers =>
+            {
+                var sections = string.Join(" and ", publishers.Select(static publisher => publisher.Declaration.SectionName).Distinct(StringComparer.Ordinal));
+
+                return $"{sections} — '{publishers.Key}' is published on {address.Address}:{address.Port} and no profile publishing it there carries a 'ServerCertificate'. A profile leaves its certificate out only to present the one another surface's profile publishing the same name on the same socket carries, so state it on one of them.";
+            });
 
     /// <summary>Merges what each surface sharing a redirecting socket publishes, so one lookup answers for all of them.</summary>
     /// <remarks>A name two surfaces publish at different addresses is refused above, so the last write here can only ever repeat what an earlier one already said.</remarks>
@@ -250,4 +307,7 @@ internal static class ListenerComposition
     /// <summary>Reports whether a wildcard listener already accepts what another address would be bound for.</summary>
     private static bool Covers(IPAddress wildcard, IPAddress address) =>
         wildcard.Equals(IPAddress.IPv6Any) || address.AddressFamily == AddressFamily.InterNetwork;
+
+    /// <summary>One profile on a socket, and the surface that declared it.</summary>
+    private sealed record PublishedProfile(DeclaredListener Declaration, TransportHttpsEndpointOptions Profile);
 }

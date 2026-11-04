@@ -62,6 +62,55 @@ public sealed class UserCredentialAdmissionTests
         Assert.NotNull(refusal);
     }
 
+    /// <summary>Every credential presented across every boundary between two request-serving surfaces, as they meet on a socket they share.</summary>
+    public static TheoryData<string, string> SurfaceBoundaries { get; } = new()
+    {
+        { "Mcp", "Admin" },
+        { "Mcp", "Client" },
+        { "Admin", "Mcp" },
+        { "Admin", "Client" },
+        { "Client", "Mcp" },
+        { "Client", "Admin" },
+    };
+
+    /// <summary>
+    /// A socket the surfaces share — one domain and one port included — decides which surface judges a request by its
+    /// route prefix, and the surface then asks whether the credential lists it. So a credential admitted on one surface
+    /// reaches no route of another, whatever the user it names holds.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(SurfaceBoundaries))]
+    public async Task FindRefusalAsync_ACredentialListingOneSurfacePresentedOnAnother_IsRefused(string listedOn, string presentedOn)
+    {
+        // Arrange
+        var context = RequestFrom(Office, ScopedGrant.AtDeployment(MailFathomPermission.All));
+        var credential = Credential(new UserCredentialReach([CredentialSurfaceNamed(listedOn)], []), MailFathomPermission.All);
+
+        // Act
+        var refusal = await UserCredentialAdmission.FindRefusalAsync(context, TransportSurfaceNamed(presentedOn), credential);
+
+        // Assert
+        Assert.NotNull(refusal);
+    }
+
+    /// <summary>The control for the boundary above: the same credential is admitted on the one surface it lists, so the refusal is the boundary rather than a credential nothing would admit.</summary>
+    [Theory]
+    [InlineData("Mcp")]
+    [InlineData("Admin")]
+    [InlineData("Client")]
+    public async Task FindRefusalAsync_ACredentialListingOneSurfacePresentedOnIt_IsAdmitted(string surface)
+    {
+        // Arrange
+        var context = RequestFrom(Office, ScopedGrant.AtDeployment(MailFathomPermission.All));
+        var credential = Credential(new UserCredentialReach([CredentialSurfaceNamed(surface)], []), MailFathomPermission.All);
+
+        // Act
+        var refusal = await UserCredentialAdmission.FindRefusalAsync(context, TransportSurfaceNamed(surface), credential);
+
+        // Assert
+        Assert.Null(refusal);
+    }
+
     [Fact]
     public async Task FindRefusalAsync_AnAdministrativeCredentialOfAUserHoldingAnAdministrativePermission_IsAdmitted()
     {
@@ -164,6 +213,20 @@ public sealed class UserCredentialAdmissionTests
         // Assert
         Assert.Null(refusal);
     }
+
+    private static TransportSurface TransportSurfaceNamed(string surface) => surface switch
+    {
+        "Mcp" => TransportSurface.Mcp,
+        "Admin" => TransportSurface.Admin,
+        _ => TransportSurface.Client,
+    };
+
+    private static UserCredentialSurface CredentialSurfaceNamed(string surface) => surface switch
+    {
+        "Mcp" => UserCredentialSurface.Mcp,
+        "Admin" => UserCredentialSurface.Administration,
+        _ => UserCredentialSurface.Client,
+    };
 
     private static AdmittedUserCredential Credential(UserCredentialReach? reach = null) =>
         Credential(reach ?? UserCredentialReach.Default, [MailFathomPermission.MailRead]);

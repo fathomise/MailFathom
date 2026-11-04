@@ -1202,7 +1202,7 @@ needs a handshake this process terminated, and configuring one here is how it ge
 | `Port` | `8443` | The TCP port to bind |
 | `MinimumTlsVersion` | `Tls12` | `Tls12` or `Tls13` |
 | `HttpProtocols` | absent — HTTP/1.1 and HTTP/2 | Any of `Http1`, `Http2`, `Http3`, and never `Http3` on its own |
-| `ServerCertificate` | required | `Bundle`, or `CertificateChain` beside `PrivateKey` |
+| `ServerCertificate` | required | `Bundle`, or `CertificateChain` beside `PrivateKey`; left out only on a profile sharing its domain with another surface's on one socket, under `Https:ShareDomains` — see [one domain and one port](configuration-endpoints.md#one-domain-and-one-port-for-every-surface) |
 
 ### Configuring a profile takes over the host's listeners
 

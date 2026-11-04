@@ -1515,6 +1515,12 @@ internal static class HostComposition
         // anything to say — the same reason the MCP warnings above are registered unconditionally.
         builder.Services.AddHostedService<AdminTransportSecurityWarning>();
 
+        // Handed the composition rather than reading the four sections again, because which surfaces a socket serves
+        // together is exactly what the composition decided and nothing else states it.
+        builder.Services.AddHostedService(provider => new AdministrativeSocketSharingWarning(
+            composedListeners.Listeners,
+            provider.GetRequiredService<ILogger<AdministrativeSocketSharingWarning>>()));
+
         // Beside it, and separate rather than a third branch inside it, because the two warn about different
         // consequences: an unauthenticated administrative endpoint hands over the service, an unauthenticated client
         // endpoint hands over the mail.
@@ -1684,7 +1690,8 @@ internal static class HostComposition
             // The callback runs when the server is constructed, after the container exists, so the stores it reads are the
             // ones the composition root has already loaded. A profile-backed socket consults each endpoint's store in turn,
             // which is what lets two surfaces publish different domains on one port without either one's material entering
-            // the other's section.
+            // the other's section. A domain the surfaces share is found in the one store whose profile carries its
+            // certificate, because the profiles that left theirs out loaded nothing for it.
             builder.WebHost.ConfigureKestrel(kestrelOptions => TransportListenerBinder.Bind(
                 kestrelOptions,
                 composedListeners.Listeners,

@@ -32,6 +32,23 @@ internal sealed class TransportHttpsOptions
     /// <summary>Gets or sets what the surface's clear-text socket does while these profiles are served.</summary>
     public TransportClearTextRedirectOptions Redirect { get; set; } = new();
 
+    /// <summary>Gets or sets whether this surface's profiles may publish a domain another surface's profile publishes on the same TLS socket.</summary>
+    /// <remarks>
+    /// <para>
+    /// Off by default, which keeps the refusal of one name published by two surfaces on one socket. Turned on by every
+    /// surface publishing that name, it serves those surfaces under one domain and one port, told apart by the route
+    /// prefix a request carries — which is how a shared socket already decides which surface answers a path.
+    /// </para>
+    /// <para>
+    /// A handshake for one name presents one certificate at one TLS floor, so the profiles sharing a name state the
+    /// same <see cref="TransportHttpsEndpointOptions.MinimumTlsVersion" /> and exactly one of them carries the
+    /// certificate; with this on, a profile may leave its own out for that reason alone. What sharing publishes is the
+    /// administrative surface wherever that port is published, which is why it is something each surface states rather
+    /// than something a deployment arrives at.
+    /// </para>
+    /// </remarks>
+    public bool ShareDomains { get; set; }
+
     /// <summary>Reads the HTTPS port each configured domain is published on, which is what a redirect resolves against.</summary>
     /// <returns>One entry per profile, keyed by the domain it publishes, matched without regard to case the way a host name is.</returns>
     /// <remarks>Every profile carries a domain and no two share one, both of which validation has already proven by the time a composed redirect reads this.</remarks>
@@ -58,7 +75,8 @@ internal sealed class TransportHttpsOptions
             .Index()
             .SelectMany(entry => entry.Item.FindConfigurationErrors(
                 $"{configurationPath}:{nameof(this.Endpoints)}:{entry.Index}",
-                http3Supported)));
+                http3Supported,
+                this.ShareDomains)));
 
         errors.AddRange(this.FindCollidingIdentities(configurationPath));
         errors.AddRange(this.FindListenerDisagreements(configurationPath));

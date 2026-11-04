@@ -1,6 +1,6 @@
 # Endpoint configuration
 
-<!-- describes: backend/src/Host/Configuration/Endpoints/**, backend/src/Host/Configuration/Access/**, backend/src/Host/Configuration/Signals/** -->
+<!-- describes: backend/src/Host/Configuration/Endpoints/**, backend/src/Host/Configuration/Access/**, backend/src/Host/Configuration/Signals/**, backend/src/Host/Hosting/Warnings/AdministrativeSocketSharingWarning.cs -->
 
 Every key deciding where each of the four surfaces is served, what a caller has to present to reach one, and how much
 traffic and how long a request each will take, plus the one endpoint on this page MailFathom dials rather than binds:
@@ -78,7 +78,7 @@ names both sections.
 | The domain a redirect resolves | A shared **redirecting** socket | The client sent one host name, so two answers to it would be settled by composition order |
 | Profiles by server name vs one certificate | A shared TLS socket | A socket answers a handshake one way; the probes present one certificate and the endpoints select by name |
 | `ClientCertificateProfiles` — configured or not | A shared TLS socket | Whether a certificate is asked for is settled while the connection is established |
-| `Https:Endpoints:<n>:Domain` — uniqueness | A shared TLS socket | One name served by two surfaces would leave composition order deciding which the client reached |
+| `Https:Endpoints:<n>:Domain` — uniqueness | A shared TLS socket, unless every surface publishing the name states [`Https:ShareDomains`](#one-domain-and-one-port-for-every-surface) | One name served by two surfaces would leave composition order deciding which certificate the client was handed |
 | `Https:Endpoints:<n>:HttpProtocols` | A shared TLS socket | ALPN offers what the listener was bound with, which is before any server name has been read |
 | `BindAddress` — a wildcard beside a specific address | The same port | The operating system grants only one of those two sockets |
 
@@ -96,6 +96,74 @@ names both sections.
   nothing under `/api/admin`, whichever port both are reached on.
 
 Two specific addresses on one port are two sockets and are accepted; none of the rules above applies between them.
+
+#### One domain and one port for every surface
+
+A shared TLS socket refuses one domain published by two surfaces, and that is the default. `Https:ShareDomains` set to
+`true` on a surface is that surface's consent to publish a name another surface publishes on the same socket; a name is
+shared only where **every** surface publishing it states it, and otherwise the refusal stands with the message it always
+carried. It is what the single-host install wants: one DNS record, one certificate, one firewall rule, and the MCP,
+client, and administrative surfaces all behind `https://mail.example.test:8443`.
+
+What it changes is which certificate a handshake receives, and nothing else. Which surface a request reaches was never
+decided by the domain: a shared socket serves the union of its surfaces and tells them apart by the route prefix a
+request carries — `/mcp`, `/api/admin`, `/api/client` — exactly as it does for two names on that socket or for a shared
+clear-text port. A path belonging to a surface that does not share the socket is still answered `404`, and each surface
+keeps its own credentials, grants, CORS, rate limits, and request timeout, because all of those are decided per request.
+
+A handshake for a name is answered before any path has been read, so the profiles sharing it describe one identity:
+
+- **Exactly one of them carries `ServerCertificate`.** The others leave the block out — which a profile may do only on a
+  surface that states `ShareDomains` — and present the one it carries. Startup proves that certificate against the
+  domain once, in the store of the surface that carries it. Two profiles carrying one, or none carrying it, fail startup.
+- **They state the same `MinimumTlsVersion`.** One floor answers the name whichever surface the request is for.
+- **The socket-wide rules above still hold**: one `Transport`, one answer about client certificates, one set of
+  `HttpProtocols`, each refused with the message it carries without the setting.
+
+```json
+{
+  "McpEndpoint": {
+    "Enabled": true,
+    "Transport": "HttpsOnly",
+    "Https": {
+      "ShareDomains": true,
+      "Endpoints": [
+        {
+          "Name": "public",
+          "Domain": "mail.example.test",
+          "Port": 8443,
+          "ServerCertificate": {
+            "Bundle": { "Name": "public-tls", "SecretReference": "file:/run/secrets/mail.pfx" }
+          }
+        }
+      ]
+    }
+  },
+  "AdminEndpoint": {
+    "Enabled": true,
+    "Transport": "HttpsOnly",
+    "Https": {
+      "ShareDomains": true,
+      "Endpoints": [{ "Name": "public", "Domain": "mail.example.test", "Port": 8443 }]
+    }
+  },
+  "ClientEndpoint": {
+    "Enabled": true,
+    "Transport": "HttpsOnly",
+    "Https": {
+      "ShareDomains": true,
+      "Endpoints": [{ "Name": "public", "Domain": "mail.example.test", "Port": 8443 }]
+    }
+  }
+}
+```
+
+**What it publishes is the administrative surface wherever that port is published**, which is the cost
+[sharing a socket](#sharing-a-socket) always had. Startup says so at `Warning` for every socket the administrative
+endpoint shares with another surface, naming the port and the sections sharing it, whether or not a domain is shared on
+it. A deployment with a reverse proxy in front keeps the surfaces on names or ports of their own and leaves this off.
+None of the deployment assets this repository ships writes it, and none needs to: none of them terminates TLS in this
+process, so none publishes a domain here to share.
 
 ## `ReverseProxy`
 
@@ -240,7 +308,12 @@ profile **takes over the host's listeners**: only the profiles' sockets are open
 | `…:Port` | int | `8443` | 1 – 65535 | restart |
 | `…:MinimumTlsVersion` | enum | `Tls12` | `Tls12`, `Tls13` | restart |
 | `…:HttpProtocols` | enum list | `Http1`, `Http2` | `Http1`, `Http2`, `Http3`; selecting `Http3` where the platform provides no QUIC fails startup rather than falling back, and naming it without `Http1` or `Http2` beside it fails startup because nothing would advertise it | restart |
-| `…:ServerCertificate` | certificate block | — | Required; see below | restart; renewal behind unchanged references — see [secret rotation](secret-rotation.md#renewing-an-mcp-server-certificate) |
+| `…:ServerCertificate` | certificate block | — | Required; see below. Left out only where `McpEndpoint:Https:ShareDomains` is `true` and another surface's profile publishing the same domain on the same socket carries it — see [one domain and one port](#one-domain-and-one-port-for-every-surface) | restart; renewal behind unchanged references — see [secret rotation](secret-rotation.md#renewing-an-mcp-server-certificate) |
+
+`McpEndpoint:Https:ShareDomains` is a bool, `false` by default, and decided at **restart**: this surface's consent to
+publish a domain another surface publishes on the same TLS socket, which
+[one domain and one port](#one-domain-and-one-port-for-every-surface) describes. Writing it `true` under `Transport: Http`
+fails startup, because that mode publishes no domain to share.
 
 A certificate block names either `Bundle` (one PKCS#12 secret block, optionally with a nested `Password`) or the pair
 `CertificateChain` and `PrivateKey` (PEM, as two secret blocks). Startup proves the material loads, covers the stated
@@ -363,6 +436,7 @@ request or per handshake. [Administering a deployment](admin-endpoint.md) is the
 | `AdminEndpoint:Cors:AllowedOrigins` | string list | absent = every origin | `*` for every origin, a list for exactly those, an empty list for none. The same setting the MCP and client endpoints carry, configured separately | restart |
 | `AdminEndpoint:Https:Endpoints:<n>` | list of profiles | empty | Same shape and rules as `McpEndpoint:Https:Endpoints:<n>`, read under the two `Transport` modes that terminate TLS | restart; material per handshake |
 | `AdminEndpoint:Https:Redirect` | block | on | Same shape and rules as `McpEndpoint:Https:Redirect`; its socket is this surface's own `BindAddress` and `Port`, so terminating TLS on both surfaces opens two clear-text ports that do not collide | restart |
+| `AdminEndpoint:Https:ShareDomains` | bool | `false` | Same rules as `McpEndpoint:Https:ShareDomains`. Stating it is what lets the administrative surface answer under a domain another surface publishes — see [one domain and one port](#one-domain-and-one-port-for-every-surface) | restart |
 | `AdminEndpoint:RateLimiting` | block | bounded | Same shape, defaults, and rules as `McpEndpoint:RateLimiting` above; applied whether or not it is written | restart |
 | `AdminEndpoint:RequestTimeout` | block | bounded | Same shape, defaults, and rules as [`McpEndpoint:RequestTimeout`](#request-timeout) above; applied whether or not it is written. This surface reaches no AI provider, so it is the one the default can be narrowed on freely | restart |
 
@@ -390,6 +464,7 @@ half the MCP endpoint's grants come from, because the client reaches the records
 | `ClientEndpoint:Cors` | block | every origin | Same shape and rules as [`McpEndpoint:Cors`](#browser-origins--mcpendpointcors), configured separately. The setting no client but the page this deployment serves itself can start without, a downloaded head included — see [browser origins](client-endpoint.md#browser-origins) and [the origin a downloaded head sends](client-endpoint.md#the-origin-a-downloaded-head-sends) | restart |
 | `ClientEndpoint:Https:Endpoints:<n>` | list of profiles | empty | Same shape and rules as [`McpEndpoint:Https:Endpoints:<n>`](#tls-termination--mcpendpointhttpsendpointsn), read under the two `Transport` modes that terminate TLS. [HTTP/3 on this surface](client-endpoint.md#http3-and-what-turns-it-on) is what `HttpProtocols` means for a browser | restart; material per handshake |
 | `ClientEndpoint:Https:Redirect` | block | on | Same shape and rules as `McpEndpoint:Https:Redirect`; its socket is this surface's own `BindAddress` and `Port` | restart |
+| `ClientEndpoint:Https:ShareDomains` | bool | `false` | Same rules as `McpEndpoint:Https:ShareDomains` — see [one domain and one port](#one-domain-and-one-port-for-every-surface) | restart |
 | `ClientEndpoint:RateLimiting` | block | bounded | Same shape, defaults, and rules as [`McpEndpoint:RateLimiting`](#rate-limiting) above; applied whether or not it is written | restart |
 | `ClientEndpoint:RequestTimeout` | block | bounded | Same shape, defaults, and rules as [`McpEndpoint:RequestTimeout`](#request-timeout) above; applied whether or not it is written | restart |
 | `ClientEndpoint:TelemetryLevel` | enum | `Info` | `Trace`, `Debug`, `Info`, `Warn`, `Error`, `Fatal`, `None` — the lowest severity a client is asked to record about itself, or `None` for no log record at all, published on [the session route](client-endpoint.md#the-session-route) and applied by the client before a record is written. The default for every client rather than the only answer: a person whose record states a [`ClientTelemetryLevel`](configuration-sources.md#the-level-this-persons-client-records-at--clienttelemetrylevel) is served theirs instead, without a restart and without changing what anybody else is served. Read only where a collector is named; a deployment forwarding nothing publishes `off` whatever this and every record says. `None` silences log records alone: a client's traces and metrics are forwarded as under every other level, and a batch of log records from a caller whose level resolves to `None` is [refused](client-endpoint.md#the-telemetry-routes), so the level is held by the deployment rather than asked of a client. A value outside the seven stops the start, naming the key and the values it takes. `Debug` is what a defect report is worth turning on — for one person on their record rather than here, see [what the client publishes](telemetry.md#what-the-client-publishes-about-itself) | restart |

@@ -151,7 +151,10 @@ internal static class TransportListenerConfiguration
                 PresentsProfiles: true,
                 [.. profileSocket],
                 requestsClientCertificates,
-                RedirectTargets: new Dictionary<string, int>())));
+                RedirectTargets: new Dictionary<string, int>())
+            {
+                SharesDomains = httpsSettings.ShareDomains,
+            }));
 
         return declarations;
     }
@@ -248,6 +251,11 @@ internal static class TransportListenerConfiguration
         if (!TerminatesTls(transport) && httpsSettings.Endpoints.Count > 0)
         {
             yield return $"{endpointsPath} — HTTPS profiles are configured while '{sectionName}:{TransportKey}' is '{transport}', so none of them is served; select '{nameof(EndpointTransport.HttpAndHttps)}' or '{nameof(EndpointTransport.HttpsOnly)}', or remove them.";
+        }
+
+        if (!TerminatesTls(transport) && httpsSettings.ShareDomains)
+        {
+            yield return $"{httpsPath}:{nameof(TransportHttpsOptions.ShareDomains)} — domains are shared while '{sectionName}:{TransportKey}' is '{transport}', which terminates no TLS and so publishes no domain to share; select '{nameof(EndpointTransport.HttpAndHttps)}' or '{nameof(EndpointTransport.HttpsOnly)}', or remove it.";
         }
 
         if (transport is not EndpointTransport.HttpAndHttps && httpsSettings.Redirect.WasStated)
