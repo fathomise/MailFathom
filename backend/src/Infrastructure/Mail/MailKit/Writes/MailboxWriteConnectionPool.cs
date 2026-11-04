@@ -4,6 +4,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Resilience;
 using MailFathom.Domain.Accounts;
@@ -328,6 +329,7 @@ internal sealed partial class MailboxWriteConnectionPool : IAsyncDisposable
 
                 var settingsProvider = scope.ServiceProvider.GetRequiredService<IImapAccountSettingsProvider>();
                 var accessTokenSource = scope.ServiceProvider.GetRequiredService<IMailAccessTokenSource>();
+                var capabilityStore = scope.ServiceProvider.GetRequiredService<IMailboxServerCapabilityStore>();
 
                 var establishedConnection = folder is { } selectedFolder
                     ? MailKitImapConnection.ForWriting(
@@ -337,6 +339,7 @@ internal sealed partial class MailboxWriteConnectionPool : IAsyncDisposable
                         pool.operationExecutor,
                         pool.transientFailureClassifier,
                         pool.connectionBudget,
+                        capabilityStore,
                         accountId,
                         selectedFolder,
                         transportSecurityPolicy)
@@ -347,6 +350,7 @@ internal sealed partial class MailboxWriteConnectionPool : IAsyncDisposable
                         pool.operationExecutor,
                         pool.transientFailureClassifier,
                         pool.connectionBudget,
+                        capabilityStore,
                         accountId,
                         transportSecurityPolicy);
 

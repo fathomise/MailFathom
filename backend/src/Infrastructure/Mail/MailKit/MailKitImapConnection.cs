@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Diagnostics.CodeAnalysis;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Synchronization.Sessions;
@@ -60,6 +61,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
     private readonly OutboundOperationExecutor operationExecutor;
     private readonly ITransientFailureClassifier transientFailureClassifier;
     private readonly MailServerConnectionBudget connectionBudget;
+    private readonly IMailboxServerCapabilityStore capabilityStore;
     private readonly MailServerConnectionPurpose connectionPurpose;
     private readonly MailAccountId accountId;
     private readonly MailFolderResolution? folder;
@@ -78,6 +80,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
         OutboundOperationExecutor operationExecutor,
         ITransientFailureClassifier transientFailureClassifier,
         MailServerConnectionBudget connectionBudget,
+        IMailboxServerCapabilityStore capabilityStore,
         MailServerConnectionPurpose connectionPurpose,
         MailAccountId accountId,
         MailFolderResolution? folder,
@@ -90,6 +93,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(operationExecutor);
         ArgumentNullException.ThrowIfNull(transientFailureClassifier);
         ArgumentNullException.ThrowIfNull(connectionBudget);
+        ArgumentNullException.ThrowIfNull(capabilityStore);
         ArgumentNullException.ThrowIfNull(transportSecurityPolicy);
 
         this.clientFactory = clientFactory;
@@ -98,6 +102,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
         this.operationExecutor = operationExecutor;
         this.transientFailureClassifier = transientFailureClassifier;
         this.connectionBudget = connectionBudget;
+        this.capabilityStore = capabilityStore;
         this.connectionPurpose = connectionPurpose;
         this.accountId = accountId;
         this.folder = folder;
@@ -112,6 +117,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
     /// <param name="operationExecutor">Runs establishment and retrieval under their configured pipelines.</param>
     /// <param name="transientFailureClassifier">Decides whether a failure left the connection worth keeping.</param>
     /// <param name="connectionBudget">Bounds connections to this account's host across the process.</param>
+    /// <param name="capabilityStore">Records what the server advertised each time a session authenticates.</param>
     /// <param name="connectionPurpose">Whether this connection may wait indefinitely for push notifications.</param>
     /// <param name="accountId">The account this connection belongs to, which also isolates its pipeline state.</param>
     /// <param name="folder">The alias binding every establishment selects read-only.</param>
@@ -130,6 +136,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
         OutboundOperationExecutor operationExecutor,
         ITransientFailureClassifier transientFailureClassifier,
         MailServerConnectionBudget connectionBudget,
+        IMailboxServerCapabilityStore capabilityStore,
         MailServerConnectionPurpose connectionPurpose,
         MailAccountId accountId,
         MailFolderResolution folder,
@@ -140,6 +147,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
             operationExecutor,
             transientFailureClassifier,
             connectionBudget,
+            capabilityStore,
             connectionPurpose,
             accountId,
             folder,
@@ -153,6 +161,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
     /// <param name="operationExecutor">Runs establishment and mutation under their configured pipelines.</param>
     /// <param name="transientFailureClassifier">Decides whether a failure left the connection worth keeping.</param>
     /// <param name="connectionBudget">Bounds connections to this account's host across the process.</param>
+    /// <param name="capabilityStore">Records what the server advertised each time a session authenticates.</param>
     /// <param name="accountId">The account this connection belongs to, which also isolates its pipeline state.</param>
     /// <param name="folder">The alias binding every establishment selects for writing.</param>
     /// <param name="transportSecurityPolicy">The connection and authentication policy each attempt must obey.</param>
@@ -170,6 +179,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
         OutboundOperationExecutor operationExecutor,
         ITransientFailureClassifier transientFailureClassifier,
         MailServerConnectionBudget connectionBudget,
+        IMailboxServerCapabilityStore capabilityStore,
         MailAccountId accountId,
         MailFolderResolution folder,
         MailTransportSecurityPolicy transportSecurityPolicy) => new(
@@ -179,6 +189,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
             operationExecutor,
             transientFailureClassifier,
             connectionBudget,
+            capabilityStore,
             MailServerConnectionPurpose.Work,
             accountId,
             folder,
@@ -192,6 +203,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
     /// <param name="operationExecutor">Runs establishment and the creation under their configured pipelines.</param>
     /// <param name="transientFailureClassifier">Decides whether a failure left the connection worth keeping.</param>
     /// <param name="connectionBudget">Bounds connections to this account's host across the process.</param>
+    /// <param name="capabilityStore">Records what the server advertised each time a session authenticates.</param>
     /// <param name="accountId">The account this connection belongs to, which also isolates its pipeline state.</param>
     /// <param name="transportSecurityPolicy">The connection and authentication policy each attempt must obey.</param>
     /// <returns>A connection that has not been established yet.</returns>
@@ -209,6 +221,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
         OutboundOperationExecutor operationExecutor,
         ITransientFailureClassifier transientFailureClassifier,
         MailServerConnectionBudget connectionBudget,
+        IMailboxServerCapabilityStore capabilityStore,
         MailAccountId accountId,
         MailTransportSecurityPolicy transportSecurityPolicy) => new(
             clientFactory,
@@ -217,6 +230,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
             operationExecutor,
             transientFailureClassifier,
             connectionBudget,
+            capabilityStore,
             MailServerConnectionPurpose.Work,
             accountId,
             folder: null,
@@ -230,6 +244,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
     /// <param name="operationExecutor">Runs establishment and retrieval under their configured pipelines.</param>
     /// <param name="transientFailureClassifier">Decides whether a failure left the connection worth keeping.</param>
     /// <param name="connectionBudget">Bounds connections to this account's host across the process.</param>
+    /// <param name="capabilityStore">Records what the server advertised each time a session authenticates.</param>
     /// <param name="accountId">The account this connection belongs to, which also isolates its pipeline state.</param>
     /// <param name="transportSecurityPolicy">The connection and authentication policy each attempt must obey.</param>
     /// <returns>A connection that has not been established yet.</returns>
@@ -242,6 +257,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
         OutboundOperationExecutor operationExecutor,
         ITransientFailureClassifier transientFailureClassifier,
         MailServerConnectionBudget connectionBudget,
+        IMailboxServerCapabilityStore capabilityStore,
         MailAccountId accountId,
         MailTransportSecurityPolicy transportSecurityPolicy) => new(
             clientFactory,
@@ -250,6 +266,7 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
             operationExecutor,
             transientFailureClassifier,
             connectionBudget,
+            capabilityStore,
             MailServerConnectionPurpose.Work,
             accountId,
             folder: null,
@@ -530,10 +547,65 @@ internal sealed class MailKitImapConnection : IAsyncDisposable
     {
         this.DiscardUnusableConnection();
 
-        return await this.ExecuteUnderPipelineAsync(
+        var establishedClient = await this.ExecuteUnderPipelineAsync(
             OutboundDependency.MailboxSessionEstablishment,
             this.ConnectAuthenticateAndSelectFolderAsync,
             cancellationToken);
+
+        await this.RecordAdvertisedCapabilitiesAsync(establishedClient, cancellationToken);
+
+        return establishedClient;
+    }
+
+    /// <summary>Records what the server just advertised, giving the connection up when the recording does not land.</summary>
+    /// <remarks>
+    /// <para>
+    /// Recorded on every establishment, a reconnection included, because a reconnection can land on a server that was
+    /// upgraded or failed over behind the same address. It runs after the establishment pipeline rather than inside it,
+    /// so a refused write is never retried as a refused connection; a reconnection made in the middle of a read still
+    /// runs under that read's retrieval pipeline, which repeats a transport failure and nothing a database raises.
+    /// </para>
+    /// <para>
+    /// A recording that failed discards the connection it was made for. The connection is otherwise already usable,
+    /// and the next caller would take it as it is and never record what its server advertised; discarding it makes the
+    /// next attempt establish a session of its own and record again.
+    /// </para>
+    /// </remarks>
+    private async Task RecordAdvertisedCapabilitiesAsync(
+        IImapClient establishedClient,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await this.capabilityStore.RecordAsync(
+                this.accountId,
+                AdvertisedAfterAuthentication(establishedClient.Capabilities),
+                cancellationToken);
+        }
+        catch
+        {
+            this.DiscardUnusableConnection();
+
+            throw;
+        }
+    }
+
+    /// <summary>Reads, from what the server advertised once authenticated, the capabilities MailFathom decides from without a session.</summary>
+    private static MailboxServerCapabilities AdvertisedAfterAuthentication(ImapCapabilities advertised)
+    {
+        var recorded = MailboxServerCapabilities.None;
+
+        if (advertised.HasFlag(ImapCapabilities.UidPlus))
+        {
+            recorded |= MailboxServerCapabilities.UidPlus;
+        }
+
+        if (advertised.HasFlag(ImapCapabilities.IMAP4rev2))
+        {
+            recorded |= MailboxServerCapabilities.Imap4Rev2;
+        }
+
+        return recorded;
     }
 
     private async Task<IImapClient> ConnectAuthenticateAndSelectFolderAsync(CancellationToken cancellationToken)

@@ -324,6 +324,38 @@ attributable to the folder it stalled in, and the wait before an account's next 
 is visible without a log line being read at all. [What a synchronization cycle
 emits](../operations/telemetry.md#what-a-synchronization-cycle-emits) names each signal and what it answers.
 
+## What the server advertised
+
+Every authenticated IMAP connection records what the account's server advertised once it had logged in, together with
+the instant it observed it, on the account's row in `mailbox_accounts`
+([Stored email schema](../architecture/stored-email-schema.md#the-folders-every-account-has) lists the columns). That
+covers every connection the account opens: a synchronization session, the write session, a push session, folder
+discovery and folder management, and through them the drain of a held account and the restore of a restoring one. A
+reconnection records again, because it can land on a server upgraded or failed over behind the same address.
+
+- **What is recorded** is the capabilities MailFathom decides from without a session open, and only those: RFC 4315
+  `UIDPLUS`, and RFC 9051 `IMAP4rev2`, which folds `UIDPLUS` into the base protocol. Either one means the server names
+  where it put a message it copied, moved, or appended. A server advertising neither is recorded as advertising
+  nothing, which replaces an earlier observation that said otherwise.
+- **It is read after authentication**, never before, because servers list far less to an unauthenticated client.
+- **The later observation stands.** A recording is one conditional update that writes only over an older observation,
+  so two replicas establishing a session against the same server at once leave the one observed later, whichever
+  commits last.
+- **An account whose server was never reached reads as advertising nothing.** The row is created by the first run that
+  binds one of the account's folders, so the folder discovery in front of that first binding records nothing, and the
+  synchronization session right after it records the first observation.
+- **A failed recording fails the session that made it**, like any other database failure during a run, and gives up
+  the connection it was made for, so the next attempt establishes a session of its own and records again. It is
+  written after the connection's establishment pipeline rather than inside it, so a refused write is never retried as
+  a refused connection. A reconnection made in the middle of a read records under that read's retrieval pipeline,
+  which repeats a transport failure and nothing a database raises, so a refused recording there ends the read.
+
+One application port, `IMailboxServerCapabilityStore`, reads the record, and it is what a decision taken with no IMAP
+session open — a custodian's, at the moment of a person's act — is taken from. A command the write session issues still
+reads the capability off the connection it is issued on, since that is the server actually answering it.
+[ADR 0039](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md#where-the-capabilities-come-from)
+holds the decision.
+
 ## Bounding how much mail a run brings in
 
 Every other bound on synchronization counts **messages**. `MaxMetadataBatchSize` and `MaxMetadataBatchesPerRun` cap a

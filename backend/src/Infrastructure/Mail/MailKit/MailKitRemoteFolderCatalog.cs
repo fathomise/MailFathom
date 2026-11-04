@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Resilience;
 using MailFathom.Domain.Accounts;
@@ -26,7 +27,8 @@ internal sealed class MailKitRemoteFolderCatalog(
     IMailAccessTokenSource accessTokenSource,
     OutboundOperationExecutor operationExecutor,
     ITransientFailureClassifier transientFailureClassifier,
-    MailServerConnectionBudget connectionBudget) : IRemoteFolderCatalog
+    MailServerConnectionBudget connectionBudget,
+    IMailboxServerCapabilityStore capabilityStore) : IRemoteFolderCatalog
 {
     /// <summary>Bounds what one listing may retain, since the folder tree is a remote answer rather than local state.</summary>
     private const int MaximumAdvertisedFolderCount = 10_000;
@@ -58,6 +60,7 @@ internal sealed class MailKitRemoteFolderCatalog(
             operationExecutor,
             transientFailureClassifier,
             connectionBudget,
+            capabilityStore,
             accountId,
             transportSecurityPolicy);
 

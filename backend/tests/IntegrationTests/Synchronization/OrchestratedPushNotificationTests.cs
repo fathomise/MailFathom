@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Synchronization.Sessions;
@@ -158,6 +159,7 @@ public sealed class OrchestratedPushNotificationTests(MailFathomOrchestrationFix
             scope.GetRequiredService<OutboundOperationExecutor>(),
             scope.GetRequiredService<ITransientFailureClassifier>(),
             scope.GetRequiredService<MailServerConnectionBudget>(),
+            scope.GetRequiredService<IMailboxServerCapabilityStore>(),
             MailKitImapChangeSubscription.RequestFolderNotificationsAsync,
             TimeProvider.System);
 

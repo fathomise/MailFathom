@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography.X509Certificates;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -91,7 +92,8 @@ internal static class MailKitImapSessionTestContext
             new UnusedMailAccessTokenSource(),
             resilience.Executor,
             resilience.TransientFailureClassifier,
-            CreateConnectionBudget());
+            CreateConnectionBudget(),
+            new RecordingMailboxServerCapabilityStore());
     }
 
     /// <summary>Opens a session over one scripted connection that authenticates with the default permitted mechanism.</summary>
@@ -151,6 +153,7 @@ internal static class MailKitImapSessionTestContext
             resilience.Executor,
             resilience.TransientFailureClassifier,
             CreateConnectionBudget(),
+            new RecordingMailboxServerCapabilityStore(),
             requestFolderNotifications ?? ((_, _, _) => Task.CompletedTask),
             clock);
 
@@ -167,7 +170,8 @@ internal static class MailKitImapSessionTestContext
         OutboundResilienceTestHost resilience,
         Func<IImapClient> clientFactory,
         IImapAccountSettingsProvider settingsProvider,
-        IMailAccessTokenSource accessTokenSource) =>
+        IMailAccessTokenSource accessTokenSource,
+        IMailboxServerCapabilityStore? capabilityStore = null) =>
         new(
             clientFactory,
             settingsProvider,
@@ -175,6 +179,7 @@ internal static class MailKitImapSessionTestContext
             resilience.Executor,
             resilience.TransientFailureClassifier,
             CreateConnectionBudget(),
+            capabilityStore ?? new RecordingMailboxServerCapabilityStore(),
             new FakeTimeProvider(ObservedAt));
 
     /// <summary>A policy that permits only the registered token-bearing mechanism, so no password path is reachable.</summary>

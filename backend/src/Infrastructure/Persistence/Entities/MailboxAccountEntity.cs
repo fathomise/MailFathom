@@ -59,5 +59,15 @@ internal sealed class MailboxAccountEntity
     /// </remarks>
     public int LocalMailFoldersRevision { get; set; }
 
+    /// <summary>Gets or sets what the account's IMAP server last advertised after authentication.</summary>
+    public MailboxServerCapabilities ServerCapabilities { get; set; }
+
+    /// <summary>Gets or sets when <see cref="ServerCapabilities" /> was observed, and <see langword="null" /> where no session has reached the server since the row was created.</summary>
+    /// <remarks>
+    /// The instant two replicas' recordings are ordered by: a recording writes only over an older one, so a session that
+    /// established first and recorded last cannot put back what a later session already replaced.
+    /// </remarks>
+    public DateTimeOffset? ServerCapabilitiesObservedAt { get; set; }
+
     public ICollection<MailFolderBindingEntity> MailFolderBindings { get; } = [];
 }

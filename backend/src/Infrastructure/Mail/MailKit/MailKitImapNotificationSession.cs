@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Diagnostics.CodeAnalysis;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Domain.Accounts;
@@ -23,6 +24,7 @@ internal sealed class MailKitImapNotificationSessionFactory(
     OutboundOperationExecutor operationExecutor,
     ITransientFailureClassifier transientFailureClassifier,
     MailServerConnectionBudget connectionBudget,
+    IMailboxServerCapabilityStore capabilityStore,
     ImapChangeSubscriptionCommand requestFolderNotifications,
     TimeProvider timeProvider) : IMailboxNotificationSessionFactory
 {
@@ -48,6 +50,7 @@ internal sealed class MailKitImapNotificationSessionFactory(
             operationExecutor,
             transientFailureClassifier,
             connectionBudget,
+            capabilityStore,
             MailServerConnectionPurpose.PushNotification,
             accountId,
             folder,
@@ -111,6 +114,7 @@ internal sealed class MailKitImapNotificationSessionFactory(
             operationExecutor,
             transientFailureClassifier,
             connectionBudget,
+            capabilityStore,
             MailServerConnectionPurpose.PushNotification,
             accountId,
             folders[0],

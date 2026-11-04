@@ -35,6 +35,7 @@ public sealed class MailKitImapConnectionAccessTests
             resilience.Executor,
             resilience.TransientFailureClassifier,
             connectionBudget,
+            new RecordingMailboxServerCapabilityStore(),
             MailServerConnectionPurpose.Work,
             PrimaryAccount,
             InboxFolder,
@@ -74,6 +75,7 @@ public sealed class MailKitImapConnectionAccessTests
             resilience.Executor,
             resilience.TransientFailureClassifier,
             connectionBudget,
+            new RecordingMailboxServerCapabilityStore(),
             MailServerConnectionPurpose.Work,
             PrimaryAccount,
             InboxFolder,
@@ -110,6 +112,7 @@ public sealed class MailKitImapConnectionAccessTests
             resilience.Executor,
             resilience.TransientFailureClassifier,
             connectionBudget,
+            new RecordingMailboxServerCapabilityStore(),
             MailServerConnectionPurpose.Work,
             PrimaryAccount,
             InboxFolder,
@@ -145,6 +148,7 @@ public sealed class MailKitImapConnectionAccessTests
             resilience.Executor,
             resilience.TransientFailureClassifier,
             connectionBudget,
+            new RecordingMailboxServerCapabilityStore(),
             PrimaryAccount,
             InboxFolder,
             TlsOnConnectWithPlainPolicy);
@@ -174,6 +178,7 @@ public sealed class MailKitImapConnectionAccessTests
             resilience.Executor,
             resilience.TransientFailureClassifier,
             connectionBudget,
+            new RecordingMailboxServerCapabilityStore(),
             PrimaryAccount,
             TlsOnConnectWithPlainPolicy);
 
@@ -203,6 +208,7 @@ public sealed class MailKitImapConnectionAccessTests
             resilience.Executor,
             resilience.TransientFailureClassifier,
             connectionBudget,
+            new RecordingMailboxServerCapabilityStore(),
             PrimaryAccount,
             TlsOnConnectWithPlainPolicy);
 

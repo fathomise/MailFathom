@@ -12,9 +12,10 @@ namespace MailFathom.Infrastructure.Persistence.Accounts.Configurations;
 /// <summary>Declares the account row every folder binding, message, and durable job hangs on.</summary>
 /// <remarks>
 /// <para>
-/// The row carries two pieces of state configuration cannot hold because configuration is read-only: the custody
-/// phase, which says whether MailFathom mirrors, holds, or is restoring the mailbox, and the local folders revision,
-/// which every write to a held account's folder hierarchy bumps so that write commits only over the hierarchy it read.
+/// The row carries three pieces of state configuration cannot hold because configuration is read-only: the custody
+/// phase, which says whether MailFathom mirrors, holds, or is restoring the mailbox; the local folders revision,
+/// which every write to a held account's folder hierarchy bumps so that write commits only over the hierarchy it read;
+/// and the capabilities the account's server last advertised, which every authenticated session refreshes.
 /// </para>
 /// <para>
 /// It is keyed by the generated identifier alone, which is what ADR 0014 decided an account is identified by. That
@@ -58,5 +59,12 @@ internal sealed class MailboxAccountConfiguration : IEntityTypeConfiguration<Mai
             .HasMaxLength(64)
             .HasDefaultValueSql($"'{nameof(MailAccountCustody.MirrorSource)}'");
         entity.Property(account => account.LocalMailFoldersRevision).IsConcurrencyToken();
+
+        // Stored by name like the phases above, a set as its comma-separated members, and defaulted to the empty set so
+        // every account that existed before the column reads as never observed, which is exactly what it was.
+        entity.Property(account => account.ServerCapabilities)
+            .HasConversion<string>()
+            .HasMaxLength(256)
+            .HasDefaultValueSql($"'{nameof(MailboxServerCapabilities.None)}'");
     }
 }

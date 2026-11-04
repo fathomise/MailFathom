@@ -1140,6 +1140,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ILocalMailFolderStore, LocalMailFolderStore>();
         services.AddScoped<ILocalMailFolderChangeAuditor, LoggedLocalMailFolderChangeAuditor>();
         services.AddScoped<IMailAccountCustodyStore, MailAccountCustodyStore>();
+        // A singleton that opens a scope per statement, because every IMAP connection records through it from inside its
+        // own establishment, including the write pool's, which outlives any one scope.
+        services.AddSingleton<IMailboxServerCapabilityStore, MailboxServerCapabilityStore>();
         services.AddScoped<IMailAccountCustodyAuditor, LoggedMailAccountCustodyAuditor>();
         services.AddScoped<MailAccountCustodySwitch>();
 
@@ -1409,6 +1412,7 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<OutboundOperationExecutor>(),
             provider.GetRequiredService<ITransientFailureClassifier>(),
             provider.GetRequiredService<MailServerConnectionBudget>(),
+            provider.GetRequiredService<IMailboxServerCapabilityStore>(),
             provider.GetRequiredService<TimeProvider>()));
         services.AddScoped<IMailboxNotificationSessionFactory>(provider => new MailKitImapNotificationSessionFactory(
             MailKitImapClientFactory.CreateWithoutProtocolLogging,
@@ -1417,6 +1421,7 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<OutboundOperationExecutor>(),
             provider.GetRequiredService<ITransientFailureClassifier>(),
             provider.GetRequiredService<MailServerConnectionBudget>(),
+            provider.GetRequiredService<IMailboxServerCapabilityStore>(),
             MailKitImapChangeSubscription.RequestFolderNotificationsAsync,
             provider.GetRequiredService<TimeProvider>()));
         // The pool is a singleton because the bound it enforces is one write connection per account across the whole
@@ -1712,7 +1717,8 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<IMailAccessTokenSource>(),
             provider.GetRequiredService<OutboundOperationExecutor>(),
             provider.GetRequiredService<ITransientFailureClassifier>(),
-            provider.GetRequiredService<MailServerConnectionBudget>()));
+            provider.GetRequiredService<MailServerConnectionBudget>(),
+            provider.GetRequiredService<IMailboxServerCapabilityStore>()));
     }
 
     /// <summary>Registers the contact book, the two caller-facing use cases over it, and the collection that fills it from arriving mail.</summary>
