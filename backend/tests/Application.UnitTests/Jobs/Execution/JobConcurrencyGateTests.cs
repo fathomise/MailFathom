@@ -65,6 +65,72 @@ public sealed class JobConcurrencyGateTests
         admitted.Dispose();
     }
 
+    /// <summary>
+    /// A type sitting at its own ceiling is no reason for another type to wait, because the job queued behind that
+    /// ceiling has not taken any of the room the process still has.
+    /// </summary>
+    [Fact]
+    public async Task AcquireAsync_OneTypeAtItsCeilingWithAJobWaiting_AdmitsAnotherTypeIntoTheProcessCeiling()
+    {
+        // Arrange
+        using var gate = GateFor(maxConcurrentJobs: 2, maxConcurrentJobsPerType: 1);
+
+        var heldOfTheFloodedType = await gate.AcquireAsync(JobType.RederiveStoredMail, CancellationToken.None);
+        var waitingOnItsTypeCeiling = gate.AcquireAsync(JobType.RederiveStoredMail, CancellationToken.None);
+
+        // Act
+        var ofAnotherType = gate.AcquireAsync(JobType.DispatchHeldSend, CancellationToken.None);
+
+        // Assert
+        Assert.False(waitingOnItsTypeCeiling.IsCompleted);
+        Assert.True(ofAnotherType.IsCompletedSuccessfully);
+
+        (await ofAnotherType).Dispose();
+        heldOfTheFloodedType.Dispose();
+        (await waitingOnItsTypeCeiling).Dispose();
+    }
+
+    /// <summary>
+    /// Every job blocked on its own type's ceiling holds none of the process ceiling, so the whole of what the process
+    /// has left goes to other types — and no more than that, since the process ceiling still binds them.
+    /// </summary>
+    [Fact]
+    public async Task AcquireAsync_JobsWaitingOnTheirTypeCeiling_HoldNoneOfTheProcessCeiling()
+    {
+        // Arrange
+        using var gate = GateFor(maxConcurrentJobs: 3, maxConcurrentJobsPerType: 1);
+
+        var heldOfTheFloodedType = await gate.AcquireAsync(JobType.RederiveStoredMail, CancellationToken.None);
+        Task<IDisposable>[] waitingOnTheirTypeCeiling =
+        [
+            gate.AcquireAsync(JobType.RederiveStoredMail, CancellationToken.None),
+            gate.AcquireAsync(JobType.RederiveStoredMail, CancellationToken.None),
+        ];
+
+        // Act
+        Task<IDisposable>[] ofOtherTypes =
+        [
+            gate.AcquireAsync(JobType.DispatchHeldSend, CancellationToken.None),
+            gate.AcquireAsync(JobType.RunScheduledMailRules, CancellationToken.None),
+        ];
+        var beyondTheProcessCeiling = gate.AcquireAsync(JobType.ClassifyStoredEmailSpam, CancellationToken.None);
+
+        // Assert
+        Assert.All(waitingOnTheirTypeCeiling, waiting => Assert.False(waiting.IsCompleted));
+        Assert.All(ofOtherTypes, admitted => Assert.True(admitted.IsCompletedSuccessfully));
+        Assert.False(beyondTheProcessCeiling.IsCompleted);
+
+        foreach (var admitted in await Task.WhenAll(ofOtherTypes))
+        {
+            admitted.Dispose();
+        }
+
+        (await beyondTheProcessCeiling).Dispose();
+        heldOfTheFloodedType.Dispose();
+
+        await GiveBackAsEachIsAdmittedAsync(waitingOnTheirTypeCeiling);
+    }
+
     /// <summary>Capacity given back twice would let one more job past the ceiling than the deployment allows.</summary>
     [Fact]
     public async Task AcquireAsync_CapacityGivenBackTwice_StillAdmitsNoMoreThanTheCeiling()
@@ -129,6 +195,20 @@ public sealed class JobConcurrencyGateTests
         Assert.NotNull(admitted);
 
         admitted.Dispose();
+    }
+
+    /// <summary>Gives back each waiting acquisition as it is admitted, in whatever order the gate admits them.</summary>
+    private static async Task GiveBackAsEachIsAdmittedAsync(IEnumerable<Task<IDisposable>> acquisitions)
+    {
+        var pending = acquisitions.ToList();
+
+        while (pending.Count > 0)
+        {
+            var admitted = await Task.WhenAny(pending);
+
+            pending.Remove(admitted);
+            (await admitted).Dispose();
+        }
     }
 
     private static JobConcurrencyGate GateFor(int maxConcurrentJobs, int maxConcurrentJobsPerType) =>
