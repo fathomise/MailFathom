@@ -4,6 +4,7 @@
 
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Synchronization;
@@ -32,6 +33,7 @@ internal sealed class MailKitImapMailboxSessionFactory(
     OutboundOperationExecutor operationExecutor,
     ITransientFailureClassifier transientFailureClassifier,
     MailServerConnectionBudget connectionBudget,
+    IMailboxServerCapabilityStore capabilityStore,
     TimeProvider timeProvider) : IMailboxSessionFactory
 {
     /// <inheritdoc />
@@ -51,6 +53,7 @@ internal sealed class MailKitImapMailboxSessionFactory(
             operationExecutor,
             transientFailureClassifier,
             connectionBudget,
+            capabilityStore,
             MailServerConnectionPurpose.Work,
             accountId,
             folder,

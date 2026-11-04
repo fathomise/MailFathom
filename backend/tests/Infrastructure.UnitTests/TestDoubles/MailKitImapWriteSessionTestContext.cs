@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Diagnostics.CodeAnalysis;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -214,6 +215,7 @@ internal static class MailKitImapWriteSessionTestContext
             return CreateSettingsProvider();
         });
         services.AddScoped<IMailAccessTokenSource>(_ => new UnusedMailAccessTokenSource());
+        services.AddSingleton<IMailboxServerCapabilityStore>(new RecordingMailboxServerCapabilityStore());
         services.AddScoped(_ => PreparedAccountSettingsScope());
 
         return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();

@@ -2492,6 +2492,16 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("RestoreStatePosition")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ServerCapabilities")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasDefaultValueSql("'None'");
+
+                    b.Property<DateTimeOffset?>("ServerCapabilitiesObservedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id")
                         .HasName("PK_mailbox_accounts");
 
