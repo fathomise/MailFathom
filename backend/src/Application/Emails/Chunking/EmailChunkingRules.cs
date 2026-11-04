@@ -15,9 +15,10 @@ namespace MailFathom.Application.Emails.Chunking;
 /// </para>
 /// <para>
 /// <see cref="RuleSetVersion" /> is not what makes the rules take effect and nothing reads it to decide correctness —
-/// the hash already covers every field below. It exists so a backfill can be asked how much of a mailbox is still cut
-/// to the previous rules, which is a question a hash has no answer to. Change any other member and increment it in the
-/// same edit.
+/// the hash already covers every field below. It exists because a digest cannot be asked which rules it was cut to, and
+/// the embedding backfill has to find every passage cut to an earlier version than this one to cut it again. Change any
+/// other member and increment it in the same edit, and never lower it: a build re-cuts only what is older than its own
+/// rules, which is what keeps two builds of a rolling upgrade from cutting each other's passages back and forth.
 /// </para>
 /// <para>
 /// Deliberately not a record: two rule sets are never compared, and the value equality a record would publish would

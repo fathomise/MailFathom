@@ -110,6 +110,45 @@ public sealed class StoredEmailEmbeddingBackfillTests
         Assert.Empty(world.BackfillStore.ChunkedEmails);
     }
 
+    /// <summary>
+    /// A message cut before the boundary rules last changed is cut again before its vectors are asked for, so the vectors
+    /// it ends up with belong to passages the current rules describe.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_MessageCutToEarlierRules_CutsItAgainAndEmbedsTheNewPassages()
+    {
+        // Arrange
+        var world = CreateWorld();
+        var message = NextEmail();
+        world.BackfillStore.AddEmailCutToEarlierRules(message, passageCount: 2);
+        var backfill = world.CreateBackfill();
+
+        // Act
+        var result = await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StoredEmailEmbeddingBackfillOutcome.SweepCompleted, result.Outcome);
+        Assert.Equal(1, result.ChunkedEmailCount);
+        Assert.Equal(2, result.EmbeddedChunkCount);
+        Assert.Equal([message], world.BackfillStore.ChunkedEmails);
+    }
+
+    /// <summary>A re-cut is ordinary outstanding work on a message the gate admitted long ago, so it releases nothing.</summary>
+    [Fact]
+    public async Task RunAsync_MessageCutToEarlierRules_RecordsNoAdmission()
+    {
+        // Arrange
+        var world = CreateWorld();
+        world.BackfillStore.AddEmailCutToEarlierRules(NextEmail(), passageCount: 2);
+        var backfill = world.CreateBackfill();
+
+        // Act
+        await backfill.RunAsync(world.Target, serving: world.Target, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(world.GateTelemetry.Admissions);
+    }
+
     /// <summary>A run is bounded by its batch budget and says that work remains rather than running the mailbox down.</summary>
     [Fact]
     public async Task RunAsync_MoreMessagesThanTheBatchBudgetCovers_StopsAndReportsRemainingWork()

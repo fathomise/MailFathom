@@ -2,10 +2,13 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.AttachmentText;
+using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Embeddings.Backfill;
 using MailFathom.Application.Emails.Embeddings.Generations;
 using MailFathom.Application.Emails.Embeddings.Vectorization;
+using MailFathom.Application.Emails.Extraction.Attachments;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Gating;
@@ -86,6 +89,51 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
         Assert.Equal(StoredEmailEmbeddingBackfillOutcome.SweepCompleted, repeat.Outcome);
         Assert.Equal(0, repeat.ChunkedEmailCount);
         Assert.Equal(0, repeat.EmbeddedChunkCount);
+    }
+
+    /// <summary>
+    /// A boundary-rule change reaches an attachment's passages: the ones cut to an earlier rule set are cut again from the
+    /// words the reading stored and embedded anew, while the message's body and its other attachment keep every passage
+    /// and every vector they had — which is what reconciling per attachment buys over replacing a message whole.
+    /// </summary>
+    /// <remarks>
+    /// The earlier cut is simulated rather than reproduced, since one build carries one rule set: the passages of the
+    /// first attachment are given the previous version and a digest no current rule produces, which is the state a rule
+    /// change leaves them in, because the version is part of every digest. The reading marker is read before and after,
+    /// because a re-cut that reopened the file would be one that took the attachment stage's work over.
+    /// </remarks>
+    [Fact]
+    public async Task Sweeping_AttachmentPassagesCutToEarlierRules_CutsThemAgainFromTheStoredReadingAlone()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var message = await StoreOneMessageAsync(services, uid: 9361, cancellationToken);
+        await OrchestratedPassages.CutAsync(services, message, cancellationToken);
+        await SaveAttachmentReadingsAsync(services, message, [Document(0, "contract"), Document(1, "invoice")], cancellationToken);
+        var profileId = await OrchestratedEmbeddingProfile.EnsureActiveDeterministicAsync(services, cancellationToken);
+        await SweepAsync(services, cancellationToken);
+
+        var untouched = await ReadUntouchedPassageIdsAsync(services, message, cancellationToken);
+        var cutToEarlierRules = await MarkCutToEarlierRulesAsync(services, message, attachmentPosition: 0, cancellationToken);
+        var readAt = await ReadAttachmentTextDerivedAtAsync(services, message, cancellationToken);
+
+        // Act
+        var sweep = await SweepAsync(services, cancellationToken);
+
+        // Assert
+        Assert.True(cutToEarlierRules.Count > 0);
+        var recut = await ReadPassageIdsAsync(services, message, attachmentPosition: 0, cancellationToken);
+        Assert.Equal(cutToEarlierRules.Count, recut.Count);
+        Assert.Empty(recut.Intersect(cutToEarlierRules));
+
+        // Only the passages that moved were paid for, and every passage the message holds now carries a vector.
+        Assert.Equal(recut.Count, sweep.EmbeddedChunkCount);
+        Assert.Equal(untouched, await ReadUntouchedPassageIdsAsync(services, message, cancellationToken));
+        Assert.Equal(
+            await CountPassagesAsync(services, message, cancellationToken),
+            await CountVectorsAsync(services, message, profileId, cancellationToken));
+        Assert.Equal(readAt, await ReadAttachmentTextDerivedAtAsync(services, message, cancellationToken));
     }
 
     /// <summary>
@@ -406,6 +454,97 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
 
         return storedEmailId;
     }
+
+    /// <summary>Builds one document reading long enough to be cut into a passage of its own.</summary>
+    private static DerivedAttachmentText Document(int position, string term) => DerivedAttachmentText.FromExtraction(
+        position,
+        "application/pdf",
+        $"{term}.pdf",
+        AttachmentTextExtractionResult.Extracted(new ExtractedAttachmentText(
+            SyntheticEmail.BodyTextContaining(term, wordCount: 400),
+            PageCount: 1,
+            [],
+            [new AttachmentTextSegment(AttachmentTextSegmentKind.Page, 1, Label: null, StartOffset: 0)])));
+
+    /// <summary>Commits what the attachment stage would have read off a message, which also cuts its passages.</summary>
+    private static async Task SaveAttachmentReadingsAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId storedEmailId,
+        IReadOnlyList<DerivedAttachmentText> attachments,
+        CancellationToken cancellationToken)
+    {
+        var result = await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IStoredEmailAttachmentTextStore>()
+                .SaveAttachmentTextAsync(
+                    session,
+                    storedEmailId,
+                    new EmailAttachmentTextDerivation(attachments, RedactedUnder: null),
+                    token),
+            cancellationToken);
+
+        Assert.Equal(PersistenceCommitResult.Committed, result);
+    }
+
+    /// <summary>Reads the identities of one text's passages, the body's being the ones with no attachment position.</summary>
+    private static Task<IReadOnlyList<Guid>> ReadPassageIdsAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId storedEmailId,
+        int? attachmentPosition,
+        CancellationToken cancellationToken) => services.InScopeAsync<IReadOnlyList<Guid>>(
+            async (scope, token) => await scope.GetRequiredService<MailFathomDbContext>().EmailChunks
+                .AsNoTracking()
+                .Where(chunk => chunk.StoredEmailId == storedEmailId.Value
+                    && chunk.AttachmentPosition == attachmentPosition)
+                .Select(chunk => chunk.Id)
+                .ToArrayAsync(token),
+            cancellationToken);
+
+    /// <summary>Reads the identities of the passages the re-cut must leave alone: the body's, and the second attachment's.</summary>
+    private static Task<Guid[]> ReadUntouchedPassageIdsAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId storedEmailId,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().EmailChunks
+                .AsNoTracking()
+                .Where(chunk => chunk.StoredEmailId == storedEmailId.Value
+                    && (chunk.AttachmentPosition == null || chunk.AttachmentPosition == 1))
+                .OrderBy(chunk => chunk.Id)
+                .Select(chunk => chunk.Id)
+                .ToArrayAsync(token),
+            cancellationToken);
+
+    /// <summary>Leaves one attachment's passages as a rule change would: an earlier version, and a digest the current rules do not produce.</summary>
+    private static async Task<IReadOnlyList<Guid>> MarkCutToEarlierRulesAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId storedEmailId,
+        int attachmentPosition,
+        CancellationToken cancellationToken)
+    {
+        var marked = await ReadPassageIdsAsync(services, storedEmailId, attachmentPosition, cancellationToken);
+
+        await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().EmailChunks
+                .Where(chunk => marked.Contains(chunk.Id))
+                .ExecuteUpdateAsync(
+                    chunk => chunk
+                        .SetProperty(row => row.RuleSetVersion, EmailChunkingRules.Current.RuleSetVersion - 1)
+                        .SetProperty(row => row.ContentHash, new string('0', 64)),
+                    token),
+            cancellationToken);
+
+        return marked;
+    }
+
+    private static Task<DateTimeOffset?> ReadAttachmentTextDerivedAtAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId storedEmailId,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().StoredEmails
+                .AsNoTracking()
+                .Where(email => email.Id == storedEmailId.Value)
+                .Select(email => email.AttachmentTextDerivedAt)
+                .SingleAsync(token),
+            cancellationToken);
 
     private static Task<int> CountPassagesAsync(
         OrchestratedMailFathomServices services,

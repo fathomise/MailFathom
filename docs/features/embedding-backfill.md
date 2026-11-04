@@ -24,7 +24,8 @@ none.
 
 ## What it reaches, and in which order
 
-Two conditions select a message, and they are the two halves of what a pre-existing mailbox looks like.
+Three conditions select a message: the first two are the two halves of what a pre-existing mailbox looks like, and
+the third is what a change to the boundary rules leaves behind.
 
 - **A message with extracted text and no passages that the user's rules have finished with** was stored before
   [message chunks](message-chunks.md) existed, or was held back by spam classification while it waited for a verdict, or
@@ -47,13 +48,21 @@ Two conditions select a message, and they are the two halves of what a pre-exist
 - **A message with a passage that carries no vector** under the generation being walked towards was stored before that
   generation existed, or was turned away by `Embeddings:MaxQueuedEmails`, or was left part-way through by a provider
   call that failed. For a generation being built from nothing, that is every message the instance holds.
+- **A message with a passage cut to an earlier rule set** was cut before [the boundary rules](message-chunks.md#the-boundary-rules)
+  last changed. The walk cuts it again before asking for vectors — its body from the stored extraction and each
+  attachment from the words its [stored reading](attachment-text-extraction.md) holds, so no document is parsed and no
+  picture described a second time, and the marker saying the attachments were read is left as it is. Each text is
+  reconciled against its own passages, so a passage whose digest did not move keeps its row and its vectors, and only
+  the passages that moved are embedded again. *Earlier* rather than *different*, because a rolling upgrade runs two
+  builds against one database: a build that re-cut whatever it did not recognize would cut the newer build's passages
+  back to its own rules on every sweep while the newer one cut them forward, paying a provider each time.
 
-A message a tombstone hides is in neither group. Vectors nothing may retrieve are a provider bill with no reader. A
+A message a tombstone hides is in none of the groups. Vectors nothing may retrieve are a provider bill with no reader. A
 message whose local copy was deliberately kept after MailFathom deleted it on the server is not that: nothing may
 retrieve it from the server any more, and everything may still retrieve it here, so the walk reaches it like any other.
 
 The walk asks the query for the folders configuration maps and leaves embedded, so a message of a folder mapped with
-`GenerateEmbeddings: false` or `VisibleToAI: false` is in neither group, and neither is a message of a folder **no
+`GenerateEmbeddings: false` or `VisibleToAI: false` is in none of the groups, and neither is a message of a folder **no
 mapping names**. The
 narrowing is on the query rather than on what it does with a row: a folder whose passages are deliberately never cut
 would otherwise look like the first group on every run forever, and mail retained under a removed mapping would be

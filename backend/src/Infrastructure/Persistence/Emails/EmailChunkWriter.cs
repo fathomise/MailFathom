@@ -20,8 +20,9 @@ namespace MailFathom.Infrastructure.Persistence.Emails;
 /// <remarks>
 /// Every path that produces passages arrives here, which is what stops them from storing passages built to different
 /// rules. They arrive by two routes. The extraction backfill has just read a message's raw MIME and cuts what it
-/// derived, in the transaction that writes the extraction. The account run's own cut and the embedding sweep read the
-/// stored reading back through <see cref="SaveFromStoredExtractionAsync" /> and cut it in a transaction of their own,
+/// derived, in the transaction that writes the extraction. The account run's own cut reads the stored reading back
+/// through <see cref="SaveFromStoredExtractionAsync" />, and the embedding sweep reads it and every attachment's back
+/// through <see cref="SaveFromStoredReadingsAsync" />, each cutting it in a transaction of its own,
 /// one step behind the stages that may still redact that text or move the message out of the folder its passages would
 /// describe. So a committed message is one whose passages a later step produces: storing a message no longer derives
 /// them, and the steps that do are what a message committed and not yet cut is waiting for.
@@ -76,6 +77,44 @@ internal sealed class EmailChunkWriter(
         }
 
         await this.SaveAsync(dbContext, storedEmail, text, cancellationToken);
+    }
+
+    /// <summary>Saves the passages everything stored for one message yields: its body's reading and each attachment's.</summary>
+    /// <param name="dbContext">The context whose transaction this write joins.</param>
+    /// <param name="storedEmailId">The message to cut.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>A task that completes when the passages are staged.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="dbContext" /> is <see langword="null" />.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the message disappeared between its selection and this write.</exception>
+    /// <remarks>
+    /// <para>
+    /// What re-cuts a message after the boundary rules changed, and why that costs no parser and no vision call: an
+    /// attachment's words, its boundaries, and a picture's description are stored on its reading, so cutting them again
+    /// is a computation over rows the deployment already holds. The reading's own marker is left as it is, because it
+    /// records that the file was read rather than which rules its words were cut to.
+    /// </para>
+    /// <para>
+    /// Each text is reconciled against its own passages, so a passage whose digest did not move keeps its row and every
+    /// vector hanging on it. A message whose attachments were never read has no readings and keeps no attachment passage.
+    /// </para>
+    /// </remarks>
+    public async Task SaveFromStoredReadingsAsync(
+        MailFathomDbContext dbContext,
+        StoredEmailId storedEmailId,
+        CancellationToken cancellationToken)
+    {
+        await this.SaveFromStoredExtractionAsync(dbContext, storedEmailId, cancellationToken);
+
+        var storedEmail = await dbContext.StoredEmails.FindAsync([storedEmailId.Value], cancellationToken)
+            ?? throw new InvalidOperationException("Passages cannot be derived for a stored email that no longer exists.");
+
+        var readings = await dbContext.EmailAttachmentTexts
+            .Where(reading => reading.StoredEmailId == storedEmailId.Value)
+            .OrderBy(reading => reading.AttachmentPosition)
+            .Select(reading => new AttachmentReading(reading.AttachmentPosition, reading.DeclaredMediaType, reading.Text))
+            .ToArrayAsync(cancellationToken);
+
+        await this.SaveAttachmentReadingsAsync(dbContext, storedEmail, readings, cancellationToken);
     }
 
     /// <summary>Saves the passages one extraction yields, leaving an unchanged message's rows untouched.</summary>
@@ -161,6 +200,23 @@ internal sealed class EmailChunkWriter(
         ArgumentNullException.ThrowIfNull(storedEmail);
         ArgumentNullException.ThrowIfNull(attachmentTexts);
 
+        await this.SaveAttachmentReadingsAsync(
+            dbContext,
+            storedEmail,
+            [.. attachmentTexts.Select(attachment => new AttachmentReading(
+                attachment.Position,
+                attachment.DeclaredMediaType,
+                attachment.Text))],
+            cancellationToken);
+    }
+
+    /// <summary>Reconciles each attachment's passages against what its reading yields, within one shared allowance.</summary>
+    private async Task SaveAttachmentReadingsAsync(
+        MailFathomDbContext dbContext,
+        StoredEmailEntity storedEmail,
+        IReadOnlyList<AttachmentReading> attachmentTexts,
+        CancellationToken cancellationToken)
+    {
         if (!await this.FolderGeneratesEmbeddingsAsync(dbContext, storedEmail, cancellationToken))
         {
             return;
@@ -216,7 +272,7 @@ internal sealed class EmailChunkWriter(
     private static async Task RemovePassagesOfDroppedAttachmentsAsync(
         MailFathomDbContext dbContext,
         StoredEmailEntity storedEmail,
-        IReadOnlyList<DerivedAttachmentText> attachmentTexts,
+        IReadOnlyList<AttachmentReading> attachmentTexts,
         CancellationToken cancellationToken)
     {
         int[] kept = [.. attachmentTexts.Select(attachment => attachment.Position)];
@@ -408,6 +464,9 @@ internal sealed class EmailChunkWriter(
 
     /// <summary>What a stored passage has to report for re-chunking to decide it is unchanged.</summary>
     private sealed record StoredChunkIdentity(int Ordinal, string ContentHash);
+
+    /// <summary>What the cut needs of one attachment's reading, whether it was just taken or read back from its row.</summary>
+    private sealed record AttachmentReading(int Position, string DeclaredMediaType, string? Text);
 
     /// <summary>The stored reading of one message's body, as the chunking projection returns it.</summary>
     private sealed record StoredExtractionRow(
