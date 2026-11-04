@@ -145,9 +145,11 @@ slides are read in the order its `ppt/presentation.xml` lists them and a workboo
 element of `xl/workbook.xml` lists them, each resolved through the package's own relationship part, so a deck or a
 workbook somebody reordered before sending reads back in the order a person sees it — and the pages named as carrying no
 text are the ones a person would count to. Both parts are read under the same bounds as every other part, so crossing one
-there stops the read as it would anywhere else. A package that declares no order, whose ordering part is not readable as
-XML, or whose order names a part it does not hold, names one twice, or leaves one out, is read in the order its parts
-are named instead rather than refused. An OpenDocument file holds one content part in document order and needs
+there stops the read as it would anywhere else. An entry in that list naming a part that is not a page — a workbook's
+chart sheet, dialog sheet, or macro sheet, which sit among its tabs — is skipped, and the pages around it keep their
+declared order. A package that declares no order, whose ordering part is not readable as XML, or whose order names a
+part it does not hold, names a page twice, or leaves one out, is read in the order its parts are named instead rather
+than refused. An OpenDocument file holds one content part in document order and needs
 neither.
 
 A "page" is what the format has one of: a PDF page, a presentation slide, an OpenDocument drawing page, and a sheet of

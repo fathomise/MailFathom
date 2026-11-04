@@ -265,6 +265,34 @@ public sealed class BoundedAttachmentTextExtractorTests
     }
 
     /// <summary>
+    /// A chart tab sits in a workbook's sheet list beside the worksheets and holds no cells, so it is passed over and the
+    /// worksheets around it keep the order the list declares rather than the whole list being given up.
+    /// </summary>
+    [Fact]
+    public async Task ExtractTextAsync_AWorkbookDeclaringAChartsheetAmongItsSheets_ReadsItsWorksheetsInTheDeclaredOrder()
+    {
+        // Arrange
+        await using var attachment = new FakeOpenedEmailAttachment(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "ledger.xlsx",
+            DocumentFixtures.WorkbookWithChartsheetInDeclaredOrder(
+                [[], ["Closing balance"], ["Opening balance"]],
+                chartsheetPosition: 1,
+                3,
+                2,
+                1));
+
+        // Act
+        var result = await ExtractAsync(attachment);
+
+        // Assert
+        Assert.Equal(AttachmentTextExtractionOutcome.Extracted, result.Outcome);
+        Assert.Equal("Opening balance\nClosing balance", result.Text?.Text);
+        Assert.Equal(3, result.Text?.PageCount);
+        Assert.Equal([3], result.Text?.PagesWithoutText);
+    }
+
+    /// <summary>
     /// An order naming a part the package does not hold, naming one twice, or leaving one out cannot be taken, so the
     /// deck is read in part-name order rather than refused; a package with no ordering part at all is every other
     /// presentation case above.

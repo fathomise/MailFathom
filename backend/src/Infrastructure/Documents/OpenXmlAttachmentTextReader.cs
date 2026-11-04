@@ -393,11 +393,18 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
     /// <param name="cancellationToken">Cancels the read between elements.</param>
     /// <returns>The same parts in the declared order, or in part-name order when the package declares none worth taking.</returns>
     /// <remarks>
-    /// The declared order is taken only when it names every page part exactly once. A package without the ordering part
-    /// or its relationship part, with either of them unreadable as XML, or whose order names a part it does not hold,
-    /// names one twice, or leaves one out, is read in part-name order instead: no office suite writes such a package,
-    /// and refusing the attachment over its order would lose text that is still there to search. A ceiling crossed
-    /// while reading either part still stops the whole read, exactly as it does in any other part.
+    /// <para>
+    /// An entry naming a part the package holds that is not a page — a workbook's chart sheet, dialog sheet, or macro
+    /// sheet, which sit in its sheet list beside the worksheets — is skipped, since it carries no cell text and the
+    /// pages around it keep their declared order.
+    /// </para>
+    /// <para>
+    /// The declared order is otherwise taken only when it names every page part exactly once. A package without the
+    /// ordering part or its relationship part, with either of them unreadable as XML, or whose order names a part it
+    /// does not hold, names a page twice, or leaves one out, is read in part-name order instead: no office suite writes
+    /// such a package, and refusing the attachment over its order would lose text that is still there to search. A
+    /// ceiling crossed while reading either part still stops the whole read, exactly as it does in any other part.
+    /// </para>
     /// </remarks>
     private List<ZipArchiveEntry> InDeclaredOrder(
         ZipArchive archive,
@@ -422,7 +429,13 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
 
         try
         {
-            var targets = this.PageRelationshipTargets(relationshipsPart, folder, named, budget, cancellationToken);
+            var targets = this.RelationshipTargets(
+                archive,
+                relationshipsPart,
+                folder,
+                named,
+                budget,
+                cancellationToken);
 
             declared = this.DeclaredPages(
                 orderingPart,
@@ -443,13 +456,17 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
             : named;
     }
 
-    /// <summary>Reads which page part each relationship identifier of an ordering part names.</summary>
+    /// <summary>Reads what each relationship identifier of an ordering part names: a page part, or another part the package holds.</summary>
+    /// <returns>
+    /// Each identifier whose target the package holds, mapped to its page part, or to <see langword="null" /> where the
+    /// target is a part that is not a page. An identifier whose target the package does not hold is absent.
+    /// </returns>
     /// <remarks>
-    /// Only a relationship whose target is one of the page parts is kept, so what is held stays proportional to the
-    /// pages rather than to whatever else the relationship part lists. A part name is compared without regard to case,
-    /// because the packaging convention compares part names that way.
+    /// A page's name is compared without regard to case, because the packaging convention compares part names that
+    /// way. What is held is bounded by what the relationship part may inflate to, like everything else read from it.
     /// </remarks>
-    private Dictionary<string, ZipArchiveEntry> PageRelationshipTargets(
+    private Dictionary<string, ZipArchiveEntry?> RelationshipTargets(
+        ZipArchive archive,
         ZipArchiveEntry relationshipsPart,
         string folder,
         List<ZipArchiveEntry> named,
@@ -459,20 +476,30 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
         var pagesByName = named
             .DistinctBy(page => page.FullName, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(page => page.FullName, StringComparer.OrdinalIgnoreCase);
-        var targets = new Dictionary<string, ZipArchiveEntry>(StringComparer.Ordinal);
+        var targets = new Dictionary<string, ZipArchiveEntry?>(StringComparer.Ordinal);
 
         using var reader = this.parts.OpenPart(relationshipsPart, budget);
 
         while (this.parts.ReadNode(reader, cancellationToken))
         {
-            if (reader.NodeType == XmlNodeType.Element
-                && reader.LocalName == "Relationship"
-                && reader.GetAttribute("TargetMode") is not "External"
-                && reader.GetAttribute("Id") is { } identifier
-                && reader.GetAttribute("Target") is { } target
-                && pagesByName.TryGetValue(ResolvePartName(folder, target), out var page))
+            if (reader.NodeType != XmlNodeType.Element
+                || reader.LocalName != "Relationship"
+                || reader.GetAttribute("TargetMode") is "External"
+                || reader.GetAttribute("Id") is not { } identifier
+                || reader.GetAttribute("Target") is not { } target)
+            {
+                continue;
+            }
+
+            var partName = ResolvePartName(folder, target);
+
+            if (pagesByName.TryGetValue(partName, out var page))
             {
                 targets.TryAdd(identifier, page);
+            }
+            else if (archive.GetEntry(partName) is not null)
+            {
+                targets.TryAdd(identifier, null);
             }
         }
 
@@ -481,14 +508,15 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
 
     /// <summary>Reads the pages an ordering part lists, in its order, resolved through its relationships.</summary>
     /// <returns>
-    /// The pages listed, or <see langword="null" /> once an entry names no page part or the list grows past the pages
-    /// there are — either of which already means the declared order cannot be taken.
+    /// The pages listed, skipping an entry that names a part which is not a page, or <see langword="null" /> once an
+    /// entry names no part the package holds or the list grows past the pages there are — either of which already
+    /// means the declared order cannot be taken.
     /// </returns>
     private List<ZipArchiveEntry>? DeclaredPages(
         ZipArchiveEntry orderingPart,
         string orderElementName,
         FrozenSet<string> orderNamespaces,
-        Dictionary<string, ZipArchiveEntry> targets,
+        Dictionary<string, ZipArchiveEntry?> targets,
         int pageCount,
         DecompressionBudget budget,
         CancellationToken cancellationToken)
@@ -507,8 +535,17 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
             }
 
             if (RelationshipIdentifier(reader) is not { } identifier
-                || !targets.TryGetValue(identifier, out var page)
-                || declared.Count == pageCount)
+                || !targets.TryGetValue(identifier, out var page))
+            {
+                return null;
+            }
+
+            if (page is null)
+            {
+                continue;
+            }
+
+            if (declared.Count == pageCount)
             {
                 return null;
             }

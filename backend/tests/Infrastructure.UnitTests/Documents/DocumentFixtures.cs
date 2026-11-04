@@ -187,14 +187,46 @@ internal static class DocumentFixtures
     /// <param name="declaredSheets">The one-based part numbers the sheet list names, in the order it names them.</param>
     /// <returns>The package's octets.</returns>
     public static byte[] WorkbookInDeclaredOrder(string[][] sheets, params int[] declaredSheets) =>
-        WorkbookInDeclaredOrderIn(SpreadsheetNamespace, RelationshipNamespace, sheets, declaredSheets);
+        WorkbookInDeclaredOrderIn(
+            SpreadsheetNamespace,
+            RelationshipNamespace,
+            sheets,
+            NumberedTargets("worksheets/sheet", declaredSheets));
 
     /// <summary>Builds the ISO 29500 Strict equivalent of <see cref="WorkbookInDeclaredOrder(string[][], int[])" />.</summary>
     /// <param name="sheets">One entry per worksheet part, in part-name order, each the cell values it holds.</param>
     /// <param name="declaredSheets">The one-based part numbers the sheet list names, in the order it names them.</param>
     /// <returns>The package's octets.</returns>
     public static byte[] StrictWorkbookInDeclaredOrder(string[][] sheets, params int[] declaredSheets) =>
-        WorkbookInDeclaredOrderIn(StrictSpreadsheetNamespace, StrictRelationshipNamespace, sheets, declaredSheets);
+        WorkbookInDeclaredOrderIn(
+            StrictSpreadsheetNamespace,
+            StrictRelationshipNamespace,
+            sheets,
+            NumberedTargets("worksheets/sheet", declaredSheets));
+
+    /// <summary>Builds a workbook whose sheet list names a chart sheet among its worksheets, as a tab holding a chart does.</summary>
+    /// <param name="sheets">One entry per worksheet part, in part-name order, each the cell values it holds.</param>
+    /// <param name="chartsheetPosition">The zero-based place in the sheet list the chart sheet takes.</param>
+    /// <param name="declaredSheets">The one-based worksheet part numbers the sheet list names, in the order it names them.</param>
+    /// <returns>The package's octets.</returns>
+    public static byte[] WorkbookWithChartsheetInDeclaredOrder(
+        string[][] sheets,
+        int chartsheetPosition,
+        params int[] declaredSheets)
+    {
+        var chartsheetTarget = "chartsheets/sheet1.xml";
+        var worksheetTargets = NumberedTargets("worksheets/sheet", declaredSheets);
+
+        return WorkbookInDeclaredOrderIn(
+            SpreadsheetNamespace,
+            RelationshipNamespace,
+            sheets,
+            [.. worksheetTargets[..chartsheetPosition], chartsheetTarget, .. worksheetTargets[chartsheetPosition..]],
+            ($"xl/{chartsheetTarget}", $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <chartsheet xmlns="{SpreadsheetNamespace}"/>
+                """));
+    }
 
     /// <summary>Builds an OpenDocument text package whose body carries the paragraphs given.</summary>
     /// <param name="paragraphs">The paragraphs, in order.</param>
@@ -445,36 +477,42 @@ internal static class DocumentFixtures
                 <?xml version="1.0" encoding="UTF-8"?>
                 <p:presentation xmlns:p="{presentationNamespace}" xmlns:r="{relationshipNamespace}"><p:sldIdLst>{slideList}</p:sldIdLst></p:presentation>
                 """),
-            ("ppt/_rels/presentation.xml.rels", RelationshipsNaming("slides/slide", declaredSlides)),
+            ("ppt/_rels/presentation.xml.rels", RelationshipsNaming(NumberedTargets("slides/slide", declaredSlides))),
         ]);
     }
 
-    /// <summary>Builds a workbook whose sheet list, and the relationships it resolves through, name the sheets given.</summary>
+    /// <summary>Builds a workbook whose sheet list, and the relationships it resolves through, name the targets given.</summary>
     private static byte[] WorkbookInDeclaredOrderIn(
         string spreadsheetNamespace,
         string relationshipNamespace,
         string[][] sheets,
-        int[] declaredSheets)
+        string[] declaredTargets,
+        params (string Name, string Content)[] otherParts)
     {
-        var sheetList = string.Concat(declaredSheets.Select((number, position) =>
-            $"""<sheet name="Tab {number.ToString(CultureInfo.InvariantCulture)}" sheetId="{(position + 1).ToString(CultureInfo.InvariantCulture)}" r:id="{RelationshipIdentifier(position)}"/>"""));
+        var sheetList = string.Concat(declaredTargets.Select((_, position) =>
+            $"""<sheet name="Tab {(position + 1).ToString(CultureInfo.InvariantCulture)}" sheetId="{(position + 1).ToString(CultureInfo.InvariantCulture)}" r:id="{RelationshipIdentifier(position)}"/>"""));
 
         return Package(
         [
             .. WorkbookParts(spreadsheetNamespace, sheets),
+            .. otherParts,
             ("xl/workbook.xml", $"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <workbook xmlns="{spreadsheetNamespace}" xmlns:r="{relationshipNamespace}"><sheets>{sheetList}</sheets></workbook>
                 """),
-            ("xl/_rels/workbook.xml.rels", RelationshipsNaming("worksheets/sheet", declaredSheets)),
+            ("xl/_rels/workbook.xml.rels", RelationshipsNaming(declaredTargets)),
         ]);
     }
 
-    /// <summary>Builds a relationship part naming one numbered part per position, in the order given.</summary>
-    private static string RelationshipsNaming(string targetPrefix, int[] partNumbers) => $"""
+    /// <summary>Names the numbered parts given, as targets relative to the folder of the part declaring them.</summary>
+    private static string[] NumberedTargets(string targetPrefix, int[] partNumbers) =>
+        [.. partNumbers.Select(number => $"{targetPrefix}{number.ToString(CultureInfo.InvariantCulture)}.xml")];
+
+    /// <summary>Builds a relationship part naming one target per position, in the order given.</summary>
+    private static string RelationshipsNaming(string[] targets) => $"""
         <?xml version="1.0" encoding="UTF-8"?>
-        <Relationships xmlns="{PackageRelationshipsNamespace}">{string.Concat(partNumbers.Select((number, position) =>
-            $"""<Relationship Id="{RelationshipIdentifier(position)}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/page" Target="{targetPrefix}{number.ToString(CultureInfo.InvariantCulture)}.xml"/>"""))}</Relationships>
+        <Relationships xmlns="{PackageRelationshipsNamespace}">{string.Concat(targets.Select((target, position) =>
+            $"""<Relationship Id="{RelationshipIdentifier(position)}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/page" Target="{target}"/>"""))}</Relationships>
         """;
 
     private static string RelationshipIdentifier(int position) =>
