@@ -280,6 +280,12 @@ owns. Reaching a populated screen is most of the work in a client task, and it i
   second document and jsdom having one.
 - A file that reassigns a module-level double sets it back to its default in a `beforeEach`, so the order tests run in
   cannot decide what one of them sees.
+- **A record a hand-written double writes into belongs to the test that made the double**, so a new one is started in
+  front of each test and every double keeps the one that was current when it was made, rather than emptying one array
+  every test shares. A double outlives its test: a file's own `afterEach` runs ahead of the setup file's `cleanup`, so
+  the tree it answers is still mounted once the test is over, and a read in flight answers after the unmount. Asked
+  then, a double writing into a shared record hands the next test routes it never reached, from a screen it never drew
+  — which no emptying can order against. `asked` in `Client.App/src/App.harness.tsx` is the worked example.
 - **The runner empties every double's recorded calls in front of each test**, so a count or a last argument read in one
   test is that test's own, and a file that still clears one itself is doing something already done for it. What it does not touch is what a double answers: an
   implementation a test gave one, and a spy placed over a real function, both outlive the test — which is what the

@@ -257,12 +257,13 @@ describe('App deployment', () => {
         const credentials = storeKeeping();
         const held: (() => void)[] = [];
         let answering = false;
+        const record = asked;
 
         // A deployment that answers nothing until this test says so, and everything from then on: what the attempt is
         // holding on is the first request, and what would carry it through to signing somebody in is the rest of them
         // answering normally once it resumes.
         const send: DeploymentTransport = () => (request) => {
-            asked.push(request);
+            record.push(request);
             const answer = complete(request.path.endsWith('/session') ? accepted : directory(true, [workAccount]));
 
             if (answering) {

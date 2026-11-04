@@ -58,13 +58,14 @@ const issuedGrant: OAuthGrant = {
  */
 function alsoAnsweringTheProvider(): DeploymentTransport {
     const deployment = deploymentAnswering();
+    const record = asked;
 
     return (signal) => (request) => {
         if (!request.path.startsWith(issuedGrant.issuer)) {
             return deployment(signal)(request);
         }
 
-        asked.push(request);
+        record.push(request);
 
         return Promise.resolve(
             complete({
@@ -88,10 +89,11 @@ function alsoAnsweringTheProvider(): DeploymentTransport {
  */
 function answeringTheWholeGrant(): DeploymentTransport {
     const deployment = deploymentAnswering();
+    const record = asked;
 
     return (signal) => (request) => {
         if (request.path.startsWith(issuedGrant.issuer)) {
-            asked.push(request);
+            record.push(request);
 
             return Promise.resolve(
                 complete({
@@ -112,7 +114,7 @@ function answeringTheWholeGrant(): DeploymentTransport {
         }
 
         if (request.path.endsWith('/api/client/display-name')) {
-            asked.push(request);
+            record.push(request);
 
             return Promise.resolve(
                 complete({ status: 200, body: JSON.stringify({ displayName: 'K. Kowalska', changeable: false }) }),
@@ -311,8 +313,9 @@ describe('App sign-in', () => {
         // One deployment whose answer to the accounts changes under the client, which is what a service restarted with
         // a different password looks like from here: the read that was working starts refusing.
         let accounts: Answer = directory(true, [workAccount]);
+        const record = asked;
         const send: DeploymentTransport = () => (request) => {
-            asked.push(request);
+            record.push(request);
 
             if (request.path.endsWith(sessionExchangeRoute)) {
                 return Promise.resolve(complete(mintedSession(request)));
