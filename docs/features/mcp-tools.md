@@ -1384,9 +1384,16 @@ fresh value per attempt has asked twice, and nothing here can distinguish that f
 same person again — which is why the description says to reuse the value verbatim when retrying and to choose a new one
 only for a message that is actually new. What the record guarantees is that one key sends once.
 
-A schedule is part of that once. It is set when the record is written, so a retry carrying a key already used answers
-with the first call's record and its time, whatever `sendAt` the retry named: a retry is never a reschedule. Moving a
-held message is cancelling it and sending another under a new key.
+A schedule is part of that once. It is set when the record is written, so a retry carrying a key already used whose
+`sendAt` is still to come and within `MailDelivery:MaxSendHold` answers with the first call's record and its time,
+whichever such time the retry named: a retry is never a reschedule. Moving a held message is cancelling it and sending
+another under a new key.
+
+**The time is judged before the record is read, and that is the one place the guarantee stops.** A retry naming a time
+that has already passed — including the first call's own time, once it has gone by — or one beyond the hold is refused
+with `51015`, although the first call may have queued the message or it may already have left. The refusal therefore
+says nothing about whether the message exists, and the description tells a caller so: after it, read
+[`list_outgoing_emails`](#list_outgoing_emails) before sending again, rather than retrying under a new key.
 
 ### What it refuses, and what it does not reveal
 

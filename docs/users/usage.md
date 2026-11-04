@@ -292,7 +292,10 @@ named a local time — as a wall-clock time with no offset beside `sendAtTimeZon
 `sendAt` says when the message will leave. A time already gone, or further ahead than the deployment holds a message,
 is refused with `51015`; [the reference](../features/mcp-tools.md#a-send-held-until-a-named-time) lists every form and
 refusal. A held message is stopped with `cancel_outgoing_email` at any time before it leaves, and a retry with the same
-`idempotencyKey` never moves its time. `reply_to_email` and `forward_email` take the same two arguments.
+`idempotencyKey` never moves its time. A retry made after the time it names has passed is the exception: it is refused
+with `51015` before anything looks for the message the first call queued, so after that refusal read
+`list_outgoing_emails` before sending again instead of choosing a new key. `reply_to_email` and `forward_email` take the
+same two arguments.
 
 **You never say who it is from.** There is no `from` argument and there never will be one. The message is sent as the
 account you name, from the address that account's configuration declares, which is what stops anything a client sends

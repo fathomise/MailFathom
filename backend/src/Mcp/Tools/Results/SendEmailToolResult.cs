@@ -45,7 +45,7 @@ internal sealed record SendEmailToolResult
     public required DateTimeOffset QueuedAt { get; init; }
 
     /// <summary>Gets the instant the message is held until, or <see langword="null" /> where it leaves as soon as it can.</summary>
-    [Description("The time the message is held until, as an ISO 8601 timestamp, or null where it leaves as soon as a delivery pass reaches it. It is the time the record was written with: a repeated call carrying an idempotencyKey already used answers with the first call's time whatever this one named, because a retry never reschedules. While the message is held, cancel_outgoing_email stops it.")]
+    [Description("The time the message is held until, as an ISO 8601 timestamp, or null where it leaves as soon as a delivery pass reaches it. It is the time the record was written with: a repeated call carrying an idempotencyKey already used that is answered at all is answered with the first call's time, because a retry never reschedules. While the message is held, cancel_outgoing_email stops it.")]
     public DateTimeOffset? SendAt { get; init; }
 
     /// <summary>Gets the zone the held time was named in, or <see langword="null" /> where the message is not held.</summary>

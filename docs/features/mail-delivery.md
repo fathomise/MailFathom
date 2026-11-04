@@ -781,7 +781,9 @@ the first send and leaves its time where it was. And the three MCP tools that se
 [`send_email`, `reply_to_email`, and `forward_email`](mcp-tools.md#a-send-held-until-a-named-time) — take an optional
 `sendAt`, either an instant with its offset or a wall-clock time beside an IANA zone, which the tool resolves once and
 hands to the submission as the due time. A tool call naming none is due at once, which is every call written before
-the argument existed, and a retry under a key already used answers with the first call's record and its time.
+the argument existed, and a retry under a key already used answers with the first call's record and its time — unless
+the retry names a time that has passed or lies beyond `MailDelivery:MaxSendHold`, which both submission use cases judge
+before the outbox is read, so such a retry is refused with `51015` whether or not the first call queued the message.
 `send_draft` names no time.
 
 ## A message the user asked to be sent again

@@ -1045,7 +1045,7 @@
         },
         "sendAt": {
           "default": null,
-          "description": "When the message should leave, as an ISO 8601 date and time, or omit it to send as soon as possible. Two forms are accepted. With an offset or Z and no sendAtTimeZone, such as 2026-11-09T09:00:00+01:00, it is that exact instant. Without an offset and together with sendAtTimeZone, such as 2026-11-09T09:00, it is that time on a clock in that zone — prefer this form when the person named a local time, because the zone's daylight-saving rules decide the offset and you do not have to know it. Writing an offset and a zone together is refused. The time must still be to come and no further ahead than the deployment holds a message, which is a few months by default; the refusal says how far. A repeated call with an idempotencyKey already used keeps the time the first call named: a retry never reschedules.",
+          "description": "When the message should leave, as an ISO 8601 date and time, or omit it to send as soon as possible. Two forms are accepted. With an offset or Z and no sendAtTimeZone, such as 2026-11-09T09:00:00+01:00, it is that exact instant. Without an offset and together with sendAtTimeZone, such as 2026-11-09T09:00, it is that time on a clock in that zone — prefer this form when the person named a local time, because the zone's daylight-saving rules decide the offset and you do not have to know it. Writing an offset and a zone together is refused. The time must still be to come and no further ahead than the deployment holds a message, which is a few months by default; the refusal says how far. A repeated call with an idempotencyKey already used keeps the time the first call named and never reschedules — but the time is judged before the first message is looked up, so a retry naming a time that has since passed is refused even though the first call may have queued it. After such a refusal, read list_outgoing_emails before sending again rather than retrying under a new key.",
           "type": [
             "string",
             "null"
@@ -1101,7 +1101,7 @@
           "type": "integer"
         },
         "sendAt": {
-          "description": "The time the message is held until, as an ISO 8601 timestamp, or null where it leaves as soon as a delivery pass reaches it. It is the time the record was written with: a repeated call carrying an idempotencyKey already used answers with the first call's time whatever this one named, because a retry never reschedules. While the message is held, cancel_outgoing_email stops it.",
+          "description": "The time the message is held until, as an ISO 8601 timestamp, or null where it leaves as soon as a delivery pass reaches it. It is the time the record was written with: a repeated call carrying an idempotencyKey already used that is answered at all is answered with the first call's time, because a retry never reschedules. While the message is held, cancel_outgoing_email stops it.",
           "format": "date-time",
           "type": [
             "string",
@@ -3957,7 +3957,7 @@
         },
         "sendAt": {
           "default": null,
-          "description": "When the message should leave, as an ISO 8601 date and time, or omit it to send as soon as possible. Two forms are accepted. With an offset or Z and no sendAtTimeZone, such as 2026-11-09T09:00:00+01:00, it is that exact instant. Without an offset and together with sendAtTimeZone, such as 2026-11-09T09:00, it is that time on a clock in that zone — prefer this form when the person named a local time, because the zone's daylight-saving rules decide the offset and you do not have to know it. Writing an offset and a zone together is refused. The time must still be to come and no further ahead than the deployment holds a message, which is a few months by default; the refusal says how far. A repeated call with an idempotencyKey already used keeps the time the first call named: a retry never reschedules.",
+          "description": "When the message should leave, as an ISO 8601 date and time, or omit it to send as soon as possible. Two forms are accepted. With an offset or Z and no sendAtTimeZone, such as 2026-11-09T09:00:00+01:00, it is that exact instant. Without an offset and together with sendAtTimeZone, such as 2026-11-09T09:00, it is that time on a clock in that zone — prefer this form when the person named a local time, because the zone's daylight-saving rules decide the offset and you do not have to know it. Writing an offset and a zone together is refused. The time must still be to come and no further ahead than the deployment holds a message, which is a few months by default; the refusal says how far. A repeated call with an idempotencyKey already used keeps the time the first call named and never reschedules — but the time is judged before the first message is looked up, so a retry naming a time that has since passed is refused even though the first call may have queued it. After such a refusal, read list_outgoing_emails before sending again rather than retrying under a new key.",
           "type": [
             "string",
             "null"
@@ -4006,7 +4006,7 @@
           "type": "integer"
         },
         "sendAt": {
-          "description": "The time the message is held until, as an ISO 8601 timestamp, or null where it leaves as soon as a delivery pass reaches it. It is the time the record was written with: a repeated call carrying an idempotencyKey already used answers with the first call's time whatever this one named, because a retry never reschedules. While the message is held, cancel_outgoing_email stops it.",
+          "description": "The time the message is held until, as an ISO 8601 timestamp, or null where it leaves as soon as a delivery pass reaches it. It is the time the record was written with: a repeated call carrying an idempotencyKey already used that is answered at all is answered with the first call's time, because a retry never reschedules. While the message is held, cancel_outgoing_email stops it.",
           "format": "date-time",
           "type": [
             "string",
@@ -5017,7 +5017,7 @@
           "type": "integer"
         },
         "sendAt": {
-          "description": "The time the message is held until, as an ISO 8601 timestamp, or null where it leaves as soon as a delivery pass reaches it. It is the time the record was written with: a repeated call carrying an idempotencyKey already used answers with the first call's time whatever this one named, because a retry never reschedules. While the message is held, cancel_outgoing_email stops it.",
+          "description": "The time the message is held until, as an ISO 8601 timestamp, or null where it leaves as soon as a delivery pass reaches it. It is the time the record was written with: a repeated call carrying an idempotencyKey already used that is answered at all is answered with the first call's time, because a retry never reschedules. While the message is held, cancel_outgoing_email stops it.",
           "format": "date-time",
           "type": [
             "string",
@@ -5115,7 +5115,7 @@
         },
         "sendAt": {
           "default": null,
-          "description": "When the message should leave, as an ISO 8601 date and time, or omit it to send as soon as possible. Two forms are accepted. With an offset or Z and no sendAtTimeZone, such as 2026-11-09T09:00:00+01:00, it is that exact instant. Without an offset and together with sendAtTimeZone, such as 2026-11-09T09:00, it is that time on a clock in that zone — prefer this form when the person named a local time, because the zone's daylight-saving rules decide the offset and you do not have to know it. Writing an offset and a zone together is refused. The time must still be to come and no further ahead than the deployment holds a message, which is a few months by default; the refusal says how far. A repeated call with an idempotencyKey already used keeps the time the first call named: a retry never reschedules.",
+          "description": "When the message should leave, as an ISO 8601 date and time, or omit it to send as soon as possible. Two forms are accepted. With an offset or Z and no sendAtTimeZone, such as 2026-11-09T09:00:00+01:00, it is that exact instant. Without an offset and together with sendAtTimeZone, such as 2026-11-09T09:00, it is that time on a clock in that zone — prefer this form when the person named a local time, because the zone's daylight-saving rules decide the offset and you do not have to know it. Writing an offset and a zone together is refused. The time must still be to come and no further ahead than the deployment holds a message, which is a few months by default; the refusal says how far. A repeated call with an idempotencyKey already used keeps the time the first call named and never reschedules — but the time is judged before the first message is looked up, so a retry naming a time that has since passed is refused even though the first call may have queued it. After such a refusal, read list_outgoing_emails before sending again rather than retrying under a new key.",
           "type": [
             "string",
             "null"
@@ -5172,7 +5172,7 @@
           "type": "integer"
         },
         "sendAt": {
-          "description": "The time the message is held until, as an ISO 8601 timestamp, or null where it leaves as soon as a delivery pass reaches it. It is the time the record was written with: a repeated call carrying an idempotencyKey already used answers with the first call's time whatever this one named, because a retry never reschedules. While the message is held, cancel_outgoing_email stops it.",
+          "description": "The time the message is held until, as an ISO 8601 timestamp, or null where it leaves as soon as a delivery pass reaches it. It is the time the record was written with: a repeated call carrying an idempotencyKey already used that is answered at all is answered with the first call's time, because a retry never reschedules. While the message is held, cancel_outgoing_email stops it.",
           "format": "date-time",
           "type": [
             "string",

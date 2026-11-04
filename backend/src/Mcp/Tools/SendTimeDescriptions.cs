@@ -22,7 +22,9 @@ internal static class SendTimeDescriptions
         + "rules decide the offset and you do not have to know it. Writing an offset and a zone together is refused. The "
         + "time must still be to come and no further ahead than the deployment holds a message, which is a few months "
         + "by default; the refusal says how far. A repeated call with an idempotencyKey already used keeps the time the "
-        + "first call named: a retry never reschedules.";
+        + "first call named and never reschedules — but the time is judged before the first message is looked up, so "
+        + "a retry naming a time that has since passed is refused even though the first call may have queued it. After "
+        + "such a refusal, read list_outgoing_emails before sending again rather than retrying under a new key.";
 
     /// <summary>The <c>sendAtTimeZone</c> argument, which is only ever given beside a <c>sendAt</c> without an offset.</summary>
     public const string SendAtTimeZone =
