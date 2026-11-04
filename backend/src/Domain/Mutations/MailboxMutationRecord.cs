@@ -97,6 +97,13 @@ public sealed record MailboxMutationRecord
     /// </remarks>
     public MailboxMutationLocalChange LocalChange { get; init; }
 
+    /// <summary>Gets what the change last knew of the server, where it was committed locally on a mirrored account first; otherwise <see langword="null" />.</summary>
+    /// <remarks>
+    /// Present only beside <see cref="MailboxMutationLocalChange.AlreadyCommitted" />. While such a record has not ended
+    /// it is the only writer of the fields it wrote, and synchronization records what it observes for them here.
+    /// </remarks>
+    public MailboxMutationOverlay? Overlay { get; init; }
+
     /// <summary>Gets how many times this mutation has been attempted, counted before each attempt rather than after it.</summary>
     /// <remarks>
     /// Counting first is what makes the bound survive a crash loop: an attempt that kills the process still counted, so a
@@ -170,9 +177,15 @@ public sealed record MailboxMutationRecord
     /// server. Cancelling it would undo nothing and would take away the only thing that was going to tell the source,
     /// leaving MailFathom and the mailbox permanently disagreeing with no record left to notice it by.
     /// </para>
+    /// <para>
+    /// A record that carries an <see cref="Overlay" /> is the exception, because what it committed was MailFathom's own
+    /// copy of a mailbox the server still holds: withdrawing it returns each field it wrote to the value last observed
+    /// on the server, so nothing is left for the server to be told. A copy written that way is not, because its second
+    /// stored message is not a field to return.
+    /// </para>
     /// </remarks>
     public bool IsWithdrawable => this.Stage is MailboxMutationStage.Recorded
-        && this.LocalChange is not MailboxMutationLocalChange.AlreadyCommitted;
+        && (this.LocalChange is not MailboxMutationLocalChange.AlreadyCommitted || this.Overlay is { LocalCopy: null });
 
     /// <summary>Gets whether a command for this mutation may have reached the mail server.</summary>
     /// <remarks>

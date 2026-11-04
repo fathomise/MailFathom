@@ -14,14 +14,15 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// <param name="AccountId">The account that email belongs to, which is the account whose run will carry the change.</param>
 /// <param name="Folder">The folder the email is in.</param>
 /// <param name="Recorded">One entry per value the request named that a record was opened for, in the order the request states them, and empty where none was.</param>
-/// <param name="IsApplied">Whether the account holds its mailbox and every value was committed to stored state.</param>
+/// <param name="IsApplied">Whether every value was committed to stored state as the call committed.</param>
 /// <remarks>
 /// On an account whose source is the truth it reports what was written down rather than what a mail server has done,
 /// because at the moment this is produced no command has gone out. That is the honest answer and it is also the useful
 /// one: the record is what survives a crash, what convergence resumes, and what an operator reads when a change has not
 /// arrived, so its identity is what a caller needs in hand. On a held account the change has already happened when this
-/// is produced, and there is no record to name. The two are not exclusive: an account being restored to its source has
-/// both applied the change and opened the record its source is still owed, and reports each.
+/// is produced, and there is no record to name. The two are not exclusive: a mirrored account that commits a change
+/// locally first, and an account being restored to its source, have both applied the change and opened the record the
+/// server is still owed, and report each.
 /// </remarks>
 public sealed record AuthoredMailFlagChangeResult(
     StoredEmailId StoredEmailId,

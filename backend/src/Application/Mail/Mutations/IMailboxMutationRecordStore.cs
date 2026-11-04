@@ -58,6 +58,44 @@ public interface IMailboxMutationRecordStore
         MailboxMutationLocalChange localChange,
         CancellationToken cancellationToken);
 
+    /// <summary>Opens the record of a change committed locally on a mirrored account, which overlays the stored message until it ends.</summary>
+    /// <param name="session">The transaction the change commits in.</param>
+    /// <param name="request">The change.</param>
+    /// <param name="heldUntil">How long the record waits before a convergence pass may take it in hand.</param>
+    /// <param name="replaced">The stored values the act replaces, which are the server's last observation of each field no earlier change is still outstanding on.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>The record, and whether this call opened it rather than finding it already written for the same request.</returns>
+    /// <remarks>
+    /// <para>
+    /// A field an earlier overlaying change is still outstanding on stores that change's value rather than the server's,
+    /// so the new record takes the earlier record's last observation of the field instead of <paramref name="replaced" />.
+    /// An earlier change still unissued that this one supersedes (<see cref="MailboxMutationRequest.Supersedes" />) is
+    /// withdrawn in the same transaction, so only the state last asked for reaches the server.
+    /// </para>
+    /// <para>
+    /// A request already recorded is answered with its record and nothing is withdrawn, so the caller commits nothing
+    /// locally a second time.
+    /// </para>
+    /// </remarks>
+    Task<OpenedMailboxMutationRecord> OpenOverlayAsync(
+        IPersistenceSession session,
+        MailboxMutationRequest request,
+        DateTimeOffset? heldUntil,
+        MailboxMutationOverlay replaced,
+        CancellationToken cancellationToken);
+
+    /// <summary>Names, on an overlaying copy's record, the second stored message the copy wrote locally.</summary>
+    /// <param name="session">The transaction the copy commits in, which opened the record.</param>
+    /// <param name="recordId">The copy's record.</param>
+    /// <param name="copy">The second stored message.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>The record as it now stands.</returns>
+    Task<MailboxMutationRecord> RecordLocalCopyAsync(
+        IPersistenceSession session,
+        MailboxMutationRecordId recordId,
+        StoredEmailId copy,
+        CancellationToken cancellationToken);
+
     /// <summary>Reports whether one local email has ever had a mutation of a given kind asked for by a given kind of requester.</summary>
     /// <param name="storedEmailId">The local email, which is the identity that survives the email being moved.</param>
     /// <param name="mutation">The change asked for.</param>

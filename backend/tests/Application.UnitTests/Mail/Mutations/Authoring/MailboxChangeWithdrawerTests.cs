@@ -377,6 +377,7 @@ public sealed class MailboxChangeWithdrawerTests
             new OptimisticConcurrencyRetryPolicy(
                 sessions,
                 new PersistenceConcurrencyOptions(),
-                new FakeTimeProvider(WithdrawnAt)));
+                new FakeTimeProvider(WithdrawnAt)),
+            ClientSignalPublishers.ReachingNobody);
     }
 }

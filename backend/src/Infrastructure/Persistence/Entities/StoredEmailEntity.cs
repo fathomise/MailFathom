@@ -541,6 +541,16 @@ internal sealed class StoredEmailEntity
     /// </remarks>
     public DateTimeOffset? AuthoredDeleteFlaggedAt { get; set; }
 
+    /// <summary>Gets or sets when a delete a mirrored account committed locally first hid this message, before any server had removed it.</summary>
+    /// <remarks>
+    /// Written in the transaction that opens the delete's record, unless the delete keeps its local copy readable, and
+    /// cleared when that record is withdrawn or given up, so the message shows again with nothing else to restore. A
+    /// completed delete leaves it set, because the server's removal is what the other two columns record once
+    /// synchronization observes it, and clearing it first would show the message for the length of a run; a delete
+    /// the server is then seen to have undone clears it with the others.
+    /// </remarks>
+    public DateTimeOffset? LocalDeleteCommittedAt { get; set; }
+
     /// <summary>Gets or sets the outgoing record this email is MailFathom's own filed copy of, and <see langword="null" /> for every message it did not send.</summary>
     /// <remarks>
     /// <para>

@@ -29,10 +29,21 @@ internal static class StoredEmailTombstone
 {
     /// <summary>Admits the rows that are still part of the local mailbox, which PostgreSQL evaluates in full.</summary>
     /// <remarks>
+    /// <para>
     /// It is an expression rather than a method so it composes into a query as a predicate the provider translates. A
     /// helper called inside a lambda would either fail to translate or drag the rest of the pipeline into the process.
+    /// </para>
+    /// <para>
+    /// A delete a mirrored account committed locally first hides its message at once through a column of the row
+    /// itself, while the row, its payload, and everything derived from it stay until the server has removed the
+    /// occurrence and the disposition the record carries takes over. It is a column rather than a test of the record
+    /// so this stays a predicate over one row: the vector search composes it beneath an aggregate, and a correlated
+    /// subplan there would keep the joins below it out of PostgreSQL's parallel workers.
+    /// </para>
     /// </remarks>
     internal static Expression<Func<StoredEmailEntity, bool>> IsNotTombstoned { get; } =
-        email => (email.RemoteExpungeObservedAt == null && email.AuthoredDeleteFlaggedAt == null)
+        email => (email.RemoteExpungeObservedAt == null
+                && email.AuthoredDeleteFlaggedAt == null
+                && email.LocalDeleteCommittedAt == null)
             || email.IsRetainedAfterAuthoredDelete;
 }

@@ -500,6 +500,21 @@ public sealed class SetMailFlagsToolTests
             });
         }
 
+        public Task<OpenedMailboxMutationRecord> OpenOverlayAsync(
+            IPersistenceSession session,
+            MailboxMutationRequest request,
+            DateTimeOffset? heldUntil,
+            MailboxMutationOverlay replaced,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<MailboxMutationRecord> RecordLocalCopyAsync(
+            IPersistenceSession session,
+            MailboxMutationRecordId recordId,
+            StoredEmailId copy,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<bool> HasRecordAsync(
             StoredEmailId storedEmailId,
             MailboxMutation mutation,

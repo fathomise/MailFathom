@@ -33,6 +33,7 @@ public interface ILocalEmailStateStore
     /// <param name="account">The account the message is stored for.</param>
     /// <param name="email">The message.</param>
     /// <param name="state">The state to write; its source folder is not written, since no local change moves an occurrence.</param>
+    /// <param name="isHeldFolder">Whether the folder is a held account's own, which an older build reads from a column of its own as well.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>A task that completes once the write is staged in the session.</returns>
     Task WriteAsync(
@@ -40,6 +41,7 @@ public interface ILocalEmailStateStore
         MailAccountId account,
         StoredEmailId email,
         LocalEmailState state,
+        bool isHeldFolder,
         CancellationToken cancellationToken);
 
     /// <summary>Erases the message, its payload, and everything derived from it.</summary>

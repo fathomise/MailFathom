@@ -1240,7 +1240,8 @@ public sealed class ClientMailMutationsEndpointTests
             MailFathomPermission.MailDelete),
         ScopeResolver(participation),
         this.records,
-        CommitPolicy());
+        CommitPolicy(),
+        ClientSignalPublishers.ReachingNobody);
 
     private MailboxChangeReleaser Releaser(StubMailFolderParticipation? participation = null) => new(
         AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailDelete),

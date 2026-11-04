@@ -117,6 +117,31 @@ public sealed class WorkLeaseHolderTests
         Assert.Null(holder.Build);
     }
 
+    /// <summary>A hold this build takes says it knows the overlay, which is what lets a mirrored change commit locally first.</summary>
+    [Fact]
+    public void KnowsMailboxOverlay_AHoldTakenByThisBuild_SaysItKnowsTheOverlay()
+    {
+        // Act
+        var holder = WorkLeaseHolder.ForBuild("0.9.0");
+
+        // Assert
+        Assert.True(holder.KnowsMailboxOverlay);
+        Assert.Equal("0.9.0", holder.Build);
+    }
+
+    /// <summary>A build that stamped itself before the overlay existed, and one that stamps nothing, both read as not knowing it.</summary>
+    [Theory]
+    [InlineData("0.8.0/0199c1a2-0000-7000-8000-0000000000a1")]
+    [InlineData("0199c1a2-0000-7000-8000-0000000000a1")]
+    public void KnowsMailboxOverlay_AHoldTakenByAnOlderBuild_SaysItDoesNot(string value)
+    {
+        // Act
+        var holder = WorkLeaseHolder.Create(value);
+
+        // Assert
+        Assert.False(holder.KnowsMailboxOverlay);
+    }
+
     [Fact]
     public void ForBuild_AStampedHold_FitsTheColumnItIsStoredIn()
     {

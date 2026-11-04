@@ -92,13 +92,20 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
         ArgumentNullException.ThrowIfNull(transportSecurityPolicy);
         RequireFolderCarriesOccurrence(request, folder);
 
+        var record = await this.OpenRecordAsync(request, cancellationToken);
         var outcome = await this.PerformThroughRecordAsync(
-            request,
+            record,
             folder,
             transportSecurityPolicy,
             cancellationToken);
 
-        this.AnnounceSettledChange(request, outcome);
+        // A change committed locally first was announced when it committed, and the server taking it moves nothing a
+        // client draws, so its completion says nothing more. Every other ending of it still does.
+        if (record.Overlay is null
+            || outcome.Status is not (MailboxMutationStatus.Performed or MailboxMutationStatus.AlreadyPerformed))
+        {
+            this.AnnounceSettledChange(request, outcome);
+        }
 
         return outcome;
     }
@@ -174,12 +181,12 @@ public sealed class MailboxMutationPerformer : IMailboxMutationPerformer
     }
 
     private async Task<MailboxMutationOutcome> PerformThroughRecordAsync(
-        MailboxMutationRequest request,
+        MailboxMutationRecord record,
         MailFolderResolution folder,
         MailTransportSecurityPolicy transportSecurityPolicy,
         CancellationToken cancellationToken)
     {
-        var record = await this.OpenRecordAsync(request, cancellationToken);
+        var request = record.Request;
 
         if (SettledOutcomeOf(record) is { } settledOutcome)
         {

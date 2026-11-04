@@ -1121,8 +1121,11 @@ Three things follow, and the tool's description states each of them:
 - A protocol request never waits on IMAP and never opens a connection against an account's budget.
 - The result reports records rather than a mailbox that has already changed, each with the lifecycle it has reached.
   A value the user cannot see in their own client after a few minutes is followed up by calling again with the same
-  `requestId`, which answers with the same records and their current lifecycle. On an account whose mailbox MailFathom
-  holds itself the result is `applied` instead, with no record to follow up.
+  `requestId`, which answers with the same records and their current lifecycle. Where the result also says `applied`,
+  MailFathom's own copy of the email already shows the change and the records are what carries it to the server — on
+  a mirrored account wherever [the change is committed locally first](imap-synchronization.md#a-mirrored-account-commits-a-change-locally-first),
+  and on one being restored to its source. On an account whose mailbox MailFathom holds itself the result is `applied`
+  with no record to follow up.
 - A crash between the record and the command leaves a change that converges, rather than a stored value that quietly
   disagrees with the mailbox.
 
@@ -1152,7 +1155,7 @@ this tool `destructiveHint` true, so a client that asks before calling a destruc
 | `storedEmailId` | The email the change was recorded against, which is the one the call named |
 | `accountId` | The account the change belongs to, whose next synchronization run issues a recorded change; an applied change has no mail server to reach |
 | `folderId` | The identity of the folder the email is in, as `list_accounts` reports it |
-| `applied` | `true` when the account's mailbox is one MailFathom holds itself, so the change was made to the stored email as the call committed and nothing is left to converge; `recordedChanges` is then empty |
+| `applied` | `true` when the change was made to the stored email as the call committed. Any `recordedChanges` beside it are what carries the change to the mail server; on an account whose mailbox MailFathom holds itself there are none and nothing is left to converge. `false` when the change was only written down, during a rolling upgrade, and the stored email follows once the server has taken it |
 | `recordedChanges[]` | One entry per value asked for, in the order `seen`, `flagged`, keywords |
 | `recordedChanges[].change` | `set-seen`, `set-flagged`, `add-keywords`, `remove-keywords`, or `set-keywords` |
 | `recordedChanges[].changeRecordId` | The durable record's identifier, which is the name a log line and an audit entry give the same change |

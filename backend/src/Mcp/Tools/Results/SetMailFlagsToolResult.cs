@@ -21,7 +21,7 @@ namespace MailFathom.Mcp.Tools.Results;
 /// is text the user chose and can name a person or a case, and the caller already holds what it wrote.
 /// </para>
 /// </remarks>
-[Description("What the change was written down as: one durable record per value asked for, each carried to the mail server by the account's next run — or, on a held account, that it was applied at once.")]
+[Description("What the change was written down as: whether MailFathom's copy of the email already shows it, and one durable record per value asked for, each carried to the mail server by the account's next run — none on a held account.")]
 internal sealed record SetMailFlagsToolResult
 {
     /// <summary>Gets the email the change was written down against.</summary>
@@ -36,12 +36,12 @@ internal sealed record SetMailFlagsToolResult
     [Description("The identity of the folder the email is in, the folderId a listed email and list_accounts report it by.")]
     public required string FolderId { get; init; }
 
-    /// <summary>Gets whether the change was applied to a held account's mail rather than written down for a mail server.</summary>
-    [Description("True when the account is held, meaning MailFathom alone keeps its mail: the change has already been applied, and recordedChanges is empty because there is nothing left to carry to a mail server.")]
+    /// <summary>Gets whether the change was committed to MailFathom's copy of the email as the call committed.</summary>
+    [Description("True when MailFathom's copy of the email already shows the change. Any recordedChanges are then what carries it to the mail server; on a held account, where MailFathom alone keeps the mail, there are none. False when the change was only written down, and the email shows it once the mail server has taken it.")]
     public required bool Applied { get; init; }
 
     /// <summary>Gets one entry per value the call asked for.</summary>
-    [Description("One entry per value asked for, in the order seen, flagged, keywords. A call that asked for one value carries one entry, and an applied call carries none.")]
+    [Description("One entry per value asked for, in the order seen, flagged, keywords. A call that asked for one value carries one entry, and a call on a held account carries none.")]
     public required IReadOnlyList<RecordedMailboxChange> RecordedChanges { get; init; }
 
     /// <summary>Publishes what the use case recorded.</summary>

@@ -130,6 +130,7 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
                 anotherAccount,
                 storedEmailId,
                 refusedState,
+                isHeldFolder: true,
                 token),
             cancellationToken));
 
@@ -176,6 +177,7 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
                 SyntheticMailAccount.Account,
                 storedEmailId,
                 written,
+                isHeldFolder: true,
                 token),
             cancellationToken);
         var readBack = await ReadAsync(services, SyntheticMailAccount.Account, storedEmailId, cancellationToken);

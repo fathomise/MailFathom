@@ -10,6 +10,7 @@ using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
@@ -62,12 +63,84 @@ internal sealed class MailboxMutationRecordStore(
             return MailboxMutationRecordMapping.ToRecord(existing, folder);
         }
 
-        var storedEmail = await writeContext.StoredEmails.FindAsync([request.StoredEmailId.Value], cancellationToken)
-            ?? throw new InvalidOperationException(
-                $"No stored email carries the identifier {request.StoredEmailId}, so no mutation can be recorded against it.");
+        var storedEmail = await RequireStoredEmailAsync(writeContext, request, cancellationToken);
+        var entity = this.NewEntity(request, folder, storedEmail, heldUntil, localChange);
 
+        writeContext.MailboxMutations.Add(entity);
+
+        return MailboxMutationRecordMapping.ToRecord(entity, folder);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The earlier changes are read tracked, beside the ones this transaction has already staged, because a batch that
+    /// changes two values of one message in one commit has the first of them only in the change tracker.
+    /// </remarks>
+    public async Task<OpenedMailboxMutationRecord> OpenOverlayAsync(
+        IPersistenceSession session,
+        MailboxMutationRequest request,
+        DateTimeOffset? heldUntil,
+        MailboxMutationOverlay replaced,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(replaced);
+
+        var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        var folder = await MailFolderBindingResolver.GetRequiredAsync(
+            writeContext,
+            request.Account,
+            request.Occurrence.FolderResolutionId,
+            cancellationToken);
+
+        if (await FindByIdentityAsync(writeContext, request, folder.Id, cancellationToken) is { } existing)
+        {
+            return new OpenedMailboxMutationRecord(MailboxMutationRecordMapping.ToRecord(existing, folder), IsNew: false);
+        }
+
+        var storedEmail = await RequireStoredEmailAsync(writeContext, request, cancellationToken);
+        var earlier = await ReadOutstandingOverlaysAsync(writeContext, storedEmail.Id, cancellationToken);
+        var entity = this.NewEntity(request, folder, storedEmail, heldUntil, MailboxMutationLocalChange.AlreadyCommitted);
+
+        WriteObservations(entity, ObservationCarriedOver(request.Mutation, earlier, replaced));
+        this.WithdrawSuperseded(request, earlier);
+
+        if (request.Mutation == MailboxMutation.Delete
+            && request.LocalDisposition is not AuthoredDeleteEmailDisposition.RetainLocalCopy)
+        {
+            storedEmail.LocalDeleteCommittedAt ??= entity.RecordedAt;
+        }
+
+        writeContext.MailboxMutations.Add(entity);
+
+        return new OpenedMailboxMutationRecord(MailboxMutationRecordMapping.ToRecord(entity, folder), IsNew: true);
+    }
+
+    /// <inheritdoc />
+    public async Task<MailboxMutationRecord> RecordLocalCopyAsync(
+        IPersistenceSession session,
+        MailboxMutationRecordId recordId,
+        StoredEmailId copy,
+        CancellationToken cancellationToken)
+    {
+        var entity = await RequireEntityAsync(session, recordId, cancellationToken);
+
+        entity.LocalCopyStoredEmailId = copy.Value;
+
+        return MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding);
+    }
+
+    private MailboxMutationEntity NewEntity(
+        MailboxMutationRequest request,
+        MailFolderBindingEntity folder,
+        StoredEmailEntity storedEmail,
+        DateTimeOffset? heldUntil,
+        MailboxMutationLocalChange localChange)
+    {
         var recordedAt = timeProvider.GetUtcNow();
-        var entity = new MailboxMutationEntity
+
+        return new MailboxMutationEntity
         {
             Id = Guid.CreateVersion7(recordedAt),
             StoredEmailId = storedEmail.Id,
@@ -105,10 +178,6 @@ internal sealed class MailboxMutationRecordStore(
             RecordedAt = recordedAt,
             StageChangedAt = recordedAt,
         };
-
-        writeContext.MailboxMutations.Add(entity);
-
-        return MailboxMutationRecordMapping.ToRecord(entity, folder);
     }
 
     /// <inheritdoc />
@@ -229,12 +298,20 @@ internal sealed class MailboxMutationRecordStore(
         {
             // The local change a restoring account already committed is not one withdrawal can take back, so its record
             // is left where it stands exactly as a record the server has already heard about is. Cancelling it would
-            // undo nothing and would drop the only thing left to tell the source with.
-            if (entity.Stage is MailboxMutationStage.Recorded
-                && entity.LocalChange is not MailboxMutationLocalChange.AlreadyCommitted)
+            // undo nothing and would drop the only thing left to tell the source with. A change a mirrored account
+            // committed first is the exception: the server still holds what it last showed, so withdrawing it returns
+            // the stored message there. A copy written that way is not withdrawn, because its second message is one
+            // the server is about to be told to make and erasing it is not this route's to do.
+            var withdrawable = entity.Stage is MailboxMutationStage.Recorded
+                && (entity.LocalChange is not MailboxMutationLocalChange.AlreadyCommitted
+                    || (entity.OverlaysStoredState && entity.LocalCopyStoredEmailId is null));
+
+            if (withdrawable)
             {
                 entity.Stage = MailboxMutationStage.Cancelled;
                 entity.StageChangedAt = withdrawnAt;
+
+                await RestoreObservedStateAsync(writeContext, entity, cancellationToken);
             }
         }
 
@@ -328,6 +405,13 @@ internal sealed class MailboxMutationRecordStore(
         entity.Stage = stage;
         entity.StageChangedAt = timeProvider.GetUtcNow();
 
+        if (stage == MailboxMutationStage.Abandoned)
+        {
+            var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+
+            await RestoreObservedStateAsync(writeContext, entity, cancellationToken);
+        }
+
         if (placement is not null)
         {
             entity.PlacementUidValidity = placement.UidValidity?.Value;
@@ -374,6 +458,10 @@ internal sealed class MailboxMutationRecordStore(
         // Read once and compared in the query, so every row in one page is judged against one instant rather than
         // against whatever the clock said when the provider reached it.
         var now = timeProvider.GetUtcNow();
+        var relocate = MailboxMutation.Relocate.Name;
+        var delete = MailboxMutation.Delete.Name;
+        string[] keywordMutations =
+            [MailboxMutation.AddKeywords.Name, MailboxMutation.RemoveKeywords.Name, MailboxMutation.SetKeywords.Name];
 
         // The binding is joined rather than copied onto the row, because it is what turns a folder key back into the
         // alias and generation an occurrence identity is made of, and the remote path a resumed attempt selects.
@@ -388,7 +476,21 @@ internal sealed class MailboxMutationRecordStore(
                 // A record still inside its withdrawal window is not work this pass can do, so it is left out of the
                 // page rather than read and skipped — a page spent on records nothing may touch is a page the account's
                 // real backlog does not get.
-                (mutation.HeldUntil == null || mutation.HeldUntil <= now))
+                (mutation.HeldUntil == null || mutation.HeldUntil <= now) &&
+
+                // Changes to one message reach the server in the order they were made: a move or a delete changes the
+                // occurrence every later command names, and two changes to one field must not overtake each other, so
+                // such a change waits while an earlier one is outstanding. Changes to other messages are untouched.
+                !readContext.MailboxMutations.Any(earlier =>
+                    earlier.StoredEmailId == mutation.StoredEmailId &&
+                    earlier.RecordedAt < mutation.RecordedAt &&
+                    earlier.Stage != MailboxMutationStage.Completed &&
+                    earlier.Stage != MailboxMutationStage.Abandoned &&
+                    earlier.Stage != MailboxMutationStage.Cancelled &&
+                    (earlier.Mutation == relocate || earlier.Mutation == delete ||
+                        mutation.Mutation == relocate || mutation.Mutation == delete ||
+                        earlier.Mutation == mutation.Mutation ||
+                        (keywordMutations.Contains(earlier.Mutation) && keywordMutations.Contains(mutation.Mutation)))))
             .OrderBy(mutation => mutation.RecordedAt)
             .ThenBy(mutation => mutation.Id)
             .Take(limit)
@@ -475,6 +577,177 @@ internal sealed class MailboxMutationRecordStore(
             throw new InvalidOperationException(
                 $"Mailbox mutation record {entity.Id} is at stage {entity.Stage} and cannot be moved to {stage}.");
         }
+    }
+
+    private static async Task<StoredEmailEntity> RequireStoredEmailAsync(
+        MailFathomDbContext writeContext,
+        MailboxMutationRequest request,
+        CancellationToken cancellationToken) =>
+        await writeContext.StoredEmails.FindAsync([request.StoredEmailId.Value], cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"No stored email carries the identifier {request.StoredEmailId}, so no mutation can be recorded against it.");
+
+    /// <summary>Reads every overlaying change still outstanding on one message, persisted or staged in this transaction, oldest first.</summary>
+    private static async Task<IReadOnlyList<MailboxMutationEntity>> ReadOutstandingOverlaysAsync(
+        MailFathomDbContext writeContext,
+        Guid storedEmailId,
+        CancellationToken cancellationToken)
+    {
+        var persisted = await writeContext.MailboxMutations
+            .Include(mutation => mutation.MailFolderBinding)
+            .Where(mutation => mutation.StoredEmailId == storedEmailId
+                && mutation.OverlaysStoredState
+                && mutation.Stage != MailboxMutationStage.Completed
+                && mutation.Stage != MailboxMutationStage.Abandoned
+                && mutation.Stage != MailboxMutationStage.Cancelled)
+            .ToArrayAsync(cancellationToken);
+
+        return
+        [
+            .. writeContext.MailboxMutations.Local
+                .Where(mutation => mutation.StoredEmailId == storedEmailId
+                    && mutation.OverlaysStoredState
+                    && !IsTerminal(mutation.Stage))
+                .Union(persisted)
+                .OrderBy(mutation => mutation.RecordedAt)
+                .ThenBy(mutation => mutation.Id),
+        ];
+    }
+
+    private static bool IsTerminal(MailboxMutationStage stage) =>
+        stage is MailboxMutationStage.Completed or MailboxMutationStage.Abandoned or MailboxMutationStage.Cancelled;
+
+    /// <summary>Takes each field's last observation from the oldest change still outstanding on it, and from the stored value where none is.</summary>
+    private static MailboxMutationOverlay ObservationCarriedOver(
+        MailboxMutation mutation,
+        IReadOnlyList<MailboxMutationEntity> earlier,
+        MailboxMutationOverlay replaced)
+    {
+        var seen = earlier.FirstOrDefault(entity => entity.Mutation == MailboxMutation.SetSeen.Name);
+        var flagged = earlier.FirstOrDefault(entity => entity.Mutation == MailboxMutation.SetFlagged.Name);
+        var keywords = earlier.FirstOrDefault(entity => WritesKeywords(entity.Mutation));
+        var folder = earlier.FirstOrDefault(entity => entity.Mutation == MailboxMutation.Relocate.Name);
+
+        return new MailboxMutationOverlay(
+            mutation == MailboxMutation.SetSeen ? seen?.ObservedSeenState ?? replaced.ObservedSeenState : null,
+            mutation == MailboxMutation.SetFlagged ? flagged?.ObservedFlaggedState ?? replaced.ObservedFlaggedState : null,
+            MailboxMutationRequest.IsKeywordChange(mutation)
+                ? keywords?.ObservedKeywords is { } carried ? RemoteEmailKeywords.Create(carried) : replaced.ObservedKeywords
+                : null,
+            mutation == MailboxMutation.Relocate
+                ? folder?.ObservedFolderId is { } carriedFolder ? MailFolderId.Create(carriedFolder) : replaced.ObservedFolder
+                : null,
+            mutation == MailboxMutation.Copy ? replaced.LocalCopy : null);
+    }
+
+    private static bool WritesKeywords(string mutation) =>
+        mutation == MailboxMutation.AddKeywords.Name
+        || mutation == MailboxMutation.RemoveKeywords.Name
+        || mutation == MailboxMutation.SetKeywords.Name;
+
+    private static void WriteObservations(MailboxMutationEntity entity, MailboxMutationOverlay overlay)
+    {
+        entity.OverlaysStoredState = true;
+        entity.ObservedSeenState = overlay.ObservedSeenState;
+        entity.ObservedFlaggedState = overlay.ObservedFlaggedState;
+        entity.ObservedKeywords = overlay.ObservedKeywords is { } keywords ? [.. keywords.Values] : null;
+        entity.ObservedFolderId = overlay.ObservedFolder?.Value;
+        entity.LocalCopyStoredEmailId = overlay.LocalCopy?.Value;
+    }
+
+    /// <summary>Withdraws every earlier change, still unissued, that the new request supersedes, handing its fields to the new one.</summary>
+    /// <remarks>
+    /// Nothing is restored: the new change already carries the field's last observation forward and is now its writer.
+    /// </remarks>
+    private void WithdrawSuperseded(MailboxMutationRequest request, IReadOnlyList<MailboxMutationEntity> earlier)
+    {
+        var withdrawnAt = timeProvider.GetUtcNow();
+
+        foreach (var entity in earlier.Where(entity => entity.Stage == MailboxMutationStage.Recorded
+            && request.Supersedes(MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding).Request)))
+        {
+            entity.Stage = MailboxMutationStage.Cancelled;
+            entity.StageChangedAt = withdrawnAt;
+        }
+    }
+
+    /// <summary>Returns each field an overlaying change wrote to the value last observed on the server, where no other change still holds it.</summary>
+    /// <remarks>
+    /// Called in the transaction that withdraws or gives up the change, so the stored message never shows a change the
+    /// server will not be told about. A delete restores nothing here: its message is hidden only while the delete is
+    /// outstanding, so it shows again once the record ends.
+    /// </remarks>
+    private static async Task RestoreObservedStateAsync(
+        MailFathomDbContext writeContext,
+        MailboxMutationEntity ended,
+        CancellationToken cancellationToken)
+    {
+        if (!ended.OverlaysStoredState
+            || await writeContext.StoredEmails.FindAsync([ended.StoredEmailId], cancellationToken) is not { } email)
+        {
+            return;
+        }
+
+        var others = (await ReadOutstandingOverlaysAsync(writeContext, ended.StoredEmailId, cancellationToken))
+            .Where(entity => entity.Id != ended.Id)
+            .ToArray();
+
+        if (ended.Mutation == MailboxMutation.SetSeen.Name
+            && ended.ObservedSeenState is { } seen
+            && !others.Any(entity => entity.Mutation == ended.Mutation))
+        {
+            email.IsRemotelySeen = seen;
+        }
+        else if (ended.Mutation == MailboxMutation.SetFlagged.Name
+            && ended.ObservedFlaggedState is { } flagged
+            && !others.Any(entity => entity.Mutation == ended.Mutation))
+        {
+            email.IsRemotelyFlagged = flagged;
+        }
+        else if (ended.Mutation == MailboxMutation.Relocate.Name
+            && ended.ObservedFolderId is { } folder
+            && !others.Any(entity => entity.Mutation == ended.Mutation))
+        {
+            email.FolderId = folder;
+        }
+        else if (WritesKeywords(ended.Mutation) && ended.ObservedKeywords is { } observed)
+        {
+            email.RemoteKeywords = KeywordsRestored(ended, email.RemoteKeywords, observed, others);
+        }
+        else if (ended.Mutation == MailboxMutation.Delete.Name
+            && !others.Any(entity => entity.Mutation == ended.Mutation
+                && entity.LocalDisposition is not AuthoredDeleteEmailDisposition.RetainLocalCopy))
+        {
+            email.LocalDeleteCommittedAt = null;
+        }
+    }
+
+    /// <summary>Returns each keyword the ended change touched, and no other outstanding change still holds, to its observed membership.</summary>
+    private static string[] KeywordsRestored(
+        MailboxMutationEntity ended,
+        string[] stored,
+        string[] observed,
+        IReadOnlyList<MailboxMutationEntity> others)
+    {
+        var otherKeywordChanges = others.Where(entity => WritesKeywords(entity.Mutation)).ToArray();
+
+        if (otherKeywordChanges.Any(entity => entity.Mutation == MailboxMutation.SetKeywords.Name))
+        {
+            return stored;
+        }
+
+        var heldByOthers = otherKeywordChanges
+            .SelectMany(entity => entity.Keywords ?? [])
+            .ToHashSet(StringComparer.Ordinal);
+        bool Restored(string keyword) =>
+            !heldByOthers.Contains(keyword)
+            && (ended.Mutation == MailboxMutation.SetKeywords.Name || (ended.Keywords ?? []).Contains(keyword, StringComparer.Ordinal));
+
+        return
+        [
+            .. RemoteEmailKeywords.Create(
+                stored.Where(keyword => !Restored(keyword)).Concat(observed.Where(Restored))).Values,
+        ];
     }
 
     private static async Task<MailboxMutationEntity?> FindByIdentityAsync(

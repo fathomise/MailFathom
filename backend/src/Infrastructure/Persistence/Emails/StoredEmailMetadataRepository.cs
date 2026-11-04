@@ -14,6 +14,7 @@ using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Delivery.Filing;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Mutations;
 using MailFathom.Infrastructure.Persistence.Delivery;
 using MailFathom.Infrastructure.Persistence.Emails.Threads;
 using MailFathom.Infrastructure.Persistence.Entities;
@@ -160,8 +161,10 @@ internal sealed class StoredEmailMetadataRepository(
 
         // A relocation the source made moves the email into the folder its destination binding names. A binding that
         // names none leaves it where it was rather than in the inbox: the email is still one the account holds, and the
-        // folder it sat in is a better answer than a guess.
-        if (folder.FolderId is { } destinationFolder)
+        // folder it sat in is a better answer than a guess. A later move committed locally first and still outstanding
+        // has already put the email where the person last asked, and is the folder's writer until it ends.
+        if (folder.FolderId is { } destinationFolder
+            && !await HasOutstandingLocalMoveAsync(dbContext, entity.Id, cancellationToken))
         {
             entity.FolderId = destinationFolder;
         }
@@ -468,6 +471,19 @@ internal sealed class StoredEmailMetadataRepository(
                 && candidate.Uid == occurrenceId.Uid.Value,
             cancellationToken);
     }
+
+    private static Task<bool> HasOutstandingLocalMoveAsync(
+        MailFathomDbContext dbContext,
+        Guid storedEmailId,
+        CancellationToken cancellationToken) =>
+        dbContext.MailboxMutations.AnyAsync(
+            mutation => mutation.StoredEmailId == storedEmailId
+                && mutation.OverlaysStoredState
+                && mutation.Mutation == MailAwaitingRelocation.RelocateMutationName
+                && mutation.Stage != MailboxMutationStage.Completed
+                && mutation.Stage != MailboxMutationStage.Abandoned
+                && mutation.Stage != MailboxMutationStage.Cancelled,
+            cancellationToken);
 
     private Guid MintFolderId() => Guid.CreateVersion7(timeProvider.GetUtcNow());
 }

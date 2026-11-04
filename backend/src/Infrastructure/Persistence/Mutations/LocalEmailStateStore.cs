@@ -57,17 +57,22 @@ internal sealed class LocalEmailStateStore(TimeProvider timeProvider) : ILocalEm
         MailAccountId account,
         StoredEmailId email,
         LocalEmailState state,
+        bool isHeldFolder,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(state);
 
         var row = await FindAsync(session, account, email, cancellationToken)
-            ?? throw new InvalidOperationException("A held account's change is written only to a message its own read found.");
+            ?? throw new InvalidOperationException("A local change is written only to a message its own read found.");
 
         if (state.Folder is { } folder)
         {
             row.FolderId = folder.Value;
-            row.LocalMailFolderId = folder.Value;
+
+            if (isHeldFolder)
+            {
+                row.LocalMailFolderId = folder.Value;
+            }
         }
         row.IsRemotelySeen = state.IsSeen;
         row.IsRemotelyFlagged = state.IsFlagged;

@@ -706,8 +706,8 @@ restoring account erases the record opened as one and carries the rest. A copy i
 either, whatever the copied message still holds: the second message it writes has never stood on the source, so it
 holds no occurrence and the restore appends it like any other message MailFathom alone holds.
 
-**A record opened beside a change already committed carries no withdrawal window, and nothing takes it back.** A
-window is the stretch in which a person may still stop a change, and there is nothing to stop here: the message has
+**A record a restoring account opened beside a change already committed carries no withdrawal window, and nothing
+takes it back.** A window is the stretch in which a person may still stop a change, and there is nothing to stop here: the message has
 already moved in MailFathom's own store, and the record exists only so the source hears about it. Holding it would
 merely widen the stretch in which the two disagree, so it is due at once and the account's run is brought forward for
 it exactly as it is for a move. The row says it was opened that way, and a withdrawal leaves such a row exactly where
@@ -770,6 +770,33 @@ The record holds no mail. A folder path, a UID, a mutation name, a requester ide
 all it carries, and it is removed with the email it describes — including when the change it recorded was that email's
 deletion. [Stored email schema](../architecture/stored-email-schema.md#recorded-mailbox-mutations) states the columns and
 the stages in full.
+
+### A mirrored account commits a change locally first
+
+**A mirrored account commits a change locally first, beside the record that carries it to the server.** A flag, a
+keyword, a read state, a delete, and — where the account's server was last seen advertising `UIDPLUS` or `IMAP4rev2` —
+a move and a copy are made to the stored message in the transaction that opens the record, so the person sees the
+change at once and the answer says `applied` with the record beside it. The record keeps what the server was last seen
+holding for the field it changed, and that is what synchronization works against while the record is outstanding: a
+field a record overlays is not written from what the server reports, the report is written onto the record instead, and
+the field is the record's until the record ends. A completed record releases the field back to synchronization, which
+by then reads the server holding what the change asked for. A withdrawn or abandoned record puts back what the server
+was last seen holding, unless a later outstanding record holds the same field, and a withdrawal tells the account's
+clients so. A delete hides the message through a mark on its stored row rather than by moving it anywhere, and a
+withdrawn or abandoned delete clears the mark, so the message shows again with nothing else to undo; a delete that
+keeps its local copy readable leaves no mark. A copy writes its second stored message at once, and the destination's forward pass
+binds the occurrence the server's `COPYUID` names onto that row instead of storing a second one.
+
+Three rules keep two changes to one message from fighting. **A later change replaces an earlier one to the same field
+that was never issued** — a read state, a flagged state, or keywords the later change names in full — and the earlier
+record is withdrawn in the same transaction, the later one inheriting its reading of the server. **A move waits for
+every earlier change to the same message, and every later change waits for an earlier move**, because each names the
+occurrence it was asked for; changes to other messages are not held back by it. **A change is committed locally first
+only while every replica knows the overlay**: every live work lease names the build that took it, and while any of them
+names a build older than the overlay — a rolling upgrade — a mirrored change is recorded alone, exactly as before,
+because the older build's synchronization would write over a field left outstanding. Nobody switches anything; the
+upgrade ending is what turns it on. A move or a copy on a server last seen advertising neither `UIDPLUS` nor
+`IMAP4rev2`, or never seen at all, is recorded alone too, since nothing would name where the message lands.
 
 ### An account can keep a record of what was done to it, and none does by default
 

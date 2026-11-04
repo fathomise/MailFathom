@@ -340,6 +340,49 @@ public sealed record MailboxMutationRequest
             serverDisposition: null);
     }
 
+    /// <summary>Reports whether this change, asked for after <paramref name="earlier" /> on the same message, asks for everything the earlier one does to the server.</summary>
+    /// <param name="earlier">A change to the same message, recorded before this one and still unissued.</param>
+    /// <returns><see langword="true" /> when sending only this change leaves the server as sending both in order would.</returns>
+    /// <remarks>
+    /// A <c>\Seen</c> change replaces an earlier <c>\Seen</c> change and a <c>\Flagged</c> change an earlier one, because
+    /// each states the whole of its field. A replacement of the keywords replaces every earlier keyword change, and an
+    /// addition or a removal replaces an earlier addition or removal that named no keyword it does not name. A move, a
+    /// copy, and a delete replace nothing: each acts on the occurrence rather than on a value of it, so the earlier change
+    /// still has to reach the server first.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="earlier" /> is <see langword="null" />.</exception>
+    public bool Supersedes(MailboxMutationRequest earlier)
+    {
+        ArgumentNullException.ThrowIfNull(earlier);
+
+        if (earlier.StoredEmailId != this.StoredEmailId)
+        {
+            return false;
+        }
+
+        if (this.Mutation == MailboxMutation.SetSeen || this.Mutation == MailboxMutation.SetFlagged)
+        {
+            return earlier.Mutation == this.Mutation;
+        }
+
+        if (this.Mutation == MailboxMutation.SetKeywords)
+        {
+            return IsKeywordChange(earlier.Mutation);
+        }
+
+        return (this.Mutation == MailboxMutation.AddKeywords || this.Mutation == MailboxMutation.RemoveKeywords)
+            && (earlier.Mutation == MailboxMutation.AddKeywords || earlier.Mutation == MailboxMutation.RemoveKeywords)
+            && earlier.Keywords!.Values.All(keyword => this.Keywords!.Values.Contains(keyword, StringComparer.Ordinal));
+    }
+
+    /// <summary>Reports whether a mutation writes the message's keywords.</summary>
+    /// <param name="mutation">The mutation.</param>
+    /// <returns><see langword="true" /> for an addition, a removal, and a replacement of keywords.</returns>
+    public static bool IsKeywordChange(MailboxMutation mutation) =>
+        mutation == MailboxMutation.AddKeywords
+        || mutation == MailboxMutation.RemoveKeywords
+        || mutation == MailboxMutation.SetKeywords;
+
     /// <summary>Restores the request a durable record was written for.</summary>
     /// <param name="storedEmailId">The local email the change is about.</param>
     /// <param name="occurrence">The occurrence the change was asked for.</param>
