@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.RegularExpressions;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Infrastructure.Persistence;
@@ -18,7 +19,7 @@ namespace MailFathom.Infrastructure.UnitTests.Persistence.Embeddings;
 /// known to translate at all: a distance operator, a join, and a grouped minimum are each a translation the provider
 /// can refuse at runtime, and a fake index would answer whatever the test arranged instead.
 /// </summary>
-public sealed class EmailVectorSearchIndexReaderCommandTests
+public sealed partial class EmailVectorSearchIndexReaderCommandTests
 {
     private static readonly EmbeddingProfileId ProfileId =
         EmbeddingProfileId.Create(new Guid("b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e"));
@@ -72,6 +73,22 @@ public sealed class EmailVectorSearchIndexReaderCommandTests
         Assert.Contains("min(", statement, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("email_chunks", statement, StringComparison.Ordinal);
         Assert.Contains("LIMIT", statement, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The nearest passage per message is a minimum grouped over one join rather than a subquery the server re-enters for
+    /// every candidate message, which on a full mailbox is the difference between reading each vector once and reading
+    /// it again for every ordering the plan evaluates.
+    /// </summary>
+    [Fact]
+    public void NearestHitsQuery_AnyQuery_MeasuresEveryVectorInOnePassGroupedByEmail()
+    {
+        // Act
+        var statement = CommandBody(GeneratedCommand(EmbeddingDistanceMetric.Cosine));
+
+        // Assert
+        Assert.Contains("GROUP BY", statement, StringComparison.Ordinal);
+        Assert.DoesNotMatch(CorrelatedMinimum(), statement);
     }
 
     /// <summary>
@@ -135,7 +152,10 @@ public sealed class EmailVectorSearchIndexReaderCommandTests
     /// <summary>
     /// The two rankings ADR 0030 partitions are read as two statements over one eligible set, and each is filtered by
     /// what the passage's own attachment row says it is. Reading one ranking and sorting it afterwards would need the
-    /// kind in the result, which is the shape the partition was written to avoid.
+    /// kind in the result, which is the shape the partition was written to avoid. The row is reached by an outer join
+    /// rather than an existence test, because a correlated subplan would keep the joins beneath the aggregate out of
+    /// PostgreSQL's parallel workers, and whether it matched is read from one column of the join's key, which is the
+    /// only form the planner reads as an anti-join rather than estimating that a single row survives.
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -148,7 +168,9 @@ public sealed class EmailVectorSearchIndexReaderCommandTests
         // Assert
         Assert.Contains(nameof(EmailAttachmentTextEntity.Kind), statement, StringComparison.Ordinal);
         Assert.Contains(nameof(EmailAttachmentTextEntity.AttachmentPosition), statement, StringComparison.Ordinal);
-        Assert.Contains("EXISTS", statement, StringComparison.Ordinal);
+        Assert.Contains("LEFT JOIN", statement, StringComparison.Ordinal);
+        Assert.DoesNotContain("EXISTS", statement, StringComparison.Ordinal);
+        Assert.Matches(MatchTestedOnOneKeyColumn(), statement);
     }
 
     /// <summary>
@@ -229,6 +251,14 @@ public sealed class EmailVectorSearchIndexReaderCommandTests
 
         return statementStart < 0 ? string.Empty : command[..statementStart];
     }
+
+    /// <summary>Matches a minimum computed by a subquery of its own, which is the correlated shape the ranking must not take.</summary>
+    [GeneratedRegex(@"\(\s*SELECT\s+min\(", RegexOptions.IgnoreCase)]
+    private static partial Regex CorrelatedMinimum();
+
+    /// <summary>Matches the kind test read from the attachment row's key alone, compared with the caller's choice.</summary>
+    [GeneratedRegex(@"\(\w+\.""StoredEmailId"" IS NOT NULL\) = @depicted")]
+    private static partial Regex MatchTestedOnOneKeyColumn();
 
     /// <summary>Gets the selection that narrows nothing, which is what a command test uses unless the filters are its subject.</summary>
     private static MailboxEmailSelection UnfilteredSelection => MailboxEmailSelection.Create(
