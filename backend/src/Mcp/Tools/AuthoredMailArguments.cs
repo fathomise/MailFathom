@@ -44,6 +44,14 @@ internal static class AuthoredMailArguments
     private const int MaximumSendTimeLength = 40;
 
     /// <summary>The ISO 8601 shapes a send time is read in: to the minute, the second, or a fraction of one, each with an offset or a <c>Z</c>, or with neither.</summary>
+    /// <summary>How far inside the range a <see cref="DateTime" /> can hold a send time has to lie to be read at all.</summary>
+    /// <remarks>
+    /// A wall-clock time in a zone becomes an instant by applying an offset of up to fourteen hours, after stepping
+    /// forward across a skipped span of up to a day, so a time nearer either end than that could leave the range while
+    /// it is resolved. Such a time is refused as unreadable rather than resolved, which it never would be as a send.
+    /// </remarks>
+    private static readonly TimeSpan ResolvableMargin = TimeSpan.FromDays(2);
+
     private static readonly string[] SendTimeFormats =
     [
         "yyyy-MM-dd'T'HH:mmK",
@@ -182,7 +190,9 @@ internal static class AuthoredMailArguments
         }
 
         if (sendAt!.Length > MaximumSendTimeLength
-            || !DateTime.TryParseExact(sendAt, SendTimeFormats, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var stated))
+            || !DateTime.TryParseExact(sendAt, SendTimeFormats, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var stated)
+            || stated < DateTime.MinValue + ResolvableMargin
+            || stated > DateTime.MaxValue - ResolvableMargin)
         {
             throw MailSubmissionRefusedException.SendTimeUnreadable(MaximumSendTimeLength);
         }

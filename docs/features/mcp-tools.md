@@ -1354,6 +1354,7 @@ day and a month are never read in each other's place. The boundary refuses with 
 | Refused | Why |
 |---|---|
 | Text that is not such a date and time, or longer than 40 characters | Nothing can be read from it |
+| A time within two days of the first day of year 1 or the last day of year 9999 | An offset or a clock change could carry it past the range an instant can hold |
 | A time with neither an offset nor a `sendAtTimeZone` | It would be read on this server's clock rather than the caller's |
 | A time with an offset **and** a `sendAtTimeZone` | It has said two things, and accepting it would silently drop one |
 | A `sendAtTimeZone` this host's time-zone database does not know, or longer than 64 characters | There is no clock to read the time on |

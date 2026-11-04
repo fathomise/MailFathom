@@ -532,6 +532,10 @@ public sealed class SendEmailToolTests
     [InlineData("08/20/2026 09:00 +02:00", null)]
     [InlineData("2026-08-20T09:00:00.12345678901234567890123+02:00", null)]
     [InlineData(null, "Europe/Warsaw")]
+    [InlineData("9999-12-31T23:59", "America/New_York")]
+    [InlineData("0001-01-01T00:00", "Europe/Warsaw")]
+    [InlineData("9999-12-31T23:59-05:00", null)]
+    [InlineData("0001-01-01T00:00+01:00", null)]
     public async Task SendEmailAsync_ASendTimeNoInstantCanBeReadFrom_RefusesBeforeComposing(string? sendAt, string? sendAtTimeZone)
     {
         // Arrange
