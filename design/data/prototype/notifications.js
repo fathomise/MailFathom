@@ -3,13 +3,18 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 /* The three failures that land after a request already answered — a send the server refused, a mailbox change the
-   server never took, a draft whose copy is not on the server — are durable rows like any other. `failure` names which,
-   `toast` is what the open client raises when one is raised, and `go` where the row leads. */
+   server refused and MailFathom undid, a draft whose copy is not on the server — are durable rows like any other.
+   `failure` names which, `raise` the `raise` property that raises it where that is not `failure`, `toast` is what the
+   open client raises when one is raised, and `go` where the row leads. */
 MailFathomDesign.data.notifications = [
   { id: "nf1", kind: "failure", failure: "send", unread: true, mins: 5, title: "Not sent - it waits in the Outbox", body: "Re: Contract addendum - signatures", src: "Outbox · Nordwind · work", go: { screen: "mail", outbox: "acc1", entry: "ob1" },
     toast: { kind: "error", body: "“Re: Contract addendum - signatures” is in the Outbox of Nordwind · work. Send it again or edit it there.", action: "Show in Outbox" } },
-  { id: "nf2", kind: "failure", failure: "change", unread: true, mins: 18, title: "A change did not reach your mailbox", body: "Move - the mail server would not take it, so the message is still where the server holds it.", src: "Mail · Nordwind · work", go: { screen: "mail", thread: "travel1" }, change: "travel1",
-    toast: { kind: "error", body: "Move - the mail server would not take it, so the message is still where the server holds it.", action: "Show message" } },
+  { id: "nf2", kind: "failure", failure: "change", unread: true, mins: 18, title: "Your mailbox refused a change", body: "Move - the mail server would not take it, so MailFathom put the message back where the server holds it.", src: "Mail · Personal mail", go: { screen: "mail", thread: "travel1" }, change: "travel1",
+    toast: { kind: "error", body: "Move - the mail server would not take it, so MailFathom put the message back where the server holds it.", action: "Show message" } },
+  { id: "nf8", kind: "failure", failure: "change", raise: "changePermanent", unread: true, mins: 24, title: "Your mailbox refused a change", body: "Flag - the mail server cannot keep flags in this folder, so MailFathom took the flag off again.", src: "Mail · Nordwind · work", go: { screen: "mail", thread: "devops1" }, change: "devops1",
+    toast: { kind: "error", body: "Flag - the mail server cannot keep flags in this folder, so MailFathom took the flag off again.", action: "Show message" } },
+  { id: "nf9", kind: "failure", failure: "change", raise: "changeBoth", unread: true, mins: 33, title: "A message is now in both accounts", body: "Move to Personal mail - Personal mail took it into Clients, but Nordwind · work's mail server would not let it go.", src: "Mail · Nordwind · work", go: { screen: "mail", thread: "klient3" }, change: "klient3",
+    toast: { kind: "error", body: "Move to Personal mail - Personal mail took it into Clients, but Nordwind · work's mail server would not let it go.", action: "Show message" } },
   { id: "nf3", kind: "draftcopy", failure: "draft", unread: true, mins: 41, title: "Draft out of step with your server", body: "Q4 supplier review - agenda", src: "Drafts · Nordwind · work", go: { screen: "mail", draft: "ld1", acc: "acc1" },
     toast: { kind: "warning", body: "“Q4 supplier review - agenda” is kept in MailFathom, but your mail server's copy may be missing or out of date.", action: "Open draft" } },
   { id: "n1", kind: "mail", unread: true, mins: 3, title: "Anna Kowalska", body: "Re: Contract addendum - CPI cap counter-proposal", src: "Mail · Contoso", go: { screen: "mail", thread: "contoso" } },

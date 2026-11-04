@@ -308,12 +308,13 @@
         },
         {
           "click": {
-            "text": "A change did not reach your mailbox"
+            "text": "Your mailbox refused a change",
+            "nth": 0
           }
         },
         {
           "expect": {
-            "text": "Not moved - your mailbox did not take this change"
+            "text": "Not moved - your mailbox refused this change"
           }
         }
       ]

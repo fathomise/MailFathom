@@ -85,10 +85,6 @@ MailFathomDesign.data.clientStatesSample = {
     searchFilterMailbox: "Mailbox: Work",
     searchRankUnpaid: "not yet paid",
     searchRankDueDate: "nearest due date",
-    pendingMoveRefused: "Moving “Budget line for Q4 renewals” to Clients was refused - Clients was renamed on the server.",
-    pendingNotArchived: "2 messages were not archived.",
-    pendingNotArchivedToast: "2 messages were not archived",
-    pendingFlag: "Flag on “Invoice 2026/08/114”.",
   },
 
   work: {
