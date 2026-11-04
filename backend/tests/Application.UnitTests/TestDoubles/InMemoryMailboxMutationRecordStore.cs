@@ -418,7 +418,7 @@ internal sealed class InMemoryMailboxMutationRecordStore : IMailboxMutationRecor
         IReadOnlyList<OutstandingMailboxMutation> refused =
         [
             .. this.UnsettledOf(account)
-                .Where(record => record.FirstRefusedAt is not null && !record.IsTerminal)
+                .Where(record => record.FirstRefusedAt is not null && !record.IsTerminal && !record.HasUnknownOutcome)
                 .OrderBy(record => record.FirstRefusedAt)
                 .Take(limit)
                 .Select(record => new OutstandingMailboxMutation(record, this.BindingOf(record))),

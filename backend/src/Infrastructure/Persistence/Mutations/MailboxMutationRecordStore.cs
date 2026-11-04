@@ -577,6 +577,7 @@ internal sealed class MailboxMutationRecordStore(
             .Include(mutation => mutation.MailFolderBinding)
             .Where(mutation => mutation.MailboxAccountId == accountValue &&
                 mutation.FirstRefusedAt != null &&
+                mutation.Stage != MailboxMutationStage.PlacementIssued &&
                 mutation.Stage != MailboxMutationStage.Completed &&
                 mutation.Stage != MailboxMutationStage.Abandoned &&
                 mutation.Stage != MailboxMutationStage.Cancelled)

@@ -1658,7 +1658,9 @@ requires.
 `AttemptCount` counts the times the server answered the change and did not take it, and `FirstRefusedAt` is when it
 first did. An outage writes neither, so a change held through one of any length is not mistaken for one the server keeps
 turning down. `FirstRefusedAt` plus `MailSynchronization:MutationRefusalWindow` is the change's deadline, read by the
-account's supervision between runs as well as by each run, and passing it moves the row to `Abandoned`. A refusal
+account's supervision between runs as well as by each run, and passing it moves the row to `Abandoned` — except a row at
+`PlacementIssued`, whose last placement went unanswered and may have landed, which `UnknownMutationOutcomeGrace` settles
+instead. A refusal
 answered to an issued placement moves the row back from `PlacementIssued` to `Recorded` in the same write, because the
 server placed nothing and the next attempt may issue the command again — the one backward movement a stage makes. A row
 that is not `Completed` stays in the answer an operator reads — being given up on is what stops a change being

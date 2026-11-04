@@ -334,12 +334,19 @@ public interface IMailboxMutationRecordStore
     /// <param name="account">The account whose refused changes are read.</param>
     /// <param name="limit">The greatest number of records to return.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The records carrying a first refusal and no terminal stage, earliest first refusal first, at most <paramref name="limit" /> of them.</returns>
+    /// <returns>The records carrying a first refusal, no terminal stage, and no placement awaiting its answer, earliest first refusal first, at most <paramref name="limit" /> of them.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="limit" /> is not positive.</exception>
     /// <remarks>
+    /// <para>
     /// It is what the refusal window is kept from without a connection: the account's supervision reads it between runs
     /// to give up on the changes whose window has passed and to learn when the next one will. Earliest first, so a page
     /// always holds the deadlines that come soonest.
+    /// </para>
+    /// <para>
+    /// A record at <see cref="MailboxMutationStage.PlacementIssued" /> is left out even when an earlier attempt was
+    /// refused: its last placement went unanswered, so the server may have made the copy, and the converger settles it
+    /// from what the mailbox shows rather than undoing it on a deadline.
+    /// </para>
     /// </remarks>
     Task<IReadOnlyList<OutstandingMailboxMutation>> ReadRefusedAsync(
         MailAccountId account,

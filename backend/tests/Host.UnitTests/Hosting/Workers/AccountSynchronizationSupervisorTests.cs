@@ -22,7 +22,9 @@ using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Common.Observability;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
+using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Synchronization;
 using MailFathom.Domain.Transport;
 using MailFathom.Host.Configuration.Mail;
@@ -677,6 +679,81 @@ public sealed class AccountSynchronizationSupervisorTests
             MailAccountId.Create("primary"),
             Arg.Any<int>(),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// The window is a promise because the wait is cut at each refusal deadline: the refused changes are read again
+    /// there, from the records alone, and the wait resumes towards the run it was waiting for. Nothing reaches the mail
+    /// server at a deadline, and the next run starts when its interval has elapsed and not before. The account is watched
+    /// by push only because a watched folder reports when each wait is armed, which lets the clock be moved one deadline
+    /// at a time.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_RefusalDeadlinesFallBeforeTheNextRun_ReadsTheRefusalsAtEachAndStartsTheRunWhenItIsDue()
+    {
+        // Arrange
+        await using var context = await RefusalDeadlineContext.StartAsync();
+
+        // Act
+        while (!context.Probe.SecondRunStarted.Task.IsCompleted)
+        {
+            await context.WatchedInbox.WaitsEntered.WaitAsync(DeadlockGuard, TestContext.Current.CancellationToken);
+
+            if (!context.Probe.SecondRunStarted.Task.IsCompleted)
+            {
+                context.Clock.Advance(RefusalDeadlineProbe.UntilDeadline);
+            }
+        }
+
+        await context.StopAsync();
+
+        // Assert
+        var start = context.Clock.Start;
+        Assert.Equal(start + context.Options.Interval, context.Probe.SecondRunStartedAt);
+        Assert.Equal(
+            [.. Enumerable.Range(0, 5).Select(minutes => start + TimeSpan.FromMinutes(minutes))],
+            context.Probe.RefusalReads.Where(read => read < context.Probe.SecondRunStartedAt));
+        Assert.Equal(context.Probe.SessionsOpenedAtFirstRefusalRead, context.Probe.SessionsOpenedWhenTheSecondRunStarted);
+    }
+
+    /// <summary>
+    /// A wait resumed after a refusal deadline is still the wait in front of the next run, so a change somebody authors
+    /// during it starts that run at once rather than after the interval.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_AChangeAuthoredAfterARefusalDeadline_StartsTheRunAtOnce()
+    {
+        // Arrange
+        await using var context = await RefusalDeadlineContext.StartAsync();
+        await context.PassTheFirstRefusalDeadlineAsync();
+
+        // Act
+        context.Harness.RunSignal.BringForward(MailAccountId.Create("primary"));
+        await context.Probe.SecondRunStarted.Task.WaitAsync(DeadlockGuard, TestContext.Current.CancellationToken);
+        await context.StopAsync();
+
+        // Assert
+        Assert.Equal(context.Clock.Start + RefusalDeadlineProbe.UntilDeadline, context.Probe.SecondRunStartedAt);
+    }
+
+    /// <summary>
+    /// A change the server reports during a wait resumed after a refusal deadline ends that wait as it would any other,
+    /// rather than being taken for the deadline and waited past.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_AFolderChangeReportedAfterARefusalDeadline_StartsTheRunAtOnce()
+    {
+        // Arrange
+        await using var context = await RefusalDeadlineContext.StartAsync();
+        await context.PassTheFirstRefusalDeadlineAsync();
+
+        // Act
+        context.WatchedInbox.ReportFolderChange();
+        await context.Probe.SecondRunStarted.Task.WaitAsync(DeadlockGuard, TestContext.Current.CancellationToken);
+        await context.StopAsync();
+
+        // Assert
+        Assert.Equal(context.Clock.Start + RefusalDeadlineProbe.UntilDeadline, context.Probe.SecondRunStartedAt);
     }
 
     /// <summary>
@@ -1696,9 +1773,10 @@ public sealed class AccountSynchronizationSupervisorTests
         IStoredEmailChunkingStore? chunkingStore = null,
         IStoredEmailAttachmentTextStore? attachmentTextStore = null,
         ISpamVerdictFloorCandidateReader? floorCandidateReader = null,
+        FakeTimeProvider? clock = null,
         params string[] unadvertisedAliases)
     {
-        var clock = new FakeTimeProvider();
+        clock ??= new FakeTimeProvider();
         var settings = new StubSettingsSnapshot<MailSynchronizationOptions>(options);
         var services = SynchronizationTestHost.BuildServiceProvider(
             options,
@@ -1721,6 +1799,214 @@ public sealed class AccountSynchronizationSupervisorTests
             settings,
             clock,
             MailAccountId.Create(options.DeclaredAccount(0).AccountId));
+    }
+
+    /// <summary>
+    /// Supervises one push-watched account holding a refused change, up to the point where its refusals were first read
+    /// between runs and its watched folder is waiting for the first refusal deadline.
+    /// </summary>
+    private sealed class RefusalDeadlineContext : IAsyncDisposable
+    {
+        private readonly IMailboxSession mailbox;
+        private readonly Task supervision;
+
+        private RefusalDeadlineContext(
+            IMailboxSession mailbox,
+            FakeTimeProvider clock,
+            MailSynchronizationOptions options,
+            RefusalDeadlineProbe probe,
+            SupervisorHarness harness,
+            FakeMailboxNotificationSession watchedInbox,
+            Task supervision)
+        {
+            this.mailbox = mailbox;
+            this.Clock = clock;
+            this.Options = options;
+            this.Probe = probe;
+            this.Harness = harness;
+            this.WatchedInbox = watchedInbox;
+            this.supervision = supervision;
+        }
+
+        internal FakeTimeProvider Clock { get; }
+
+        internal MailSynchronizationOptions Options { get; }
+
+        internal RefusalDeadlineProbe Probe { get; }
+
+        internal SupervisorHarness Harness { get; }
+
+        internal FakeMailboxNotificationSession WatchedInbox { get; }
+
+        [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The mailbox and the harness pass to the context, which disposes both.")]
+        internal static async Task<RefusalDeadlineContext> StartAsync()
+        {
+            var options = SynchronizationTestHost.CreateSingleAccountOptions(enabled: true, "INBOX");
+            options.DeclaredAccount(0).Mode = MailSynchronizationMode.Push;
+            var clock = new FakeTimeProvider();
+            var notificationSessions = new FakeMailboxNotificationSessionFactory(clock);
+            var mailbox = CreateEmptyMailbox();
+            var probe = new RefusalDeadlineProbe(clock, mailbox);
+            var harness = CreateHarness(
+                options,
+                probe.SessionFactory,
+                notificationSessions,
+                mutationRecordStore: probe.Store,
+                clock: clock);
+            var supervision = harness.StartSupervision();
+
+            await probe.FirstRefusalRead.Task.WaitAsync(DeadlockGuard, TestContext.Current.CancellationToken);
+
+            return new RefusalDeadlineContext(
+                mailbox,
+                clock,
+                options,
+                probe,
+                harness,
+                notificationSessions.SessionWatching("INBOX")!,
+                supervision);
+        }
+
+        /// <summary>Moves the clock to the first refusal deadline once the wait for it is armed, and waits for the refusals to be read there.</summary>
+        internal async Task PassTheFirstRefusalDeadlineAsync()
+        {
+            await this.WatchedInbox.WaitsEntered.WaitAsync(DeadlockGuard, TestContext.Current.CancellationToken);
+            this.Clock.Advance(RefusalDeadlineProbe.UntilDeadline);
+            await this.Probe.SecondRefusalRead.Task.WaitAsync(DeadlockGuard, TestContext.Current.CancellationToken);
+        }
+
+        internal async Task StopAsync()
+        {
+            await this.Harness.StopSchedulingAsync();
+            await this.supervision.WaitAsync(DeadlockGuard, TestContext.Current.CancellationToken);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await this.Harness.DisposeAsync();
+            await this.mailbox.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Models an account holding one change the server refused, whose window always runs out a minute after it is read,
+    /// and records when its refusals were read, when the second run began, and how many folders were opened by then.
+    /// </summary>
+    private sealed class RefusalDeadlineProbe
+    {
+        private readonly FakeTimeProvider clock;
+        private readonly TimeSpan refusalWindow = new MailboxMutationOptions().RefusalWindow;
+        private readonly ConcurrentQueue<DateTimeOffset> refusalReads = new();
+        private int runCount;
+        private int sessionsOpened;
+
+        internal RefusalDeadlineProbe(FakeTimeProvider clock, IMailboxSession mailbox)
+        {
+            this.clock = clock;
+            this.Store = Substitute.For<IMailboxMutationRecordStore>();
+            this.Store
+                .ReadOutstandingAsync(Arg.Any<MailAccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+                .Returns(_ => this.RunStarted());
+            this.Store
+                .ReadRefusedAsync(Arg.Any<MailAccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+                .Returns(_ => this.RefusalsRead());
+            this.SessionFactory = Substitute.For<IMailboxSessionFactory>();
+            this.SessionFactory
+                .OpenReadOnlyAsync(
+                    Arg.Any<MailAccountId>(),
+                    Arg.Any<MailFolderResolution>(),
+                    Arg.Any<MailTransportSecurityPolicy>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(_ =>
+                {
+                    Interlocked.Increment(ref this.sessionsOpened);
+
+                    return Task.FromResult(mailbox);
+                });
+        }
+
+        internal static TimeSpan UntilDeadline { get; } = TimeSpan.FromMinutes(1);
+
+        internal IMailboxMutationRecordStore Store { get; }
+
+        internal IMailboxSessionFactory SessionFactory { get; }
+
+        internal TaskCompletionSource FirstRefusalRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        internal TaskCompletionSource SecondRefusalRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        internal TaskCompletionSource SecondRunStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        internal IReadOnlyList<DateTimeOffset> RefusalReads => [.. this.refusalReads];
+
+        internal DateTimeOffset SecondRunStartedAt { get; private set; }
+
+        internal int SessionsOpenedAtFirstRefusalRead { get; private set; }
+
+        internal int SessionsOpenedWhenTheSecondRunStarted { get; private set; }
+
+        private static OutstandingMailboxMutation RefusedChange(DateTimeOffset firstRefusedAt)
+        {
+            var folder = MailFolderResolution.FirstBindingOf(MailFolderAlias.Create("INBOX"), RemoteFolderPath.Create("INBOX"));
+            var occurrence = EmailOccurrenceId.Create(
+                MailAccountId.Create("primary"),
+                folder.Id,
+                ImapUidValidity.Create(42),
+                ImapUid.Create(7));
+            var record = new MailboxMutationRecord
+            {
+                Id = MailboxMutationRecordId.Create(Guid.CreateVersion7(firstRefusedAt)),
+                Request = MailboxMutationRequest.SetSeen(
+                    StoredEmailId.Create(Guid.CreateVersion7(firstRefusedAt)),
+                    occurrence,
+                    MailboxMutationRequester.Rule("mark-read", "1"),
+                    isSeen: true),
+                Stage = MailboxMutationStage.Recorded,
+                IsAudited = false,
+                RequiresSourceRemoval = false,
+                Placement = RemoteEmailPlacement.NotReported(),
+                AttemptCount = 1,
+                FirstRefusedAt = firstRefusedAt,
+                RecordedAt = firstRefusedAt,
+                StageChangedAt = firstRefusedAt,
+                LastFailure = MailFathomErrorCode.MailboxMutationDeclined,
+                PlacementObservedAt = null,
+                SourceRemovalObservedAt = null,
+            };
+
+            return new OutstandingMailboxMutation(record, folder);
+        }
+
+        private Task<IReadOnlyList<OutstandingMailboxMutation>> RunStarted()
+        {
+            if (Interlocked.Increment(ref this.runCount) == 2)
+            {
+                this.SecondRunStartedAt = this.clock.GetUtcNow();
+                this.SessionsOpenedWhenTheSecondRunStarted = Volatile.Read(ref this.sessionsOpened);
+                this.SecondRunStarted.TrySetResult();
+            }
+
+            return Task.FromResult<IReadOnlyList<OutstandingMailboxMutation>>([]);
+        }
+
+        private Task<IReadOnlyList<OutstandingMailboxMutation>> RefusalsRead()
+        {
+            var now = this.clock.GetUtcNow();
+            this.refusalReads.Enqueue(now);
+
+            if (this.refusalReads.Count == 1)
+            {
+                this.SessionsOpenedAtFirstRefusalRead = Volatile.Read(ref this.sessionsOpened);
+                this.FirstRefusalRead.TrySetResult();
+            }
+            else
+            {
+                this.SecondRefusalRead.TrySetResult();
+            }
+
+            return Task.FromResult<IReadOnlyList<OutstandingMailboxMutation>>(
+                [RefusedChange(now - this.refusalWindow + UntilDeadline)]);
+        }
     }
 
     /// <summary>Holds the one supervisor a test drives, together with what it was composed from.</summary>

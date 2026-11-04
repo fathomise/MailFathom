@@ -464,6 +464,32 @@ public sealed class MailboxMutationConvergerTests
         Assert.Empty(context.Notifications.Recorded);
     }
 
+    /// <summary>
+    /// A change refused once and then placed without an answer may already be on the server, so its refusal window does
+    /// not undo it; the unknown-outcome settlement owns it.
+    /// </summary>
+    [Fact]
+    public async Task AbandonExpiredRefusalsAsync_ARefusedChangeWhosePlacementWentUnanswered_IsNeitherAbandonedNorReverted()
+    {
+        // Arrange
+        var context = new ConvergerContext();
+        var request = await context.LeaveOutstandingAsync(PersonsRelocationRequest(), record => record with
+        {
+            Stage = MailboxMutationStage.PlacementIssued,
+            AttemptCount = 1,
+            FirstRefusedAt = context.Clock.GetUtcNow() - TimeSpan.FromHours(1),
+            LastFailure = MailFathomErrorCode.MailboxMutationDeclined,
+        });
+
+        // Act
+        var nextDeadline = await context.Converger.AbandonExpiredRefusalsAsync(Account, CancellationToken.None);
+
+        // Assert
+        Assert.Null(nextDeadline);
+        Assert.Equal(MailboxMutationStage.PlacementIssued, context.Store.RecordOf(request).Stage);
+        Assert.Empty(context.Notifications.Recorded);
+    }
+
     /// <summary>A held account's changes never reach the source, so no refusal of one is waiting to run out.</summary>
     [Fact]
     public async Task AbandonExpiredRefusalsAsync_AHeldAccount_LeavesEveryRecordAsItIs()
