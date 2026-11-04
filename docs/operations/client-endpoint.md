@@ -2582,15 +2582,15 @@ the source has not heard about; the erasure a second delete asks for is `recorde
 a held account.
 
 **On a mirrored account a change is made and recorded wherever the source allows it.** The source is the truth there,
-yet the person should not wait a synchronization run to see their own act, so a flag, a keyword, a delete, and — on a
-server last seen advertising `UIDPLUS` or `IMAP4rev2` — a move are committed to the stored message in the transaction
+yet the person should not wait a synchronization run to see their own act, so a flag and a keyword, and — on a server
+last seen advertising `UIDPLUS` or `IMAP4rev2` — a delete and a move, are committed to the stored message in the transaction
 that opens the record carrying them to the server, and the answer is `applied` with that record named beside it. Unlike
 a restoring account's, this record is held for the same withdrawal window as any change only `recorded`, and a
 withdrawal inside it does take the change back: the record kept what the server was last seen holding, and withdrawing
 it puts the message back to that and tells every client of the account. So on a mirrored account `applied` means the
 mail has changed here, the record beside it is what reaches the server, and the undo affordance follows the record's
-state rather than the answer. Two things leave a mirrored change `recorded` alone, exactly as before: a move on a server
-that names no new occurrence, and a deployment part-way through a rolling upgrade, while any replica runs a build that
+state rather than the answer. Two things leave a mirrored change `recorded` alone, exactly as before: a move or a delete
+on a server last seen advertising neither, and a deployment part-way through a rolling upgrade, while any replica runs a build that
 does not know about the local commit; [IMAP synchronization](../features/imap-synchronization.md#a-mirrored-account-commits-a-change-locally-first)
 holds both rules and what synchronization does with a field such a change overlays.
 

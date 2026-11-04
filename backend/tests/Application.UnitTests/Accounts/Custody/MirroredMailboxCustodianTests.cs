@@ -217,24 +217,34 @@ public sealed class MirroredMailboxCustodianTests
 
     /// <summary>A delete is committed by its record alone, which hides the message; its stored state is left as it was.</summary>
     [Fact]
-    public async Task SubmitAsync_ADeleteOnceEveryReplicaKnowsTheOverlay_IsAppliedThroughItsRecord()
+    public async Task SubmitAsync_ADeleteOnAServerThatExpungesByUid_IsAppliedThroughItsRecord()
     {
         // Arrange
         this.StoreUnread();
-        var delete = MailboxMutationRequest.Delete(
-            Email,
-            Occurrence,
-            Requester,
-            AuthoredDeleteEmailDisposition.RetainTombstone,
-            AuthoredDeleteServerDisposition.Expunge);
 
         // Act
-        var submitted = await this.LocalFirstCustodian().SubmitAsync(this.session, Change(delete), Token);
+        var submitted = await this.LocalFirstCustodian().SubmitAsync(this.session, Change(DeleteRequest()), Token);
 
         // Assert
         Assert.Equal(MailboxChangeSubmissionOutcome.Applied, submitted.Outcome);
         Assert.NotNull(submitted.Record!.Overlay);
         Assert.Equal(MailboxMutationLocalChange.AlreadyCommitted, submitted.Record.LocalChange);
+    }
+
+    /// <summary>A delete the server could only expunge with everything else flagged waits for the server rather than vanishing and coming back.</summary>
+    [Fact]
+    public async Task SubmitAsync_ADeleteOnAServerThatCannotExpungeByUid_IsRecordedAlone()
+    {
+        // Arrange
+        this.StoreUnread();
+
+        // Act
+        var submitted = await this.LocalFirstCustodian(MailboxServerCapabilities.None)
+            .SubmitAsync(this.session, Change(DeleteRequest()), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Recorded, submitted.Outcome);
+        Assert.Null(submitted.Record!.Overlay);
     }
 
     /// <summary>A move creates an occurrence the server has to name, so it waits for the server where none was seen advertising how.</summary>
@@ -300,6 +310,13 @@ public sealed class MirroredMailboxCustodianTests
 
     private static MailboxChange Change(MailboxMutationRequest request) =>
         new(request, Destination: null, HeldUntil: null, PersonsMove: false, CrossesDraftsOrSentTreeOnTheServer: false, PreparedCopy: null);
+
+    private static MailboxMutationRequest DeleteRequest() => MailboxMutationRequest.Delete(
+        Email,
+        Occurrence,
+        Requester,
+        AuthoredDeleteEmailDisposition.RetainTombstone,
+        AuthoredDeleteServerDisposition.Expunge);
 
     private static MailboxChange MoveToArchive() =>
         Change(MailboxMutationRequest.Relocate(Email, Occurrence, Requester, Archive.RemotePath)) with

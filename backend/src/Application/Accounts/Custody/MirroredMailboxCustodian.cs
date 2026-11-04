@@ -277,8 +277,10 @@ public sealed class MirroredMailboxCustodian : IMailboxCustodian
     /// a page of leases that fills its bound answers no, since an older build's lease may be in the part not read.
     /// </para>
     /// <para>
-    /// A move and a copy create an occurrence, so they are committed locally first only where the server last advertised
-    /// <c>UIDPLUS</c> or <c>IMAP4rev2</c>, which name where it lands. See
+    /// A move and a copy create an occurrence, and a delete removes one by <c>UID EXPUNGE</c>, so they are committed
+    /// locally first only where the server last advertised <c>UIDPLUS</c> or <c>IMAP4rev2</c>: that is what names where
+    /// a message lands and removes exactly the one asked for. Elsewhere a delete hidden at once would only reappear when
+    /// the server refused it. See
     /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>
     /// axis E.
     /// </para>
@@ -293,7 +295,7 @@ public sealed class MirroredMailboxCustodian : IMailboxCustodian
             return false;
         }
 
-        return (mutation != MailboxMutation.Relocate && mutation != MailboxMutation.Copy)
+        return (mutation != MailboxMutation.Relocate && mutation != MailboxMutation.Copy && mutation != MailboxMutation.Delete)
             || (await this.capabilities.ReadAsync(account, cancellationToken)).NamesWhereMessagesLand;
     }
 

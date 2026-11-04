@@ -774,8 +774,8 @@ the stages in full.
 ### A mirrored account commits a change locally first
 
 **A mirrored account commits a change locally first, beside the record that carries it to the server.** A flag, a
-keyword, a read state, a delete, and — where the account's server was last seen advertising `UIDPLUS` or `IMAP4rev2` —
-a move and a copy are made to the stored message in the transaction that opens the record, so the person sees the
+keyword, and a read state, and — where the account's server was last seen advertising `UIDPLUS` or `IMAP4rev2` — a
+delete, a move, and a copy are made to the stored message in the transaction that opens the record, so the person sees the
 change at once and the answer says `applied` with the record beside it. The record keeps what the server was last seen
 holding for the field it changed, and that is what synchronization works against while the record is outstanding: a
 field a record overlays is not written from what the server reports, the report is written onto the record instead, and
@@ -795,8 +795,9 @@ occurrence it was asked for; changes to other messages are not held back by it. 
 only while every replica knows the overlay**: every live work lease names the build that took it, and while any of them
 names a build older than the overlay — a rolling upgrade — a mirrored change is recorded alone, exactly as before,
 because the older build's synchronization would write over a field left outstanding. Nobody switches anything; the
-upgrade ending is what turns it on. A move or a copy on a server last seen advertising neither `UIDPLUS` nor
-`IMAP4rev2`, or never seen at all, is recorded alone too, since nothing would name where the message lands.
+upgrade ending is what turns it on. A move, a copy, or a delete on a server last seen advertising neither `UIDPLUS` nor
+`IMAP4rev2`, or never seen at all, is recorded alone too, since nothing would name where the message lands or remove
+exactly the one occurrence asked for.
 
 ### An account can keep a record of what was done to it, and none does by default
 
