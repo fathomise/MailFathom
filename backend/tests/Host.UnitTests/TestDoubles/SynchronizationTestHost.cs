@@ -236,6 +236,8 @@ internal static class SynchronizationTestHost
         services.AddSingleton(new MailboxConvergenceOptions());
         services.AddSingleton(Substitute.For<IMailboxWriteSessionFactory>());
         services.AddSingleton<MailboxConvergenceTelemetry>();
+        services.AddSingleton<IMailboxConvergenceDelayTelemetry>(provider =>
+            provider.GetRequiredService<MailboxConvergenceTelemetry>());
         services.AddSingleton<MailboxContentVolumeTelemetry>();
         // Resolved by the coordinator and handed to every supervisor it starts, so it is composed here rather than
         // constructed per harness: a supervisor built with one instance and a coordinator with another would publish

@@ -223,6 +223,26 @@ replaced whole, so a lifecycle that empties stops being reported instead of repo
 A `dead-lettered` count that stops falling is the reading worth alerting on: those are changes nothing will attempt
 again, waiting for somebody to look.
 
+The gauges say how long what is still waiting has waited; `mailfathom.mailbox.mutation.convergence_delay` says how long
+what finished had waited. It is a histogram in seconds, recorded once for every change that reaches an ending — from the
+moment its record was written to the moment it completed or was given up — and never for a change still outstanding,
+however many attempts it has spent. That wait is what every other client of the same mailbox, a phone or a desktop mail
+client, goes without the change, and it is bounded by the longest stage of the synchronization run the converger rides
+on rather than by `MailSynchronization:Interval`, because a run already under way converges at its next stage boundary.
+It carries two dimensions and nothing else. `mailfathom.mailbox.mutation.origin` is `command`, `rule`, or
+`classification`: a person in the client and an MCP caller are both `command`, because a change's record stores no
+difference between them — each is somebody asking directly, outside any run — and the records a restore opens to
+carry a held account's changes back to its source are `command` too. `mailfathom.mailbox.mutation.lifecycle` is
+`completed` or `dead-lettered`, so the wait before the mail server had a change is the `completed` half. A local erasure
+— a second delete of a message already in the local trash — is never carried to a server and is not measured. No
+account, mutation, folder, or requester identity is on it.
+
+It is one replica's, like every instrument here: the replica that wrote a change's ending records it, against the time
+its own clock reads then and the moment another replica may have written the record, so the two clocks' skew is part
+of a reading. A histogram is additive, so a dashboard combines the replicas by summing their bucket counts before taking
+a quantile — `histogram_quantile(0.95, sum by (le, mailfathom_mailbox_mutation_origin) (rate(…_bucket[15m])))` in
+Prometheus terms — and never by averaging each replica's own quantile.
+
 One counter beside them answers a question about the record rather than about the change.
 `mailfathom.mailbox.mutation.audit.refused_appends` counts the audit entries a finished mutation owed and the trail
 could not be given, by mutation and account, alongside a warning naming the record. It is zero on a deployment that
@@ -1154,6 +1174,15 @@ sent copy going away because the account's own provider filed one of its own bes
 answer rather than a server one. And `outcome_unknown` means the same here as it does above and for the same reason:
 the append may or may not have reached the folder, nothing will attempt it again, and repeating it would put a second
 copy of somebody's own message in front of them.
+
+`mailfathom.mail.filing.sent_copy_delay` says how long the user's other mail clients went without a message they sent.
+It is a histogram in seconds, recorded once per delivered send whose account files a sent copy, from the delivery being
+acknowledged by the submission server to the attempt at its sent copy ending — the append answered, refused, never
+answered, or never issued because the destination did not resolve — and carries `mailfathom.mail.filing.outcome` and
+nothing else. The wait before the copy was in the folder is the `filed` half; a copy answered from what is already on
+the record (`already_filed`), an account that files none (`not_requested`), and a withdrawal measure nothing, and
+neither does an attempt the host stopped before it ended, which the next pass makes again. It is per replica and
+additive exactly as the mutation histogram above is, and combined across replicas the same way, by summing bucket counts.
 
 **Is the drafts folder showing what is held?** `mailfathom.mail.draft.attempts` counts every attempt to bring a
 mailbox's drafts folder into step with a draft this deployment holds, tagged with the account alias and

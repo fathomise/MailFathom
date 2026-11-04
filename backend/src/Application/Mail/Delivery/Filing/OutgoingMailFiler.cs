@@ -96,7 +96,6 @@ public sealed class OutgoingMailFiler
     /// first, so a caller reads the outcome rather than catching it — which is what lets a filing failure leave the
     /// delivery that preceded it exactly as it was.
     /// </remarks>
-    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "A filing failure must never reach the delivery that preceded it, because a send whose copy could not be filed is a send that happened; the failure is classified into a recorded code and returned as an outcome rather than raised.")]
     public async Task<OutgoingMailFilingResult> FileAsync(
         OutgoingEmailRecord record,
         OutgoingMailFiling filing,
@@ -110,6 +109,20 @@ public sealed class OutgoingMailFiler
             return Result(record, filing, settled, failure: null);
         }
 
+        var attempted = await this.AttemptAppendAsync(record, filing, cancellationToken);
+
+        return record.Stage == OutgoingEmailStage.Sent
+            ? attempted with { WaitedAfterDelivery = this.timeProvider.GetUtcNow() - record.StageChangedAt }
+            : attempted;
+    }
+
+    /// <summary>Appends the copy and turns every failure the append can end in into a recorded outcome.</summary>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "A filing failure must never reach the delivery that preceded it, because a send whose copy could not be filed is a send that happened; the failure is classified into a recorded code and returned as an outcome rather than raised.")]
+    private async Task<OutgoingMailFilingResult> AttemptAppendAsync(
+        OutgoingEmailRecord record,
+        OutgoingMailFiling filing,
+        CancellationToken cancellationToken)
+    {
         try
         {
             return await this.AppendAsync(record, filing, cancellationToken);

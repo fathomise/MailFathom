@@ -5,6 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Notifications;
+using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
@@ -29,7 +30,9 @@ namespace MailFathom.Application.Mail.Mutations;
 /// Being that single writer is also why the audit trail is appended from here rather than from the callers. The two
 /// terminal stages are reached from four places between the performer and convergence, and an entry owed by one of them
 /// and not written by another would be a history whose gaps mean nothing. The append happens after the terminal stage is
-/// durable and cannot fail the mutation, which <see cref="IMailboxMutationAuditTrail" /> states in full.
+/// durable and cannot fail the mutation, which <see cref="IMailboxMutationAuditTrail" /> states in full. How long the
+/// change waited before ending is measured at the same point and for the same reason: an ending reached from one of
+/// those places and not measured from another would make the wait read shorter than it is.
 /// </para>
 /// <para>
 /// The same reasoning puts the notification about a change given up here: every way a record is abandoned — attempts
@@ -44,6 +47,7 @@ internal sealed class MailboxMutationJournal : IMailboxMutationJournal
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly IMailboxMutationAuditTrail auditTrail;
     private readonly MailFailureNotifications failures;
+    private readonly IMailboxConvergenceDelayTelemetry delays;
     private readonly MailFolderResolution sourceFolder;
     private MailboxMutationRecord record;
 
@@ -52,6 +56,7 @@ internal sealed class MailboxMutationJournal : IMailboxMutationJournal
         OptimisticConcurrencyRetryPolicy commitPolicy,
         IMailboxMutationAuditTrail auditTrail,
         MailFailureNotifications failures,
+        IMailboxConvergenceDelayTelemetry delays,
         MailboxMutationRecord record,
         MailFolderResolution sourceFolder)
     {
@@ -59,6 +64,7 @@ internal sealed class MailboxMutationJournal : IMailboxMutationJournal
         this.commitPolicy = commitPolicy;
         this.auditTrail = auditTrail;
         this.failures = failures;
+        this.delays = delays;
         this.record = record;
         this.sourceFolder = sourceFolder;
     }
@@ -188,6 +194,13 @@ internal sealed class MailboxMutationJournal : IMailboxMutationJournal
 
         if (this.record.IsTerminal)
         {
+            // A local erasure is a person's second delete of a message already in the local trash, and it is never
+            // carried to a mail server, so its ending says nothing about how long a change waited for one.
+            if (this.record.LocalChange is not MailboxMutationLocalChange.Erasure)
+            {
+                this.delays.Ended(this.record);
+            }
+
             await this.auditTrail.RecordAsync(this.record, this.sourceFolder, cancellationToken);
         }
     }

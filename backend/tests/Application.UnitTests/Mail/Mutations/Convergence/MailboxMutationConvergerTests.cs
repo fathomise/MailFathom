@@ -9,6 +9,7 @@ using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Convergence;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Notifications;
+using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization.Sessions;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -544,6 +545,62 @@ public sealed class MailboxMutationConvergerTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>An unknown outcome given up after its grace has ended, so its wait is measured once and as given up.</summary>
+    [Fact]
+    public async Task ConvergeAsync_AnUnknownOutcomeThatOutlastsItsGrace_MeasuresItsWaitOnceAsAbandoned()
+    {
+        // Arrange
+        var context = new ConvergerContext(unknownOutcomeGrace: TimeSpan.FromHours(6));
+        var request = await context.LeaveOutstandingAsync(
+            CopyRequest(),
+            record => record with { Stage = MailboxMutationStage.PlacementIssued });
+
+        // Act
+        context.Clock.Advance(TimeSpan.FromHours(7));
+        await context.Converger.ConvergeAsync(Account, CancellationToken.None);
+        await context.Converger.ConvergeAsync(Account, CancellationToken.None);
+
+        // Assert
+        context.Delays.Received(1).Ended(Arg.Any<MailboxMutationRecord>());
+        context.Delays.Received(1).Ended(Arg.Is<MailboxMutationRecord>(record =>
+            record.Request == request && record.Stage == MailboxMutationStage.Abandoned));
+    }
+
+    /// <summary>An unknown outcome still inside its grace is still waiting, so nothing is measured for it yet.</summary>
+    [Fact]
+    public async Task ConvergeAsync_AnUnknownOutcomeInsideItsGrace_MeasuresNothing()
+    {
+        // Arrange
+        var context = new ConvergerContext(unknownOutcomeGrace: TimeSpan.FromHours(6));
+        await context.LeaveOutstandingAsync(
+            CopyRequest(),
+            record => record with { Stage = MailboxMutationStage.PlacementIssued });
+
+        // Act
+        context.Clock.Advance(TimeSpan.FromHours(1));
+        await context.Converger.ConvergeAsync(Account, CancellationToken.None);
+
+        // Assert
+        context.Delays.DidNotReceive().Ended(Arg.Any<MailboxMutationRecord>());
+    }
+
+    /// <summary>A local erasure never goes to a mail server, so its ending says nothing about the wait for one.</summary>
+    [Fact]
+    public async Task ConvergeAsync_AHeldErasureOfAMessageAlreadyGone_MeasuresNothing()
+    {
+        // Arrange
+        var context = new ConvergerContext(
+            localFolders: new InMemoryLocalMailFolderStore(Account, MailAccountCustodyPhase.Held),
+            states: new InMemoryLocalEmailStateStore(Account));
+        await context.LeaveOutstandingAsync(DeleteRequest(uid: 44U), record => record, MailboxMutationLocalChange.Erasure);
+
+        // Act
+        await context.Converger.ConvergeAsync(Account, CancellationToken.None);
+
+        // Assert
+        context.Delays.DidNotReceive().Ended(Arg.Any<MailboxMutationRecord>());
+    }
+
     /// <summary>Most passes have nothing to do, and one that does nothing must not cost a mail server anything.</summary>
     [Fact]
     public async Task ConvergeAsync_AnAccountWithNothingOutstanding_TouchesNoMailServer()
@@ -705,6 +762,7 @@ public sealed class MailboxMutationConvergerTests
                 commitPolicy,
                 this.AuditTrail,
                 failures,
+                this.Delays,
                 ClientSignalPublishers.ReachingNobody,
                 new MailboxMutationOptions { MaximumAttempts = maximumAttempts });
 
@@ -718,6 +776,7 @@ public sealed class MailboxMutationConvergerTests
                 commitPolicy,
                 this.AuditTrail,
                 failures,
+                this.Delays,
                 new MailboxConvergenceOptions
                 {
                     MaxMutationsPerPass = maxMutationsPerPass,
@@ -731,6 +790,8 @@ public sealed class MailboxMutationConvergerTests
         internal InMemoryMailboxMutationRecordStore Store { get; } = new();
 
         internal RecordingMailboxMutationAuditTrail AuditTrail { get; } = new();
+
+        internal IMailboxConvergenceDelayTelemetry Delays { get; } = Substitute.For<IMailboxConvergenceDelayTelemetry>();
 
         /// <summary>Gets what the account's one user was told about a change that never reached the server.</summary>
         internal InMemoryNotificationStore Notifications { get; } = new();

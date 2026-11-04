@@ -1678,6 +1678,8 @@ public static class ServiceCollectionExtensions
         // A singleton, because the gauges it publishes are the process's and the account snapshots behind them outlive
         // any one run; the pass that fills them is scoped like everything else that reaches a mail server.
         services.AddSingleton<MailboxConvergenceTelemetry>();
+        services.AddSingleton<IMailboxConvergenceDelayTelemetry>(provider =>
+            provider.GetRequiredService<MailboxConvergenceTelemetry>());
         // A singleton for the same reason: the level it publishes belongs to the deployment's one content store rather
         // than to any run, and the counters beside it accumulate across every account.
         services.AddSingleton<MailboxContentVolumeTelemetry>();

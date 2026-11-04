@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Notifications;
+using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Synchronization.Sessions;
@@ -223,6 +224,61 @@ public sealed class MailboxMutationPerformerTests
         var record = context.Store.RecordOf(request);
         Assert.Equal(MailboxMutationStage.Abandoned, record.Stage);
         Assert.Equal(MailFathomErrorCode.MailboxUnavailable, record.LastFailure);
+    }
+
+    /// <summary>A change the server made has waited as long as it ever will, so its wait is measured, once.</summary>
+    [Fact]
+    public async Task PerformAsync_WhenTheChangeIsMade_MeasuresItsWaitOnceAsCompleted()
+    {
+        // Arrange
+        var context = new PerformerContext();
+        var request = RelocationRequest();
+
+        // Act
+        await context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None);
+
+        // Assert
+        context.Delays.Received(1).Ended(Arg.Any<MailboxMutationRecord>());
+        context.Delays.Received(1).Ended(Arg.Is<MailboxMutationRecord>(record =>
+            record.Request == request && record.Stage == MailboxMutationStage.Completed));
+    }
+
+    /// <summary>A change that failed with attempts left is still waiting, and measuring it would cut its wait short.</summary>
+    [Fact]
+    public async Task PerformAsync_WhenAnAttemptFailsWithAttemptsLeft_MeasuresNothing()
+    {
+        // Arrange
+        var context = new PerformerContext(maximumAttempts: 2);
+        var request = RelocationRequest();
+        context.FailRelocationWith(new MailboxUnavailableException(Account, InboxFolder.Alias, new TimeoutException()));
+
+        // Act
+        await Assert.ThrowsAsync<MailboxUnavailableException>(
+            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+
+        // Assert
+        context.Delays.DidNotReceive().Ended(Arg.Any<MailboxMutationRecord>());
+    }
+
+    /// <summary>A change given up has ended too, and is measured once, at the attempt that gave it up.</summary>
+    [Fact]
+    public async Task PerformAsync_WhenTheLastPermittedAttemptFails_MeasuresTheWaitOnceAsAbandoned()
+    {
+        // Arrange
+        var context = new PerformerContext(maximumAttempts: 2);
+        var request = RelocationRequest();
+        context.FailRelocationWith(new MailboxUnavailableException(Account, InboxFolder.Alias, new TimeoutException()));
+
+        // Act
+        await Assert.ThrowsAsync<MailboxUnavailableException>(
+            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+        await Assert.ThrowsAsync<MailboxUnavailableException>(
+            () => context.Performer.PerformAsync(request, InboxFolder, TransportPolicy, CancellationToken.None));
+
+        // Assert
+        context.Delays.Received(1).Ended(Arg.Any<MailboxMutationRecord>());
+        context.Delays.Received(1).Ended(Arg.Is<MailboxMutationRecord>(record =>
+            record.Stage == MailboxMutationStage.Abandoned));
     }
 
     /// <summary>
@@ -936,6 +992,7 @@ public sealed class MailboxMutationPerformerTests
                     new NotificationRaiser(this.Notifications, ClientSignalPublishers.ReachingNobody),
                     new StubMailAccountAssignments().Assigning(SyntheticUser.Deployment, Account),
                     TimeProvider.System),
+                this.Delays,
                 signals ?? ClientSignalPublishers.ReachingNobody,
                 new MailboxMutationOptions { MaximumAttempts = maximumAttempts });
         }
@@ -947,6 +1004,8 @@ public sealed class MailboxMutationPerformerTests
 
 
         internal RecordingMailboxMutationAuditTrail AuditTrail { get; } = new();
+
+        internal IMailboxConvergenceDelayTelemetry Delays { get; } = Substitute.For<IMailboxConvergenceDelayTelemetry>();
 
         internal IMailboxWriteSession WriteSession { get; }
 

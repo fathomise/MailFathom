@@ -9,6 +9,7 @@ using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Convergence;
 using MailFathom.Application.Notifications;
+using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Resilience;
 using MailFathom.Domain.Emails;
@@ -257,12 +258,14 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
                 commitPolicy,
                 scope.GetRequiredService<IMailboxMutationAuditTrail>(),
                 scope.GetRequiredService<MailFailureNotifications>(),
+                scope.GetRequiredService<IMailboxConvergenceDelayTelemetry>(),
                 ClientSignalPublishers.ReachingNobody,
                 new MailboxMutationOptions()),
             scope.GetRequiredService<IMailTransportSecurityPolicyReader>(),
             commitPolicy,
             scope.GetRequiredService<IMailboxMutationAuditTrail>(),
             scope.GetRequiredService<MailFailureNotifications>(),
+            scope.GetRequiredService<IMailboxConvergenceDelayTelemetry>(),
             new MailboxConvergenceOptions { UnknownOutcomeGrace = TimeSpan.Zero },
             TimeProvider.System,
             scope.GetRequiredService<IMailAccountCustodyStore>(),
@@ -337,12 +340,14 @@ public sealed class OrchestratedMailboxConvergenceTests(MailFathomOrchestrationF
                 commitPolicy,
                 scope.GetRequiredService<IMailboxMutationAuditTrail>(),
                 scope.GetRequiredService<MailFailureNotifications>(),
+                scope.GetRequiredService<IMailboxConvergenceDelayTelemetry>(),
                 ClientSignalPublishers.ReachingNobody,
                 new MailboxMutationOptions()),
             scope.GetRequiredService<IMailTransportSecurityPolicyReader>(),
             commitPolicy,
             scope.GetRequiredService<IMailboxMutationAuditTrail>(),
             scope.GetRequiredService<MailFailureNotifications>(),
+            scope.GetRequiredService<IMailboxConvergenceDelayTelemetry>(),
             new MailboxConvergenceOptions(),
             TimeProvider.System,
             scope.GetRequiredService<IMailAccountCustodyStore>(),

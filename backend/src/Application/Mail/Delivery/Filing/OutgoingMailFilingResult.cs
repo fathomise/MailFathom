@@ -13,6 +13,7 @@ namespace MailFathom.Application.Mail.Delivery.Filing;
 /// <param name="Filing">The place the copy was going into, or the unspecified default where the attempt reached none.</param>
 /// <param name="Outcome">How the attempt ended.</param>
 /// <param name="Failure">The code recorded against the record, or <see langword="null" /> when the attempt recorded none.</param>
+/// <param name="WaitedAfterDelivery">How long after the server acknowledged the delivery this attempt at the sent copy ended, or <see langword="null" /> when the result is not such an attempt.</param>
 /// <remarks>
 /// <para>
 /// Nothing here is mail. The identifier is MailFathom's own, the filing is one of a closed set of words this system
@@ -24,12 +25,17 @@ namespace MailFathom.Application.Mail.Delivery.Filing;
 /// a log line and a metric dimension that the failure never established. Read the place through
 /// <see cref="FilingName" /> rather than through <see cref="OutgoingMailFiling.Name" />, which refuses the default.
 /// </para>
+/// <para>
+/// The wait is carried only by the attempt that ends a delivered send's sent copy, because nothing files that copy
+/// again: a result read off the record, a place the account files nothing in, and a withdrawal are not that ending.
+/// </para>
 /// </remarks>
 public sealed record OutgoingMailFilingResult(
     OutgoingEmailId OutgoingEmailId,
     OutgoingMailFiling Filing,
     OutgoingMailFilingOutcome Outcome,
-    MailFathomErrorCode? Failure)
+    MailFathomErrorCode? Failure,
+    TimeSpan? WaitedAfterDelivery = null)
 {
     /// <summary>The word a log line and a metric dimension carry for an attempt that reached no place at all.</summary>
     public const string UndeterminedFilingName = "undetermined";

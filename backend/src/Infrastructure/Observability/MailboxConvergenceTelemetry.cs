@@ -6,8 +6,10 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using MailFathom.Application.Mail.Mutations.Convergence;
+using MailFathom.Application.Observability;
 using MailFathom.Common.Observability;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Mutations;
 using Microsoft.Extensions.Logging;
 
 namespace MailFathom.Infrastructure.Observability;
@@ -31,18 +33,26 @@ namespace MailFathom.Infrastructure.Observability;
 /// bounded by the configured accounts times four mutations times three lifecycles, and none of them is derived from a
 /// message.
 /// </para>
+/// <para>
+/// The histogram beside the gauges answers how long the changes that did finish had waited, from the record being
+/// written to its ending. It carries the record's origin and the lifecycle it ended in and nothing else — no account,
+/// because the question it serves is how the converger's place in the synchronization run delays every account, and no
+/// mutation, because the wait is the run's and not the command's.
+/// </para>
 /// </remarks>
-public sealed partial class MailboxConvergenceTelemetry
+public sealed partial class MailboxConvergenceTelemetry : IMailboxConvergenceDelayTelemetry
 {
     private const string AccountTagName = "mailfathom.mail.account";
     private const string MutationTagName = "mailfathom.mailbox.mutation";
     private const string LifecycleTagName = "mailfathom.mailbox.mutation.lifecycle";
+    private const string OriginTagName = "mailfathom.mailbox.mutation.origin";
 
     private readonly ConcurrentDictionary<string, IReadOnlyList<MailboxMutationLifecycleCount>> outstandingByAccount =
         new(StringComparer.Ordinal);
 
     private readonly ILogger<MailboxConvergenceTelemetry> logger;
     private readonly TimeProvider timeProvider;
+    private readonly Histogram<double> convergenceDelay;
 
     /// <summary>Initializes the gauges an outstanding mutation is read through.</summary>
     /// <param name="logger">Records what a pass did, in counts and MailFathom's own names only.</param>
@@ -66,6 +76,27 @@ public sealed partial class MailboxConvergenceTelemetry
             this.ObserveOldestAges,
             unit: "s",
             description: "How long the oldest unfinished change of each mutation and lifecycle has been outstanding.");
+        this.convergenceDelay = Telemetry.Meter.CreateHistogram<double>(
+            "mailfathom.mailbox.mutation.convergence_delay",
+            unit: "s",
+            description: "How long a change waited from being recorded to ending, by origin and the lifecycle it ended in.");
+    }
+
+    /// <inheritdoc />
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="record" /> is <see langword="null" />.</exception>
+    public void Ended(MailboxMutationRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+
+        var waited = this.timeProvider.GetUtcNow() - record.RecordedAt;
+
+        this.convergenceDelay.Record(
+            Math.Max(0, waited.TotalSeconds),
+            new TagList
+            {
+                { OriginTagName, NameOf(record.Request.Requester.Origin) },
+                { LifecycleTagName, record.Lifecycle.Name },
+            });
     }
 
     /// <summary>Publishes what one account's convergence pass found, and records what the pass did.</summary>
@@ -138,6 +169,19 @@ public sealed partial class MailboxConvergenceTelemetry
         this.outstandingByAccount.SelectMany(
             account => account.Value,
             (account, group) => (account.Key, group));
+
+    /// <summary>Names an origin as the dimension a dashboard groups by.</summary>
+    /// <remarks>
+    /// A person in the client and an MCP caller are both <c>command</c>, because the record stores no difference
+    /// between them: each is somebody asking directly, outside any synchronization run.
+    /// </remarks>
+    private static string NameOf(MailboxMutationOrigin origin) => origin switch
+    {
+        MailboxMutationOrigin.Rule => "rule",
+        MailboxMutationOrigin.Command => "command",
+        MailboxMutationOrigin.Classification => "classification",
+        _ => throw new ArgumentOutOfRangeException(nameof(origin), origin, "No metric dimension is defined for this origin."),
+    };
 
     private static TagList TagsOf(string accountId, MailboxMutationLifecycleCount group) =>
         new()

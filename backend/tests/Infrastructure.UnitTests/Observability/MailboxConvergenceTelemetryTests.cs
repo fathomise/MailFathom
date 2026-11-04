@@ -4,6 +4,8 @@
 
 using MailFathom.Application.Mail.Mutations.Convergence;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 using MailFathom.Infrastructure.Observability;
 using MailFathom.TestSupport;
@@ -25,6 +27,8 @@ public sealed class MailboxConvergenceTelemetryTests : IDisposable
     private const string OutstandingInstrumentName = "mailfathom.mailbox.mutations.outstanding";
 
     private const string OldestAgeInstrumentName = "mailfathom.mailbox.mutations.oldest_outstanding_age";
+
+    private const string ConvergenceDelayInstrumentName = "mailfathom.mailbox.mutation.convergence_delay";
 
     private const string AccountTagName = "mailfathom.mail.account";
 
@@ -155,6 +159,93 @@ public sealed class MailboxConvergenceTelemetryTests : IDisposable
         var record = Assert.Single(this.RecordsFor(account));
         Assert.Equal(LogLevel.Information, record.Level);
         Assert.Equal(2, record.Properties["DeadLetteredCount"]);
+    }
+
+    /// <summary>The wait is measured from the record being written to the moment its ending was reported.</summary>
+    [Fact]
+    public void Ended_ACompletedChangeAPersonAsked_RecordsTheWaitByOriginAndLifecycle()
+    {
+        // Arrange
+        using var measurements = new RecordedMailFathomMeasurements(ConvergenceDelayInstrumentName);
+        var record = RecordOf(MailboxMutationRequester.Command("person-in-the-client"), MailboxMutationStage.Completed);
+        this.clock.SetUtcNow(RecordedAt.AddSeconds(47));
+
+        // Act
+        this.telemetry.Ended(record);
+
+        // Assert
+        var published = Assert.Single(measurements.Read(ConvergenceDelayInstrumentName), measurement => measurement.Value == 47);
+        Assert.Equal("command", published.Tags["mailfathom.mailbox.mutation.origin"]);
+        Assert.Equal("completed", published.Tags["mailfathom.mailbox.mutation.lifecycle"]);
+    }
+
+    /// <summary>A change given up is an ending too, and the rule that asked for it is named as the origin.</summary>
+    [Fact]
+    public void Ended_AnAbandonedChangeARuleAsked_RecordsItAsDeadLetteredForTheRuleOrigin()
+    {
+        // Arrange
+        using var measurements = new RecordedMailFathomMeasurements(ConvergenceDelayInstrumentName);
+        var record = RecordOf(MailboxMutationRequester.Rule("file-newsletters", "3"), MailboxMutationStage.Abandoned);
+        this.clock.SetUtcNow(RecordedAt.AddMinutes(13));
+
+        // Act
+        this.telemetry.Ended(record);
+
+        // Assert
+        var published = Assert.Single(measurements.Read(ConvergenceDelayInstrumentName), measurement => measurement.Value == 780);
+        Assert.Equal("rule", published.Tags["mailfathom.mailbox.mutation.origin"]);
+        Assert.Equal("dead-lettered", published.Tags["mailfathom.mailbox.mutation.lifecycle"]);
+    }
+
+    /// <summary>The wait is a deployment's figure, so nothing naming an account, a message, or a requester reaches it.</summary>
+    [Fact]
+    public void Ended_AnyChange_CarriesTheOriginAndLifecycleAndNothingElse()
+    {
+        // Arrange
+        using var measurements = new RecordedMailFathomMeasurements(ConvergenceDelayInstrumentName);
+        var record = RecordOf(MailboxMutationRequester.Command("identity-left-out"), MailboxMutationStage.Completed);
+        this.clock.SetUtcNow(RecordedAt.AddSeconds(29));
+
+        // Act
+        this.telemetry.Ended(record);
+
+        // Assert
+        var published = Assert.Single(measurements.Read(ConvergenceDelayInstrumentName), measurement => measurement.Value == 29);
+        Assert.Equal(
+            ["mailfathom.mailbox.mutation.lifecycle", "mailfathom.mailbox.mutation.origin"],
+            published.Tags.Keys.Order(StringComparer.Ordinal));
+    }
+
+    private static MailboxMutationRecord RecordOf(MailboxMutationRequester requester, MailboxMutationStage stage)
+    {
+        var inbox = MailFolderResolution.FirstBindingOf(
+            MailFolderAlias.Create("inbox"),
+            RemoteFolderPath.Create("INBOX", '/'));
+        var occurrence = EmailOccurrenceId.Create(
+            MailAccountId.Create("waited"),
+            inbox.Id,
+            ImapUidValidity.Create(1),
+            ImapUid.Create(41));
+
+        return new MailboxMutationRecord
+        {
+            Id = MailboxMutationRecordId.Create(Guid.CreateVersion7(RecordedAt)),
+            Request = MailboxMutationRequest.SetSeen(
+                StoredEmailId.Create(Guid.CreateVersion7(RecordedAt)),
+                occurrence,
+                requester,
+                isSeen: true),
+            Stage = stage,
+            IsAudited = false,
+            RequiresSourceRemoval = false,
+            Placement = RemoteEmailPlacement.NotReported(),
+            AttemptCount = 1,
+            RecordedAt = RecordedAt,
+            StageChangedAt = RecordedAt,
+            LastFailure = null,
+            PlacementObservedAt = null,
+            SourceRemovalObservedAt = null,
+        };
     }
 
     private static MailboxConvergenceReport ReportWith(params MailboxMutationLifecycleCount[] outstanding) =>

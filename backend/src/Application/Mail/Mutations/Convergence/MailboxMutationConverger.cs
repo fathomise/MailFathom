@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Notifications;
+using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Failures;
@@ -49,6 +50,7 @@ public sealed class MailboxMutationConverger
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly IMailboxMutationAuditTrail auditTrail;
     private readonly MailFailureNotifications failures;
+    private readonly IMailboxConvergenceDelayTelemetry delays;
     private readonly MailboxConvergenceOptions options;
     private readonly TimeProvider timeProvider;
     private readonly IMailAccountCustodyStore custody;
@@ -61,6 +63,7 @@ public sealed class MailboxMutationConverger
     /// <param name="commitPolicy">Commits the record movements this class makes without the performer.</param>
     /// <param name="auditTrail">Keeps the history a finished mutation leaves behind, where the account asked for one.</param>
     /// <param name="failures">Tells the account's users about a change this class gives up on itself.</param>
+    /// <param name="delays">Measures how long a change this class ends itself waited before it ended.</param>
     /// <param name="options">Bounds one pass and carries the unknown-outcome grace period.</param>
     /// <param name="timeProvider">Measures how long an unresolved outcome has been unresolved.</param>
     /// <param name="custody">Answers whether the account is held, where no change is carried to a server.</param>
@@ -74,6 +77,7 @@ public sealed class MailboxMutationConverger
         OptimisticConcurrencyRetryPolicy commitPolicy,
         IMailboxMutationAuditTrail auditTrail,
         MailFailureNotifications failures,
+        IMailboxConvergenceDelayTelemetry delays,
         MailboxConvergenceOptions options,
         TimeProvider timeProvider,
         IMailAccountCustodyStore custody,
@@ -85,6 +89,7 @@ public sealed class MailboxMutationConverger
         ArgumentNullException.ThrowIfNull(commitPolicy);
         ArgumentNullException.ThrowIfNull(auditTrail);
         ArgumentNullException.ThrowIfNull(failures);
+        ArgumentNullException.ThrowIfNull(delays);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(custody);
@@ -98,6 +103,7 @@ public sealed class MailboxMutationConverger
         this.commitPolicy = commitPolicy;
         this.auditTrail = auditTrail;
         this.failures = failures;
+        this.delays = delays;
         this.options = options;
         this.timeProvider = timeProvider;
         this.custody = custody;
@@ -215,6 +221,7 @@ public sealed class MailboxMutationConverger
                         this.commitPolicy,
                         this.auditTrail,
                         this.failures,
+                        this.delays,
                         candidate.Record,
                         candidate.Folder)
                     .CompleteAsync(candidate.Record.Placement, cancellationToken);
@@ -314,6 +321,7 @@ public sealed class MailboxMutationConverger
             this.commitPolicy,
             this.auditTrail,
             this.failures,
+            this.delays,
             record,
             candidate.Folder);
 
