@@ -201,11 +201,11 @@ longer holds is not one to put a digest behind, and a nightly reports it beside 
 contract suite nor the chart is in what a nightly ships. [The container image](container-image.md#published-images) records
 what they produce and how a published image is verified.
 
-`Diagnostics` runs only when somebody dispatches it by hand: `Hot-path benchmarks` times chunking, ranking, and MIME extraction
-with BenchmarkDotNet and leaves the table on the run and in its summary. No job waits on it and a failure there is
-swallowed, because throughput on a hosted runner is not reproducible to a precision worth blocking a channel over —
-what a change actually has to satisfy is the allocation budget the same paths carry in
-`backend/tests/AllocationBudgets.UnitTests`, which the pull-request gate runs. It does have a local equivalent, and running it
+`Diagnostics` runs only when somebody dispatches it by hand: `Hot-path benchmarks` times chunking, ranking, MIME extraction,
+and the reading pane's render of a message carrying its own pictures with BenchmarkDotNet and leaves the table on the run
+and in its summary. No job waits on it and a failure there is swallowed, because throughput on a hosted runner is not
+reproducible to a precision worth blocking a channel over — what a change actually has to satisfy is the allocation
+budgets in `backend/tests/AllocationBudgets.UnitTests`, which the pull-request gate runs. It does have a local equivalent, and running it
 is how a suspected regression is looked at before anything is claimed about it:
 
 ```bash
