@@ -210,6 +210,204 @@ public sealed class BoundedAttachmentTextExtractorTests
         Assert.Equal([2], result.Text?.PagesWithoutText);
     }
 
+    /// <summary>
+    /// A reordered deck keeps its slide parts' names, so its pages are read in the order its slide list declares — and
+    /// the slide named as carrying no text is the one a person would count to, not the one its part number gives.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExtractTextAsync_APresentationDeclaringAnotherOrder_ReadsItsSlidesInTheDeclaredOrder(bool strict)
+    {
+        // Arrange
+        string[] slidesByPartName = ["Closing", "Opening", string.Empty];
+        await using var attachment = new FakeOpenedEmailAttachment(
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "deck.pptx",
+            strict
+                ? DocumentFixtures.StrictPresentationInDeclaredOrder(slidesByPartName, 3, 2, 1)
+                : DocumentFixtures.PresentationInDeclaredOrder(slidesByPartName, 3, 2, 1));
+
+        // Act
+        var result = await ExtractAsync(attachment);
+
+        // Assert
+        Assert.Equal(AttachmentTextExtractionOutcome.Extracted, result.Outcome);
+        Assert.Equal("Opening\nClosing", result.Text?.Text);
+        Assert.Equal(3, result.Text?.PageCount);
+        Assert.Equal([1], result.Text?.PagesWithoutText);
+        Assert.Equal([0, 0, 8], result.Text?.Segments.Select(segment => segment.StartOffset));
+    }
+
+    /// <summary>
+    /// A custom slide show names some of a deck's slides again under the same element name, after the slide list; it
+    /// chooses what one showing presents and is not a second declaration of the deck's order, so it changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task ExtractTextAsync_APresentationCarryingACustomShow_ReadsItsSlidesInTheSlideListsOrder()
+    {
+        // Arrange
+        await using var attachment = new FakeOpenedEmailAttachment(
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "deck.pptx",
+            DocumentFixtures.PresentationWithCustomShowInDeclaredOrder(
+                ["Closing", "Opening", string.Empty],
+                customShowSlides: [2, 1],
+                3,
+                2,
+                1));
+
+        // Act
+        var result = await ExtractAsync(attachment);
+
+        // Assert
+        Assert.Equal(AttachmentTextExtractionOutcome.Extracted, result.Outcome);
+        Assert.Equal("Opening\nClosing", result.Text?.Text);
+        Assert.Equal([1], result.Text?.PagesWithoutText);
+    }
+
+    /// <summary>A workbook whose tabs were moved is read in the order its sheet list declares, empty sheet included.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExtractTextAsync_AWorkbookDeclaringAnotherOrder_ReadsItsSheetsInTheDeclaredOrder(bool strict)
+    {
+        // Arrange
+        string[][] sheetsByPartName = [[], ["Closing balance"], ["Opening balance"]];
+        await using var attachment = new FakeOpenedEmailAttachment(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "ledger.xlsx",
+            strict
+                ? DocumentFixtures.StrictWorkbookInDeclaredOrder(sheetsByPartName, 3, 2, 1)
+                : DocumentFixtures.WorkbookInDeclaredOrder(sheetsByPartName, 3, 2, 1));
+
+        // Act
+        var result = await ExtractAsync(attachment);
+
+        // Assert
+        Assert.Equal(AttachmentTextExtractionOutcome.Extracted, result.Outcome);
+        Assert.Equal("Opening balance\nClosing balance", result.Text?.Text);
+        Assert.Equal(3, result.Text?.PageCount);
+        Assert.Equal([3], result.Text?.PagesWithoutText);
+    }
+
+    /// <summary>
+    /// A chart tab sits in a workbook's sheet list beside the worksheets and holds no cells, so it is passed over and the
+    /// worksheets around it keep the order the list declares rather than the whole list being given up.
+    /// </summary>
+    [Fact]
+    public async Task ExtractTextAsync_AWorkbookDeclaringAChartsheetAmongItsSheets_ReadsItsWorksheetsInTheDeclaredOrder()
+    {
+        // Arrange
+        await using var attachment = new FakeOpenedEmailAttachment(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "ledger.xlsx",
+            DocumentFixtures.WorkbookWithChartsheetInDeclaredOrder(
+                [[], ["Closing balance"], ["Opening balance"]],
+                chartsheetPosition: 1,
+                3,
+                2,
+                1));
+
+        // Act
+        var result = await ExtractAsync(attachment);
+
+        // Assert
+        Assert.Equal(AttachmentTextExtractionOutcome.Extracted, result.Outcome);
+        Assert.Equal("Opening balance\nClosing balance", result.Text?.Text);
+        Assert.Equal(3, result.Text?.PageCount);
+        Assert.Equal([3], result.Text?.PagesWithoutText);
+    }
+
+    /// <summary>
+    /// An order naming a part the package does not hold, naming one twice, or leaving one out cannot be taken, so the
+    /// deck is read in part-name order rather than refused; a package with no ordering part at all is every other
+    /// presentation case above.
+    /// </summary>
+    [Theory]
+    [InlineData(new[] { 3, 9, 1 })]
+    [InlineData(new[] { 3, 3, 1 })]
+    [InlineData(new[] { 3, 1 })]
+    [InlineData(new[] { 3, 2, 1, 1 })]
+    public async Task ExtractTextAsync_APresentationDeclaringAnOrderItCannotKeep_ReadsItsSlidesInPartNameOrder(int[] declaredSlides)
+    {
+        // Arrange
+        await using var attachment = new FakeOpenedEmailAttachment(
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "deck.pptx",
+            DocumentFixtures.PresentationInDeclaredOrder(["Opening", string.Empty, "Closing"], declaredSlides));
+
+        // Act
+        var result = await ExtractAsync(attachment);
+
+        // Assert
+        Assert.Equal(AttachmentTextExtractionOutcome.Extracted, result.Outcome);
+        Assert.Equal("Opening\nClosing", result.Text?.Text);
+        Assert.Equal(3, result.Text?.PageCount);
+        Assert.Equal([2], result.Text?.PagesWithoutText);
+    }
+
+    /// <summary>An ordering part that is not readable XML costs the deck its declared order and nothing else.</summary>
+    [Fact]
+    public async Task ExtractTextAsync_APresentationWhoseOrderingPartIsNotXml_ReadsItsSlidesInPartNameOrder()
+    {
+        // Arrange
+        await using var attachment = new FakeOpenedEmailAttachment(
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "deck.pptx",
+            DocumentFixtures.Package(
+                ("ppt/slides/slide1.xml", Slide("Opening")),
+                ("ppt/slides/slide2.xml", Slide("Closing")),
+                ("ppt/presentation.xml", "<p:presentation"),
+                ("ppt/_rels/presentation.xml.rels", """
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>
+                    """)));
+
+        // Act
+        var result = await ExtractAsync(attachment);
+
+        // Assert
+        Assert.Equal(AttachmentTextExtractionOutcome.Extracted, result.Outcome);
+        Assert.Equal("Opening\nClosing", result.Text?.Text);
+    }
+
+    /// <summary>
+    /// The ordering part is read like every other part, so one nested past the depth ceiling stops the read rather than
+    /// being skipped on the way to the slides it orders.
+    /// </summary>
+    [Fact]
+    public async Task ExtractTextAsync_AnOrderingPartNestedPastTheDepthCeiling_ReportsTheContainerBound()
+    {
+        // Arrange
+        var bounds = new AttachmentTextExtractionOptions
+        {
+            MaxElementDepth = 8,
+        };
+
+        var nested = string.Concat(Enumerable.Repeat("<p:extLst>", 40)) + string.Concat(Enumerable.Repeat("</p:extLst>", 40));
+
+        await using var attachment = new FakeOpenedEmailAttachment(
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "deck.pptx",
+            DocumentFixtures.Package(
+                ("ppt/slides/slide1.xml", Slide("Opening")),
+                ("ppt/presentation.xml", $"""
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">{nested}</p:presentation>
+                    """),
+                ("ppt/_rels/presentation.xml.rels", """
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>
+                    """)));
+
+        // Act
+        var result = await ExtractAsync(attachment, bounds);
+
+        // Assert
+        Assert.Equal(AttachmentTextExtractionOutcome.ContainerBoundExceeded, result.Outcome);
+    }
+
     /// <summary>An OpenDocument text document reads back its paragraphs, and counts as one page like its Office equivalent.</summary>
     [Fact]
     public async Task ExtractTextAsync_AnOpenDocumentTextDocument_ReadsItsParagraphsAsOnePage()

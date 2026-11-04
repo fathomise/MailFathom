@@ -139,10 +139,19 @@ next section describes, and where it is off the scan yields nothing.
 run recognized. A conformance class is the only thing that differs between the two: same archive, same part names, same
 elements, and therefore the same bounds. The three OpenDocument formats have no such split and never did.
 
-The order pages are reported in has its own limit. A presentation's slides and a workbook's sheets are read in the order
-their parts are *named*, and neither format records order there — a deck or a workbook somebody reordered before sending
-therefore reads back in the order it was first built in, and the pages named as carrying no text are named by their part
-number. #1682 is where that is tracked. An OpenDocument file holds one content part in document order and is unaffected.
+Pages are reported in the order the document itself declares, which for the two Office Open XML formats is not the
+order their parts are named: moving or deleting a slide or a tab leaves every part name where it was. A presentation's
+slides are read in the order the `sldIdLst` of its `ppt/presentation.xml` lists them — a custom slide show listed beside
+it chooses which slides it shows and changes nothing here — and a workbook's sheets in the order the `<sheets>` element
+of `xl/workbook.xml` lists them, each resolved through the package's own relationship part, so a deck or a
+workbook somebody reordered before sending reads back in the order a person sees it — and the pages named as carrying no
+text are the ones a person would count to. Both parts are read under the same bounds as every other part, so crossing one
+there stops the read as it would anywhere else. An entry in that list naming a part that is not a page — a workbook's
+chart sheet, dialog sheet, or macro sheet, which sit among its tabs — is skipped, and the pages around it keep their
+declared order. A package that declares no order, whose ordering part is not readable as XML, or whose order names a
+part it does not hold, names a page twice, or leaves one out, is read in the order its parts are named instead rather
+than refused. An OpenDocument file holds one content part in document order and needs
+neither.
 
 A "page" is what the format has one of: a PDF page, a presentation slide, an OpenDocument drawing page, and a sheet of
 either spreadsheet format each count as one. A word-processing document counts as one page whatever it prints as,

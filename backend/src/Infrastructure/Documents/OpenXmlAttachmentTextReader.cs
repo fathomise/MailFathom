@@ -22,7 +22,8 @@ namespace MailFathom.Infrastructure.Documents;
 /// </para>
 /// <para>
 /// Only the parts that carry text are opened — for a word-processing document that is the body, its headers, its
-/// footers, and its two note parts; for a deck and a workbook, the numbered page parts and the string table. A macro
+/// footers, and its two note parts; for a deck and a workbook, the numbered page parts, the string table, and the part
+/// declaring the pages' order with the relationship part it resolves through. A macro
 /// project, an embedded object, an OLE package, and every other part of the package are never read, never decoded,
 /// and never handed to anything — extraction reads structure and text and evaluates nothing.
 /// </para>
@@ -61,6 +62,32 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
         StringComparer.Ordinal,
         "http://schemas.openxmlformats.org/drawingml/2006/main",
         "http://purl.oclc.org/ooxml/drawingml/main");
+
+    /// <summary>The namespaces a presentation's own part declares its slide list in, one per conformance class.</summary>
+    private static readonly FrozenSet<string> PresentationNamespaces = FrozenSet.Create(
+        StringComparer.Ordinal,
+        "http://schemas.openxmlformats.org/presentationml/2006/main",
+        "http://purl.oclc.org/ooxml/presentationml/main");
+
+    /// <summary>The namespaces a part names a relationship identifier in, one per conformance class.</summary>
+    private static readonly FrozenSet<string> RelationshipNamespaces = FrozenSet.Create(
+        StringComparer.Ordinal,
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+        "http://purl.oclc.org/ooxml/officeDocument/relationships");
+
+    /// <summary>Where a presentation declares the order its slides are shown in.</summary>
+    private static readonly PageOrderDeclaration SlideOrder = new(
+        "ppt/presentation.xml",
+        "sldIdLst",
+        "sldId",
+        PresentationNamespaces);
+
+    /// <summary>Where a workbook declares the order its tabs are in.</summary>
+    private static readonly PageOrderDeclaration SheetOrder = new(
+        "xl/workbook.xml",
+        "sheets",
+        "sheet",
+        SpreadsheetNamespaces);
 
     private const string WordDocumentPart = "word/document.xml";
     private const string SharedStringsPart = "xl/sharedStrings.xml";
@@ -174,12 +201,10 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
         .. WordNoteParts.Select(archive.GetEntry).OfType<ZipArchiveEntry>(),
     ];
 
-    /// <summary>Reads a presentation, one page per slide in the order the slide parts are named.</summary>
+    /// <summary>Reads a presentation, one page per slide in the order the deck presents them.</summary>
     /// <remarks>
-    /// Part-name order rather than the order the deck presents in. A presentation records that in <c>sldIdLst</c>,
-    /// resolved through the package's relationships, and reordering or deleting a slide leaves the part names where
-    /// they were — so a reordered deck reads back in the wrong order and the pages named as carrying no text are named
-    /// by their part number. Resolving the declared order is issue #1682.
+    /// That order is the deck's <c>sldIdLst</c>, not the slide parts' names: reordering or deleting a slide leaves the
+    /// part names where they were, so reading by name would number every page a person counts to differently.
     /// </remarks>
     private ExtractedAttachmentText ReadPresentation(
         ZipArchive archive,
@@ -188,7 +213,12 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
         EmbeddedPictureCollector pictures,
         CancellationToken cancellationToken)
     {
-        var slides = OrderedParts(archive, SlidePartPattern());
+        var slides = this.InDeclaredOrder(
+            archive,
+            OrderedParts(archive, SlidePartPattern()),
+            SlideOrder,
+            budget,
+            cancellationToken);
 
         if (slides.Count == 0)
         {
@@ -234,12 +264,11 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
         return new ExtractedAttachmentText(text.ToText(), slides.Count, slidesWithoutText, segments);
     }
 
-    /// <summary>Reads a workbook, one page per worksheet in part-name order, resolving the table each cell indexes into.</summary>
+    /// <summary>Reads a workbook, one page per worksheet in the order its tabs are in, resolving the table each cell indexes into.</summary>
     /// <remarks>
     /// <para>
-    /// The order is the part names' rather than the workbook's own, which it records in the <c>sheets</c> element of
-    /// <c>xl/workbook.xml</c>; a reordered or partly deleted workbook therefore reads back in the wrong order, and
-    /// resolving the declared one is issue #1682.
+    /// That order is the <c>sheets</c> element of <c>xl/workbook.xml</c>, not the worksheet parts' names, which stay
+    /// where they were when a tab is moved or deleted.
     /// </para>
     /// <para>
     /// The string table is resolved rather than emitted whole. Emitting it would produce every word in the workbook
@@ -254,7 +283,12 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
         CancellationToken cancellationToken)
     {
         var sharedStrings = this.ReadSharedStrings(archive, budget, cancellationToken);
-        var sheets = OrderedParts(archive, WorksheetPartPattern());
+        var sheets = this.InDeclaredOrder(
+            archive,
+            OrderedParts(archive, WorksheetPartPattern()),
+            SheetOrder,
+            budget,
+            cancellationToken);
 
         if (sheets.Count == 0)
         {
@@ -269,8 +303,8 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
             // The sheet is as far inside a workbook as a citation reaches here. A cell range would need a boundary per
             // row, which for a real workbook is tens of thousands of segments hanging off one attachment, and the
             // sheet is what sends a reader to the right place at a cost proportional to the sheets rather than to the
-            // rows. The name the workbook records for the sheet is absent for the same reason its declared order is:
-            // resolving either means following the package relationships, which is issue #1682.
+            // rows. The name the workbook records for the sheet is not recorded: it is text a sender chose, and carrying
+            // it into every citation is issue #2990.
             segments.Add(new AttachmentTextSegment(
                 AttachmentTextSegmentKind.Sheet,
                 index + 1,
@@ -356,6 +390,204 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
 
         return found;
     }
+
+    /// <summary>Puts the page parts found by name into the order the package declares for them, where it declares one.</summary>
+    /// <param name="archive">The package.</param>
+    /// <param name="named">The page parts, in part-name order.</param>
+    /// <param name="declaration">Where the format declares its pages' order.</param>
+    /// <param name="budget">What the whole container has left to inflate to.</param>
+    /// <param name="cancellationToken">Cancels the read between elements.</param>
+    /// <returns>The same parts in the declared order, or in part-name order when the package declares none worth taking.</returns>
+    /// <remarks>
+    /// <para>
+    /// An entry naming a part the package holds that is not a page — a workbook's chart sheet, dialog sheet, or macro
+    /// sheet, which sit in its sheet list beside the worksheets — is skipped, since it carries no cell text and the
+    /// pages around it keep their declared order.
+    /// </para>
+    /// <para>
+    /// The declared order is otherwise taken only when it names every page part exactly once. A package without the
+    /// ordering part or its relationship part, with either of them unreadable as XML, or whose order names a part it
+    /// does not hold, names a page twice, or leaves one out, is read in part-name order instead: no office suite writes
+    /// such a package, and refusing the attachment over its order would lose text that is still there to search. A
+    /// ceiling crossed while reading either part still stops the whole read, exactly as it does in any other part.
+    /// </para>
+    /// </remarks>
+    private List<ZipArchiveEntry> InDeclaredOrder(
+        ZipArchive archive,
+        List<ZipArchiveEntry> named,
+        PageOrderDeclaration declaration,
+        DecompressionBudget budget,
+        CancellationToken cancellationToken)
+    {
+        var separator = declaration.PartName.LastIndexOf('/') + 1;
+        var folder = declaration.PartName[..separator];
+        var orderingPart = archive.GetEntry(declaration.PartName);
+        var relationshipsPart = archive.GetEntry($"{folder}_rels/{declaration.PartName[separator..]}.rels");
+
+        if (named.Count == 0 || orderingPart is null || relationshipsPart is null)
+        {
+            return named;
+        }
+
+        List<ZipArchiveEntry>? declared;
+
+        try
+        {
+            var targets = this.RelationshipTargets(
+                archive,
+                relationshipsPart,
+                folder,
+                named,
+                budget,
+                cancellationToken);
+
+            declared = this.DeclaredPages(orderingPart, declaration, targets, named.Count, budget, cancellationToken);
+        }
+        catch (XmlException)
+        {
+            return named;
+        }
+
+        return declared is not null && declared.Count == named.Count && declared.Distinct().Count() == named.Count
+            ? declared
+            : named;
+    }
+
+    /// <summary>Reads what each relationship identifier of an ordering part names: a page part, or another part the package holds.</summary>
+    /// <returns>
+    /// Each identifier whose target the package holds, mapped to its page part, or to <see langword="null" /> where the
+    /// target is a part that is not a page. An identifier whose target the package does not hold is absent.
+    /// </returns>
+    /// <remarks>
+    /// A page's name is compared without regard to case, because the packaging convention compares part names that
+    /// way. What is held is bounded by what the relationship part may inflate to, like everything else read from it.
+    /// </remarks>
+    private Dictionary<string, ZipArchiveEntry?> RelationshipTargets(
+        ZipArchive archive,
+        ZipArchiveEntry relationshipsPart,
+        string folder,
+        List<ZipArchiveEntry> named,
+        DecompressionBudget budget,
+        CancellationToken cancellationToken)
+    {
+        var pagesByName = named
+            .DistinctBy(page => page.FullName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(page => page.FullName, StringComparer.OrdinalIgnoreCase);
+        var targets = new Dictionary<string, ZipArchiveEntry?>(StringComparer.Ordinal);
+
+        using var reader = this.parts.OpenPart(relationshipsPart, budget);
+
+        while (this.parts.ReadNode(reader, cancellationToken))
+        {
+            if (reader.NodeType != XmlNodeType.Element
+                || reader.LocalName != "Relationship"
+                || reader.GetAttribute("TargetMode") is "External"
+                || reader.GetAttribute("Id") is not { } identifier
+                || reader.GetAttribute("Target") is not { } target)
+            {
+                continue;
+            }
+
+            var partName = ResolvePartName(folder, target);
+
+            if (pagesByName.TryGetValue(partName, out var page))
+            {
+                targets.TryAdd(identifier, page);
+            }
+            else if (archive.GetEntry(partName) is not null)
+            {
+                targets.TryAdd(identifier, null);
+            }
+        }
+
+        return targets;
+    }
+
+    /// <summary>Reads the pages an ordering part's list names, in its order, resolved through its relationships.</summary>
+    /// <returns>
+    /// The pages listed, skipping an entry that names a part which is not a page, or <see langword="null" /> once an
+    /// entry names no part the package holds or the list grows past the pages there are — either of which already
+    /// means the declared order cannot be taken. An ordering part with no such list yields no pages.
+    /// </returns>
+    /// <remarks>
+    /// Only the list's own children are entries. The same element name is reused elsewhere in the part — a
+    /// presentation's custom slide shows each list <c>sldId</c> entries naming the same slides again — and counting
+    /// those would read every deck carrying a custom show as one that names its slides twice.
+    /// </remarks>
+    private List<ZipArchiveEntry>? DeclaredPages(
+        ZipArchiveEntry orderingPart,
+        PageOrderDeclaration declaration,
+        Dictionary<string, ZipArchiveEntry?> targets,
+        int pageCount,
+        DecompressionBudget budget,
+        CancellationToken cancellationToken)
+    {
+        var declared = new List<ZipArchiveEntry>();
+
+        using var reader = this.parts.OpenPart(orderingPart, budget);
+
+        if (!this.MoveIntoDeclaredList(reader, declaration, cancellationToken))
+        {
+            return declared;
+        }
+
+        var listDepth = reader.Depth;
+
+        while (this.parts.ReadNode(reader, cancellationToken)
+            && !(reader.NodeType == XmlNodeType.EndElement && reader.Depth == listDepth))
+        {
+            if (reader.NodeType != XmlNodeType.Element
+                || reader.Depth != listDepth + 1
+                || !declaration.Declares(reader, declaration.EntryElementName))
+            {
+                continue;
+            }
+
+            if (RelationshipIdentifier(reader) is not { } identifier
+                || !targets.TryGetValue(identifier, out var page))
+            {
+                return null;
+            }
+
+            if (page is null)
+            {
+                continue;
+            }
+
+            if (declared.Count == pageCount)
+            {
+                return null;
+            }
+
+            declared.Add(page);
+        }
+
+        return declared;
+    }
+
+    /// <summary>Advances a reader onto the start of the list declaring the pages' order.</summary>
+    /// <returns><see langword="true" /> when the reader stands on a list holding entries; otherwise <see langword="false" />.</returns>
+    private bool MoveIntoDeclaredList(
+        XmlReader reader,
+        PageOrderDeclaration declaration,
+        CancellationToken cancellationToken)
+    {
+        while (this.parts.ReadNode(reader, cancellationToken))
+        {
+            if (reader.NodeType == XmlNodeType.Element && declaration.Declares(reader, declaration.ListElementName))
+            {
+                return !reader.IsEmptyElement;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Reads the relationship identifier an element names, in whichever conformance class it is written.</summary>
+    private static string? RelationshipIdentifier(XmlReader reader) =>
+        RelationshipNamespaces
+            .Select(namespaceUri => reader.GetAttribute("id", namespaceUri))
+            .FirstOrDefault(identifier => identifier is not null);
 
     /// <summary>Resolves a relationship target against the folder of the part that declared it.</summary>
     private static string ResolvePartName(string folder, string target)
@@ -718,4 +950,20 @@ internal sealed partial class OpenXmlAttachmentTextReader(AttachmentTextExtracti
                 : int.MaxValue)
             .Select(candidate => candidate.entry),
     ];
+
+    /// <summary>Where a format declares the order of its pages.</summary>
+    /// <param name="PartName">The part holding the list, whose relationship part resolves each entry.</param>
+    /// <param name="ListElementName">The element whose children are the declared order.</param>
+    /// <param name="EntryElementName">The child naming one page by relationship identifier.</param>
+    /// <param name="Namespaces">The namespaces both elements are admitted in, one per conformance class.</param>
+    private sealed record PageOrderDeclaration(
+        string PartName,
+        string ListElementName,
+        string EntryElementName,
+        FrozenSet<string> Namespaces)
+    {
+        /// <summary>Tells whether the reader stands on the named element of this declaration's markup.</summary>
+        public bool Declares(XmlReader reader, string localName) =>
+            reader.LocalName == localName && this.Namespaces.Contains(reader.NamespaceURI);
+    }
 }
