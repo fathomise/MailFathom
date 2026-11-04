@@ -171,6 +171,7 @@ public interface IMailDraftStore
     /// <summary>Reads the drafts of one account that still owe the mail server something.</summary>
     /// <param name="account">The account whose drafts are read.</param>
     /// <param name="maxCount">The greatest number of drafts to answer with.</param>
+    /// <param name="localCopySettles">Whether a revision filed into the local drafts folder settles the draft, as <see cref="MailDraftRecord.HasOutstandingServerWork" /> reads it.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The drafts with outstanding work, oldest revision first, bounded by <paramref name="maxCount" />.</returns>
     /// <remarks>
@@ -180,6 +181,7 @@ public interface IMailDraftStore
     Task<IReadOnlyList<MailDraftRecord>> ReadOutstandingAsync(
         MailAccountId account,
         int maxCount,
+        bool localCopySettles,
         CancellationToken cancellationToken);
 
     /// <summary>Writes down that an append of the current revision is about to be issued, before the command goes out.</summary>

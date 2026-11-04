@@ -289,6 +289,7 @@ public sealed class OutboxDeliveryWorkerTests
             collection.AddSingleton(Substitute.For<ILocalMailFolderStore>());
             collection.AddSingleton(Substitute.For<IEmailMetadataRepository>());
             collection.AddSingleton(Substitute.For<IEmailMimeReader>());
+            collection.AddSingleton(MailboxCustodianComposition.NeverObservedCapabilities());
             collection.AddScoped<LocalMailFiler>();
             collection.AddScoped<OutgoingMailFiler>();
             collection.AddScoped<OutgoingMailFilingPass>();
@@ -297,7 +298,7 @@ public sealed class OutboxDeliveryWorkerTests
             // drafts side either. The store answers that nothing is outstanding, which is the arrangement these tests
             // are written against for the same reason the filing substitutes above are.
             var drafts = Substitute.For<IMailDraftStore>();
-            drafts.ReadOutstandingAsync(Arg.Any<MailAccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            drafts.ReadOutstandingAsync(Arg.Any<MailAccountId>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
                 .Returns([]);
             collection.AddSingleton(drafts);
             collection.AddScoped<MailDraftFiler>();

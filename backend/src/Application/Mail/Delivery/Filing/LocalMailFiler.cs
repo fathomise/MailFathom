@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Diagnostics.CodeAnalysis;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
@@ -21,20 +22,21 @@ using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Mail.Delivery.Filing;
 
-/// <summary>Files a draft or a sent copy into the local folder of an account whose mailbox MailFathom holds alone.</summary>
+/// <summary>Files a draft or a sent copy as a stored message, in the transaction that settles what it is a copy of.</summary>
 /// <remarks>
 /// <para>
-/// It is the held account's counterpart of <see cref="MailboxCopyAppender" />, and the reason it exists is the same one
-/// that makes appending wrong there: the source is drained, so a copy appended to it would be drained straight back and
-/// would make filing wait on IMAP. What is written instead is a stored message in the local folder playing the role, in
-/// the transaction that settles the draft revision or the delivery the message is a copy of — so there is no moment at
-/// which one is committed and the other is not, and nothing to resume between them.
+/// What is written is a stored message in the folder playing the role, in the transaction that settles the draft
+/// revision or the delivery the message is a copy of — so there is no moment at which one is committed and the other is
+/// not, and nothing to resume between them. On a held account that is the whole of filing, because the source is drained
+/// and a copy appended to it would be drained straight back. On an account whose source is the truth and whose server
+/// last named where it puts an appended message, it is the first half: <see cref="MailboxCopyAppender" /> appends the
+/// copy afterwards, and synchronization binds the occurrence the append created onto the message written here rather
+/// than downloading it again.
 /// </para>
 /// <para>
-/// No IMAP command is issued by anything here, and nothing here decides whether an account is held: the account's
-/// custodian decides whether a copy is prepared at all, and <see cref="FileAsync" /> asks
-/// <see cref="MailboxCustodianResolver" /> again inside the transaction and files nothing where the custodian it gets
-/// back no longer places mail in local folders.
+/// No IMAP command is issued by anything here, and nothing here decides the account's phase: the account's custodian
+/// decides whether a copy is prepared at all, and <see cref="FileAsync" /> asks <see cref="MailboxCustodianResolver" />
+/// again inside the transaction which folder the copy is placed in.
 /// </para>
 /// </remarks>
 public sealed class LocalMailFiler
@@ -48,6 +50,7 @@ public sealed class LocalMailFiler
     private readonly IMailFolderResolutionStore folderResolutions;
     private readonly IOutgoingMailFilingPolicyReader filingPolicies;
     private readonly IOutgoingMailFilingStore filings;
+    private readonly IMailboxServerCapabilityStore capabilities;
     private readonly ClientSignals signals;
     private readonly TimeProvider timeProvider;
 
@@ -61,6 +64,7 @@ public sealed class LocalMailFiler
     /// <param name="folderResolutions">Finds that folder's current binding.</param>
     /// <param name="filingPolicies">Answers whether an account files a sent copy at all.</param>
     /// <param name="filings">Records why a sent copy could not be prepared.</param>
+    /// <param name="capabilities">Says whether the account's server last named where it puts an appended message.</param>
     /// <param name="signals">Tells the account's clients what was filed, once it commits.</param>
     /// <param name="timeProvider">Supplies the instant a supplied folder's identity is minted at.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
@@ -74,6 +78,7 @@ public sealed class LocalMailFiler
         IMailFolderResolutionStore folderResolutions,
         IOutgoingMailFilingPolicyReader filingPolicies,
         IOutgoingMailFilingStore filings,
+        IMailboxServerCapabilityStore capabilities,
         ClientSignals signals,
         TimeProvider timeProvider)
     {
@@ -86,6 +91,7 @@ public sealed class LocalMailFiler
         ArgumentNullException.ThrowIfNull(folderResolutions);
         ArgumentNullException.ThrowIfNull(filingPolicies);
         ArgumentNullException.ThrowIfNull(filings);
+        ArgumentNullException.ThrowIfNull(capabilities);
         ArgumentNullException.ThrowIfNull(signals);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
@@ -98,6 +104,7 @@ public sealed class LocalMailFiler
         this.folderResolutions = folderResolutions;
         this.filingPolicies = filingPolicies;
         this.filings = filings;
+        this.capabilities = capabilities;
         this.signals = signals;
         this.timeProvider = timeProvider;
     }
@@ -211,18 +218,53 @@ public sealed class LocalMailFiler
         return null;
     }
 
+    /// <summary>Prepares a copy that is stored first and appended afterwards, where the account's server last named where it puts an appended message.</summary>
+    /// <param name="account">The account the message is filed for.</param>
+    /// <param name="filing">Which place it is filed into.</param>
+    /// <param name="rawMime">The message.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>The prepared copy, or <see langword="null" /> where the copy is appended and recognized instead, or no bound folder plays the role.</returns>
+    /// <remarks>
+    /// The server's last observed <c>UIDPLUS</c> is what decides it, because the binding that follows the append rests on
+    /// the <c>APPENDUID</c> it answers with. Without it the copy is appended and downloaded back as it always was, so a
+    /// server that would leave a stored message nothing can bind never gets one.
+    /// </remarks>
+    internal async Task<LocalMailCopy?> PrepareAheadOfAppendAsync(
+        MailAccountId account,
+        OutgoingMailFiling filing,
+        ReadOnlyMemory<byte> rawMime,
+        CancellationToken cancellationToken) =>
+        await this.NamesWhereMessagesLandAsync(account, cancellationToken)
+            ? await this.PrepareAsync(account, filing, rawMime, cancellationToken)
+            : null;
+
+    /// <summary>Prepares the sent copy of a delivered message from the payload the send stored, where it is stored first and appended afterwards.</summary>
+    /// <param name="record">The send that was accepted.</param>
+    /// <param name="cancellationToken">Stops the preparation when the host is shutting down.</param>
+    /// <returns>The prepared copy, or <see langword="null" /> where the copy is appended and recognized instead.</returns>
+    /// <remarks>Decided as <see cref="PrepareAheadOfAppendAsync" /> decides it; a failure is raised, for <see cref="PrepareSentCopyAsync" /> to record against the send.</remarks>
+    internal async Task<LocalMailCopy?> PrepareStoredSentCopyAheadOfAppendAsync(
+        OutgoingEmailRecord record,
+        CancellationToken cancellationToken) =>
+        await this.NamesWhereMessagesLandAsync(record.AccountId, cancellationToken)
+            ? await this.PrepareStoredSentCopyAsync(record, cancellationToken)
+            : null;
+
     /// <summary>Files a prepared copy into the local folder playing its role, inside the transaction it belongs to.</summary>
     /// <param name="session">The transaction that settles the draft revision or the delivery.</param>
     /// <param name="copy">The prepared copy.</param>
     /// <param name="filedFrom">The outgoing record a sent copy is filed from, or <see langword="null" /> for a draft.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
-    /// <returns>What was filed, or <see langword="null" /> where the account is no longer held or the binding the copy was prepared against is gone.</returns>
+    /// <returns>What was filed, or <see langword="null" /> where the binding the copy was prepared against is gone.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="copy" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// <para>
-    /// The protected folders are supplied where the account is missing them, for the reason an arrival supplies them. The
-    /// hierarchy is saved only then: a protected folder cannot be erased, so a filing that supplied nothing has no edit to
-    /// conflict with, and saving anyway would make every draft save conflict with every arrival.
+    /// The custodian is asked again inside the transaction, because the copy was prepared on an earlier reading of the
+    /// account. A held account's copy is placed in the local folder playing the role, and the protected folders are
+    /// supplied where the account is missing them, for the reason an arrival supplies them; the hierarchy is saved only
+    /// then, because a protected folder cannot be erased, so a filing that supplied nothing has no edit to conflict with.
+    /// Any other account's copy stays in the folder its source binding is projected into, which is where synchronization
+    /// binds the occurrence its append creates.
     /// </para>
     /// <para>
     /// Nothing here raises for a binding the drain removed after the copy was prepared: the transaction commits what the
@@ -237,8 +279,11 @@ public sealed class LocalMailFiler
     {
         ArgumentNullException.ThrowIfNull(copy);
 
-        if (!(await this.custodians.ResolveAsync(session, copy.Account, cancellationToken)).PlacesMailInLocalFolders
-            || await this.folders.ReadAsync(session, copy.Account, cancellationToken) is not { } holding)
+        var placesLocally = (await this.custodians.ResolveAsync(session, copy.Account, cancellationToken))
+            .PlacesMailInLocalFolders;
+        var holding = placesLocally ? await this.folders.ReadAsync(session, copy.Account, cancellationToken) : null;
+
+        if (placesLocally && holding is null)
         {
             return null;
         }
@@ -251,24 +296,16 @@ public sealed class LocalMailFiler
                 copy.Content.ByteLength,
                 copy.Filing.Flags,
                 filedFrom,
-                cancellationToken) is not { } email)
+                cancellationToken) is not { } stored)
         {
             return null;
         }
 
-        var found = holding.ToTree();
-        var missing = found.MissingProtectedFolders(this.MintId);
-        var folder = found.With(missing).PlaceArrival(copy.Binding.Alias, copy.Filing.Role, sourceFolderName: null, this.MintId);
+        await this.contents.SaveContentAsync(session, stored.Email, occurrenceId: null, copy.Content, cancellationToken);
 
-        if (missing.Count > 0)
-        {
-            await this.folders.SaveAsync(session, copy.Account, missing, [], cancellationToken);
-        }
-
-        await this.contents.SaveContentAsync(session, email, occurrenceId: null, copy.Content, cancellationToken);
-        await this.folders.PlaceAsync(session, copy.Account, email, folder.Folder, cancellationToken);
-
-        return new FiledLocalEmail(copy.Account, folder.Folder, email, missing.Count > 0);
+        return holding is null
+            ? new FiledLocalEmail(copy.Account, stored.Folder, stored.Email, CreatedFolders: false)
+            : await this.PlaceInLocalFolderAsync(session, copy, holding, stored.Email, cancellationToken);
     }
 
     /// <summary>Records that a prepared sent copy was not filed, because the transaction found nowhere to put it.</summary>
@@ -287,12 +324,20 @@ public sealed class LocalMailFiler
     /// <param name="email">The message.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>The folder it was in, or <see langword="null" /> where it was already gone.</returns>
-    public Task<MailFolderId?> EraseAsync(
+    /// <remarks>
+    /// Only a held account records the message's source occurrence for the drain. On any other the occurrence is the
+    /// copy this deployment appended, and the filing that replaced or gave up the message withdraws it itself.
+    /// </remarks>
+    public async Task<MailFolderId?> EraseAsync(
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId email,
-        CancellationToken cancellationToken) =>
-        this.folders.EraseEmailAsync(session, account, email, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var holds = (await this.custodians.ResolveAsync(session, account, cancellationToken)).PlacesMailInLocalFolders;
+
+        return await this.folders.EraseEmailAsync(session, account, email, recordsSourceRemoval: holds, cancellationToken);
+    }
 
     /// <summary>Tells the account's clients what a committed filing changed.</summary>
     /// <param name="filed">What was filed.</param>
@@ -331,6 +376,30 @@ public sealed class LocalMailFiler
     /// <param name="email">The message.</param>
     public void AnnounceErased(MailAccountId account, MailFolderId folder, StoredEmailId email) =>
         this.signals.Publish(ClientSignal.MailChanged(account, folder, [email]));
+
+    private async Task<bool> NamesWhereMessagesLandAsync(MailAccountId account, CancellationToken cancellationToken) =>
+        (await this.capabilities.ReadAsync(account, cancellationToken)).NamesWhereMessagesLand;
+
+    private async Task<FiledLocalEmail> PlaceInLocalFolderAsync(
+        IPersistenceSession session,
+        LocalMailCopy copy,
+        LocalMailFolderHolding holding,
+        StoredEmailId email,
+        CancellationToken cancellationToken)
+    {
+        var found = holding.ToTree();
+        var missing = found.MissingProtectedFolders(this.MintId);
+        var folder = found.With(missing).PlaceArrival(copy.Binding.Alias, copy.Filing.Role, sourceFolderName: null, this.MintId);
+
+        if (missing.Count > 0)
+        {
+            await this.folders.SaveAsync(session, copy.Account, missing, [], cancellationToken);
+        }
+
+        await this.folders.PlaceAsync(session, copy.Account, email, folder.Folder, cancellationToken);
+
+        return new FiledLocalEmail(copy.Account, folder.Folder, email, missing.Count > 0);
+    }
 
     private MailFolderId MintId() => MailFolderId.Mint(this.timeProvider.GetUtcNow());
 }

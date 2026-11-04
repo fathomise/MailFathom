@@ -7,7 +7,6 @@ using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
-using MailFathom.Domain.Delivery.Filing;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Infrastructure.Observability;
 
@@ -245,19 +244,22 @@ internal sealed partial class OutboxDeliveryWorker : BackgroundService
 
                     break;
 
-                // A sent copy withdrawn is the one ordinary ending worth a line: it is the only place this system takes
-                // a message the user can already see back out of their own folder, and an operator reading a folder
+                // A provider's copy removed is the one ordinary ending worth a line: it is the only place this system
+                // takes a message out of a person's folder that it did not put there, and an operator reading a folder
                 // that lost a message needs the act named.
-                case OutgoingMailFilingOutcome.Withdrawn
-                    when filing.Filing == OutgoingMailFiling.Sent:
-                    this.LogDuplicateSentCopyWithdrawn(accountId.Value, filing.FilingName);
+                case OutgoingMailFilingOutcome.ProviderCopyRemoved:
+                    this.LogProviderSentCopyRemoved(accountId.Value, filing.FilingName);
+
+                    break;
+
+                case OutgoingMailFilingOutcome.ProviderCopyKept:
+                    this.LogProviderSentCopyKept(accountId.Value, filing.FilingName);
 
                     break;
 
                 case OutgoingMailFilingOutcome.Filed:
                 case OutgoingMailFilingOutcome.AlreadyFiled:
                 case OutgoingMailFilingOutcome.NotRequested:
-                case OutgoingMailFilingOutcome.Withdrawn:
                     break;
 
                 default:
@@ -290,11 +292,17 @@ internal sealed partial class OutboxDeliveryWorker : BackgroundService
         Message = "A copy of a message sent for account {AccountId} could not be filed as '{Filing}' [failure {FailureCode}]. The message was delivered and is never sent again, and nothing files the copy again on its own.")]
     private partial void LogCopyNotFiled(string accountId, string filing, int? failureCode);
 
-    /// <summary>Reports the copy this deployment took back out because the provider had filed its own.</summary>
+    /// <summary>Reports the provider's copy of a send removed beside the one this deployment stored and appended.</summary>
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "The copy of a message sent for account {AccountId} filed as '{Filing}' was withdrawn, because the account's own mail server had filed a copy of the same message beside it. The provider's copy is what the folder keeps; set Delivery:WithdrawDuplicateSentCopy to false to keep both.")]
-    private partial void LogDuplicateSentCopyWithdrawn(string accountId, string filing);
+        Message = "The account's own mail server filed a second copy of a message sent for account {AccountId} as '{Filing}', and that copy was removed. The copy this deployment stored and appended is what the folder keeps; set Delivery:FileSentCopy to false to keep the server's copy instead.")]
+    private partial void LogProviderSentCopyRemoved(string accountId, string filing);
+
+    /// <summary>Reports the provider's copy of a send left in the folder because removing it was no longer safe.</summary>
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "The account's own mail server filed a second copy of a message sent for account {AccountId} as '{Filing}', and that copy was kept, because the server could not remove it while doing so was still safe. The folder holds both copies.")]
+    private partial void LogProviderSentCopyKept(string accountId, string filing);
 
     [LoggerMessage(
         Level = LogLevel.Information,

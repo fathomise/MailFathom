@@ -30,6 +30,16 @@ namespace MailFathom.Domain.Delivery.Filing;
 /// </remarks>
 public sealed record OutgoingMailFilingRecord
 {
+    /// <summary>How long after an append a second occurrence of the message is still read as the provider having filed its own.</summary>
+    /// <remarks>
+    /// It bounds a race between one append and the synchronization run that meets what the provider filed, which is
+    /// minutes on any account being synchronized at all. Past it the copy has been in the person's folder long enough to
+    /// have been read, replied from, moved, or flagged by another client, so both copies stand. It is a constant rather
+    /// than a setting because it measures how long this system waits to recognize its own copy, which is not a quantity
+    /// an operator has grounds to tune.
+    /// </remarks>
+    public static readonly TimeSpan ProviderCopyWindow = TimeSpan.FromMinutes(15);
+
     /// <summary>Gets the outgoing record this copy was filed from.</summary>
     public required OutgoingEmailId OutgoingEmailId { get; init; }
 
@@ -69,6 +79,47 @@ public sealed record OutgoingMailFilingRecord
 
     /// <summary>Gets when the copy was taken back out of the folder, or <see langword="null" /> while it stands.</summary>
     public required DateTimeOffset? WithdrawnAt { get; init; }
+
+    /// <summary>Gets where the provider filed a copy of its own beside this one, where synchronization met one it may remove.</summary>
+    /// <remarks>
+    /// It is <see cref="RemoteEmailPlacement.NotReported" /> for every filing whose provider files nothing, and for one
+    /// whose provider's copy was met where removing it is not safe — that copy is stored as a message of its own instead.
+    /// </remarks>
+    public RemoteEmailPlacement ProviderCopy { get; init; } = RemoteEmailPlacement.NotReported();
+
+    /// <summary>Gets when the provider's copy was removed or given up, or <see langword="null" /> while its removal is owed.</summary>
+    public DateTimeOffset? ProviderCopySettledAt { get; init; }
+
+    /// <summary>Gets whether the provider's copy of this send is still to be removed from the folder.</summary>
+    public bool AwaitsProviderCopyRemoval =>
+        this.ProviderCopy is { UidValidity: not null, Uid: not null } && this.ProviderCopySettledAt is null;
+
+    /// <summary>Reports whether a newly discovered occurrence is a copy the provider filed of this send, which may be removed.</summary>
+    /// <param name="discoveredFolderPath">The remote path of the folder the occurrence was discovered in.</param>
+    /// <param name="discoveredUidValidity">The UIDVALIDITY that folder reports now.</param>
+    /// <param name="discoveredUid">The UID the discovered occurrence carries.</param>
+    /// <param name="discoveredMessageId">The <c>Message-ID</c> the server reported for the discovery.</param>
+    /// <param name="discoveredAt">When synchronization met it.</param>
+    /// <returns><see langword="true" /> when every condition that makes removing a message MailFathom did not compose safe holds.</returns>
+    /// <remarks>
+    /// Three of the conditions are this row's: the append was answered, the server named the occurrence it put the copy
+    /// at, and the discovery is another occurrence of the same minted identity in the same UID space, met within
+    /// <see cref="ProviderCopyWindow" /> of the append — before another client is likely to have acted on it. What the
+    /// server advertises is the caller's to add, because it is read from the account rather than from the filing.
+    /// </remarks>
+    public bool AdmitsProviderCopyRemovalAt(
+        RemoteFolderPath discoveredFolderPath,
+        ImapUidValidity discoveredUidValidity,
+        ImapUid discoveredUid,
+        string? discoveredMessageId,
+        DateTimeOffset discoveredAt) =>
+        this.Filing == OutgoingMailFiling.Sent
+        && this.AccountsForMessageAt(discoveredFolderPath, discoveredMessageId)
+        && this.Placement is { UidValidity: { } placedUidValidity, Uid: { } placedUid }
+        && placedUidValidity == discoveredUidValidity
+        && placedUid != discoveredUid
+        && this.ProviderCopy.Uid is null
+        && discoveredAt - this.AppendedAt <= ProviderCopyWindow;
 
     /// <summary>Gets whether the append went out and the server's answer to it never came back.</summary>
     /// <remarks>

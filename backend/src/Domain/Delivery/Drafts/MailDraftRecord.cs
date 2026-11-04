@@ -148,12 +148,18 @@ public sealed record MailDraftRecord
     /// <remarks>The code is kept and the message is not, for the reason an outgoing record keeps only the code.</remarks>
     public required MailFathomErrorCode? LastFailure { get; init; }
 
-    /// <summary>Gets the stored message that shows this draft in the local drafts folder of a held account, or <see langword="null" /> where none was filed.</summary>
+    /// <summary>Gets the stored message that shows this draft in the local drafts folder, or <see langword="null" /> where none was filed.</summary>
     /// <remarks>
+    /// <para>
     /// Together with <see cref="FiledRevision" /> it is the whole account of a local copy, because a local copy needs none
     /// of what a server copy does: a new message and the erasure of the one it replaces commit together, so no append can
     /// go unanswered and no removal can be left owing. A revision that could not be filed when it was written leaves the
-    /// previous message named here, behind the revision, until a pass files the current one over it.
+    /// previous message named here, behind the revision, until a pass files the current one over it on a held account.
+    /// </para>
+    /// <para>
+    /// On a mirrored or restoring account whose server names where appended messages land, the same message is filed
+    /// before the revision is appended, and synchronization binds the appended copy onto it rather than storing another.
+    /// </para>
     /// </remarks>
     public StoredEmailId? FiledEmail { get; init; }
 
@@ -189,8 +195,12 @@ public sealed record MailDraftRecord
     /// <summary>Gets whether this draft names anybody to send it to.</summary>
     public bool IsAddressed => this.Recipients.Count > 0;
 
-    /// <summary>Gets what the draft owes the mail server.</summary>
-    public MailDraftStage Stage => this.ReadStage();
+    /// <summary>Gets where the draft stands, as the person who wrote it reads it.</summary>
+    /// <remarks>
+    /// A revision filed into the local drafts folder reads as filed on every account, because that folder is where the
+    /// person finds it. What a mirrored account still owes its server for it is <see cref="HasOutstandingServerWork" />'s.
+    /// </remarks>
+    public MailDraftStage Stage => this.ReadStage(localCopySettles: true);
 
     /// <summary>Gets whether a promotion of this draft has yet to give the draft up.</summary>
     /// <remarks>
@@ -202,15 +212,20 @@ public sealed record MailDraftRecord
     /// </remarks>
     public bool AwaitsPromotionGiveUp => this.PromotedTo is not null && !this.IsDiscarded;
 
-    /// <summary>Gets whether an attempt against the mail server would do anything for this draft.</summary>
+    /// <summary>Reports whether an attempt against the mail server would do anything for this draft.</summary>
+    /// <param name="localCopySettles">
+    /// Whether a revision filed into the local drafts folder settles the draft, which it does only on a held account. On
+    /// any other the local message is the revision shown before the server has it, and the revision is still appended.
+    /// </param>
+    /// <returns><see langword="true" /> when a pass has something to do for this draft.</returns>
     /// <remarks>
     /// It is what a pass filters on, so an account whose drafts are all settled costs one bounded read rather than a
     /// session per draft. A draft whose append was never answered is deliberately not outstanding: nothing appends it
     /// again, and nothing can remove what nobody can name. A promoted draft is outstanding whatever its copies say,
     /// because what it is waiting for is its own delivery rather than a folder.
     /// </remarks>
-    public bool HasOutstandingServerWork => this.AwaitsPromotionGiveUp
-        || this.Stage
+    public bool HasOutstandingServerWork(bool localCopySettles) => this.AwaitsPromotionGiveUp
+        || this.ReadStage(localCopySettles)
         is MailDraftStage.Composed
         or MailDraftStage.Discarded
         or MailDraftStage.ReplacementAppendPending
@@ -230,14 +245,14 @@ public sealed record MailDraftRecord
     /// belong to a source the account no longer writes to; one whose local message is behind its revision reads from the
     /// copies like any other, which on a held account is the composed stage a pass files it from.
     /// </remarks>
-    private MailDraftStage ReadStage()
+    private MailDraftStage ReadStage(bool localCopySettles)
     {
         if (this.IsDiscarded)
         {
             return MailDraftStage.Discarded;
         }
 
-        if (this.FiledEmail is not null && this.FiledRevision == this.Revision)
+        if (localCopySettles && this.FiledEmail is not null && this.FiledRevision == this.Revision)
         {
             return MailDraftStage.Filed;
         }

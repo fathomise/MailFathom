@@ -311,6 +311,35 @@ public interface IMailboxWriteSession : IAsyncDisposable
         ImapUid uid,
         CancellationToken cancellationToken);
 
+    /// <summary>Removes the copy a provider filed of a message this deployment sent, beside the copy this deployment appended.</summary>
+    /// <param name="uidValidity">The UIDVALIDITY the provider's copy was met in, which must still be the folder's.</param>
+    /// <param name="uid">The UID synchronization met the provider's copy at.</param>
+    /// <param name="internetMessageId">The <c>Message-ID</c> this deployment minted for the send, which the copy must still carry.</param>
+    /// <param name="cancellationToken">Cancels the removal.</param>
+    /// <returns><see langword="true" /> when the folder no longer holds the copy; <see langword="false" /> when the UID names a message carrying another identity, so nothing was removed.</returns>
+    /// <exception cref="MailboxMutationUnsupportedException">Thrown when the server advertises no <c>UIDPLUS</c>, so no message-scoped expunge exists.</exception>
+    /// <exception cref="MailboxUnavailableException">Thrown when the mail server did not serve the removal within its configured resilience budget.</exception>
+    /// <exception cref="MailboxFolderRecreatedException">Thrown when the folder no longer reports the UIDVALIDITY the copy was met in.</exception>
+    /// <remarks>
+    /// <para>
+    /// It is the one removal of a message MailFathom did not compose, and ADR 0007 admits it on the bounds ADR 0039 sets:
+    /// the provider's copy is a second occurrence of a send this deployment minted the identity of, met beside this
+    /// deployment's own appended copy shortly after the append. The UID is the one synchronization met it at, and the
+    /// message there is read back and its <c>Message-ID</c> compared before anything is flagged, so a UID that came to
+    /// name another message is refused rather than expunged.
+    /// </para>
+    /// <para>
+    /// Exactly the commands <see cref="WithdrawAppendedAsync" /> issues follow: <c>UID STORE +FLAGS (\Deleted)</c> and
+    /// <c>UID EXPUNGE</c> naming that UID alone, and never a bare <c>EXPUNGE</c>. A copy the folder no longer holds is not
+    /// an error.
+    /// </para>
+    /// </remarks>
+    Task<bool> RemoveProviderSentCopyAsync(
+        ImapUidValidity uidValidity,
+        ImapUid uid,
+        string internetMessageId,
+        CancellationToken cancellationToken);
+
     /// <summary>Puts a held message back into this session's folder when the account's custody returns to mirroring.</summary>
     /// <param name="rawMime">The stored RFC 822 bytes to append, which are the bytes the source delivered when it was first stored.</param>
     /// <param name="state">The flags and keywords MailFathom holds for the message, which the copy carries onto the source.</param>

@@ -124,12 +124,11 @@ public sealed class MailOutboxPass
 
         var markedUnknownCount = await this.outgoingEmails.MarkUnknownOutcomesAsync(account, stoppingToken);
 
-        // On the outbox pass rather than in the synchronization run that discovers the duplicate, because taking a copy
-        // out of a folder is a write and no read path may obtain the session that makes one. It sits behind the
-        // delivery policy for the reason the claim does: only an account that sends has a copy of its own in a sent
-        // folder, so an account that merely reads mail spends no query on a duplicate it cannot have.
+        // On the outbox pass rather than in the synchronization run that met the provider's copy, because removing a
+        // message is a write and no read path may obtain the session that makes one. It sits behind the delivery
+        // policy for the reason the claim does: only an account that sends has a provider copy of its own send to remove.
         var filingResults = new List<OutgoingMailFilingResult>(
-            await this.filings.WithdrawDuplicatedSentCopiesAsync(account, stoppingToken));
+            await this.filings.RemoveProviderSentCopiesAsync(account, stoppingToken));
 
         var claimed = await this.outgoingEmails.ClaimAsync(
             OutgoingEmailClaimRequest.Create(account, this.settings.MaxDeliveriesPerPass, this.settings.LeaseDuration),

@@ -274,6 +274,81 @@ public sealed class MailDraftBookTests
     }
 
     /// <summary>
+    /// A mirrored account whose server names where an appended message lands stores the revision in the save itself, so
+    /// it is shown at once, and then appends it as any mirrored draft is appended.
+    /// </summary>
+    [Fact]
+    public async Task SaveAsync_NewDraftOnAMirroredAccountWhoseServerNamesWhereAppendsLand_StoresItThenAppendsIt()
+    {
+        // Arrange
+        var harness = Harness();
+        harness.MapDraftsFolder(Account);
+        var mirrored = MirrorStoringFirst(harness);
+
+        // Act
+        var draft = await SaveAsync(harness, "first version");
+
+        // Assert
+        var stored = Assert.Single(mirrored.Stored);
+        Assert.Equal(stored.Email, draft.FiledEmail);
+        Assert.Equal(AppendedMailFlags.Draft, stored.Flags);
+        Assert.Empty(mirrored.Folders.Placements);
+        Assert.Equal(1, harness.AppendCount);
+        Assert.NotNull(draft.CurrentCopy);
+    }
+
+    /// <summary>
+    /// Revising it stores the new revision over the stored message in the save, then appends it and withdraws the copy
+    /// it replaced — and the replaced message's own occurrence is never left for a drain, since the withdrawal is its.
+    /// </summary>
+    [Fact]
+    public async Task SaveAsync_RevisionOnAMirroredAccountWhoseServerNamesWhereAppendsLand_ReplacesTheStoredMessageAndTheCopy()
+    {
+        // Arrange
+        var harness = Harness();
+        harness.MapDraftsFolder(Account);
+        var mirrored = MirrorStoringFirst(harness);
+        var draft = await SaveAsync(harness, "first version");
+
+        // Act
+        var revised = await harness.Book.SaveAsync(
+            Account,
+            SyntheticUser.Deployment,
+            OutgoingEmailRequester.Command("mfctl-4f2a"),
+            Composed("second version"),
+            OutgoingReceiptRequests.None,
+            draft.Id,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(2, mirrored.Stored.Count);
+        Assert.Equal(mirrored.Stored[1].Email, revised.FiledEmail);
+        Assert.Equal([(mirrored.Stored[0].Email, false)], mirrored.Folders.EraseRequests);
+        Assert.Equal(2, harness.AppendCount);
+        Assert.Single(harness.Withdrawn);
+    }
+
+    /// <summary>Giving such a draft up withdraws its copy and erases the stored message with the record, leaving nothing for a drain.</summary>
+    [Fact]
+    public async Task DiscardAsync_DraftOnAMirroredAccountStoredBeforeItsAppend_WithdrawsTheCopyAndErasesTheStoredMessage()
+    {
+        // Arrange
+        var harness = Harness();
+        harness.MapDraftsFolder(Account);
+        var mirrored = MirrorStoringFirst(harness);
+        var draft = await SaveAsync(harness, "first version");
+
+        // Act
+        var result = await harness.Book.DiscardAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(MailDraftFilingOutcome.Discarded, result.Outcome);
+        Assert.Single(harness.Withdrawn);
+        Assert.Equal([(mirrored.Stored[0].Email, false)], mirrored.Folders.EraseRequests);
+        Assert.Empty(harness.Drafts.Drafts);
+    }
+
+    /// <summary>
     /// A draft this system did not write is unreachable from here: nothing is held under an identifier it never
     /// minted, so the refusal comes before any folder is opened and no message in the mailbox is touched.
     /// </summary>
@@ -791,6 +866,17 @@ public sealed class MailDraftBookTests
         new FakeTimeProvider(Moment),
         outgoingEmails,
         Settings());
+
+    /// <summary>Makes the harness's account a mirrored one whose server was last observed advertising <c>UIDPLUS</c>, which stores a revision before appending it.</summary>
+    private static HeldLocalMailbox MirrorStoringFirst(MailDraftHarness harness)
+    {
+        var mailbox = harness.HoldAccount(Account);
+        mailbox.Folders.Phase = MailAccountCustodyPhase.Mirrored;
+        mailbox.ServerCapabilities = MailboxServerCapabilityObservation.Observed(MailboxServerCapabilities.UidPlus, Moment);
+        harness.BeginNewScope();
+
+        return mailbox;
+    }
 
     private static MailOutboxSettings Settings() => MailOutboxSettings.Create(
         maxDeliveriesPerPass: 10,

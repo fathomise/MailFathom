@@ -38,11 +38,14 @@ public enum OutgoingMailFilingOutcome
     /// <summary>The attempt failed before anything reached the folder, and may be attempted again on its own.</summary>
     Failed = 5,
 
-    /// <summary>The copy has been taken back out of the folder, or was already gone from it.</summary>
+    /// <summary>The copy the provider filed of the send beside this deployment's own has been removed, or was already gone.</summary>
     /// <remarks>
     /// It is its own member rather than <see cref="Filed" /> read backwards, because both endings are counted: a
-    /// dashboard reading how many copies this deployment put into somebody's mailbox must not have withdrawals added
-    /// into that number.
+    /// dashboard reading how many copies this deployment put into somebody's mailbox must not have removals added into
+    /// that number.
     /// </remarks>
-    Withdrawn = 6,
+    ProviderCopyRemoved = 6,
+
+    /// <summary>The copy the provider filed of the send was left in the folder, because removing it was no longer safe.</summary>
+    ProviderCopyKept = 7,
 }

@@ -27,4 +27,11 @@ public enum MailboxServerCapabilities
 
     /// <summary>RFC 9051 <c>IMAP4rev2</c>, which folds <c>UIDPLUS</c> into the base protocol.</summary>
     Imap4Rev2 = 2,
+
+    /// <summary>Gmail's <c>X-GM-EXT-1</c>: the server's folders are labels over one store of messages.</summary>
+    /// <remarks>
+    /// An expunge in a folder there takes a label off a message rather than removing it, so MailFathom removes nothing it
+    /// did not compose from such a server.
+    /// </remarks>
+    FoldersAreLabels = 4,
 }

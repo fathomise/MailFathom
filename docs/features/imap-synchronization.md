@@ -1321,6 +1321,17 @@ already [filed locally](mail-delivery.md#the-copy-in-the-accounts-own-folders). 
 carries the occurrence onto that copy in its own transaction and moves on, fetching no payload and writing no second
 row.
 
+A mirrored or restoring account's folders playing the sent and the drafts roles bind the same way, before anything is
+fetched, the copies MailFathom [stored before appending them](mail-delivery.md#the-copy-in-the-accounts-own-folders):
+an occurrence the filing's `APPENDUID` named — or that carries the minted `Message-ID` where none was named — is
+carried onto the stored sent copy or draft revision and the filing recorded as met, and nothing is announced, because
+the row was announced when it was stored. In the sent folder, another occurrence of the same send at a UID the
+filing's placement does not name is the provider's copy. Where removing it is safe — met within fifteen minutes of the
+append, on a server the account last observed advertising `UIDPLUS` and not keeping its folders as labels — the run
+records it on the filing for the outbox pass to remove and stores no row for it; otherwise it is stored as a second
+row of the send. A send whose append never answered leaves the provider's copy the only one on the server, and the
+run binds it onto the stored copy instead.
+
 ## Session resilience
 
 Two dependency classes cover an IMAP session, and each one is resolved for the account it belongs to, so one

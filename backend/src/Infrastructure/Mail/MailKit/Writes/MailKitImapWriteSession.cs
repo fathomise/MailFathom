@@ -57,6 +57,7 @@ internal sealed class MailKitImapWriteSession : IMailboxWriteSession
     private const string UidPlusCapabilityName = "UIDPLUS extension (RFC 4315)";
     private const string FileOperationName = "file-outgoing-copy";
     private const string WithdrawOperationName = "withdraw-outgoing-copy";
+    private const string RemoveProviderCopyOperationName = "remove-provider-sent-copy";
     private const string DrainOperationName = "drain-held-mailbox";
     private const string RestoreOperationName = "restore-held-mailbox";
     private const string PermanentKeywordsCapabilityName = "persistent keywords (RFC 9051 PERMANENTFLAGS)";
@@ -466,45 +467,115 @@ internal sealed class MailKitImapWriteSession : IMailboxWriteSession
         await this.lease.Connection.ExecuteMutationAsync(
             async (client, openFolder, attemptToken) =>
             {
-                // The folder is compared as it is selected right now rather than as it was when the copy was appended,
-                // so a folder recreated in between has nothing removed from it: every UID in it names a different
-                // message than the one this withdrawal was recorded against.
-                if (openFolder.UidValidity != uidValidity.Value)
-                {
-                    throw new MailboxFolderRecreatedException(
-                        this.SessionAccountId,
-                        this.folder.Alias,
-                        uidValidity,
-                        ImapUidValidity.Create(openFolder.UidValidity));
-                }
-
                 // Named as the withdrawal it is rather than as a delete: the copy being removed is one MailFathom
                 // filed, which the mutation boundary deliberately holds outside the closed set, so a refusal reported
                 // as a delete would name a mutation nobody asked for.
-                RequireCapability(
-                    client,
-                    ImapCapabilities.UidPlus,
-                    WithdrawOperationName,
-                    UidPlusCapabilityName,
-                    this.SessionAccountId,
-                    this.folder.Alias);
+                this.RequireUidScopedExpunge(client, openFolder, uidValidity, WithdrawOperationName);
 
-                UniqueId[] targetUid = [new UniqueId(uid.Value)];
-
-                scope.CommandIssued("UID STORE +FLAGS (\\Deleted)");
-                await openFolder.StoreAsync(
-                    targetUid,
-                    new StoreFlagsRequest(StoreAction.Add, MessageFlags.Deleted) { Silent = true },
-                    attemptToken);
-
-                scope.CommandIssued("UID EXPUNGE");
-                await openFolder.ExpungeAsync(targetUid, attemptToken);
+                await ExpungeOneAsync(openFolder, new UniqueId(uid.Value), scope, attemptToken);
 
                 return true;
             },
             cancellationToken);
 
         scope.Completed();
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> RemoveProviderSentCopyAsync(
+        ImapUidValidity uidValidity,
+        ImapUid uid,
+        string internetMessageId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(internetMessageId);
+
+        using var scope = this.telemetry.BeginFiling(
+            RemoveProviderCopyOperationName,
+            this.SessionAccountId,
+            this.folder.Alias,
+            cancellationToken);
+
+        var removed = await this.lease.Connection.ExecuteMutationAsync(
+            async (client, openFolder, attemptToken) =>
+            {
+                this.RequireUidScopedExpunge(client, openFolder, uidValidity, RemoveProviderCopyOperationName);
+
+                var target = new UniqueId(uid.Value);
+
+                scope.CommandIssued("UID FETCH (ENVELOPE)");
+                var held = await openFolder.FetchAsync([target], MessageSummaryItems.Envelope, attemptToken);
+
+                if (held.Count == 0)
+                {
+                    return true;
+                }
+
+                // Compared as the identity a discovery reads it, so the copy synchronization met is the copy removed:
+                // a UID that came to name anything else is refused before a flag is set.
+                if (!string.Equals(held[0].Envelope?.MessageId, internetMessageId, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                await ExpungeOneAsync(openFolder, target, scope, attemptToken);
+
+                return true;
+            },
+            cancellationToken);
+
+        scope.Completed();
+
+        return removed;
+    }
+
+    /// <summary>Flags one message deleted and expunges that UID alone.</summary>
+    private static async Task ExpungeOneAsync(
+        IMailFolder openFolder,
+        UniqueId target,
+        MailboxMutationScope scope,
+        CancellationToken cancellationToken)
+    {
+        UniqueId[] targetUid = [target];
+
+        scope.CommandIssued("UID STORE +FLAGS (\\Deleted)");
+        await openFolder.StoreAsync(
+            targetUid,
+            new StoreFlagsRequest(StoreAction.Add, MessageFlags.Deleted) { Silent = true },
+            cancellationToken);
+
+        scope.CommandIssued("UID EXPUNGE");
+        await openFolder.ExpungeAsync(targetUid, cancellationToken);
+    }
+
+    /// <summary>Refuses a folder recreated since the UID was learned, and a server with no message-scoped expunge.</summary>
+    /// <remarks>
+    /// The folder is compared as it is selected right now, so a folder recreated in between has nothing removed from it:
+    /// every UID in it names a different message than the one the removal was recorded against. A bare <c>EXPUNGE</c> is
+    /// never the fallback, because removing every message anybody flagged <c>\Deleted</c> is not a side effect this may have.
+    /// </remarks>
+    private void RequireUidScopedExpunge(
+        IImapClient client,
+        IMailFolder openFolder,
+        ImapUidValidity uidValidity,
+        string operationName)
+    {
+        if (openFolder.UidValidity != uidValidity.Value)
+        {
+            throw new MailboxFolderRecreatedException(
+                this.SessionAccountId,
+                this.folder.Alias,
+                uidValidity,
+                ImapUidValidity.Create(openFolder.UidValidity));
+        }
+
+        RequireCapability(
+            client,
+            ImapCapabilities.UidPlus,
+            operationName,
+            UidPlusCapabilityName,
+            this.SessionAccountId,
+            this.folder.Alias);
     }
 
     /// <inheritdoc />

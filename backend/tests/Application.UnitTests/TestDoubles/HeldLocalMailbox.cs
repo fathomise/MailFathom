@@ -70,13 +70,13 @@ internal sealed class HeldLocalMailbox
             {
                 if (this.BindingGoneAtFiling)
                 {
-                    return (StoredEmailId?)null;
+                    return (StoredFiledEmail?)null;
                 }
 
                 var stored = StoredEmailId.Create(Guid.CreateVersion7(this.clock.GetUtcNow()));
                 this.Stored.Add((stored, call.ArgAt<AppendedMailFlags>(5), call.ArgAt<OutgoingEmailId?>(6)));
 
-                return stored;
+                return new StoredFiledEmail(stored, MailFolderId.Mint(this.clock.GetUtcNow()));
             });
     }
 
@@ -99,6 +99,9 @@ internal sealed class HeldLocalMailbox
 
     /// <summary>Gets or sets whether the binding a copy was prepared against is gone by the time it is filed, which is a folder the drain removed in between.</summary>
     internal bool BindingGoneAtFiling { get; set; }
+
+    /// <summary>Gets or sets what the account's server last advertised, which decides whether a mirrored or restoring account files a copy before appending it.</summary>
+    internal MailboxServerCapabilityObservation ServerCapabilities { get; set; } = MailboxServerCapabilityObservation.NeverObserved;
 
     /// <summary>Gets or sets the publisher a filing announces through, which reaches nobody unless a test registers a channel.</summary>
     internal ClientSignals Publisher { get; set; } = ClientSignalPublishers.ReachingNobody;
@@ -155,6 +158,7 @@ internal sealed class HeldLocalMailbox
         this.folderResolutions,
         this.filingPolicies,
         this.Filings,
+        MailboxCustodianComposition.CapabilitiesObserved(this.ServerCapabilities),
         this.Publisher,
         this.clock);
 }

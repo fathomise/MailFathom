@@ -377,6 +377,7 @@ public sealed class InMemoryMailDraftStoreTests
         var outstanding = await store.ReadOutstandingAsync(
             Account,
             maxCount: 10,
+            localCopySettles: false,
             TestContext.Current.CancellationToken);
 
         // Assert

@@ -6,6 +6,8 @@ using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Synchronization.Sessions;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Filing;
 using MailFathom.Domain.Emails;
@@ -51,7 +53,7 @@ public sealed class OutgoingMailFiler
 
     /// <summary>Initializes the filer from the append it files through and the record it writes the copy onto.</summary>
     /// <param name="appends">Puts the copy into the folder the filing names, in the order that keeps it one copy.</param>
-    /// <param name="writeSessions">Opens the one session able to change a mailbox, which a withdrawal needs of its own.</param>
+    /// <param name="writeSessions">Opens the one session able to change a mailbox, which removing a provider's copy needs of its own.</param>
     /// <param name="destinations">Turns the role a filing names into the folder of this account it means.</param>
     /// <param name="filings">Keeps the durable account of every copy that has been filed.</param>
     /// <param name="transportSecurityPolicies">Supplies the connection and authentication policy the commands obey.</param>
@@ -147,87 +149,94 @@ public sealed class OutgoingMailFiler
         }
     }
 
-    /// <summary>Takes a copy back out of the folder it was filed into.</summary>
-    /// <param name="record">The outgoing record the copy was filed from, read with its existing filings.</param>
-    /// <param name="filing">Which place the copy was in.</param>
-    /// <param name="cancellationToken">Cancels the withdrawal and the write that records it.</param>
+    /// <summary>Removes the copy a provider filed of a send beside the copy this deployment appended.</summary>
+    /// <param name="account">The account the send belongs to.</param>
+    /// <param name="filing">The filing whose provider copy synchronization recorded.</param>
+    /// <param name="cancellationToken">Cancels the removal.</param>
     /// <returns>What the attempt did.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="record" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="filing" /> is the unspecified struct default.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="filing" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// <para>
-    /// A copy the server never named cannot be reached, because nothing identifies it: the alternative would be
-    /// searching the folder for something that looks like the message, which is a guess about identity rather than a
-    /// fact. Such a row is marked withdrawn all the same, so nothing tries forever — what is left behind is one copy of
-    /// the user's own message in a folder they mapped, which they delete with the gesture they would have used anyway.
+    /// A removal that ends in a refusal the server will repeat — the folder renumbered, no <c>UIDPLUS</c>, the UID
+    /// naming another message, the role resolving to another folder — settles the row with the provider's copy kept, so
+    /// nothing asks again. Every other failure leaves the row as it was, for the next pass to try within the window the
+    /// caller bounds it by.
     /// </para>
     /// <para>
-    /// A folder that no longer holds the copy is not a failure. The user deleting it themselves is the ordinary case,
-    /// and what the withdrawal asked for is already true.
-    /// </para>
-    /// <para>
-    /// An append whose answer never came back is the one thing this does not settle, for the reason nothing appends it
-    /// again: nobody knows whether the copy is in the folder, and recording it withdrawn would be MailFathom stating
-    /// that it is not. The row stays where the issued write left it and the outcome says so, which is the same answer
-    /// filing gives about the same row — the ambiguity is what an operator has to see, and it is visible only while
-    /// something still reports it.
+    /// A copy the folder no longer holds is removed as far as anybody can tell, because the user deleting it themselves
+    /// is the ordinary case and what the removal asked for is already true.
     /// </para>
     /// </remarks>
-    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "A copy that could not be withdrawn is one message left in a folder the operator mapped; raising would end the pass that was settling the send it belongs to, over a failure that says nothing about the send.")]
-    public async Task<OutgoingMailFilingResult> WithdrawAsync(
-        OutgoingEmailRecord record,
-        OutgoingMailFiling filing,
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "A provider copy that could not be removed is one message left beside the person's own sent copy; raising would end the pass that was settling the other sends beside it.")]
+    public async Task<OutgoingMailFilingResult> RemoveProviderCopyAsync(
+        MailAccountId account,
+        OutgoingMailFilingRecord filing,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(record);
-        RequireSpecified(filing);
+        ArgumentNullException.ThrowIfNull(filing);
 
-        if (record.FindFiling(filing) is not { IsStanding: true } standing)
+        if (filing is not
+            {
+                AwaitsProviderCopyRemoval: true,
+                ProviderCopy: { UidValidity: { } uidValidity, Uid: { } uid },
+                InternetMessageId: { } internetMessageId,
+            })
         {
-            return Result(record, filing, OutgoingMailFilingOutcome.NotRequested, failure: null);
-        }
-
-        if (standing.HasUnknownOutcome)
-        {
-            return Result(record, filing, OutgoingMailFilingOutcome.OutcomeUnknown, failure: null);
+            return new(filing.OutgoingEmailId, filing.Filing, OutgoingMailFilingOutcome.NotRequested, Failure: null);
         }
 
         try
         {
-            if (standing is
-                {
-                    Stage: OutgoingMailFilingStage.Confirmed,
-                    Placement: { UidValidity: { } uidValidity, Uid: { } uid },
-                })
-            {
-                await this.WithdrawFromServerAsync(record, standing, uidValidity, uid, cancellationToken);
-            }
+            var removed = await this.RemoveFromServerAsync(
+                account,
+                filing,
+                uidValidity,
+                uid,
+                internetMessageId,
+                cancellationToken);
 
-            await this.commitPolicy.CommitAsync(
-                (session, token) => this.filings.RecordWithdrawnAsync(
-                    session,
-                    record.Id,
-                    filing,
-                    this.timeProvider.GetUtcNow(),
-                    token),
-                CancellationToken.None);
-
-            return Result(record, filing, OutgoingMailFilingOutcome.Withdrawn, failure: null);
+            return await this.SettleProviderCopyAsync(
+                filing,
+                removed ? OutgoingMailFilingOutcome.ProviderCopyRemoved : OutgoingMailFilingOutcome.ProviderCopyKept);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Raised for the reason it is in the filing above: the copy is still standing and still withdrawable, so
-            // the next pass asks again rather than a shutdown being written onto the record as a failure.
             throw;
+        }
+        catch (Exception refusal) when (refusal is MailboxFolderRecreatedException or MailboxMutationUnsupportedException)
+        {
+            return await this.SettleProviderCopyAsync(filing, OutgoingMailFilingOutcome.ProviderCopyKept);
         }
         catch (Exception failure)
         {
-            return await this.RecordFailureAsync(
-                record,
-                filing,
-                MailboxCopyAppender.FailureCodeOf(failure),
-                OutgoingMailFilingOutcome.Failed);
+            return new(
+                filing.OutgoingEmailId,
+                filing.Filing,
+                OutgoingMailFilingOutcome.Failed,
+                MailboxCopyAppender.FailureCodeOf(failure));
         }
+    }
+
+    /// <summary>Settles a provider copy nothing will try to remove again, which is not a removal whatever happened to it.</summary>
+    /// <param name="filing">The filing whose provider copy is settled.</param>
+    /// <returns>What became of the copy, once the row is settled.</returns>
+    public Task<OutgoingMailFilingResult> SettleProviderCopyKeptAsync(OutgoingMailFilingRecord filing) =>
+        this.SettleProviderCopyAsync(filing, OutgoingMailFilingOutcome.ProviderCopyKept);
+
+    private async Task<OutgoingMailFilingResult> SettleProviderCopyAsync(
+        OutgoingMailFilingRecord filing,
+        OutgoingMailFilingOutcome outcome)
+    {
+        await this.commitPolicy.CommitAsync(
+            (session, token) => this.filings.RecordProviderCopySettledAsync(
+                session,
+                filing.OutgoingEmailId,
+                filing.Filing,
+                this.timeProvider.GetUtcNow(),
+                token),
+            CancellationToken.None);
+
+        return new(filing.OutgoingEmailId, filing.Filing, outcome, Failure: null);
     }
 
     private static void RequireSpecified(OutgoingMailFiling filing)
@@ -302,48 +311,38 @@ public sealed class OutgoingMailFiler
         return await this.RecordFailureAsync(record, filing, failure, FilingOutcomeOf(appended.Outcome));
     }
 
-    private async Task<MailboxDestinationResolution> ResolveDestinationAsync(
-        OutgoingEmailRecord record,
-        OutgoingMailFiling filing,
-        CancellationToken cancellationToken)
-    {
-        var reference = MailFolderReference.ToRole(filing.Role);
-
-        var resolved = await this.destinations.ResolveAsync(record.AccountId, [reference], cancellationToken);
-
-        return resolved.Find(reference);
-    }
-
-    /// <summary>Issues the withdrawal against the folder the copy is in, as that folder currently resolves.</summary>
+    /// <summary>Issues the removal against the folder the provider's copy is in, as that folder currently resolves.</summary>
+    /// <returns><see langword="true" /> when the folder no longer holds the copy; <see langword="false" /> when nothing was removed.</returns>
     /// <remarks>
     /// The destination is resolved again rather than opened from the recorded path, because the path is where the folder
-    /// was when the copy was appended and an alias that has since been repointed names another folder. The recorded
-    /// UIDVALIDITY is what the session then refuses on, so a folder recreated in between has nothing removed from it.
+    /// was when the copy was appended and an alias that has since been repointed names another folder: a role resolving
+    /// elsewhere removes nothing. The recorded UIDVALIDITY is what the session then refuses on, so a folder recreated in
+    /// between has nothing removed from it either.
     /// </remarks>
-    private async Task WithdrawFromServerAsync(
-        OutgoingEmailRecord record,
-        OutgoingMailFilingRecord standing,
+    private async Task<bool> RemoveFromServerAsync(
+        MailAccountId account,
+        OutgoingMailFilingRecord filing,
         ImapUidValidity uidValidity,
         ImapUid uid,
+        string internetMessageId,
         CancellationToken cancellationToken)
     {
-        var resolution = await this.ResolveDestinationAsync(record, standing.Filing, cancellationToken);
+        var reference = MailFolderReference.ToRole(filing.Filing.Role);
+        var resolution = (await this.destinations.ResolveAsync(account, [reference], cancellationToken)).Find(reference);
 
         if (resolution.Destination is not { } destination
-            || !destination.Path.NamesSameFolderAs(standing.FolderPath))
+            || !destination.Path.NamesSameFolderAs(filing.FolderPath))
         {
-            return;
+            return false;
         }
 
-        var transportSecurityPolicy = this.transportSecurityPolicies.GetPolicy(record.AccountId);
-
         await using var session = await this.writeSessions.OpenForWritingAsync(
-            record.AccountId,
+            account,
             destination.Binding,
-            transportSecurityPolicy,
+            this.transportSecurityPolicies.GetPolicy(account),
             cancellationToken);
 
-        await session.WithdrawAppendedAsync(uidValidity, uid, cancellationToken);
+        return await session.RemoveProviderSentCopyAsync(uidValidity, uid, internetMessageId, cancellationToken);
     }
 
     /// <summary>Writes the reason a copy is not where it should be onto the record, without touching its delivery.</summary>

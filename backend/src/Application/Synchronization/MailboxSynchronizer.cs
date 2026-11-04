@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
@@ -59,6 +60,7 @@ public sealed class MailboxSynchronizer
     private readonly MailContactCollector contactCollection;
     private readonly ReceiptArrivals receiptArrivals;
     private readonly LocalMailFolderArrivals localFolderArrivals;
+    private readonly IMailboxServerCapabilityStore serverCapabilities;
     private readonly OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy;
     private readonly TimeProvider timeProvider;
     private readonly MailboxSynchronizationOptions options;
@@ -94,6 +96,7 @@ public sealed class MailboxSynchronizer
         MailContactCollector contactCollection,
         ReceiptArrivals receiptArrivals,
         LocalMailFolderArrivals localFolderArrivals,
+        IMailboxServerCapabilityStore serverCapabilities,
         OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy,
         TimeProvider timeProvider,
         MailboxSynchronizationOptions options)
@@ -124,6 +127,7 @@ public sealed class MailboxSynchronizer
         this.contactCollection = contactCollection;
         this.receiptArrivals = receiptArrivals;
         this.localFolderArrivals = localFolderArrivals;
+        this.serverCapabilities = serverCapabilities;
         this.concurrencyRetryPolicy = concurrencyRetryPolicy;
         this.timeProvider = timeProvider;
         this.options = options;
@@ -247,11 +251,7 @@ public sealed class MailboxSynchronizer
         var collection = this.contactCollection.OpenRun(account, folderRole);
         var arrivalSource = new LocalMailFolderArrivalSource(folder.Alias, folderRole, folder.RemotePath.ToHierarchyLevels()[^1]);
 
-        // A held account files its own sent copy locally, so the copy a provider files of the same send is recognized in
-        // the source's sent folder rather than drained in as a second message. The phase is read once per run and only
-        // for that folder, which leaves every other folder's run exactly what it was.
-        var recognizesFiledSentCopies = folderRole == MailFolderSpecialUse.Sent
-            && await this.localFolderArrivals.HoldsAsync(account, cancellationToken);
+        var recognition = await this.ReadFiledCopyRecognitionAsync(account, folderRole, cancellationToken);
 
         var storedCount = 0;
 
@@ -299,7 +299,14 @@ public sealed class MailboxSynchronizer
                     cancellationToken);
                 var filedSentCopies = await this.ReadFiledSentCopiesInBatchAsync(
                     account,
-                    recognizesFiledSentCopies,
+                    recognition.RecognizesSentCopies,
+                    batch,
+                    cancellationToken);
+                var filedDraftCopies = await this.ReadFiledDraftCopiesInBatchAsync(
+                    account,
+                    folder,
+                    uidValidity,
+                    recognition.BindsDraftCopies,
                     batch,
                     cancellationToken);
 
@@ -324,8 +331,18 @@ public sealed class MailboxSynchronizer
                         continue;
                     }
 
-                    if (recognizesFiledSentCopies
-                        && await this.TryCarryFiledSentCopyAsync(metadata, filedSentCopies, cancellationToken))
+                    // A copy MailFathom filed of its own outgoing message arrives here as ordinary new mail, and the
+                    // filing row is the only thing that says otherwise.
+                    var filing = FindFilingOf(filings, folder, metadata);
+
+                    if (await this.TryRecognizeFiledCopyAsync(
+                            recognition,
+                            folder,
+                            metadata,
+                            filing,
+                            filedSentCopies,
+                            filedDraftCopies,
+                            cancellationToken))
                     {
                         processedThroughUid = metadata.OccurrenceId.Uid;
 
@@ -350,12 +367,9 @@ public sealed class MailboxSynchronizer
                         ? candidate
                         : null;
 
-                    // A copy MailFathom filed of its own outgoing message arrives here as ordinary new mail, and the
-                    // filing row is the only thing that says otherwise. It is stored like any other message and marked
-                    // as this deployment's own, which is what keeps a rule that reacts to arriving mail from reacting
-                    // to what the user just sent.
-                    var filing = FindFilingOf(filings, folder, metadata);
-
+                    // A filed copy no local row stands for is stored like any other message and marked as this
+                    // deployment's own, which is what keeps a rule that reacts to arriving mail from reacting to what
+                    // the user just sent.
                     var occurrence = await this.StoreOccurrenceAsync(
                         mailboxSession,
                         metadata,
@@ -975,8 +989,209 @@ public sealed class MailboxSynchronizer
         return carried;
     }
 
-    /// <summary>Carries the sent copy a held account filed onto the provider's own copy of the same send, rather than storing a second one.</summary>
-    /// <returns><see langword="true" /> when the discovery was the provider's copy of a filed send and needs nothing further; otherwise, <see langword="false" />.</returns>
+    /// <summary>Reads, once per run, which of this deployment's own filed copies the folder being synchronized can hold.</summary>
+    /// <remarks>
+    /// Only the folders playing the sent and the drafts roles hold one, so every other folder's run asks nothing. The
+    /// phase is read through the custodian and the capabilities from the account's last observation, both once per run.
+    /// </remarks>
+    private async Task<FiledCopyRecognition> ReadFiledCopyRecognitionAsync(
+        MailAccountId account,
+        MailFolderSpecialUse? folderRole,
+        CancellationToken cancellationToken)
+    {
+        if (folderRole is not (MailFolderSpecialUse.Sent or MailFolderSpecialUse.Drafts))
+        {
+            return FiledCopyRecognition.None;
+        }
+
+        var holdsMailbox = await this.localFolderArrivals.HoldsAsync(account, cancellationToken);
+        if (holdsMailbox || folderRole == MailFolderSpecialUse.Drafts)
+        {
+            return new FiledCopyRecognition(
+                RecognizesSentCopies: holdsMailbox && folderRole == MailFolderSpecialUse.Sent,
+                HoldsMailbox: holdsMailbox,
+                BindsDraftCopies: !holdsMailbox,
+                RemovesProviderCopies: false);
+        }
+
+        var observed = await this.serverCapabilities.ReadAsync(account, cancellationToken);
+
+        return new FiledCopyRecognition(
+            RecognizesSentCopies: true,
+            HoldsMailbox: false,
+            BindsDraftCopies: false,
+            RemovesProviderCopies: observed.NamesWhereMessagesLand && !observed.KeepsFoldersAsLabels);
+    }
+
+    /// <summary>Reads which draft revisions MailFathom filed locally a batch's discoveries may be the appended copies of.</summary>
+    /// <remarks>
+    /// Read once for the whole batch, for the reason the filings are. The answer is a mutable copy because each entry is
+    /// taken out once it has been bound.
+    /// </remarks>
+    private async Task<List<FiledDraftCopy>> ReadFiledDraftCopiesInBatchAsync(
+        MailAccountId account,
+        MailFolderResolution folder,
+        ImapUidValidity uidValidity,
+        bool bindsDraftCopies,
+        RemoteEmailMetadataBatch batch,
+        CancellationToken cancellationToken)
+    {
+        if (!bindsDraftCopies || batch.Emails.Count == 0)
+        {
+            return [];
+        }
+
+        return
+        [
+            .. await this.metadataRepository.FindFiledDraftCopiesAsync(
+                account,
+                folder.RemotePath,
+                uidValidity,
+                [.. batch.Emails.Select(static email => email.OccurrenceId.Uid)],
+                [.. batch.Emails.Select(static email => email.InternetMessageId).OfType<string>().Distinct(StringComparer.Ordinal)],
+                cancellationToken),
+        ];
+    }
+
+    /// <summary>Recognizes a discovery as a copy of this deployment's own outgoing mail that needs no row of its own.</summary>
+    /// <returns><see langword="true" /> when the discovery was bound onto a local row or intercepted, and needs nothing further.</returns>
+    /// <remarks>
+    /// A sent copy appended here is told from a copy the provider filed by the filing's placement: the occurrence the
+    /// server named for the append is this deployment's own, and another occurrence of the same identity in the same UID
+    /// space is the provider's. Where the server named no placement, the identity alone binds whichever copy is met first.
+    /// </remarks>
+    private async Task<bool> TryRecognizeFiledCopyAsync(
+        FiledCopyRecognition recognition,
+        MailFolderResolution folder,
+        RemoteEmailMetadata metadata,
+        OutgoingMailFilingRecord? filing,
+        Dictionary<string, StoredEmailId> filedSentCopies,
+        List<FiledDraftCopy> filedDraftCopies,
+        CancellationToken cancellationToken)
+    {
+        if (recognition.BindsDraftCopies)
+        {
+            return await this.TryBindFiledDraftCopyAsync(metadata, filedDraftCopies, cancellationToken);
+        }
+
+        if (!recognition.RecognizesSentCopies)
+        {
+            return false;
+        }
+
+        if (recognition.HoldsMailbox)
+        {
+            return await this.TryCarryFiledSentCopyAsync(metadata, filedSentCopies, filing: null, cancellationToken);
+        }
+
+        var occurrenceId = metadata.OccurrenceId;
+        var appendedHere = filing is not null
+            && filing.AccountsForPlacementAt(folder.RemotePath, occurrenceId.UidValidity, occurrenceId.Uid);
+
+        if (filing is not null && !appendedHere && filing.Placement.Uid is not null)
+        {
+            return await this.TryInterceptProviderSentCopyAsync(recognition, folder, metadata, filing, cancellationToken);
+        }
+
+        return await this.TryCarryFiledSentCopyAsync(metadata, filedSentCopies, filing, cancellationToken);
+    }
+
+    /// <summary>Intercepts the copy a provider filed of a send beside the one this deployment appended, where removing it is safe.</summary>
+    /// <returns><see langword="true" /> when the copy was recorded for removal and is stored as no row; otherwise, <see langword="false" />.</returns>
+    /// <remarks>
+    /// <para>
+    /// The append was answered and the server named where it put the copy, so another occurrence of the same minted
+    /// identity in the same UID space is the provider's. Where every condition for removing it holds, nothing is fetched
+    /// and no row is stored: it reaches no rule, classification, cut, embedding, or derivation, and the outbox pass
+    /// removes it from the server. A copy already recorded is passed over the same way, so a run that met it before its
+    /// checkpoint committed stores no second row the next time.
+    /// </para>
+    /// <para>
+    /// Where a condition fails — the server names no placement for appends or keeps folders as labels, or the copy was
+    /// met too long after the append — it is stored as a second row of the same send, because a mirrored account shows
+    /// what its server holds.
+    /// </para>
+    /// </remarks>
+    private async Task<bool> TryInterceptProviderSentCopyAsync(
+        FiledCopyRecognition recognition,
+        MailFolderResolution folder,
+        RemoteEmailMetadata metadata,
+        OutgoingMailFilingRecord filing,
+        CancellationToken cancellationToken)
+    {
+        var occurrenceId = metadata.OccurrenceId;
+
+        if (filing.ProviderCopy is { UidValidity: { } recordedUidValidity, Uid: { } recordedUid }
+            && recordedUidValidity == occurrenceId.UidValidity
+            && recordedUid == occurrenceId.Uid)
+        {
+            return true;
+        }
+
+        if (!recognition.RemovesProviderCopies
+            || !filing.AdmitsProviderCopyRemovalAt(
+                folder.RemotePath,
+                occurrenceId.UidValidity,
+                occurrenceId.Uid,
+                metadata.InternetMessageId,
+                this.timeProvider.GetUtcNow()))
+        {
+            return false;
+        }
+
+        await this.concurrencyRetryPolicy.CommitAsync(
+            (persistenceSession, attemptCancellationToken) => this.filingStore.RecordProviderCopyAsync(
+                persistenceSession,
+                filing.OutgoingEmailId,
+                filing.Filing,
+                occurrenceId.UidValidity,
+                occurrenceId.Uid,
+                attemptCancellationToken),
+            cancellationToken);
+
+        return true;
+    }
+
+    /// <summary>Binds the draft revision MailFathom stored locally onto the occurrence its append put on the server.</summary>
+    /// <returns><see langword="true" /> when the discovery was the appended copy of a stored revision; otherwise, <see langword="false" />.</returns>
+    /// <remarks>
+    /// It runs before the payload is fetched, so the revision keeps its identity and its content and gains the
+    /// occurrence, which announces nothing: the row was announced when the draft was saved.
+    /// </remarks>
+    private async Task<bool> TryBindFiledDraftCopyAsync(
+        RemoteEmailMetadata metadata,
+        List<FiledDraftCopy> filedDraftCopies,
+        CancellationToken cancellationToken)
+    {
+        if (filedDraftCopies.Find(copy => copy.IsAppendedCopyAt(metadata.OccurrenceId, metadata.InternetMessageId))
+            is not { } filedCopy)
+        {
+            return false;
+        }
+
+        var carried = false;
+
+        await this.concurrencyRetryPolicy.CommitAsync(
+            async (persistenceSession, attemptCancellationToken) =>
+            {
+                carried = await this.metadataRepository.TryCarryToOccurrenceAsync(
+                    persistenceSession,
+                    filedCopy.Email,
+                    metadata.OccurrenceId,
+                    attemptCancellationToken);
+            },
+            cancellationToken);
+
+        if (carried)
+        {
+            filedDraftCopies.Remove(filedCopy);
+        }
+
+        return carried;
+    }
+
+    /// <summary>Carries a sent copy MailFathom stored locally onto the occurrence of the same send the folder holds, rather than storing a second one.</summary>
+    /// <returns><see langword="true" /> when the discovery was bound onto the stored copy and needs nothing further; otherwise, <see langword="false" />.</returns>
     /// <remarks>
     /// <para>
     /// The copy is recognized by the <c>Message-ID</c> this deployment minted for the outgoing record, and only against a
@@ -987,7 +1202,10 @@ public sealed class MailboxSynchronizer
     /// </para>
     /// <para>
     /// It runs before the payload is fetched, for the reason a relocation is recognized there. The filed message keeps its
-    /// identity and its payload and gains the occurrence, which is what the drain then acts on.
+    /// identity and its payload and gains the occurrence. On a held account the occurrence is the provider's copy, which
+    /// is what the drain then acts on; on any other it is the copy this deployment appended, met by the placement or the
+    /// identity its filing recorded, and the filing is observed in the same transaction — or, where the append never
+    /// answered or never happened, the provider's copy, which is then the only one the server holds.
     /// </para>
     /// <para>
     /// A filed copy is carried onto one occurrence only. A send deferred after a partial acceptance is offered again under
@@ -998,6 +1216,7 @@ public sealed class MailboxSynchronizer
     private async Task<bool> TryCarryFiledSentCopyAsync(
         RemoteEmailMetadata metadata,
         Dictionary<string, StoredEmailId> filedSentCopies,
+        OutgoingMailFilingRecord? filing,
         CancellationToken cancellationToken)
     {
         if (metadata.InternetMessageId is not { Length: > 0 } internetMessageId
@@ -1016,6 +1235,16 @@ public sealed class MailboxSynchronizer
                     filedCopy,
                     metadata.OccurrenceId,
                     attemptCancellationToken);
+
+                if (carried && filing is not null)
+                {
+                    await this.filingStore.RecordFilingObservedAsync(
+                        persistenceSession,
+                        filing.OutgoingEmailId,
+                        filing.Filing,
+                        this.timeProvider.GetUtcNow(),
+                        attemptCancellationToken);
+                }
             },
             cancellationToken);
 
@@ -1469,6 +1698,21 @@ public sealed class MailboxSynchronizer
         int RefilledEmailCount,
         int UnreadableMimeEmailCount,
         bool StoppedForContentBudget);
+
+    /// <summary>States which of this deployment's own filed copies one folder's run recognizes before fetching anything.</summary>
+    /// <param name="RecognizesSentCopies">Whether the folder plays the sent role, where a stored sent copy may be met.</param>
+    /// <param name="HoldsMailbox">Whether the account is held, where the copy met is always the provider's.</param>
+    /// <param name="BindsDraftCopies">Whether the folder plays the drafts role on an account that appends its drafts.</param>
+    /// <param name="RemovesProviderCopies">Whether the server's last observed capabilities make removing a provider's copy safe.</param>
+    private readonly record struct FiledCopyRecognition(
+        bool RecognizesSentCopies,
+        bool HoldsMailbox,
+        bool BindsDraftCopies,
+        bool RemovesProviderCopies)
+    {
+        /// <summary>Recognizes nothing, which is every folder that plays neither role.</summary>
+        public static FiledCopyRecognition None { get; } = new(false, false, false, false);
+    }
 }
 
 /// <summary>States whether a synchronization run reached its folder at all.</summary>

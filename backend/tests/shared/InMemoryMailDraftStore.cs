@@ -217,11 +217,12 @@ internal sealed class InMemoryMailDraftStore : IMailDraftStore
     public Task<IReadOnlyList<MailDraftRecord>> ReadOutstandingAsync(
         MailAccountId account,
         int maxCount,
+        bool localCopySettles,
         CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<MailDraftRecord>>(
         [
             .. this.drafts.Values
-                .Where(draft => draft.AccountId == account && draft.HasOutstandingServerWork)
+                .Where(draft => draft.AccountId == account && draft.HasOutstandingServerWork(localCopySettles))
                 .OrderBy(draft => draft.RevisedAt)
                 .ThenBy(draft => draft.Id.Value)
                 .Take(maxCount),

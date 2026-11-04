@@ -43,6 +43,9 @@ public sealed record MailboxServerCapabilityObservation
     public bool NamesWhereMessagesLand =>
         (this.Advertised & (MailboxServerCapabilities.UidPlus | MailboxServerCapabilities.Imap4Rev2)) is not MailboxServerCapabilities.None;
 
+    /// <summary>Gets whether the server's folders are labels over one store, so an expunge in one removes no message.</summary>
+    public bool KeepsFoldersAsLabels => this.Advertised.HasFlag(MailboxServerCapabilities.FoldersAreLabels);
+
     /// <summary>Records what a session observed at one instant.</summary>
     /// <param name="advertised">What the server advertised after authentication.</param>
     /// <param name="observedAt">When the session observed it.</param>

@@ -3419,6 +3419,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<long?>("PlacementUidValidity")
                         .HasColumnType("bigint");
 
+                    b.Property<DateTimeOffset?>("ProviderCopySettledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("ProviderCopyUid")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("ProviderCopyUidValidity")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Stage")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -3434,9 +3443,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_outgoing_email_filings_message_id")
                         .HasFilter("\"Stage\" = 'Confirmed'");
 
-                    b.HasIndex("MailboxAccountId", "Filing", "AppendedAt", "OutgoingEmailId")
-                        .HasDatabaseName("ix_outgoing_email_filings_recent_by_filing")
-                        .HasFilter("\"Stage\" = 'Confirmed'");
+                    b.HasIndex("MailboxAccountId", "AppendedAt", "OutgoingEmailId")
+                        .HasDatabaseName("ix_outgoing_email_filings_provider_copy")
+                        .HasFilter("\"ProviderCopyUid\" IS NOT NULL AND \"ProviderCopySettledAt\" IS NULL");
 
                     b.HasIndex("MailboxAccountId", "FolderPath", "PlacementUidValidity", "PlacementUid")
                         .HasDatabaseName("ix_outgoing_email_filings_placement")

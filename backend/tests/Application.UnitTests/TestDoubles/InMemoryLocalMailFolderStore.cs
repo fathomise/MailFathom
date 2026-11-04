@@ -26,6 +26,7 @@ internal sealed class InMemoryLocalMailFolderStore : ILocalMailFolderStore
     private readonly HashSet<MailFolderAlias> erasedSourceAliases = [];
     private readonly Dictionary<StoredEmailId, MailFolderId> placements = [];
     private readonly List<StoredEmailId> erasedEmails = [];
+    private readonly List<(StoredEmailId Email, bool RecordsSourceRemoval)> eraseRequests = [];
 
     internal InMemoryLocalMailFolderStore(MailAccountId account, MailAccountCustodyPhase phase)
     {
@@ -56,6 +57,9 @@ internal sealed class InMemoryLocalMailFolderStore : ILocalMailFolderStore
     internal IReadOnlyDictionary<StoredEmailId, MailFolderId> Placements => this.placements;
 
     internal IReadOnlyList<StoredEmailId> ErasedEmails => this.erasedEmails;
+
+    /// <summary>Gets every message asked to be erased, placed here or not, with whether its source occurrence was to be left for the drain.</summary>
+    internal IReadOnlyList<(StoredEmailId Email, bool RecordsSourceRemoval)> EraseRequests => this.eraseRequests;
 
     internal int SaveCount { get; private set; }
 
@@ -137,8 +141,11 @@ internal sealed class InMemoryLocalMailFolderStore : ILocalMailFolderStore
         IPersistenceSession session,
         MailAccountId account,
         StoredEmailId email,
+        bool recordsSourceRemoval,
         CancellationToken cancellationToken)
     {
+        this.eraseRequests.Add((email, recordsSourceRemoval));
+
         if (account != this.Account || !this.placements.Remove(email, out var placedIn))
         {
             return Task.FromResult<MailFolderId?>(null);

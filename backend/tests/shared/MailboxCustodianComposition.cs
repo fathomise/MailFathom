@@ -176,6 +176,7 @@ internal sealed class MailboxCustodianComposition
         this.LocalFolders,
         this.Records,
         this.OnDemandDestinations,
+        this.LocalFiler,
         this.DraftFiler,
         this.OutgoingFilings);
 
@@ -191,6 +192,7 @@ internal sealed class MailboxCustodianComposition
         this.LocalFolders,
         this.Changes,
         this.OnDemandDestinations,
+        this.LocalFiler,
         this.DraftFiler,
         this.OutgoingFilings);
 
@@ -278,8 +280,12 @@ internal sealed class MailboxCustodianComposition
         this.FolderResolutions,
         this.FilingPolicies,
         this.Filings,
+        this.Capabilities,
         this.Signals,
         this.Clock);
+
+    /// <summary>Gets what each account's server last advertised, which is never observed unless a test states it.</summary>
+    internal IMailboxServerCapabilityStore Capabilities { get; init; } = NeverObservedCapabilities();
 
     /// <summary>Gets what files a draft's revisions.</summary>
     internal MailDraftFiler DraftFiler => field ??= new(
@@ -323,6 +329,22 @@ internal sealed class MailboxCustodianComposition
         this.CommitPolicy,
         this.Clock,
         this.OutboxSettings);
+
+    /// <summary>Builds a capability store answering every account as one no session has reached.</summary>
+    /// <returns>The store.</returns>
+    internal static IMailboxServerCapabilityStore NeverObservedCapabilities() =>
+        CapabilitiesObserved(MailboxServerCapabilityObservation.NeverObserved);
+
+    /// <summary>Builds a capability store answering every account with one observation.</summary>
+    /// <param name="observation">What every account's server is answered as having advertised.</param>
+    /// <returns>The store.</returns>
+    internal static IMailboxServerCapabilityStore CapabilitiesObserved(MailboxServerCapabilityObservation observation)
+    {
+        var store = Substitute.For<IMailboxServerCapabilityStore>();
+        store.ReadAsync(default, default).ReturnsForAnyArgs(observation);
+
+        return store;
+    }
 
     /// <summary>Gets the policy every part retries a lost concurrency race with, which a test racing a commit states itself.</summary>
     internal OptimisticConcurrencyRetryPolicy CommitPolicy

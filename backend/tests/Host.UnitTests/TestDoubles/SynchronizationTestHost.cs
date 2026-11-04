@@ -418,6 +418,10 @@ internal static class SynchronizationTestHost
         services.AddSingleton(Substitute.For<ILocalMailFolderStore>());
         services.AddScoped<LocalMailFolderArrivals>();
 
+        // What each account's server last advertised decides whether a provider's sent copy may be removed. No test here
+        // observes a server, so every account reads as never observed.
+        services.AddSingleton(MailboxCustodianComposition.NeverObservedCapabilities());
+
         // The cut is the run's last local step, after the rules for the ordering the arrival pipeline is built on, and a
         // supervisor resolves it from the same scope. The store answers that no message is awaiting passages, which is
         // the state a test about folders wants: the pass issues one query and returns.

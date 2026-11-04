@@ -95,20 +95,17 @@ internal sealed class OutgoingEmailFilingConfiguration : IEntityTypeConfiguratio
             .HasDatabaseName(PersistenceConstraintNames.OutgoingEmailFilingMessageIdIndexName)
             .HasFilter(JoinableFilingIndexFilter);
 
-        // The same rows read the other way round: not "is this discovery one of ours" but "which of this account's
-        // standing sent copies were appended recently enough to still be worth a look". The filing is in the key rather
-        // than the filter so one structure answers that for any kind, and the record's identity is behind the instant
-        // for the reason the claim's is — two copies appended in one instant need a total order for the sweep to be
-        // deterministic, and it is what lets the ordering be read rather than sorted.
+        // The rows an outbox pass reads to remove what providers filed beside this deployment's own sent copies, which
+        // are only ever a handful in flight: a row leaves the index the moment its provider copy is settled.
         entity.HasIndex(filing => new
         {
             filing.MailboxAccountId,
-            filing.Filing,
             filing.AppendedAt,
             filing.OutgoingEmailId,
         })
-            .HasDatabaseName(PersistenceConstraintNames.OutgoingEmailFilingRecentByFilingIndexName)
-            .HasFilter(JoinableFilingIndexFilter);
+            .HasDatabaseName(PersistenceConstraintNames.OutgoingEmailFilingProviderCopyIndexName)
+            .HasFilter(
+                $"\"{nameof(OutgoingEmailFilingEntity.ProviderCopyUid)}\" IS NOT NULL AND \"{nameof(OutgoingEmailFilingEntity.ProviderCopySettledAt)}\" IS NULL");
 
         entity.HasOne(filing => filing.OutgoingEmail)
             .WithMany(message => message.Filings)

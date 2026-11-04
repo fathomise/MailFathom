@@ -92,17 +92,6 @@ public sealed class MirroredMailboxCustodianTests
         Assert.Empty(prepared.Of(Email));
     }
 
-    /// <summary>A draft revision and a sent copy are appended to the source by the passes, so neither is prepared to be filed locally.</summary>
-    [Fact]
-    public async Task PrepareDraftCopyAsync_AnyRevision_PreparesNoLocalCopy()
-    {
-        // Act
-        var copy = await this.Custodian().PrepareDraftCopyAsync(Account, "Subject: draft\r\n\r\nbody"u8.ToArray(), Token);
-
-        // Assert
-        Assert.Null(copy);
-    }
-
     /// <summary>A folder act names the folder by the identity of its row, so an identity no row carries is a folder the account does not have.</summary>
     [Fact]
     public async Task RenameFolderAsync_AFolderNoRowNames_IsRefusedAsMissing()

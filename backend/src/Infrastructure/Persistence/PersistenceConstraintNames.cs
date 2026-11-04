@@ -535,14 +535,13 @@ internal static class PersistenceConstraintNames
     /// <summary>The index the same join falls back to where the server named no placement to look the copy up by.</summary>
     internal const string OutgoingEmailFilingMessageIdIndexName = "ix_outgoing_email_filings_message_id";
 
-    /// <summary>The index the sweep for a copy the provider duplicated reads, which is bounded by when it was filed.</summary>
+    /// <summary>The index an outbox pass reads the provider copies it still owes a removal from.</summary>
     /// <remarks>
-    /// The two above lead with what a discovery is recognized by, so neither answers a question asked the other way
-    /// round: which of this account's standing copies of one kind were appended recently enough to still be acted on.
-    /// Without it that sweep reads every confirmed filing the account has ever kept, on every outbox pass, to find the
-    /// few inside a fifteen-minute window.
+    /// The two above lead with what a discovery is recognized by, so neither answers the question asked the other way
+    /// round: which of this account's filings have a provider's copy beside them still to remove. Filtered to exactly
+    /// those, it holds a handful of rows in flight rather than one per message the account ever sent.
     /// </remarks>
-    internal const string OutgoingEmailFilingRecentByFilingIndexName = "ix_outgoing_email_filings_recent_by_filing";
+    internal const string OutgoingEmailFilingProviderCopyIndexName = "ix_outgoing_email_filings_provider_copy";
 
     /// <summary>The uniqueness a declaration that a message repeats rests on, which is the same identity a send's is.</summary>
     /// <remarks>

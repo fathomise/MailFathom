@@ -163,18 +163,17 @@ public sealed class OrchestratedOutgoingMailFilingTests(MailFathomOrchestrationF
     }
 
     /// <summary>
-    /// The provider filed its own copy of the same message, so the one MailFathom appended goes and the provider's
-    /// stays — recognized as this deployment's own like the copy it replaced.
+    /// The provider filed its own copy of the same message, so synchronization intercepts it and the outbox pass removes
+    /// it, leaving the copy MailFathom appended — the only one stored, recognized as this deployment's own.
     /// </summary>
     /// <remarks>
     /// Nothing about this is settleable without a real server and a real database. Which of the two occurrences the
-    /// withdrawal reaches is decided by an <c>APPENDUID</c> the server issued and a <c>UID EXPUNGE</c> it honours, and
-    /// whether the duplicate is found at all is a correlated existence test PostgreSQL evaluates over the messages a
-    /// real synchronization stored. The folder is recreated first, so the two occurrences this test counts are the
-    /// only ones in it.
+    /// removal reaches is decided by an <c>APPENDUID</c> the server issued, the <c>UIDPLUS</c> it advertised at login,
+    /// and a <c>UID EXPUNGE</c> it honours. The folder is recreated first, so the two occurrences this test counts are
+    /// the only ones in it.
     /// </remarks>
     [Fact]
-    public async Task WithdrawDuplicatedSentCopiesAsync_AProviderThatFiledItsOwnCopy_LeavesTheProvidersAndTakesItsOwn()
+    public async Task RemoveProviderSentCopiesAsync_AProviderThatFiledItsOwnCopy_RemovesTheProvidersAndKeepsItsOwn()
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -220,35 +219,34 @@ public sealed class OrchestratedOutgoingMailFilingTests(MailFathomOrchestrationF
             cancellationToken);
 
         // Act
-        var withdrawals = await services.InScopeAsync(
-            (scope, token) => scope.GetRequiredService<OutgoingMailFilingPass>().WithdrawDuplicatedSentCopiesAsync(
+        var removals = await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<OutgoingMailFilingPass>().RemoveProviderSentCopiesAsync(
                 SyntheticMailAccount.Account,
                 token),
             cancellationToken);
 
         // Assert
         Assert.Equal(
-            OutgoingMailFilingOutcome.Withdrawn,
-            Assert.Single(withdrawals, entry => entry.OutgoingEmailId == queued.Id).Outcome);
+            OutgoingMailFilingOutcome.ProviderCopyRemoved,
+            Assert.Single(removals, entry => entry.OutgoingEmailId == queued.Id).Outcome);
 
-        // The independent witness: one occurrence of the message left in the folder, and it is not the one this
-        // deployment appended.
+        // The independent witness: one occurrence of the message left in the folder, and it is the one this deployment
+        // appended.
         var remaining = Assert.Single(
             await mailbox.ReadAsync(SyntheticMailAccount.OutgoingCopyFolderPath, cancellationToken),
             message => message.Subject == subject);
-        Assert.NotEqual(filed.Placement.Uid, remaining.Uid);
+        Assert.Equal(filed.Placement.Uid, remaining.Uid);
 
-        var withdrawn = (await FindAsync(services, queued.Id, cancellationToken)).FindFiling(OutgoingMailFiling.Sent);
-        Assert.NotNull(withdrawn);
-        Assert.Equal(OutgoingMailFilingStage.Withdrawn, withdrawn.Stage);
-        Assert.NotNull(withdrawn.WithdrawnAt);
+        var settled = (await FindAsync(services, queued.Id, cancellationToken)).FindFiling(OutgoingMailFiling.Sent);
+        Assert.NotNull(settled);
+        Assert.Equal(OutgoingMailFilingStage.Confirmed, settled.Stage);
+        Assert.NotNull(settled.ProviderCopySettledAt);
 
-        // The provider's copy carries the join the withdrawn one had, so nothing downstream reads the message the user
-        // sent as mail that arrived for them.
+        // The provider's copy was never stored, so the one row of the send is the copy this deployment appended.
         var stored = await ReadStoredAsync(services, cancellationToken);
-        Assert.All(
-            stored.Where(email => email.Subject == subject),
-            email => Assert.Equal(queued.Id.Value, email.FiledFromOutgoingEmailId));
+        Assert.Equal(
+            queued.Id.Value,
+            Assert.Single(stored, email => email.Subject == subject).FiledFromOutgoingEmailId);
     }
 
     private static async Task<OutgoingEmailRecord> EnqueueAsync(

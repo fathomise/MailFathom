@@ -70,20 +70,43 @@ public interface IOutgoingMailFilingStore
         AppendedMailCopy copy,
         CancellationToken cancellationToken);
 
-    /// <summary>Writes down that the copy has been taken back out of its folder.</summary>
+    /// <summary>Writes down where the provider filed a copy of its own beside this one, so an outbox pass removes it.</summary>
     /// <param name="session">The session the write joins.</param>
     /// <param name="outgoingEmailId">The record the copy was filed from.</param>
-    /// <param name="filing">Which place the copy was in.</param>
-    /// <param name="withdrawnAt">When the folder stopped holding it.</param>
+    /// <param name="filing">Which place the copy went into.</param>
+    /// <param name="uidValidity">The UID space the provider's copy was met in.</param>
+    /// <param name="uid">The UID the provider's copy carries.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
-    /// <returns>A task that completes when the row is marked withdrawn.</returns>
+    /// <returns>A task that completes when the provider's copy is on the row.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> is <see langword="null" />.</exception>
     /// <exception cref="InvalidOperationException">Thrown when no row carries that identity.</exception>
-    Task RecordWithdrawnAsync(
+    /// <remarks>
+    /// Synchronization writes it instead of storing the provider's copy, because removing a message is a write and no
+    /// read path may obtain the session that makes one. The row is the only record the copy exists, so it is durable
+    /// before the run moves its checkpoint past it.
+    /// </remarks>
+    Task RecordProviderCopyAsync(
         IPersistenceSession session,
         OutgoingEmailId outgoingEmailId,
         OutgoingMailFiling filing,
-        DateTimeOffset withdrawnAt,
+        ImapUidValidity uidValidity,
+        ImapUid uid,
+        CancellationToken cancellationToken);
+
+    /// <summary>Writes down that the provider's copy beside one filing was removed, or that nothing will try again.</summary>
+    /// <param name="session">The session the write joins.</param>
+    /// <param name="outgoingEmailId">The record the copy was filed from.</param>
+    /// <param name="filing">Which place the copy went into.</param>
+    /// <param name="settledAt">When the removal ended.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>A task that completes when the row is settled.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> is <see langword="null" />.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when no row carries that identity.</exception>
+    Task RecordProviderCopySettledAsync(
+        IPersistenceSession session,
+        OutgoingEmailId outgoingEmailId,
+        OutgoingMailFiling filing,
+        DateTimeOffset settledAt,
         CancellationToken cancellationToken);
 
     /// <summary>Records why the last filing attempt for one send did not put a copy anywhere.</summary>
@@ -137,30 +160,14 @@ public interface IOutgoingMailFilingStore
         IReadOnlyCollection<string> internetMessageIds,
         CancellationToken cancellationToken);
 
-    /// <summary>Reads the sent copies this account filed that the folder now holds a second occurrence of.</summary>
+    /// <summary>Reads this account's filings whose provider's copy is still to be removed, oldest append first.</summary>
     /// <param name="account">The account whose filings are read.</param>
-    /// <param name="appendedSince">The earliest append a duplicate is still acted on for.</param>
-    /// <param name="limit">The greatest number of sends one pass withdraws a copy for.</param>
+    /// <param name="limit">The greatest number of provider copies one pass removes.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The sends whose own filed copy the folder holds a duplicate of, which may be none.</returns>
+    /// <returns>The filings, which may be none.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="limit" /> is not positive.</exception>
-    /// <remarks>
-    /// <para>
-    /// A row is answered for only where the server named the occurrence it appended: without that placement the two
-    /// occurrences carry one identity between them and nothing says which of them this system put there, so a
-    /// withdrawal would be as likely to take the provider's copy as its own. The second occurrence is recognized by the
-    /// identity the appended bytes carry, in the same folder and the same UID space, at a UID the placement does not
-    /// name — and only while the folder still holds it, because a copy the user has already deleted is no reason to
-    /// take the remaining one away from them.
-    /// </para>
-    /// <para>
-    /// Nothing here reads mail. A folder, a UID, and a <c>Message-ID</c> MailFathom minted itself are what the
-    /// comparison is made of, which is what lets a duplicate be found without the message.
-    /// </para>
-    /// </remarks>
-    Task<IReadOnlyList<OutgoingEmailId>> ReadDuplicatedSentCopiesAsync(
+    Task<IReadOnlyList<OutgoingMailFilingRecord>> ReadProviderCopiesAwaitingRemovalAsync(
         MailAccountId account,
-        DateTimeOffset appendedSince,
         int limit,
         CancellationToken cancellationToken);
 

@@ -179,8 +179,9 @@ public sealed class OrchestratedMailSettlementStoreTests(MailFathomOrchestration
                 token),
             cancellationToken);
 
+        Assert.NotNull(filedDraft);
         StoredEmailId[] storedSettled =
-            [settledOnArrival, filedFromOutgoing, Assert.NotNull(filedDraft), Assert.NotNull(localCopy)];
+            [settledOnArrival, filedFromOutgoing, filedDraft.Email, Assert.NotNull(localCopy)];
         var settlingAfterStore = await Task.WhenAll(
             storedSettled.Select(storedEmailId => FindSettlingAsync(services, storedEmailId, cancellationToken)));
         var readableAfterStore = await Task.WhenAll(

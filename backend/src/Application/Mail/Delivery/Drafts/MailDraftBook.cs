@@ -194,16 +194,20 @@ public sealed class MailDraftBook
             },
             cancellationToken);
 
-        // A revision filed locally replaced its previous message in the same commit, so nothing is owed a server; one that
-        // was not — a mirrored account, or a held one whose drafts folder could not be reached — is settled as before.
+        // A revision filed locally replaced its previous message in the same commit and is announced from it. What the
+        // server is still owed is the custodian's to settle: nothing on a held account, the append and the removal of the
+        // copy it replaced on any other.
+        // The record written in the commit predates the filing it also made, so a filed revision is settled from the
+        // record read back rather than from the one in hand, which would file it a second time.
+        var settling = draft;
+
         if (filed is not null)
         {
             this.filer.Announce(filed);
+            settling = await this.drafts.FindAsync(draft.Id, cancellationToken) ?? draft;
         }
-        else
-        {
-            await this.filer.SettleAsync(draft, cancellationToken);
-        }
+
+        await this.filer.SettleAsync(settling, cancellationToken);
 
         return await this.drafts.FindAsync(draft.Id, cancellationToken) ?? draft;
     }

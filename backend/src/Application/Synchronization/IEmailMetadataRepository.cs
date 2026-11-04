@@ -122,7 +122,7 @@ public interface IEmailMetadataRepository
         StoredEmailId storedEmailId,
         CancellationToken cancellationToken);
 
-    /// <summary>Stores a message MailFathom filed itself into a held account's local folder, with no occurrence on any server.</summary>
+    /// <summary>Stores a message MailFathom filed itself, with no occurrence on any server until one is bound to it.</summary>
     /// <param name="session">The explicit persistence session this write participates in.</param>
     /// <param name="account">The account the message is filed for.</param>
     /// <param name="binding">The folder binding of the source folder playing the role the message is filed under.</param>
@@ -131,12 +131,16 @@ public interface IEmailMetadataRepository
     /// <param name="flags">The flags the message is filed with.</param>
     /// <param name="filedFrom">The outgoing record a sent copy is filed from, or <see langword="null" /> for a draft.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
-    /// <returns>The new stored email's identity, or <see langword="null" /> where <paramref name="binding" /> names a folder binding that is no longer stored.</returns>
+    /// <returns>The new stored email and the folder its binding placed it in, or <see langword="null" /> where <paramref name="binding" /> names a folder binding that is no longer stored.</returns>
     /// <remarks>
     /// <para>
     /// A binding that is gone is answered rather than raised, because it was read before the transaction and the drain
     /// removes exactly those source folders: the caller files nothing and says so, and the state the message was a copy of
     /// still commits.
+    /// </para>
+    /// <para>
+    /// On a held account the message stays where it is filed. On an account whose source is the truth it is filed first
+    /// and appended afterwards, and synchronization binds the server's occurrence onto it rather than storing a second.
     /// </para>
     /// <para>
     /// The row is written as a synchronized one is — the search document and the conversation are placed in the same
@@ -148,7 +152,7 @@ public interface IEmailMetadataRepository
     /// later drained from.
     /// </para>
     /// </remarks>
-    Task<StoredEmailId?> StoreFiledEmailAsync(
+    Task<StoredFiledEmail?> StoreFiledEmailAsync(
         IPersistenceSession session,
         MailAccountId account,
         MailFolderResolutionId binding,
@@ -189,6 +193,26 @@ public interface IEmailMetadataRepository
         CopiedMailFlags flags,
         CancellationToken cancellationToken);
 
+    /// <summary>Finds the draft revisions MailFathom filed locally whose appended copy one of a batch's discoveries is, and which no occurrence is bound to yet.</summary>
+    /// <param name="account">The account whose drafts are searched.</param>
+    /// <param name="folderPath">The remote folder being synchronized, which is the folder the copies were appended to.</param>
+    /// <param name="uidValidity">The UIDVALIDITY that folder reports now.</param>
+    /// <param name="uids">The UIDs one batch of the forward pass discovered.</param>
+    /// <param name="internetMessageIds">The <c>Message-ID</c> values that batch reported, for an append that named no placement.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>Every filed revision a discovery in that batch could be the appended copy of, which may be none.</returns>
+    /// <remarks>
+    /// Only the revision a draft's stored message shows is answered, through the copy its own append recorded, so a copy
+    /// of a revision since replaced binds nothing. It is one read per batch, as the recognition of a sent copy is.
+    /// </remarks>
+    Task<IReadOnlyList<FiledDraftCopy>> FindFiledDraftCopiesAsync(
+        MailAccountId account,
+        RemoteFolderPath folderPath,
+        ImapUidValidity uidValidity,
+        IReadOnlyCollection<ImapUid> uids,
+        IReadOnlyCollection<string> internetMessageIds,
+        CancellationToken cancellationToken);
+
     /// <summary>Finds the sent copies MailFathom filed locally that carry one of a batch's <c>Message-ID</c> values and no occurrence yet.</summary>
     /// <param name="account">The account whose filed copies are searched.</param>
     /// <param name="internetMessageIds">The non-empty <c>Message-ID</c> values one discovered batch carries, bounded by that batch.</param>
@@ -198,7 +222,7 @@ public interface IEmailMetadataRepository
     /// Only a copy filed from an outgoing record answers, and only one whose payload is stored: the identity is the one this
     /// deployment minted for the send, which is what makes it safe to compare, and a copy whose payload is absent is no copy
     /// the provider's may stand in for. It is one read per batch, as the recognition of appended copies is, so a sent
-    /// folder the drain has not emptied yet costs one query per batch rather than one per message.
+    /// folder costs one query per batch rather than one per message.
     /// </remarks>
     Task<IReadOnlyDictionary<string, StoredEmailId>> FindFiledSentCopiesAsync(
         MailAccountId account,

@@ -13,6 +13,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
+using MailFathom.Domain.Delivery.Filing;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 
@@ -34,7 +35,8 @@ namespace MailFathom.Application.Accounts.Custody;
 /// </para>
 /// <para>
 /// Its filing is the mirrored account's: drafts and sent copies are appended to the source, which is not drained, by the
-/// filing passes, and a destination it maps but does not synchronize is resolved against the source on demand.
+/// filing passes — stored first where the source last named where it puts an appended message — and a destination it
+/// maps but does not synchronize is resolved against the source on demand.
 /// </para>
 /// </remarks>
 public sealed class RestoringMailboxCustodian : IMailboxCustodian
@@ -42,6 +44,7 @@ public sealed class RestoringMailboxCustodian : IMailboxCustodian
     private readonly ILocalMailFolderStore folders;
     private readonly LocalMailboxChanges changes;
     private readonly OnDemandMailboxDestinationResolver onDemandDestinations;
+    private readonly LocalMailFiler localFiler;
     private readonly MailDraftFiler draftFiler;
     private readonly OutgoingMailFilingPass outgoingFilings;
 
@@ -49,25 +52,29 @@ public sealed class RestoringMailboxCustodian : IMailboxCustodian
     /// <param name="folders">Reads the account's own folders, which are still the truth.</param>
     /// <param name="changes">Commits a change on a message to stored state, with the record its source is owed.</param>
     /// <param name="onDemandDestinations">Resolves a destination the account maps but does not synchronize.</param>
+    /// <param name="localFiler">Prepares a draft revision or a sent copy that is stored before it is appended.</param>
     /// <param name="draftFiler">Appends a draft's revisions to the drafts folder and withdraws its copies.</param>
-    /// <param name="outgoingFilings">Appends and withdraws the server copies of the account's sends.</param>
+    /// <param name="outgoingFilings">Appends the server copies of the account's sends and removes the provider's own.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public RestoringMailboxCustodian(
         ILocalMailFolderStore folders,
         LocalMailboxChanges changes,
         OnDemandMailboxDestinationResolver onDemandDestinations,
+        LocalMailFiler localFiler,
         MailDraftFiler draftFiler,
         OutgoingMailFilingPass outgoingFilings)
     {
         ArgumentNullException.ThrowIfNull(folders);
         ArgumentNullException.ThrowIfNull(changes);
         ArgumentNullException.ThrowIfNull(onDemandDestinations);
+        ArgumentNullException.ThrowIfNull(localFiler);
         ArgumentNullException.ThrowIfNull(draftFiler);
         ArgumentNullException.ThrowIfNull(outgoingFilings);
 
         this.folders = folders;
         this.changes = changes;
         this.onDemandDestinations = onDemandDestinations;
+        this.localFiler = localFiler;
         this.draftFiler = draftFiler;
         this.outgoingFilings = outgoingFilings;
     }
@@ -143,7 +150,7 @@ public sealed class RestoringMailboxCustodian : IMailboxCustodian
         MailAccountId account,
         ReadOnlyMemory<byte> rawMime,
         CancellationToken cancellationToken) =>
-        Task.FromResult<LocalMailCopy?>(null);
+        this.localFiler.PrepareAheadOfAppendAsync(account, OutgoingMailFiling.Draft, rawMime, cancellationToken);
 
     /// <inheritdoc />
     public Task<MailDraftFilingResult> SettleDraftAsync(MailDraftRecord draft, CancellationToken cancellationToken) =>
@@ -151,7 +158,7 @@ public sealed class RestoringMailboxCustodian : IMailboxCustodian
 
     /// <inheritdoc />
     public Task<LocalMailCopy?> PrepareSentCopyAsync(OutgoingEmailRecord send, CancellationToken cancellationToken) =>
-        Task.FromResult<LocalMailCopy?>(null);
+        this.localFiler.PrepareStoredSentCopyAheadOfAppendAsync(send, cancellationToken);
 
     /// <inheritdoc />
     public Task<IReadOnlyList<OutgoingMailFilingResult>> SettleFiledCopiesAsync(
@@ -160,10 +167,10 @@ public sealed class RestoringMailboxCustodian : IMailboxCustodian
         this.outgoingFilings.SettleFiledCopiesOnSourceAsync(send, cancellationToken);
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<OutgoingMailFilingResult>> WithdrawDuplicatedSentCopiesAsync(
+    public Task<IReadOnlyList<OutgoingMailFilingResult>> RemoveProviderSentCopiesAsync(
         MailAccountId account,
         CancellationToken cancellationToken) =>
-        this.outgoingFilings.WithdrawDuplicatedSentCopiesOnSourceAsync(account, cancellationToken);
+        this.outgoingFilings.RemoveProviderSentCopiesOnSourceAsync(account, cancellationToken);
 
     private static Task<MailFolderActOutcome> Refused() =>
         Task.FromResult(MailFolderActOutcome.Refused(MailFolderActRefusal.AccountNotHeld));
