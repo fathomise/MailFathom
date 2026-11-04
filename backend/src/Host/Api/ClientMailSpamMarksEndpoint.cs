@@ -77,6 +77,11 @@ internal static class ClientMailSpamMarksEndpoint
             return Refusal($"One request carries at most {ClientMailMutationsEndpoint.MaximumChangesPerRequest} changes.");
         }
 
+        if (ClientMailMutationsEndpoint.NamesAMessageTwice(storedEmailIds.Select(static id => (Guid?)id)))
+        {
+            return ClientMailMutationsEndpoint.MessageNamedTwice();
+        }
+
         if (MarkOf(request) is not { } mark)
         {
             return Refusal(

@@ -5287,7 +5287,7 @@
       "description": "What the change was written down as: whether MailFathom's copy of the email already shows it, and one durable record per value asked for, each carried to the mail server by the account's next run — none on a held account.",
       "properties": {
         "accountId": {
-          "description": "The account the email belongs to. Its next synchronization run is what issues a recorded change to the mail server; an applied change has no mail server to reach.",
+          "description": "The account the email belongs to. Its next synchronization run is what carries each of the recordedChanges to the mail server, including those beside a change already applied; a held account has none to carry.",
           "type": "string"
         },
         "applied": {

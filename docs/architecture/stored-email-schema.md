@@ -1103,7 +1103,7 @@ with the message it describes, while a repeat arriving after the message was del
 | `StoredEmailId` | The message the act reached. It carries no foreign key, so the row outlives the message and a repeat after its deletion is still answered rather than performed |
 | `Fingerprint` | The SHA-256 digest, as hexadecimal, of what the request asked: the act and, for each message, its value or destination. A repeat whose digest differs is a key reused for another act and is refused rather than answered with somebody else's outcome |
 | `Outcome` | The first answer for that message as `jsonb`: the outcome, the account, the folder and the destination where the act had one, and the records it opened with the lifecycle the answer reported. It holds identifiers and names MailFathom chose, and nothing from the message |
-| `RecordedAt` | When the act committed. A sweep removes a row 24 hours after it, a bounded set per pass in the order `ix_mail_act_keys_recorded` keeps, and a request carrying the key afterwards is a new act |
+| `RecordedAt` | When the act committed. A sweep removes a row 24 hours after it, once an hour, in bounded deletes in the order `ix_mail_act_keys_recorded` keeps until one comes back short, and a request carrying the key afterwards is a new act |
 
 ## The unspent signal connection tickets
 

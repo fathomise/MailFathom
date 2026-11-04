@@ -16,9 +16,11 @@ namespace MailFathom.Host.Hosting.Workers;
 /// </para>
 /// <para>
 /// Each pass is its own scope and a failed pass is logged and asked again at the next interval, so a database that was
-/// unreachable for one pass costs a delayed deletion and never a worker that stopped. A key outliving its window by up
-/// to one interval is harmless: a repeat is answered either way, and the store holds what was asked for no longer than
-/// the window plus that interval.
+/// unreachable for one pass costs a delayed deletion and never a worker that stopped. A pass deletes in pages of
+/// <see cref="MailActKeyRetention.MaximumEntriesErasedPerPass" /> and asks for the next page until one comes back
+/// short, because one act writes a key per message and a bulk act over a large mailbox leaves more than a page in a
+/// day. So a key outlives its window by at most one interval plus the pass that drains it, and the store holds what was
+/// asked for no longer than that.
 /// </para>
 /// </remarks>
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "The dependency injection container materializes this hosted service.")]
@@ -47,9 +49,16 @@ internal sealed partial class MailActKeyRetentionWorker(
         {
             await using var scope = scopeFactory.CreateAsyncScope();
 
-            var erased = await scope.ServiceProvider
-                .GetRequiredService<MailActKeyRetention>()
-                .EraseExpiredAsync(stoppingToken);
+            var retention = scope.ServiceProvider.GetRequiredService<MailActKeyRetention>();
+            var erased = 0;
+            int page;
+
+            do
+            {
+                page = await retention.EraseExpiredAsync(stoppingToken);
+                erased += page;
+            }
+            while (page == MailActKeyRetention.MaximumEntriesErasedPerPass);
 
             if (erased > 0)
             {

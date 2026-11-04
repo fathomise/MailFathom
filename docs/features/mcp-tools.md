@@ -1153,7 +1153,7 @@ this tool `destructiveHint` true, so a client that asks before calling a destruc
 | Field | Meaning |
 |---|---|
 | `storedEmailId` | The email the change was recorded against, which is the one the call named |
-| `accountId` | The account the change belongs to, whose next synchronization run issues a recorded change; an applied change has no mail server to reach |
+| `accountId` | The account the change belongs to, whose next synchronization run carries each of the `recordedChanges` to the mail server, including those beside an `applied` change; a held account has none to carry |
 | `folderId` | The identity of the folder the email is in, as `list_accounts` reports it |
 | `applied` | `true` when the change was made to the stored email as the call committed. Any `recordedChanges` beside it are what carries the change to the mail server; on an account whose mailbox MailFathom holds itself there are none and nothing is left to converge. `false` when the change was only written down, during a rolling upgrade, and the stored email follows once the server has taken it |
 | `recordedChanges[]` | One entry per value asked for, in the order `seen`, `flagged`, keywords |

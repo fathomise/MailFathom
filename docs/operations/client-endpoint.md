@@ -2457,9 +2457,11 @@ still running — is answered with the first outcome for each message: the same 
 records, each in the state the first answer reported. `GET /api/client/mutations` reads where those records stand now.
 A message the first attempt never reached, because it stopped partway through the batch, is carried out by the repeat.
 A key reused for a different act — another route, other messages, or other values — is refused whole with a `400` before
-any message is touched. A key is kept for 24 hours after its act committed, still answering after the message and its
-records have been deleted, and is then deleted; a request carrying it afterwards is a new act. The flag, move, delete,
-and spam-mark submissions all take a key; a withdrawal or a release names records rather than mail and takes none.
+any message is touched, and so is a batch naming one message in more than one entry, since the key answers per message
+and the second entry would be answered with the first's outcome. A key is kept for 24 hours after its act committed,
+still answering after the message and its records have been deleted, and is deleted within the hour after; a request
+carrying it afterwards is a new act. The flag, move, delete, and spam-mark submissions all take a key; a withdrawal or a
+release names records rather than mail and takes none.
 
 ```http
 POST /api/client/mutations/flags

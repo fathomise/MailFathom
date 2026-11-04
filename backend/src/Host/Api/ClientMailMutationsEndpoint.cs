@@ -280,6 +280,11 @@ internal static class ClientMailMutationsEndpoint
             return TooMany();
         }
 
+        if (NamesAMessageTwice(changes.Select(static change => change?.StoredEmailId)))
+        {
+            return MessageNamedTwice();
+        }
+
         var requester = RequesterOf(request.RequestId);
 
         if (requester is null)
@@ -336,6 +341,11 @@ internal static class ClientMailMutationsEndpoint
         if (moves.Count > MaximumChangesPerRequest)
         {
             return TooMany();
+        }
+
+        if (NamesAMessageTwice(moves.Select(static move => move?.StoredEmailId)))
+        {
+            return MessageNamedTwice();
         }
 
         var requester = RequesterOf(request.RequestId);
@@ -400,6 +410,11 @@ internal static class ClientMailMutationsEndpoint
         if (deletes.Count > MaximumChangesPerRequest)
         {
             return TooMany();
+        }
+
+        if (NamesAMessageTwice(deletes.Select(static deletion => deletion?.StoredEmailId)))
+        {
+            return MessageNamedTwice();
         }
 
         var requester = RequesterOf(request.RequestId);
@@ -712,6 +727,26 @@ internal static class ClientMailMutationsEndpoint
     /// <summary>Answers that the read names more records than one request line may carry.</summary>
     private static ProblemHttpResult TooManyRead() =>
         Refusal($"One read names at most {MaximumChangesPerRead} records.");
+
+    /// <summary>Answers whether a batch names one message in more than one of its entries.</summary>
+    /// <param name="storedEmailIds">The message each entry names, where it names one.</param>
+    /// <returns><see langword="true" /> when a message other than the empty identifier appears twice.</returns>
+    /// <remarks>
+    /// A batch is one act under one key, and a repeat of it answers each message's first outcome. A second entry for
+    /// the same message would find the first entry's answer under that key and report success for a change that was
+    /// never made, so the batch is refused before anything is written. The empty identifier is left to the per-entry
+    /// answer, which reports it as a message that is not there.
+    /// </remarks>
+    internal static bool NamesAMessageTwice(IEnumerable<Guid?> storedEmailIds)
+    {
+        var named = new HashSet<Guid>();
+
+        return storedEmailIds.Any(id => id is { } message && message != Guid.Empty && !named.Add(message));
+    }
+
+    /// <summary>Answers that a batch named one message in more than one entry.</summary>
+    internal static ProblemHttpResult MessageNamedTwice() =>
+        Refusal("A batch names each message at most once; ask for everything one message needs in one entry.");
 
     /// <summary>Answers that the identity the caller stated is not one a record can be written under.</summary>
     internal static ProblemHttpResult UnusableRequestId() => Refusal(

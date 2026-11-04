@@ -111,6 +111,17 @@ internal static class MailboxMutationRecordMapping
             ? entity.ServerDisposition ?? AuthoredDeleteServerDisposition.Expunge
             : null;
 
+    /// <summary>Restores what an overlaying change last knew of the server, or nothing for any other row.</summary>
+    internal static MailboxMutationOverlay? ToOverlay(MailboxMutationEntity entity) =>
+        entity.OverlaysStoredState
+            ? new MailboxMutationOverlay(
+                entity.ObservedSeenState,
+                entity.ObservedFlaggedState,
+                entity.ObservedKeywords is { } keywords ? RemoteEmailKeywords.Create(keywords) : null,
+                entity.ObservedFolderId is { } folder ? MailFolderId.Create(folder) : null,
+                entity.LocalCopyStoredEmailId is { } copy ? StoredEmailId.Create(copy) : null)
+            : null;
+
     /// <summary>Restores the keywords a keyword mutation named, exactly as they were stored.</summary>
     /// <remarks>
     /// <para>
@@ -125,17 +136,6 @@ internal static class MailboxMutationRecordMapping
     /// what an operator can act on.
     /// </para>
     /// </remarks>
-    /// <summary>Restores what an overlaying change last knew of the server, or nothing for any other row.</summary>
-    internal static MailboxMutationOverlay? ToOverlay(MailboxMutationEntity entity) =>
-        entity.OverlaysStoredState
-            ? new MailboxMutationOverlay(
-                entity.ObservedSeenState,
-                entity.ObservedFlaggedState,
-                entity.ObservedKeywords is { } keywords ? RemoteEmailKeywords.Create(keywords) : null,
-                entity.ObservedFolderId is { } folder ? MailFolderId.Create(folder) : null,
-                entity.LocalCopyStoredEmailId is { } copy ? StoredEmailId.Create(copy) : null)
-            : null;
-
     private static AuthoredMailKeywords? ToKeywords(MailboxMutationEntity entity)
     {
         if (entity.Keywords is not { } keywords)

@@ -16,7 +16,11 @@ public sealed class MailActKeyRetention
     /// <summary>The time a key is kept after its act was committed.</summary>
     public static readonly TimeSpan Window = TimeSpan.FromHours(24);
 
-    /// <summary>The most entries one pass deletes, so one pass is a bounded piece of work however many a busy day left.</summary>
+    /// <summary>The most entries one call deletes, so each delete is a bounded statement however many a busy day left.</summary>
+    /// <remarks>
+    /// It bounds a statement rather than what is kept: the worker asks again while a call comes back full, so a backlog
+    /// is drained in one pass rather than at this many keys an interval.
+    /// </remarks>
     public const int MaximumEntriesErasedPerPass = 5_000;
 
     private readonly IMailActKeyStore store;

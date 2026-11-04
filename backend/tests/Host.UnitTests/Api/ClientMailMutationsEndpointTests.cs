@@ -303,6 +303,87 @@ public sealed class ClientMailMutationsEndpointTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// One message named twice in a batch is refused before anything is written, because the second entry would find the
+    /// first entry's answer under the batch's key and report a change that was never made.
+    /// </summary>
+    [Fact]
+    public async Task SubmitFlagChangesAsync_ABatchNamingOneMessageTwice_IsRefusedAndRecordsNothing()
+    {
+        // Arrange
+        this.RecordEveryRequest();
+
+        // Act
+        var result = await ClientMailMutationsEndpoint.SubmitFlagChangesAsync(
+            new ClientMailFlagChangesRequest(
+                "call-1",
+                [
+                    new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(Seen: true, null), null),
+                    new ClientMailFlagChangeRequest(Message, new ClientMailFlagStateRequest(null, Flagged: true), null),
+                ]),
+            this.FlagRecorder(TargetInInbox()),
+            this.Openings(),
+            Idempotency(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, RefusalOf(result).StatusCode);
+        await this.records.DidNotReceive().OpenAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<MailboxMutationRequest>(),
+            Arg.Any<DateTimeOffset?>(),
+            Arg.Any<MailboxMutationLocalChange>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A move batch is held to one entry per message, as a flag batch is.</summary>
+    [Fact]
+    public async Task SubmitMovesAsync_ABatchNamingOneMessageTwice_IsRefused()
+    {
+        // Act
+        var result = await ClientMailMutationsEndpoint.SubmitMovesAsync(
+            new ClientMailMovesRequest(
+                "call-1",
+                [new ClientMailMoveRequest(Message, ArchiveId.ToString()), new ClientMailMoveRequest(Message, ArchiveId.ToString())]),
+            this.RelocationRecorder(TargetInInbox()),
+            Idempotency(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, RefusalOf(result).StatusCode);
+    }
+
+    /// <summary>A delete batch is held to one entry per message, as a flag batch is.</summary>
+    [Fact]
+    public async Task SubmitDeletesAsync_ABatchNamingOneMessageTwice_IsRefused()
+    {
+        // Act
+        var result = await ClientMailMutationsEndpoint.SubmitDeletesAsync(
+            new ClientMailDeletesRequest("call-1", [new ClientMailDeleteRequest(Message), new ClientMailDeleteRequest(Message)]),
+            this.DeletionRecorder(),
+            Preferences(),
+            Idempotency(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, RefusalOf(result).StatusCode);
+    }
+
+    /// <summary>A spam-mark batch is held to one entry per message, as every other batch here is.</summary>
+    [Fact]
+    public async Task SubmitSpamMarksAsync_ABatchNamingOneMessageTwice_IsRefused()
+    {
+        // Act
+        var result = await ClientMailSpamMarksEndpoint.SubmitSpamMarksAsync(
+            new ClientMailSpamMarksRequest("call-1", "NotSpam", SpamSubcategory: null, [Message, Message]),
+            this.SpamMarkRecorder(),
+            Idempotency(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(StatusCodes.Status400BadRequest, RefusalOf(result).StatusCode);
+    }
+
     /// <summary>A move, a delete, and a spam mark carry the same requirement as a flag change: no key, no act.</summary>
     [Fact]
     public async Task SubmitMovesAsync_NoRequestId_IsRefused()

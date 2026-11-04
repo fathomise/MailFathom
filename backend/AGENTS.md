@@ -150,7 +150,7 @@ Every mail account is in one of three custody phases, `MailAccountCustodyPhase`,
 
 | Phase | Where the truth is | What an act the mailbox's user authored does |
 |---|---|---|
-| `Mirrored` | The source server, of which MailFathom keeps a copy | Opens a mutation record the converger carries to the server under ADR 0007, and commits the change to stored state in the same transaction wherever every replica knows the overlay that leaves — a move or a copy only on a server last seen naming where it lands |
+| `Mirrored` | The source server, of which MailFathom keeps a copy | Opens a mutation record the converger carries to the server under ADR 0007, and commits the change to stored state in the same transaction wherever every replica knows the overlay that leaves — a delete, a move or a copy only on a server last seen naming where a message lands |
 | `Held` | MailFathom, while the source is drained of what MailFathom holds | Commits to stored state in one transaction with its audit entry, and never reaches the source on the request |
 | `Restoring` | MailFathom, while the mailbox is appended back to the source | Commits locally as a held act does and, where the message holds a source occurrence, opens the mutation record that carries it there; a folder act is refused |
 

@@ -97,6 +97,41 @@ public sealed class MailActKeyRetentionWorkerTests
         Assert.Contains(logger.Messages, message => message.Contains("Deleted 3 mailbox act keys", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// A bulk act writes a key per message, so a day can leave more than one call deletes; a pass asks again until a call
+    /// comes back short rather than leaving the rest for a later interval.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_ABacklogLargerThanOneCall_IsDrainedInOnePass()
+    {
+        // Arrange
+        var remaining = (MailActKeyRetention.MaximumEntriesErasedPerPass * 2) + 3;
+        var store = Substitute.For<IMailActKeyStore>();
+        store.EraseRecordedBeforeAsync(Arg.Any<DateTimeOffset>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var erased = Math.Min(remaining, call.ArgAt<int>(1));
+                remaining -= erased;
+
+                return Task.FromResult(erased);
+            });
+
+        var timeProvider = new FakeTimeProvider();
+        using var worker = WorkerOver(store, timeProvider, out var logger);
+
+        // Act
+        await worker.StartAsync(CancellationToken.None);
+        await AdvanceUntilAsync(timeProvider, () => logger.Messages.Any(message => message.Contains("Deleted", StringComparison.Ordinal)));
+        await worker.StopAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Contains(
+            logger.Messages,
+            message => message.Contains(
+                $"Deleted {(MailActKeyRetention.MaximumEntriesErasedPerPass * 2) + 3} mailbox act keys",
+                StringComparison.Ordinal));
+    }
+
     /// <summary>Moves the clock on until the worker has reached what the test is waiting for.</summary>
     /// <remarks>
     /// A loop rather than one advance, because the wait on the next interval is created after the pass before it
