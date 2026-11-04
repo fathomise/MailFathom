@@ -33,7 +33,7 @@ public sealed class OrchestratedMailActIdempotencyTests(MailFathomOrchestrationF
     /// <summary>How many callers race for one effect, enough that a caller reliably loses.</summary>
     private const int ConcurrentWriters = 6;
 
-    private const uint OverlayedUid = 9701;
+    private const uint OverlaidUid = 9701;
 
     private const uint KeyedUid = 9702;
 
@@ -49,7 +49,7 @@ public sealed class OrchestratedMailActIdempotencyTests(MailFathomOrchestrationF
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
         var binding = await OrchestratedFolderBinding.CommitAsync(services, FolderAlias, cancellationToken);
-        var occurrence = SyntheticEmail.OccurrenceIn(binding, OverlayedUid);
+        var occurrence = SyntheticEmail.OccurrenceIn(binding, OverlaidUid);
         var storedEmailId = await StoredSyntheticEmail.MetadataOnlyAsync(services, occurrence, "overlay-race", cancellationToken);
         var request = MailboxMutationRequest.SetSeen(
             storedEmailId,

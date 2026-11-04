@@ -1011,7 +1011,7 @@ public sealed class MailboxSynchronizerTests
     /// pass has read the folder through, because the copy the server made is then among what that pass discovered.
     /// </summary>
     [Fact]
-    public async Task SynchronizeAsync_AFolderReadThroughAfterALocalCopyTheServerNamedNoPlacementFor_RetiresTheCopysRow()
+    public async Task SynchronizeAsync_AFolderReadThroughAfterALocalCopyTheServerNamedNoPlacementFor_RetiresTheCopiedRow()
     {
         // Arrange
         var accountId = MailAccountId.Create("primary");
