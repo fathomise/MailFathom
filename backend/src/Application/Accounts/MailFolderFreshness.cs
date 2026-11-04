@@ -29,4 +29,11 @@ public sealed record MailFolderFreshness(
     MailFolderAlias Alias,
     MailSynchronizationState State,
     DateTimeOffset? SynchronizedAt,
-    bool IsBehind);
+    bool IsBehind)
+{
+    /// <summary>Gets since when the folder's turns have ended in <see cref="State" /> without a break, or <see langword="null" /> where this process has not watched it reach the state.</summary>
+    public DateTimeOffset? StateSince { get; init; }
+
+    /// <summary>Gets since when the folder has been behind, or <see langword="null" /> while it is not.</summary>
+    public DateTimeOffset? BehindSince { get; init; }
+}

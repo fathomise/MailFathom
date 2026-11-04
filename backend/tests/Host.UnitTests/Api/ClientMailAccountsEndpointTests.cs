@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Folders;
@@ -56,7 +57,11 @@ public sealed class ClientMailAccountsEndpointTests
                 SynchronizedAt,
                 Behind: false,
                 FilesJunk: false,
-                Shared: false),
+                Shared: false,
+                SynchronizationStateSince: null,
+                BehindSince: null,
+                WaitingChangeCount: 0,
+                OldestWaitingChangeCommittedAt: null),
             Assert.Single(response.Accounts));
     }
 
@@ -143,8 +148,34 @@ public sealed class ClientMailAccountsEndpointTests
     }
 
     /// <summary>
+    /// The instants the freshness line measures from reach the wire as the deployment recorded them, so a client opened
+    /// late does not restart the sixty seconds, and the changes still waiting are counted beside the oldest one's commit.
+    /// </summary>
+    [Fact]
+    public void For_AnUnreachableAccountHoldingChanges_CarriesSinceWhenAndWhatWaits()
+    {
+        // Arrange
+        var unreachableSince = SynchronizedAt + TimeSpan.FromMinutes(3);
+        var oldestCommittedAt = SynchronizedAt + TimeSpan.FromMinutes(4);
+        var directory = Directory(Freshness(Work, MailSynchronizationState.Unreachable, SynchronizedAt) with
+        {
+            StateSince = unreachableSince,
+            WaitingChanges = new MailboxWaitingChanges(3, oldestCommittedAt),
+        });
+
+        // Act
+        var response = ClientMailAccountsResponse.For(directory, NoSpamActions, NoneShared);
+
+        // Assert
+        var account = Assert.Single(response.Accounts);
+        Assert.Equal(
+            ((DateTimeOffset?)unreachableSince, 3, (DateTimeOffset?)oldestCommittedAt),
+            (account.SynchronizationStateSince, account.WaitingChangeCount, account.OldestWaitingChangeCommittedAt));
+    }
+
+    /// <summary>
     /// The folders the use case carries are the folder route's business, and the mailbox list stays the answer that
-    /// grows with nothing but the account count: an account whose folders are known reaches the wire as the same seven
+    /// grows with nothing but the account count: an account whose folders are known reaches the wire as the same
     /// fields an account whose folders are not does.
     /// </summary>
     [Fact]
@@ -176,7 +207,11 @@ public sealed class ClientMailAccountsEndpointTests
                 SynchronizedAt,
                 Behind: false,
                 FilesJunk: false,
-                Shared: false),
+                Shared: false,
+                SynchronizationStateSince: null,
+                BehindSince: null,
+                WaitingChangeCount: 0,
+                OldestWaitingChangeCommittedAt: null),
             Assert.Single(response.Accounts));
     }
 

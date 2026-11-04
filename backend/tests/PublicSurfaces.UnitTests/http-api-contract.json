@@ -2231,6 +2231,13 @@
           "behind": {
             "type": "boolean"
           },
+          "behindSince": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "displayName": {
             "type": "string"
           },
@@ -2247,11 +2254,33 @@
               "string"
             ]
           },
+          "oldestWaitingChangeCommittedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "shared": {
             "type": "boolean"
           },
           "synchronizationState": {
             "type": "string"
+          },
+          "synchronizationStateSince": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "waitingChangeCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
           }
         },
         "required": [
@@ -2261,7 +2290,11 @@
           "lastSynchronizedAt",
           "behind",
           "filesJunk",
-          "shared"
+          "shared",
+          "synchronizationStateSince",
+          "behindSince",
+          "waitingChangeCount",
+          "oldestWaitingChangeCommittedAt"
         ],
         "type": "object"
       },

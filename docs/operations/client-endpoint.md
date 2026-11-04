@@ -472,16 +472,24 @@ It answers with the mail accounts the signed-in user owns, and how current the l
       "lastSynchronizedAt": "2026-08-15T10:00:00+00:00",
       "behind": false,
       "filesJunk": true,
-      "shared": true
+      "shared": true,
+      "synchronizationStateSince": "2026-08-15T09:40:00+00:00",
+      "behindSince": null,
+      "waitingChangeCount": 0,
+      "oldestWaitingChangeCommittedAt": null
     },
     {
       "id": "8e3f1a6b-2c4d-4f7e-a915-7b2d0c6e1f38",
       "displayName": "Private mail",
-      "synchronizationState": "Failing",
+      "synchronizationState": "Unreachable",
       "lastSynchronizedAt": "2026-08-14T21:12:00+00:00",
       "behind": true,
       "filesJunk": false,
-      "shared": false
+      "shared": false,
+      "synchronizationStateSince": "2026-08-14T21:20:00+00:00",
+      "behindSince": "2026-08-14T21:05:00+00:00",
+      "waitingChangeCount": 3,
+      "oldestWaitingChangeCommittedAt": "2026-08-15T07:31:00+00:00"
     }
   ]
 }
@@ -523,6 +531,29 @@ run yet by what its stored progress says rather than by how its runs were going 
 that was failing is not one this process is applying. A host shutting down mid-attempt is not a failure either: the
 supervisor counts it under none, so an account backed off for every restart would be one approached less often for being
 stopped.
+
+**`synchronizationStateSince`, `behindSince`, `waitingChangeCount`, and `oldestWaitingChangeCommittedAt` are what the
+client's account freshness line is drawn from.** The line turns the account *not current* once one of three causes has
+held for sixty seconds without a break — the server unreachable, the account behind, or a change waiting — and each is
+measured from the instant the deployment publishes here rather than from when a client first read it, so a client that
+opens late, or reconnects, does not restart the sixty seconds.
+
+- `synchronizationStateSince` is since when the account has been in `synchronizationState`: for `Unreachable` and
+  `Failing`, since the first of this deployment's attempts that ended that way without a break; for `Synchronized`,
+  since the last of its folders came back to it. It is `null` where the answering process has not watched the account
+  reach its state — `NeverSynchronized`, or an account it has not run since it started.
+- `behindSince` is since when the account has had mail its folders have not taken in yet, without a break, and `null`
+  while `behind` is `false`.
+- `waitingChangeCount` is how many changes MailFathom holds for the account that its mail server does not have yet —
+  a read, a flag, a keyword, a move, a copy, or a delete a person, a rule, or an agent made — and
+  `oldestWaitingChangeCommittedAt` is when the oldest of them was committed, `null` when none waits. Sends are not
+  counted: the outbox reports those. A change waits through an outage of any length and goes out once the server is
+  back; no notification is raised for an outage, so this count is the one place a person reads that changes are being
+  kept.
+
+The two instants describe what the answering process watched, as `synchronizationState` does, so a deployment of
+several replicas answers from whichever replica the request reached. The count and the oldest commit are read from the
+database and are the same on every replica.
 
 **`filesJunk` says whether the person's own spam marks move this account's mail**: it is the account's
 `SpamClassification:Actions:MoveToJunkFolder` switch, `false` wherever classification is off, and it is read from the
@@ -4278,12 +4309,12 @@ The deduplication key is absent: it is the rule's own name for a condition rathe
 
 **What a notification says is a condition and its numbers, and the sentence is the client's.** `statement` carries a
 `cause` — `MailArrived`, `MessageArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`,
-`TaskReminderDue`, `SendRefused`, `MailboxChangeAbandoned`, or `DraftCopyNotKept` — beside
+`TaskReminderDue`, `SendRefused`, `MailboxChangeAbandoned`, `DraftCopyNotKept`, or `MailboxChangeRefused` — beside
 `counted` and `outOf`, whose meaning is the cause's to give: merged mail counts the messages that arrived, one arrived
 message counts whether it carried a subject — so a client words a missing one itself — an unfinished run
 counts the folders that did not finish out of the folders it scheduled, a due reminder counts the minutes between now
 and the event, and a refused credential counts nothing. A refused send and a draft out of step with its server copy
-count whether they carried a subject, as one arrived message does, and a given-up change counts the act it was:
+count whether they carried a subject, as one arrived message does, and a given-up or refused change counts the act it was:
 `0` mark as read, `1` mark as unread, `2` flag, `3` remove the flag, `4` move, `5` delete, `6` copy, `7` change the
 tags. A client turns that into a
 sentence in whatever language its reader has, which is why the service sends no sentence of its own for it to
@@ -4334,9 +4365,16 @@ error.
 **A failure decided after its request answered is put in front of the person once.** A send the mail server refused
 for good, or one that missed the moment it was due, is a `SendRefused` row for every user assigned the account,
 leading to that send in its outbox, where it is offered again, taken back to edit, or dismissed. A change somebody
-asked of a message that MailFathom gave up on — every attempt spent, a server that cannot carry it, a destination
-folder the server does not have, or an outcome nobody could establish — is a `MailboxChangeAbandoned` row for every user assigned the account, leading to the message;
-a change a rule or the spam classifier asked for raises none, because nobody watched it happen. A draft whose copy on
+asked of a message that MailFathom gave up on is put back the way the mail server holds it and raises a row for every
+user assigned the account, leading to the message, in one of two causes. `MailboxChangeAbandoned` is a change the
+server kept refusing in a way asking again might alter until its refusal window passed, or one whose outcome nobody
+could establish, and a client offers the act again from it — a press records it afresh under a new idempotency key, so
+it is a new change rather than the abandoned one revived. `MailboxChangeRefused` is a change the server will refuse
+however often it is asked — a `BAD`, a destination folder it does not have, a folder it holds read-only, a message no
+longer at its occurrence, or a server that cannot carry the change — and a client explains it and offers nothing to
+repeat. A server that could not be reached raises neither, however long it stays out of reach: the change waits and
+the [accounts route](#the-accounts-route) counts it.
+A change a rule or the spam classifier asked for raises none, because nobody watched it happen. A draft whose copy on
 the mail server stopped following it — an append the server never answered, or an earlier revision's copy that could
 not be taken back out — is a `DraftCopyNotKept` row for the draft's writer alone, leading to the draft. Each is
 deduplicated per send, per change, and per draft while it stands unread, and each goes with the record it names: a

@@ -57,7 +57,7 @@ public enum MailboxMutationStage
     Completed = 4,
 
     /// <summary>The mutation will not be attempted again, and the failure that ended it is on the record.</summary>
-    /// <remarks>A refused mutation and one that spent its bounded attempts both end here, which is what keeps a failing change visible instead of pending forever.</remarks>
+    /// <remarks>A permanent refusal, a transient one the refusal window ran out on, and an outcome nobody learned all end here, which is what keeps a refused change visible instead of pending forever.</remarks>
     Abandoned = 5,
 
     /// <summary>The change was withdrawn before any command went out, and nothing will attempt it.</summary>

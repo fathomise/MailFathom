@@ -91,7 +91,10 @@ public sealed class MailFailureNotificationsTests
             isFlagged: false));
 
         // Act
-        var kept = await Create(store).ReportAbandonedChangeAsync(change, TestContext.Current.CancellationToken);
+        var kept = await Create(store).ReportAbandonedChangeAsync(
+            change,
+            MailboxMutationRefusalClass.Transient,
+            TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True(kept);
@@ -103,6 +106,37 @@ public sealed class MailFailureNotificationsTests
             Assert.Equal(change.Request.StoredEmailId, notification.Target.Message);
         });
         Assert.Equal(2, store.Recorded.Count);
+    }
+
+    /// <summary>
+    /// A change the server will never take is told as refused, under a cause of its own, so no client offers the act
+    /// again only to have it refused the same way.
+    /// </summary>
+    [Fact]
+    public async Task ReportAbandonedChangeAsync_APermanentRefusal_TellsItAsRefusedWithoutOfferingItAgain()
+    {
+        // Arrange
+        var store = new InMemoryNotificationStore();
+        var change = Abandoned(MailboxMutationRequest.SetFlagged(
+            StoredEmailId.Create(Guid.CreateVersion7()),
+            Occurrence(),
+            MailboxMutationRequester.Command("client-flag-1"),
+            isFlagged: true));
+
+        // Act
+        await Create(store).ReportAbandonedChangeAsync(
+            change,
+            MailboxMutationRefusalClass.Permanent,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotEmpty(store.Recorded);
+        Assert.All(store.Recorded, notification =>
+        {
+            Assert.Equal(NotificationCause.MailboxChangeRefused, notification.Statement!.Cause);
+            Assert.Equal((int)MailboxChangeAct.Flag, notification.Statement.Counted);
+            Assert.DoesNotContain("ask for it again", notification.Body, StringComparison.Ordinal);
+        });
     }
 
     /// <summary>A rule's or a classifier's change is nobody's act in person, so nobody is told it was given up.</summary>
@@ -118,7 +152,10 @@ public sealed class MailFailureNotificationsTests
             isSeen: true));
 
         // Act
-        var kept = await Create(store).ReportAbandonedChangeAsync(change, TestContext.Current.CancellationToken);
+        var kept = await Create(store).ReportAbandonedChangeAsync(
+            change,
+            MailboxMutationRefusalClass.Transient,
+            TestContext.Current.CancellationToken);
 
         // Assert
         Assert.False(kept);

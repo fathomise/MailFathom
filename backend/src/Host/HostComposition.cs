@@ -615,13 +615,13 @@ internal static class HostComposition
             ConnectionIdlePeriod = provider.GetRequiredService<ISettingsSnapshot<MailSynchronizationOptions>>()
                 .Current.WriteConnectionIdlePeriod,
         });
-        // A singleton for the same reason: the bound is one answer for the process, and a mutation's attempts are counted
-        // across runs rather than within one, so reading it per scope would let two runs of the same change disagree about
-        // when it has had enough.
+        // A singleton for the same reason: the window is one answer for the process, and a refused change is measured
+        // against it across runs rather than within one, so reading it per scope would let a run and the supervision
+        // keeping the deadline between runs disagree about when the change has had enough.
         builder.Services.AddSingleton(provider => new MailboxMutationOptions
         {
-            MaximumAttempts = provider.GetRequiredService<ISettingsSnapshot<MailSynchronizationOptions>>()
-                .Current.MaxMutationAttempts,
+            RefusalWindow = provider.GetRequiredService<ISettingsSnapshot<MailSynchronizationOptions>>()
+                .Current.MutationRefusalWindow,
         });
     }
 

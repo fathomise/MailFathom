@@ -175,6 +175,10 @@ internal sealed class MailboxMutationEntity
 
     public int AttemptCount { get; set; }
 
+    /// <summary>Gets or sets when the mail server first declined the change in a way asking again might alter, and <see langword="null" /> while it has not.</summary>
+    /// <remarks>The refusal window is measured from it, and a first refusal is never moved by a later one.</remarks>
+    public DateTimeOffset? FirstRefusedAt { get; set; }
+
     /// <summary>Gets or sets the instant before which no convergence pass takes this record in hand, and <see langword="null" /> where none waits.</summary>
     /// <remarks>
     /// <para>

@@ -547,9 +547,10 @@ public sealed class SetMailFlagsToolTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<int> CountAttemptAsync(
+        public Task<DateTimeOffset> RecordRefusalAsync(
             IPersistenceSession session,
             MailboxMutationRecordId recordId,
+            MailFathomErrorCode failure,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
@@ -589,6 +590,17 @@ public sealed class SetMailFlagsToolTests
 
         public Task<IReadOnlyList<MailboxMutationLifecycleCount>> ReadLifecycleCountsAsync(
             MailAccountId account,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<OutstandingMailboxMutation>> ReadRefusedAsync(
+            MailAccountId account,
+            int limit,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyDictionary<MailAccountId, MailboxWaitingChanges>> ReadWaitingChangesAsync(
+            IReadOnlyCollection<MailAccountId> accounts,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }

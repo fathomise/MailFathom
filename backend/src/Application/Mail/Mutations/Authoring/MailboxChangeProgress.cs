@@ -14,7 +14,7 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// <param name="Mutation">The change that was asked for, under the name every log line and counter uses for it.</param>
 /// <param name="Lifecycle">Whether the change is waiting, on its way, done, stuck, or withdrawn.</param>
 /// <param name="IsOutcomeUnknown">Whether the one command that may never be issued twice went out and its answer never came back.</param>
-/// <param name="AttemptCount">How many times the change has been attempted, which is what says a retried change is making no progress.</param>
+/// <param name="AttemptCount">How many times the mail server has answered the change and not taken it; an outage counts none.</param>
 /// <param name="LastFailure">The code identifying what the last attempt ended in, or <see langword="null" /> while none has failed.</param>
 /// <param name="RecordedAt">When the change was written down.</param>
 /// <param name="StageChangedAt">When it last moved, which is what says how long a stuck change has been stuck.</param>

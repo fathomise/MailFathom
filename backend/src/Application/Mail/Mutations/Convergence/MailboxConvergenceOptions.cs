@@ -7,8 +7,8 @@ namespace MailFathom.Application.Mail.Mutations.Convergence;
 /// <summary>Bounds one convergence pass and says how long an unresolved outcome may stay unresolved.</summary>
 /// <remarks>
 /// Neither setting is a retry policy. How often a pass runs and how far apart two attempts of the same change are is the
-/// account's synchronization schedule, and how many attempts one change may spend is
-/// <see cref="MailboxMutationOptions.MaximumAttempts" />. What is configured here is the width of a pass and the one
+/// account's synchronization schedule, and how long a refused change is asked again is
+/// <see cref="MailboxMutationOptions.RefusalWindow" />. What is configured here is the width of a pass and the one
 /// deadline convergence owns.
 /// </remarks>
 public sealed class MailboxConvergenceOptions

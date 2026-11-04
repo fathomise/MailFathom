@@ -760,11 +760,27 @@ against a server that now advertises `MOVE` would otherwise be read as already f
 folders for good. Which path ran is still invisible above `Debug`: it changes what the next attempt does, never what
 the operation is called.
 
-**What became of it.** `MaxMutationAttempts` bounds how many attempts one change may spend, counted before each attempt
-so one that kills the process still counts. A change that spends them stops being attempted and stays readable as stuck
-rather than looking busy forever. Two refusals do not wait for that bound at all: a server that advertises no safe way
-to carry the change, and one that answers that the destination folder is not there, have each already given the answer
-every later attempt would receive, so those stop at the first refusal.
+**What became of it.** A change ends one of three ways, and which one depends on whether the server answered.
+
+- **The server took it.** The record completes.
+- **The server answered and did not take it — a refusal.** A *permanent* refusal ends the change at once: a `BAD`, a
+  destination folder the server reports gone, a folder held open read-only, an occurrence under a `UIDVALIDITY` the
+  folder no longer has, and a server that advertises no safe way to carry the change have each already given the answer
+  every later attempt would receive. Any other `NO` is *transient*: the change is asked again on later runs and given up
+  no later than `MutationRefusalWindow` — fifteen minutes by default — after the server first refused it. The window is
+  read between runs as well, without a connection, so neither the account's backoff nor an outage that follows the
+  refusal pushes it back. `NOPERM`, `CANNOT`, and `CONTACTADMIN` are among the transient ones, because the mail library
+  reports them as a `NO` with no code.
+- **The server could not be reached — an outage.** Nothing is counted and nothing ends. The change waits however long
+  the outage lasts and goes out once the server is back, and the account's line in the client says it is unreachable,
+  since when, and how many changes are waiting. A command whose answer never came because the connection dropped is
+  the same outage: a flag, a keyword, or a delete is asked again on the next run, which the server answers identically.
+
+A change given up — at a permanent refusal or when its window passes — has every field it wrote locally put back to what
+the server was last seen holding, its message is announced to every open client, and when a person asked for it their
+account's users are told: a transient refusal's notification offers the act again, a permanent one's does not. A change a
+rule asked for is given up just as quietly as it was made. `AttemptCount` on the record counts the server's answers
+alone, so an outage of any length leaves it where it was.
 
 The record holds no mail. A folder path, a UID, a mutation name, a requester identity, and a five-digit failure code are
 all it carries, and it is removed with the email it describes — including when the change it recorded was that email's
@@ -974,8 +990,9 @@ notification that could not be written leaves the change given up exactly as it 
 
 Nothing here retries on a schedule of its own. A change that fails fails the account's run, so the same jittered backoff
 that defers a failing account's folders defers its changes, and one stuck account never delays another — the accounts
-run under the same slot count they always did. What bounds a change that keeps failing is still `MaxMutationAttempts`,
-counted across runs rather than within one.
+run under the same slot count they always did. A refusal is not a failure — the server answered — so it neither fails
+the run nor backs the account off, and what bounds a change the server keeps refusing is `MutationRefusalWindow`,
+measured from the first refusal across runs.
 
 What is outstanding is readable while it is outstanding: `mailfathom.mailbox.mutations.outstanding` counts the changes
 an account is waiting on, and `mailfathom.mailbox.mutations.oldest_outstanding_age` says how long the oldest has waited.

@@ -135,6 +135,10 @@ internal sealed record ClientMailAccountsResponse(
 /// <param name="Behind">Whether any of the account's folders ended its last attempt with mail it had not yet taken in.</param>
 /// <param name="FilesJunk">Whether a spam verdict on the account's mail moves it into the junk folder, and the person's not-spam verdict moves it out to the inbox.</param>
 /// <param name="Shared">Whether the account is assigned to more than one user, so others read what arrives there.</param>
+/// <param name="SynchronizationStateSince">Since when the account has been in its synchronization state, as the replica answering watched it, or <see langword="null" /> where it has not watched the account reach it.</param>
+/// <param name="BehindSince">Since when the account has been behind, or <see langword="null" /> while it is not.</param>
+/// <param name="WaitingChangeCount">How many changes MailFathom holds for the account that its mail server does not have yet; sends are not counted.</param>
+/// <param name="OldestWaitingChangeCommittedAt">When the oldest of those changes was committed, or <see langword="null" /> when none waits.</param>
 /// <remarks>
 /// <para>
 /// The three answer different parts of one question and are published apart for that reason. The timestamp says how old
@@ -152,6 +156,12 @@ internal sealed record ClientMailAccountsResponse(
 /// Being shared is published so a client can mark the mailbox wherever it is drawn or chosen. It is one fact about the
 /// assignment and names none of the other users.
 /// </para>
+/// <para>
+/// The last four are what the account freshness line is drawn from. It turns the account not current once one of three
+/// causes has held for sixty seconds without a break — the server unreachable, the account behind, or a change waiting —
+/// and each is measured from the instant published here rather than from when a client first read it, so a client that
+/// opens late does not restart the clock. An outage is reported here and nowhere else: no notification is raised for it.
+/// </para>
 /// </remarks>
 internal sealed record ClientMailAccountResponse(
     string Id,
@@ -160,7 +170,11 @@ internal sealed record ClientMailAccountResponse(
     DateTimeOffset? LastSynchronizedAt,
     bool Behind,
     bool FilesJunk,
-    bool Shared)
+    bool Shared,
+    DateTimeOffset? SynchronizationStateSince,
+    DateTimeOffset? BehindSince,
+    int WaitingChangeCount,
+    DateTimeOffset? OldestWaitingChangeCommittedAt)
 {
     /// <summary>Describes one account on the wire.</summary>
     /// <param name="account">The account's freshness.</param>
@@ -184,6 +198,10 @@ internal sealed record ClientMailAccountResponse(
             account.LastSynchronizedAt,
             account.IsBehind,
             spamActions.ActionsFor(account.Account.Id).FilesJunk,
-            sharedAccounts.Contains(account.Account.Id));
+            sharedAccounts.Contains(account.Account.Id),
+            account.StateSince,
+            account.BehindSince,
+            account.WaitingChanges?.Count ?? 0,
+            account.WaitingChanges?.OldestCommittedAt);
     }
 }

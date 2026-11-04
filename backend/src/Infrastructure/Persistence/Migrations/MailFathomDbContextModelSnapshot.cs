@@ -2770,6 +2770,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1)
                         .HasColumnType("character varying(1)");
 
+                    b.Property<DateTimeOffset?>("FirstRefusedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset?>("HeldUntil")
                         .HasColumnType("timestamp with time zone");
 

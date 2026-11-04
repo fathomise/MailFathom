@@ -209,6 +209,21 @@ public sealed class MailboxMutationRecordMappingTests
         Assert.Equal(localChange, record.LocalChange);
     }
 
+    /// <summary>The instant the server first refused a change is what its refusal window is measured from, so it survives a restart.</summary>
+    [Fact]
+    public void ToRecord_ARowTheServerRefused_RestoresWhenItFirstRefused()
+    {
+        // Arrange
+        var entity = StoredRelocation();
+        entity.FirstRefusedAt = RecordedAt.AddMinutes(3);
+
+        // Act
+        var record = MailboxMutationRecordMapping.ToRecord(entity, entity.MailFolderBinding);
+
+        // Assert
+        Assert.Equal(RecordedAt.AddMinutes(3), record.FirstRefusedAt);
+    }
+
     /// <summary>
     /// A row can only name an unstorable keyword by having been edited outside this system, and issuing the subset that
     /// happens to be usable would be a narrower change than the one written down. Failing visibly is what an operator

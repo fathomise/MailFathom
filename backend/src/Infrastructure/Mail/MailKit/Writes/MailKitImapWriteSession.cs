@@ -862,7 +862,7 @@ internal sealed class MailKitImapWriteSession : IMailboxWriteSession
     /// <para>
     /// MailKit raises <see cref="FolderNotFoundException" /> here, which is a plain exception carrying a remote path and
     /// nothing else about what was being attempted. Left alone it would reach the record as an unclassified failure and
-    /// be attempted once per run until the mutation's attempt bound was spent, which buys a login per attempt to be told
+    /// be attempted once per run until the mutation's refusal window was spent, which buys a login per attempt to be told
     /// the same thing. Translating it is what lets the change be given up on at once and stand visible for the operator
     /// whose folder it is.
     /// </para>
@@ -1059,6 +1059,23 @@ internal sealed class MailKitImapWriteSession : IMailboxWriteSession
     }
 
     /// <summary>Runs one mutation under its own telemetry scope, against the occurrence this session is allowed to change.</summary>
+    /// <remarks>
+    /// <para>
+    /// The server's own answer leaves here as a <see cref="MailboxMutationDeclinedException" />, classed by what the answer
+    /// was made of, so the performer can tell a refusal from a failure to reach the server and never sees a mail-library
+    /// type. <c>BAD</c> names a command MailFathom should not have sent; a folder MailKit reports gone — its reading of
+    /// <c>NONEXISTENT</c> and <c>TRYCREATE</c> — and a folder it holds open read-only — its reading of <c>READ-ONLY</c> —
+    /// will not change on their own. Every other <c>NO</c> is transient.
+    /// </para>
+    /// <para>
+    /// That last rule is wider than the response codes call for, and deliberately so. MailKit reads a tagged response's
+    /// code into a type it does not publish, and its exception carries the server's text with the code taken out, so
+    /// <c>NOPERM</c>, <c>CANNOT</c>, and <c>CONTACTADMIN</c> arrive here indistinguishable from a <c>NO</c> with no code at
+    /// all. Read as transient, such a change is asked again and given up on once the refusal window passes rather than at
+    /// the first refusal, and its notification offers the act again. Reading the code would need a protocol logger parsing
+    /// every server line on the write connection, or MailKit publishing it.
+    /// </para>
+    /// </remarks>
     private async Task<TResult> PerformAsync<TResult>(
         MailboxMutation mutation,
         EmailOccurrenceId occurrenceId,
@@ -1067,35 +1084,66 @@ internal sealed class MailKitImapWriteSession : IMailboxWriteSession
     {
         using var scope = this.telemetry.Begin(mutation, this.SessionAccountId, this.folder.Alias, cancellationToken);
 
-        var result = await this.lease.Connection.ExecuteMutationAsync(
-            (client, openFolder, attemptToken) =>
-            {
-                this.RequireOccurrenceBelongsToSession(occurrenceId, openFolder);
+        try
+        {
+            var result = await this.lease.Connection.ExecuteMutationAsync(
+                (client, openFolder, attemptToken) =>
+                {
+                    this.RequireOccurrenceBelongsToSession(occurrenceId, openFolder);
 
-                return change(client, openFolder, scope, attemptToken);
-            },
-            cancellationToken);
+                    return change(client, openFolder, scope, attemptToken);
+                },
+                cancellationToken);
 
-        scope.Completed();
+            scope.Completed();
 
-        return result;
+            return result;
+        }
+        catch (ImapCommandException answer)
+        {
+            throw this.Declined(
+                answer.Response is ImapCommandResponse.Bad
+                    ? MailboxMutationRefusalClass.Permanent
+                    : MailboxMutationRefusalClass.Transient,
+                answer);
+        }
+        catch (Exception answer) when (answer is FolderNotFoundException or FolderNotOpenException)
+        {
+            throw this.Declined(MailboxMutationRefusalClass.Permanent, answer);
+        }
     }
+
+    private MailboxMutationDeclinedException Declined(MailboxMutationRefusalClass refusalClass, Exception answer) =>
+        new(this.SessionAccountId, this.folder.Alias, refusalClass, answer);
 
     /// <summary>Refuses an occurrence this session's selection does not cover.</summary>
     /// <remarks>
+    /// <para>
     /// The UIDVALIDITY is compared against the folder as it is selected right now rather than as it was when the
     /// session opened, so a folder recreated under a recovered connection cannot have a mutation applied to it using
     /// UIDs that named different emails.
+    /// </para>
+    /// <para>
+    /// An occurrence of another account or another binding is a caller's mistake. One whose UIDVALIDITY the folder no
+    /// longer carries is the server's answer that the message is not where the change names it, which asking again cannot
+    /// alter, so it is a permanent refusal rather than an argument error.
+    /// </para>
     /// </remarks>
     private void RequireOccurrenceBelongsToSession(EmailOccurrenceId occurrenceId, IMailFolder openFolder)
     {
         if (occurrenceId.AccountId != this.SessionAccountId ||
-            occurrenceId.FolderResolutionId != this.folder.Id ||
-            occurrenceId.UidValidity.Value != openFolder.UidValidity)
+            occurrenceId.FolderResolutionId != this.folder.Id)
         {
             throw new ArgumentException(
                 "The email occurrence does not belong to the open mailbox write session.",
                 nameof(occurrenceId));
+        }
+
+        if (occurrenceId.UidValidity.Value != openFolder.UidValidity)
+        {
+            throw this.Declined(
+                MailboxMutationRefusalClass.Permanent,
+                new InvalidOperationException("The folder no longer carries the UIDVALIDITY the occurrence was read under."));
         }
     }
 }

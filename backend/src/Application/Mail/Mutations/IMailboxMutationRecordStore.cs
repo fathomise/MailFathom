@@ -194,16 +194,23 @@ public interface IMailboxMutationRecordStore
         IReadOnlyList<MailboxMutationRecordId> recordIds,
         CancellationToken cancellationToken);
 
-    /// <summary>Counts one attempt against the record before that attempt is made.</summary>
+    /// <summary>Records that the mail server answered the change and declined it in a way asking again might alter.</summary>
     /// <param name="session">The session the write joins.</param>
-    /// <param name="recordId">The record to count against.</param>
+    /// <param name="recordId">The record the refused attempt belonged to.</param>
+    /// <param name="failure">The code identifying the refusal.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
-    /// <returns>The number this attempt is, counting from one.</returns>
+    /// <returns>When the server first declined the change, which this write sets where no earlier refusal had.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> is <see langword="null" />.</exception>
     /// <exception cref="InvalidOperationException">Thrown when no record carries <paramref name="recordId" />.</exception>
-    Task<int> CountAttemptAsync(
+    /// <remarks>
+    /// The attempt is counted here, after the answer, rather than before the command, because only an answer is an
+    /// attempt: a server that could not be reached was asked nothing. The first refusal's instant is kept rather than
+    /// moved, since it is what the refusal window is measured from.
+    /// </remarks>
+    Task<DateTimeOffset> RecordRefusalAsync(
         IPersistenceSession session,
         MailboxMutationRecordId recordId,
+        MailFathomErrorCode failure,
         CancellationToken cancellationToken);
 
     /// <summary>Moves the record to <see cref="MailboxMutationStage.PlacementIssued" /> and states what the command will leave behind.</summary>
@@ -321,5 +328,36 @@ public interface IMailboxMutationRecordStore
     /// </remarks>
     Task<IReadOnlyList<MailboxMutationLifecycleCount>> ReadLifecycleCountsAsync(
         MailAccountId account,
+        CancellationToken cancellationToken);
+
+    /// <summary>Reads one account's changes the mail server has declined and that have not ended, with the folder binding each was recorded against.</summary>
+    /// <param name="account">The account whose refused changes are read.</param>
+    /// <param name="limit">The greatest number of records to return.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The records carrying a first refusal and no terminal stage, earliest first refusal first, at most <paramref name="limit" /> of them.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="limit" /> is not positive.</exception>
+    /// <remarks>
+    /// It is what the refusal window is kept from without a connection: the account's supervision reads it between runs
+    /// to give up on the changes whose window has passed and to learn when the next one will. Earliest first, so a page
+    /// always holds the deadlines that come soonest.
+    /// </remarks>
+    Task<IReadOnlyList<OutstandingMailboxMutation>> ReadRefusedAsync(
+        MailAccountId account,
+        int limit,
+        CancellationToken cancellationToken);
+
+    /// <summary>Reads, for each of the accounts named, how many changes MailFathom holds that have not reached its mail server, and when the oldest was committed.</summary>
+    /// <param name="accounts">The accounts to read.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>One entry per named account that has at least one change waiting; an account with none is absent.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="accounts" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// A change is waiting from the moment it is recorded until it ends, whatever stage it has reached on the way, because
+    /// a person reads it as made and the mail server does not have it yet. A local erasure is not one, since it is never
+    /// carried to a mail server, and a send is not one either: it is the outbox's, which reports it apart. The database
+    /// groups and counts, so the answer is one row per account however many changes wait.
+    /// </remarks>
+    Task<IReadOnlyDictionary<MailAccountId, MailboxWaitingChanges>> ReadWaitingChangesAsync(
+        IReadOnlyCollection<MailAccountId> accounts,
         CancellationToken cancellationToken);
 }

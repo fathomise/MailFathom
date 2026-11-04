@@ -221,9 +221,9 @@ internal sealed partial class AccountSynchronizationSupervisor
 
             try
             {
-                await this.pushNotifications.WaitForNextPassAsync(
+                await this.WaitForNextRunAsync(
                     runSettings,
-                    delayBeforeNextRun,
+                    this.timeProvider.GetUtcNow() + delayBeforeNextRun,
                     authoredChange.Token);
             }
             catch (OperationCanceledException) when (!schedulingToken.IsCancellationRequested)
@@ -231,6 +231,79 @@ internal sealed partial class AccountSynchronizationSupervisor
                 // Something local asked for this account's run. The backoff it was waiting out is not reset by that —
                 // the next run recomputes it from the failure count, which nothing here touched.
             }
+        }
+    }
+
+    /// <summary>Waits until the next run is due or the server reports a change, giving up on refused changes as their windows pass.</summary>
+    /// <remarks>
+    /// <para>
+    /// A change the mail server keeps declining reaches its person no later than the refusal window after the first
+    /// refusal, and a run is as far away as the interval or a backoff of up to half an hour — further still when an outage
+    /// followed the refusal. So the wait is cut at each refusal deadline, the changes whose window has passed are given up
+    /// on from the database alone, and the wait resumes towards the run it was waiting for. No connection is opened and
+    /// the backoff is untouched: a deadline wakes the account's bookkeeping, never its run.
+    /// </para>
+    /// <para>
+    /// Push ending the wait early, or a change authored here, still starts the run at once; only a wake at a deadline
+    /// returns to waiting.
+    /// </para>
+    /// </remarks>
+    private async Task WaitForNextRunAsync(
+        MailSynchronizationOptions runSettings,
+        DateTimeOffset runDueAt,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var refusalDeadline = await this.AbandonExpiredRefusalsAsync(runSettings, cancellationToken);
+            var wakeAt = refusalDeadline is { } deadline && deadline < runDueAt ? deadline : runDueAt;
+            var now = this.timeProvider.GetUtcNow();
+
+            if (now >= runDueAt)
+            {
+                return;
+            }
+
+            await this.pushNotifications.WaitForNextPassAsync(runSettings, wakeAt - now, cancellationToken);
+
+            var wokenEarly = this.timeProvider.GetUtcNow() < wakeAt;
+
+            if (wokenEarly || wakeAt == runDueAt)
+            {
+                return;
+            }
+        }
+    }
+
+    /// <summary>Gives up on this account's refused changes whose window has passed, and reads when the next one's will.</summary>
+    /// <returns>The next refusal deadline, or nothing when none remains or the pass could not be made.</returns>
+    /// <remarks>
+    /// A pass that fails is logged and answered with no deadline, so the wait falls back to the run it was waiting for —
+    /// whose convergence pass reads every refused change's window before issuing anything.
+    /// </remarks>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "A deadline pass that failed leaves every refused change for the next run, which reads each window before it asks the server; the wait must still end at that run.")]
+    private async Task<DateTimeOffset?> AbandonExpiredRefusalsAsync(
+        MailSynchronizationOptions runSettings,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = this.scopeFactory.CreateScope();
+
+            scope.ServiceProvider.GetRequiredService<ScopedMailSynchronizationSettings>().UseRunSnapshot(runSettings);
+
+            return await scope.ServiceProvider.GetRequiredService<MailboxMutationConverger>()
+                .AbandonExpiredRefusalsAsync(this.account, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            this.LogRefusalDeadlinesFailed(exception, this.account.Value);
+
+            return null;
         }
     }
 
@@ -482,8 +555,8 @@ internal sealed partial class AccountSynchronizationSupervisor
     /// <para>
     /// A failed pass fails the run rather than being logged and passed over, which is the whole of the backoff story: an
     /// unreachable mail server defers the account's next run through the same jittered delay a failed folder does, so a
-    /// change waiting on that server is approached less often instead of once per interval forever. What bounds the
-    /// change itself is its own attempt count, which is written before each attempt and therefore survives a crash.
+    /// change waiting on that server is approached less often instead of once per interval forever. The outage counts
+    /// nothing against the change itself: only a refusal the server answered starts its refusal window.
     /// </para>
     /// </remarks>
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "A convergence pass that ended unexpectedly defers this account's next run and leaves its folders to synchronize; every mutation's own record already carries how far it got.")]
@@ -1972,6 +2045,12 @@ internal sealed partial class AccountSynchronizationSupervisor
         Level = LogLevel.Warning,
         Message = "Converging the outstanding mailbox mutations of account {AccountId} ended unexpectedly; its folders still synchronized and its next run is backed off, and every change keeps the record of how far it got.")]
     private partial void LogMutationConvergenceFailed(Exception exception, string accountId);
+
+    /// <summary>Reports a pass between runs that could not give up on refused changes whose window had passed.</summary>
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Giving up on the refused mailbox changes of account {AccountId} between runs ended unexpectedly; the account's next run reads each change's refusal window before asking its mail server again.")]
+    private partial void LogRefusalDeadlinesFailed(Exception exception, string accountId);
 
     /// <summary>Reports a drain pass that ended unexpectedly, which leaves the source holding what it held and nothing else.</summary>
     [LoggerMessage(

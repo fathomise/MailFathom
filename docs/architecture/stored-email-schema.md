@@ -755,7 +755,7 @@ service.
 | `UserId` | The user it happened to. It is the foreign key onto `settings_accounts` with `ON DELETE CASCADE`, for the reason `client_preferences` keys the same way |
 | `Kind` | Which part of MailFathom it is about — `Mail`, `Calendar`, `Task`, or `System` — stored as text |
 | `Title`, `Body` | The two lines a row is drawn with in English, derived when the notification was produced rather than by re-reading mail when it is displayed |
-| `Cause` | The condition the row was raised for — `MessageArrived`, `MailArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`, `TaskReminderDue`, `SendRefused`, `MailboxChangeAbandoned`, or `DraftCopyNotKept` — stored as text. It is what lets a client say the row in its reader's own language, the two lines above being that same condition written out. Absent on a row written before the column existed, which is what an upgrade over existing data leaves until retention has taken those rows |
+| `Cause` | The condition the row was raised for — `MessageArrived`, `MailArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`, `TaskReminderDue`, `SendRefused`, `MailboxChangeAbandoned`, `DraftCopyNotKept`, or `MailboxChangeRefused` — stored as text. It is what lets a client say the row in its reader's own language, the two lines above being that same condition written out. Absent on a row written before the column existed, which is what an upgrade over existing data leaves until retention has taken those rows |
 | `Counted`, `OutOf` | The numbers the cause is stated with, whose meaning is the cause's: one arrived message counts whether it carried a subject — one where it did, none where it did not — merged arrivals count the messages they stand for, an unfinished run counts the folders that did not finish out of the folders it scheduled, a due reminder counts the minutes between now and what it is about — the event for `CalendarReminderDue`, nine in the morning on the due day for `TaskReminderDue` — a refused credential counts neither, a refused send and a draft out of step with its server copy count whether they carried a subject as one arrived message does, and a given-up change counts the act it was, `0` mark as read through `7` change the tags |
 | `Source` | What the source line names beyond the kind, which is an account identifier today, and absent where the kind is the whole of it |
 | `TargetKind` | Which of the eight shapes opening it leads to — `Nothing`, `Message`, `Screen`, `CalendarEvent`, `PersonalTask`, `OutgoingEmail`, `MailboxChange`, or `MailDraft` — stored as text |
@@ -1655,12 +1655,16 @@ the sequence rather than a name for the operation: which protocol path carried a
 `Debug`, no span, and no metric dimension, exactly as [ADR 0007](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0007-remote-mailbox-mutation-boundary-and-write-session.md)
 requires.
 
-`AttemptCount` is written before each attempt rather than after it, which is what makes an attempt that kills the
-process count against `MailSynchronization:MaxMutationAttempts`. Spending that bound moves the row to `Abandoned`, and a
-row that is not `Completed` stays in the answer an operator reads — being given up on is what stops a change being
+`AttemptCount` counts the times the server answered the change and did not take it, and `FirstRefusedAt` is when it
+first did. An outage writes neither, so a change held through one of any length is not mistaken for one the server keeps
+turning down. `FirstRefusedAt` plus `MailSynchronization:MutationRefusalWindow` is the change's deadline, read by the
+account's supervision between runs as well as by each run, and passing it moves the row to `Abandoned`. A refusal
+answered to an issued placement moves the row back from `PlacementIssued` to `Recorded` in the same write, because the
+server placed nothing and the next attempt may issue the command again — the one backward movement a stage makes. A row
+that is not `Completed` stays in the answer an operator reads — being given up on is what stops a change being
 retried, and it would be worth nothing if it also stopped the change being seen. Two other things reach `Abandoned`
-without spending the bound: a refusal the server has already given once and will give again, and an unacknowledged
-placement that outlasts `MailSynchronization:UnknownMutationOutcomeGrace` without the mailbox settling it.
+without a window: a refusal the server will give again whatever it is asked, and an unacknowledged placement that
+outlasts `MailSynchronization:UnknownMutationOutcomeGrace` without the mailbox settling it.
 
 Every row that is neither `Completed` nor `Cancelled` is read once per account run, oldest first and bounded by
 `MailSynchronization:MaxMutationsPerConvergencePass`, and each is carried further or given up on. The same rows are
@@ -2918,7 +2922,7 @@ else's personal data copied out of the mail. So it inherits the source message's
 `stored_emails` is what makes that structural: a notification offering to open a message that has been erased, or
 still showing who sent it, is exactly the row that must not survive. A `SendRefused` or a `DraftCopyNotKept` row carries
 the subject of the send or the draft as its second line by the same reading, and goes with that send or that draft
-through its own cascade; a `MailboxChangeAbandoned` row names the act and quotes no mail. Every other row is weaker than
+through its own cascade; a `MailboxChangeAbandoned` or `MailboxChangeRefused` row names the act and quotes no mail. Every other row is weaker than
 a mutation history.
 It says that something reached this person's mailbox and when, without saying what — a merged `MailArrived` row
 counts what arrived and quotes none of it. What the rows naming no message carry instead is a bound of the record's

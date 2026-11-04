@@ -8,7 +8,7 @@ namespace MailFathom.Application.Mail.Mutations.Convergence;
 /// <param name="CompletedCount">How many mutations this pass carried to the stage that says the server made the change.</param>
 /// <param name="DeadLetteredCount">How many it gave up on, each of which now stands visible rather than pending.</param>
 /// <param name="DeferredCount">How many it left where they were, to be picked up by a later pass or settled by observation.</param>
-/// <param name="FailedCount">How many ended in a failure that the mutation's own attempt bound will eventually settle.</param>
+/// <param name="FailedCount">How many ended in a failure to reach the server, which puts the account into its run backoff and leaves the change waiting.</param>
 /// <param name="Outstanding">What the account still owes after the pass, by kind and lifecycle.</param>
 /// <remarks>
 /// <para>

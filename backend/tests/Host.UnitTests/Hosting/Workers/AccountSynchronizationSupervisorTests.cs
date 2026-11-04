@@ -644,6 +644,42 @@ public sealed class AccountSynchronizationSupervisorTests
     }
 
     /// <summary>
+    /// A change the server keeps refusing is given up on at its deadline rather than at the next run, so the wait
+    /// between runs is where its window is read — from the records alone, before anything reaches a mail server.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_BetweenRuns_ReadsWhichRefusedChangesHaveRunOutOfTime()
+    {
+        // Arrange
+        var refusalsWereRead = new TaskCompletionSource();
+        var recordStore = Substitute.For<IMailboxMutationRecordStore>();
+        recordStore
+            .ReadOutstandingAsync(Arg.Any<MailAccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<OutstandingMailboxMutation>>([]));
+        recordStore
+            .ReadRefusedAsync(Arg.Any<MailAccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                refusalsWereRead.TrySetResult();
+
+                return Task.FromResult<IReadOnlyList<OutstandingMailboxMutation>>([]);
+            });
+        await using var harness = CreateHarness(
+            SynchronizationTestHost.CreateSingleAccountOptions(enabled: true, "INBOX"),
+            Substitute.For<IMailboxSessionFactory>(),
+            mutationRecordStore: recordStore);
+
+        // Act
+        await harness.SuperviseUntilAsync(refusalsWereRead.Task);
+
+        // Assert
+        await recordStore.Received().ReadRefusedAsync(
+            MailAccountId.Create("primary"),
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
     /// A convergence pass that could not run defers the account exactly as a failed folder does, so a change waiting on
     /// an unreachable server is approached less often instead of once per interval forever.
     /// </summary>

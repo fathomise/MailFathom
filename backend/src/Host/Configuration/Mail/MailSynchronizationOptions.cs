@@ -186,28 +186,25 @@ internal sealed class MailSynchronizationOptions : IValidatableObject
     [Range(typeof(TimeSpan), "00:00:05", "00:30:00")]
     public TimeSpan WriteConnectionIdlePeriod { get; set; } = TimeSpan.FromMinutes(2);
 
-    /// <summary>Gets or sets how many attempts one recorded change to a mailbox may spend before it is given up on.</summary>
+    /// <summary>Gets or sets how long after the mail server first declined a change, in a way asking again might alter, the change is given up on.</summary>
     /// <remarks>
     /// <para>
-    /// A change MailFathom is asked to make is written down before it is issued and attempted again from that record
-    /// until it succeeds. This is where that stops. A mail server that is refusing and a message another client already
-    /// removed fail identically on the next run, and repeating them costs a login and a round trip each time while
-    /// hiding the problem behind an operation that always looks busy.
+    /// A change a person makes is shown at once and carried to the mail server afterwards. When the server answers and
+    /// does not take it, one of two things follows. A refusal asking again cannot alter — the folder or the message is
+    /// gone, the folder is read-only, the server no longer offers what the change needs — ends the change at once. Any
+    /// other refusal is asked again on the account's runs until this long has passed since the first one; the change is
+    /// then given up on. Either way the stored message is put back as the server last showed it, every client re-reads
+    /// it, and the person is told.
     /// </para>
     /// <para>
-    /// It bounds attempts of the whole change rather than retries inside one, which the account's resilience pipeline
-    /// already bounds; separate attempts may be minutes or days apart. A change that spends them stops being attempted
-    /// and stays visible as stuck rather than disappearing, so raising this buys patience with a failing server and
-    /// lowering it surfaces a broken one sooner.
-    /// </para>
-    /// <para>
-    /// Not every refusal waits for it. A server that advertises no way to carry the change safely, and one that answers
-    /// that the destination folder is not there, have both already given the answer every later attempt would receive,
-    /// so those are given up on at the first refusal whatever this is set to.
+    /// Only an answer starts or spends it. A server that cannot be reached, a connection that cannot be established, and
+    /// a credential the server rejects were asked nothing about the change, so an outage of any length reverts nothing
+    /// and the change waits in MailFathom for the server to return. The deadline is kept by the account's supervision
+    /// without opening a connection, so neither a backoff nor an outage that follows the first refusal defers it.
     /// </para>
     /// </remarks>
-    [Range(1, 100)]
-    public int MaxMutationAttempts { get; set; } = 5;
+    [Range(typeof(TimeSpan), "00:00:01", "7.00:00:00")]
+    public TimeSpan MutationRefusalWindow { get; set; } = TimeSpan.FromMinutes(15);
 
     /// <summary>Gets or sets how many outstanding changes one account converges per synchronization run.</summary>
     /// <remarks>

@@ -68,4 +68,7 @@ public sealed record MailAccountRunReport(
 {
     /// <summary>Gets whether the run failed, which is what puts the account into backoff.</summary>
     public bool Failed => this.FailedFolderCount > 0 || this.MutationConvergenceFailed;
+
+    /// <summary>Gets since when the account's runs have been failing without a break, or <see langword="null" /> while this one did not fail.</summary>
+    public DateTimeOffset? FailedSince { get; init; }
 }

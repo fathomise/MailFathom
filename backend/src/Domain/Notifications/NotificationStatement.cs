@@ -122,7 +122,7 @@ public sealed record NotificationStatement
     public static NotificationStatement SendRefused(bool carriesSubject) =>
         new(NotificationCause.SendRefused, carriesSubject ? 1 : 0, outOf: null);
 
-    /// <summary>States that a change asked of a mailbox was given up, counting which act it was.</summary>
+    /// <summary>States that a change asked of a mailbox was given up after the server kept declining it, counting which act it was.</summary>
     /// <param name="act">What the change was asked to do.</param>
     /// <returns>The statement, counting the act by its declared value.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="act" /> is not a declared act.</exception>
@@ -140,6 +140,25 @@ public sealed record NotificationStatement
         }
 
         return new NotificationStatement(NotificationCause.MailboxChangeAbandoned, (int)act, outOf: null);
+    }
+
+    /// <summary>States that the mail server refused a change for good, counting which act it was.</summary>
+    /// <param name="act">What the change was asked to do.</param>
+    /// <returns>The statement, counting the act by its declared value.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="act" /> is not a declared act.</exception>
+    /// <remarks>
+    /// It is a cause of its own rather than <see cref="MailboxChangeAbandoned" /> with a marker, because the two ask
+    /// different things of the reader: one offers the act again, and this one explains why asking again would be refused
+    /// the same way. A client that does not know the cause yet draws the row from its title and body, and offers nothing.
+    /// </remarks>
+    public static NotificationStatement MailboxChangeRefused(MailboxChangeAct act)
+    {
+        if (!Enum.IsDefined(act))
+        {
+            throw new ArgumentOutOfRangeException(nameof(act), act, "A refused change names a declared act.");
+        }
+
+        return new NotificationStatement(NotificationCause.MailboxChangeRefused, (int)act, outOf: null);
     }
 
     /// <summary>States that a draft's copy on the mail server could not be kept, counting whether the draft carried a subject.</summary>

@@ -61,6 +61,7 @@ internal static class MailboxMutationRecordMapping
             RequiresSourceRemoval = entity.RequiresSourceRemoval,
             Placement = StoredRemotePlacement.Of(entity.PlacementUidValidity, entity.PlacementUid),
             AttemptCount = entity.AttemptCount,
+            FirstRefusedAt = entity.FirstRefusedAt,
             RecordedAt = entity.RecordedAt,
             StageChangedAt = entity.StageChangedAt,
             LastFailure = StoredFailureCode.ToErrorCode(entity.LastFailureCode),

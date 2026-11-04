@@ -83,7 +83,13 @@ public sealed class MailSynchronizationRunLedger
             failedFolderCount,
             mutationConvergenceFailed);
 
-        this.Update(accountId, state => state with { LastRun = report });
+        this.Update(accountId, state => state with
+        {
+            LastRun = report with
+            {
+                FailedSince = report.Failed ? state.LastRun?.FailedSince ?? report.EndedAt : null,
+            },
+        });
     }
 
     /// <summary>Records the wait one account is about to take, and the failure count that wait was grown from.</summary>
@@ -152,7 +158,14 @@ public sealed class MailSynchronizationRunLedger
     {
         ArgumentNullException.ThrowIfNull(folder);
 
-        this.EntryOf(folder.AccountId).Folders[folder.Alias] = report(this.timeProvider.GetUtcNow());
+        var ended = report(this.timeProvider.GetUtcNow());
+
+        // A folder takes one turn at a time, so its report is replaced by the turn that follows it and never by a
+        // concurrent one; the update below carries the instants a reading began at across that replacement.
+        this.EntryOf(folder.AccountId).Folders.AddOrUpdate(
+            folder.Alias,
+            ended,
+            (_, previous) => ended.Following(previous));
     }
 
     /// <summary>Reads where one account's synchronization stands.</summary>

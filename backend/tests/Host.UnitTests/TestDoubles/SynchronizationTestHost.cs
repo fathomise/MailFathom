@@ -777,6 +777,9 @@ internal static class SynchronizationTestHost
         recordStore
             .ReadLifecycleCountsAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<MailboxMutationLifecycleCount>>([]));
+        recordStore
+            .ReadRefusedAsync(Arg.Any<MailAccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<OutstandingMailboxMutation>>([]));
 
         return recordStore;
     }
