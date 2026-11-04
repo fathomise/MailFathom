@@ -5,6 +5,7 @@
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 using MailFathom.IntegrationTests.Orchestration;
@@ -68,8 +69,9 @@ public sealed class OrchestratedMailboxMutationOrderingTests(MailFathomOrchestra
     }
 
     /// <summary>
-    /// Two moves of one message where the first is being retried. The first has been counted twice and sits at the stage
-    /// the server was asked at, and the second does not overtake it until the first has completed or been given up on.
+    /// Two moves of one message where the first is being retried. The server has declined the first twice and it sits at
+    /// the stage the server was asked at, and the second does not overtake it until the first has completed or been given
+    /// up on.
     /// </summary>
     [Theory]
     [InlineData(MailboxMutationStage.Completed)]
@@ -97,8 +99,8 @@ public sealed class OrchestratedMailboxMutationOrderingTests(MailFathomOrchestra
             {
                 var store = scope.GetRequiredService<IMailboxMutationRecordStore>();
 
-                await store.CountAttemptAsync(session, first, token);
-                await store.CountAttemptAsync(session, first, token);
+                await store.RecordRefusalAsync(session, first, MailFathomErrorCode.MailboxMutationDeclined, token);
+                await store.RecordRefusalAsync(session, first, MailFathomErrorCode.MailboxMutationDeclined, token);
                 await store.RecordPlacementIssuedAsync(session, first, requiresSourceRemoval: false, token);
             },
             cancellationToken);

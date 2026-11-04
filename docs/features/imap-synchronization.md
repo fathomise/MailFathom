@@ -849,7 +849,8 @@ because a second one would leave two copies on that server. A server that takes 
 message its next forward pass discovers there, as a move with no placement does, and the source's delete goes ahead.
 
 **A half that fails takes back what it can, and never leaves the message in no account.** An append the destination
-refused, or one whose answer never arrived, reverts the whole act: the destination's copy is erased, the source's delete
+refused, or one whose answer never arrived, reverts the whole act at once — it is not asked again for the refusal window
+an ordinary change is — and the destination's copy is erased, the source's delete
 is withdrawn, the source's message shows again where it was, and the person is told the move did not reach the other
 account. Where the append did land unseen, the destination's next forward pass imports the server's copy as an
 ordinary arrival, so the message is in both accounts rather than in neither. A source delete given up after the append

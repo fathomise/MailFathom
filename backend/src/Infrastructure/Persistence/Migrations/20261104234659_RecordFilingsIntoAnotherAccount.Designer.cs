@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261104224907_RecordFilingsIntoAnotherAccount")]
+    [Migration("20261104234659_RecordFilingsIntoAnotherAccount")]
     partial class RecordFilingsIntoAnotherAccount
     {
         /// <inheritdoc />
@@ -2836,6 +2836,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<string>("DestinationHierarchyDelimiter")
                         .HasMaxLength(1)
                         .HasColumnType("character varying(1)");
+
+                    b.Property<DateTimeOffset?>("FirstRefusedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset?>("HeldUntil")
                         .HasColumnType("timestamp with time zone");
