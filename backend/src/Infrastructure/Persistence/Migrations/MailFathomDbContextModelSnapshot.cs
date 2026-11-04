@@ -1784,6 +1784,46 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("settings_mail_accounts", (string)null);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailActKeyEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("StoredEmailId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordedAt", "Id")
+                        .HasDatabaseName("ix_mail_act_keys_recorded");
+
+                    b.HasIndex("UserId", "Key", "StoredEmailId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_mail_act_keys_user_key_email");
+
+                    b.ToTable("mail_act_keys", (string)null);
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailAnsweringAuditEntryEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2746,6 +2786,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasDefaultValue("None");
 
+                    b.Property<Guid?>("LocalCopyStoredEmailId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("LocalDisposition")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -2763,6 +2806,21 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<bool?>("ObservedFlaggedState")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("ObservedFolderId")
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<string[]>("ObservedKeywords")
+                        .HasColumnType("text[]");
+
+                    b.Property<bool?>("ObservedSeenState")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("OverlaysStoredState")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTimeOffset?>("PlacementObservedAt")
                         .HasColumnType("timestamp with time zone");
@@ -4177,6 +4235,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsRetainedAfterAuthoredDelete")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTimeOffset?>("LocalDeleteCommittedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("LocalMailFolderId")
                         .HasColumnType("uuid");
 
@@ -5350,6 +5411,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("OrganizationId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailActKeyEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.UserAccountEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailAnsweringAuditedEmailEntity", b =>

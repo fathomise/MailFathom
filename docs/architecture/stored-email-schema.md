@@ -630,7 +630,7 @@ A row holds no part of the message: a position in a mailbox and MailFathom's own
 On `stored_emails`, `authored_delete_flagged_at` marks a kept row whose message still carries the `\Deleted` a
 `FlagDeleted` delete set. Every mailbox query excludes such a row unless `is_retained_after_authored_delete` keeps it
 readable, and the reconciliation window skips it; the marker is cleared when the server removes `\Deleted`.
-`local_delete_committed_at` hides a row the same way from the moment a mirrored account commits a delete locally
+`LocalDeleteCommittedAt` hides a row the same way from the moment a mirrored account commits a delete locally
 first, before any server has removed it; withdrawing or giving up that delete clears it, and so does the server being
 seen to have restored the message.
 
@@ -1086,6 +1086,24 @@ every few minutes is cheaper than anything that would have to coordinate them. T
 path rather than on a timer, so a deployment whose assertion traffic stops keeps whatever rows it held at that moment
 until the next assertion arrives. A cap with an eviction policy would be worse than none: evicting a row that has not
 expired is precisely the replay this exists to refuse.
+
+## The keys a client sent its mailbox acts under
+
+`mail_act_keys` holds one row per message an act of the client's [mutation routes](../operations/client-endpoint.md#the-mutation-routes)
+reached, under the `requestId` the client generated for that act. It is what answers a repeat of a request whose first
+answer never arrived with that first answer rather than performing the act again. It is a table of its own rather
+than a column of the mutation record, for two reasons: a held account's act opens no record at all, and a record goes
+with the message it describes, while a repeat arriving after the message was deleted still has to be answered.
+
+| Column | What it records |
+|---|---|
+| `Id` | The row's own identity, a version 7 UUID, which the sweep removes rows by |
+| `UserId` | Whose act it was. A key is the person's own, so another person's request under the same text is another request. It is the foreign key onto `settings_accounts` with `ON DELETE CASCADE`, because an erasure of the person takes their keys with them |
+| `Key` | The `requestId` as the client sent it, at most 128 characters. `ix_mail_act_keys_user_key_email` is unique over `(UserId, Key, StoredEmailId)` and is written in the transaction that commits the act on that message, so two replicas racing one repeat leave one row: the loser violates the index, `PersistenceConcurrencyConflicts` recognizes the constraint by name, and the retry reads the winner's row and answers its outcome |
+| `StoredEmailId` | The message the act reached. It carries no foreign key, so the row outlives the message and a repeat after its deletion is still answered rather than performed |
+| `Fingerprint` | The SHA-256 digest, as hexadecimal, of what the request asked: the act and, for each message, its value or destination. A repeat whose digest differs is a key reused for another act and is refused rather than answered with somebody else's outcome |
+| `Outcome` | The first answer for that message as `jsonb`: the outcome, the account, the folder and the destination where the act had one, and the records it opened with the lifecycle the answer reported. It holds identifiers and names MailFathom chose, and nothing from the message |
+| `RecordedAt` | When the act committed. A sweep removes a row 24 hours after it, a bounded set per pass in the order `ix_mail_act_keys_recorded` keeps, and a request carrying the key afterwards is a new act |
 
 ## The unspent signal connection tickets
 
