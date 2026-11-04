@@ -304,6 +304,37 @@ public sealed class TransportHttpsOptionsTests
         Assert.StartsWith($"{SectionPath}:Endpoints:0:ServerCertificate", error, StringComparison.Ordinal);
     }
 
+    /// <summary>A surface sharing its domains may present the certificate another surface's profile carries for the same name, which the composition proves exists.</summary>
+    [Fact]
+    public void FindConfigurationErrors_NoCertificateMaterialWhileSharingDomains_IsAccepted()
+    {
+        // Arrange
+        var profile = Profile();
+        profile.ServerCertificate = new TlsServerCertificateOptions();
+        var options = With(profile);
+        options.ShareDomains = true;
+
+        // Act, Assert
+        Assert.Empty(options.FindConfigurationErrors(SectionPath, http3Supported: true));
+    }
+
+    /// <summary>Sharing excuses a certificate left out, never a malformed one: material that is stated is still judged.</summary>
+    [Fact]
+    public void FindConfigurationErrors_IncompleteCertificateMaterialWhileSharingDomains_IsRefused()
+    {
+        // Arrange
+        var profile = Profile();
+        profile.ServerCertificate = new TlsServerCertificateOptions { CertificateChain = Block("chain") };
+        var options = With(profile);
+        options.ShareDomains = true;
+
+        // Act
+        var error = Assert.Single(options.FindConfigurationErrors(SectionPath, http3Supported: true));
+
+        // Assert
+        Assert.StartsWith($"{SectionPath}:Endpoints:0:ServerCertificate:PrivateKey", error, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void FindConfigurationErrors_ACertificateChainWithNoPrivateKey_IsRefused()
     {

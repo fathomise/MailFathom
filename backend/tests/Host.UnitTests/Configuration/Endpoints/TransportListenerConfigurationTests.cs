@@ -99,6 +99,46 @@ public sealed class TransportListenerConfigurationTests
             error => error.Contains("a clear-text redirect is configured", StringComparison.Ordinal));
     }
 
+    /// <summary>A clear-text surface publishes no domain, so sharing one is a setting nothing would act on.</summary>
+    [Fact]
+    public void FindConfigurationErrors_DomainsSharedUnderAClearTextTransport_IsRefused() =>
+        Assert.Contains(
+            FindErrors(EndpointTransport.Http, new TransportHttpsOptions { ShareDomains = true }),
+            error => error.StartsWith($"{SectionName}:Https:ShareDomains", StringComparison.Ordinal));
+
+    [Fact]
+    public void FindConfigurationErrors_DomainsSharedUnderATlsTransport_IsAccepted()
+    {
+        // Arrange
+        var httpsSettings = WithProfile();
+        httpsSettings.ShareDomains = true;
+
+        // Act, Assert
+        Assert.Empty(FindErrors(EndpointTransport.HttpsOnly, httpsSettings));
+    }
+
+    /// <summary>Each profile socket a sharing surface declares carries its consent, which is what the composition reads a repeated name against.</summary>
+    [Fact]
+    public void DeclareListeners_ASurfaceSharingDomains_MarksItsTlsSocketsAsSharing()
+    {
+        // Arrange
+        var httpsSettings = WithProfile();
+        httpsSettings.ShareDomains = true;
+
+        // Act
+        var declarations = TransportListenerConfiguration.DeclareListeners(
+            SectionName,
+            ServedSurfaces.Mcp,
+            "0.0.0.0",
+            8080,
+            EndpointTransport.HttpsOnly,
+            httpsSettings,
+            requestsClientCertificates: false);
+
+        // Assert
+        Assert.True(Assert.Single(declarations).SharesDomains);
+    }
+
     /// <summary>Left at its default the redirect says nothing, so a surface that cannot serve one is not reported for a decision nobody took.</summary>
     [Fact]
     public void FindConfigurationErrors_ARedirectLeftAtItsDefault_IsNotReported()

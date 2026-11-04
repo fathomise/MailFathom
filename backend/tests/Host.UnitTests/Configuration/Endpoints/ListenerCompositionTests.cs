@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Host.Configuration.Endpoints;
+using MailFathom.Infrastructure.Secrets.Discovery;
 using Xunit;
 
 namespace MailFathom.Host.UnitTests.Configuration.Endpoints;
@@ -161,6 +162,114 @@ public sealed class ListenerCompositionTests
 
         // Assert
         Assert.Contains("is published on", error, StringComparison.Ordinal);
+    }
+
+    /// <summary>One name, one port, and all three request-serving surfaces behind it, which the route prefix tells apart.</summary>
+    [Fact]
+    public void Compose_EverySurfaceSharingOneDomainOnOneTlsSocket_ServesThemTogether()
+    {
+        // Arrange
+        DeclaredListener[] declarations =
+        [
+            SharedDomain("McpEndpoint", ServedSurfaces.Mcp, carriesCertificate: true),
+            SharedDomain("AdminEndpoint", ServedSurfaces.Admin, carriesCertificate: false),
+            SharedDomain("ClientEndpoint", ServedSurfaces.Client, carriesCertificate: false),
+        ];
+
+        // Act
+        var composed = ListenerComposition.Compose(declarations);
+
+        // Assert
+        Assert.Empty(composed.Errors);
+        var listener = Assert.Single(composed.Listeners);
+        Assert.Equal(ServedSurfaces.Mcp | ServedSurfaces.Admin | ServedSurfaces.Client, listener.Surfaces);
+    }
+
+    /// <summary>Consent is each surface's own, so a name stays refused, with the message it always carried, until every surface publishing it agreed to share it.</summary>
+    [Fact]
+    public void Compose_OneDomainOnlyOneOfItsSurfacesAgreedToShare_IsRefusedAsBefore()
+    {
+        // Arrange
+        DeclaredListener[] declarations =
+        [
+            SharedDomain("McpEndpoint", ServedSurfaces.Mcp, carriesCertificate: true),
+            Profiles("AdminEndpoint", ServedSurfaces.Admin, port: 8443),
+        ];
+
+        // Act
+        var error = Assert.Single(ListenerComposition.Compose(declarations).Errors);
+
+        // Assert
+        Assert.Equal(
+            "McpEndpoint and AdminEndpoint — 'mail.example.test' is published on 0.0.0.0:8443 by more than one of McpEndpoint and AdminEndpoint, so which surface a client reaching that name is served by would be decided by composition order rather than by an operator.",
+            error);
+    }
+
+    /// <summary>A handshake for one name is answered before the path saying which surface it is for, so one floor has to hold for all of them.</summary>
+    [Fact]
+    public void Compose_ASharedDomainAtDifferentTlsFloors_IsRefused()
+    {
+        // Arrange
+        DeclaredListener[] declarations =
+        [
+            SharedDomain("McpEndpoint", ServedSurfaces.Mcp, carriesCertificate: true),
+            SharedDomain("AdminEndpoint", ServedSurfaces.Admin, carriesCertificate: false, TransportMinimumTlsVersion.Tls13),
+        ];
+
+        // Act
+        var error = Assert.Single(ListenerComposition.Compose(declarations).Errors);
+
+        // Assert
+        Assert.Contains("'MinimumTlsVersion'", error, StringComparison.Ordinal);
+    }
+
+    /// <summary>Two certificates for one name would leave composition order deciding which one a handshake presents.</summary>
+    [Fact]
+    public void Compose_ASharedDomainTwoProfilesCarryACertificateFor_IsRefused()
+    {
+        // Arrange
+        DeclaredListener[] declarations =
+        [
+            SharedDomain("McpEndpoint", ServedSurfaces.Mcp, carriesCertificate: true),
+            SharedDomain("AdminEndpoint", ServedSurfaces.Admin, carriesCertificate: true),
+        ];
+
+        // Act
+        var error = Assert.Single(ListenerComposition.Compose(declarations).Errors);
+
+        // Assert
+        Assert.Contains("more than one of their profiles carries a 'ServerCertificate'", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_ASharedDomainNoProfileCarriesACertificateFor_IsRefused()
+    {
+        // Arrange
+        DeclaredListener[] declarations =
+        [
+            SharedDomain("McpEndpoint", ServedSurfaces.Mcp, carriesCertificate: false),
+            SharedDomain("AdminEndpoint", ServedSurfaces.Admin, carriesCertificate: false),
+        ];
+
+        // Act
+        var error = Assert.Single(ListenerComposition.Compose(declarations).Errors);
+
+        // Assert
+        Assert.Contains("no profile publishing it there carries a 'ServerCertificate'", error, StringComparison.Ordinal);
+    }
+
+    /// <summary>A surface that agreed to share a name nobody else publishes has nobody to borrow a certificate from.</summary>
+    [Fact]
+    public void Compose_ADomainOnlyOneSharingSurfacePublishesWithoutACertificate_IsRefused()
+    {
+        // Arrange
+        DeclaredListener[] declarations = [SharedDomain("ClientEndpoint", ServedSurfaces.Client, carriesCertificate: false)];
+
+        // Act
+        var error = Assert.Single(ListenerComposition.Compose(declarations).Errors);
+
+        // Assert
+        Assert.StartsWith("ClientEndpoint — 'mail.example.test' is published on 0.0.0.0:8443", error, StringComparison.Ordinal);
     }
 
     /// <summary>Two specific addresses on one port are two sockets the operating system grants independently.</summary>
@@ -341,6 +450,36 @@ public sealed class ListenerCompositionTests
         [new TransportHttpsEndpointOptions { Name = sectionName, Domain = domain, Port = port }],
         RequestsClientCertificates: false,
         RedirectTargets: new Dictionary<string, int>());
+
+    private static DeclaredListener SharedDomain(
+        string sectionName,
+        ServedSurfaces surface,
+        bool carriesCertificate,
+        TransportMinimumTlsVersion minimumTlsVersion = TransportMinimumTlsVersion.Tls12)
+    {
+        var profile = new TransportHttpsEndpointOptions
+        {
+            Name = sectionName,
+            Domain = "mail.example.test",
+            Port = 8443,
+            MinimumTlsVersion = minimumTlsVersion,
+        };
+
+        if (carriesCertificate)
+        {
+            profile.ServerCertificate.Bundle = new ConfiguredSecret
+            {
+                Name = $"{sectionName}-bundle",
+                SecretReference = "file:/etc/mailfathom/tls/mail.pfx",
+            };
+        }
+
+        return Profiles(sectionName, surface, port: 8443) with
+        {
+            Profiles = [profile],
+            SharesDomains = true,
+        };
+    }
 
     private static DeclaredListener ProbeTls(string sectionName, int port) => new(
         sectionName,

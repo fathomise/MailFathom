@@ -64,6 +64,9 @@ internal sealed class TransportHttpsEndpointOptions
         ? [.. configured.Distinct()]
         : [TransportHttpProtocol.Http1, TransportHttpProtocol.Http2];
 
+    /// <summary>Gets whether this profile states its own certificate rather than presenting the one another surface's profile publishing the same name carries.</summary>
+    internal bool CarriesCertificate => this.ServerCertificate.IsConfigured;
+
     /// <summary>Gets the address and port this profile binds, which profiles sharing one listener have in common.</summary>
     /// <exception cref="FormatException">Thrown when <see cref="BindAddress" /> is not an IP address, which validation reports before anything reads this.</exception>
     internal TransportHttpsListenerAddress ListenerAddress => new(IPAddress.Parse(this.BindAddress.Trim()), this.Port);
@@ -71,9 +74,14 @@ internal sealed class TransportHttpsEndpointOptions
     /// <summary>Finds everything an operator must fix before this profile can be served.</summary>
     /// <param name="configurationPath">The configuration path of this profile, which prefixes every reported error.</param>
     /// <param name="http3Supported">Whether the host platform can provide the QUIC transport HTTP/3 needs.</param>
+    /// <param name="sharesDomain">Whether the surface shares its domains with other surfaces on one socket, which lets this profile leave its certificate to another surface's profile publishing the same name.</param>
     /// <returns>One message per faulty setting, empty when the profile is usable.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="configurationPath" /> is <see langword="null" />.</exception>
-    internal IEnumerable<string> FindConfigurationErrors(string configurationPath, bool http3Supported)
+    /// <remarks>Whether another profile really carries the certificate this one left out is asked where every surface's sockets are composed, because no single surface can see the others.</remarks>
+    internal IEnumerable<string> FindConfigurationErrors(
+        string configurationPath,
+        bool http3Supported,
+        bool sharesDomain)
     {
         ArgumentNullException.ThrowIfNull(configurationPath);
 
@@ -105,6 +113,11 @@ internal sealed class TransportHttpsEndpointOptions
         foreach (var error in this.FindHttpProtocolErrors(configurationPath, http3Supported))
         {
             yield return error;
+        }
+
+        if (sharesDomain && !this.CarriesCertificate)
+        {
+            yield break;
         }
 
         // The shape of the material block is the same question for every listener that terminates TLS, so it is asked

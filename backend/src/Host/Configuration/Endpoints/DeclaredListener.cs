@@ -32,4 +32,9 @@ internal sealed record DeclaredListener(
     bool PresentsProfiles,
     IReadOnlyList<TransportHttpsEndpointOptions> Profiles,
     bool RequestsClientCertificates,
-    IReadOnlyDictionary<string, int> RedirectTargets);
+    IReadOnlyDictionary<string, int> RedirectTargets)
+{
+    /// <summary>Gets whether the surface lets its profiles publish a domain another surface's profile publishes on this socket.</summary>
+    /// <remarks>Not one of the answers the surfaces sharing a socket must agree about: it is each surface's own consent to sharing a name, so a name is shared only where every surface publishing it gave it.</remarks>
+    internal bool SharesDomains { get; init; }
+}
