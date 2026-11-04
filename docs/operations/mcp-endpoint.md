@@ -698,7 +698,11 @@ a username rather than an entry.
 
 **A refusal says nothing about which half was wrong.** No credential at all, a header that does not decode, an unknown
 username, an organization nobody holds, a wrong password, a credential somebody disabled, and a caller that has spent its attempts each receive the
-same answer, and the deployment spends the same work reaching it:
+same answer. Every one of them that names a usable login and is admitted by the bound below — an unknown username, an
+organization nobody holds, a wrong password, a disabled credential — costs one derivation, exactly as a right password
+does, so the time a refusal takes says nothing about which of them it was. No credential, a header that does not decode,
+a login no username could be, and a spent allowance are refused before any derivation, because none of them has
+anything left to learn about a password:
 
 ```http
 HTTP/1.1 401 Unauthorized
@@ -718,8 +722,8 @@ above, which names the hop and the port every time the process starts.
 `AttemptsPerMinute` bounds guessing and defaults to 10, which is a person correcting a mistyped password. It is applied
 **per source and per login** rather than per endpoint, because those are the two shapes an attack takes: one host
 trying many passwords, and many hosts trying one account's. **Only a wrong password spends any of it.** Basic
-re-presents the credential on every request and this deployment keeps no session, so an allowance a working password
-spent would bound a user's request rate rather than anybody's guessing — at the default, the eleventh call of a
+re-presents the credential on every request and this surface exchanges it for no session, so an allowance a working
+password spent would bound a user's request rate rather than anybody's guessing — at the default, the eleventh call of a
 working session would be refused with the answer a wrong password gets. What a wrong password spends is returned a
 minute later, so a caller that has spent its allowance waits that minute out rather than being locked out; the point is
 to make guessing expensive rather than to give anybody a way to lock a user out. It is separate from
@@ -759,6 +763,24 @@ reached this process, whether or not anything is named in front, and both axes a
 **The administrative endpoint accepts the method too**, in an `AdminEndpoint:Authentication` entry of its own with a
 `Basic` block of its own, from a password credential that lists `admin` — which is how
 [the default administrator](admin-endpoint.md#the-default-administrator) signs in.
+
+**Every request presenting a password the bound admits pays one verification**, on this surface and on the
+administrative one alike. Verifying a password derives a PBKDF2 record sized for authenticating a person — around half
+a second of the deployment's own processor, whether the password is right or wrong — and a request presenting no
+credential, a key, or a token derives nothing. The client endpoint pays that cost once per sign-in instead, because its client draws a screen
+from several requests and [exchanges the password for a session token](client-endpoint.md#the-session-token-routes)
+first. Neither of these two surfaces offers that exchange, deliberately:
+
+- **An MCP client has no step that could call one.** It presents what its configuration holds on every request of the
+  protocol, so an exchange here would be a route no MCP client calls. A client that should not pay a derivation per
+  call is given [an API key](#api-keys) or [a key pair](#key-pairs), neither of which derives anything.
+- **`mfctl` issues a handful of requests per command.** A password there is how the default administrator provisions
+  the first credential of any other kind, and anybody else holding a password credential that lists `admin` pays the
+  derivation on each request exactly as the default administrator does — an operator who administers routinely can
+  sign in with a key instead.
+- **A verified password is never remembered to skip the next derivation.** A cache would have to recognize the
+  password by something cheap to compute from it, and that value, read out of a replica's memory, could be guessed
+  against at the speed the derivation exists to deny. The derivation's parameters are not lowered to the same end.
 
 ### Requiring no credential
 
