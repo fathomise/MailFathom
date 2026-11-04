@@ -25,11 +25,12 @@ namespace MailFathom.Host.Security.Sessions;
 /// endpoint is served, because nothing else in the deployment holds a client session.
 /// </para>
 /// <para>
-/// What reaches the caller is the message the store composed, which names the record and the operator's next step and
-/// carries no connection string, no presented value, and nothing the server said. The provider's own failure stays in
-/// the inner exception, and the warning written below is the only record of it: handling an exception here is what
-/// stops the middleware from logging it, so a handler that wrote nothing would answer the whole deployment <c>503</c>
-/// with nothing in the log to act on.
+/// What reaches the caller is a sentence written for the caller and the error code that tells this refusal apart from
+/// the deployment's ceiling on sessions. The message the store composed names the table and the operator's next step,
+/// so it reaches the warning written below and nothing else, and the provider's own failure stays in its inner
+/// exception. That warning is the only record of either: handling an exception here is what stops the middleware from
+/// logging it, so a handler that wrote nothing would answer the whole deployment <c>503</c> with nothing in the log to
+/// act on.
 /// </para>
 /// </remarks>
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "The dependency injection container materializes this handler for the exception-handling middleware.")]
@@ -52,7 +53,7 @@ internal sealed partial class ClientSessionStoreUnavailableHandler(ILogger<Clien
         this.LogSessionStoreUnavailable(unreachable);
 
         await TypedResults.Problem(
-                unreachable.Message,
+                "This deployment cannot answer for its sessions right now; try again in a moment.",
                 statusCode: StatusCodes.Status503ServiceUnavailable,
                 extensions: new Dictionary<string, object?>(StringComparer.Ordinal)
                 {

@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Signals;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Failures;
 using MailFathom.Host.Security.Endpoints;
@@ -12,6 +13,7 @@ using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -134,6 +136,36 @@ public sealed class ClientSignalEndpointsTests
         Assert.Equal(
             MailFathomErrorCode.ClientSignalTicketStoreUnavailable.Value,
             Assert.Contains(RouteAuthorization.ErrorCodeExtension, refused.ProblemDetails.Extensions));
+    }
+
+    /// <summary>
+    /// The store's own message names a table and a migration step for an operator, so it reaches the warning the route
+    /// writes and never the answer a caller holding nothing but a mail grant can capture.
+    /// </summary>
+    [Fact]
+    public async Task MintTicket_WhenTheTicketStoreCannotBeReached_LogsTheStoresMessageAndAnswersWithoutIt()
+    {
+        // Arrange
+        using var log = new RecordingLoggerFactory();
+        var tickets = new ClientSignalTickets(
+            new UnreachableClientSignalTicketStore(),
+            new FakeTimeProvider(Instant));
+
+        // Act
+        var result = await ClientSignalEndpoints.MintTicket(
+            AuthorizationFor(SyntheticUser.Deployment),
+            tickets,
+            log,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refused = Assert.IsType<ProblemHttpResult>(result.Result);
+        var written = Assert.Single(log.Records);
+        var storeMessage = Assert.IsType<ClientSignalTicketStoreUnavailableException>(written.Failure).Message;
+
+        Assert.Equal(LogLevel.Warning, written.Level);
+        Assert.NotNull(refused.ProblemDetails.Detail);
+        Assert.DoesNotContain(storeMessage, refused.ProblemDetails.Detail, StringComparison.Ordinal);
     }
 
     /// <summary>

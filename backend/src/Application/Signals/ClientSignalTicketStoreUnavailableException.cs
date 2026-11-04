@@ -22,8 +22,9 @@ namespace MailFathom.Application.Signals;
 /// for an operator's log rather than in a code the caller would branch on.
 /// </para>
 /// <para>
-/// The message names the record and the operator's next step. It carries no connection string, no ticket, and nothing
-/// the server said, all of which stay reachable through the inner exception.
+/// The message names the record and the operator's next step, so it is written to an operator's log and never into an
+/// answer a caller reads. It carries no connection string, no ticket, and nothing the server said, all of which stay
+/// reachable through the inner exception.
 /// </para>
 /// </remarks>
 public sealed class ClientSignalTicketStoreUnavailableException : MailFathomException

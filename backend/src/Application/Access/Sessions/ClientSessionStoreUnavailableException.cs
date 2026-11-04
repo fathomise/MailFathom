@@ -21,6 +21,10 @@ namespace MailFathom.Application.Access.Sessions;
 /// would turn a blip into a deployment-wide sign-out and lose every session the outage covered. The distinction is the
 /// whole reason this failure is raised rather than read as an unknown session.
 /// </para>
+/// <para>
+/// The message names the record and the operator's next step, so it is written to an operator's log and never into an
+/// answer a caller reads.
+/// </para>
 /// </remarks>
 public sealed class ClientSessionStoreUnavailableException : MailFathomException
 {
