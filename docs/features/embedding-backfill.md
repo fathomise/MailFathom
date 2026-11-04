@@ -256,7 +256,7 @@ replica's, which is what its label says and what the `Answered by` line beside i
 | --- | --- |
 | `mailfathom.embedding.backfill.outstanding` | How many messages awaited embedding when the current sweep began |
 | `mailfathom.embedding.backfill.runs` | Bounded passes, by how each ended — batch budget spent, sweep completed, no active profile, declaration disagrees, provider failed, or the spend ceiling reached |
-| `mailfathom.embedding.backfill.chunked` | Messages that had to be cut into passages first, which is how much of the mailbox predates chunking |
+| `mailfathom.embedding.backfill.chunked` | Messages that had to be cut into passages first — mail that predates chunking, and mail cut again because the boundary rules changed |
 | `mailfathom.embedding.backfill.messages` | Messages brought up to date with the active profile |
 | `mailfathom.embedding.backfill.passages` | Passages given a vector |
 | `mailfathom.embedding.backfill.exhausted` | Messages left part-way through because one turn spent every provider call it is allowed |

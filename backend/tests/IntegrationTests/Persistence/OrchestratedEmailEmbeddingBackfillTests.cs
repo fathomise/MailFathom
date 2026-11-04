@@ -137,6 +137,74 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
     }
 
     /// <summary>
+    /// The same selection reaches a message's body: its passages cut to an earlier rule set are cut again from the stored
+    /// extraction and embedded anew, while the attachment beside it keeps every passage and vector it had.
+    /// </summary>
+    [Fact]
+    public async Task Sweeping_BodyPassagesCutToEarlierRules_CutsThemAgainAndLeavesTheAttachmentAlone()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var message = await StoreOneMessageAsync(services, uid: 9371, cancellationToken);
+        await OrchestratedPassages.CutAsync(services, message, cancellationToken);
+        await SaveAttachmentReadingsAsync(services, message, [Document(0, "agreement")], cancellationToken);
+        var profileId = await OrchestratedEmbeddingProfile.EnsureActiveDeterministicAsync(services, cancellationToken);
+        await SweepAsync(services, cancellationToken);
+
+        var attachmentPassages = await ReadPassageIdsAsync(services, message, attachmentPosition: 0, cancellationToken);
+        var cutToEarlierRules = await MarkCutToEarlierRulesAsync(services, message, attachmentPosition: null, cancellationToken);
+
+        // Act
+        var sweep = await SweepAsync(services, cancellationToken);
+
+        // Assert
+        Assert.True(cutToEarlierRules.Count > 0);
+        var recut = await ReadPassageIdsAsync(services, message, attachmentPosition: null, cancellationToken);
+        Assert.Equal(cutToEarlierRules.Count, recut.Count);
+        Assert.Empty(recut.Intersect(cutToEarlierRules));
+        Assert.Equal(recut.Count, sweep.EmbeddedChunkCount);
+        Assert.Equal(
+            attachmentPassages.Order(),
+            (await ReadPassageIdsAsync(services, message, attachmentPosition: 0, cancellationToken)).Order());
+        Assert.Equal(
+            await CountPassagesAsync(services, message, cancellationToken),
+            await CountVectorsAsync(services, message, profileId, cancellationToken));
+    }
+
+    /// <summary>
+    /// A message the walk cuts for the first time also gains the passages its stored attachment readings yield, so a
+    /// reading whose passages are missing is completed from the row rather than by reading the file again.
+    /// </summary>
+    /// <remarks>
+    /// The missing attachment passages are arranged by removing the ones the reading's own commit cut, since the account
+    /// run's stage cuts them in the same transaction as it stores the reading and no ordinary path leaves one without
+    /// the other — which is what lets this assert a count rather than a presence.
+    /// </remarks>
+    [Fact]
+    public async Task Sweeping_FirstCutOfAMessageWithStoredReadings_CutsItsAttachmentsFromTheReadings()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var message = await StoreOneMessageAsync(services, uid: 9381, cancellationToken);
+        await SaveAttachmentReadingsAsync(services, message, [Document(0, "statement")], cancellationToken);
+        var cutByTheStage = (await ReadPassageIdsAsync(services, message, attachmentPosition: 0, cancellationToken)).Count;
+        await RemovePassagesAsync(services, message, attachmentPosition: 0, cancellationToken);
+        await OrchestratedEmbeddingProfile.EnsureActiveDeterministicAsync(services, cancellationToken);
+
+        // Act
+        await SweepAsync(services, cancellationToken);
+
+        // Assert
+        Assert.True(cutByTheStage > 0);
+        Assert.Equal(
+            cutByTheStage,
+            (await ReadPassageIdsAsync(services, message, attachmentPosition: 0, cancellationToken)).Count);
+        Assert.NotEmpty(await ReadPassageIdsAsync(services, message, attachmentPosition: null, cancellationToken));
+    }
+
+    /// <summary>
     /// A run that spends its batch budget leaves a position behind, and the next run continues past it rather than
     /// starting again — and reaching the end removes the row, so the sweep after that starts from the beginning and
     /// picks up whatever a refused call left without a vector.
@@ -513,11 +581,22 @@ public sealed class OrchestratedEmailEmbeddingBackfillTests(MailFathomOrchestrat
                 .ToArrayAsync(token),
             cancellationToken);
 
-    /// <summary>Leaves one attachment's passages as a rule change would: an earlier version, and a digest the current rules do not produce.</summary>
+    private static Task<int> RemovePassagesAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId storedEmailId,
+        int? attachmentPosition,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().EmailChunks
+                .Where(chunk => chunk.StoredEmailId == storedEmailId.Value
+                    && chunk.AttachmentPosition == attachmentPosition)
+                .ExecuteDeleteAsync(token),
+            cancellationToken);
+
+    /// <summary>Leaves one text's passages as a rule change would: an earlier version, and a digest the current rules do not produce.</summary>
     private static async Task<IReadOnlyList<Guid>> MarkCutToEarlierRulesAsync(
         OrchestratedMailFathomServices services,
         StoredEmailId storedEmailId,
-        int attachmentPosition,
+        int? attachmentPosition,
         CancellationToken cancellationToken)
     {
         var marked = await ReadPassageIdsAsync(services, storedEmailId, attachmentPosition, cancellationToken);

@@ -108,6 +108,13 @@ internal sealed class EmailChunkWriter(
         var storedEmail = await dbContext.StoredEmails.FindAsync([storedEmailId.Value], cancellationToken)
             ?? throw new InvalidOperationException("Passages cannot be derived for a stored email that no longer exists.");
 
+        // Written back with its version check although no column changes. The attachment stage replaces a message's
+        // readings and their passages and stamps this row in one commit, and nothing else orders it against this cut:
+        // readings committed after the read below would otherwise have their passages deleted as dropped positions. The
+        // check turns that interleaving into a conflict, whichever commits second, and the retry re-reads both. A stage
+        // that does not settle the message leaves the row unstamped and reads the message again on its next run.
+        dbContext.Entry(storedEmail).Property(email => email.AttachmentTextDerivedAt).IsModified = true;
+
         var readings = await dbContext.EmailAttachmentTexts
             .Where(reading => reading.StoredEmailId == storedEmailId.Value)
             .OrderBy(reading => reading.AttachmentPosition)
