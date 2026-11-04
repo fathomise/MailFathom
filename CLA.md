@@ -1,15 +1,15 @@
 # MailFathom Contributor Licence Agreement
 
-**Version 1.0**
+**Version 2.0**
 
 Thank you for contributing to MailFathom. This agreement records the terms under which your
 contribution is accepted. It is a licence, not a transfer: **you keep the copyright in everything you
 write.**
 
-You accept it once, on your first pull request, by posting the sentence
-[*Accepting the agreement*](#accepting-the-agreement) names. It then covers every contribution you make
-to this repository, including the ones you have already submitted, until a new version of this document
-replaces it.
+You accept it once, on a pull request to MailFathom, by posting the sentence
+[*Accepting the agreement*](#5-accepting-the-agreement) names. It then covers every contribution you make
+to MailFathom and to every other Organization repository, including the ones you have already submitted,
+until a new version of this document replaces it.
 
 ## Why this exists
 
@@ -29,62 +29,73 @@ The third is your statement that the code was yours to give. A licence says whic
 arrives under; it does not say that the person submitting it was entitled to submit it. Section 3 below
 is where you say so.
 
+The same three things are owed in every other repository the Owner keeps in the same organization,
+whatever licence it carries and whether or not it is published, so the agreement reaches all of them
+rather than MailFathom alone.
+
 ## 1. Definitions
 
 **"You"** means the individual accepting this agreement, or the legal entity on whose behalf it is
 accepted. An entity and the individuals controlling, controlled by, or under common control with it are
 one **"You"** for the purposes of this agreement.
 
-**"Contribution"** means any work of authorship you intentionally submit for inclusion in MailFathom —
-code, tests, documentation, configuration, deployment assets, or anything else — including every
-modification to an existing work. Submission means any form of communication sent to the maintainers or
-to this repository for the purpose of having the work included, whether by pull request, patch, issue, or
-otherwise. Communication you conspicuously mark **"Not a Contribution"** is excluded.
+**"Contribution"** means any work of authorship you intentionally submit for inclusion in an
+Organization repository — code, tests, documentation, configuration, deployment assets, or anything
+else — including every modification to an existing work. Submission means any form of communication sent
+to the maintainers or to an Organization repository for the purpose of having the work included, whether
+by pull request, patch, issue, or otherwise. Communication you conspicuously mark **"Not a
+Contribution"** is excluded.
 
 **"MailFathom"** means the project hosted at <https://github.com/fathomise/MailFathom> and the works
 distributed from it.
 
+**"Organization repository"** means MailFathom and every other repository, public or private, in the
+GitHub organization [`fathomise`](https://github.com/fathomise) that the Owner administers, and the works
+distributed from any of them.
+
 **"Owner"** means Krzysztof Kasprowicz, a sole trader established in the Republic of Poland and trading
 as **IMPE**, who is the copyright holder of record named in [`NOTICE`](NOTICE) and whose GitHub account
 is [`Krzysztof318`](https://github.com/Krzysztof318); and any successor the agreement is assigned to
-under clause 2.4. MailFathom is hosted under the GitHub organization
-[`fathomise`](https://github.com/fathomise), which the Owner administers. That organization is where the
-project is published and nothing more: it is not a party to this agreement, hosting the project there
-transfers no right in it, and the Owner remains its owner. Where the Owner has to be identified beyond
-that — in a transaction, or in a dispute — the business registration behind the trading name is what
-identifies them, and it is supplied on request rather than published here.
+under clause 2.4. The Organization repositories are hosted under the GitHub organization `fathomise`,
+which the Owner administers. That organization is where they are kept and nothing more: it is not a
+party to this agreement, hosting a repository there transfers no right in it, and the Owner remains its
+owner. Where the Owner has to be identified beyond that — in a transaction, or in a dispute — the
+business registration behind the trading name is what identifies them, and it is supplied on request
+rather than published here.
 
 ## 2. Grants
 
 **2.1 Copyright licence.** You grant the Owner a perpetual, worldwide, non-exclusive, irrevocable,
 royalty-free copyright licence to reproduce, prepare derivative works of, publicly display, publicly
 perform, sublicense, and distribute your Contribution and such derivative works, **under any licensing
-terms the Owner chooses**, including terms that differ from the licence MailFathom carries when you
-submit it and including proprietary terms.
+terms the Owner chooses**, including terms that differ from the licence the Organization repository
+carries when you submit it and including proprietary terms.
 
-This is the clause that carries your contribution into MailFathom and that keeps future licensing
-decisions available. It is non-exclusive: your own rights in your Contribution are undiminished, and you
-may use, license, and distribute it however you wish, to anyone, on any terms.
+This is the clause that carries your contribution into the Organization repository you submit it to and
+that keeps future licensing decisions available. It is non-exclusive: your own rights in your
+Contribution are undiminished, and you may use, license, and distribute it however you wish, to anyone,
+on any terms.
 
-**2.2 Patent licence.** You grant the Owner and every recipient of MailFathom a perpetual, worldwide,
-non-exclusive, irrevocable, royalty-free patent licence to make, have made, use, offer to sell, sell,
-import, and otherwise transfer your Contribution, covering only those claims of your patents that are
-necessarily infringed by your Contribution alone or by its combination with MailFathom. This grant
-matches section 11 of the GNU Affero General Public License; it is stated here in its own right so it
-survives a change of licence made under clause 2.1.
+**2.2 Patent licence.** You grant the Owner and every recipient of an Organization repository a
+perpetual, worldwide, non-exclusive, irrevocable, royalty-free patent licence to make, have made, use,
+offer to sell, sell, import, and otherwise transfer your Contribution, covering only those claims of your
+patents that are necessarily infringed by your Contribution alone or by its combination with the
+Organization repository it was submitted to. For MailFathom this grant matches section 11 of the GNU
+Affero General Public License; it is stated here in its own right so it survives a change of licence
+made under clause 2.1 and holds in a repository that carries a different licence or none.
 
-If you institute patent litigation against anyone alleging that MailFathom or a Contribution in it
-constitutes patent infringement, the patent licences granted to you under this agreement terminate on the
-day the action is filed.
+If you institute patent litigation against anyone alleging that an Organization repository or a
+Contribution in one constitutes patent infringement, the patent licences granted to you under this
+agreement terminate on the day the action is filed.
 
 **2.3 What is not granted.** No trademark rights are granted. Nothing here transfers ownership of your
 Contribution, and nothing here obliges the Owner to use, merge, or distribute it.
 
 **2.4 Who holds these rights.** The Owner may assign this agreement, and the rights granted under it,
-to a successor in interest to MailFathom — a company the Owner forms or controls, or an acquirer of
-the project — and the assignee then stands in the Owner's place. No further acceptance is asked of
-you when that happens, which is the point of saying so here rather than discovering later that every
-past contributor has to be found again.
+to a successor in interest to the Organization repositories — a company the Owner forms or controls, or
+an acquirer of the project — and the assignee then stands in the Owner's place. No further acceptance is
+asked of you when that happens, which is the point of saying so here rather than discovering later that
+every past contributor has to be found again.
 
 An assignee takes the obligations with the rights: your Contribution stays yours, clause 2.1 stays
 non-exclusive, and nothing an assignment does can enlarge what you granted.
@@ -100,7 +111,7 @@ By accepting this agreement you state that:
    this agreement;
 3. every third-party work in a Contribution is identified in the pull request that carries it, together
    with the licence it arrives under and any restriction attached to it, and is compatible with the terms
-   MailFathom is distributed under;
+   the Organization repository it is submitted to is distributed under;
 4. no Contribution contains a credential, token, private key, real mailbox content, or any identifiable
    personal information; and
 5. you will tell the Owner if any of the above stops being true.
@@ -116,7 +127,7 @@ without notice. Nothing in this agreement requires the Owner to accept, review, 
 
 ## 5. Accepting the agreement
 
-Accepting is one comment on your pull request, from the GitHub account that authored it:
+Accepting is one comment on a pull request to MailFathom, from the GitHub account that authored it:
 
 ```text
 I have read the MailFathom Contributor Licence Agreement and I accept it.
@@ -127,12 +138,17 @@ surrounding whitespace, and a trailing full stop are ignored; anything else is n
 quoted inside a question about whether to accept is not an acceptance and nothing reading the comment
 afterwards could tell the two apart.
 
+MailFathom is the one place the agreement is accepted, for every Organization repository. A contribution
+to another of them is covered by the acceptance you gave on MailFathom, and that repository asks for
+nothing of its own.
+
 The `Contributor licence` workflow reads the comment, records the acceptance, and turns the
 `license/cla` status green. What it records — your GitHub account and its numeric id, the pull request
 and the comment that carried the acceptance, the version of this agreement, and the exact revision of
-this file you accepted — lives on the `cla-signatures` branch of this repository, in the open, and is
-not sent anywhere else. That record is the evidence the agreement exists; it holds no more of your data
-than the pull request already does.
+this file you accepted — lives on the `cla-signatures` branch of MailFathom's repository, in the open,
+and is not sent anywhere else. That branch is the only register of acceptances for every Organization
+repository. That record is the evidence the agreement exists; it holds no more of your data than the pull
+request already does.
 
 Once recorded, you never do this again. A later version of this agreement is a new acceptance, asked for
 in the same way.
