@@ -755,7 +755,7 @@ service.
 | `UserId` | The user it happened to. It is the foreign key onto `settings_accounts` with `ON DELETE CASCADE`, for the reason `client_preferences` keys the same way |
 | `Kind` | Which part of MailFathom it is about — `Mail`, `Calendar`, `Task`, or `System` — stored as text |
 | `Title`, `Body` | The two lines a row is drawn with in English, derived when the notification was produced rather than by re-reading mail when it is displayed |
-| `Cause` | The condition the row was raised for — `MessageArrived`, `MailArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`, `TaskReminderDue`, `SendRefused`, `MailboxChangeAbandoned`, `DraftCopyNotKept`, or `MailboxChangeRefused` — stored as text. It is what lets a client say the row in its reader's own language, the two lines above being that same condition written out. Absent on a row written before the column existed, which is what an upgrade over existing data leaves until retention has taken those rows |
+| `Cause` | The condition the row was raised for — `MessageArrived`, `MailArrived`, `SynchronizationIncomplete`, `CredentialRefused`, `CalendarReminderDue`, `TaskReminderDue`, `SendRefused`, `MailboxChangeAbandoned`, `DraftCopyNotKept`, `MailboxChangeRefused`, or `MailInBothAccounts` — stored as text. It is what lets a client say the row in its reader's own language, the two lines above being that same condition written out. Absent on a row written before the column existed, which is what an upgrade over existing data leaves until retention has taken those rows |
 | `Counted`, `OutOf` | The numbers the cause is stated with, whose meaning is the cause's: one arrived message counts whether it carried a subject — one where it did, none where it did not — merged arrivals count the messages they stand for, an unfinished run counts the folders that did not finish out of the folders it scheduled, a due reminder counts the minutes between now and what it is about — the event for `CalendarReminderDue`, nine in the morning on the due day for `TaskReminderDue` — a refused credential counts neither, a refused send and a draft out of step with its server copy count whether they carried a subject as one arrived message does, and a given-up change counts the act it was, `0` mark as read through `7` change the tags |
 | `Source` | What the source line names beyond the kind, which is an account identifier today, and absent where the kind is the whole of it |
 | `TargetKind` | Which of the eight shapes opening it leads to — `Nothing`, `Message`, `Screen`, `CalendarEvent`, `PersonalTask`, `OutgoingEmail`, `MailboxChange`, or `MailDraft` — stored as text |
@@ -1742,6 +1742,11 @@ not reached `Appended`.
 belong to two accounts, each erased by its own paths, and the row only ever reads them through those accounts' own
 stores, so a cascade from either side would decide the other account's half. Nothing from a message's content is here:
 two stored identities, two account names, a folder path, and instants.
+
+A row outlives its filing for as long as the delete it held back is kept, because that delete being given up is what the
+row is read for afterwards: it tells the person the message is now in both accounts. It goes with the mail of either
+account — erasing an account's mail, which is what removing the last user assigned to it does, deletes every filing
+naming that account on either side, since the two columns are not the one the erasure's walk reads.
 
 ## The audit trail of finished mutations
 

@@ -251,6 +251,11 @@ internal static class UserAccountErasure
                 cancellationToken);
         }
 
+        // A filing names two accounts and neither by the column the walk above reads, so it goes when either does.
+        erased += await writeContext.CrossAccountFilings
+            .Where(filing => filing.DestinationAccountId == accountId || filing.SourceAccountId == accountId)
+            .ExecuteDeleteAsync(cancellationToken);
+
         return erased;
     }
 

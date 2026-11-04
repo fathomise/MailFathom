@@ -61,6 +61,13 @@ internal sealed class InMemoryMailboxMutationReconciliationStore : IMailboxMutat
     /// <summary>Puts a record into the state a completed mutation would have left.</summary>
     internal void Add(MailboxMutationRecord record) => this.recordsById[record.Id] = record;
 
+    /// <summary>Gets how many times a caller asked the store to retire unbound local copies.</summary>
+    /// <remarks>
+    /// Retiring takes a transaction of its own, which a folder pass owes only when it read the folder through and an
+    /// unbound copy waits there. An empty answer looks the same whether or not the call was made, so the call is counted.
+    /// </remarks>
+    internal int RetirementCount { get; private set; }
+
     /// <summary>Gets the rows a local copy wrote that the store was asked to retire, in the order it retired them.</summary>
     internal IReadOnlyList<StoredEmailId> RetiredLocalCopies => this.retiredLocalCopies;
 
@@ -197,6 +204,7 @@ internal sealed class InMemoryMailboxMutationReconciliationStore : IMailboxMutat
         DateTimeOffset completedBefore,
         CancellationToken cancellationToken)
     {
+        this.RetirementCount++;
         MailboxMutationRecord[] unbound = [.. this.UnboundCopies(account, destinationPath, completedBefore)];
 
         foreach (var record in unbound)

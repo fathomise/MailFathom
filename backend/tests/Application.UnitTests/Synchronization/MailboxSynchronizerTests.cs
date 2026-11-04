@@ -1051,6 +1051,91 @@ public sealed class MailboxSynchronizerTests
         // Assert
         Assert.Equal(clock.GetUtcNow(), mutationStore.RecordOf(record.Id).PlacementObservedAt);
         Assert.Equal([localCopy], mutationStore.RetiredLocalCopies);
+        Assert.Equal(1, mutationStore.RetirementCount);
+    }
+
+    /// <summary>
+    /// A pass that stops before the end of the folder has not read the copy the server made, so an unbound local copy
+    /// keeps its row until a later pass reads the folder through.
+    /// </summary>
+    [Fact]
+    public async Task SynchronizeAsync_APassThatStopsBeforeTheEndOfTheFolder_KeepsTheUnboundCopy()
+    {
+        // Arrange
+        var accountId = MailAccountId.Create("primary");
+        var uidValidity = ImapUidValidity.Create(5);
+        var occurrence = EmailOccurrenceId.Create(accountId, InboxFolder.Id, uidValidity, ImapUid.Create(10));
+        var mutationStore = new InMemoryMailboxMutationReconciliationStore();
+        var record = CopyPlacedInInbox(accountId, StoredEmailId.Create(Guid.CreateVersion7()), uidValidity, ImapUid.Create(10)) with
+        {
+            Placement = RemoteEmailPlacement.NotReported(),
+            Overlay = new MailboxMutationOverlay(null, null, null, null, StoredEmailId.Create(Guid.CreateVersion7())),
+        };
+        mutationStore.Add(record);
+        var persistenceSession = Substitute.For<IPersistenceSession>();
+        persistenceSession.CommitAsync(Arg.Any<CancellationToken>()).Returns(PersistenceCommitResult.Committed);
+        var sessionScopeFactory = Substitute.For<IPersistenceSessionFactory>();
+        sessionScopeFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(persistenceSession);
+        await using var session = CreateSessionDiscovering(occurrence, uidValidity);
+        session
+            .GetEmailBatchAfterAsync(
+                Arg.Any<ImapUid?>(),
+                Arg.Any<int>(),
+                Arg.Any<MailSynchronizationWindow>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new RemoteEmailMetadataBatch([], occurrence.Uid, HasMore: true));
+        var synchronizer = CreateSynchronizer(
+            CreateSessionFactoryFor(accountId, session),
+            CreateCheckpointStoreAt(accountId, uidValidity),
+            sessionScopeFactory,
+            Substitute.For<IEmailMetadataRepository>(),
+            contentStore: ContentStores.Substituted(),
+            new FakeTimeProvider(new DateTimeOffset(2026, 8, 7, 12, 0, 0, TimeSpan.Zero)),
+            new MailboxSynchronizationOptions { MaxMetadataBatchesPerRun = 1 },
+            mutationStore: mutationStore);
+
+        // Act
+        var result = await synchronizer.SynchronizeAsync(accountId, InboxMapping, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.HasMoreEmails);
+        Assert.Equal(0, mutationStore.RetirementCount);
+        Assert.Null(mutationStore.RecordOf(record.Id).PlacementObservedAt);
+    }
+
+    /// <summary>A folder read through with no unbound local copy in it opens no transaction to retire one.</summary>
+    [Fact]
+    public async Task SynchronizeAsync_AFolderReadThroughWithNoUnboundCopy_AsksNothingToBeRetired()
+    {
+        // Arrange
+        var accountId = MailAccountId.Create("primary");
+        var uidValidity = ImapUidValidity.Create(5);
+        var occurrence = EmailOccurrenceId.Create(accountId, InboxFolder.Id, uidValidity, ImapUid.Create(10));
+        var mutationStore = new InMemoryMailboxMutationReconciliationStore();
+        var persistenceSession = Substitute.For<IPersistenceSession>();
+        persistenceSession.CommitAsync(Arg.Any<CancellationToken>()).Returns(PersistenceCommitResult.Committed);
+        var sessionScopeFactory = Substitute.For<IPersistenceSessionFactory>();
+        sessionScopeFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(persistenceSession);
+        await using var session = CreateSessionDiscovering(occurrence, uidValidity);
+        session
+            .FetchEmailContentWithoutSettingSeenAsync(occurrence, Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(RemoteEmailContentFetchResult.Retrieved(
+                new RemoteEmailContent(occurrence, new ReadOnlyMemory<byte>([1, 2, 3]))));
+        var synchronizer = CreateSynchronizer(
+            CreateSessionFactoryFor(accountId, session),
+            CreateCheckpointStoreAt(accountId, uidValidity),
+            sessionScopeFactory,
+            Substitute.For<IEmailMetadataRepository>(),
+            contentStore: ContentStores.Substituted(),
+            new FakeTimeProvider(new DateTimeOffset(2026, 8, 7, 12, 0, 0, TimeSpan.Zero)),
+            new MailboxSynchronizationOptions(),
+            mutationStore: mutationStore);
+
+        // Act
+        await synchronizer.SynchronizeAsync(accountId, InboxMapping, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(0, mutationStore.RetirementCount);
     }
 
     /// <summary>Mail that arrives on its own is what rules exist for, so a discovery no record accounts for is withheld from nothing.</summary>

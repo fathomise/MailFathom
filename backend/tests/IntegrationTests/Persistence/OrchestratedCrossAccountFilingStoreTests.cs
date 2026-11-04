@@ -9,6 +9,7 @@ using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Mutations.Filing;
 using MailFathom.Infrastructure.Persistence;
+using MailFathom.Infrastructure.Persistence.Users;
 using MailFathom.IntegrationTests.Orchestration;
 using MailFathom.IntegrationTests.Synchronization;
 using Microsoft.EntityFrameworkCore;
@@ -175,6 +176,28 @@ public sealed class OrchestratedCrossAccountFilingStoreTests(MailFathomOrchestra
         Assert.Equal(CrossAccountFilingStage.Abandoned, found.Stage);
     }
 
+    /// <summary>A filing names two accounts and no key reaches it, so erasing either account's mail takes the filing with it.</summary>
+    [Fact]
+    public async Task EraseMailOfAccountAsync_TheAccountAMessageWasFiledInto_TakesTheFilingWithIt()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var filed = await ArrangeAsync(services, uid: 6404U, cancellationToken);
+        var filing = await RecordAsync(services, filed, removal: null, erasesHeldSource: false, cancellationToken);
+        var recordedBeforeErasing = await FilingExistsAsync(services, filing, cancellationToken);
+
+        // Act
+        await services.CommitAsync(
+            (scope, session, token) => UserAccountErasure.EraseMailOfAccountAsync(session, DestinationAccountValue, token),
+            cancellationToken);
+
+        // Assert
+        Assert.True(recordedBeforeErasing);
+        Assert.False(await FilingExistsAsync(services, filing, cancellationToken));
+        Assert.True(await StoredEmailExistsAsync(services, filed.Source, cancellationToken));
+    }
+
     /// <summary>Stores the source on the served account and the destination's copy on an account of its own, which holds no occurrence yet.</summary>
     private static async Task<FiledMessage> ArrangeAsync(
         OrchestratedMailFathomServices services,
@@ -291,6 +314,16 @@ public sealed class OrchestratedCrossAccountFilingStoreTests(MailFathomOrchestra
                 .GetRequiredService<MailFathomDbContext>()
                 .StoredEmails
                 .AnyAsync(email => email.Id == storedEmailId.Value, token),
+            cancellationToken);
+
+    private static Task<bool> FilingExistsAsync(
+        OrchestratedMailFathomServices services,
+        CrossAccountFilingId filing,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope
+                .GetRequiredService<MailFathomDbContext>()
+                .CrossAccountFilings
+                .AnyAsync(row => row.Id == filing.Value, token),
             cancellationToken);
 
     /// <summary>The two stored messages one filing is between, and where the destination's copy is bound.</summary>

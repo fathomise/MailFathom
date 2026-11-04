@@ -2583,7 +2583,7 @@ from each account's custody. A filing one half could not keep is `move-across-ac
 written, and that result also carries `refusal` — `source-without-uidplus`, `destination-without-uidplus`,
 `account-restoring`, `upgrade-in-progress`, `move-not-permitted`, `filed-from-outgoing-record`, or
 `destination-keeps-outgoing-mail` — and `detail`, the same reason as one English sentence for a client with no
-sentence of its own for the name; both are absent on every other result. `mailfathom.mail.move` is required on both
+sentence of its own for the name; both are `null` on every other result. `mailfathom.mail.move` is required on both
 accounts, and a Drafts or Sent folder of another account is never a destination.
 
 **The drafts folder and the sent folder keep their own mail, each together with the subfolders beneath it.** A draft

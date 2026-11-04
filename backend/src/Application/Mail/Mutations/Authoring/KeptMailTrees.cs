@@ -45,11 +45,6 @@ internal sealed class KeptMailTrees(MailFolderReferenceResolver folderReferences
         return TreeOf(source.Alias, source.RemotePath, keptTrees) != TreeOf(destination.Alias, destination.Path, keptTrees);
     }
 
-    /// <summary>Reads where the account's drafts folder and sent folder were last found, without asking the mail server.</summary>
-    /// <remarks>
-    /// A folder the account maps to neither role contributes no tree. One mapped and never bound — never synchronized,
-    /// and never resolved since — has no place on the server anything could lie beneath, so it stands for itself alone.
-    /// </remarks>
     /// <summary>Answers whether a folder lies in the account's drafts or sent tree, which nothing from another account is filed into or out of.</summary>
     internal async Task<bool> HoldsAsync(
         MailAccountId account,
@@ -58,6 +53,11 @@ internal sealed class KeptMailTrees(MailFolderReferenceResolver folderReferences
         CancellationToken cancellationToken) =>
         TreeOf(alias, path, await this.ReadKeptTreeRootsAsync(account, cancellationToken)) is not null;
 
+    /// <summary>Reads where the account's drafts folder and sent folder were last found, without asking the mail server.</summary>
+    /// <remarks>
+    /// A folder the account maps to neither role contributes no tree. One mapped and never bound — never synchronized,
+    /// and never resolved since — has no place on the server anything could lie beneath, so it stands for itself alone.
+    /// </remarks>
     private async Task<IReadOnlyList<KeptTreeRoot>> ReadKeptTreeRootsAsync(
         MailAccountId account,
         CancellationToken cancellationToken)
