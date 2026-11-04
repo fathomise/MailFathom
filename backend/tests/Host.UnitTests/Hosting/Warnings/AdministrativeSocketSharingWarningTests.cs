@@ -47,6 +47,27 @@ public sealed class AdministrativeSocketSharingWarningTests
         Assert.Empty(logs.Records);
     }
 
+    /// <summary>A redirecting clear-text socket maps no route, so the administrative surface is not reachable on it however many surfaces share it.</summary>
+    [Fact]
+    public async Task StartAsync_TheAdministrativeSurfaceSharingARedirectingSocket_SaysNothing()
+    {
+        // Arrange
+        using var logs = new RecordingLoggerProvider();
+        var redirecting = Listener(8080, ServedSurfaces.Mcp | ServedSurfaces.Admin, "McpEndpoint", "AdminEndpoint") with
+        {
+            TerminatesTls = false,
+            PresentsProfiles = false,
+            RedirectsClearText = true,
+        };
+        var warning = WarningFor(logs, redirecting);
+
+        // Act
+        await warning.StartAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(logs.Records);
+    }
+
     /// <summary>Sharing between surfaces that do not include the administrative one publishes no administration, which is what this warning is about.</summary>
     [Fact]
     public async Task StartAsync_OtherSurfacesSharingASocket_SaysNothing()

@@ -13,7 +13,7 @@ using Microsoft.Extensions.Options;
 
 namespace MailFathom.Host.Security.Transport;
 
-/// <summary>Holds the TLS identity of every configured HTTPS profile, and answers which one a handshake gets.</summary>
+/// <summary>Holds the TLS identity of every configured HTTPS profile that carries its own certificate, and answers which one a handshake gets.</summary>
 /// <remarks>
 /// <para>
 /// The certificates are loaded once, by the composition root, before the server is started — not lazily on the first
@@ -27,6 +27,11 @@ namespace MailFathom.Host.Security.Transport;
 /// A handshake whose server name matches no profile on the listener it arrived at is answered with nothing, which
 /// refuses the connection rather than presenting an unrelated profile's certificate to a client that asked for
 /// something else.
+/// </para>
+/// <para>
+/// A profile that leaves its certificate out — which a surface sharing its domains may do — has no identity here. It
+/// presents the one another surface's profile publishing the same name on the same socket carries, so a handshake for
+/// that name is answered from that surface's store, and the certificate is loaded and proven against the domain once.
 /// </para>
 /// <para>
 /// The store owns every certificate it loaded and releases them on disposal, which the container performs at shutdown.
@@ -80,30 +85,34 @@ internal sealed partial class TransportServerCertificateStore : IDisposable
         this.logger = logger;
     }
 
-    /// <summary>Loads and publishes the identity of every configured profile, or refuses to publish any of them.</summary>
+    /// <summary>Loads and publishes the identity of every configured profile carrying a certificate, or refuses to publish any of them.</summary>
     /// <param name="cancellationToken">Cancels the material retrieval.</param>
-    /// <returns>A task that completes once every configured profile has a usable identity.</returns>
-    /// <exception cref="OptionsValidationException">Thrown when any configured profile produced no usable identity.</exception>
+    /// <returns>A task that completes once every configured profile carrying a certificate has a usable identity.</returns>
+    /// <exception cref="OptionsValidationException">Thrown when any profile carrying a certificate produced no usable identity.</exception>
     /// <remarks>
-    /// Every profile is attempted before anything is thrown, so an operator who provisioned two endpoints wrongly reads
-    /// both in one message instead of one restart at a time. Nothing is published when any of them failed: a deployment
-    /// that serves one of its two configured domains and silently refuses the other is harder to diagnose than one that
-    /// does not start.
+    /// <para>
+    /// Every such profile is attempted before anything is thrown, so an operator who provisioned two endpoints wrongly
+    /// reads both in one message instead of one restart at a time. Nothing is published when any of them failed: a
+    /// deployment that serves one of its two configured domains and silently refuses the other is harder to diagnose
+    /// than one that does not start.
+    /// </para>
+    /// <para>
+    /// A profile leaving its certificate out is skipped rather than attempted. That another surface's profile carries
+    /// one for the same name on the same socket is settled before this runs, by <c>ComposedSettings</c> refusing a
+    /// composition in which none does — so the skip never leaves a name nobody answers.
+    /// </para>
     /// </remarks>
     internal async Task LoadAsync(CancellationToken cancellationToken)
     {
         var errors = new List<string>();
         var loaded = new Dictionary<TransportHttpsListenerAddress, Dictionary<string, TransportTlsEndpointIdentity>>();
 
-        // The loop stays a loop rather than becoming a projection: each step awaits a retrieval, and each successful
-        // step takes ownership of a certificate that has to be released even when a later step fails.
-        // A profile carrying no certificate presents the one another surface's profile publishing the same name on the
-        // same socket carries, which the composition has already proven exists. That store loads it and the handshake
-        // finds it there, so it is proven against the domain once rather than once per surface sharing it.
         var carryingCertificates = this.httpsSettings.Endpoints
             .Index()
             .Where(static entry => entry.Item.CarriesCertificate);
 
+        // The loop stays a loop rather than becoming a projection: each step awaits a retrieval, and each successful
+        // step takes ownership of a certificate that has to be released even when a later step fails.
         foreach (var (index, endpoint) in carryingCertificates)
         {
             var configurationPath = $"{this.configurationSectionPath}:{nameof(TransportHttpsOptions.Endpoints)}:{index}";
@@ -154,7 +163,7 @@ internal sealed partial class TransportServerCertificateStore : IDisposable
     /// <summary>Finds the identity a handshake on one listener receives for the server name it asked for.</summary>
     /// <param name="listener">The address and port the connection arrived at.</param>
     /// <param name="serverName">The server name the client sent, or <see langword="null" /> when it sent none.</param>
-    /// <returns>The identity, or <see langword="null" /> when no configured profile serves that name on that listener.</returns>
+    /// <returns>The identity, or <see langword="null" /> when no profile of this store carries a certificate for that name on that listener — including a profile that left it to another surface's store.</returns>
     /// <remarks>
     /// A client that sends no server name is answered with nothing rather than with a default profile. Every profile
     /// publishes an exact domain, so a connection that names none is one this deployment has no identity for — and

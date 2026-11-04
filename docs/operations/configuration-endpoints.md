@@ -160,8 +160,8 @@ A handshake for a name is answered before any path has been read, so the profile
 
 **What it publishes is the administrative surface wherever that port is published**, which is the cost
 [sharing a socket](#sharing-a-socket) always had. Startup says so at `Warning` for every socket the administrative
-endpoint shares with another surface, naming the port and the sections sharing it, whether or not a domain is shared on
-it. A deployment with a reverse proxy in front keeps the surfaces on names or ports of their own and leaves this off.
+endpoint serves its routes on beside another surface, naming the port and the sections sharing it, whether or not a
+domain is shared on it. A clear-text socket that only redirects is left out, because it maps no route. A deployment with a reverse proxy in front keeps the surfaces on names or ports of their own and leaves this off.
 None of the deployment assets this repository ships writes it, and none needs to: none of them terminates TLS in this
 process, so none publishes a domain here to share.
 

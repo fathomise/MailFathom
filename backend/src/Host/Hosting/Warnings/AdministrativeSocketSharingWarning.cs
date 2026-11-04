@@ -18,7 +18,9 @@ namespace MailFathom.Host.Hosting.Warnings;
 /// </para>
 /// <para>
 /// Per socket rather than once, because sharing is per socket: two surfaces may share a clear-text port and keep TLS
-/// ports of their own, and the one an operator needs to look at is the one named.
+/// ports of their own, and the one an operator needs to look at is the one named. A clear-text socket that redirects is
+/// left out, because it maps no route and answers every request with the address of a TLS socket — which is where the
+/// administrative surface is actually reached, and where this warns if it is shared.
 /// </para>
 /// </remarks>
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "The dependency injection container materializes this hosted service.")]
@@ -45,7 +47,9 @@ internal sealed partial class AdministrativeSocketSharingWarning : IHostedServic
     public Task StartAsync(CancellationToken cancellationToken)
     {
         var sharedWithAdministration = this.listeners.Where(static listener =>
-            listener.Surfaces.HasFlag(ServedSurfaces.Admin) && listener.Surfaces != ServedSurfaces.Admin);
+            listener.Surfaces.HasFlag(ServedSurfaces.Admin)
+            && listener.Surfaces != ServedSurfaces.Admin
+            && !listener.RedirectsClearText);
 
         foreach (var listener in sharedWithAdministration)
         {
