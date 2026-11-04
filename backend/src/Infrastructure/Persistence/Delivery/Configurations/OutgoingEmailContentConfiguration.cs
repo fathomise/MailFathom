@@ -22,6 +22,10 @@ namespace MailFathom.Infrastructure.Persistence.Delivery.Configurations;
 /// cascade is the erasure obligation: deleting the record destroys the message it points at, so an outgoing email
 /// cannot outlive the record that says who it was for.
 /// </para>
+/// <para>
+/// The opposite does not hold: a delivered send's row is deleted once its sent copy settles, and the record stays as
+/// what was sent. Nothing reads the message after that, so keeping it would be a second copy of the sent folder's own.
+/// </para>
 /// </remarks>
 internal sealed class OutgoingEmailContentConfiguration : IEntityTypeConfiguration<OutgoingEmailContentEntity>
 {

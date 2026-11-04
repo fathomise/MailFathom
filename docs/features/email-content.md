@@ -829,7 +829,9 @@ An object outlives the row that pointed at it in two ways, and both end with the
 
 **A row that goes takes its object with it, immediately after the transaction commits.** Deleting a stored email, an
 outgoing record, a recurring declaration, a mail draft, or a stored file — and erasing the user any of them belongs to —
-removes the payload from the endpoint as well as the record from the database. The order is the ordering
+removes the payload from the endpoint as well as the record from the database. So does releasing a delivered send's
+message while its record stays, which [mail delivery](mail-delivery.md#a-delivered-send-keeps-its-record-and-lets-go-of-its-message)
+describes. The order is the ordering
 [ADR 0001](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0001-application-owned-repositories-for-persistence-ports.md)
 requires of every remote call — the endpoint is reached after the commit rather than inside it, so a network that
 stalls holds no transaction open, and a delete that rolled back has removed nothing. The locators are read **inside**

@@ -2457,6 +2457,15 @@ a single message's bytes. It is written **once** and read back for every attempt
 optimization — a message rebuilt between attempts carries a different `Message-ID` and would thread as a second message
 in every recipient's client. A second enqueue of the same identity therefore leaves the stored payload exactly as it is.
 
+**The row lives exactly as long as a reader of it can.** Once the record is at `Sent` and its sent copy has settled,
+the row is deleted by one statement conditioned on the record's committed stage, while the `outgoing_emails` row and its
+`outgoing_email_recipients` stay as what was sent; a sweep under the `delivered-outgoing-content-sweep` lease deletes,
+in bounded batches, every such row whose record reached `Sent` more than an hour earlier. A `Refused` or `Cancelled`
+send keeps its row. An object-backed row's object is erased when the deleting transaction commits. So the record no
+longer carries the message it sent: what a delivered message said is the stored message its sent copy became.
+[Mail delivery](../features/mail-delivery.md#a-delivered-send-keeps-its-record-and-lets-go-of-its-message) states when
+the copy has settled in each custody phase.
+
 ### The copies of an outgoing message that are in the mailbox
 
 `outgoing_email_filings` holds one row per place a copy of an outgoing message has been put, keyed by the record and
@@ -2828,7 +2837,9 @@ it names are people other than the user. They are stored because a send cannot b
 owed it, and the columns above are the minimum that supports that — which is why a recipient's display name is not among
 them, and why the record carries no subject, no body, and no header of its own. The message stays in
 `outgoing_email_contents` and is reached by identifier, so listing the outbox, advancing a stage, or answering about a
-recipient never loads it. The two cascades from `outgoing_emails` are what make erasure structural: deleting the
+recipient never loads it — and it stays there only while something still reads it, which for a delivered send ends when
+its sent copy settles: storage limitation applied to a copy that would otherwise sit beside the sent folder's own for
+ever, as [the content row](#the-outgoing-messages-waiting-to-be-sent) states. The two cascades from `outgoing_emails` are what make erasure structural: deleting the
 record destroys the recipients and the stored message with it, so an outgoing message cannot outlive the record that
 says who it was for. A recipient's `ContactId` does not widen any of that: it is the one column of the three that is not
 personal data, it is the same identifier a failure is allowed to name, and it points at `contacts` without a constraint

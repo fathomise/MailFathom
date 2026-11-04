@@ -341,6 +341,71 @@ internal sealed class EmailContentStore(
 
     /// <inheritdoc />
     /// <remarks>
+    /// <para>
+    /// The keys are read before the rows go, for the reason <see cref="ReleasedContentObjects" /> gives, and both reads
+    /// carry the same stage condition, so an object is only ever named for release beside a row the statement would
+    /// remove. A row a competing replica removed between the two is gone either way, and naming its object twice erases
+    /// nothing that was still read.
+    /// </para>
+    /// <para>
+    /// The stage is read from the record as committed, so a send whose delivery this same session has only staged is
+    /// not delivered yet as far as this statement can tell, and keeps its payload. That is why the release follows the
+    /// commit that records a delivery rather than riding inside it.
+    /// </para>
+    /// </remarks>
+    public async Task<int> ReleaseDeliveredOutgoingContentAsync(
+        IPersistenceSession session,
+        IReadOnlyCollection<OutgoingEmailId> outgoingEmailIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(outgoingEmailIds);
+
+        if (outgoingEmailIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        Guid[] named = [.. outgoingEmailIds.Select(static outgoingEmailId => outgoingEmailId.Value)];
+
+        var delivered = writeContext.OutgoingEmailContents
+            .Where(content => named.Contains(content.OutgoingEmailId)
+                && content.OutgoingEmail.Stage == OutgoingEmailStage.Sent);
+
+        await ReleasedContentObjects.ReleaseForOutgoingContentsAsync(session, delivered, cancellationToken);
+
+        return await delivered.ExecuteDeleteAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Read from the content table rather than from the records, because a delivered send that still holds a payload is
+    /// the exception once its filing has settled: the records at <see cref="OutgoingEmailStage.Sent" /> grow with every
+    /// message an account has ever sent, while the payloads left beside them are the ones still waiting or the few a
+    /// stopped pass left behind.
+    /// </remarks>
+    public async Task<IReadOnlyList<OutgoingEmailId>> FindDeliveredOutgoingContentAsync(
+        DateTimeOffset deliveredOnOrBefore,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+
+        var delivered = await dbContext.OutgoingEmailContents
+            .AsNoTracking()
+            .Where(content => content.OutgoingEmail.Stage == OutgoingEmailStage.Sent
+                && content.OutgoingEmail.StageChangedAt <= deliveredOnOrBefore)
+            .OrderBy(content => content.OutgoingEmailId)
+            .Take(limit)
+            .Select(content => content.OutgoingEmailId)
+            .ToArrayAsync(cancellationToken);
+
+        return [.. delivered.Select(OutgoingEmailId.Create)];
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
     /// The same "written once" arrangement the outgoing message's has, for a payload nothing transmits: a draft is what
     /// every occasion of a declaration is composed from, so rewriting it under a running declaration would change what
     /// the next occasion sends without changing anything a reader of the declaration can see.

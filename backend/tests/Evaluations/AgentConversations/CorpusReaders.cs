@@ -254,6 +254,12 @@ internal static class CorpusReaders
         public Task<StoredEmailContent?> FindOutgoingContentAsync(OutgoingEmailId outgoingEmailId, CancellationToken cancellationToken) =>
             throw new NotSupportedException("The Agent never reads an outgoing message.");
 
+        public Task<int> ReleaseDeliveredOutgoingContentAsync(IPersistenceSession session, IReadOnlyCollection<OutgoingEmailId> outgoingEmailIds, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The Agent never releases an outgoing message.");
+
+        public Task<IReadOnlyList<OutgoingEmailId>> FindDeliveredOutgoingContentAsync(DateTimeOffset deliveredOnOrBefore, int limit, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The Agent never reads an outgoing message.");
+
         public Task SaveRecurringSendDraftAsync(IPersistenceSession session, RecurringSendId recurringSendId, PlacedEmailContent placedContent, CancellationToken cancellationToken) =>
             throw new NotSupportedException("The Agent never declares a repeated send.");
 

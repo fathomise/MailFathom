@@ -66,6 +66,20 @@ internal sealed class StubEmailContentStore(StoredEmailContent? storedContent = 
         throw new NotSupportedException("A mailbox tool never reads an outgoing message.");
 
     /// <inheritdoc />
+    public Task<int> ReleaseDeliveredOutgoingContentAsync(
+        IPersistenceSession session,
+        IReadOnlyCollection<OutgoingEmailId> outgoingEmailIds,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("A mailbox tool never releases an outgoing message.");
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<OutgoingEmailId>> FindDeliveredOutgoingContentAsync(
+        DateTimeOffset deliveredOnOrBefore,
+        int limit,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("A mailbox tool never reads an outgoing message.");
+
+    /// <inheritdoc />
     public Task SaveRecurringSendDraftAsync(
         IPersistenceSession session,
         RecurringSendId recurringSendId,

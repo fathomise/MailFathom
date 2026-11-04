@@ -1,6 +1,6 @@
 # Mail delivery
 
-<!-- describes: backend/src/Application/Mail/Delivery/**, backend/src/Domain/Delivery/**, backend/src/Domain/Scheduling/**, backend/src/Infrastructure/Mail/MailKit/Delivery/**, backend/src/Infrastructure/Mail/Mime/Composition/**, backend/src/Infrastructure/Mail/Mime/MimeKitOutgoingMailTextReader.cs, backend/src/Infrastructure/Persistence/Delivery/**, backend/src/Infrastructure/Observability/LoggedAuthoredSendAuditor.cs, backend/src/Infrastructure/Mail/MailAccountDeliveryOptions.cs, backend/src/Infrastructure/Mail/SmtpAccountSettings.cs, backend/src/Host/Configuration/Mail/ConfiguredSmtpAccountSettingsProvider.cs, backend/src/Host/Configuration/Mail/ConfiguredOutgoingSendPermissionReader.cs, backend/src/Host/Configuration/Mail/MailDeliveryOptions.cs, backend/src/Host/Configuration/Mail/MailSynchronizationOptions.cs, backend/src/Host/Hosting/Workers/OutboxDeliveryWorker.cs -->
+<!-- describes: backend/src/Application/Mail/Delivery/**, backend/src/Domain/Delivery/**, backend/src/Domain/Scheduling/**, backend/src/Infrastructure/Mail/MailKit/Delivery/**, backend/src/Infrastructure/Mail/Mime/Composition/**, backend/src/Infrastructure/Mail/Mime/MimeKitOutgoingMailTextReader.cs, backend/src/Infrastructure/Persistence/Delivery/**, backend/src/Infrastructure/Observability/LoggedAuthoredSendAuditor.cs, backend/src/Infrastructure/Mail/MailAccountDeliveryOptions.cs, backend/src/Infrastructure/Mail/SmtpAccountSettings.cs, backend/src/Host/Configuration/Mail/ConfiguredSmtpAccountSettingsProvider.cs, backend/src/Host/Configuration/Mail/ConfiguredOutgoingSendPermissionReader.cs, backend/src/Host/Configuration/Mail/MailDeliveryOptions.cs, backend/src/Host/Configuration/Mail/MailSynchronizationOptions.cs, backend/src/Host/Hosting/Workers/OutboxDeliveryWorker.cs, backend/src/Host/Hosting/Workers/DeliveredOutgoingContentSweepWorker.cs -->
 
 Reading a mailbox and submitting to one are two capabilities against two servers, and MailFathom holds them apart. The
 submission half is whole: an account declares where its mail is submitted, a **delivery session** is opened against that
@@ -219,7 +219,9 @@ the outgoing record, how many people it names, and how many of those nothing her
 line a user looking for an odd send is looking for. What is **not** recorded is everything about the message — no
 prompt, no mail content, no subject, no body, and no address. The record answers *who asked for this and under what*,
 which turns "an agent sent something odd" from a suspicion into something a user can read; what was sent is the
-stored MIME the outgoing record already points at. Today it is written to the structured log, under the deployment's
+outgoing record itself — its recipients, its subject, and its `Message-ID` — while the message waits, and the copy in
+the account's sent folder once it has left, because the record lets go of its own stored MIME when that copy settles,
+as [a delivered send keeps its record](#a-delivered-send-keeps-its-record-and-lets-go-of-its-message) states. Today it is written to the structured log, under the deployment's
 own log retention; the port behind it is what a durable evidence store would replace without any caller changing. One
 send is one entry: a call repeated under the idempotency key it first carried is answered with the record the first one
 left and is not recorded again, so a client retrying after a timeout leaves a trail of what it sent rather than of how
@@ -591,7 +593,8 @@ of the reports that come back is [delivery and read receipts](delivery-and-read-
 **The message is written once and read back, never recomposed.** A message rebuilt between attempts carries a different
 `Message-ID`, which threads one send as two in every recipient's client, so a second enqueue of the same identity leaves
 the stored payload exactly as it is. Raw MIME is reached through `IEmailContentStore` here as it is everywhere else, and
-nothing above that port handles it as a byte array.
+nothing above that port handles it as a byte array. It is kept until the send no longer needs it, which for a delivered
+send is shortly after it leaves: [a delivered send keeps its record](#a-delivered-send-keeps-its-record-and-lets-go-of-its-message).
 
 **A refusal is one recipient's, not the message's.** Each recipient carries its own outcome, so a mistyped address among
 five does not stop the other four, and the four the message reached are not offered it again when the fifth is retried.
@@ -1183,6 +1186,48 @@ work, like any other message the source still holds.
 is where appending became something MailFathom may do at all, and holds the authorization review that admitted it.
 [ADR 0034](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0034-holding-a-mailbox-mailfathom-alone-keeps.md)
 is where a held account's copies stopped being appended.
+
+## A delivered send keeps its record and lets go of its message
+
+Once a send is **sent**, nothing reads its stored MIME again but the filing of its sent copy: every recipient has been
+answered, so no attempt transmits it, and neither the outbox listing nor anything that advances a send loads it. So the
+payload is released the moment that copy settles, and the outgoing record and its recipients stay as the metadata of
+what was sent — the identity a retried command reads back, the send a notification or the outbox may still name, and
+the record of who asked for it. Keeping the bytes any longer would hold every message the account ever sent twice, once
+here and once as the stored message in its sent folder, for no purpose.
+
+When the copy has settled depends on the account's [custody phase](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0034-holding-a-mailbox-mailfathom-alone-keeps.md),
+and the release follows it in each:
+
+| Phase | The sent copy has settled once |
+|---|---|
+| `Mirrored` | The `APPEND` was confirmed; or was issued and never answered, which is never repeated and so needs no bytes either; or failed with its code recorded on the send; or was never due because `Delivery:FileSentCopy` is off |
+| `Held` | The delivery committed: its local sent copy was prepared from the stored bytes before the commit and filed inside it |
+| `Restoring` | As `Mirrored`, because a restoring account files its sent copy on the source |
+
+The release is one conditional statement, made after the filing has answered and outside the transaction that
+recorded the delivery: it removes the payload of a send whose record is at **sent** as committed and of nothing else, so
+two replicas reaching one send remove it once, and a send that still has a recipient to offer is never touched. A
+filing that raised rather than answered — the host stopping before the append was issued, a store that failed outright
+— has not settled, and the payload stays. Under the object backend the object is erased when that statement commits,
+as every other deletion of stored content erases one.
+
+What the filing pass misses — a pass that stopped between a delivery and its filing, a release that could not be
+committed, and every send delivered before this release existed — is released by a sweep that runs once an hour under a
+lease of its own, on whichever replica takes it, and only for sends delivered at least an hour earlier: far longer than
+any pass takes to file the copy that follows its delivery, on this build or on the previous one during a rolling
+upgrade. Nothing files a delivered send's copy after the pass that delivered it, so past that hour nothing can still be
+reading the bytes. Each run releases at most twenty batches of five hundred, each committed on its own, so a large
+backlog is worked down over several runs rather than in one transaction over the whole table.
+
+A **refused** or **cancelled** send keeps its message for as long as its record exists.
+
+Releasing the payload returns its space to PostgreSQL rather than to the volume: what falls at once is what the next
+backup carries, and the file system follows the database's own reclamation, which is the operator's maintenance.
+
+A delivered send read back as a preview — through the client's outbox route or `get_outgoing_email` — therefore
+carries its subject from the record and no sender, text, or attachments once its message has been released, which is
+the same answer a preview gives for a stored message it cannot read.
 
 ## A message that is written and not sent
 

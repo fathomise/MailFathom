@@ -2,8 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Accounts.Custody;
+using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Mail.Delivery.Outbox;
+using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Filing;
@@ -49,6 +52,8 @@ public sealed class OutgoingMailFilingPass
     private readonly IOutgoingMailFilingPolicyReader filingPolicies;
     private readonly IOutgoingMailFilingStore filings;
     private readonly MailboxCustodianResolver custodians;
+    private readonly IEmailContentStore contents;
+    private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly TimeProvider timeProvider;
     private readonly int maxWithdrawalsPerPass;
 
@@ -58,6 +63,8 @@ public sealed class OutgoingMailFilingPass
     /// <param name="filingPolicies">Answers whether this account files a copy of what it sends.</param>
     /// <param name="filings">Answers which filed sent copies the folder holds a second occurrence of.</param>
     /// <param name="custodians">Chooses whether an account keeps copies of its sends on a server at all.</param>
+    /// <param name="contents">Releases a delivered send's stored message once its sent copy no longer needs it.</param>
+    /// <param name="commitPolicy">Commits that release.</param>
     /// <param name="timeProvider">Decides how recently a sent copy was appended.</param>
     /// <param name="settings">Bounds how many sent copies one pass withdraws.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
@@ -72,6 +79,8 @@ public sealed class OutgoingMailFilingPass
         IOutgoingMailFilingPolicyReader filingPolicies,
         IOutgoingMailFilingStore filings,
         MailboxCustodianResolver custodians,
+        IEmailContentStore contents,
+        OptimisticConcurrencyRetryPolicy commitPolicy,
         TimeProvider timeProvider,
         MailOutboxSettings settings)
     {
@@ -80,6 +89,8 @@ public sealed class OutgoingMailFilingPass
         ArgumentNullException.ThrowIfNull(filingPolicies);
         ArgumentNullException.ThrowIfNull(filings);
         ArgumentNullException.ThrowIfNull(custodians);
+        ArgumentNullException.ThrowIfNull(contents);
+        ArgumentNullException.ThrowIfNull(commitPolicy);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(settings);
 
@@ -88,6 +99,8 @@ public sealed class OutgoingMailFilingPass
         this.filingPolicies = filingPolicies;
         this.filings = filings;
         this.custodians = custodians;
+        this.contents = contents;
+        this.commitPolicy = commitPolicy;
         this.timeProvider = timeProvider;
         this.maxWithdrawalsPerPass = settings.MaxDeliveriesPerPass;
     }
@@ -176,6 +189,13 @@ public sealed class OutgoingMailFilingPass
     /// A held account is settled with nothing issued at all. Its sent copy was filed into the local sent folder in the
     /// commit that recorded the delivery, and an append to a drained source would be drained straight back.
     /// </para>
+    /// <para>
+    /// Once the custodian has answered, a delivered send's stored message has no reader left: every recipient was
+    /// answered, an append is never issued twice — whether the server confirmed it, never answered it, or refused it —
+    /// and a held account's copy was prepared before its delivery committed. So the payload is released here, in every
+    /// phase alike, and the record and its recipients stay as what was sent. A custodian that raised has not settled the
+    /// copy, so the payload stays for the sweep to release once nothing can still be filing it.
+    /// </para>
     /// </remarks>
     public async Task<IReadOnlyList<OutgoingMailFilingResult>> SettleFiledCopiesAsync(
         OutgoingEmailId outgoingEmailId,
@@ -188,7 +208,14 @@ public sealed class OutgoingMailFilingPass
 
         var custodian = await this.custodians.ResolveAsync(record.AccountId, cancellationToken);
 
-        return await custodian.SettleFiledCopiesAsync(record, cancellationToken);
+        var results = await custodian.SettleFiledCopiesAsync(record, cancellationToken);
+
+        if (record.Stage == OutgoingEmailStage.Sent)
+        {
+            await this.ReleaseDeliveredContentAsync(record.Id, cancellationToken);
+        }
+
+        return results;
     }
 
     /// <summary>Appends a settled send's sent copy on the account's server.</summary>
@@ -217,5 +244,27 @@ public sealed class OutgoingMailFilingPass
         }
 
         return [await this.filer.FileAsync(record, OutgoingMailFiling.Sent, cancellationToken)];
+    }
+
+    /// <summary>Releases a settled delivery's stored message, and never lets that change what the filing reports.</summary>
+    /// <remarks>
+    /// The filing already happened and is already durable, so a release that could not be committed must not turn it
+    /// into a reported failure: the payload simply stays until <see cref="DeliveredOutgoingContentSweep" /> reaches it.
+    /// </remarks>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "The filing outcomes this pass returns are already durable; a release that failed or was stopped leaves a payload the sweep releases later, and raising would report a settled copy as one that failed.")]
+    [SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception", Justification = "There is no second action to take: the payload left standing is the sweep's to release.")]
+    private async Task ReleaseDeliveredContentAsync(OutgoingEmailId outgoingEmailId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await this.commitPolicy.CommitAsync(
+                (session, token) => this.contents.ReleaseDeliveredOutgoingContentAsync(session, [outgoingEmailId], token),
+                cancellationToken);
+        }
+        catch (Exception)
+        {
+            // Deliberately silent: the copy is settled whatever happened here, and the payload the release left standing
+            // is one the sweep reaches on its next run.
+        }
     }
 }

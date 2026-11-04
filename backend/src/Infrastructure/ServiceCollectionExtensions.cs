@@ -1569,6 +1569,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MailboxCopyAppender>();
         services.AddScoped<OutgoingMailFiler>();
         services.AddScoped<OutgoingMailFilingPass>();
+        services.AddScoped<DeliveredOutgoingContentSweep>();
         // The drafts a mailbox holds, registered beside the filing they reuse rather than with it: a draft is appended
         // through the same write session and into a folder named the same way, and everything that separates the two is
         // that a draft is replaced whenever its author edits it. Scoped for the reason every other work unit is.

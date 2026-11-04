@@ -127,12 +127,48 @@ public interface IEmailContentStore
     /// <returns>The stored content, or <see langword="null" /> when no content is stored for that record.</returns>
     /// <remarks>
     /// This is what an attempt transmits, including a retry, which is what keeps a resumed send the same message rather
-    /// than a second one that looks like it. Absent content is a defect here rather than an ordinary answer, unlike the
-    /// incoming read: an outgoing record is written together with its message, so a record without one describes a send
-    /// that can never happen — and the caller is the one that decides what to do about that.
+    /// than a second one that looks like it. For a send that has not been delivered, absent content is a defect rather
+    /// than an ordinary answer: an outgoing record is written together with its message, so a record without one
+    /// describes a send that can never happen — and the caller is the one that decides what to do about that. A
+    /// delivered send's message is released once its sent copy settles, so for one of those absence is the ordinary
+    /// answer.
     /// </remarks>
     Task<StoredEmailContent?> FindOutgoingContentAsync(
         OutgoingEmailId outgoingEmailId,
+        CancellationToken cancellationToken);
+
+    /// <summary>Removes the raw MIME of those named sends that were delivered, leaving each record and its recipients.</summary>
+    /// <param name="session">The explicit persistence session the removal participates in.</param>
+    /// <param name="outgoingEmailIds">The sends whose payload nothing reads any more.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>How many payloads the removal took, which leaves out a send that is not delivered or holds none.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> or <paramref name="outgoingEmailIds" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// <para>
+    /// The condition is part of the statement rather than a read before it: a send whose record is not at
+    /// <see cref="OutgoingEmailStage.Sent" /> when the statement runs keeps its payload, so two replicas releasing one
+    /// send remove it once and a send that still has a recipient to offer is never reached. The caller decides when the
+    /// sent copy no longer needs the bytes; this decides only that nothing undelivered loses them.
+    /// </para>
+    /// <para>
+    /// An object-backed payload's object is released when the session commits, as every other deletion of stored
+    /// content releases one.
+    /// </para>
+    /// </remarks>
+    Task<int> ReleaseDeliveredOutgoingContentAsync(
+        IPersistenceSession session,
+        IReadOnlyCollection<OutgoingEmailId> outgoingEmailIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>Names delivered sends that still hold their raw MIME, delivered no later than an instant.</summary>
+    /// <param name="deliveredOnOrBefore">The latest instant a named send may have reached <see cref="OutgoingEmailStage.Sent" /> at.</param>
+    /// <param name="limit">The most sends one answer names.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>The sends, in identifier order.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="limit" /> is not positive.</exception>
+    Task<IReadOnlyList<OutgoingEmailId>> FindDeliveredOutgoingContentAsync(
+        DateTimeOffset deliveredOnOrBefore,
+        int limit,
         CancellationToken cancellationToken);
 
     /// <summary>Saves the draft every occurrence of one recurring send is composed from, once and only once.</summary>

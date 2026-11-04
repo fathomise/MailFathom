@@ -414,6 +414,54 @@ public sealed class OrchestratedOutgoingEmailStoreTests(MailFathomOrchestrationF
         Assert.Equal(0, remainingRecipientCount);
     }
 
+    /// <summary>
+    /// A delivered send lets go of its message and keeps its record and its recipients, while a send still waiting keeps
+    /// its message however the release names it — the condition is in the statement, so naming is not releasing.
+    /// </summary>
+    /// <remarks>
+    /// The stage condition crosses into the record through a navigation, which only the provider's translation of the
+    /// deletion decides, and the sweep's read is the same join from the other side.
+    /// </remarks>
+    [Fact]
+    public async Task ReleaseDeliveredOutgoingContentAsync_ADeliveredSendBesideAWaitingOne_RemovesOnlyTheDeliveredMessage()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var deliveredRequest = CreateRequest($"outbox-release-delivered-{Guid.NewGuid():N}", "erin@example.test");
+        var waitingRequest = CreateRequest($"outbox-release-waiting-{Guid.NewGuid():N}", "fay@example.test");
+        var delivered = await EnqueueAsync(services, deliveredRequest, MimeOf("release-delivered"), cancellationToken);
+        var waiting = await EnqueueAsync(services, waitingRequest, MimeOf("release-waiting"), cancellationToken);
+        await DeliverAsync(services, deliveredRequest, delivered.Id, cancellationToken);
+
+        // Act
+        var named = await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IEmailContentStore>().FindDeliveredOutgoingContentAsync(
+                TimeProvider.System.GetUtcNow().AddDays(1),
+                limit: 1000,
+                token),
+            cancellationToken);
+
+        var released = 0;
+        await services.CommitAsync(
+            async (scope, session, token) => released = await scope.GetRequiredService<IEmailContentStore>()
+                .ReleaseDeliveredOutgoingContentAsync(session, [delivered.Id, waiting.Id], token),
+            cancellationToken);
+
+        // Assert
+        Assert.Contains(delivered.Id, named);
+        Assert.DoesNotContain(waiting.Id, named);
+        Assert.Equal(1, released);
+
+        Assert.Null(await FindContentAsync(services, delivered.Id, cancellationToken));
+        Assert.NotNull(await FindContentAsync(services, waiting.Id, cancellationToken));
+
+        var record = await FindAsync(services, delivered.Id, cancellationToken);
+        Assert.NotNull(record);
+        Assert.Equal(OutgoingEmailStage.Sent, record.Stage);
+        Assert.Single(record.Recipients);
+    }
+
     /// <summary>The principal a record is written under has to survive the round trip, because equality with it is what confines a read to one caller.</summary>
     /// <remarks>
     /// A column is the one place the value can be lost without anything failing: a row that read back as nobody would
@@ -444,6 +492,47 @@ public sealed class OrchestratedOutgoingEmailStoreTests(MailFathomOrchestrationF
         CancellationToken cancellationToken) => services.InScopeAsync(
             (scope, token) => scope.GetRequiredService<IOutgoingEmailStore>().FindAsync(outgoingEmailId, token),
             cancellationToken);
+
+    private static Task<StoredEmailContent?> FindContentAsync(
+        OrchestratedMailFathomServices services,
+        OutgoingEmailId outgoingEmailId,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IEmailContentStore>().FindOutgoingContentAsync(outgoingEmailId, token),
+            cancellationToken);
+
+    /// <summary>Carries one queued send through the writes an accepted transmission makes, to <see cref="OutgoingEmailStage.Sent" />.</summary>
+    private static async Task DeliverAsync(
+        OrchestratedMailFathomServices services,
+        OutgoingEmailRequest request,
+        OutgoingEmailId outgoingEmailId,
+        CancellationToken cancellationToken)
+    {
+        var claimed = await ClaimAsync(services, outgoingEmailId, cancellationToken);
+
+        await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
+                .RecordTransmissionBegunAsync(session, claimed.Lease, outgoingEmailId, deliveryNotificationCarried: null, token),
+            cancellationToken);
+
+        await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>().RecordRecipientOutcomesAsync(
+                session,
+                claimed.Lease,
+                outgoingEmailId,
+                [Answered(request, 0, OutgoingRecipientStatus.Accepted, replyCode: 250, DateTimeOffset.UnixEpoch)],
+                token),
+            cancellationToken);
+
+        await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>().AdvanceAsync(
+                session,
+                claimed.Lease,
+                outgoingEmailId,
+                OutgoingEmailStage.Sent,
+                replyCode: 250,
+                token),
+            cancellationToken);
+    }
 
     /// <summary>Claims one named record the way a delivery pass does, and fails the test when the claim missed it.</summary>
     private static async Task<ClaimedOutgoingEmail> ClaimAsync(

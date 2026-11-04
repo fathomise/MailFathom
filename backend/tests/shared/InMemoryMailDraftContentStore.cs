@@ -97,6 +97,20 @@ internal sealed class InMemoryMailDraftContentStore : IEmailContentStore
         throw new NotSupportedException("A draft never reads a send's payload.");
 
     /// <inheritdoc />
+    public Task<int> ReleaseDeliveredOutgoingContentAsync(
+        IPersistenceSession session,
+        IReadOnlyCollection<OutgoingEmailId> outgoingEmailIds,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("A draft never releases a send's payload.");
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<OutgoingEmailId>> FindDeliveredOutgoingContentAsync(
+        DateTimeOffset deliveredOnOrBefore,
+        int limit,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("A draft never reads a send's payload.");
+
+    /// <inheritdoc />
     public Task SaveRecurringSendDraftAsync(
         IPersistenceSession session,
         RecurringSendId recurringSendId,
