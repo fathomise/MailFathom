@@ -184,7 +184,14 @@ export function complete(answer: Answer): ClientResponse {
 // Every request the doubles below were asked, in the order they were asked. `StrictMode` invokes the effect that reads
 // the accounts twice on mount, as React does in development and as `main.tsx` therefore does here, so a repeat of a
 // route already asked for is the mode rather than the screen — what these tests are about is which routes those are.
-export const asked: ClientRequest[] = [];
+//
+// The record is the running test's own: `resetsBetweenTests` starts a new one in front of every test, and a double
+// writes into the record that was current when it was made rather than into whichever one is current when it is
+// called. A double outlives its test — Vitest runs a file's `afterEach` ahead of the setup file's `cleanup`, so the
+// tree is still mounted once the test is over, and an answer still in flight resolves after the unmount — and a
+// request it is asked then belongs to the test that made it. Written into one record shared by every test, it reached
+// the next test as routes that test never asked for, from a screen that test never drew.
+export let asked: ClientRequest[] = [];
 
 export function routesAsked(): string[] {
     return [...new Set(asked.map((request) => request.path))];
@@ -209,8 +216,10 @@ export function deploymentAnswering(
     session: Answer = accepted,
     preferences: Answer | null = null,
 ): DeploymentTransport {
+    const record = asked;
+
     return () => (request) => {
-        asked.push(request);
+        record.push(request);
 
         if (request.path.includes('/emails')) {
             return Promise.resolve(complete(emptyFolder));
@@ -380,10 +389,11 @@ const folderWithOneMessage: Answer = {
  */
 export function deploymentDrawingAMessage(session: Answer = accepted): DeploymentTransport {
     const otherwise = deploymentAnswering(directory(true, [workAccount]), session);
+    const record = asked;
 
     return (signal) => (request) => {
         if (request.path.includes('/emails')) {
-            asked.push(request);
+            record.push(request);
 
             return Promise.resolve(complete(folderWithOneMessage));
         }
@@ -392,7 +402,7 @@ export function deploymentDrawingAMessage(session: Answer = accepted): Deploymen
         // submission the deployment did not write down is one the frame stops claiming — which would make an assertion
         // about the row pass for a client that never marked anything.
         if (request.path.endsWith('/mutations/flags')) {
-            asked.push(request);
+            record.push(request);
 
             return Promise.resolve(complete(flagsRecorded(request.body ?? '{}')));
         }
@@ -401,7 +411,7 @@ export function deploymentDrawingAMessage(session: Answer = accepted): Deploymen
             return otherwise(signal)(request);
         }
 
-        asked.push(request);
+        record.push(request);
 
         return Promise.resolve(complete(request.path.includes('/body') ? drawnMessage : describedMessage));
     };
@@ -428,13 +438,14 @@ function flagsRecorded(stated: string): Answer {
  */
 export function deploymentWorkingInTabs(): DeploymentTransport {
     const otherwise = deploymentDrawingAMessage();
+    const record = asked;
 
     return (signal) => (request) => {
         if (!request.path.endsWith('/preferences')) {
             return otherwise(signal)(request);
         }
 
-        asked.push(request);
+        record.push(request);
 
         return Promise.resolve(
             complete({
@@ -516,16 +527,17 @@ const drawnConversation: Answer = {
 /** A deployment whose one message belongs to a conversation, and which answers that conversation as well. */
 export function deploymentDrawingAConversation(session: Answer = accepted): DeploymentTransport {
     const otherwise = deploymentAnswering(directory(true, [workAccount]), session);
+    const record = asked;
 
     return (signal) => (request) => {
         if (request.path.includes('/emails')) {
-            asked.push(request);
+            record.push(request);
 
             return Promise.resolve(complete(threaded(folderWithOneMessage)));
         }
 
         if (request.path.includes('/threads/')) {
-            asked.push(request);
+            record.push(request);
 
             return Promise.resolve(complete(drawnConversation));
         }
@@ -534,7 +546,7 @@ export function deploymentDrawingAConversation(session: Answer = accepted): Depl
             return otherwise(signal)(request);
         }
 
-        asked.push(request);
+        record.push(request);
 
         return Promise.resolve(complete(request.path.includes('/body') ? drawnMessage : threaded(describedMessage)));
     };
@@ -560,8 +572,10 @@ const raisesNothing: SystemNotifier = {
 
 /** A deployment answering every route the same way, which is how a refusal to sign anybody in is stated. */
 export function deploymentRefusing(answer: Answer): DeploymentTransport {
+    const record = asked;
+
     return () => (request) => {
-        asked.push(request);
+        record.push(request);
 
         return Promise.resolve(complete(answer));
     };
@@ -856,10 +870,9 @@ export function resetsBetweenTests(): void {
     const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
 
     beforeEach(() => {
-        // Cleared here as well as after each test, because a read the previous test started can answer while its tree is
-        // still being torn down and start one more — which lands in this record after the teardown emptied it, and reads
-        // as this test having asked for a route it never reached.
-        asked.length = 0;
+        // A new record rather than the last one emptied: the doubles the previous test made still hold that one, and
+        // `asked` says why what they are asked from here on is no business of this test.
+        asked = [];
         openingAt('/');
         Object.defineProperty(window, 'matchMedia', {
             configurable: true,
@@ -880,7 +893,6 @@ export function resetsBetweenTests(): void {
         vi.useRealTimers();
         vi.restoreAllMocks();
         openingAt('/');
-        asked.length = 0;
         document.documentElement.removeAttribute('lang');
         document.documentElement.removeAttribute('data-theme');
     });
