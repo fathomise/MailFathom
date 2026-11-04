@@ -422,6 +422,11 @@ public sealed class S3EmailContentObjectStoreTests
     }
 
     /// <summary>The volume a write moved is what an operator reads to size a bucket, and it is measured against the write.</summary>
+    /// <remarks>
+    /// The meter is the process's one MailFathom meter, so the listener also hears every other test class placing a
+    /// payload at the same moment; the assertion finds this write's measurement among them rather than requiring that
+    /// every put heard was this one.
+    /// </remarks>
     [Fact]
     public async Task PlaceAsync_APayload_PublishesWhatItWroteAgainstThatOperation()
     {
@@ -441,8 +446,7 @@ public sealed class S3EmailContentObjectStoreTests
                 measurement.Tags.GetValueOrDefault("mailfathom.object_storage.operation") as string == "put")
             .ToArray();
 
-        Assert.NotEmpty(written);
-        Assert.All(written, measurement => Assert.Equal(Message.Length, measurement.Value));
+        Assert.Contains(written, measurement => measurement.Value == Message.Length);
     }
 
     /// <summary>Removing an object is what carries a committed erasure of its row through to the endpoint.</summary>
