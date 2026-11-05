@@ -1260,6 +1260,7 @@ export function App({
                                                         >
                                                             <MailboxActsProvider
                                                                 session={readsMail ? session : null}
+                                                                signedInAs={readsMail ? signedInAs : null}
                                                                 transport={readMail}
                                                                 online={connection.online}
                                                                 flags={writesFlags}

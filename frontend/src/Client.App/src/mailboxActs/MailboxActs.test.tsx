@@ -312,6 +312,7 @@ function acting(
                                     <PendingChangesProvider signedInAs={person}>
                                         <MailboxActsProvider
                                             session={signedIn}
+                                            signedInAs={person}
                                             transport={deployment.transport}
                                             online
                                             flags={flags}
@@ -1299,6 +1300,47 @@ describe('MailboxActsProvider', () => {
         expect(repeat).toHaveLength(1);
         expect(repeat[0]?.headers['Authorization']).toBe('Bearer cmVuZXdlZA==');
         expect(keyOf(repeat[0])).toBe(keyOf(first[0]));
+        expect(held().asked.get('message-1')).toMatchObject({ act: 'flag', awaiting: false });
+    });
+
+    // Asking again after that is a new act of the same person's, so it goes under the renewed credential too and is
+    // answered as theirs: an answer read as somebody else's would leave the act under way for the rest of the tab.
+    it('asks again under the renewed credential after a repeat the server refused, and settles the answer', async () => {
+        vi.useFakeTimers();
+
+        const silent = deploymentAnswering({}, 504);
+        const refusing = deploymentAnswering({}, 403);
+        const answering = deploymentAnswering();
+        let phase: 'silent' | 'refusing' | 'answering' = 'silent';
+        const deployment: Deployment = {
+            requests: answering.requests,
+            transport: (request) =>
+                !request.path.includes('/mutations/') || phase === 'answering'
+                    ? answering.transport(request)
+                    : phase === 'silent'
+                      ? silent.transport(request)
+                      : refusing.transport(request),
+        };
+        const { held, renew } = acting(deployment);
+        const renewed: ClientSession = { ...session, authorization: 'Bearer cmVuZXdlZA==' };
+
+        await pass(0);
+        perform(held, 'flag', [invoice]);
+        await pass(0);
+        renew(renewed);
+
+        phase = 'refusing';
+        await pass(unansweredWriteRetryDelay);
+
+        phase = 'answering';
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        await pass(0);
+
+        const asked = answering.requests.filter((request) => request.path.includes('/mutations/flags'));
+
+        expect(asked).toHaveLength(1);
+        expect(asked[0]?.headers['Authorization']).toBe('Bearer cmVuZXdlZA==');
+        expect(held().asked.get('message-1')).toMatchObject({ act: 'flag', awaiting: false });
     });
 
     it('gives every act a key of its own, so a second press is a second change rather than a repeat of the first', async () => {

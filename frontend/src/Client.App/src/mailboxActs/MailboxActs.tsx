@@ -114,14 +114,19 @@ const messagesCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
     other: 'act.messages.other',
 };
 
-/** What is held, and whose it is, so one person's pending acts never outlive the credential they were made under. */
+/**
+ * What is held, and whose it is, so one person's pending acts are never drawn over the next person's mail.
+ *
+ * Kept by the person rather than by the session object, because a renewed credential is a new object for the same
+ * person: what they asked for before the renewal is still theirs, and is still answered as theirs.
+ */
 interface Held {
-    readonly session: ClientSession | null;
+    readonly signedInAs: string | null;
     readonly directory: MailFolderDirectory | null;
     readonly asked: ReadonlyMap<string, AskedAct>;
 }
 
-const heldForNobody: Held = { session: null, directory: null, asked: new Map() };
+const heldForNobody: Held = { signedInAs: null, directory: null, asked: new Map() };
 
 /**
  * The messages a submission was actually written down for, which a batch that answered does not say by itself.
@@ -320,6 +325,7 @@ function unansweredIn(answered: readonly Submitted[]): ReadonlySet<string> {
 
 export function MailboxActsProvider({
     session,
+    signedInAs,
     transport,
     online,
     flags,
@@ -328,8 +334,12 @@ export function MailboxActsProvider({
     composes,
     children,
 }: {
-    /** Who is asking and where, or `null` where there is nobody to act for. */
+    /** The credential an act goes out under now, or `null` where there is nobody to act for. */
     readonly session: ClientSession | null;
+
+    /** Who is signed in and where, which is whose acts these are, or `null` where there is nobody. */
+    readonly signedInAs: string | null;
+
     readonly transport: MailFathomTransport;
     readonly online: boolean;
 
@@ -395,16 +405,20 @@ export function MailboxActsProvider({
     // Derived rather than cleared, for the reason `readMarking/ReadMarking.tsx` gives: signing out and back in on one
     // tab keeps this component mounted, and the previous person's pending acts would otherwise be drawn over the next
     // person's mail — and their folders read as this one's.
-    const held = kept.session === session ? kept : heldForNobody;
+    const held = kept.signedInAs === signedInAs ? kept : heldForNobody;
 
-    // Who is signed in now, for the reason `readMarking/ReadMarking.tsx` gives about its own: an act answers, and a
-    // question the queue holds about it is answered, after the render that asked has gone — and neither may be acted
-    // on under a credential that has since left. Nothing reads it while rendering, so it drives nothing on the screen.
+    // Who is signed in now, and the credential they hold, for the reason `readMarking/ReadMarking.tsx` gives about its
+    // own: an act answers, and a question the queue holds about it is answered, after the render that asked has gone —
+    // and neither may be acted on for a person who has since left. What goes out goes under the credential read here at
+    // that moment rather than the one the render held, so a renewal in between sends under the renewed one. Nothing
+    // reads either while rendering, so neither drives anything on the screen.
     const signedIn = useRef(session);
+    const person = useRef(signedInAs);
 
     useEffect(() => {
         signedIn.current = session;
-    }, [session]);
+        person.current = signedInAs;
+    }, [session, signedInAs]);
 
     const spam = useSpamMarks({ session, transport, signedIn, directory: held.directory, folderRoleOf, counted });
 
@@ -431,7 +445,13 @@ export function MailboxActsProvider({
     // A folder made, renamed, moved, or deleted here reads them again, for the reason the tree does: the destinations
     // this offers are those folders, and a folder somebody has just made is one they mean to file into at once.
     useEffect(() => {
-        if (session === null || !online || lostServer || !(flags || moves || deletes || composes)) {
+        if (
+            session === null ||
+            signedInAs === null ||
+            !online ||
+            lostServer ||
+            !(flags || moves || deletes || composes)
+        ) {
             return;
         }
 
@@ -444,9 +464,9 @@ export function MailboxActsProvider({
 
             if (answer.outcome === 'read') {
                 setKept((current) => ({
-                    session,
+                    signedInAs,
                     directory: answer.value,
-                    asked: current.session === session ? current.asked : new Map(),
+                    asked: current.signedInAs === signedInAs ? current.asked : new Map(),
                 }));
 
                 return;
@@ -476,6 +496,7 @@ export function MailboxActsProvider({
         };
     }, [
         session,
+        signedInAs,
         transport,
         online,
         lostServer,
@@ -522,7 +543,7 @@ export function MailboxActsProvider({
         awaiting = true,
     ): void {
         setKept((current) => {
-            const asked = new Map(current.session === session ? current.asked : []);
+            const asked = new Map(current.signedInAs === signedInAs ? current.asked : []);
 
             for (const message of messages) {
                 const beside = otherFlagAsked(asked.get(message.storedEmailId), act, message.folder);
@@ -537,7 +558,7 @@ export function MailboxActsProvider({
                 });
             }
 
-            return { session, directory: current.session === session ? current.directory : null, asked };
+            return { signedInAs, directory: current.signedInAs === signedInAs ? current.directory : null, asked };
         });
     }
 
@@ -745,16 +766,15 @@ export function MailboxActsProvider({
      * Two submissions at most rather than one per batch: the batches that answered are one answer, so a reason is said
      * once however many batches it happened in, and the batches that never reached the deployment are one silence. The
      * ways out are the producer's, because only it knows what performing its act afresh, sending the same request again,
-     * or no longer claiming it, means. Asking again and letting go are taken only while the credential the act was
-     * performed under is still the one signed in; sending again goes under whichever credential the same person holds
-     * by then, since the queue keeps the write for them alone.
+     * or no longer claiming it, means — and none is taken unless the person the act was performed for is still the one
+     * signed in, under whichever credential they hold by then.
      *
      * @param resend Sends the batches named again, exactly as they went, under the credential named, and settles their
      * answer as this one was.
      * @param resent Whether these batches were already sent again once, which says nothing the first silence said.
      */
     function handOver(
-        asking: ClientSession,
+        askingFor: string,
         act: ChangeAct,
         answered: readonly Submitted[],
         askAgain: (messages: readonly ActedMessage[]) => void,
@@ -778,21 +798,19 @@ export function MailboxActsProvider({
                 askAgain: (storedEmailIds) => {
                     const named = new Set(storedEmailIds);
 
-                    if (signedIn.current === asking) {
+                    if (person.current === askingFor) {
                         askAgain(carried.filter((message) => named.has(message.storedEmailId)));
                     }
                 },
-                // The queue holds a write for the person who made it and sends it again only while they are signed
-                // in, so what is checked here is that somebody still is: a renewal in between is the same person.
                 sendAgain: () => {
                     const now = signedIn.current;
 
-                    if (now !== null) {
+                    if (now !== null && person.current === askingFor) {
                         resend(batches, now);
                     }
                 },
                 letGo: (storedEmailIds) => {
-                    if (signedIn.current === asking) {
+                    if (person.current === askingFor) {
                         letGo(storedEmailIds);
                     }
                 },
@@ -848,7 +866,13 @@ export function MailboxActsProvider({
      * a way back. This one offers none, so waiting it out would only keep a message somebody destroyed on the mail
      * server for longer than they were told.
      */
-    function release(asking: ClientSession, records: readonly string[]): void {
+    function release(records: readonly string[]): void {
+        const asking = signedIn.current;
+
+        if (asking === null) {
+            return;
+        }
+
         for (const batch of batchesOf(records)) {
             // Nothing is reported and nothing is waited for: what this asks for is what would have happened anyway
             // once the window ran out, so a request that never arrives costs the delete a wait rather than an outcome.
@@ -871,11 +895,16 @@ export function MailboxActsProvider({
      * @param filedIn The folder the act filed each message in, by the message.
      */
     function takeBack(act: MailboxAct, messages: readonly ActedMessage[], filedIn: ReadonlyMap<string, string>): void {
-        if (session === null || !moves) {
+        const asking = signedIn.current;
+        const askingFor = person.current;
+
+        // Read at the press rather than off the render that offered the way back: a toast outlives renewals, and one
+        // offered to somebody who has since signed out is not the next person's to take.
+        if (asking === null || askingFor === null || askingFor !== signedInAs || !moves) {
             return;
         }
 
-        const asking = session;
+        const answeredFor: string = askingFor;
 
         /** The act's own claim, standing again over messages that are still where it put them. */
         function stillFiled(storedEmailIds: readonly string[]): void {
@@ -891,8 +920,8 @@ export function MailboxActsProvider({
             );
         }
 
-        function settleBack(back: readonly Submitted[], answeredFor: ClientSession, resent: boolean): void {
-            if (signedIn.current !== answeredFor) {
+        function settleBack(back: readonly Submitted[], resent: boolean): void {
+            if (person.current !== answeredFor) {
                 return;
             }
 
@@ -930,7 +959,7 @@ export function MailboxActsProvider({
                 stillFiled,
                 (lost, now) => {
                     void sent(lost, now).then((again) => {
-                        settleBack(again, now, true);
+                        settleBack(again, true);
                     });
                 },
                 resent,
@@ -951,7 +980,7 @@ export function MailboxActsProvider({
         );
 
         void sent(back, asking).then((answer) => {
-            settleBack(answer, asking, false);
+            settleBack(answer, false);
         });
     }
 
@@ -975,7 +1004,12 @@ export function MailboxActsProvider({
             return;
         }
 
-        if (session === null || refusalOf(act, messages) !== null) {
+        const asking = signedIn.current;
+        const askingFor = person.current;
+
+        // Read at the press rather than off the render that offered the control, for the reason `takeBack` gives: an act
+        // asked again from a toast after a renewal goes under the renewed credential, and is answered as its person's.
+        if (asking === null || askingFor === null || askingFor !== signedInAs || refusalOf(act, messages) !== null) {
             return;
         }
 
@@ -988,8 +1022,6 @@ export function MailboxActsProvider({
         // destroys the mail included, since nothing is offered that would bring it back.
         const leaves = !changesAFlag(act);
 
-        const asking = session;
-
         // The act and how many messages it was asked over. Which messages is a list of stored identities and is not
         // written down; how many is what separates somebody pressing archive on one row from a select-all across two
         // hundred, which is the difference an operator reading a mail server complaining about write volume needs.
@@ -1001,7 +1033,7 @@ export function MailboxActsProvider({
         remember(act, messages, leaves, destroying);
 
         void sent(batchesFor(act, messages, destination, destroying), asking).then((answer) => {
-            settle(asking, act, messages, answer, destination, destroying, false);
+            settle(askingFor, act, messages, answer, destination, destroying, false);
         });
     }
 
@@ -1012,7 +1044,7 @@ export function MailboxActsProvider({
      * @param resent Whether these batches were sent again after nobody answered them, which `handOver` passes on.
      */
     function settle(
-        asking: ClientSession,
+        askingFor: string,
         act: MailboxAct,
         messages: readonly ActedMessage[],
         answered: readonly Submitted[],
@@ -1022,7 +1054,7 @@ export function MailboxActsProvider({
     ): void {
         // An answer arriving after somebody else has signed in is neither theirs to be told about nor their queue's to
         // follow.
-        if (signedIn.current !== asking) {
+        if (person.current !== askingFor) {
             return;
         }
 
@@ -1094,7 +1126,7 @@ export function MailboxActsProvider({
                 destination,
                 true,
             );
-            release(asking, recordsWritten(answered));
+            release(recordsWritten(answered));
         } else {
             report(act, recorded, destination, destroying);
         }
@@ -1111,7 +1143,7 @@ export function MailboxActsProvider({
         // and a row must not go on saying the first attempt is still on its way. Sending again is the other way out:
         // the very batches nobody answered, under the keys they first went with, settled here once they answer.
         handOver(
-            asking,
+            askingFor,
             act,
             answered,
             (again) => {
@@ -1127,7 +1159,7 @@ export function MailboxActsProvider({
             (lost, now) => {
                 void sent(lost, now).then((again) => {
                     settle(
-                        now,
+                        askingFor,
                         act,
                         lost.flatMap((batch) => batch.messages),
                         again,
