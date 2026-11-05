@@ -326,6 +326,20 @@ public sealed class MailRuleSetValidatorTests
         Assert.Single(errors);
     }
 
+    /// <summary>An action that names nothing has no content to compare, so it is refused rather than compared.</summary>
+    [Fact]
+    public void FindErrors_AStoredRuleReplacedWithAnActionThatNamesNothing_IsRefused()
+    {
+        // Arrange
+        var stored = Declared("mark-it") with { Actions = [MailRuleAction.SetSeen(true)] };
+
+        // Act
+        var errors = this.FindErrors([stored], [stored with { Actions = [null!] }]);
+
+        // Assert
+        Assert.Equal([$"Rule {stored.Id} declares an action that names nothing."], errors);
+    }
+
     /// <summary>A refusal names the rule by identifier and never quotes the name or the folder a person typed.</summary>
     [Fact]
     public void FindErrors_ARefusedRule_QuotesNeitherItsNameNorItsFolder()

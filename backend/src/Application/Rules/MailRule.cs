@@ -12,7 +12,9 @@ namespace MailFathom.Application.Rules;
 /// <summary>One enabled rule of a mail account's set: its identity, its name, a compiled condition, and what a match does.</summary>
 /// <remarks>
 /// Carries a compiled condition rather than the text it was written from, so nothing downstream of reading the set can
-/// read what a person typed. It names no account, because the set it was read from belongs to one.
+/// read the condition a person typed. Its name is authored text too, and may carry an address: it travels into the run
+/// record a match writes, and never into a log, a metric, or a trace. It names no account, because the set it was read
+/// from belongs to one.
 /// </remarks>
 public sealed class MailRule
 {

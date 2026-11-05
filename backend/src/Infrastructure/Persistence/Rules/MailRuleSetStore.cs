@@ -63,6 +63,13 @@ internal sealed class MailRuleSetStore(MailFathomDbContext readContext) : IMailR
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
         var accountId = account.Value;
 
+        // An account nothing has synchronized yet has no row for the set's foreign key, so the write adds the same row a
+        // first folder binding would. A binding that loses the race to it violates the account's primary key, which is a
+        // named concurrency conflict, and is retried over the row this write left.
+        await writeContext.Database.ExecuteSqlAsync(
+            $"""INSERT INTO mailbox_accounts ("Id", "LocalMailFoldersRevision", "RestoreGeneration") VALUES ({accountId}, 0, 0) ON CONFLICT ("Id") DO NOTHING""",
+            cancellationToken);
+
         // Created first and locked second, so two first writes to one account meet at the lock rather than one of them
         // violating the key: the second insert waits for the first to commit and then does nothing.
         await writeContext.Database.ExecuteSqlAsync(

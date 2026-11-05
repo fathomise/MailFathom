@@ -18,10 +18,11 @@ namespace MailFathom.Application.Rules;
 /// <param name="Schedule">The occasions a scheduled walk happens on, and <see langword="null" /> for a rule declaring no schedule.</param>
 /// <remarks>
 /// <para>
-/// Deliberately separate from <see cref="MailRule" />, which carries a compiled condition and no authored text. A
+/// Deliberately separate from <see cref="MailRule" />, which carries a compiled condition rather than its text. A
 /// declaration is what a write validates, what the archive keeps, and what a revision is derived from; a pass compiles it
 /// and holds only the rule. A condition can legitimately contain an address its author typed, so keeping the text out of
-/// the rule that is passed around is what stops a run record that names a rule from carrying somebody's address with it.
+/// the rule that is passed around is what stops a run record from carrying the condition with it. The name is authored
+/// text as well and may carry an address: the run record keeps it, and no log, metric, or trace does.
 /// </para>
 /// <para>
 /// It names no account, because the account a rule is stored under is its whole scope.

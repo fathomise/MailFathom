@@ -100,7 +100,10 @@ public sealed class MailRuleSetValidator
     }
 
     private static bool IsJudged(MailRuleDeclaration rule, MailRuleDeclaration? stored) =>
-        stored is null || (rule.Enabled && !stored.Enabled) || !HasSameContent(rule, stored);
+        stored is null
+        || rule.Actions.Any(action => action is null)
+        || (rule.Enabled && !stored.Enabled)
+        || !HasSameContent(rule, stored);
 
     private static bool HasSameContent(MailRuleDeclaration rule, MailRuleDeclaration stored) =>
         string.Equals(rule.Name, stored.Name, StringComparison.Ordinal)

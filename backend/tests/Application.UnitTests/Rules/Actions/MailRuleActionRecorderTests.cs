@@ -292,6 +292,37 @@ public sealed class MailRuleActionRecorderTests
         Assert.Equal(2, this.records.OpenedRecordCount);
     }
 
+    /// <summary>A rule asks under its generated identifier and never under the name a person gave it.</summary>
+    [Fact]
+    public async Task RecordAsync_ARuleMatching_AsksUnderItsIdentifierAndTheRevision()
+    {
+        // Arrange
+        var rule = RuleNamed("mark-them-read", MailRuleAction.SetSeen(isSeen: true));
+
+        // Act
+        await this.RecordAsync(MailRuleActionPlan.Compose([rule]));
+
+        // Assert
+        var request = Assert.Single(this.records.OpenedRequests);
+        Assert.Equal($"{rule.Id}@{Revision.Value}", request.Requester.Identity);
+    }
+
+    /// <summary>A rename keeps the identifier and the revision, so a renamed rule does not ask again for what it asked before.</summary>
+    [Fact]
+    public async Task RecordAsync_TheSameRuleRenamedUnderTheSameRevision_OpensOneRecord()
+    {
+        // Arrange
+        var rule = RuleNamed("mark-them-read", MailRuleAction.SetSeen(isSeen: true));
+        var renamed = MailRule.Create(rule.Id, "read-them", rule.Condition, rule.Actions);
+
+        // Act
+        await this.RecordAsync(MailRuleActionPlan.Compose([rule]));
+        await this.RecordAsync(MailRuleActionPlan.Compose([renamed]));
+
+        // Assert
+        Assert.Equal(1, this.records.OpenedRecordCount);
+    }
+
     /// <summary>Filing into the nearest folder whose name looks right is precisely what a stale destination must not do.</summary>
     [Fact]
     public async Task RecordAsync_ADestinationNothingHasBound_WritesNothingAndSaysWhy()

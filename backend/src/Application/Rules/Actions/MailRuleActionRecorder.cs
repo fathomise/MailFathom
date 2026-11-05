@@ -27,9 +27,9 @@ namespace MailFathom.Application.Rules.Actions;
 /// identifier, and what it applied is handed back for <see cref="Announce" /> to publish once the batch has committed.
 /// </para>
 /// <para>
-/// What an account permits is read here as well as when the rule set is read, and the second reading is not redundant:
-/// the two configuration sections reload independently, so narrowing what an account permits leaves a rule set nobody
-/// edited in force. Without this, a revoked permission would take effect at the next edit of the rules rather than at
+/// What an account permits is read here as well as when a rule is written, and the second reading is not redundant: the
+/// account's settings and its stored rules are written independently, and narrowing what an account permits rewrites
+/// no stored rule. Without this, a revoked permission would take effect at the next write to that rule rather than at
 /// the next pass, which for a deletion is the wrong way round.
 /// </para>
 /// <para>
@@ -133,9 +133,8 @@ public sealed class MailRuleActionRecorder
 
         foreach (var planned in plan.Actions)
         {
-            // Read again here rather than trusted from validation, because the synchronization section and the rule
-            // section reload independently: narrowing what an account permits leaves a rule set nobody edited in force,
-            // and the revocation has to reach the next pass rather than the next edit of the rules.
+            // Read again here rather than trusted from validation, because narrowing what an account permits rewrites
+            // no stored rule: the revocation has to reach the next pass rather than the next write to the rule.
             if (!permitted.Permits(planned.Action.Mutation))
             {
                 failures.Add(new MailRuleActionFailure(
