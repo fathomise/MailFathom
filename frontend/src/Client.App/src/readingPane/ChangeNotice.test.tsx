@@ -27,7 +27,7 @@ function drawing(abandoned: readonly AbandonedChange[]) {
     render(
         <LocalizationProvider>
             <ToastsProvider>
-                <PendingChangesProvider session={null} abandoned={abandoned} onDecided={decided}>
+                <PendingChangesProvider signedInAs={null} abandoned={abandoned} onDecided={decided}>
                     <MailboxActsContext value={{ ...nothingActed, perform }}>
                         <article tabIndex={-1}>
                             <ChangeNotice message={message} />

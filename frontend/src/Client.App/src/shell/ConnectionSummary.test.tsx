@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
     ClientFailureReason,
@@ -73,31 +73,47 @@ const disconnectedStatus: ConnectionStatus = {
     disconnectedNow: () => false,
 };
 
-function renderSummary(connection: Partial<Connection>, status: ConnectionStatus | null = null): void {
-    const summary = (
-        <ConnectionSummary
-            connection={{
-                session: reading,
-                accounts: null,
-                online: true,
-                attempts: 0,
-                unansweredSince: null,
-                accountsReadAt: null,
-                reread: () => undefined,
-                channelDropped: () => undefined,
-                readUnderWay: () => false,
-                channelStands: () => undefined,
-                refresh: () => undefined,
-                ...connection,
-            }}
-        />
-    );
+/** Renders the summary over the connection given, and answers how to hand the same summary another one. */
+function renderSummary(
+    connection: Partial<Connection>,
+    status: ConnectionStatus | null = null,
+): (next: Partial<Connection>) => void {
+    function tree(over: Partial<Connection>) {
+        const summary = (
+            <ConnectionSummary
+                connection={{
+                    session: reading,
+                    accounts: null,
+                    online: true,
+                    attempts: 0,
+                    unansweredSince: null,
+                    accountsReadAt: null,
+                    reread: () => undefined,
+                    channelDropped: () => undefined,
+                    readUnderWay: () => false,
+                    channelStands: () => undefined,
+                    refresh: () => undefined,
+                    ...over,
+                }}
+            />
+        );
 
-    render(
-        <LocalizationProvider>
-            {status === null ? summary : <ConnectionStatusContext value={status}>{summary}</ConnectionStatusContext>}
-        </LocalizationProvider>,
-    );
+        return (
+            <LocalizationProvider>
+                {status === null ? (
+                    summary
+                ) : (
+                    <ConnectionStatusContext value={status}>{summary}</ConnectionStatusContext>
+                )}
+            </LocalizationProvider>
+        );
+    }
+
+    const view = render(tree(connection));
+
+    return (next) => {
+        view.rerender(tree(next));
+    };
 }
 
 /** The accounts read and on the screen, which is the shape every freshness assertion below is made against. */
@@ -371,13 +387,14 @@ describe('ConnectionSummary, a minute after a cause began', () => {
     });
 
     it('never turns for changes that reach the mail server inside the minute', () => {
-        renderSummary(showing(directory(true, [waiting])));
+        const answerAgain = renderSummary(showing(directory(true, [waiting])));
 
-        cleanup();
-        renderSummary(
+        act(() => {
+            vi.advanceTimersByTime(20_000);
+        });
+        answerAgain(
             showing(directory(true, [{ ...waiting, waitingChangeCount: 0, oldestWaitingChangeCommittedAt: null }])),
         );
-
         act(() => {
             vi.advanceTimersByTime(60_000);
         });
@@ -412,5 +429,32 @@ describe('ConnectionSummary, a minute after a cause began', () => {
                 /^Its mail server cannot be reached, since .+\. 3 changes are waiting\. They are kept in MailFathom and reach the mail server once it is back\.$/u,
             ),
         ).toBeDefined();
+    });
+
+    // A deployment that states no start for the outage still says what waits on it, and only the time is left out.
+    it.each([
+        [
+            3,
+            'Its mail server cannot be reached. 3 changes are waiting. They are kept in MailFathom and reach the mail server once it is back.',
+        ],
+        [0, 'Its mail server cannot be reached. Nothing is waiting for it.'],
+    ])('says %i changes waiting on a mail server whose outage has no stated start', (count, sentence) => {
+        const unreachable: MailAccount = {
+            ...waiting,
+            synchronizationState: 'Unreachable',
+            synchronizationStateSince: null,
+            waitingChangeCount: count,
+            oldestWaitingChangeCommittedAt: count === 0 ? null : committed,
+        };
+
+        renderSummary(showing(directory(true, [unreachable])));
+        act(() => {
+            vi.advanceTimersByTime(30_000);
+        });
+
+        reveal('Work is not up to date.');
+
+        expect(screen.getByText('Mail server unreachable')).toBeDefined();
+        expect(screen.getByText(sentence)).toBeDefined();
     });
 });

@@ -167,11 +167,18 @@ describe('readMailAccounts', () => {
         });
     });
 
+    // The four are required by the contract, so one that is absent is refused rather than read as nothing waiting: an
+    // account read as having no waiting changes would turn the freshness line green over changes that are waiting.
+    // `undefined` is how a case leaves a field out, since `JSON.stringify` writes no key for it.
     it.each([
         ['a waiting count that is negative', { waitingChangeCount: -1 }],
         ['a waiting count that is not a whole number', { waitingChangeCount: 1.5 }],
         ['an oldest waiting change that is not an instant', { oldestWaitingChangeCommittedAt: 'yesterday' }],
         ['a state start that is not a string', { synchronizationStateSince: 12 }],
+        ['no state start', { synchronizationStateSince: undefined }],
+        ['no instant it fell behind', { behindSince: undefined }],
+        ['no waiting count', { waitingChangeCount: undefined }],
+        ['no oldest waiting change', { oldestWaitingChangeCommittedAt: undefined }],
     ])('refuses an account carrying %s', async (_, field) => {
         const body = JSON.stringify({
             synchronizationEnabled: true,
@@ -183,6 +190,10 @@ describe('readMailAccounts', () => {
                     behind: false,
                     filesJunk: false,
                     shared: false,
+                    synchronizationStateSince: null,
+                    behindSince: null,
+                    waitingChangeCount: 0,
+                    oldestWaitingChangeCommittedAt: null,
                     ...field,
                 },
             ],

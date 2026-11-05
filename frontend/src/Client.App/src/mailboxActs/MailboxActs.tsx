@@ -260,11 +260,12 @@ function withoutClaim(asked: AskedAct | undefined, act: MailboxAct): AskedAct | 
  * One batch ready to go out: the messages it carries and how to send it, under the one key it was given.
  *
  * The key is drawn once, when the batch is made, so sending it again is the same request rather than a second one: the
- * deployment answers a repeat under a key it already holds with the first attempt's outcome.
+ * deployment answers a repeat under a key it already holds with the first attempt's outcome. The credential is not
+ * part of it, because a batch sent again after a renewal goes under the credential the person holds by then.
  */
 interface Batch {
     readonly messages: readonly ActedMessage[];
-    readonly send: () => Promise<ClientResult<readonly MailMutationResult[]>>;
+    readonly send: (session: ClientSession) => Promise<ClientResult<readonly MailMutationResult[]>>;
 }
 
 /**
@@ -278,16 +279,20 @@ interface Submitted extends Batch {
     readonly answer: ClientResult<readonly MailMutationResult[]>;
 }
 
-/** Sends every batch, each answered beside what it carried. */
-function sent(batches: readonly Batch[]): Promise<readonly Submitted[]> {
-    return Promise.all(batches.map((batch) => batch.send().then((answer) => ({ ...batch, answer }))));
+/** Sends every batch under the credential named, each answered beside what it carried. */
+function sent(batches: readonly Batch[], session: ClientSession): Promise<readonly Submitted[]> {
+    return Promise.all(batches.map((batch) => batch.send(session).then((answer) => ({ ...batch, answer }))));
 }
 
 /** Makes the batches the submission bound admits, each sent with a key of its own. */
 function batched<T>(
     items: readonly T[],
     messages: readonly ActedMessage[],
-    send: (items: readonly T[], requestId: string) => Promise<ClientResult<readonly MailMutationResult[]>>,
+    send: (
+        session: ClientSession,
+        items: readonly T[],
+        requestId: string,
+    ) => Promise<ClientResult<readonly MailMutationResult[]>>,
 ): readonly Batch[] {
     const batches: Batch[] = [];
 
@@ -297,7 +302,7 @@ function batched<T>(
 
         batches.push({
             messages: messages.slice(from, from + mostMessagesPerMutation),
-            send: () => send(carried, requestId),
+            send: (session) => send(session, carried, requestId),
         });
     }
 
@@ -635,7 +640,6 @@ export function MailboxActsProvider({
 
     /** Makes one act into the batches the submission bound admits, each to be sent under a key of its own. */
     function batchesFor(
-        asking: ClientSession,
         act: MailboxAct,
         messages: readonly ActedMessage[],
         destination: MoveDestination | undefined,
@@ -647,7 +651,7 @@ export function MailboxActsProvider({
             return batched(
                 messages.map((message) => message.storedEmailId),
                 messages,
-                (storedEmailIds, requestId) => deleteMail(asking, transport, storedEmailIds, requestId),
+                (asking, storedEmailIds, requestId) => deleteMail(asking, transport, storedEmailIds, requestId),
             );
         }
 
@@ -659,7 +663,7 @@ export function MailboxActsProvider({
                         : { storedEmailId: message.storedEmailId, flagged: act === 'flag' },
                 ),
                 messages,
-                (changes, requestId) => changeMailFlags(asking, transport, changes, requestId),
+                (asking, changes, requestId) => changeMailFlags(asking, transport, changes, requestId),
             );
         }
 
@@ -673,7 +677,7 @@ export function MailboxActsProvider({
         return batched(
             filing,
             messages.filter((message) => filed.has(message.storedEmailId)),
-            (filings, requestId) => moveMail(asking, transport, filings, requestId),
+            (asking, filings, requestId) => moveMail(asking, transport, filings, requestId),
         );
     }
 
@@ -741,10 +745,12 @@ export function MailboxActsProvider({
      * Two submissions at most rather than one per batch: the batches that answered are one answer, so a reason is said
      * once however many batches it happened in, and the batches that never reached the deployment are one silence. The
      * ways out are the producer's, because only it knows what performing its act afresh, sending the same request again,
-     * or no longer claiming it, means — and none is taken unless the credential it was performed under is still the one
-     * signed in.
+     * or no longer claiming it, means. Asking again and letting go are taken only while the credential the act was
+     * performed under is still the one signed in; sending again goes under whichever credential the same person holds
+     * by then, since the queue keeps the write for them alone.
      *
-     * @param resend Sends the batches named again, exactly as they went, and settles their answer as this one was.
+     * @param resend Sends the batches named again, exactly as they went, under the credential named, and settles their
+     * answer as this one was.
      * @param resent Whether these batches were already sent again once, which says nothing the first silence said.
      */
     function handOver(
@@ -753,7 +759,7 @@ export function MailboxActsProvider({
         answered: readonly Submitted[],
         askAgain: (messages: readonly ActedMessage[]) => void,
         letGo: (storedEmailIds: readonly string[]) => void,
-        resend: (batches: readonly Batch[]) => void,
+        resend: (batches: readonly Batch[], session: ClientSession) => void,
         resent: boolean,
     ): void {
         function submission(
@@ -776,9 +782,13 @@ export function MailboxActsProvider({
                         askAgain(carried.filter((message) => named.has(message.storedEmailId)));
                     }
                 },
+                // The queue holds a write for the person who made it and sends it again only while they are signed
+                // in, so what is checked here is that somebody still is: a renewal in between is the same person.
                 sendAgain: () => {
-                    if (signedIn.current === asking) {
-                        resend(batches);
+                    const now = signedIn.current;
+
+                    if (now !== null) {
+                        resend(batches, now);
                     }
                 },
                 letGo: (storedEmailIds) => {
@@ -881,8 +891,8 @@ export function MailboxActsProvider({
             );
         }
 
-        function settleBack(back: readonly Submitted[], resent: boolean): void {
-            if (signedIn.current !== asking) {
+        function settleBack(back: readonly Submitted[], answeredFor: ClientSession, resent: boolean): void {
+            if (signedIn.current !== answeredFor) {
                 return;
             }
 
@@ -911,16 +921,16 @@ export function MailboxActsProvider({
             // Handed over like any act, because it is one. Letting one go hands the message back to the act it
             // reversed, which still stands for it.
             handOver(
-                asking,
+                answeredFor,
                 'putBack',
                 back,
                 (again) => {
                     takeBack(act, again, filedIn);
                 },
                 stillFiled,
-                (lost) => {
-                    void sent(lost).then((again) => {
-                        settleBack(again, true);
+                (lost, now) => {
+                    void sent(lost, now).then((again) => {
+                        settleBack(again, now, true);
                     });
                 },
                 resent,
@@ -937,11 +947,11 @@ export function MailboxActsProvider({
         const back = batched(
             messages.map((message) => ({ storedEmailId: message.storedEmailId, destinationFolder: message.folder })),
             messages,
-            (filings, requestId) => moveMail(asking, transport, filings, requestId),
+            (sending, filings, requestId) => moveMail(sending, transport, filings, requestId),
         );
 
-        void sent(back).then((answer) => {
-            settleBack(answer, false);
+        void sent(back, asking).then((answer) => {
+            settleBack(answer, asking, false);
         });
     }
 
@@ -990,7 +1000,7 @@ export function MailboxActsProvider({
 
         remember(act, messages, leaves, destroying);
 
-        void sent(batchesFor(asking, act, messages, destination, destroying)).then((answer) => {
+        void sent(batchesFor(act, messages, destination, destroying), asking).then((answer) => {
             settle(asking, act, messages, answer, destination, destroying, false);
         });
     }
@@ -1114,10 +1124,10 @@ export function MailboxActsProvider({
             (storedEmailIds) => {
                 forget(storedEmailIds, act);
             },
-            (lost) => {
-                void sent(lost).then((again) => {
+            (lost, now) => {
+                void sent(lost, now).then((again) => {
                     settle(
-                        asking,
+                        now,
                         act,
                         lost.flatMap((batch) => batch.messages),
                         again,

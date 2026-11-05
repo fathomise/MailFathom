@@ -1408,6 +1408,15 @@ export const en = {
     'freshness.unreachable': 'Mail server unreachable',
     'freshness.unreachableNothingWaiting':
         'Its mail server cannot be reached, since {since}. Nothing is waiting for it.',
+    'freshness.unreachableUndatedNothingWaiting': 'Its mail server cannot be reached. Nothing is waiting for it.',
+    'freshness.unreachableUndatedText.one':
+        'Its mail server cannot be reached. One change is waiting. It is kept in MailFathom and reaches the mail server once it is back.',
+    'freshness.unreachableUndatedText.few':
+        'Its mail server cannot be reached. {count} changes are waiting. They are kept in MailFathom and reach the mail server once it is back.',
+    'freshness.unreachableUndatedText.many':
+        'Its mail server cannot be reached. {count} changes are waiting. They are kept in MailFathom and reach the mail server once it is back.',
+    'freshness.unreachableUndatedText.other':
+        'Its mail server cannot be reached. {count} changes are waiting. They are kept in MailFathom and reach the mail server once it is back.',
     'freshness.waiting.one': 'One change waiting',
     'freshness.waiting.few': '{count} changes waiting',
     'freshness.waiting.many': '{count} changes waiting',

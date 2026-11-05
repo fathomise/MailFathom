@@ -74,7 +74,7 @@ function marking(
         wrapper: ({ children }) => (
             <LocalizationProvider>
                 <ToastsProvider>
-                    <PendingChangesProvider session={signedIn}>
+                    <PendingChangesProvider signedInAs={signedIn === null ? null : signedInAs}>
                         <ReadMarkingProvider
                             session={signedIn}
                             signedInAs={signedIn === null ? null : signedInAs}
@@ -375,7 +375,7 @@ describe('ReadMarkingProvider', () => {
             wrapper: ({ children }) => (
                 <LocalizationProvider>
                     <ToastsProvider>
-                        <PendingChangesProvider session={session}>
+                        <PendingChangesProvider signedInAs={signedIn}>
                             <ReadMarkingProvider
                                 session={session}
                                 signedInAs={signedIn}

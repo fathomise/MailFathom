@@ -142,10 +142,10 @@ export function parseMailAccount(value: unknown): MailAccount | null {
     const behind = record['behind'];
     const filesJunk = record['filesJunk'];
     const shared = record['shared'];
-    const synchronizationStateSince = record['synchronizationStateSince'] ?? null;
-    const behindSince = record['behindSince'] ?? null;
-    const waitingChangeCount = record['waitingChangeCount'] ?? 0;
-    const oldestWaitingChangeCommittedAt = record['oldestWaitingChangeCommittedAt'] ?? null;
+    const synchronizationStateSince = record['synchronizationStateSince'];
+    const behindSince = record['behindSince'];
+    const waitingChangeCount = record['waitingChangeCount'];
+    const oldestWaitingChangeCommittedAt = record['oldestWaitingChangeCommittedAt'];
 
     if (typeof id !== 'string' || typeof displayName !== 'string' || typeof behind !== 'boolean') {
         return null;

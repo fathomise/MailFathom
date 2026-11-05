@@ -47,7 +47,13 @@ const toneColours: Readonly<Record<Tone, string>> = {
 /** The forms one count is said in, by the rule `Intl.PluralRules` selects. */
 type Counted = Readonly<Record<Intl.LDMLPluralRule, MessageKey>>;
 
-function counted(family: 'freshness.waiting' | 'freshness.waitingText' | 'freshness.unreachableText'): Counted {
+function counted(
+    family:
+        | 'freshness.waiting'
+        | 'freshness.waitingText'
+        | 'freshness.unreachableText'
+        | 'freshness.unreachableUndatedText',
+): Counted {
     return {
         zero: `${family}.other`,
         one: `${family}.one`,
@@ -61,6 +67,7 @@ function counted(family: 'freshness.waiting' | 'freshness.waitingText' | 'freshn
 const waitingStates = counted('freshness.waiting');
 const waitingTexts = counted('freshness.waitingText');
 const unreachableTexts = counted('freshness.unreachableText');
+const unreachableUndatedTexts = counted('freshness.unreachableUndatedText');
 
 export function ConnectionSummary({ connection }: { readonly connection: Connection }) {
     const { locale, translate } = useLocalization();
@@ -276,8 +283,18 @@ function StaleAccountRow({ stale: { account, cause }, now }: { readonly stale: S
             case 'unreachable': {
                 const since = wordRecentInstant(cause.since, locale, now, zone);
 
+                // A deployment that states no start is still owed the waiting changes and that they are kept, which is
+                // the half of the sentence a person acts on; only the time is left out.
                 if (since === null) {
-                    return { state: translate('freshness.unreachable'), text: null };
+                    return {
+                        state: translate('freshness.unreachable'),
+                        text:
+                            cause.waiting === 0
+                                ? translate('freshness.unreachableUndatedNothingWaiting')
+                                : translate(unreachableUndatedTexts[plural.select(cause.waiting)], {
+                                      count: formatted(cause.waiting),
+                                  }),
+                    };
                 }
 
                 return {

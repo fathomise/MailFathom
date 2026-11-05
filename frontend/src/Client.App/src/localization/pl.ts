@@ -1431,6 +1431,16 @@ export const pl: Catalogue = {
     'freshness.unreachable': 'Serwer poczty nieosiągalny',
     'freshness.unreachableNothingWaiting':
         'Nie można połączyć się z jego serwerem poczty od {since}. Nic na niego nie czeka.',
+    'freshness.unreachableUndatedNothingWaiting':
+        'Nie można połączyć się z jego serwerem poczty. Nic na niego nie czeka.',
+    'freshness.unreachableUndatedText.one':
+        'Nie można połączyć się z jego serwerem poczty. Czeka jedna zmiana. Jest przechowywana w MailFathom i dotrze do serwera poczty, gdy ten wróci.',
+    'freshness.unreachableUndatedText.few':
+        'Nie można połączyć się z jego serwerem poczty. Czekają {count} zmiany. Są przechowywane w MailFathom i dotrą do serwera poczty, gdy ten wróci.',
+    'freshness.unreachableUndatedText.many':
+        'Nie można połączyć się z jego serwerem poczty. Czeka {count} zmian. Są przechowywane w MailFathom i dotrą do serwera poczty, gdy ten wróci.',
+    'freshness.unreachableUndatedText.other':
+        'Nie można połączyć się z jego serwerem poczty. Czeka {count} zmiany. Są przechowywane w MailFathom i dotrą do serwera poczty, gdy ten wróci.',
     'freshness.waiting.one': 'Jedna zmiana czeka',
     'freshness.waiting.few': '{count} zmiany czekają',
     'freshness.waiting.many': '{count} zmian czeka',

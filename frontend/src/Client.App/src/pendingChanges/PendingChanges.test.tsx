@@ -5,7 +5,7 @@
 import { act, fireEvent, renderHook, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ClientFailure, ClientSession, MailMutationResult } from '@mailfathom/client-backend';
+import type { ClientFailure, MailMutationResult } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { ToastsProvider } from '../toasts/Toasts';
@@ -23,12 +23,9 @@ import {
 // are held to go out a second time under the same key. The clock is fake, so the wait before a repeat is asserted
 // rather than sat through.
 
-const session: ClientSession = {
-    baseAddress: 'https://mail.example.invalid',
-    authorization: 'Basic dGVzdA==',
-};
+const person = 'https://mail.example.invalid\nkarolina';
 
-const somebodyElse: ClientSession = { ...session, authorization: 'Basic b3RoZXI=' };
+const somebodyElse = 'https://mail.example.invalid\nanna';
 
 const storedEmailId = '2f7d4f2a-6c1e-4e0a-9a2f-1b0c9d8e7f60';
 
@@ -70,16 +67,20 @@ function statusAt(level: 'online' | 'disconnected'): ConnectionStatus {
 }
 
 // Read while the wrapper renders and written only between renders, which is what lets one mounted tree be handed a
-// second credential or a lost server the way the frame hands them.
-let signedInAs: ClientSession | null = session;
+// second person or a lost server the way the frame hands them.
+let signedInAs: string | null = person;
 let statusHere: ConnectionStatus = statusAt('online');
 let queue: { current: PendingChanges } | null = null;
 
 function holding(
-    signedIn: ClientSession | null = session,
+    signedIn: string | null = person,
     abandoned: readonly AbandonedChange[] = [],
     onDecided?: (recordId: string) => void,
-): { signInAsSomebodyElse: () => void; statusBecomes: (level: 'online' | 'disconnected') => void } {
+): {
+    signInAsSomebodyElse: () => void;
+    renderAgain: () => void;
+    statusBecomes: (level: 'online' | 'disconnected') => void;
+} {
     signedInAs = signedIn;
 
     const view = renderHook(() => usePendingChanges(), {
@@ -88,7 +89,7 @@ function holding(
                 <ToastsProvider>
                     <ConnectionStatusContext value={statusHere}>
                         <PendingChangesProvider
-                            session={signedInAs}
+                            signedInAs={signedInAs}
                             abandoned={abandoned}
                             {...(onDecided === undefined ? {} : { onDecided })}
                         >
@@ -105,6 +106,9 @@ function holding(
     return {
         signInAsSomebodyElse: () => {
             signedInAs = somebodyElse;
+            view.rerender();
+        },
+        renderAgain: () => {
             view.rerender();
         },
         statusBecomes: (level) => {
@@ -276,6 +280,18 @@ describe('PendingChangesProvider', () => {
         expect(sentAgain).toBe(0);
     });
 
+    // A renewed credential is a new session for the same person, and the frame renders everything below it again: what
+    // was held for them is still theirs to send.
+    it('keeps what it holds for the same person across a render with a renewed credential, and sends it', async () => {
+        const { renderAgain } = holding();
+
+        hand(submission(null));
+        renderAgain();
+        await pass(unansweredWriteRetryDelay);
+
+        expect(sentAgain).toBe(1);
+    });
+
     it('holds nothing at all where nobody is signed in', async () => {
         holding(null);
 
@@ -294,7 +310,7 @@ describe('PendingChangesProvider', () => {
             permanent: false,
         };
 
-        holding(session, [undone], (recordId) => decided.push(recordId));
+        holding(person, [undone], (recordId) => decided.push(recordId));
 
         expect(queue?.current.abandoned).toStrictEqual([undone]);
 

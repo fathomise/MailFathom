@@ -293,8 +293,13 @@ function acting(
         status?: 'online' | 'disconnected';
         listed?: ListedMail;
     } = {},
-): { readonly held: () => MailboxActs; readonly signIn: (next: ClientSession) => void } {
+): {
+    readonly held: () => MailboxActs;
+    readonly signIn: (next: ClientSession) => void;
+    readonly renew: (next: ClientSession) => void;
+} {
     let signedIn = session;
+    let person = session.authorization;
 
     function Surrounded({ children }: { readonly children: ReactNode }) {
         return (
@@ -304,7 +309,7 @@ function acting(
                         <ToastsProvider>
                             <ConnectionStatusContext value={statusAt(status)}>
                                 <ListedMailContext value={listed}>
-                                    <PendingChangesProvider session={signedIn}>
+                                    <PendingChangesProvider signedInAs={person}>
                                         <MailboxActsProvider
                                             session={signedIn}
                                             transport={deployment.transport}
@@ -331,6 +336,11 @@ function acting(
     return {
         held: () => drawn.result.current,
         signIn: (next) => {
+            signedIn = next;
+            person = next.authorization;
+            drawn.rerender();
+        },
+        renew: (next) => {
             signedIn = next;
             drawn.rerender();
         },
@@ -1253,6 +1263,42 @@ describe('MailboxActsProvider', () => {
         expect(sentAs[1]).toBe(sentAs[0]);
         expect(screen.getAllByText('Not known whether this reached the server')).toHaveLength(1);
         expect(held().asked.get('message-1')).toMatchObject({ act: 'flag', awaiting: false });
+    });
+
+    // A renewal hands the same person a new credential while the write waits, and the repeat goes under that one: the
+    // credential it first went with may already be refused.
+    it('sends a write nobody answered again under the credential the same person holds by then', async () => {
+        vi.useFakeTimers();
+
+        const silent = deploymentAnswering({}, 504);
+        const answering = deploymentAnswering();
+        let back = false;
+        const deployment: Deployment = {
+            requests: answering.requests,
+            transport: (request) =>
+                request.path.includes('/mutations/') && !back
+                    ? silent.transport(request)
+                    : answering.transport(request),
+        };
+        const { held, renew } = acting(deployment);
+        const renewed: ClientSession = { ...session, authorization: 'Bearer cmVuZXdlZA==' };
+
+        await pass(0);
+        perform(held, 'flag', [invoice]);
+        await pass(0);
+        renew(renewed);
+
+        back = true;
+        await pass(unansweredWriteRetryDelay);
+
+        const first = silent.requests.filter((request) => request.path.includes('/mutations/flags'));
+        const repeat = answering.requests.filter((request) => request.path.includes('/mutations/flags'));
+        const keyOf = (request: ClientRequest | undefined) =>
+            (JSON.parse(request?.body ?? '{}') as { requestId?: string }).requestId;
+
+        expect(repeat).toHaveLength(1);
+        expect(repeat[0]?.headers['Authorization']).toBe('Bearer cmVuZXdlZA==');
+        expect(keyOf(repeat[0])).toBe(keyOf(first[0]));
     });
 
     it('gives every act a key of its own, so a second press is a second change rather than a repeat of the first', async () => {

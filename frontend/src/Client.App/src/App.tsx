@@ -1217,7 +1217,7 @@ export function App({
             re-renders because of it. */}
                                 <ListedMailProvider>
                                     <PendingChangesProvider
-                                        session={session}
+                                        signedInAs={signedInAs}
                                         abandoned={abandonedChanges}
                                         onDecided={notifications.changeDecided}
                                     >

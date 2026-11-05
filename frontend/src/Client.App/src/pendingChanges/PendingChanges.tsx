@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { wentUnanswered, type ClientSession, type MailMutationOutcome } from '@mailfathom/client-backend';
+import { wentUnanswered, type MailMutationOutcome } from '@mailfathom/client-backend';
 import { useLocalization } from '../localization/useLocalization';
 import { disconnected, useConnectionStatus } from '../shell/connectionStatus';
 import { useToasts } from '../toasts/useToasts';
@@ -33,24 +33,29 @@ import {
 //   [ADR 0028](../../../../../docs/decisions/0028-no-mail-on-the-device-and-an-honest-client-with-no-route-to-its-deployment.md)'s
 //   decision: closing the tab drops it, and the toast says so.
 
-/** The writes nobody answered, and whose they are, so one person's writes are never sent under the next one's credential. */
+/**
+ * The writes nobody answered, and whose they are, so one person's writes are never sent under the next one's credential.
+ *
+ * Kept by the person rather than by the session object, because a renewed credential is a new object for the same
+ * person, and what was held for them before the renewal is still theirs to send.
+ */
 interface Held {
-    readonly session: ClientSession | null;
+    readonly signedInAs: string | null;
     readonly unanswered: readonly ChangeSubmission[];
 }
 
-const nothingHeld: Held = { session: null, unanswered: [] };
+const nothingHeld: Held = { signedInAs: null, unanswered: [] };
 
 const noneAbandoned: readonly AbandonedChange[] = [];
 
 export function PendingChangesProvider({
-    session,
+    signedInAs,
     abandoned = noneAbandoned,
     onDecided,
     children,
 }: {
-    /** Who is asking and where, or `null` where there is nobody to hold a change for. */
-    readonly session: ClientSession | null;
+    /** Who is signed in and where, or `null` where there is nobody to hold a change for. */
+    readonly signedInAs: string | null;
 
     /** The changes the deployment undid that are still waiting on the person, as the notification centre holds them. */
     readonly abandoned?: readonly AbandonedChange[];
@@ -68,21 +73,21 @@ export function PendingChangesProvider({
     // Derived rather than cleared, for the reason `readMarking/ReadMarking.tsx` gives: signing out and back in on one
     // tab keeps this component mounted, and the previous person's writes would otherwise be sent under the next
     // person's credential.
-    const unanswered = held.session === session ? held.unanswered : nothingHeld.unanswered;
+    const unanswered = held.signedInAs === signedInAs ? held.unanswered : nothingHeld.unanswered;
 
     // Sends every held write again once the server answers, which is a timer and so an effect's. Each is taken out of
     // what is held as it goes, and comes back through `follow` with its answer — held again if nobody answered that
     // either, so the wait re-arms rather than repeating a request in the same instant.
     useEffect(() => {
-        if (session === null || unanswered.length === 0 || lostServer) {
+        if (signedInAs === null || unanswered.length === 0 || lostServer) {
             return;
         }
 
         const sending = unanswered;
         const waiting = setTimeout(() => {
             setHeld((current) =>
-                current.session === session
-                    ? { session, unanswered: current.unanswered.filter((one) => !sending.includes(one)) }
+                current.signedInAs === signedInAs
+                    ? { signedInAs, unanswered: current.unanswered.filter((one) => !sending.includes(one)) }
                     : current,
             );
 
@@ -94,7 +99,7 @@ export function PendingChangesProvider({
         return () => {
             clearTimeout(waiting);
         };
-    }, [session, unanswered, lostServer]);
+    }, [signedInAs, unanswered, lostServer]);
 
     function report(submission: ChangeSubmission, outcome: MailMutationOutcome, storedEmailIds: readonly string[]) {
         const reason = refusalReasons[outcome];
@@ -147,9 +152,9 @@ export function PendingChangesProvider({
         // same silence.
         if (submission.results === null) {
             setHeld((current) => {
-                const carried = current.session === session ? current.unanswered : [];
+                const carried = current.signedInAs === signedInAs ? current.unanswered : [];
 
-                return { session, unanswered: [...carried, submission] };
+                return { signedInAs, unanswered: [...carried, submission] };
             });
 
             if (!submission.resent) {
