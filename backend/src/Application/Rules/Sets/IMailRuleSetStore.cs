@@ -26,7 +26,7 @@ public interface IMailRuleSetStore
     /// <param name="account">The account whose rules are about to be written.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The stored set as it stands under the lock.</returns>
-    /// <remarks>The set row is created first when the account has none, and the account row when nothing has synchronized the account yet, so a first write is serialized exactly like any later one.</remarks>
+    /// <remarks>It creates nothing, so a write that is refused or finds the version moved leaves no row behind. An account nobody has committed a rule for has no set row, reads as the empty set at version <c>0</c>, and holds no lock; <see cref="CommitAsync" /> creates the row, and two first writes meet at its key.</remarks>
     Task<StoredMailRuleSet> LockAsync(IPersistenceSession session, MailAccountId account, CancellationToken cancellationToken);
 
     /// <summary>Writes the set a committed change produced and appends its archive row, inside the session holding the lock.</summary>

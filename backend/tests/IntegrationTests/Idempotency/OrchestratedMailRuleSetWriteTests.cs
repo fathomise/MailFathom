@@ -27,10 +27,11 @@ namespace MailFathom.IntegrationTests.Idempotency;
 /// <para>
 /// Both halves are decided by PostgreSQL. A write locks the account's set row before it compares the version it was
 /// composed over, so what refuses the second writer is the row lock the first one holds until it commits, after which
-/// the second reads the version the first one wrote. A first write to an account has no row to lock yet, so the store
-/// inserts one that does nothing on a conflict before locking it: what keeps several first writers from violating the
-/// key is that the second insert waits for the first to commit and then finds the row there. The same holds for the
-/// <c>mailbox_accounts</c> row the set's foreign key needs, which an account nothing has synchronized yet does not have.
+/// the second reads the version the first one wrote. A first write to an account has no row to lock, and only a write
+/// that commits creates one, so several first writers meet at the set's primary key instead: every one but the first
+/// violates it, is retried, and on the retry locks the winner's row and is told the set moved. The account's own
+/// <c>mailbox_accounts</c> row, which an account nothing has synchronized yet does not have, is inserted by the same
+/// commit and does nothing on a conflict.
 /// </para>
 /// <para>
 /// Each test writes the rules of an account of its own, and the editor is composed in the test from the services the infrastructure registers: the rule
@@ -81,12 +82,12 @@ public sealed class OrchestratedMailRuleSetWriteTests(MailFathomOrchestrationFix
     }
 
     /// <summary>
-    /// Writers who all find an account nothing has synchronized — no account row and no set — serialize on the rows the
-    /// first of them inserts, rather than one of them failing on a key: one commits version one, and every other one is
-    /// told the set moved.
+    /// Writers who all find an account nothing has synchronized — no account row and no set — meet at the set's key
+    /// rather than at a lock: one commits version one, and every other one is retried and told the set moved, with none
+    /// of them failing.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_ManyFirstWritersToAnAccountNothingSynchronized_CommitsOneAndViolatesNoKey()
+    public async Task CreateAsync_ManyFirstWritersToAnAccountNothingSynchronized_CommitsOneAndAnswersTheRestWithAVersionConflict()
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -113,6 +114,23 @@ public sealed class OrchestratedMailRuleSetWriteTests(MailFathomOrchestrationFix
             attempts.Results.Select(result => result.Outcome).Order());
         Assert.Equal(1, await ReadVersionAsync(services, account, cancellationToken));
         Assert.Equal(1, await CountRulesAsync(services, account, cancellationToken));
+    }
+
+    /// <summary>A write that does not commit leaves nothing behind, not even the rows a first write would have created.</summary>
+    [Fact]
+    public async Task CreateAsync_AStaleWriteToAnAccountNothingSynchronized_LeavesNoRow()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var account = MailAccountId.Create($"rules-{Guid.CreateVersion7():N}");
+
+        // Act
+        var result = await CreateAsync(services, account, "stale-rule", expectedVersion: 5, cancellationToken);
+
+        // Assert
+        Assert.Equal(MailRuleSetChangeOutcome.VersionConflict, result.Outcome);
+        Assert.Equal(0, await CountRowsNamingAsync(services, account, cancellationToken));
     }
 
     private static async Task<MailAccountId> HoldAccountAsync(
@@ -183,6 +201,19 @@ public sealed class OrchestratedMailRuleSetWriteTests(MailFathomOrchestrationFix
                 .Where(set => set.MailboxAccountId == account.Value)
                 .Select(set => set.Version)
                 .SingleAsync(token),
+            cancellationToken);
+
+    private static Task<int> CountRowsNamingAsync(
+        OrchestratedMailFathomServices services,
+        MailAccountId account,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            async (scope, token) =>
+            {
+                var dbContext = scope.GetRequiredService<MailFathomDbContext>();
+
+                return await dbContext.MailboxAccounts.AsNoTracking().CountAsync(row => row.Id == account.Value, token)
+                    + await dbContext.MailRuleSets.AsNoTracking().CountAsync(set => set.MailboxAccountId == account.Value, token);
+            },
             cancellationToken);
 
     private static Task<int> CountRulesAsync(

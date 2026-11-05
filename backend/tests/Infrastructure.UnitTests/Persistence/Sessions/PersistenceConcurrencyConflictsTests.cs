@@ -24,6 +24,7 @@ public sealed class PersistenceConcurrencyConflictsTests
         PersistenceConstraintNames.MailActKeyUniqueIndexName,
         PersistenceConstraintNames.EmbeddingProfileFingerprintUniqueIndexName,
         PersistenceConstraintNames.EmbeddingProfileLifecycleUniqueIndexName,
+        PersistenceConstraintNames.MailRuleSetPrimaryKeyConstraintName,
         PersistenceConstraintNames.MailRuleEvaluationRunPrimaryKeyConstraintName,
         PersistenceConstraintNames.SpamClassificationRunPrimaryKeyConstraintName,
         PersistenceConstraintNames.EmailSpamClassificationPrimaryKeyConstraintName,

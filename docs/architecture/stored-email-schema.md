@@ -1969,7 +1969,7 @@ records why the rules are rows rather than configuration.
 
 | Column of `mail_rule_sets` | What it records |
 |---|---|
-| `MailboxAccountId` | The account, the primary key, and a foreign key onto `mailbox_accounts` that cascades. The row is what every write locks: it is inserted when the first write reaches an account that has none — with the account's own `mailbox_accounts` row, when nothing has synchronized the account yet — and selected `FOR UPDATE` before anything else is read, so two writes to one account's rules are serialized on every replica while a pass reading the rules takes no lock at all |
+| `MailboxAccountId` | The account, the primary key, and a foreign key onto `mailbox_accounts` that cascades. The row is what every write locks: it is selected `FOR UPDATE` before anything else is read, and inserted only by the first write that commits — with the account's own `mailbox_accounts` row, when nothing has synchronized the account yet — so a refused or stale write leaves no row. Two first writes find no row to lock and meet at the primary key instead: the second violates it, is retried, and is answered with a version conflict, so two writes to one account's rules are serialized on every replica while a pass reading the rules takes no lock at all |
 | `Version` | How many writes the set has taken, `0` before the first. A write states the version it read and is refused when this is no longer it, which is what makes two concurrent edits a refusal rather than a merge nobody wrote |
 
 | Column of `mail_rules` | What it records |

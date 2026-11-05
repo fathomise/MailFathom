@@ -257,6 +257,7 @@ internal static class PersistenceConcurrencyConflicts
                 or PersistenceConstraintNames.MailActKeyUniqueIndexName
                 or PersistenceConstraintNames.EmbeddingProfileFingerprintUniqueIndexName
                 or PersistenceConstraintNames.EmbeddingProfileLifecycleUniqueIndexName
+                or PersistenceConstraintNames.MailRuleSetPrimaryKeyConstraintName
                 or PersistenceConstraintNames.MailRuleEvaluationRunPrimaryKeyConstraintName
                 or PersistenceConstraintNames.SpamClassificationRunPrimaryKeyConstraintName
                 or PersistenceConstraintNames.EmailSpamClassificationPrimaryKeyConstraintName

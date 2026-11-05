@@ -262,6 +262,14 @@ internal static class PersistenceConstraintNames
     /// </remarks>
     internal const string EmailThreadStateEntryForeignKeyName = "fk_email_thread_state_entries_states";
 
+    /// <summary>The key that keeps one rule set per account, which two first writes to one account's rules both insert.</summary>
+    /// <remarks>
+    /// The name EF Core's convention gives the key, which the mapping leaves as it is. Named here because losing the race
+    /// is the mechanism: a first write has no set row to lock, so two of them commit against the key, and the retry of
+    /// the one violating it locks the winner's row and answers a version conflict.
+    /// </remarks>
+    internal const string MailRuleSetPrimaryKeyConstraintName = "PK_mail_rule_sets";
+
     /// <summary>The key that keeps one whole-mailbox rule run per account, and which a second request is recognized by.</summary>
     /// <remarks>
     /// Named because losing this race is the mechanism rather than a fault: two requests for one account's first run

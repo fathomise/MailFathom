@@ -63,22 +63,12 @@ internal sealed class MailRuleSetStore(MailFathomDbContext readContext) : IMailR
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
         var accountId = account.Value;
 
-        // An account nothing has synchronized yet has no row for the set's foreign key, so the write adds the same row a
-        // first folder binding would. A binding that loses the race to it violates the account's primary key, which is a
-        // named concurrency conflict, and is retried over the row this write left.
-        await writeContext.Database.ExecuteSqlAsync(
-            $"""INSERT INTO mailbox_accounts ("Id", "LocalMailFoldersRevision", "RestoreGeneration") VALUES ({accountId}, 0, 0) ON CONFLICT ("Id") DO NOTHING""",
-            cancellationToken);
-
-        // Created first and locked second, so two first writes to one account meet at the lock rather than one of them
-        // violating the key: the second insert waits for the first to commit and then does nothing.
-        await writeContext.Database.ExecuteSqlAsync(
-            $"""INSERT INTO mail_rule_sets ("MailboxAccountId", "Version") VALUES ({accountId}, 0) ON CONFLICT ("MailboxAccountId") DO NOTHING""",
-            cancellationToken);
-
+        // Nothing is created here, because the policy commits whatever an attempt staged and a refused or stale write
+        // must leave no row behind. An account nobody has committed a rule for has no set row to lock, and its first
+        // write creates one in CommitAsync instead.
         var version = await writeContext.Database
             .SqlQuery<long>($"""SELECT "Version" AS "Value" FROM mail_rule_sets WHERE "MailboxAccountId" = {accountId} FOR UPDATE""")
-            .SingleAsync(cancellationToken);
+            .SingleOrDefaultAsync(cancellationToken);
 
         var rules = await writeContext.MailRules
             .AsNoTracking()
@@ -106,13 +96,30 @@ internal sealed class MailRuleSetStore(MailFathomDbContext readContext) : IMailR
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
         var accountId = committed.Account.Value;
 
+        // An account nothing has synchronized yet has no row for the set's foreign key, so its first write adds the same
+        // row a first folder binding would. A binding that loses the race to it violates the account's primary key, which
+        // is a named concurrency conflict, and is retried over the row this write left.
+        await writeContext.Database.ExecuteSqlAsync(
+            $"""INSERT INTO mailbox_accounts ("Id", "LocalMailFoldersRevision", "RestoreGeneration") VALUES ({accountId}, 0, 0) ON CONFLICT ("Id") DO NOTHING""",
+            cancellationToken);
+
         await writeContext.MailRules
             .Where(rule => rule.MailboxAccountId == accountId)
             .ExecuteDeleteAsync(cancellationToken);
 
-        await writeContext.MailRuleSets
-            .Where(set => set.MailboxAccountId == accountId)
-            .ExecuteUpdateAsync(set => set.SetProperty(row => row.Version, committed.Version), cancellationToken);
+        // A first write had no row to lock, so two of them can both get here. Each inserts the set row, and the one
+        // committing second violates its primary key, a named concurrency conflict: the retry locks the row the first
+        // one wrote and answers a version conflict.
+        if (committed.Version == 1)
+        {
+            writeContext.MailRuleSets.Add(new MailRuleSetEntity { MailboxAccountId = accountId, Version = committed.Version });
+        }
+        else
+        {
+            await writeContext.MailRuleSets
+                .Where(set => set.MailboxAccountId == accountId)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.Version, committed.Version), cancellationToken);
+        }
 
         writeContext.MailRules.AddRange(committed.Declarations.Select((declaration, position) => ToEntity(accountId, declaration, position)));
         writeContext.MailRuleSetRevisions.Add(new MailRuleSetRevisionEntity
