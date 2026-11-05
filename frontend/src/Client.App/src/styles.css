@@ -1023,6 +1023,26 @@
     --color-provider-okta: #000000;
 }
 
+/* The nine colours the composer's palette offers, which ADR 0047 states as the values a message is sent with — each
+   4.5:1 or more on the white page it is overwhelmingly read on. They are written as hexadecimal for the reason the
+   provider marks are: they are given rather than chosen here, and `writtenText.ts` sends exactly these spellings. The
+   dark theme redeclares each as the lighter twin the design draws it in on a dark panel, where the sent value would not
+   read; what is sent is always the light value.
+
+   `static`, because the editor reaches them through the value a `font` element carries rather than through a utility
+   Tailwind could scan. */
+@theme static {
+    --color-ink-red: #b42318;
+    --color-ink-orange: #b54708;
+    --color-ink-amber: #8a6100;
+    --color-ink-green: #067647;
+    --color-ink-teal: #0e7490;
+    --color-ink-blue: #175cd3;
+    --color-ink-purple: #6941c6;
+    --color-ink-pink: #c11574;
+    --color-ink-grey: #667085;
+}
+
 /* The same names, dark. `data-theme` is written by `theme/Theme.tsx`, which resolves the follow-the-system choice
    before the first paint, so nothing on a screen ever asks which theme is in force. */
 :root[data-theme='dark'] {
@@ -1073,6 +1093,16 @@
     --color-provider-keycloak: #8fb8ff;
     --color-provider-nextcloud: #4aa8e0;
     --color-provider-okta: #e8e8e8;
+
+    --color-ink-red: #f97066;
+    --color-ink-orange: #fd853a;
+    --color-ink-amber: #fdb022;
+    --color-ink-green: #47cd89;
+    --color-ink-teal: #22ccee;
+    --color-ink-blue: #84adff;
+    --color-ink-purple: #b692f6;
+    --color-ink-pink: #f670c7;
+    --color-ink-grey: #98a2b3;
 
     --color-inset: rgb(255 255 255 / 0.045);
     --color-shadow-soft: oklch(0.1 0.03 262 / 0.5);
@@ -1182,6 +1212,89 @@
             position: absolute;
             inset: --spacing(-1) 0;
         }
+    }
+}
+
+/* The composer's editable region, which holds a run's colour and size in the spelling the editing commands write them
+   in — `<font color>` and `<font size>` — and draws them by the design's rules rather than the browser's: a palette
+   colour as its `ink` token, so the dark theme draws its lighter twin, and a size as the step of the scale relative to
+   the words around it rather than at the absolute size `<font size>` names. `3` is normal, which the tree does not
+   keep, and is drawn as the text around it until the next reading drops it. A colour off the palette — kept from a
+   reopened draft — is drawn as the value it is. */
+@utility written-region {
+    & font[color='#b42318' i] {
+        color: var(--color-ink-red);
+    }
+
+    & font[color='#b54708' i] {
+        color: var(--color-ink-orange);
+    }
+
+    & font[color='#8a6100' i] {
+        color: var(--color-ink-amber);
+    }
+
+    & font[color='#067647' i] {
+        color: var(--color-ink-green);
+    }
+
+    & font[color='#0e7490' i] {
+        color: var(--color-ink-teal);
+    }
+
+    & font[color='#175cd3' i] {
+        color: var(--color-ink-blue);
+    }
+
+    & font[color='#6941c6' i] {
+        color: var(--color-ink-purple);
+    }
+
+    & font[color='#c11574' i] {
+        color: var(--color-ink-pink);
+    }
+
+    & font[color='#667085' i] {
+        color: var(--color-ink-grey);
+    }
+
+    & font:is([size='1'], [size='2']) {
+        font-size: var(--text-step-small);
+    }
+
+    & font[size='3'] {
+        font-size: inherit;
+    }
+
+    & font[size='4'] {
+        font-size: var(--text-step-large);
+        line-height: var(--text-step-large--line-height);
+    }
+
+    & font[size='5'] {
+        font-size: var(--text-step-larger);
+        line-height: var(--text-step-larger--line-height);
+    }
+
+    & font:is([size='6'], [size='7']) {
+        font-size: var(--text-step-largest);
+        line-height: var(--text-step-largest--line-height);
+    }
+}
+
+/* A strip of controls under a finger, as the design draws the composer's formatting bar: one row that scrolls sideways
+   rather than wrapping, with no scrollbar, its end faded over 28 px so the control cut there says the row goes on, and
+   36 px of room after the last control so it clears the fade once scrolled to. Under a mouse the strip wraps, and both
+   halves are stated here so no wrapping utility beside this one can outrank the finger's. */
+@utility touch-strip {
+    flex-wrap: wrap;
+
+    @media (pointer: coarse) {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        padding-inline-end: --spacing(9);
+        mask-image: linear-gradient(to right, #000 calc(100% - --spacing(7)), transparent);
     }
 }
 

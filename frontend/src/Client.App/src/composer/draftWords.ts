@@ -2,8 +2,22 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { MailBody, MailDocumentBlock, MailInlineRun, MailTextEmphasis } from '@mailfathom/client-backend';
-import { followable, type WrittenElement, type WrittenNode } from './writtenText';
+import type {
+    MailBlockAlignment,
+    MailBody,
+    MailDocumentBlock,
+    MailInlineRun,
+    MailTextEmphasis,
+    MailTextSize,
+} from '@mailfathom/client-backend';
+import {
+    followable,
+    writtenColour,
+    type WrittenAlignment,
+    type WrittenElement,
+    type WrittenNode,
+    type WrittenSize,
+} from './writtenText';
 
 // A draft the deployment holds, read back into the closed tree the composer writes. It is the one direction
 // `writtenText.ts` does not already cover: that module reads an editable region into the tree and renders the tree
@@ -22,6 +36,24 @@ import { followable, type WrittenElement, type WrittenNode } from './writtenText
 // because the words in them are the message; the grid is what is lost. A body that leaves nothing the composer can
 // write — one the deployment could not reduce at all, and one whose every block is a block this has no shape for —
 // falls back to its plain text, which is the rendering the deployment always answers with.
+
+// The document's alignment and size as the tree spells them. What the document calls inherited or normal is the
+// absence of a value in the tree rather than a fifth one.
+const writtenAlignments: Readonly<Record<MailBlockAlignment, WrittenAlignment | null>> = {
+    Inherited: null,
+    Start: 'start',
+    Center: 'center',
+    End: 'end',
+    Justify: 'justify',
+};
+
+const writtenSizes: Readonly<Record<MailTextSize, WrittenSize | null>> = {
+    Normal: null,
+    Small: 'small',
+    Large: 'large',
+    Larger: 'larger',
+    Largest: 'largest',
+};
 
 /**
  * The words of a draft, as the closed tree the composer writes.
@@ -42,12 +74,13 @@ export function draftWords(
 function writtenBlock(block: MailDocumentBlock): readonly WrittenNode[] {
     switch (block.type) {
         case 'paragraph':
-            return [wrapping('p', runsWritten(block.content))];
+            return [aligned(block.alignment, runsWritten(block.content))];
 
-        // The composer writes no headings, so a heading is a paragraph in the strongest emphasis it does write. That
-        // keeps the line reading as the line it was rather than levelling it into the prose around it.
+        // The composer writes no headings, so a heading is a paragraph in the strongest emphasis it does write, at the
+        // step of the size scale its level maps to — which its runs already carry. That keeps the line reading as the
+        // line it was rather than levelling it into the prose around it.
         case 'heading':
-            return [wrapping('p', [wrapping('strong', runsWritten(block.content))])];
+            return [aligned(block.alignment, [wrapping('strong', runsWritten(block.content))])];
 
         case 'list':
             return [
@@ -83,6 +116,19 @@ function runsWritten(runs: readonly MailInlineRun[]): readonly WrittenNode[] {
 
         for (const element of emphasised(run.emphasis)) {
             written = { element, address: null, holds: [written] };
+        }
+
+        const colour = run.foreground === null ? null : writtenColour(run.foreground);
+        const size = writtenSizes[run.size];
+
+        if (colour !== null || size !== null) {
+            written = {
+                element: 'span',
+                address: null,
+                ...(colour === null ? {} : { colour }),
+                ...(size === null ? {} : { size }),
+                holds: [written],
+            };
         }
 
         // A link the composer would not make is drawn as its own words instead, which is the same refusal
@@ -122,4 +168,12 @@ export function writtenParagraphs(text: string): readonly WrittenNode[] {
 
 function wrapping(element: WrittenElement, holds: readonly WrittenNode[]): WrittenNode {
     return { element, address: null, holds };
+}
+
+// A paragraph placed the way the document places it. An inherited alignment is the absence of one, so it is written as
+// no alignment rather than as a fifth value.
+function aligned(alignment: MailBlockAlignment, holds: readonly WrittenNode[]): WrittenNode {
+    const written = writtenAlignments[alignment];
+
+    return written === null ? wrapping('p', holds) : { element: 'p', address: null, alignment: written, holds };
 }

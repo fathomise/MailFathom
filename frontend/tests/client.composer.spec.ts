@@ -607,6 +607,80 @@ test('keeps what is being written across a reload and while offline, and sends a
     expect(draftRoutesOf(deployment, 'POST', '/send')).toHaveLength(1);
 });
 
+test('colours, sizes, and aligns what was written from the bar, keeps it across a reload, and sends it as inline styles', async ({
+    page,
+    deployment,
+}) => {
+    await openMailWriting(page, deployment);
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+    await address(page, 'To', recipient);
+    await page.getByLabel('Subject').fill(subject);
+    await write(page, words);
+    await page.keyboard.press('ControlOrMeta+A');
+
+    const formatting = page.getByRole('toolbar', { name: 'Formatting' });
+
+    await formatting.getByRole('button', { name: 'Text colour - Automatic' }).click();
+    await page.getByRole('menu', { name: 'Text colour' }).getByRole('menuitemradio', { name: 'Red' }).click();
+    await formatting.getByRole('button', { name: 'Text size - Normal' }).click();
+    await page
+        .getByRole('menu', { name: 'Text size' })
+        .getByRole('menuitemradio', { name: 'Large', exact: true })
+        .click();
+
+    // The third by the keyboard alone: the control opens its menu on the choice it holds, the arrow walks to the
+    // next, and Enter takes it.
+    await formatting.getByRole('button', { name: 'Alignment - Align left' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('menuitemradio', { name: 'Align left' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    await expect(formatting.getByRole('button', { name: 'Text colour - Red' })).toBeVisible();
+    await expect(formatting.getByRole('button', { name: 'Text size - Large' })).toBeVisible();
+    await expect(formatting.getByRole('button', { name: 'Alignment - Centre' })).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByRole('navigation', { name: 'Spaces' })).toBeVisible();
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+    await expect(page.getByRole('textbox', { name: 'Message' })).toHaveText(words);
+    await send(page);
+
+    expect(deployment.requests('POST', '/drafts').map(({ body }) => body)).toStrictEqual([
+        expect.objectContaining({
+            plainTextBody: words,
+            htmlBody: `<div style="text-align:center"><span style="color:#b42318;font-size:18px">${words}</span></div>`,
+        }),
+    ]);
+});
+
+test('takes a colour off again with Automatic, so the message goes out with no colour at all', async ({
+    page,
+    deployment,
+}) => {
+    await openMailWriting(page, deployment);
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+    await address(page, 'To', recipient);
+    await page.getByLabel('Subject').fill(subject);
+    await write(page, words);
+    await page.keyboard.press('ControlOrMeta+A');
+
+    const formatting = page.getByRole('toolbar', { name: 'Formatting' });
+
+    await formatting.getByRole('button', { name: 'Text colour - Automatic' }).click();
+    await page.getByRole('menu', { name: 'Text colour' }).getByRole('menuitemradio', { name: 'Red' }).click();
+    await formatting.getByRole('button', { name: 'Text colour - Red' }).click();
+    await page.getByRole('menu', { name: 'Text colour' }).getByRole('menuitemradio', { name: 'Automatic' }).click();
+
+    await expect(formatting.getByRole('button', { name: 'Text colour - Automatic' })).toBeVisible();
+    await send(page);
+
+    expect(deployment.requests('POST', '/drafts').map(({ body }) => body)).toStrictEqual([
+        expect.objectContaining({ plainTextBody: words, htmlBody: words }),
+    ]);
+});
+
 /**
  * Writes a message, has the deployment stop accepting the sign-in at the next read of a folder, and signs in again as
  * the login named — which is where what was written either comes back or does not.

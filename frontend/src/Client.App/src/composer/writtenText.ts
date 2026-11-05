@@ -19,7 +19,28 @@
 
 /** The elements a written message may be made of, which is what the formatting controls produce and nothing else. */
 export type WrittenElement =
-    'a' | 'b' | 'blockquote' | 'br' | 'div' | 'em' | 'i' | 'li' | 'ol' | 'p' | 's' | 'strike' | 'strong' | 'u' | 'ul';
+    | 'a'
+    | 'b'
+    | 'blockquote'
+    | 'br'
+    | 'div'
+    | 'em'
+    | 'i'
+    | 'li'
+    | 'ol'
+    | 'p'
+    | 's'
+    | 'span'
+    | 'strike'
+    | 'strong'
+    | 'u'
+    | 'ul';
+
+/** A marked step of the size scale ADR 0047 states. Normal is the absence of one rather than a fifth value. */
+export type WrittenSize = 'small' | 'large' | 'larger' | 'largest';
+
+/** How a block places its lines. Start and end rather than left and right, because that is what the document says. */
+export type WrittenAlignment = 'start' | 'center' | 'end' | 'justify';
 
 /** A run of text somebody typed. */
 export interface WrittenText {
@@ -32,6 +53,15 @@ export interface WrittenMarkup {
 
     /** Where a link goes, which only a link carries and which is always one this client would follow. */
     readonly address: string | null;
+
+    /** A run's colour, as an opaque `#rrggbb` in lower case, which only a `span` carries. */
+    readonly colour?: string;
+
+    /** A run's step of the size scale, which only a `span` carries. */
+    readonly size?: WrittenSize;
+
+    /** How a block places its lines, which only a paragraph, a line, and a list item carry. */
+    readonly alignment?: WrittenAlignment;
 
     readonly holds: readonly WrittenNode[];
 }
@@ -50,11 +80,77 @@ const writableElements: readonly string[] = [
     'ol',
     'p',
     's',
+    'span',
     'strike',
     'strong',
     'u',
     'ul',
 ];
+
+// A `span` an engine leaves in the region is its own bookkeeping — the rendering it carries a moved line over with —
+// rather than an element anybody chose, so it is read only through the region's drawing (`RunDrawing`) and otherwise
+// unwrapped. A run's colour and size are read off the `font` element the editing commands write, and the tree's
+// `span` is that reading.
+const readableElements: readonly string[] = writableElements.filter((element) => element !== 'span');
+
+const writtenSizes: readonly string[] = ['small', 'large', 'larger', 'largest'];
+const writtenAlignments: readonly string[] = ['start', 'center', 'end', 'justify'];
+const alignedElements: readonly string[] = ['div', 'li', 'p'];
+
+// The size scale as the HTML part writes it, the one place a step becomes a length.
+const sentSizes: Readonly<Record<WrittenSize, string>> = {
+    small: '12px',
+    large: '18px',
+    larger: '24px',
+    largest: '32px',
+};
+
+// The size scale as `<font size>` spells it, which is how `fontSize` writes a step: ADR 0047's table, read both ways.
+const fontSizeSteps: Readonly<Record<string, WrittenSize | null>> = {
+    '1': 'small',
+    '2': 'small',
+    '3': null,
+    '4': 'large',
+    '5': 'larger',
+    '6': 'largest',
+    '7': 'largest',
+};
+
+/** The `<font size>` the size control asks `fontSize` for, and the one the region is drawn back with. */
+export const fontSizeOf: Readonly<Record<WrittenSize, string>> = {
+    small: '2',
+    large: '4',
+    larger: '5',
+    largest: '6',
+};
+
+// How an alignment is written into the HTML part and back into the region. Start and end are left and right because
+// the composer writes no direction, and the engine Outlook renders with reads neither keyword.
+const sentAlignments: Readonly<Record<WrittenAlignment, string>> = {
+    start: 'left',
+    center: 'center',
+    end: 'right',
+    justify: 'justify',
+};
+
+const readAlignments: Readonly<Record<string, WrittenAlignment>> = {
+    left: 'start',
+    start: 'start',
+    center: 'center',
+    right: 'end',
+    end: 'end',
+    justify: 'justify',
+};
+
+/** A colour the tree may carry, in the one spelling it carries it in, or `null` for anything that is not one. */
+export function writtenColour(value: string): string | null {
+    return /^#[0-9a-f]{6}$/iu.test(value) ? value.toLowerCase() : null;
+}
+
+/** How an alignment is drawn, which is the same `text-align` the HTML part writes. */
+export function drawnAlignment(alignment: WrittenAlignment): string {
+    return sentAlignments[alignment];
+}
 
 // The schemes a link written here may name. Everything else — `javascript:`, `data:`, a scheme nobody has heard of —
 // is a link the composer refuses to make rather than one a reader has to be careful about, and a relative address is
@@ -101,9 +197,46 @@ export function pastedAddress(pasted: string): string | null {
  * It holds to every bound `writtenTextIn` reads by, so what this composes is always what that accepts. A region past
  * one of them is cut here rather than kept whole, because the alternative is not a longer message: it is a message
  * kept, refused on the next reload, and taken down with the recipients and the subject it was written beside.
+ *
+ * @param drawing How the region draws a run, where the region is one that does — without it, every `span` an engine
+ *   left is unwrapped.
  */
-export function writtenIn(parent: Node): readonly WrittenNode[] {
-    return readWritten(parent, 0, { nodes: mostWrittenNodes });
+export function writtenIn(parent: Node, drawing: RunDrawing | null = null): readonly WrittenNode[] {
+    return readWritten(parent, 0, { nodes: mostWrittenNodes }, drawing);
+}
+
+/**
+ * How a region draws a run's colour and size, read backwards.
+ *
+ * An engine moving a line into a block of its own — aligning, listing, or quoting a line that stood in the region
+ * outside any — writes the `<font>` it moved as a `span` carrying the colour and the size the run was *drawn* at: the
+ * dark theme's lighter twin of a swatch, and a length the step resolved to. Those are the region's own rendering of a
+ * closed value rather than a value of their own, so the region says which closed value each one draws, and anything it
+ * does not recognise — the colour of the text around a run, a length off the scale — is dropped as before. A `<font>`
+ * colour is asked too, so a colour an engine wrote that is only the region's own is no colour of the run's.
+ */
+export interface RunDrawing {
+    /** The colour a run drawn in this CSS colour was written in, or `null` where no run was written in it. */
+    readonly colourDrawnAs: (drawn: string) => string | null;
+
+    /** The step of the size scale a run drawn at this CSS length is, or `null` for normal and for no step at all. */
+    readonly sizeDrawnAs: (drawn: string) => WrittenSize | null;
+}
+
+/** A colour as the CSS object model serializes an opaque one, `rgb(r, g, b)`, in the tree's own spelling. */
+export function colourOfRgb(drawn: string): string | null {
+    const channels = /^rgb\(\s*(\d{1,3}),\s*(\d{1,3}),\s*(\d{1,3})\s*\)$/u.exec(drawn.trim());
+
+    if (channels === null) {
+        return writtenColour(drawn.trim());
+    }
+
+    const hex = channels
+        .slice(1)
+        .map((channel) => Number(channel))
+        .map((channel) => (channel > 255 ? null : channel.toString(16).padStart(2, '0')));
+
+    return hex.includes(null) ? null : `#${hex.join('')}`;
 }
 
 // What is left of the one bound that is spent across a whole reading rather than measured node by node.
@@ -111,7 +244,12 @@ interface WritingBudget {
     nodes: number;
 }
 
-function readWritten(parent: Node, depth: number, budget: WritingBudget): readonly WrittenNode[] {
+function readWritten(
+    parent: Node,
+    depth: number,
+    budget: WritingBudget,
+    drawing: RunDrawing | null,
+): readonly WrittenNode[] {
     // Past the depth a kept message may be read back at, an element is unwrapped rather than kept.
     if (depth >= deepestWriting) {
         if (budget.nodes <= 0) {
@@ -148,7 +286,8 @@ function readWritten(parent: Node, depth: number, budget: WritingBudget): readon
         }
 
         const named = node.tagName.toLowerCase();
-        const writable = writableElements.includes(named);
+        const run = runOf(node, named, drawing);
+        const writable = readableElements.includes(named) || run !== null;
 
         // An element that is kept is one of the nodes the budget counts, and it is counted before what it holds is
         // read, so a wide tree cannot spend the whole budget on children and then add a parent past the bound.
@@ -156,10 +295,16 @@ function readWritten(parent: Node, depth: number, budget: WritingBudget): readon
             budget.nodes -= 1;
         }
 
-        const holds = readWritten(node, depth + 1, budget);
+        const holds = readWritten(node, depth + 1, budget, drawing);
 
         if (!writable) {
             written.push(...holds);
+
+            continue;
+        }
+
+        if (run !== null) {
+            written.push({ element: 'span', address: null, ...run, holds });
 
             continue;
         }
@@ -175,10 +320,55 @@ function readWritten(parent: Node, depth: number, budget: WritingBudget): readon
             continue;
         }
 
-        written.push({ element, address, holds });
+        const alignment = alignedElements.includes(element) ? alignmentOf(node) : null;
+
+        written.push(alignment === null ? { element, address, holds } : { element, address, alignment, holds });
     }
 
     return written;
+}
+
+// The colour and the size an element states as a run, each only where it is on the closed set: a `font` by the
+// attributes the editing commands write, and a `span` by the rendering an engine copied onto it, read through the
+// region's own drawing. A colour in some other notation and a size off the scale are dropped rather than approximated,
+// and an element left with neither is unwrapped like any other this client has no name for.
+function runOf(
+    element: Element,
+    named: string,
+    drawing: RunDrawing | null,
+): { readonly colour?: string; readonly size?: WrittenSize } | null {
+    let colour: string | null = null;
+    let size: WrittenSize | null = null;
+
+    if (named === 'font') {
+        const attributed = writtenColour(element.getAttribute('color') ?? '');
+
+        colour = attributed === null || drawing === null ? attributed : drawing.colourDrawnAs(attributed);
+        size = ownEntry(fontSizeSteps, element.getAttribute('size') ?? '');
+    } else if (named === 'span' && drawing !== null && element instanceof HTMLElement) {
+        colour = element.style.color === '' ? null : drawing.colourDrawnAs(element.style.color);
+        size = element.style.fontSize === '' ? null : drawing.sizeDrawnAs(element.style.fontSize);
+    }
+
+    if (colour === null && size === null) {
+        return null;
+    }
+
+    return { ...(colour === null ? {} : { colour }), ...(size === null ? {} : { size }) };
+}
+
+// The alignment a block states, written by the engine as `text-align` or, in an engine that still spells it the old
+// way, as an `align` attribute. Anything else is no alignment at all.
+function alignmentOf(block: Element): WrittenAlignment | null {
+    const stated = block instanceof HTMLElement && block.style.textAlign !== '' ? block.style.textAlign : null;
+
+    return ownEntry(readAlignments, (stated ?? block.getAttribute('align') ?? '').toLowerCase());
+}
+
+// A table read with a value somebody else wrote answers for its own keys only, so `constructor` reads as nothing
+// rather than as what every object inherits.
+function ownEntry<Value>(table: Readonly<Record<string, Value>>, key: string): Value | null {
+    return Object.hasOwn(table, key) ? (table[key] ?? null) : null;
 }
 
 /** The HTML part of a message going out, with every value in it escaped rather than trusted. */
@@ -257,12 +447,51 @@ export function writtenTextIn(value: unknown): readonly WrittenNode[] | null {
             return null;
         }
 
+        const presented = presentationIn(element, record);
+
+        if (presented === null) {
+            return null;
+        }
+
         const holds = nodesIn(record['holds'], depth + 1);
 
-        return holds === null ? null : { element: element as WrittenElement, address, holds };
+        return holds === null ? null : { element: element as WrittenElement, address, ...presented, holds };
     }
 
     return nodesIn(value, 0);
+}
+
+// The colour, the size, and the alignment a stored element carries, each on the element `writtenIn` writes it on and
+// only in the spelling it writes. A `span` carrying neither is one `writtenIn` never writes, so it is refused with the
+// rest.
+function presentationIn(
+    element: string,
+    record: Record<string, unknown>,
+): { readonly colour?: string; readonly size?: WrittenSize; readonly alignment?: WrittenAlignment } | null {
+    const colour = record['colour'];
+    const size = record['size'];
+    const alignment = record['alignment'];
+
+    const colourRead = colour === undefined || (typeof colour === 'string' && writtenColour(colour) === colour);
+    const sizeRead = size === undefined || (typeof size === 'string' && writtenSizes.includes(size));
+    const alignmentRead =
+        alignment === undefined || (typeof alignment === 'string' && writtenAlignments.includes(alignment));
+
+    if (!colourRead || !sizeRead || !alignmentRead) {
+        return null;
+    }
+
+    const spanned = colour !== undefined || size !== undefined;
+
+    if (spanned !== (element === 'span') || (alignment !== undefined && !alignedElements.includes(element))) {
+        return null;
+    }
+
+    return {
+        ...(colour === undefined ? {} : { colour }),
+        ...(size === undefined ? {} : { size: size as WrittenSize }),
+        ...(alignment === undefined ? {} : { alignment: alignment as WrittenAlignment }),
+    };
 }
 
 function markupOf(node: WrittenNode): string {
@@ -275,8 +504,24 @@ function markupOf(node: WrittenNode): string {
     }
 
     const address = node.address === null ? '' : ` href="${escaped(node.address).replace(/"/gu, '&quot;')}"`;
+    const style = sentStyleOf(node);
 
-    return `<${node.element}${address}>${htmlOf(node.holds)}</${node.element}>`;
+    return `<${node.element}${address}${style === '' ? '' : ` style="${style}"`}>${htmlOf(node.holds)}</${node.element}>`;
+}
+
+// Mail clients drop style sheets, so what the composer presents goes out as an inline style — and every value in it is
+// one of the closed set's rather than text anybody wrote, which is why nothing here is escaped. The colour is checked
+// once more on the way out because it is the one value whose type is a string.
+function sentStyleOf(node: WrittenMarkup): string {
+    const colour = node.colour === undefined ? null : writtenColour(node.colour);
+
+    return [
+        colour === null ? null : `color:${colour}`,
+        node.size === undefined ? null : `font-size:${sentSizes[node.size]}`,
+        node.alignment === undefined ? null : `text-align:${sentAlignments[node.alignment]}`,
+    ]
+        .filter((declaration) => declaration !== null)
+        .join(';');
 }
 
 function escaped(text: string): string {
