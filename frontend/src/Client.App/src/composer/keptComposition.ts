@@ -93,15 +93,19 @@ export function rememberComposition(composition: Composition): void {
 export function rememberPictures(composition: Composition): boolean {
     const kept = keepPictures(composition);
 
-    if (refusedPictures === kept) {
-        refusedPictures = !kept;
+    noteRefusedPictures(!kept);
+
+    return kept;
+}
+
+function noteRefusedPictures(refused: boolean): void {
+    if (refusedPictures !== refused) {
+        refusedPictures = refused;
 
         for (const listener of keepingListeners) {
             listener();
         }
     }
-
-    return kept;
 }
 
 // Whether the store refused the last pictures it was handed, which is this module's to know because the store is
@@ -135,7 +139,8 @@ function keepPictures(composition: Composition): boolean {
                       content: base64Of(picture.octets),
                       width: picture.width,
                       height: picture.height,
-                      label: picture.label,
+                      // Held to the bound it is read back by, so one long name cannot cost every picture a reload.
+                      label: picture.label?.slice(0, longestLabel) ?? null,
                   },
               ];
     });
@@ -161,6 +166,9 @@ function keepPictures(composition: Composition): boolean {
 
 /** Drops what was being written, which is what sending it, giving it up, and signing out each do. */
 export function forgetComposition(): void {
+    // The refusal was about the pictures of what was being written, so it goes with them.
+    noteRefusedPictures(false);
+
     try {
         window.sessionStorage.removeItem(storageKey);
         window.sessionStorage.removeItem(picturesKey);

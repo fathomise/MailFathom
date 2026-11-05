@@ -306,7 +306,9 @@ export function wireComposition(composition: Composition): MailDraftComposition 
         // Both parts, or neither: a message with nothing written in it states no HTML alternative to nothing, and one
         // with words in it carries the markup its author gave them beside the reading every mail client has. Its
         // pictures travel with the markup, which is the only part that refers to them, each by `cid:` and its name.
-        htmlBody: markedUp ? htmlOf(composition.words, (picture) => `cid:${picture}`) : null,
+        htmlBody: markedUp
+            ? htmlOf(composition.words, (picture) => ({ address: `cid:${picture}`, label: null }))
+            : null,
         pictures: markedUp ? picturesSent(composition) : [],
         to: composition.to,
         cc: composition.cc,

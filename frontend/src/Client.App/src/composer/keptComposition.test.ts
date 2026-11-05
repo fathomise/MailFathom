@@ -177,6 +177,35 @@ describe('rememberPictures', () => {
         expect(picturesKeptHereOnly()).toBe(false);
     });
 
+    it('stops saying the pictures were not kept once the composition is forgotten', () => {
+        const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+            throw new DOMException('full', 'QuotaExceededError');
+        });
+
+        try {
+            rememberPictures(withPicture);
+        } finally {
+            setItem.mockRestore();
+        }
+
+        forgetComposition();
+
+        expect(picturesKeptHereOnly()).toBe(false);
+    });
+
+    it('keeps a picture whose name is longer than a kept label may be, under the name cut to that length', () => {
+        const named = 'a'.repeat(1024);
+        const longNamed: Composition = {
+            ...withPicture,
+            pictures: new Map([[pictureName, { octets, type: 'image/png', width: 300, height: 200, label: named }]]),
+        };
+
+        rememberComposition(longNamed);
+        rememberPictures(longNamed);
+
+        expect(rememberedComposition()?.pictures.get(pictureName)?.label).toBe(named.slice(0, 256));
+    });
+
     it('keeps nothing once the words name no picture', () => {
         rememberPictures(withPicture);
         rememberPictures(written);

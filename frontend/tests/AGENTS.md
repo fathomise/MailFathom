@@ -527,17 +527,19 @@ changing. `pnpm test:desktop` is the whole of how it runs.
   [#1462](https://github.com/fathomise/MailFathom/issues/1462)'s: that an instant is placed against the zone the
   runtime reports, and that a first run opens in the language the platform states. The third is
   [#2854](https://github.com/fathomise/MailFathom/issues/2854)'s: that a picture pasted into the composer reaches it
-  as a file and is drawn from the object URL the composer issued, under the shell's own content security policy. A
-  check belongs here by being
-  unanswerable in the other three — a component, a label, a layout, a journey, a request on the wire, or anything about
+  as a file and is drawn from the object URL the composer issued. The shell under test loads its client from the
+  corpus development server, which sends no content security policy, so this case says nothing about the policy a
+  published shell applies. A check belongs here by being unanswerable in the other three — a component, a label, a layout, a journey, a request on the wire, or anything about
   the accessibility tree belongs above, and a copy of one here buys a slower answer and a second thing to keep in step.
 - **It asserts a literal spelling, never a formatter built the same way.** That is the rule § _A localized screen_
   already states, and it is the whole content of the timezone half: an expectation written as the output of a second
   `Intl.DateTimeFormat` passes for a head that named a zone of its own as happily as for one that did not.
 - **A selector here is a CSS one, and that is a protocol limit rather than an exemption.** WebDriver has no locator for
-  a role and a name, so the elements this suite reaches are the ids the labels point at and the one control that states
-  the resolved language during a render. That the control carries the right accessible name is asserted by the unit
-  suite and by the browser suite, which is why it is not asserted twice.
+  a role and a name, so the elements this suite reaches are the ids the labels point at, the one control that states
+  the resolved language during a render, and in the composer case the region by its role and label attributes, the
+  button that opens a new message by its words, and the picture element inside the region. That each of them carries
+  the right accessible name is asserted by the unit suite and by the browser suite, which is why it is not asserted
+  twice.
 - **Three facts about the Linux head were measured rather than assumed**, and each is recorded in the spec because
   nothing else in this repository would record them. WebKitGTK answers `navigator.languages` out of `LC_ALL` and `LANG`
   and ignores `LANGUAGE`; it reports exactly one language however many the environment names, so the list-walking

@@ -26,7 +26,7 @@ const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia')
 const declaredExecCommand = Object.getOwnPropertyDescriptor(document, 'execCommand');
 
 // A table holds no picture, so where one is written no picture's source is ever asked for.
-const noPicture = () => '';
+const noPicture = () => ({ address: '', label: null });
 
 let pointerIsCoarse = false;
 let commanded: { readonly command: string; readonly argument: string | undefined }[] = [];
@@ -816,7 +816,7 @@ describe('WrittenMessage, pictures', () => {
                 {
                     command: 'insertHTML',
                     argument:
-                        '<img src="blob:composer/1" width="600" height="450" style="max-width:100%;height:auto" />',
+                        '<img src="blob:composer/1" alt="chart.png" width="600" height="450" style="max-width:100%;height:auto" />',
                 },
             ]);
         });
@@ -872,6 +872,45 @@ describe('WrittenMessage, pictures', () => {
         expect(acts()).toEqual([]);
     });
 
+    it('takes a drop of markup and files from elsewhere through the paste order rather than the engine', () => {
+        drawWords();
+
+        const dropped = fireEvent.drop(words(), {
+            dataTransfer: {
+                getData: (flavour: string) =>
+                    flavour === 'text/plain' ? 'Revenue 2026' : '<img src="https://x.invalid/a.png">',
+                types: ['text/plain', 'text/html', 'Files'],
+                files: [pngFile()],
+            },
+        });
+
+        expect(dropped).toBe(false);
+        expect(acts()).toEqual([{ command: 'insertText', argument: 'Revenue 2026' }]);
+    });
+
+    it('leaves a passage dragged within the words to the engine’s own move', () => {
+        drawWords([{ element: 'p', address: null, holds: [{ text: 'move me' }] }]);
+
+        fireEvent.dragStart(words());
+        const dropped = fireEvent.drop(words(), {
+            dataTransfer: { getData: () => 'move me', types: ['text/plain', 'text/html'], files: [] },
+        });
+
+        expect(dropped).toBe(true);
+        expect(acts()).toEqual([]);
+    });
+
+    it('refuses a paste of several files past the count as the paste, naming no one file', async () => {
+        drawWords();
+
+        pasteFiles(Array.from({ length: 17 }, (_, index) => pngFile(`shot-${String(index)}.png`)));
+
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            'Nothing was pasted - this paste carries 17 pictures and the message already holds 0, but one message can hold at most 16.',
+        );
+        expect(acts()).toEqual([]);
+    });
+
     it('puts a refusal away when it is dismissed', async () => {
         drawWords();
 
@@ -885,7 +924,7 @@ describe('WrittenMessage, pictures', () => {
     it('chooses a picture pressed in the words, says what it is, and removes it as one step', () => {
         drawWords([{ element: 'img', picture: pictureName, width: 800, height: 600 }], new Map([[pictureName, held]]));
 
-        fireEvent.click(words().querySelector('img') ?? words());
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
 
         const strip = screen.getByRole('toolbar', { name: 'Picture' });
 

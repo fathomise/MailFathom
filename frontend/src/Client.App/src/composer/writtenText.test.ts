@@ -21,7 +21,7 @@ import {
 } from './writtenText';
 
 const noPicture: PictureAt = () => null;
-const asContentIdentifier = (picture: string) => `cid:${picture}`;
+const asContentIdentifier = (picture: string) => ({ address: `cid:${picture}`, label: null });
 const nothingKept = () => false;
 
 const pictureName = '01890a5d-ac96-774b-bcce-b302099a8057';
@@ -343,14 +343,14 @@ describe('colourOfRgb', () => {
 });
 
 describe('htmlOf', () => {
-    it('writes a picture by the source the reading asks for, and differs in nothing else', () => {
+    it('writes a picture by the source and the name the reading asks for, and differs in nothing else', () => {
         const written: readonly WrittenNode[] = [{ element: 'img', picture: pictureName, width: 1200, height: 900 }];
 
         expect(htmlOf(written, asContentIdentifier)).toBe(
             `<img src="cid:${pictureName}" width="600" height="450" style="max-width:100%;height:auto" />`,
         );
-        expect(htmlOf(written, () => 'blob:composer/one')).toBe(
-            '<img src="blob:composer/one" width="600" height="450" style="max-width:100%;height:auto" />',
+        expect(htmlOf(written, () => ({ address: 'blob:composer/one', label: '"chart" <1>.png' }))).toBe(
+            '<img src="blob:composer/one" alt="&quot;chart&quot; &lt;1&gt;.png" width="600" height="450" style="max-width:100%;height:auto" />',
         );
     });
 

@@ -15,9 +15,9 @@ import { cellsOf, mostTableColumns, mostTableRows, rowsOf, spanned, tableWithinB
 // put back on the screen is bounded by what this type can express rather than by what a filter remembered to strip.
 //
 // **A picture is a name, never an address.** The tree refers to a picture the composer holds by the name it minted for
-// it, under ADR 0047 Question 2, and how that picture's source is written is the one thing a reading of the tree is
-// handed: an object URL the composer issued, for the editor, and `cid:` and the name, for the HTML part. So a remote
-// address can never become a picture, and the editor's markup and the message's differ in that source alone.
+// it, under ADR 0047 Question 2, and how that picture is written is what a reading of the tree is handed: an object
+// URL the composer issued and the picture's name as its alternative text, for the editor, and `cid:` and the name, for
+// the HTML part. So a remote address can never become a picture.
 //
 // The set is DOM-shaped rather than semantic, and deliberately so. What produces it is a browser editing a
 // `contenteditable` region, and each engine wraps a line, a list, and an emphasis its own way — a semantic block model
@@ -102,8 +102,12 @@ export type WrittenNode = WrittenText | WrittenMarkup | WrittenPicture;
 /** The picture an address in the editor names, which only an object URL the composer issued does. */
 export type PictureAt = (source: string) => Omit<WrittenPicture, 'element'> | null;
 
-/** How a picture's source is written for the reading at hand, from the name the tree holds. */
-export type PictureSource = (picture: string) => string;
+/**
+ * How a picture is written for the reading at hand, from the name the tree holds: its source, and the alternative text
+ * it is named by, which the editor gives it so a screen reader names the picture somebody is writing beside, and the
+ * HTML part does not, a file's name being nothing the recipient was meant to read.
+ */
+export type PictureSource = (picture: string) => { readonly address: string; readonly label: string | null };
 
 const writableElements: readonly string[] = [
     'a',
@@ -616,12 +620,12 @@ function isBreak(node: WrittenNode): boolean {
  *
  * The two differ only where the editing commands spell something their own way: a run's colour and size, which the
  * region holds as the `<font>` `foreColor` and `fontSize` write, and an empty cell, which the editor gives a break to
- * put the caret on — and a picture's source, which `pictureSource` writes. Everything else is one serialization, so
- * what somebody edits is what is sent.
+ * put the caret on — and a picture's source and name, which `pictureSource` writes. Everything else is one
+ * serialization, so what somebody edits is what is sent.
  *
  * @param written The tree.
- * @param pictureSource How a picture's source is written: `cid:` and its name for the HTML part, and the object URL the
- *   composer issued for it in the editor.
+ * @param pictureSource How a picture is written: `cid:` and its name and no alternative text for the HTML part, and the
+ *   object URL the composer issued for it and its name as alternative text in the editor.
  * @param destination Who the tree is spelled for.
  */
 export function htmlOf(
@@ -966,8 +970,10 @@ export function sentSizeOf(node: WrittenPicture): { readonly width: number; read
 
 function pictureMarkupOf(node: WrittenPicture, pictureSource: PictureSource): string {
     const { width, height } = sentSizeOf(node);
+    const { address, label } = pictureSource(node.picture);
+    const named = label === null ? '' : ` alt="${attribute(label)}"`;
 
-    return `<img src="${attribute(pictureSource(node.picture))}" width="${width.toFixed(0)}" height="${height.toFixed(0)}" style="max-width:100%;height:auto" />`;
+    return `<img src="${attribute(address)}"${named} width="${width.toFixed(0)}" height="${height.toFixed(0)}" style="max-width:100%;height:auto" />`;
 }
 
 function escaped(text: string): string {

@@ -3138,23 +3138,29 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const reduced = this.reduceHtml(doc);
         if (reduced.replace(/<[^>]+>/g, "").trim()) return this.exec("insertHTML", reduced);
       }
-      const file = Array.from(cd.files || [])[0];
-      if (file) {
+      /* Every file of a paste is judged in turn and the paste is refused whole on the first one past a bound. A paste of
+         several files that would take the message past the count is refused as the paste, never as one of its files. */
+      const files = Array.from(cd.files || []);
+      if (files.length) {
         const held = this.picturesHeld();
-        const name = file.name || "picture";
-        const total = held.reduce((n, i) => n + Number(i.getAttribute("data-bytes") || 0), 0) + file.size;
-        const refuse = (why) => this.setState({ pasteNotice: { text: "“" + name + "” was not added - " + why } });
-        if (P.types.indexOf(file.type) < 0) return refuse("the composer takes " + P.typeNames + " pictures, and this one is " + (file.type.split("/")[1] ? file.type.split("/")[1].toUpperCase() : "another kind") + ".");
-        if (file.size > P.maxBytes) return refuse("it is " + this.fileSize(file.size) + ", and one picture can be at most " + this.fileSize(P.maxBytes) + ".");
-        if (held.length >= P.maxCount) return refuse("this message already holds " + P.maxCount + " pictures, the most one message can.");
-        if (total > P.maxTotalBytes) return refuse("with it the pictures would come to " + this.fileSize(total) + ", and together they can be at most " + this.fileSize(P.maxTotalBytes) + ".");
-        const reader = new FileReader();
-        reader.onload = () => {
+        if (files.length > 1 && held.length + files.length > P.maxCount) return this.setState({ pasteNotice: { text: "Nothing was pasted - this paste carries " + files.length + " pictures and the message already holds " + held.length + ", but one message can hold at most " + P.maxCount + "." } });
+        let total = held.reduce((n, i) => n + Number(i.getAttribute("data-bytes") || 0), 0);
+        for (const file of files) {
+          const name = file.name || "picture";
+          total += file.size;
+          const refuse = (why) => this.setState({ pasteNotice: { text: "“" + name + "” was not added - " + why } });
+          if (P.types.indexOf(file.type) < 0) return refuse("the composer takes " + P.typeNames + " pictures, and this one is " + (file.type.split("/")[1] ? file.type.split("/")[1].toUpperCase() : "another kind") + ".");
+          if (file.size > P.maxBytes) return refuse("it is " + this.fileSize(file.size) + ", and one picture can be at most " + this.fileSize(P.maxBytes) + ".");
+          if (held.length >= P.maxCount) return refuse("this message already holds " + P.maxCount + " pictures, the most one message can.");
+          if (total > P.maxTotalBytes) return refuse("with it the pictures would come to " + this.fileSize(total) + ", and together they can be at most " + this.fileSize(P.maxTotalBytes) + ".");
+        }
+        const read = (file) => new Promise((done) => { const reader = new FileReader(); reader.onload = () => done(reader.result); reader.readAsDataURL(file); });
+        Promise.all(files.map(read)).then((sources) => {
           this.restoreRange();
-          this.exec("insertHTML", "<img data-mf-picture data-name=\"" + this.escapeHtml(name) + "\" data-size=\"" + this.fileSize(file.size) + "\" data-bytes=\"" + file.size + "\" alt=\"\" src=\"" + reader.result + "\" style=\"display:block;max-width:100%;height:auto;margin:8px 0;cursor:pointer\">");
+          /* The picture is named for a screen reader by what it was called, as the strip names it. */
+          this.exec("insertHTML", files.map((file, i) => { const name = this.escapeHtml(file.name || "picture"); return "<img data-mf-picture data-name=\"" + name + "\" data-size=\"" + this.fileSize(file.size) + "\" data-bytes=\"" + file.size + "\" alt=\"" + name + "\" src=\"" + sources[i] + "\" style=\"display:block;max-width:100%;height:auto;margin:8px 0;cursor:pointer\">"; }).join(""));
           this.notePictures();
-        };
-        reader.readAsDataURL(file);
+        });
         return;
       }
       const lines = text.replace(/\r/g, "").replace(/\n+$/, "").split("\n").filter(l => l.trim());

@@ -9,8 +9,10 @@ import { openDesktopHead } from './head';
 
 // A picture pasted into the composer, asked of the real WebView. The browser suite pastes one in Chromium through the
 // real clipboard; what it cannot say is whether WebKitGTK hands a pasted picture over as a file the composer can read,
-// takes the insertion, and draws the picture from the object URL the composer issued under the shell's own content
-// security policy — any of which failing leaves an empty box where the picture should be and a message sent without it.
+// takes the insertion, and draws the picture from the object URL the composer issued — any of which failing leaves an
+// empty box where the picture should be and a message sent without it. The shell loads its client from the corpus
+// development server, which sends no content security policy, so the policy a published shell applies is not asked
+// here.
 //
 // The paste is a synthetic one carrying a `DataTransfer` the script built, because WebDriver reaches no system
 // clipboard. That is the event the composer reads either way: what is under test is the engine's file, its editing

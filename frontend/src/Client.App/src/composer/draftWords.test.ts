@@ -69,7 +69,7 @@ const undrawn: readonly MailDocumentBlock[] = [
     { type: 'unimplemented', identity: 'chart', version: 3 },
 ];
 
-const asContentIdentifier = (picture: string) => `cid:${picture}`;
+const asContentIdentifier = (picture: string) => ({ address: `cid:${picture}`, label: null });
 
 function wordsOf(body: MailBody) {
     return draftWords(body).words;

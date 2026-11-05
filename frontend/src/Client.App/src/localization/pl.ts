@@ -1055,6 +1055,8 @@ export const pl: Catalogue = {
         'Nie dodano „{name}” - edytor przyjmuje obrazy PNG, JPEG i GIF, a ten jest w formacie {kind}.',
     'compose.pictureKindUnknown':
         'Nie dodano „{name}” - edytor przyjmuje obrazy PNG, JPEG i GIF, a ten jest w innym formacie.',
+    'compose.picturesTooManyInThePaste':
+        'Nic nie wklejono - liczba wklejanych obrazów: {carried}, w wiadomości jest już: {held}, a jedna wiadomość może mieć najwyżej {most}.',
     'compose.pictureInACell':
         'Nic nie wklejono - komórka tabeli mieści tylko słowa, kolor i rozmiar, więc obraz trzeba wstawić poza tabelą.',
     'compose.dismissPictureRefusal': 'Zamknij',

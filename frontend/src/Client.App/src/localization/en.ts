@@ -1041,6 +1041,8 @@ export const en = {
         '“{name}” was not added - the composer takes PNG, JPEG, and GIF pictures, and this one is {kind}.',
     'compose.pictureKindUnknown':
         '“{name}” was not added - the composer takes PNG, JPEG, and GIF pictures, and this one is another kind.',
+    'compose.picturesTooManyInThePaste':
+        'Nothing was pasted - this paste carries {carried} pictures and the message already holds {held}, but one message can hold at most {most}.',
     'compose.pictureInACell':
         'Nothing was pasted - a table cell holds words, colour and size only, so a picture goes outside the table.',
     'compose.dismissPictureRefusal': 'Dismiss',

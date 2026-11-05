@@ -218,10 +218,11 @@ jobs:
   # nothing it installs is anything that job needs — a Rust toolchain, the platform's WebView and bundling libraries,
   # the WebKit WebDriver, and a virtual display — so the two run beside each other rather than one behind the other.
   #
-  # **Why it is gated on a pull request rather than left to a nightly.** The two rules it proves are the ones that could
-  # diverge between the heads with nobody noticing: an instant is placed against whatever zone the runtime reports, and
-  # a first run opens in whatever language the platform states — and a WebView reads each from the process that started
-  # it rather than from a profile a test configured. A nightly would find such a break the morning after the merge and
+  # **Why it is gated on a pull request rather than left to a nightly.** The three rules it proves are the ones that
+  # could diverge between the heads with nobody noticing: an instant is placed against whatever zone the runtime
+  # reports, a first run opens in whatever language the platform states — a WebView reads each from the process that
+  # started it rather than from a profile a test configured — and a picture pasted into the composer reaches it as a
+  # file the engine hands over and draws, which is the engine's own behaviour rather than the client's. A nightly would find such a break the morning after the merge and
   # name a run at 02:00 rather than the change that caused it, which is the argument this workflow already makes for the
   # browser suite above. `frontend/tests/AGENTS.md` § *The desktop suite* holds what it may assert and what it leaves to
   # the other three.

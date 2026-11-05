@@ -105,7 +105,10 @@ const writtenFlavour = 'application/x-mailfathom-written';
 
 /** A picture refused at the paste, and what it was called, which is what the line saying so names. */
 interface RefusedPicture {
-    readonly refusal: PictureRefusal | { readonly reason: 'inACell' };
+    readonly refusal:
+        | PictureRefusal
+        | { readonly reason: 'inACell' }
+        | { readonly reason: 'tooManyInThePaste'; readonly carried: number; readonly held: number };
     readonly name: string | null;
 }
 
@@ -324,6 +327,7 @@ export function WrittenMessage({
     const bar = useRef<HTMLDivElement>(null);
     const holding = useRef<Range | null>(null);
     const pastingPlain = useRef(false);
+    const draggingHere = useRef(false);
     const chosenPicture = useRef<HTMLImageElement | null>(null);
     const copied = useRef<{ readonly token: string; readonly written: readonly WrittenNode[] } | null>(null);
     const addressId = useId();
@@ -333,13 +337,22 @@ export function WrittenMessage({
     const drawTheBar = !coarse || barShown;
     const chosenHeld = pictureChosen === null ? undefined : pictures.get(pictureChosen);
 
-    // Where a picture in the editor is drawn from: the object URL issued for it, which a picture never drawn yet is
-    // issued the first time the tree it is in is drawn.
-    const pictureSource: PictureSource = (name) => {
-        const picture = pictures.get(name);
+    // Where a picture in the editor is drawn from — the object URL issued for it, which a picture never drawn yet is
+    // issued the first time the tree it is in is drawn — and what a screen reader names it by.
+    function sourceAmong(held: ReadonlyMap<string, HeldPicture>): PictureSource {
+        return (name) => {
+            const picture = held.get(name);
 
-        return picture === undefined ? (addresses.addressOf(name) ?? '') : addresses.issue(name, picture);
-    };
+            return picture === undefined
+                ? { address: addresses.addressOf(name) ?? '', label: translate('compose.pictureUnnamed') }
+                : {
+                      address: addresses.issue(name, picture),
+                      label: picture.label ?? translate('compose.pictureUnnamed'),
+                  };
+        };
+    }
+
+    const pictureSource = sourceAmong(pictures);
 
     // Where the caret stands decides whether the table's strip stands, and the selection is the document's, so it is
     // followed from there rather than from whichever of the region's events happened to move it.
@@ -469,6 +482,17 @@ export function WrittenMessage({
         const held = picturesNamedIn(writtenIn(region, addresses.pictureAt)).flatMap(
             (name) => pictures.get(name) ?? [],
         );
+        // A paste of several files that would take the message past the count is refused as the paste, since naming the
+        // one file that crossed the bound would read as though the files before it went in.
+        if (files.length > 1 && held.length + files.length > mostPictures) {
+            setRefused({
+                refusal: { reason: 'tooManyInThePaste', carried: files.length, held: held.length },
+                name: null,
+            });
+
+            return;
+        }
+
         const adding: { readonly name: string; readonly picture: HeldPicture }[] = [];
 
         for (const file of files) {
@@ -504,7 +528,8 @@ export function WrittenMessage({
                 width: picture.width,
                 height: picture.height,
             })),
-            pictureSource,
+            // The pictures are only now asked to be held, so the composer's own map does not name them yet.
+            sourceAmong(new Map([...pictures, ...adding.map(({ name, picture }) => [name, picture] as const)])),
         );
         written();
     }
@@ -1102,20 +1127,27 @@ export function WrittenMessage({
                 onCut={(event) => {
                     copy(event, true);
                 }}
+                onDragStart={() => {
+                    draggingHere.current = true;
+                }}
+                onDragEnd={() => {
+                    draggingHere.current = false;
+                }}
                 onDrop={(event) => {
-                    // Files dropped onto the words are read as pasted ones are. Anything else dropped is the engine's
-                    // own move, read back by `writtenIn` like everything else written here.
-                    const files = picturesWithNothingFormatted(
-                        event.dataTransfer,
-                        event.dataTransfer.getData('text/plain'),
-                    );
+                    // A drop carrying files or markup from somewhere else goes through the same order a paste does, so
+                    // nothing another page wrote reaches the region. A passage dragged within the words is the
+                    // engine's own move, read back by `writtenIn` like everything else written here.
+                    const transfer = event.dataTransfer;
+                    const fromElsewhere = !draggingHere.current;
 
-                    if (files.length > 0) {
+                    draggingHere.current = false;
+
+                    if (fromElsewhere && (transfer.files.length > 0 || transfer.types.includes('text/html'))) {
                         event.preventDefault();
-                        unchoosePicture();
-                        setRefused(null);
+                        closeTheMenu();
                         dropAt(event.clientX, event.clientY);
-                        void pastePictures(files);
+                        pastingPlain.current = false;
+                        paste(transfer);
                     }
                 }}
                 onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
@@ -1202,6 +1234,15 @@ function refusalSentence(refused: RefusedPicture, locale: Locale, translate: Tra
     switch (refusal.reason) {
         case 'inACell':
             return translate('compose.pictureInACell');
+        case 'tooManyInThePaste': {
+            const counted = new Intl.NumberFormat(locale);
+
+            return translate('compose.picturesTooManyInThePaste', {
+                carried: counted.format(refusal.carried),
+                held: counted.format(refusal.held),
+                most: counted.format(mostPictures),
+            });
+        }
         case 'notTaken':
             return refusal.kind === null
                 ? translate('compose.pictureKindUnknown', { name })
@@ -1257,11 +1298,12 @@ function WrittenPart({
     }
 
     if (node.element === 'img') {
-        // At the size the message is sent at and with no alternative text, as `htmlOf` writes it, so a reopened picture
-        // and a pasted one are drawn the same way and read as the same picture.
+        // At the size the message is sent at and named as `htmlOf` names it for the editor, so a reopened picture and a
+        // pasted one are drawn the same way and read as the same picture.
         const { width, height } = sentSizeOf(node);
+        const { address, label } = pictureSource(node.picture);
 
-        return <img src={pictureSource(node.picture)} width={width} height={height} />;
+        return <img src={address} alt={label ?? ''} width={width} height={height} />;
     }
 
     if (node.element === 'br') {
