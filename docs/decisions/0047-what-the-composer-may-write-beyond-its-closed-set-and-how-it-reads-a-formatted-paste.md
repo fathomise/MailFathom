@@ -401,7 +401,11 @@ messages by position. `ReplyDraftReading.cs` resolves the number against the lis
 link naming none, keeping its words; an address the model typed is never a target. That makes an address from
 outside the exchange impossible rather than unlikely. What it cannot stop is the model linking words to an address an
 attacker's own message carried, so the drafting block shows each link's host beside its words before the draft is
-accepted, as #2848 draws it.
+accepted, as #2848 draws it. A host alone cannot expose a deceptive target, so a `MailDocumentLink` whose
+`IsWorthWarningAbout` is true — its displayed host differs from its target's, or its host has an `AsciiHost` because
+its Unicode form may imitate another — is never published to the turn. No number resolves to it, and words the model
+links to it stay words. Such a link is shown with both hosts and its warning in the reading pane, and a reply has no
+reason to carry it.
 
 **The model is shown an entry, never the address behind it.** A target is often a credential in its own right — a
 password-reset link, a sign-in link, a signed download, an unsubscribe token — and the turn today carries only guarded
@@ -483,8 +487,9 @@ the subset it would be used for.
 - **On the service**, #2849's refusals — one per row of Question 4's bounds table, each one past it, and the count
   refused before anything is decoded — and its round trip, #2850's mapping, and #2856's reading and evaluation cases are each
   tested in the change that adds them, against the values recorded here — #2856's including a link citing a position
-  the turn did not publish, and a link written as an address, both read as words, and a published entry that carries
-  the target's guarded host and words and never the address itself.
+  the turn did not publish, a link written as an address, and a correspondence link whose `IsWorthWarningAbout` is
+  true, each read as words, and a published entry that carries the target's guarded host and words and never the
+  address itself.
 
 ## Pros and Cons of the Options
 
