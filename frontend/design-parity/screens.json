@@ -1682,6 +1682,97 @@
           }
         }
       ]
+    },
+    {
+      "id": "composer-table-menu",
+      "route": "/#/mail",
+      "signIn": true,
+      "compositions": ["telefon", "fold", "tablet", "desktop"],
+      "narrowedBecause": "The table menu is laid out once under a mouse and once under a finger, and the four sizes the design frames are the ones it is drawn at.",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "New message",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "role": "textbox",
+            "name": "Message"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Text formatting",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Insert table",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "role": "menu",
+            "name": "Insert a table"
+          }
+        }
+      ]
+    },
+    {
+      "id": "composer-table",
+      "route": "/#/mail",
+      "signIn": true,
+      "compositions": ["telefon", "fold", "tablet", "desktop"],
+      "narrowedBecause": "The table's strip is laid out once under a mouse and once under a finger, and the four sizes the design frames are the ones it is drawn at.",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "New message",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "role": "textbox",
+            "name": "Message"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Text formatting",
+            "exact": true
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Insert table",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "text": "Insert a 3 × 3 table"
+          }
+        },
+        {
+          "expect": {
+            "role": "toolbar",
+            "name": "Table"
+          }
+        }
+      ]
     }
   ]
 }

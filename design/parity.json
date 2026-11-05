@@ -1385,6 +1385,101 @@
           }
         }
       ]
+    },
+    "composer-table-menu": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "New message",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "text": "Context"
+          }
+        },
+        {
+          "click": {
+            "text": "Text formatting"
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Insert table",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "role": "menu",
+            "name": "Insert a table"
+          }
+        }
+      ]
+    },
+    "composer-table": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "New message",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "text": "Context"
+          }
+        },
+        {
+          "click": {
+            "text": "Text formatting"
+          },
+          "optional": true
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Insert table",
+            "exact": true
+          }
+        },
+        {
+          "click": {
+            "text": "Insert a 3 × 3 table"
+          }
+        },
+        {
+          "expect": {
+            "role": "toolbar",
+            "name": "Table"
+          }
+        }
+      ]
     }
   }
 }

@@ -224,7 +224,7 @@ export function TableStrip({ onAct }: { readonly onAct: (act: TableAct) => void 
         <div
             role="toolbar"
             aria-label={translate('compose.tableStrip')}
-            className="flex shrink-0 touch-strip flex-wrap items-center gap-0.5 border-b border-line-soft bg-sunken px-3 py-1.25 pointer-coarse:gap-1.5 pointer-coarse:py-2"
+            className="flex shrink-0 touch-strip items-center gap-0.5 border-b border-line-soft bg-sunken px-3 py-1.25 pointer-coarse:gap-1.5 pointer-coarse:py-2"
         >
             <span className="shrink-0 ps-0.5 pe-2 text-sm font-semibold text-muted">
                 {translate('compose.tableStrip')}

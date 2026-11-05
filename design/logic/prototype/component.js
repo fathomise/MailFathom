@@ -3025,6 +3025,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const rows = Array.from({ length: d.rows }, () => Array.from({ length: d.cols }, () => ""));
       this.restoreRange();
       this.exec("insertHTML", this.tableHtml(rows, d.header) + "<p><br></p>");
+      /* The caret goes into the new table's first cell, so its strip stands at once and typing fills it. */
+      const sel = window.getSelection();
+      const at = sel && sel.rangeCount ? sel.anchorNode : null;
+      const after = at ? (at.nodeType === 1 ? at : at.parentElement).closest("p") : null;
+      const table = after && after.previousElementSibling && after.previousElementSibling.tagName === "TABLE" ? after.previousElementSibling : null;
+      const first = table ? table.querySelector("th,td") : null;
+      if (first) {
+        const r = document.createRange();
+        r.selectNodeContents(first);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+      this.noteEditorCaret();
       this.setState({ fmtMenu: null });
     };
     /* Where the caret stands decides which strip shows under the bar: the table's controls while it is in a cell. */
