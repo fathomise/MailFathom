@@ -6,12 +6,15 @@ import type {
     MailBlockAlignment,
     MailBody,
     MailDocumentBlock,
+    MailInlineImage,
     MailInlineRun,
     MailTableBlock,
     MailTableCell,
     MailTextEmphasis,
     MailTextSize,
 } from '@mailfathom/client-backend';
+import { newIdentifier } from '../agent/newIdentifier';
+import { isPictureSide, octetsOf, pictureIn, refusalOfAdding, type HeldPicture } from './pictures';
 import { spanned, tableWithinBounds } from './writtenTable';
 import {
     followable,
@@ -34,13 +37,23 @@ import {
 // second typed tree. No string is parsed, no sanitizer is pinned, and what a hostile draft can put in the composer is
 // bounded by what `WrittenNode` can express.
 //
-// **What the composer cannot write is not written.** A draft carrying a picture, or a block a later deployment
-// publishes, has no shape here — the composer's set is what a person can type with its own controls, and inventing an
-// approximation would put words on the screen the author never wrote. A table the composer could not have made — one
-// past a bound — still has its cells walked, because the words in them are the message; the grid is what is lost. A
-// body that leaves nothing the composer can
-// write — one the deployment could not reduce at all, and one whose every block is a block this has no shape for —
-// falls back to its plain text, which is the rendering the deployment always answers with.
+// **What the composer cannot write is not written.** A draft carrying a block a later deployment publishes has no shape
+// here — the composer's set is what a person can type with its own controls, and inventing an approximation would put
+// words on the screen the author never wrote. A table the composer could not have made — one past a bound — still has
+// its cells walked, because the words in them are the message; the grid is what is lost. A body that leaves nothing the
+// composer can write — one the deployment could not reduce at all, and one whose every block is a block this has no
+// shape for — falls back to its plain text, which is the rendering the deployment always answers with.
+//
+// **A picture the draft carried inside it is one the composer holds again.** The reduced document inlines each as a
+// `data:` source, which is decoded here by hand, judged by its octets like a pasted one, and held under a name of the
+// composer's own — so a draft reopens with its pictures and sends them again. A remote picture is not one the draft
+// carries, and is dropped, and so is one inside a table cell, which holds no picture.
+
+/** A draft's words as the closed tree, beside the pictures that tree refers to. */
+export interface DraftWords {
+    readonly words: readonly WrittenNode[];
+    readonly pictures: ReadonlyMap<string, HeldPicture>;
+}
 
 // The document's alignment and size as the tree spells them. What the document calls inherited or normal is the
 // absence of a value in the tree rather than a fifth one.
@@ -61,22 +74,27 @@ const writtenSizes: Readonly<Record<MailTextSize, WrittenSize | null>> = {
 };
 
 /**
- * The words of a draft, as the closed tree the composer writes.
+ * The words of a draft, as the closed tree the composer writes, and the pictures it carried.
  *
  * It reads the two parts any reading of a draft carries rather than one route's answer, because a draft in a folder is
  * read through the message's body and a draft MailFathom keeps through its own record, and both carry the same pair.
  */
 export function draftWords(
     body: Pick<MailBody, 'document'> & { readonly plainText: { readonly text: string } },
-): readonly WrittenNode[] {
-    const written = (body.document?.blocks ?? []).flatMap(writtenBlock);
+): DraftWords {
+    const pictures = new Map<string, HeldPicture>();
+    const written = (body.document?.blocks ?? []).flatMap((block) => writtenBlock(block, pictures));
 
-    return written.length === 0 ? writtenParagraphs(body.plainText.text) : written;
+    return written.length === 0
+        ? { words: writtenParagraphs(body.plainText.text), pictures: new Map() }
+        : { words: written, pictures };
 }
 
 // One block as the elements the composer has for it. An empty array is a block it has none for, which is dropped
-// rather than approximated.
-function writtenBlock(block: MailDocumentBlock): readonly WrittenNode[] {
+// rather than approximated. A picture it holds is added to the pictures it was handed.
+function writtenBlock(block: MailDocumentBlock, pictures: Map<string, HeldPicture>): readonly WrittenNode[] {
+    const within = (blocks: readonly MailDocumentBlock[]) => blocks.flatMap((inner) => writtenBlock(inner, pictures));
+
     switch (block.type) {
         case 'paragraph':
             return [aligned(block.alignment, runsWritten(block.content))];
@@ -91,24 +109,54 @@ function writtenBlock(block: MailDocumentBlock): readonly WrittenNode[] {
             return [
                 wrapping(
                     block.ordered ? 'ol' : 'ul',
-                    block.items.map((item) => wrapping('li', item.blocks.flatMap(writtenBlock))),
+                    block.items.map((item) => wrapping('li', within(item.blocks))),
                 ),
             ];
 
         case 'quote':
-            return [wrapping('blockquote', block.blocks.flatMap(writtenBlock))];
+            return [wrapping('blockquote', within(block.blocks))];
 
         case 'preformatted':
             return writtenParagraphs(block.text);
 
         case 'table':
-            return writtenTable(block);
+            return writtenTable(block, within);
 
-        case 'image':
+        // On a line of its own, which is how an editor holds a picture pasted between two lines.
+        case 'image': {
+            const picture = pictureHeld(block.image, pictures);
+
+            return picture === null ? [] : [wrapping('div', [picture])];
+        }
+
         case 'separator':
         case 'unimplemented':
             return [];
     }
+}
+
+// A picture the draft carried inside it, held under a name of the composer's own, or `null` for one it did not carry
+// or the composer would not take — a remote address, a kind it does not take, or one past the bounds a composition
+// holds, which a draft written elsewhere could be.
+function pictureHeld(image: MailInlineImage, pictures: Map<string, HeldPicture>): WrittenNode | null {
+    const encoded = /^data:[^,]*;base64,/u.exec(image.source);
+    const octets = encoded === null ? null : octetsOf(image.source.slice(encoded[0].length));
+    const read = octets === null ? null : pictureIn(octets);
+
+    if (octets === null || read === null || refusalOfAdding(octets.length, [...pictures.values()]) !== null) {
+        return null;
+    }
+
+    // The size it was drawn at where the draft states one, which is what the composer wrote it at.
+    const drawn =
+        isPictureSide(image.width) && isPictureSide(image.height)
+            ? { width: image.width, height: image.height }
+            : { width: read.width, height: read.height };
+    const picture = newIdentifier();
+
+    pictures.set(picture, { octets, type: read.type, ...drawn, label: image.alternativeText });
+
+    return { element: 'img', picture, ...drawn };
 }
 
 // The runs of one paragraph, each wrapped in whatever it carries. A run is wrapped from the inside out, so a bold
@@ -187,7 +235,10 @@ function aligned(alignment: MailBlockAlignment, holds: readonly WrittenNode[]): 
 // alignment, fill, and spans with its words as lines. A table past a bound is one the composer could not have made, so
 // it is taken apart into what its cells said, in the order they said it — dropped whole, it would take the message's
 // words with it.
-function writtenTable(block: MailTableBlock): readonly WrittenNode[] {
+function writtenTable(
+    block: MailTableBlock,
+    within: (blocks: readonly MailDocumentBlock[]) => readonly WrittenNode[],
+): readonly WrittenNode[] {
     const rows = block.rows.length;
     const table: WrittenMarkup = {
         element: 'table',
@@ -201,7 +252,7 @@ function writtenTable(block: MailTableBlock): readonly WrittenNode[] {
 
     return tableWithinBounds(table)
         ? [table]
-        : block.rows.flatMap((row) => row.cells.flatMap((cell) => cell.blocks.flatMap(writtenBlock)));
+        : block.rows.flatMap((row) => row.cells.flatMap((cell) => within(cell.blocks)));
 }
 
 // One cell. A span reaching past the last row is drawn to the last row anyway, so it is read as reaching there.

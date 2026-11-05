@@ -71,10 +71,10 @@ describe('drawingOf', () => {
     it('lets the reading drop a moved run drawn in the region’s own colour and at its own size', () => {
         const drawing = drawingOf(darkRegion, swatches, steps);
 
-        expect(writtenIn(spanStyled('color: rgb(230, 232, 236); font-size: 15px'), drawing)).toEqual([
+        expect(writtenIn(spanStyled('color: rgb(230, 232, 236); font-size: 15px'), () => null, drawing)).toEqual([
             { text: 'moved' },
         ]);
-        expect(writtenIn(spanStyled('color: rgb(249, 112, 102); font-size: 18px'), drawing)).toEqual([
+        expect(writtenIn(spanStyled('color: rgb(249, 112, 102); font-size: 18px'), () => null, drawing)).toEqual([
             { element: 'span', address: null, colour: '#b42318', size: 'large', holds: [{ text: 'moved' }] },
         ]);
     });

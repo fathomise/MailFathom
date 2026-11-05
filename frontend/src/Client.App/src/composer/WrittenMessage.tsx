@@ -9,18 +9,34 @@ import {
     useId,
     useRef,
     useState,
+    type ClipboardEvent,
     type CSSProperties,
     type KeyboardEvent,
     type ReactNode,
 } from 'react';
+import { newIdentifier } from '../agent/newIdentifier';
 import { Icon } from '../controls/Icon';
 import type { IconName } from '../controls/icons';
 import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
-import { useLocalization } from '../localization/useLocalization';
+import type { Locale } from '../localization/locale';
+import { sizeOf } from '../localization/octets';
+import { useLocalization, type Translate } from '../localization/useLocalization';
 import { useCoarsePointer } from '../shell/useWideWorkspace';
 import { edit, insertWritten } from './editing';
 import { FormattingChoice, FormattingMenu } from './FormattingMenu';
+import type { PictureAddresses } from './pictureAddresses';
+import {
+    mostPictureOctets,
+    mostPictures,
+    mostPicturesOctets,
+    pictureIn,
+    pictureTypeOf,
+    refusalOfAdding,
+    widestSentPicture,
+    type HeldPicture,
+    type PictureRefusal,
+} from './pictures';
 import { drawingOf } from './regionDrawing';
 import { TableInsertion, TableStrip, type TableAct } from './TableControls';
 import {
@@ -40,9 +56,14 @@ import {
     drawnAlignment,
     followable,
     fontSizeOf,
+    htmlOf,
     pastedAddress,
+    picturesNamedIn,
+    plainTextOf,
+    sentSizeOf,
     writtenIn,
     writtenTableIn,
+    type PictureSource,
     type RunDrawing,
     type WrittenAlignment,
     type WrittenMarkup,
@@ -72,6 +93,21 @@ import {
 // Tab past the last cell — reads the caret's table into the closed set, asks `writtenTable.ts` for the table that
 // replaces it, and writes that over the old one through `insertWritten`, which keeps the edit one step on the engine's
 // own undo stack. ADR 0047's Question 5 is the decision.
+//
+// **A picture is pasted, dropped, chosen, and removed here**, and held by the composer above: this component reads it,
+// judges it against ADR 0047's bounds, asks the composer to hold it, and inserts it through `insertWritten` drawn from
+// the object URL `PictureAddresses` issued for it — the one source `writtenIn` reads back as a picture.
+
+// The flavour a copy inside the message carries beside its HTML and its text: a token naming what this composer copied,
+// so a paste back into it resolves the pictures it holds by name. Only the composer that copied knows the token, so a
+// paste in another tab, or of anything else, matches nothing and is read as any other paste.
+const writtenFlavour = 'application/x-mailfathom-written';
+
+/** A picture refused at the paste, and what it was called, which is what the line saying so names. */
+interface RefusedPicture {
+    readonly refusal: PictureRefusal | { readonly reason: 'inACell' };
+    readonly name: string | null;
+}
 
 type FormattingMenuKind = 'colour' | 'size' | 'alignment' | 'table';
 
@@ -237,14 +273,30 @@ interface OpenMenu {
 
 export function WrittenMessage({
     opened,
+    pictures,
+    addresses,
+    picturesKeptHereOnly,
     onWritten,
+    onPictureHeld,
     onSendAsked,
     beforeTheWords,
 }: {
     /** What the region opens holding, read once: a message this tab was already writing, or nothing. */
     readonly opened: readonly WrittenNode[];
 
+    /** The pictures the composer holds for this message, by the name the words refer to each with. */
+    readonly pictures: ReadonlyMap<string, HeldPicture>;
+
+    /** The object URLs the composer draws its pictures from, which outlive this region when the words are replaced. */
+    readonly addresses: PictureAddresses;
+
+    /** Whether the session store would not take the pictures, so a reload would lose them, which is said above the words. */
+    readonly picturesKeptHereOnly: boolean;
+
     readonly onWritten: (written: readonly WrittenNode[]) => void;
+
+    /** Asks the composer to hold a picture pasted or dropped here, which it does before the words name it. */
+    readonly onPictureHeld: (name: string, picture: HeldPicture) => void;
 
     /** What the design's own shortcut asks for, which is the send question rather than the send. */
     readonly onSendAsked: () => void;
@@ -258,7 +310,7 @@ export function WrittenMessage({
      */
     readonly beforeTheWords?: ReactNode;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
     const coarse = useCoarsePointer();
     const [opening] = useState(opened);
     const [barShown, setBarShown] = useState(false);
@@ -266,15 +318,28 @@ export function WrittenMessage({
     const [menu, setMenu] = useState<OpenMenu | null>(null);
     const [chosen, setChosen] = useState<Chosen>({ colour: null, size: normalStep, alignment: startAlignment });
     const [inACell, setInACell] = useState(false);
+    const [refused, setRefused] = useState<RefusedPicture | null>(null);
+    const [pictureChosen, setPictureChosen] = useState<string | null>(null);
     const words = useRef<HTMLDivElement>(null);
     const bar = useRef<HTMLDivElement>(null);
     const holding = useRef<Range | null>(null);
     const pastingPlain = useRef(false);
+    const chosenPicture = useRef<HTMLImageElement | null>(null);
+    const copied = useRef<{ readonly token: string; readonly written: readonly WrittenNode[] } | null>(null);
     const addressId = useId();
 
     // What the design decides about the bar: drawn outright where a pointer is fine, and behind a toggle where a
     // finger is what drives the screen — the keyboard and the message needing the room a bar would take.
     const drawTheBar = !coarse || barShown;
+    const chosenHeld = pictureChosen === null ? undefined : pictures.get(pictureChosen);
+
+    // Where a picture in the editor is drawn from: the object URL issued for it, which a picture never drawn yet is
+    // issued the first time the tree it is in is drawn.
+    const pictureSource: PictureSource = (name) => {
+        const picture = pictures.get(name);
+
+        return picture === undefined ? (addresses.addressOf(name) ?? '') : addresses.issue(name, picture);
+    };
 
     // Where the caret stands decides whether the table's strip stands, and the selection is the document's, so it is
     // followed from there rather than from whichever of the region's events happened to move it.
@@ -292,7 +357,7 @@ export function WrittenMessage({
 
     function written(): void {
         if (words.current !== null) {
-            onWritten(writtenIn(words.current, drawingOfRegion(words.current)));
+            onWritten(writtenIn(words.current, addresses.pictureAt, drawingOfRegion(words.current)));
         }
     }
 
@@ -339,22 +404,203 @@ export function WrittenMessage({
     }
 
     // ADR 0047's paste order as far as the closed set reaches today: Ctrl+Shift+V lands the words alone, one address
-    // makes a link, and anything else is pasted as text — on one line in a table cell, which holds no block a second
-    // line would start.
-    function paste(pasted: string): void {
-        const address = pastingPlain.current ? null : pastedAddress(pasted);
-        const landing = cellAtTheCaret(words.current) === null ? pasted : pasted.replace(/\s*[\r\n\t]+\s*/gu, ' ');
+    // makes a link, what this composer copied comes back as it was, picture files with nothing formatted beside them
+    // are pictures, and anything else is pasted as text. A table cell holds no block a second line would start and no
+    // picture, so a paste there lands as its words on one line, and a picture with no words beside it is refused.
+    function paste(data: DataTransfer): void {
+        const plain = data.getData('text/plain');
+        const plainOnly = pastingPlain.current;
+        const address = plainOnly ? null : pastedAddress(plain);
+        const copiedHere = copied.current;
+        const files = picturesWithNothingFormatted(data, plain);
+        const intoACell = cellAtTheCaret(words.current) !== null;
 
         pastingPlain.current = false;
+        unchoosePicture();
+        setRefused(null);
 
-        if (address === null) {
-            apply('insertText', landing);
-        } else if (window.getSelection()?.isCollapsed === false) {
+        if (address !== null) {
+            pasteTheLink(address);
+        } else if (intoACell && plain.trim() === '' && files.length > 0) {
+            void pastePictures(files);
+        } else if (intoACell) {
+            apply('insertText', plain.replace(/\s*[\r\n\t]+\s*/gu, ' '));
+        } else if (plainOnly) {
+            apply('insertText', plain);
+        } else if (copiedHere !== null && data.getData(writtenFlavour) === copiedHere.token) {
+            insertWritten(copiedHere.written, pictureSource);
+            written();
+        } else if (files.length > 0) {
+            void pastePictures(files);
+        } else {
+            apply('insertText', plain);
+        }
+    }
+
+    function pasteTheLink(address: string): void {
+        if (window.getSelection()?.isCollapsed === false) {
             // The selected words become the link and keep their own formatting, and a link they sat in is replaced.
             apply('createLink', address);
         } else {
             // A space after the link, so what is typed next is not part of it.
-            insertWritten([{ element: 'a', address, holds: [{ text: address }] }, { text: '\u00a0' }]);
+            insertWritten([{ element: 'a', address, holds: [{ text: address }] }, { text: '\u00a0' }], pictureSource);
+            written();
+        }
+    }
+
+    // Each file judged against the bounds in turn, together with the pictures the words already name, and inserted
+    // all at once as one step somebody can undo — or none of them, and the line above the words says which was refused
+    // and why: a paste is refused whole and never cut.
+    async function pastePictures(files: readonly File[]): Promise<void> {
+        const region = words.current;
+        const selection = window.getSelection();
+        const at = selection !== null && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
+
+        if (region === null) {
+            return;
+        }
+
+        if (cellAtTheCaret(region) !== null) {
+            setRefused({ refusal: { reason: 'inACell' }, name: null });
+
+            return;
+        }
+
+        const held = picturesNamedIn(writtenIn(region, addresses.pictureAt)).flatMap(
+            (name) => pictures.get(name) ?? [],
+        );
+        const adding: { readonly name: string; readonly picture: HeldPicture }[] = [];
+
+        for (const file of files) {
+            const label = file.name === '' ? null : file.name;
+            const outcome = await pictureFrom(file, [...held, ...adding.map(({ picture }) => picture)]);
+
+            if ('refusal' in outcome) {
+                setRefused({ refusal: outcome.refusal, name: label });
+
+                return;
+            }
+
+            adding.push({ name: newIdentifier(), picture: { ...outcome.picture, label } });
+        }
+
+        // Reading the files gave the page time to move the caret, so it goes back where the paste was asked for.
+        region.focus();
+
+        if (at !== null) {
+            selection?.removeAllRanges();
+            selection?.addRange(at);
+        }
+
+        for (const { name, picture } of adding) {
+            onPictureHeld(name, picture);
+            addresses.issue(name, picture);
+        }
+
+        insertWritten(
+            adding.map(({ name, picture }) => ({
+                element: 'img' as const,
+                picture: name,
+                width: picture.width,
+                height: picture.height,
+            })),
+            pictureSource,
+        );
+        written();
+    }
+
+    // A drop lands where the pointer let go, so the caret is put there before it is read like a paste.
+    function dropAt(x: number, y: number): void {
+        // An engine without the standard call keeps the caret where it was, which is where the drop then lands.
+        const position = 'caretPositionFromPoint' in document ? document.caretPositionFromPoint(x, y) : null;
+        const selection = window.getSelection();
+
+        if (position !== null && selection !== null) {
+            selection.collapse(position.offsetNode, position.offset);
+        }
+    }
+
+    // A press on a picture chooses it: outlined, its strip shown, and selected as one node, so Delete and Backspace
+    // take it out as the engine's own one step. A press anywhere else puts the choice away.
+    function choosePicture(pressed: EventTarget): void {
+        const picture =
+            pressed instanceof HTMLImageElement ? addresses.pictureAt(pressed.getAttribute('src') ?? '') : null;
+
+        unchoosePicture();
+
+        if (picture === null || !(pressed instanceof HTMLImageElement)) {
+            return;
+        }
+
+        const range = document.createRange();
+        const selection = window.getSelection();
+
+        range.selectNode(pressed);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        pressed.setAttribute('data-chosen', '');
+        chosenPicture.current = pressed;
+        setPictureChosen(picture.picture);
+    }
+
+    function unchoosePicture(): void {
+        chosenPicture.current?.removeAttribute('data-chosen');
+        chosenPicture.current = null;
+        setPictureChosen(null);
+    }
+
+    function removeTheChosenPicture(): void {
+        const picture = chosenPicture.current;
+
+        unchoosePicture();
+
+        if (picture === null) {
+            return;
+        }
+
+        words.current?.focus();
+
+        const range = document.createRange();
+        const selection = window.getSelection();
+
+        range.selectNode(picture);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        edit('delete');
+        written();
+    }
+
+    // A copy or a cut of a passage holding a picture is written by the composer itself, so that pasting it back into
+    // this message brings the picture back by name. A copy holding none is left to the engine, as it always was.
+    function copy(event: ClipboardEvent<HTMLDivElement>, cutting: boolean): void {
+        const selection = window.getSelection();
+
+        if (selection === null || selection.rangeCount === 0 || selection.isCollapsed) {
+            return;
+        }
+
+        const region = words.current;
+        const passage = writtenIn(
+            selection.getRangeAt(0).cloneContents(),
+            addresses.pictureAt,
+            region === null ? null : drawingOfRegion(region),
+        );
+
+        if (picturesNamedIn(passage).length === 0) {
+            return;
+        }
+
+        const token = newIdentifier();
+
+        event.preventDefault();
+        copied.current = { token, written: passage };
+        event.clipboardData.setData('text/plain', plainTextOf(passage));
+        event.clipboardData.setData('text/html', htmlOf(passage, pictureSource));
+        event.clipboardData.setData(writtenFlavour, token);
+
+        if (cutting) {
+            unchoosePicture();
+            edit('delete');
             written();
         }
     }
@@ -483,7 +729,7 @@ export function WrittenMessage({
     ): void {
         const standing = new Set(region.querySelectorAll('table'));
 
-        insertWritten([table, ...after]);
+        insertWritten([table, ...after], pictureSource);
 
         const placed = [...region.querySelectorAll('table')].find((each) => !standing.has(each));
         const cell = placed === undefined || caret === null ? null : cellAt(placed, caret);
@@ -757,6 +1003,68 @@ export function WrittenMessage({
 
             {inACell ? <TableStrip onAct={actOnTheTable} /> : null}
 
+            {pictureChosen === null || chosenHeld === undefined ? null : (
+                <div
+                    role="toolbar"
+                    aria-label={translate('compose.picture')}
+                    className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-line-soft bg-sunken px-3 py-1.25 pointer-coarse:gap-1.5 pointer-coarse:py-2"
+                >
+                    <span className="shrink-0 ps-0.5 pe-2 text-sm font-semibold text-muted">
+                        {translate('compose.picture')}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate pe-2 text-sm text-text-soft">
+                        {translate('compose.pictureDescribed', {
+                            name: chosenHeld.label ?? translate('compose.pictureUnnamed'),
+                            size: sizeOf(chosenHeld.octets.length, locale),
+                            width: new Intl.NumberFormat(locale).format(widestSentPicture),
+                        })}
+                    </span>
+                    <button
+                        type="button"
+                        className="flex min-h-7 shrink-0 items-center gap-1.5 rounded-md px-2.25 text-sm whitespace-nowrap text-error-text transition hover:bg-hover pointer-coarse:border pointer-coarse:border-line pointer-coarse:px-3 pointer-coarse:text-base"
+                        onMouseDown={(event) => {
+                            // The picture stays selected while the control is pressed, as the formatting controls keep
+                            // the selection they act on.
+                            event.preventDefault();
+                        }}
+                        onClick={removeTheChosenPicture}
+                    >
+                        <Icon name="delete" className="size-icon-sm pointer-coarse:size-icon-lg" />
+                        {translate('compose.removePicture')}
+                    </button>
+                </div>
+            )}
+
+            {refused === null ? null : (
+                <div
+                    role="alert"
+                    className="flex shrink-0 animate-disclose-in items-start gap-2.25 border-b border-warning bg-warning-soft py-2 ps-3.75 pe-3 text-sm text-warning-text pointer-coarse:py-2.5 pointer-coarse:text-base"
+                >
+                    <Icon name="block" className="size-icon-lg shrink-0" />
+                    <span className="min-w-0 flex-1 text-pretty">{refusalSentence(refused, locale, translate)}</span>
+                    <button
+                        type="button"
+                        aria-label={translate('compose.dismissPictureRefusal')}
+                        className="-my-0.5 flex size-6 shrink-0 items-center justify-center rounded-md transition hover:bg-hover"
+                        onClick={() => {
+                            setRefused(null);
+                        }}
+                    >
+                        <Icon name="close" className="size-icon-lg" />
+                    </button>
+                </div>
+            )}
+
+            {picturesKeptHereOnly ? (
+                <div
+                    role="status"
+                    className="flex shrink-0 animate-disclose-in items-start gap-2.25 border-b border-warning bg-warning-soft px-3.75 py-2 text-sm text-warning-text pointer-coarse:py-2.5 pointer-coarse:text-base"
+                >
+                    <Icon name="memory" className="size-icon-lg shrink-0" />
+                    <span className="min-w-0 flex-1 text-pretty">{translate('compose.picturesInThisWindowOnly')}</span>
+                </div>
+            ) : null}
+
             {beforeTheWords}
 
             <div
@@ -769,15 +1077,46 @@ export function WrittenMessage({
                 suppressContentEditableWarning
                 tabIndex={0}
                 // A low window lowers the floor so the foot carrying *Send* stays on the screen above a keyboard.
-                className="min-h-42.5 flex-1 written-region overflow-auto border-s-2 border-transparent px-4.25 py-4 text-lg text-text-soft outline-none focus-visible:border-accent low:min-h-18"
-                onInput={written}
+                // A picture is drawn on a line of its own at its own size, fitted to the editor's width with its height
+                // scaled — the width it is written at is the message's, not the editor's — and outlined while it is the
+                // one chosen, the outline rather than the engine's selection tint saying so.
+                className="min-h-42.5 flex-1 written-region overflow-auto border-s-2 border-transparent px-4.25 py-4 text-lg text-text-soft outline-none focus-visible:border-accent low:min-h-18 [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:w-auto [&_img]:max-w-full [&_img]:selection:bg-transparent [&_img]:cursor-pointer [&_img[data-chosen]]:outline-2 [&_img[data-chosen]]:outline-accent"
+                onInput={() => {
+                    unchoosePicture();
+                    written();
+                }}
+                onClick={(event) => {
+                    choosePicture(event.target);
+                }}
                 onPaste={(event) => {
-                    // What arrives from somewhere else arrives as text or as a link this client writes itself. A
-                    // message carries the formatting its author gave it, and nothing this client did not write reaches
-                    // the tree at all.
+                    // What arrives from somewhere else arrives as text, as a link, or as a picture this client writes
+                    // itself. A message carries the formatting its author gave it, and nothing this client did not
+                    // write reaches the tree at all.
                     event.preventDefault();
                     closeTheMenu();
-                    paste(event.clipboardData.getData('text/plain'));
+                    paste(event.clipboardData);
+                }}
+                onCopy={(event) => {
+                    copy(event, false);
+                }}
+                onCut={(event) => {
+                    copy(event, true);
+                }}
+                onDrop={(event) => {
+                    // Files dropped onto the words are read as pasted ones are. Anything else dropped is the engine's
+                    // own move, read back by `writtenIn` like everything else written here.
+                    const files = picturesWithNothingFormatted(
+                        event.dataTransfer,
+                        event.dataTransfer.getData('text/plain'),
+                    );
+
+                    if (files.length > 0) {
+                        event.preventDefault();
+                        unchoosePicture();
+                        setRefused(null);
+                        dropAt(event.clientX, event.clientY);
+                        void pastePictures(files);
+                    }
                 }}
                 onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
                     // The paste event cannot tell Ctrl+Shift+V from Ctrl+V, so the key that raises it says which.
@@ -811,35 +1150,125 @@ export function WrittenMessage({
                     }
                 }}
             >
-                <WrittenTree written={opening} />
+                <WrittenTree written={opening} pictureSource={pictureSource} />
             </div>
         </>
     );
 }
 
+// The picture files a paste or a drop carries, where nothing formatted stands beside them — ADR 0047's step 4. Until the
+// HTML flavour is read into the tree, a formatted flavour is taken to read to something wherever words come with it:
+// what Excel and Word put beside their HTML is the same content drawn again, and a browser's *Copy image* puts a
+// picture beside markup that carries no words at all, which is the one case the picture is the paste.
+function picturesWithNothingFormatted(data: DataTransfer, plain: string): readonly File[] {
+    return data.types.includes('text/html') && plain.trim() !== '' ? [] : [...data.files];
+}
+
+// A file as a picture the composer may hold, or why it may not: its kind read from the octets it opens with, then the
+// bounds, then the whole file read for its size — so a file too large to take is never read whole to be refused.
+async function pictureFrom(
+    file: File,
+    held: readonly HeldPicture[],
+): Promise<{ readonly picture: Omit<HeldPicture, 'label'> } | { readonly refusal: PictureRefusal }> {
+    const notTaken = { refusal: { reason: 'notTaken', kind: kindOf(file.type) } } as const;
+
+    if (pictureTypeOf(new Uint8Array(await file.slice(0, 8).arrayBuffer())) === null) {
+        return notTaken;
+    }
+
+    const refusal = refusalOfAdding(file.size, held);
+
+    if (refusal !== null) {
+        return { refusal };
+    }
+
+    const octets = new Uint8Array(await file.arrayBuffer());
+    const read = pictureIn(octets);
+
+    return read === null ? notTaken : { picture: { octets, ...read } };
+}
+
+// What a file the composer does not take says it is, from the media type the platform reported: `image/heic` is HEIC.
+function kindOf(type: string): string | null {
+    const kind = /^[a-z]+\/([a-z0-9.-]+)/iu.exec(type)?.[1];
+
+    return kind === undefined ? null : kind.toUpperCase();
+}
+
+function refusalSentence(refused: RefusedPicture, locale: Locale, translate: Translate): string {
+    const name = refused.name ?? translate('compose.pictureUnnamed');
+    const { refusal } = refused;
+
+    switch (refusal.reason) {
+        case 'inACell':
+            return translate('compose.pictureInACell');
+        case 'notTaken':
+            return refusal.kind === null
+                ? translate('compose.pictureKindUnknown', { name })
+                : translate('compose.pictureKindNotTaken', { name, kind: refusal.kind });
+        case 'tooLarge':
+            return translate('compose.pictureTooLarge', {
+                name,
+                size: sizeOf(refusal.octets, locale),
+                most: sizeOf(mostPictureOctets, locale),
+            });
+        case 'tooMany':
+            return translate('compose.pictureOneTooMany', {
+                name,
+                count: new Intl.NumberFormat(locale).format(mostPictures),
+            });
+        case 'tooMuchTogether':
+            return translate('compose.picturesTooMuchTogether', {
+                name,
+                size: sizeOf(refusal.octets, locale),
+                most: sizeOf(mostPicturesOctets, locale),
+            });
+    }
+}
+
 // What was already written, drawn as ordinary elements once. It is rendered from the closed set rather than from
 // markup, which is what keeps a parser off this path: the region's first content is React's, and every reading after
 // that goes the other way.
-function WrittenTree({ written }: { readonly written: readonly WrittenNode[] }): ReactNode {
+function WrittenTree({
+    written,
+    pictureSource,
+}: {
+    readonly written: readonly WrittenNode[];
+    readonly pictureSource: PictureSource;
+}): ReactNode {
     return (
         <>
             {written.map((node, position) => (
-                <WrittenPart key={position} node={node} />
+                <WrittenPart key={position} node={node} pictureSource={pictureSource} />
             ))}
         </>
     );
 }
 
-function WrittenPart({ node }: { readonly node: WrittenNode }): ReactNode {
+function WrittenPart({
+    node,
+    pictureSource,
+}: {
+    readonly node: WrittenNode;
+    readonly pictureSource: PictureSource;
+}): ReactNode {
     if ('text' in node) {
         return node.text;
+    }
+
+    if (node.element === 'img') {
+        // At the size the message is sent at and with no alternative text, as `htmlOf` writes it, so a reopened picture
+        // and a pasted one are drawn the same way and read as the same picture.
+        const { width, height } = sentSizeOf(node);
+
+        return <img src={pictureSource(node.picture)} width={width} height={height} />;
     }
 
     if (node.element === 'br') {
         return <br />;
     }
 
-    const holds = <WrittenTree written={node.holds} />;
+    const holds = <WrittenTree written={node.holds} pictureSource={pictureSource} />;
 
     if (node.element === 'table') {
         return (

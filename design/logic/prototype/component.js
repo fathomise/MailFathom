@@ -3097,7 +3097,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const memoryOnly = bytes > COMPOSE_FMT.pictures.sampleStoreBytes;
       if (memoryOnly !== !!this.state.picturesInMemory) this.setState({ picturesInMemory: memoryOnly });
     };
-    fileSize = (n) => n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1).replace(/\.0$/, "") + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+    /* Decimal units to one place, as the client words every size through Intl: the 2 MiB bound reads 2.1 MB. */
+    fileSize = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + " MB" : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, "") + " kB" : n + " byte";
     unselectPicture = () => {
       if (!this.selectedPicture) return;
       this.selectedPicture.style.outline = "";

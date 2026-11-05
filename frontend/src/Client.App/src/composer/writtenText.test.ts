@@ -12,10 +12,20 @@ import {
     writtenIn,
     writtenTableIn,
     writtenTextIn,
+    picturesNamedIn,
+    sentSizeOf,
+    type PictureAt,
     type RunDrawing,
     type WrittenMarkup,
     type WrittenNode,
 } from './writtenText';
+
+const noPicture: PictureAt = () => null;
+const asContentIdentifier = (picture: string) => `cid:${picture}`;
+const nothingKept = () => false;
+
+const pictureName = '01890a5d-ac96-774b-bcce-b302099a8057';
+const otherPictureName = '01890a5d-ac96-774b-bcce-b302099a8058';
 
 // A region shaped the way a browser leaves one after somebody has typed and formatted in it. It is built element by
 // element rather than from a string of markup, for the reason the module itself gives: nothing on this path turns a
@@ -34,7 +44,7 @@ function element(name: string, ...holds: (Node | string)[]): HTMLElement {
 
 describe('writtenIn', () => {
     it('reads what was typed and the emphasis it was given', () => {
-        const written = writtenIn(region('Read the ', element('b', 'third'), ' column.'));
+        const written = writtenIn(region('Read the ', element('b', 'third'), ' column.'), noPicture);
 
         expect(written).toEqual([
             { text: 'Read the ' },
@@ -44,7 +54,7 @@ describe('writtenIn', () => {
     });
 
     it('unwraps an element it has no name for, so what was typed inside one survives', () => {
-        const written = writtenIn(region(element('font', element('b', 'Bold'))));
+        const written = writtenIn(region(element('font', element('b', 'Bold'))), noPicture);
 
         expect(written).toEqual([{ element: 'b', address: null, holds: [{ text: 'Bold' }] }]);
     });
@@ -54,7 +64,7 @@ describe('writtenIn', () => {
 
         link.setAttribute('href', 'https://example.invalid/invoice');
 
-        expect(writtenIn(region(link))).toEqual([
+        expect(writtenIn(region(link), noPicture)).toEqual([
             { element: 'a', address: 'https://example.invalid/invoice', holds: [{ text: 'the invoice' }] },
         ]);
     });
@@ -66,7 +76,7 @@ describe('writtenIn', () => {
 
             link.setAttribute('href', address);
 
-            expect(writtenIn(region(link))).toEqual([{ text: 'press here' }]);
+            expect(writtenIn(region(link), noPicture)).toEqual([{ text: 'press here' }]);
         },
     );
 
@@ -76,11 +86,13 @@ describe('writtenIn', () => {
         emphasis.setAttribute('onclick', 'steal()');
         emphasis.setAttribute('style', 'position:fixed');
 
-        expect(writtenIn(region(emphasis))).toEqual([{ element: 'b', address: null, holds: [{ text: 'Bold' }] }]);
+        expect(writtenIn(region(emphasis), noPicture)).toEqual([
+            { element: 'b', address: null, holds: [{ text: 'Bold' }] },
+        ]);
     });
 
     it('reads a list as the list it is', () => {
-        const written = writtenIn(region(element('ul', element('li', 'One'), element('li', 'Two'))));
+        const written = writtenIn(region(element('ul', element('li', 'One'), element('li', 'Two'))), noPicture);
 
         expect(written).toEqual([
             {
@@ -95,10 +107,10 @@ describe('writtenIn', () => {
     });
 
     it('cuts a run longer than a kept message may carry, rather than composing one that is refused on reload', () => {
-        const written = writtenIn(region('a'.repeat(150_000)));
+        const written = writtenIn(region('a'.repeat(150_000)), noPicture);
 
         expect(plainTextOf(written).length).toBeLessThan(150_000);
-        expect(writtenTextIn(JSON.parse(JSON.stringify(written)) as unknown)).not.toBeNull();
+        expect(writtenTextIn(JSON.parse(JSON.stringify(written)) as unknown, nothingKept)).not.toBeNull();
     });
 
     it('stops at the count a kept message may carry, rather than composing one that is refused on reload', () => {
@@ -108,10 +120,10 @@ describe('writtenIn', () => {
             many.append(element('div', 'One'));
         }
 
-        const written = writtenIn(many);
+        const written = writtenIn(many, noPicture);
 
         expect(written.length).toBeLessThan(120_000);
-        expect(writtenTextIn(JSON.parse(JSON.stringify(written)) as unknown)).not.toBeNull();
+        expect(writtenTextIn(JSON.parse(JSON.stringify(written)) as unknown, nothingKept)).not.toBeNull();
     });
 
     it('reads the colour and the size an engine wrote on one font element as one run carrying both', () => {
@@ -120,7 +132,7 @@ describe('writtenIn', () => {
         font.setAttribute('color', '#B42318');
         font.setAttribute('size', '4');
 
-        expect(writtenIn(region(font))).toEqual([
+        expect(writtenIn(region(font), noPicture)).toEqual([
             { element: 'span', address: null, colour: '#b42318', size: 'large', holds: [{ text: 'urgent' }] },
         ]);
     });
@@ -137,7 +149,7 @@ describe('writtenIn', () => {
 
         font.setAttribute('size', written);
 
-        expect(writtenIn(region(font))).toEqual([
+        expect(writtenIn(region(font), noPicture)).toEqual([
             { element: 'span', address: null, size: step, holds: [{ text: 'words' }] },
         ]);
     });
@@ -153,7 +165,7 @@ describe('writtenIn', () => {
 
         font.setAttribute(attribute, value);
 
-        expect(writtenIn(region(font))).toEqual([{ text: 'words' }]);
+        expect(writtenIn(region(font), noPicture)).toEqual([{ text: 'words' }]);
     });
 
     it('reads no colour or size off a span when nothing says how the region draws one', () => {
@@ -161,7 +173,7 @@ describe('writtenIn', () => {
 
         span.setAttribute('style', 'color: rgb(180, 35, 24); font-size: 24px');
 
-        expect(writtenIn(region(span))).toEqual([{ text: 'merged' }]);
+        expect(writtenIn(region(span), noPicture)).toEqual([{ text: 'merged' }]);
     });
 
     it('reads the colour and the size an engine resolved onto a span back through how the region draws them', () => {
@@ -173,7 +185,7 @@ describe('writtenIn', () => {
 
         span.setAttribute('style', 'color: rgb(249, 112, 102); font-size: 18px');
 
-        expect(writtenIn(region(span), drawing)).toEqual([
+        expect(writtenIn(region(span), noPicture, drawing)).toEqual([
             { element: 'span', address: null, colour: '#b42318', size: 'large', holds: [{ text: 'moved' }] },
         ]);
     });
@@ -187,7 +199,7 @@ describe('writtenIn', () => {
 
         font.setAttribute('color', '#3D4350');
 
-        expect(writtenIn(region(font), drawing)).toEqual([{ text: 'plain' }]);
+        expect(writtenIn(region(font), noPicture, drawing)).toEqual([{ text: 'plain' }]);
     });
 
     it.each([['constructor'], ['toString']])(
@@ -197,7 +209,7 @@ describe('writtenIn', () => {
 
             font.setAttribute('size', value);
 
-            expect(writtenIn(region(font))).toEqual([{ text: 'words' }]);
+            expect(writtenIn(region(font), noPicture)).toEqual([{ text: 'words' }]);
         },
     );
 
@@ -208,7 +220,9 @@ describe('writtenIn', () => {
 
             block.setAttribute('align', value);
 
-            expect(writtenIn(region(block))).toEqual([{ element: 'div', address: null, holds: [{ text: 'Line' }] }]);
+            expect(writtenIn(region(block), noPicture)).toEqual([
+                { element: 'div', address: null, holds: [{ text: 'Line' }] },
+            ]);
         },
     );
 
@@ -218,7 +232,7 @@ describe('writtenIn', () => {
 
         span.setAttribute('style', 'color: rgb(1, 2, 3); font-size: 15px');
 
-        expect(writtenIn(region(span), drawing)).toEqual([{ text: 'inherited' }]);
+        expect(writtenIn(region(span), noPicture, drawing)).toEqual([{ text: 'inherited' }]);
     });
 
     it.each([
@@ -231,7 +245,7 @@ describe('writtenIn', () => {
 
         aligned.setAttribute('style', style);
 
-        expect(writtenIn(region(aligned))).toEqual([
+        expect(writtenIn(region(aligned), noPicture)).toEqual([
             { element: block, address: null, alignment: alignment, holds: [{ text: 'Line' }] },
         ]);
     });
@@ -241,7 +255,7 @@ describe('writtenIn', () => {
 
         aligned.setAttribute('align', 'center');
 
-        expect(writtenIn(region(aligned))).toEqual([
+        expect(writtenIn(region(aligned), noPicture)).toEqual([
             { element: 'div', address: null, alignment: 'center', holds: [{ text: 'Line' }] },
         ]);
     });
@@ -251,7 +265,7 @@ describe('writtenIn', () => {
 
         quotation.setAttribute('style', 'text-align: center');
 
-        expect(writtenIn(region(quotation))).toEqual([
+        expect(writtenIn(region(quotation), noPicture)).toEqual([
             { element: 'blockquote', address: null, holds: [{ text: 'Quoted' }] },
         ]);
     });
@@ -263,10 +277,51 @@ describe('writtenIn', () => {
             deepest = element('blockquote', deepest);
         }
 
-        const written = writtenIn(region(deepest));
+        const written = writtenIn(region(deepest), noPicture);
 
         expect(plainTextOf(written)).toContain('Still here');
-        expect(writtenTextIn(JSON.parse(JSON.stringify(written)) as unknown)).not.toBeNull();
+        expect(writtenTextIn(JSON.parse(JSON.stringify(written)) as unknown, nothingKept)).not.toBeNull();
+    });
+
+    it('keeps a picture by the name its address resolves to, and drops one whose address resolves to nothing', () => {
+        const issued = element('img');
+        const remote = element('img');
+        const pictureAt: PictureAt = (source) =>
+            source === 'blob:composer/one' ? { picture: pictureName, width: 800, height: 400 } : null;
+
+        issued.setAttribute('src', 'blob:composer/one');
+        remote.setAttribute('src', 'https://example.invalid/tracker.png');
+
+        expect(writtenIn(region('Before', issued, remote, 'after'), pictureAt)).toEqual([
+            { text: 'Before' },
+            { element: 'img', picture: pictureName, width: 800, height: 400 },
+            { text: 'after' },
+        ]);
+    });
+});
+
+describe('picturesNamedIn', () => {
+    it('names each picture once, in the order the tree first refers to it', () => {
+        const written: readonly WrittenNode[] = [
+            { element: 'img', picture: otherPictureName, width: 1, height: 1 },
+            { element: 'div', address: null, holds: [{ element: 'img', picture: pictureName, width: 1, height: 1 }] },
+            { element: 'img', picture: otherPictureName, width: 1, height: 1 },
+        ];
+
+        expect(picturesNamedIn(written)).toEqual([otherPictureName, pictureName]);
+    });
+});
+
+describe('sentSizeOf', () => {
+    it.each([
+        [400, 300, 400, 300],
+        [1200, 900, 600, 450],
+        [6000, 1, 600, 1],
+    ])('writes a %dx%d picture at %dx%d', (width, height, sentWidth, sentHeight) => {
+        expect(sentSizeOf({ element: 'img', picture: pictureName, width, height })).toEqual({
+            width: sentWidth,
+            height: sentHeight,
+        });
     });
 });
 
@@ -288,8 +343,29 @@ describe('colourOfRgb', () => {
 });
 
 describe('htmlOf', () => {
+    it('writes a picture by the source the reading asks for, and differs in nothing else', () => {
+        const written: readonly WrittenNode[] = [{ element: 'img', picture: pictureName, width: 1200, height: 900 }];
+
+        expect(htmlOf(written, asContentIdentifier)).toBe(
+            `<img src="cid:${pictureName}" width="600" height="450" style="max-width:100%;height:auto" />`,
+        );
+        expect(htmlOf(written, () => 'blob:composer/one')).toBe(
+            '<img src="blob:composer/one" width="600" height="450" style="max-width:100%;height:auto" />',
+        );
+    });
+
+    it('leaves a picture out of the plain text', () => {
+        expect(
+            plainTextOf([
+                { text: 'See' },
+                { element: 'img', picture: pictureName, width: 1, height: 1 },
+                { text: ' here' },
+            ]),
+        ).toBe('See here');
+    });
+
     it('escapes what somebody typed rather than letting it become markup', () => {
-        expect(htmlOf([{ text: 'a < b && c > d' }])).toBe('a &lt; b &amp;&amp; c &gt; d');
+        expect(htmlOf([{ text: 'a < b && c > d' }], asContentIdentifier)).toBe('a &lt; b &amp;&amp; c &gt; d');
     });
 
     it('escapes a link’s address in the attribute it is written into', () => {
@@ -297,13 +373,18 @@ describe('htmlOf', () => {
             { element: 'a', address: 'https://example.invalid/?a="b&c', holds: [{ text: 'there' }] },
         ];
 
-        expect(htmlOf(written)).toBe('<a href="https://example.invalid/?a=&quot;b&amp;c">there</a>');
+        expect(htmlOf(written, asContentIdentifier)).toBe(
+            '<a href="https://example.invalid/?a=&quot;b&amp;c">there</a>',
+        );
     });
 
     it('writes a line break as the element that carries no content', () => {
-        expect(htmlOf([{ text: 'One' }, { element: 'br', address: null, holds: [] }, { text: 'Two' }])).toBe(
-            'One<br />Two',
-        );
+        expect(
+            htmlOf(
+                [{ text: 'One' }, { element: 'br', address: null, holds: [] }, { text: 'Two' }],
+                asContentIdentifier,
+            ),
+        ).toBe('One<br />Two');
     });
 
     it('writes a run’s colour and size as an inline style from the closed values', () => {
@@ -311,7 +392,7 @@ describe('htmlOf', () => {
             { element: 'span', address: null, colour: '#175cd3', size: 'larger', holds: [{ text: 'Note' }] },
         ];
 
-        expect(htmlOf(written)).toBe('<span style="color:#175cd3;font-size:24px">Note</span>');
+        expect(htmlOf(written, asContentIdentifier)).toBe('<span style="color:#175cd3;font-size:24px">Note</span>');
     });
 
     it.each([
@@ -320,7 +401,7 @@ describe('htmlOf', () => {
         ['larger', '24px'],
         ['largest', '32px'],
     ] as const)('writes the %s step as %s', (size, length) => {
-        expect(htmlOf([{ element: 'span', address: null, size, holds: [{ text: 'a' }] }])).toBe(
+        expect(htmlOf([{ element: 'span', address: null, size, holds: [{ text: 'a' }] }], asContentIdentifier)).toBe(
             `<span style="font-size:${length}">a</span>`,
         );
     });
@@ -331,39 +412,42 @@ describe('htmlOf', () => {
         ['end', 'right'],
         ['justify', 'justify'],
     ] as const)('writes the %s alignment as %s, the composer writing no direction', (alignment, written) => {
-        expect(htmlOf([{ element: 'p', address: null, alignment, holds: [{ text: 'a' }] }])).toBe(
+        expect(htmlOf([{ element: 'p', address: null, alignment, holds: [{ text: 'a' }] }], asContentIdentifier)).toBe(
             `<p style="text-align:${written}">a</p>`,
         );
     });
 
     it('writes no colour that is not one, whatever the tree was handed', () => {
         expect(
-            htmlOf([{ element: 'span', address: null, colour: 'red;background:url(x)', holds: [{ text: 'a' }] }]),
+            htmlOf(
+                [{ element: 'span', address: null, colour: 'red;background:url(x)', holds: [{ text: 'a' }] }],
+                asContentIdentifier,
+            ),
         ).toBe('<span>a</span>');
     });
 });
 
 describe('plainTextOf', () => {
     it('reads each line an engine wrote as its own line', () => {
-        const written = writtenIn(region(element('div', 'One'), element('div', 'Two')));
+        const written = writtenIn(region(element('div', 'One'), element('div', 'Two')), noPicture);
 
         expect(plainTextOf(written)).toBe('One\nTwo');
     });
 
     it('reads a paragraph as a break in the reading rather than the next line', () => {
-        const written = writtenIn(region(element('p', 'One'), element('p', 'Two')));
+        const written = writtenIn(region(element('p', 'One'), element('p', 'Two')), noPicture);
 
         expect(plainTextOf(written)).toBe('One\n\nTwo');
     });
 
     it('marks a bulleted list so it still reads as one with no markup to draw it', () => {
-        const written = writtenIn(region(element('ul', element('li', 'One'), element('li', 'Two'))));
+        const written = writtenIn(region(element('ul', element('li', 'One'), element('li', 'Two'))), noPicture);
 
         expect(plainTextOf(written)).toBe('- One\n- Two');
     });
 
     it('numbers a numbered list from where it starts', () => {
-        const written = writtenIn(region(element('ol', element('li', 'First'), element('li', 'Second'))));
+        const written = writtenIn(region(element('ol', element('li', 'First'), element('li', 'Second'))), noPicture);
 
         expect(plainTextOf(written)).toBe('1. First\n2. Second');
     });
@@ -371,13 +455,14 @@ describe('plainTextOf', () => {
     it('quotes what was quoted, as mail has always written a quotation', () => {
         const written = writtenIn(
             region(element('blockquote', element('div', 'You wrote'), element('div', 'this')), 'Agreed.'),
+            noPicture,
         );
 
         expect(plainTextOf(written)).toBe('> You wrote\n> this\nAgreed.');
     });
 
     it('reads emphasis as the words it emphasized, there being no plain-text spelling of it', () => {
-        const written = writtenIn(region('Read the ', element('b', 'third'), ' column.'));
+        const written = writtenIn(region('Read the ', element('b', 'third'), ' column.'), noPicture);
 
         expect(plainTextOf(written)).toBe('Read the third column.');
     });
@@ -440,7 +525,7 @@ describe('writtenTextIn', () => {
             { element: 'div', address: null, holds: [{ text: 'Half a sentence' }] },
         ];
 
-        expect(writtenTextIn(JSON.parse(JSON.stringify(written)))).toEqual(written);
+        expect(writtenTextIn(JSON.parse(JSON.stringify(written)), nothingKept)).toEqual(written);
     });
 
     it('reads back the colours, sizes, and alignments this client wrote', () => {
@@ -456,7 +541,7 @@ describe('writtenTextIn', () => {
             },
         ];
 
-        expect(writtenTextIn(JSON.parse(JSON.stringify(written)))).toEqual(written);
+        expect(writtenTextIn(JSON.parse(JSON.stringify(written)), nothingKept)).toEqual(written);
     });
 
     it.each([
@@ -477,7 +562,7 @@ describe('writtenTextIn', () => {
         ],
         ['a run carrying neither a colour nor a size', [{ element: 'span', address: null, holds: [] }]],
     ])('refuses %s', (_, kept) => {
-        expect(writtenTextIn(kept)).toBeNull();
+        expect(writtenTextIn(kept, nothingKept)).toBeNull();
     });
 
     it.each([
@@ -492,7 +577,7 @@ describe('writtenTextIn', () => {
             [{ element: 'blockquote', address: 'https://example.invalid', holds: [] }],
         ],
     ])('refuses %s', (_, kept) => {
-        expect(writtenTextIn(kept)).toBeNull();
+        expect(writtenTextIn(kept, nothingKept)).toBeNull();
     });
 
     it('refuses a message nested deeper than anything the composer writes', () => {
@@ -502,7 +587,32 @@ describe('writtenTextIn', () => {
             deepest = { element: 'div', address: null, holds: [deepest] };
         }
 
-        expect(writtenTextIn([deepest])).toBeNull();
+        expect(writtenTextIn([deepest], nothingKept)).toBeNull();
+    });
+
+    it('reads back a picture the kept pictures hold, and drops one they do not without refusing the rest', () => {
+        const kept = [
+            { element: 'img', picture: pictureName, width: 10, height: 20 },
+            { text: 'words' },
+            { element: 'img', picture: otherPictureName, width: 10, height: 20 },
+        ];
+
+        expect(writtenTextIn(kept, (picture) => picture === pictureName)).toEqual([
+            { element: 'img', picture: pictureName, width: 10, height: 20 },
+            { text: 'words' },
+        ]);
+    });
+
+    it.each([
+        ['a name the composer never mints', { element: 'img', picture: 'one.png', width: 10, height: 20 }],
+        [
+            'a side that is not a whole number of pixels',
+            { element: 'img', picture: pictureName, width: 10.5, height: 20 },
+        ],
+        ['a side of nothing', { element: 'img', picture: pictureName, width: 0, height: 20 }],
+        ['a side past any header', { element: 'img', picture: pictureName, width: 10, height: 70_000 }],
+    ])('refuses a picture with %s', (_, picture) => {
+        expect(writtenTextIn([picture], () => true)).toBeNull();
     });
 });
 
@@ -542,6 +652,7 @@ describe('a table', () => {
                         ),
                     ),
                 ),
+                noPicture,
             );
 
             expect(read).toEqual([
@@ -564,6 +675,7 @@ describe('a table', () => {
                         element('tr', element('td', 'a'), attributed(element('td', 'b'), { bgcolor: '#FDE8E8' })),
                     ),
                 ),
+                noPicture,
             );
 
             expect(read).toEqual([
@@ -577,6 +689,7 @@ describe('a table', () => {
         it('reads a start alignment as none, since every cell is drawn at the start anyway', () => {
             const read = writtenIn(
                 region(element('table', element('tr', attributed(element('td', 'a'), { style: 'text-align:left' })))),
+                noPicture,
             );
 
             expect(read).toEqual([table(row(cell('a')))]);
@@ -587,6 +700,7 @@ describe('a table', () => {
                 region(
                     element('table', element('tr', element('td', element('br')), element('td', 'a', element('br')))),
                 ),
+                noPicture,
             );
 
             expect(read).toEqual([table(row(cell(''), cell('a')))]);
@@ -597,6 +711,7 @@ describe('a table', () => {
                 region(
                     element('table', element('tr', element('td', 'one', element('div', 'two'), element('p', 'three')))),
                 ),
+                noPicture,
             );
 
             expect(read).toEqual([
@@ -612,7 +727,7 @@ describe('a table', () => {
 
         it('takes a table inside a cell apart into what its cells said, a line each', () => {
             const nested = element('table', element('tr', element('td', 'x'), element('td', 'y')));
-            const read = writtenIn(region(element('table', element('tr', element('td', nested)))));
+            const read = writtenIn(region(element('table', element('tr', element('td', nested)))), noPicture);
 
             expect(read).toEqual([
                 table(row({ element: 'td', address: null, holds: [{ text: 'x' }, lineBreak, { text: 'y' }] })),
@@ -621,7 +736,7 @@ describe('a table', () => {
 
         it('takes a table one column past the bound apart into its cells’ lines', () => {
             const wide = element('tr', ...Array.from({ length: 21 }, (_, index) => element('td', `c${String(index)}`)));
-            const read = writtenIn(region(element('table', wide)));
+            const read = writtenIn(region(element('table', wide)), noPicture);
 
             expect(read).toHaveLength(21);
             expect(read[0]).toEqual({ element: 'div', address: null, holds: [{ text: 'c0' }] });
@@ -636,6 +751,7 @@ describe('a table', () => {
                         element('tr', element('td', 'c')),
                     ),
                 ),
+                noPicture,
             );
 
             expect(read).toEqual([table(row(cell('a', { rowSpan: 2 }), cell('b')), row(cell('c')))]);
@@ -658,21 +774,23 @@ describe('a table', () => {
                 row(cell('3', { alignment: 'end', background: '#f0f4ff', columnSpan: 2, rowSpan: 3 })),
             );
 
-            expect(htmlOf([written])).toBe(
+            expect(htmlOf([written], asContentIdentifier)).toBe(
                 `<table style="border-collapse:collapse"><tr><th style="${grid};text-align:left">Item</th></tr>` +
                     `<tr><td colspan="2" rowspan="3" style="${grid};background-color:#f0f4ff;text-align:right">3</td></tr></table>`,
             );
         });
 
         it('gives a cell ending on a break a second break, so the line it ends is drawn', () => {
-            expect(htmlOf([{ element: 'td', address: null, holds: [{ text: 'a' }, lineBreak] }])).toBe(
-                `<td style="${grid};text-align:left">a<br /><br /></td>`,
-            );
+            expect(
+                htmlOf([{ element: 'td', address: null, holds: [{ text: 'a' }, lineBreak] }], asContentIdentifier),
+            ).toBe(`<td style="${grid};text-align:left">a<br /><br /></td>`);
         });
 
         it('gives the editor an empty cell a break to put the caret on, and the HTML part none', () => {
-            expect(htmlOf([cell('')])).toBe(`<td style="${grid};text-align:left"></td>`);
-            expect(htmlOf([cell('')], 'editor')).toBe(`<td style="${grid};text-align:left"><br /></td>`);
+            expect(htmlOf([cell('')], asContentIdentifier)).toBe(`<td style="${grid};text-align:left"></td>`);
+            expect(htmlOf([cell('')], asContentIdentifier, 'editor')).toBe(
+                `<td style="${grid};text-align:left"><br /></td>`,
+            );
         });
 
         it('spells a run for the editor as the font the editing commands write, and for the mail as a style', () => {
@@ -684,8 +802,8 @@ describe('a table', () => {
                 holds: [{ text: 'late' }],
             };
 
-            expect(htmlOf([run], 'editor')).toBe('<font color="#b42318" size="4">late</font>');
-            expect(htmlOf([run])).toBe('<span style="color:#b42318;font-size:18px">late</span>');
+            expect(htmlOf([run], asContentIdentifier, 'editor')).toBe('<font color="#b42318" size="4">late</font>');
+            expect(htmlOf([run], asContentIdentifier)).toBe('<span style="color:#b42318;font-size:18px">late</span>');
         });
 
         it('reads in plain text as a row to a line, its cells side by side', () => {
@@ -713,7 +831,7 @@ describe('a table', () => {
                 ),
             ];
 
-            expect(writtenTextIn(kept)).toEqual(kept);
+            expect(writtenTextIn(kept, nothingKept)).toEqual(kept);
         });
 
         const paragraph: WrittenMarkup = { element: 'p', address: null, holds: [] };
@@ -733,8 +851,20 @@ describe('a table', () => {
             ['a row span past the last row', [table(row(cell('a', { rowSpan: 2 })))]],
             ['a table with no row', [table()]],
             ['a row with no cell', [table(row(cell('a')), row())]],
+            [
+                'a picture in a cell',
+                [
+                    table(
+                        row({
+                            element: 'td',
+                            address: null,
+                            holds: [{ element: 'img', picture: pictureName, width: 1, height: 1 }],
+                        }),
+                    ),
+                ],
+            ],
         ])('refuses %s', (_, kept) => {
-            expect(writtenTextIn(kept)).toBeNull();
+            expect(writtenTextIn(kept, () => true)).toBeNull();
         });
     });
 });

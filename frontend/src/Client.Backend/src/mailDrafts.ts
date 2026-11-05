@@ -130,6 +130,12 @@ export interface MailDraftList {
     readonly maximumCount: number;
 }
 
+/** One picture a draft carries inside its message: the name its markup refers to it by, and its octets as base64. */
+export interface MailDraftPicture {
+    readonly name: string;
+    readonly content: string;
+}
+
 /**
  * What an author has written, as a save states it.
  *
@@ -149,6 +155,14 @@ export type MailDraftComposition = {
      * text at all.
      */
     readonly htmlBody: string | null;
+
+    /**
+     * The pictures the HTML alternative draws, each referred to from it as `cid:` and its name.
+     *
+     * Stated on every save, as the words are: a revision that leaves a picture out is one whose draft no longer carries
+     * it. The deployment mints the content identifier each goes out under, so no name stated here reaches a header.
+     */
+    readonly pictures: readonly MailDraftPicture[];
     readonly to: readonly string[];
     readonly cc: readonly string[];
     readonly bcc: readonly string[];
@@ -534,6 +548,7 @@ function stated(composition: MailDraftComposition): Readonly<Record<string, unkn
     const written = {
         plainTextBody: composition.plainTextBody,
         htmlBody: composition.htmlBody,
+        pictures: composition.pictures.map(({ name, content }) => ({ name, content })),
         to: composition.to,
         cc: composition.cc,
         bcc: composition.bcc,

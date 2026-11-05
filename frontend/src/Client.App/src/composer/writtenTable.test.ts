@@ -46,11 +46,11 @@ function grid(written: WrittenMarkup | null): readonly (readonly string[])[] | n
     return written === null
         ? null
         : written.holds.map((row) =>
-              'text' in row
+              !('holds' in row)
                   ? []
                   : row.holds.map((held) => {
-                        if ('text' in held) {
-                            return held.text;
+                        if (!('holds' in held)) {
+                            return 'text' in held ? held.text : '';
                         }
 
                         const words = held.holds.map((node: WrittenNode) => ('text' in node ? node.text : '')).join('');

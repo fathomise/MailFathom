@@ -11,7 +11,8 @@ import type {
     MailParticipant,
 } from '@mailfathom/client-backend';
 import { draftWords } from './draftWords';
-import { htmlOf, plainTextOf, type WrittenNode } from './writtenText';
+import { base64Of, type HeldPicture } from './pictures';
+import { htmlOf, picturesNamedIn, plainTextOf, type WrittenNode } from './writtenText';
 
 // What somebody is writing, as values rather than as anything on the screen. The composer draws it, the confirmation
 // reads it, and everything below is the arithmetic between: what an answer opens addressed to, what a subject reads as,
@@ -109,6 +110,15 @@ export interface Composition {
     readonly words: readonly WrittenNode[];
 
     /**
+     * The pictures the composer holds for this message, by the name the words refer to each with.
+     *
+     * It holds every picture this composition has held, not only the ones the words name now: one cut and pasted
+     * elsewhere, or brought back by Ctrl+Z, is still the composer's to draw. Only the pictures the words name are kept
+     * across a reload, counted against the bounds, or sent.
+     */
+    readonly pictures: ReadonlyMap<string, HeldPicture>;
+
+    /**
      * Whether it asks to be told when each recipient's server delivers it or cannot, and whether it asks each
      * recipient's mail client for a read receipt.
      *
@@ -149,6 +159,7 @@ export function nothingWrittenYet(account: string, to: readonly string[] = []): 
         cc: [],
         bcc: [],
         words: [],
+        pictures: new Map(),
         ...nothingRequested,
     };
 }
@@ -176,6 +187,7 @@ export function answerTo(message: MailMessage, answers: MailDraftAnswer): Compos
         cc: answers === 'everyone' ? everybody.filter((address) => !to.includes(address)) : [],
         bcc: [],
         words: [],
+        pictures: new Map(),
         ...nothingRequested,
     };
 }
@@ -200,7 +212,7 @@ export function draftContinued(message: MailMessage, body: MailBody | null): Com
         to: addressesOf(message.headers.participants, ['To']),
         cc: addressesOf(message.headers.participants, ['Cc']),
         bcc: addressesOf(message.headers.participants, ['Bcc']),
-        words: body === null ? [] : draftWords(body),
+        ...(body === null ? { words: [], pictures: new Map() } : draftWords(body)),
 
         // What a message in a drafts folder would ask for when sent is nothing its reading here carries, so carrying
         // it on opens asking for neither, as every other message does.
@@ -227,7 +239,7 @@ export function draftHeld(reading: MailDraftReading): Composition {
         to: addressed('To'),
         cc: addressed('Cc'),
         bcc: addressed('Bcc'),
-        words: draftWords({ document: reading.document, plainText: { text: reading.plainTextBody } }),
+        ...draftWords({ document: reading.document, plainText: { text: reading.plainTextBody } }),
         requestsDeliveryNotification: draft.requestsDeliveryNotification,
         requestsReadReceipt: draft.requestsReadReceipt,
     };
@@ -271,6 +283,7 @@ export function whatWouldBeMissing(composition: Composition): readonly SendCauti
 export function anythingWritten(composition: Composition): boolean {
     return (
         plainTextOf(composition.words).trim() !== '' ||
+        picturesNamedIn(composition.words).length > 0 ||
         composition.to.length > 0 ||
         composition.cc.length > 0 ||
         composition.bcc.length > 0
@@ -285,13 +298,16 @@ export function anythingWritten(composition: Composition): boolean {
  */
 export function wireComposition(composition: Composition): MailDraftComposition {
     const plainText = plainTextOf(composition.words);
+    const markedUp = plainText !== '';
 
     const written = {
         plainTextBody: plainText,
 
         // Both parts, or neither: a message with nothing written in it states no HTML alternative to nothing, and one
-        // with words in it carries the markup its author gave them beside the reading every mail client has.
-        htmlBody: plainText === '' ? null : htmlOf(composition.words),
+        // with words in it carries the markup its author gave them beside the reading every mail client has. Its
+        // pictures travel with the markup, which is the only part that refers to them, each by `cid:` and its name.
+        htmlBody: markedUp ? htmlOf(composition.words, (picture) => `cid:${picture}`) : null,
+        pictures: markedUp ? picturesSent(composition) : [],
         to: composition.to,
         cc: composition.cc,
         bcc: composition.bcc,
@@ -325,6 +341,15 @@ export function looksLikeAnAddress(text: string): boolean {
         domain.length > 0 &&
         !/\s/u.test(text)
     );
+}
+
+/** The pictures the words name, each once, which are the only ones a save carries. */
+function picturesSent(composition: Composition): readonly { readonly name: string; readonly content: string }[] {
+    return picturesNamedIn(composition.words).flatMap((name) => {
+        const picture = composition.pictures.get(name);
+
+        return picture === undefined ? [] : [{ name, content: base64Of(picture.octets) }];
+    });
 }
 
 /** The addresses written in any of the named headers, in the order they were written and without a repeat. */

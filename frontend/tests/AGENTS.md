@@ -523,9 +523,12 @@ changing. `pnpm test:desktop` is the whole of how it runs.
   sits under one the run owns, and the run's teardown removes it: a shell outlives the session that ended it and its
   graphics stack writes a cache under the profile afterwards, so a removal as each case closes either races that write
   or waits out a duration nobody measured.
-- **What it owns is what the platform answers, and nothing else.** Two rules qualify today and both are
+- **What it owns is what the platform answers, and nothing else.** Three rules qualify today. Two are
   [#1462](https://github.com/fathomise/MailFathom/issues/1462)'s: that an instant is placed against the zone the
-  runtime reports, and that a first run opens in the language the platform states. A check belongs here by being
+  runtime reports, and that a first run opens in the language the platform states. The third is
+  [#2854](https://github.com/fathomise/MailFathom/issues/2854)'s: that a picture pasted into the composer reaches it
+  as a file and is drawn from the object URL the composer issued, under the shell's own content security policy. A
+  check belongs here by being
   unanswerable in the other three — a component, a label, a layout, a journey, a request on the wire, or anything about
   the accessibility tree belongs above, and a copy of one here buys a slower answer and a second thing to keep in step.
 - **It asserts a literal spelling, never a formatter built the same way.** That is the rule § _A localized screen_

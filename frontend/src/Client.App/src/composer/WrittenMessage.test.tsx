@@ -2,9 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
+import { pictureAddresses } from './pictureAddresses';
+import type { HeldPicture } from './pictures';
 import { WrittenMessage } from './WrittenMessage';
 import {
     newTable,
@@ -22,6 +24,9 @@ import { htmlOf, type WrittenMarkup, type WrittenNode } from './writtenText';
 
 const declaredMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
 const declaredExecCommand = Object.getOwnPropertyDescriptor(document, 'execCommand');
+
+// A table holds no picture, so where one is written no picture's source is ever asked for.
+const noPicture = () => '';
 
 let pointerIsCoarse = false;
 let commanded: { readonly command: string; readonly argument: string | undefined }[] = [];
@@ -82,20 +87,34 @@ afterEach(() => {
     }
 });
 
-function drawWords(opened: readonly WrittenNode[] = []): {
+function drawWords(
+    opened: readonly WrittenNode[] = [],
+    pictures: ReadonlyMap<string, HeldPicture> = new Map(),
+    picturesKeptHereOnly = false,
+): {
     written: ReturnType<typeof vi.fn>;
     sendAsked: ReturnType<typeof vi.fn>;
+    pictureHeld: ReturnType<typeof vi.fn>;
 } {
     const written = vi.fn();
     const sendAsked = vi.fn();
+    const pictureHeld = vi.fn();
 
     render(
         <LocalizationProvider>
-            <WrittenMessage opened={opened} onWritten={written} onSendAsked={sendAsked} />
+            <WrittenMessage
+                opened={opened}
+                pictures={pictures}
+                addresses={pictureAddresses()}
+                picturesKeptHereOnly={picturesKeptHereOnly}
+                onWritten={written}
+                onPictureHeld={pictureHeld}
+                onSendAsked={sendAsked}
+            />
         </LocalizationProvider>,
     );
 
-    return { written, sendAsked };
+    return { written, sendAsked, pictureHeld };
 }
 
 function words(): HTMLElement {
@@ -150,7 +169,9 @@ describe('WrittenMessage', () => {
     it('takes what was pasted as text rather than as whatever markup it arrived in', () => {
         drawWords();
 
-        fireEvent.paste(words(), { clipboardData: { getData: () => 'Pasted from somewhere else' } });
+        fireEvent.paste(words(), {
+            clipboardData: { getData: () => 'Pasted from somewhere else', types: ['text/plain'], files: [] },
+        });
 
         expect(acts()).toEqual([{ command: 'insertText', argument: 'Pasted from somewhere else' }]);
     });
@@ -162,7 +183,7 @@ describe('WrittenMessage, a pasted address', () => {
     // A paste lands in the region somebody is writing in, so the region holds the focus before the selection is made:
     // jsdom collapses a selection when an unfocused region takes the focus, which a browser's paste never does.
     function pasteText(text: string): void {
-        fireEvent.paste(words(), { clipboardData: { getData: () => text } });
+        fireEvent.paste(words(), { clipboardData: { getData: () => text, types: ['text/plain'], files: [] } });
     }
 
     function placeTheCaret(): void {
@@ -489,7 +510,7 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
         drawWords();
 
         press('Text size - Normal');
-        fireEvent.paste(words(), { clipboardData: { getData: () => 'pasted' } });
+        fireEvent.paste(words(), { clipboardData: { getData: () => 'pasted', types: ['text/plain'], files: [] } });
 
         expect(screen.queryByRole('menu')).toBeNull();
     });
@@ -565,7 +586,7 @@ describe('WrittenMessage, tables', () => {
         fireEvent.click(screen.getByRole('menuitem', { name: 'Insert a 4 × 3 table' }));
 
         expect(acts()).toEqual([
-            { command: 'insertHTML', argument: htmlOf([newTable(4, 3, false), aLineAfter], 'editor') },
+            { command: 'insertHTML', argument: htmlOf([newTable(4, 3, false), aLineAfter], noPicture, 'editor') },
         ]);
         expect(screen.queryByRole('menu')).toBeNull();
     });
@@ -643,7 +664,7 @@ describe('WrittenMessage, tables', () => {
         fireEvent.click(screen.getByRole('button', { name: named }));
 
         expect(acts()).toEqual([
-            { command: 'insertHTML', argument: htmlOf(edited === null ? [] : [edited], 'editor') },
+            { command: 'insertHTML', argument: htmlOf(edited === null ? [] : [edited], noPicture, 'editor') },
         ]);
         expect(selectedWhenCommanded).toEqual(['DayHoursMonday9']);
     });
@@ -669,7 +690,7 @@ describe('WrittenMessage, tables', () => {
         fireEvent.keyDown(words(), { key: 'Tab' });
 
         expect(acts()).toEqual([
-            { command: 'insertHTML', argument: htmlOf([withRowAppended(hours).table ?? hours], 'editor') },
+            { command: 'insertHTML', argument: htmlOf([withRowAppended(hours).table ?? hours], noPicture, 'editor') },
         ]);
     });
 
@@ -696,9 +717,29 @@ describe('WrittenMessage, tables', () => {
         drawWords([hours]);
 
         caretAfter('Monday');
-        fireEvent.paste(words(), { clipboardData: { getData: () => 'closed\nall day' } });
+        fireEvent.paste(words(), {
+            clipboardData: { getData: () => 'closed\nall day', types: ['text/plain'], files: [] },
+        });
 
         expect(acts()).toEqual([{ command: 'insertText', argument: 'closed all day' }]);
+    });
+
+    it('refuses a picture pasted into a cell, which holds none, and says where it goes instead', async () => {
+        drawWords([hours]);
+
+        caretAfter('Monday');
+        fireEvent.paste(words(), {
+            clipboardData: {
+                getData: () => '',
+                types: ['Files'],
+                files: [new File(['a picture'], 'chart.png', { type: 'image/png' })],
+            },
+        });
+
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            'Nothing was pasted - a table cell holds words, colour and size only, so a picture goes outside the table.',
+        );
+        expect(acts()).toEqual([]);
     });
 });
 
@@ -729,5 +770,137 @@ describe('WrittenMessage, the two pointer compositions', () => {
 
         expect(screen.getByRole('toolbar', { name: 'Formatting' })).toBeDefined();
         expect(screen.getByRole('button', { name: 'Hide formatting' })).toBeDefined();
+    });
+});
+
+describe('WrittenMessage, pictures', () => {
+    const pictureName = '01890a5d-ac96-774b-bcce-b302099a8057';
+
+    // A PNG header stating 800 by 600 pixels, which is all the composer reads of one.
+    const png = new Uint8Array([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0x03, 0x20, 0, 0,
+        0x02, 0x58,
+    ]);
+
+    const held: HeldPicture = { octets: png, type: 'image/png', width: 800, height: 600, label: 'chart.png' };
+
+    let issued = 0;
+
+    beforeEach(() => {
+        issued = 0;
+        vi.spyOn(URL, 'createObjectURL').mockImplementation(() => `blob:composer/${String((issued += 1))}`);
+        vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    function pasteFiles(files: readonly File[], types: readonly string[] = ['Files'], plain = ''): void {
+        words().focus();
+        window.getSelection()?.collapse(words(), 0);
+        fireEvent.paste(words(), { clipboardData: { getData: () => plain, types, files } });
+    }
+
+    function pngFile(name = 'chart.png', octets: Uint8Array = png): File {
+        return new File([octets.slice()], name, { type: 'image/png' });
+    }
+
+    it('inserts a pasted picture from an address of its own, written at the most a message carries', async () => {
+        const { pictureHeld } = drawWords();
+
+        pasteFiles([pngFile()]);
+
+        await waitFor(() => {
+            expect(acts()).toEqual([
+                {
+                    command: 'insertHTML',
+                    argument:
+                        '<img src="blob:composer/1" width="600" height="450" style="max-width:100%;height:auto" />',
+                },
+            ]);
+        });
+        expect(pictureHeld).toHaveBeenCalledWith(expect.stringMatching(/^[0-9a-f-]{36}$/u), {
+            octets: png,
+            type: 'image/png',
+            width: 800,
+            height: 600,
+            label: 'chart.png',
+        });
+    });
+
+    it('pastes the words rather than the picture where formatted words come with it', () => {
+        drawWords();
+
+        pasteFiles([pngFile()], ['text/plain', 'text/html', 'Files'], 'Revenue 2026');
+
+        expect(acts()).toEqual([{ command: 'insertText', argument: 'Revenue 2026' }]);
+    });
+
+    it('takes the picture where the formatted flavour carries no words, as a browser’s copied image does', async () => {
+        drawWords();
+
+        pasteFiles([pngFile()], ['text/html', 'Files']);
+
+        await waitFor(() => {
+            expect(acts().map((act) => act.command)).toEqual(['insertHTML']);
+        });
+    });
+
+    it('refuses a file that is not one of the three kinds by what it opens with, whatever it is named', async () => {
+        drawWords();
+
+        pasteFiles([new File(['not a picture'], 'holiday.heic', { type: 'image/heic' })]);
+
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            '“holiday.heic” was not added - the composer takes PNG, JPEG, and GIF pictures, and this one is HEIC.',
+        );
+        expect(acts()).toEqual([]);
+    });
+
+    it('refuses one picture past the most one may hold, and inserts none of a paste it refused', async () => {
+        const large = new Uint8Array(2 * 1024 * 1024 + 1);
+
+        large.set(png);
+        drawWords();
+
+        pasteFiles([pngFile('small.png'), pngFile('scan.png', large)]);
+
+        expect((await screen.findByRole('alert')).textContent).toMatch(
+            /^“scan\.png” was not added - it is .+, and one picture can be at most .+\.$/u,
+        );
+        expect(acts()).toEqual([]);
+    });
+
+    it('puts a refusal away when it is dismissed', async () => {
+        drawWords();
+
+        pasteFiles([new File(['not a picture'], 'notes.txt', { type: 'text/plain' })]);
+        await screen.findByRole('alert');
+        press('Dismiss');
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('chooses a picture pressed in the words, says what it is, and removes it as one step', () => {
+        drawWords([{ element: 'img', picture: pictureName, width: 800, height: 600 }], new Map([[pictureName, held]]));
+
+        fireEvent.click(words().querySelector('img') ?? words());
+
+        const strip = screen.getByRole('toolbar', { name: 'Picture' });
+
+        expect(strip.textContent).toContain('chart.png');
+        expect(strip.textContent).toContain('sent at most 600 px wide');
+
+        press('Remove picture');
+
+        expect(acts()).toEqual([{ command: 'delete', argument: undefined }]);
+        expect(screen.queryByRole('toolbar', { name: 'Picture' })).toBeNull();
+    });
+
+    it('says the pictures are kept in this window only where the store would not take them', () => {
+        drawWords([], new Map(), true);
+
+        expect(screen.getByRole('status').textContent).toContain('kept in this window only');
     });
 });
