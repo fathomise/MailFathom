@@ -9,11 +9,11 @@ using MailFathom.Cli.Output;
 
 namespace MailFathom.Cli.Commands.Rules;
 
-/// <summary>Reports which mail rules a deployment is running, and whether its rule file was accepted.</summary>
+/// <summary>Reports one mail account's stored rules, in the order they run, and whether the set is held.</summary>
 /// <remarks>
-/// The command an operator runs after editing rules. A reload whose rules did not validate is refused and leaves the
-/// previous set in force, which is the right behavior and a silent one — the refusal reaches the log and nothing else,
-/// so a file that was edited and a deployment that is unchanged look identical until this is asked.
+/// A set is held when an enabled rule no longer compiles — a condition bound tightened, a fact withdrawn by a release —
+/// and then no pass runs any of the account's rules. That is the right behavior and a quiet one, so the listing says
+/// so before it lists anything.
 /// </remarks>
 internal static class ListRulesCommand
 {
@@ -26,22 +26,33 @@ internal static class ListRulesCommand
         ArgumentNullException.ThrowIfNull(context);
 
         var endpointOption = CliOptions.Endpoint();
+        var accountOption = CliOptions.MailAccount();
 
-        Command command = new("list", "Report the mail rules the deployment has loaded, in the order they run.")
+        Command command = new("list", "Report one mail account's rules, in the order they run.")
         {
+            accountOption,
             endpointOption,
         };
 
         command.SetAction((result, cancellationToken) => RunAsync(
             context,
+            result.GetValue(accountOption) ?? string.Empty,
             CliOptions.RequestedDeployment(result.GetValue(endpointOption), context.Variable(CliOptions.EndpointVariable)),
             cancellationToken));
 
         return command;
     }
 
+    /// <summary>States whether a pass runs the set, naming the rules that hold it where one does.</summary>
+    /// <param name="ruleSet">The account's stored set.</param>
+    /// <returns>One line an operator reads.</returns>
+    internal static string DescribeHold(LoadedRuleSet ruleSet) => ruleSet.Held
+        ? $"Held: no pass runs these rules, because {string.Join(", ", ruleSet.UncompiledRules ?? [])} no longer compile. Change or remove those rules to release the set."
+        : "Running: every enabled rule below is applied.";
+
     private static async Task<int> RunAsync(
         CliContext context,
+        string account,
         string? requestedDeployment,
         CancellationToken cancellationToken)
     {
@@ -49,49 +60,39 @@ internal static class ListRulesCommand
 
         using var transport = context.OpenTransport(profile.Endpoint, profile.Trust);
         var ruleSet = await new AdminApiClient(transport, context.Console)
-            .ReadRulesAsync(profile.Token, cancellationToken);
+            .ReadRulesAsync(profile.Token, account, cancellationToken);
 
-        WriteRuleSet(context, profile.Name, ruleSet);
+        WriteRuleSet(context, account, ruleSet);
 
         return CliExitCode.Success;
     }
 
-    /// <summary>Writes the set as an operator reads it: what is in force, then the rules in the order they run.</summary>
-    internal static void WriteRuleSet(CliContext context, string profileName, LoadedRuleSet ruleSet)
+    /// <summary>Writes the set as an operator reads it: whether it runs, then the rules in the order they run.</summary>
+    private static void WriteRuleSet(CliContext context, string account, LoadedRuleSet ruleSet)
     {
-        context.Console.WriteLine($"{profileName} — rule set {ruleSet.Revision ?? "unreported"}");
-        context.Console.WriteLine(DescribeAcceptance(ruleSet));
+        context.Console.WriteLine($"{account} — rule set {ConsoleSafeText.Sanitize(ruleSet.Revision) ?? "unreported"}, version {ruleSet.Version}");
+        context.Console.WriteLine(DescribeHold(ruleSet));
 
         if (ruleSet.Rules is not { Count: > 0 } rules)
         {
-            context.Console.WriteLine("This deployment declares no rules, so nothing is applied to its mail.");
+            context.Console.WriteLine("This account has no rules, so nothing is applied to its mail.");
 
             return;
         }
 
         context.Console.WriteLine(string.Empty);
 
-        CliTable listing = new("Rule", "Applies to", "Runs on", "A match");
+        CliTable listing = new("Rule", "State", "Runs on", "A match");
 
         foreach (var rule in rules)
         {
             listing.AddRow(
-                rule.Name ?? "an unnamed rule",
-                rule.DescribeScope(),
+                ConsoleSafeText.Sanitize(rule.Name) ?? "an unnamed rule",
+                rule.DescribeState(),
                 rule.DescribeTriggers(),
                 rule.DescribeActions());
         }
 
         context.Console.Write(listing);
     }
-
-    /// <summary>States whether the configuration on disk is the one the running set was read from.</summary>
-    /// <remarks>
-    /// The refusal names a count rather than the messages. What was wrong is in the deployment's log, and the messages
-    /// quote what the operator wrote — a condition among it — which is not something to echo back over the network to
-    /// somebody who can already read the file.
-    /// </remarks>
-    private static string DescribeAcceptance(LoadedRuleSet ruleSet) => ruleSet.ConfigurationAccepted
-        ? "Configuration: accepted. What is running is what the file says."
-        : $"Configuration: REFUSED — {ruleSet.RefusedSettingCount} setting(s) were rejected and the rules above are the last set that validated. The deployment's log says which.";
 }

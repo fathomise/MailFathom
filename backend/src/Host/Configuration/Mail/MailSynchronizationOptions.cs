@@ -19,7 +19,6 @@ using MailFathom.Domain.Folders;
 using MailFathom.Domain.Synchronization;
 using MailFathom.Domain.Transport;
 using MailFathom.Host.Configuration.Mail.Readers;
-using MailFathom.Host.Configuration.Rules;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.Spam;
 using MailFathom.Host.Configuration.UserSettings;
@@ -1066,8 +1065,9 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// <summary>Gets or sets which changes a mail rule may make to this account's mailbox.</summary>
     /// <remarks>
     /// Omitting the block permits the three reversible actions and refuses deletion, which is what every account gets
-    /// until it says otherwise. What a rule declares is judged against this when the rule set is read, so an account
-    /// that refuses an action never has a rule silently skipped over it.
+    /// until it says otherwise. A write that adds, changes, or enables a rule is refused when the rule declares an
+    /// action this block does not permit, and an action a later narrowing forbids is refused when the rule runs rather
+    /// than skipped, so an account that refuses an action never has a rule silently do less than it declares.
     /// </remarks>
     public MailRuleActionPermissionOptions RuleActions { get; set; } = new();
 

@@ -9,19 +9,12 @@ using MailFathom.Cli.Output;
 
 namespace MailFathom.Cli.Commands.Rules;
 
-/// <summary>Reports one loaded rule in full: what it applies to, what it reads, and what a match does.</summary>
+/// <summary>Reports one stored rule of a mail account in full: its condition, what runs it, and what a match does.</summary>
 /// <remarks>
-/// <para>
-/// It reads the whole set and chooses from it rather than asking the deployment for one rule. A rule means what it does
-/// partly because of its position — which rule reaches a message first is a property of the set — so the deployment
-/// publishes the set and choosing is this command's half of the work. It also means a rule named after one of the
-/// deployment's own routes is reachable like any other.
-/// </para>
-/// <para>
-/// The condition an operator wrote is not shown, because the deployment does not have it: a compiled rule carries no
-/// text, which is what keeps an address somebody typed into a condition out of every record naming the rule. What is
-/// shown of the condition is the facts it can reach.
-/// </para>
+/// It reads the account's whole set and chooses from it rather than asking the deployment for one rule. A rule means
+/// what it does partly because of its position — which rule reaches a message first is a property of the set — so the
+/// deployment publishes the set and choosing is this command's half of the work. It also means a rule named after one
+/// of the deployment's own routes is reachable like any other.
 /// </remarks>
 internal static class ShowRuleCommand
 {
@@ -34,21 +27,24 @@ internal static class ShowRuleCommand
         ArgumentNullException.ThrowIfNull(context);
 
         var endpointOption = CliOptions.Endpoint();
+        var accountOption = CliOptions.MailAccount();
 
         Argument<string> nameArgument = new("name")
         {
-            Description = "The name of the rule to show, as the deployment's configuration declares it.",
+            Description = "The name of the rule to show.",
         };
 
-        Command command = new("show", "Report one loaded rule: what it applies to, what it reads, and what a match does.")
+        Command command = new("show", "Report one of a mail account's rules: its condition, what runs it, and what a match does.")
         {
             nameArgument,
+            accountOption,
             endpointOption,
         };
 
         command.SetAction((result, cancellationToken) => RunAsync(
             context,
             result.GetValue(nameArgument) ?? string.Empty,
+            result.GetValue(accountOption) ?? string.Empty,
             CliOptions.RequestedDeployment(result.GetValue(endpointOption), context.Variable(CliOptions.EndpointVariable)),
             cancellationToken));
 
@@ -58,6 +54,7 @@ internal static class ShowRuleCommand
     private static async Task<int> RunAsync(
         CliContext context,
         string name,
+        string account,
         string? requestedDeployment,
         CancellationToken cancellationToken)
     {
@@ -65,17 +62,17 @@ internal static class ShowRuleCommand
 
         using var transport = context.OpenTransport(profile.Endpoint, profile.Trust);
         var ruleSet = await new AdminApiClient(transport, context.Console)
-            .ReadRulesAsync(profile.Token, cancellationToken);
+            .ReadRulesAsync(profile.Token, account, cancellationToken);
 
-        // Names are compared without regard to case for the reason the rule set refuses two of them that way: a
-        // deployment cannot declare two rules an operator would read as one, so neither can a lookup find two.
+        // Names are compared without regard to case for the reason a set refuses two of them that way: an account
+        // cannot hold two rules an operator would read as one, so neither can a lookup find two.
         var rule = ruleSet.Rules?.FirstOrDefault(
             candidate => string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase));
 
         if (rule is null)
         {
             throw new CliFailure(
-                $"This deployment has loaded no rule named '{name}'. Run '{CliRootCommand.CommandName} rules list' to see the ones it has.");
+                $"{account} has no rule named '{name}'. Run '{CliRootCommand.CommandName} rules list --account {account}' to see the ones it has.");
         }
 
         WriteRule(context, ruleSet, rule);
@@ -86,19 +83,18 @@ internal static class ShowRuleCommand
     private static void WriteRule(CliContext context, LoadedRuleSet ruleSet, LoadedRule rule)
     {
         CliDetails details = new();
-        details.Add("Rule", rule.Name ?? "an unnamed rule");
-        details.Add("Rule set", ruleSet.Revision ?? "unreported");
-        details.Add("Applies to", rule.DescribeScope());
+        details.Add("Rule", $"{ConsoleSafeText.Sanitize(rule.Name) ?? "an unnamed rule"} ({rule.Id:D})");
+        details.Add("State", $"{rule.DescribeState()}, position {rule.Position}");
+        details.Add("Rule set", $"{ConsoleSafeText.Sanitize(ruleSet.Revision) ?? "unreported"}, version {ruleSet.Version}");
+        details.Add("Condition", ConsoleSafeText.SanitizeCondition(rule.Condition) ?? "unreported");
         details.Add("Runs on", rule.DescribeTriggers());
-        details.Add("Reads facts", DescribeReadableFacts(rule));
         details.Add("A match", rule.DescribeActions());
 
         context.Console.Write(details);
-        context.Console.WriteLine(
-            $"The condition is in this deployment's configuration under '{MailRuleConfigurationLocation.SectionName}', which is the only place a rule is written or changed.");
-    }
 
-    private static string DescribeReadableFacts(LoadedRule rule) => rule.ReadableFacts is { Count: > 0 } facts
-        ? string.Join(", ", facts)
-        : "none";
+        if (ruleSet.Held)
+        {
+            context.Console.WriteLine(ListRulesCommand.DescribeHold(ruleSet));
+        }
+    }
 }

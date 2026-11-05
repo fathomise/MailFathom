@@ -81,6 +81,17 @@ public sealed class JobRecurrence
         ? string.Create(CultureInfo.InvariantCulture, $"every:{every:c}")
         : string.Create(CultureInfo.InvariantCulture, $"daily:{this.timeOfDay.ToString(TimeOfDayFormat, CultureInfo.InvariantCulture)}:{this.ZoneName}");
 
+    /// <summary>Gets the declaration in a form <see cref="TryParse" /> reads back to this same recurrence.</summary>
+    /// <remarks>
+    /// What a store keeps when a recurrence has to outlive the process, because <see cref="CanonicalForm" /> is a digest
+    /// input rather than something a person or the parser reads.
+    /// </remarks>
+    public string Declaration => this.interval is { } every
+        ? string.Create(CultureInfo.InvariantCulture, $"Every {every:c}")
+        : this.zone is { } declaredZone
+            ? string.Create(CultureInfo.InvariantCulture, $"Daily at {this.timeOfDay.ToString(TimeOfDayFormat, CultureInfo.InvariantCulture)} {declaredZone.Id}")
+            : string.Create(CultureInfo.InvariantCulture, $"Daily at {this.timeOfDay.ToString(TimeOfDayFormat, CultureInfo.InvariantCulture)}");
+
     /// <summary>Gets the zone the occasions are read in, which is the coordinated one when the declaration named none.</summary>
     /// <remarks>
     /// It is published because an occasion is more than an instant to whoever reads it afterwards: a message sent on

@@ -6,6 +6,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.Application.Rules;
 using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Rules.History;
+using MailFathom.Application.Rules.Sets;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -26,6 +27,7 @@ public sealed class MailRuleHistoryRetentionTests
     private static readonly MailRuleSetRevision Revision = MailRuleSetRevision.Restore("a1b2c3d4e5f6");
 
     private readonly InMemoryMailRuleExecutionStore store = new();
+    private readonly InMemoryMailRuleSetStore ruleSets = new();
     private readonly FakeTimeProvider timeProvider = new(Now);
 
     [Fact]
@@ -117,18 +119,51 @@ public sealed class MailRuleHistoryRetentionTests
         Assert.Equal(3, this.store.Executions.Count);
     }
 
+    /// <summary>
+    /// The archive ages under the same window, but its newest row is what the account's rules say now and is never
+    /// pruned, however old.
+    /// </summary>
+    [Fact]
+    public async Task EraseExpiredAsync_ArchiveRowsOlderThanTheWindow_ErasesThoseButKeepsTheNewest()
+    {
+        // Arrange
+        this.ruleSets.ArrangeArchived(Archived(version: 1, Now.AddDays(-90)));
+        this.ruleSets.ArrangeArchived(Archived(version: 2, Now.AddDays(-60)));
+        this.ruleSets.ArrangeArchived(Archived(version: 3, Now.AddDays(-45)));
+
+        // Act
+        var erased = await this.CreateRetention(TimeSpan.FromDays(30))
+            .EraseExpiredAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(2, erased);
+        Assert.Equal([3L], this.ruleSets.Archive.Select(entry => entry.Version));
+    }
+
     [Fact]
     public void Constructor_ACollaboratorThatIsNotThere_IsRefused()
     {
         // Act, Assert
         Assert.Throws<ArgumentNullException>(() => new MailRuleHistoryRetention(
             this.store,
+            this.ruleSets,
             options: null!,
             this.timeProvider));
     }
 
+    private static MailRuleSetArchiveEntry Archived(long version, DateTimeOffset committedAt) => new(
+        Account,
+        version,
+        Revision,
+        Revision,
+        Actor: null,
+        MailRuleChangeSurface.Administration,
+        committedAt,
+        Declarations: []);
+
     private MailRuleHistoryRetention CreateRetention(TimeSpan window) => new(
         this.store,
+        this.ruleSets,
         new MailRuleEvaluationOptions { HistoryRetention = window },
         this.timeProvider);
 

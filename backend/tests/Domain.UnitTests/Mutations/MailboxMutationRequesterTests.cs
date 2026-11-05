@@ -127,7 +127,7 @@ public sealed class MailboxMutationRequesterTests
     /// would read the second rule's genuine request as a repeat of the first one's and perform nothing.
     /// </summary>
     [Theory]
-    [InlineData("file@newsletters", "3", "ruleName")]
+    [InlineData("file@newsletters", "3", "ruleId")]
     [InlineData("file-newsletters", "3@4", "revision")]
     public void Rule_PartCarryingTheCharacterTheIdentityIsComposedWith_IsRefused(
         string ruleName,

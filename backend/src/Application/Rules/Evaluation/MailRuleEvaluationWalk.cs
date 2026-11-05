@@ -6,9 +6,9 @@ namespace MailFathom.Application.Rules.Evaluation;
 
 /// <summary>What one walk of an evaluation pass did to one account's mail.</summary>
 /// <remarks>
-/// Counts and MailFathom's own configured rule names, and nothing else. A rule name is restricted to letters, digits,
-/// spaces, and three punctuation marks precisely so that it can be reported here and in a log line while everything
-/// else about the mail it selected stays where it is.
+/// Counts and rule identifiers, and nothing else. A rule's name is text a person typed, so a walk names a rule by the
+/// identifier it was minted with, which is what lets it be reported in a log line while everything else about the rule
+/// and the mail it selected stays where it is.
 /// </remarks>
 public sealed record MailRuleEvaluationWalk
 {
@@ -39,15 +39,15 @@ public sealed record MailRuleEvaluationWalk
     /// </remarks>
     public int TimedOutRuleCount { get; init; }
 
-    /// <summary>Gets the names of the rules that matched something during the walk, sorted and without repetition.</summary>
+    /// <summary>Gets the identifiers of the rules that matched something during the walk, sorted and without repetition.</summary>
     /// <remarks>
     /// Sorted rather than kept in the order the walk met them, so two runs over the same mail report the same line: the
     /// order rules are first reached in depends on which email came first, which says nothing about the rule set.
     /// </remarks>
-    public IReadOnlyList<string> MatchedRuleNames { get; init; } = [];
+    public IReadOnlyList<string> MatchedRuleIds { get; init; } = [];
 
-    /// <summary>Gets the names of the rules that failed to answer during the walk, sorted and without repetition.</summary>
-    public IReadOnlyList<string> FailedRuleNames { get; init; } = [];
+    /// <summary>Gets the identifiers of the rules that failed to answer during the walk, sorted and without repetition.</summary>
+    public IReadOnlyList<string> FailedRuleIds { get; init; } = [];
 
     /// <summary>Gets how many changes to the mailbox the walk asked for, counted per action rather than per email.</summary>
     /// <remarks>
@@ -63,12 +63,12 @@ public sealed record MailRuleEvaluationWalk
     /// <summary>Gets how many actions nothing was asked for because what they named had stopped being resolvable.</summary>
     public int FailedActionCount { get; init; }
 
-    /// <summary>Gets the names of the rules at least one of whose actions the walk did not carry out, sorted and without repetition.</summary>
+    /// <summary>Gets the identifiers of the rules at least one of whose actions the walk did not carry out, sorted and without repetition.</summary>
     /// <remarks>
-    /// Sorted for the reason <see cref="MatchedRuleNames" /> is. Both a withheld action and a failed one put a rule
+    /// Sorted for the reason <see cref="MatchedRuleIds" /> is. Both a withheld action and a failed one put a rule
     /// here, because to the operator reading a rule that appears not to have fired they are the same question.
     /// </remarks>
-    public IReadOnlyList<string> UnappliedActionRuleNames { get; init; } = [];
+    public IReadOnlyList<string> UnappliedActionRuleIds { get; init; } = [];
 
     /// <summary>Gets whether the walk left work behind because its batch budget ran out.</summary>
     public bool EmailsRemain { get; init; }

@@ -270,7 +270,7 @@ The row keeps the indexable part of what the MIME reader found and only that: `a
 | Column of `settings_root` | What it records |
 |---|---|
 | `Id` | The singleton key, always `1`, stated rather than generated |
-| `Document` | The persisted settings, as one sparse `jsonb` document. It is flattened into ordinary colon-delimited .NET configuration keys by the host, so nothing here queries into it and its shape is whatever the sections it carries define. A key it does not carry is inherited from the source beneath rather than read as an empty value, and an array element is written as an object keyed by its index — `{ "Rules": { "1": … } }` — because the parser renumbers a JSON array's elements from `0` |
+| `Document` | The persisted settings, as one sparse `jsonb` document. It is flattened into ordinary colon-delimited .NET configuration keys by the host, so nothing here queries into it and its shape is whatever the sections it carries define. A key it does not carry is inherited from the source beneath rather than read as an empty value, and an array element is written as an object keyed by its index — `{ "ClientCertificateProfiles": { "1": … } }` — because the parser renumbers a JSON array's elements from `0` |
 | `Version` | The version a write is accepted against, for the reason the user record's is: a rejected write reports the version it was refused against, which a token the database generates behind the write cannot be quoted back |
 | `CreatedAt`, `UpdatedAt` | When the row was provisioned, and when the document last changed — which is the provisioning instant until it does |
 
@@ -1958,6 +1958,58 @@ exact scan of this table against the active profile, with no approximate index �
 from each, and fuses the two rankings as mail search does. A vector is derived from what somebody said about their own
 mail and is classified exactly as `Payload` is.
 
+## The rules an account keeps
+
+Each mail account's rules are rows of that account, in three tables: `mail_rule_sets` holds one row per account that has
+ever had a rule written, `mail_rules` holds the rules it has now, and `mail_rule_set_revisions` holds one append-only row
+per committed write. [An account's rules](../features/mail-rules.md#an-accounts-rules) states what a rule is and
+[how a change is written](../features/mail-rules.md#how-a-change-is-written) what a write does;
+[ADR 0048](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0048-keeping-a-mail-accounts-rules-in-postgresql-and-changing-them-at-runtime.md)
+records why the rules are rows rather than configuration.
+
+| Column of `mail_rule_sets` | What it records |
+|---|---|
+| `MailboxAccountId` | The account, the primary key, and a foreign key onto `mailbox_accounts` that cascades. The row is what every write locks: it is selected `FOR UPDATE` before anything else is read, and inserted only by the first write that commits — with the account's own `mailbox_accounts` row, when nothing has synchronized the account yet — so a refused or stale write leaves no row. Two first writes find no row to lock and meet at the primary key instead: the second violates it, is retried, and is answered with a version conflict, so two writes to one account's rules are serialized on every replica while a pass reading the rules takes no lock at all |
+| `Version` | How many writes the set has taken, `0` before the first. A write states the version it read and is refused when this is no longer it, which is what makes two concurrent edits a refusal rather than a merge nobody wrote |
+
+| Column of `mail_rules` | What it records |
+|---|---|
+| `Id` | The rule's generated identifier and the primary key. It survives every rename and edit, so it is what a schedule, an execution, and a surface hold on to |
+| `MailboxAccountId` | The account the rule belongs to, a foreign key onto `mail_rule_sets` that cascades |
+| `Position` | Where the rule sits in the order a pass evaluates the set in, from `0`. `ix_mail_rules_account_position` makes it unique within the account |
+| `Name`, `NormalizedName` | What a person reads the rule under, 1 to 128 characters, and its upper-cased form. `ix_mail_rules_account_normalized_name` makes the name unique within the account without regard to case, as a constraint rather than a check |
+| `Enabled` | Whether a pass applies the rule. A rule is created disabled |
+| `Condition` | The condition as its author wrote it, as `text` |
+| `Actions` | The changes a match asks for, as a `jsonb` array of the mutation each names and the one parameter it takes |
+| `StopWhenMatched` | Whether a match ends the pass |
+| `Triggers`, `Schedule` | The automatic occasions that run the rule, as `text[]`, and the schedule a `Schedule` trigger runs on, as the declaration it was written as; null for a rule declaring none |
+
+A write rewrites the account's rows whole: it deletes them and inserts the candidate it validated, in the same
+transaction as the version it moves and the archive row it appends, so no reader ever sees half of one write.
+
+| Column of `mail_rule_set_revisions` | What it records |
+|---|---|
+| `Id` | The row's own identifier, a version-7 identifier minted from the commit instant |
+| `MailboxAccountId` | The account, a foreign key onto `mail_rule_sets` that cascades |
+| `Version` | The version the write produced. `ix_mail_rule_set_revisions_account_version` makes it unique within the account, so one version is one write |
+| `Revision`, `ReplacedRevision` | The revision the write produced and the one the set had before it, each the twelve-character digest [the revision a pass runs under](../features/mail-rules.md#the-revision-a-pass-runs-under) describes |
+| `ActorUserId` | The user who wrote it, a plain identifier with no foreign key, null where no user did. Erasing that user clears it and leaves the row, because a row of a mailbox's record must not be deleted by a cascade from a person: the mailbox keeps the record that its rules changed and stops saying who changed them |
+| `Surface` | Which surface the write came through, by name — `Administration` |
+| `CommittedAt` | When the write committed |
+| `Declarations` | Every rule of the set as it stood after the write, disabled ones and names included, as one `jsonb` array |
+
+The archive is read two ways. The rule history resolves a recorded execution's revision to **the newest row of that
+account carrying that revision committed at or before it was evaluated**, which is the set as that pass read it — so a
+past execution stays explainable after its rule was edited or removed. `ix_mail_rule_set_revisions_account_revision_committed`
+is what that lookup reads. Read as a list, the same rows say what the set became, what it replaced, who wrote it,
+through which surface, and when.
+
+**The archive ages with the rule history.** The retention pass that erases executions older than
+`MailRules:HistoryRetention` erases, under the same per-pass bound, every archive row older than that window that is
+not the account's newest and whose revision no retained execution or rule run names. So what the rules say now is never
+erased, what a retained execution ran under is never erased, and a window of zero keeps every row for as long as the
+account. Erasing the account takes all three tables with it, through the cascade from `mailbox_accounts`.
+
 ## The whole-mailbox rule run an account has outstanding
 
 `mail_rule_evaluation_runs` holds the one re-evaluation of an account's whole mailbox that somebody has asked for, and how far the account's synchronization runs have carried it. It is keyed by the account, which is what makes "one outstanding run per account" a property of the schema rather than a check somebody has to remember: two requests arriving together collide on the key, and the loser is recognized as the second caller learning the first got there instead of as a failure.
@@ -1968,7 +2020,7 @@ mail and is classified exactly as `Payload` is.
 | `mailbox_account_id` | The account, and the second half of the key. It follows the user because the key is what makes one outstanding run per account a property of the schema, and an identifier names one account only within its user — keyed alone it would have made one run per *name*, shared by everyone who chose it |
 | `requested_at` | When the run was asked for |
 | `Trigger` | What put the run there — `RequestedRun` for one an operator asked for, `ScheduledRun` for one a rule's schedule asked for. It is what the pass reads the walk's reach from, so a scheduled run reaches the rules declaring a schedule while a requested one reaches every rule; it is also what the run history's own trigger is recorded as. Text for the reason every other bounded value here is |
-| `revision` | The rule set the run is bound to, null until the first pass picks it up. Bound when the run starts rather than when it is requested, because the set may reload between the two and what matters is the one in force when the first message is actually evaluated |
+| `revision` | The rule set the run is bound to, null until the first pass picks it up. Bound when the run starts rather than when it is requested, because the set may be changed between the two and what matters is the one in force when the first message is actually evaluated |
 | `position` | The identity of the last message a batch committed, null while the run has committed none. Committed with the evaluations it accounts for, which is what makes the run resumable rather than merely restartable |
 | `evaluated_email_count`, `matched_email_count`, `skipped_email_count` | What the run has done so far, across every account run that has carried it |
 | `ended_at`, `ending` | When and how the run stopped being outstanding. `Completed` is the end of the account's mail; `Superseded` is the rule set having changed while the run was outstanding, which ends it rather than letting one walk apply two rule sets to one mailbox. The ending is text for the reason every other outcome here is: it stays readable in an ad-hoc query and survives a reordering of the enum |
@@ -2006,7 +2058,7 @@ The row survives the run it describes and there is no history behind it, exactly
 |---|---|
 | `Id` | What addresses the execution, and the primary key. A version-7 identifier, so the tie-breaker that orders two executions recorded in one instant rises with the recording instant and one batch's inserts land together in the index rather than scattering across it |
 | `MailboxAccountId`, `StoredEmailId` | Which mailbox's mail was evaluated, and which message, the account named by its identifier alone. The message is a foreign key onto `stored_emails` that cascades, which is the whole erasure story here: what a rule concluded about a message goes when the message does, without a rule anybody has to remember |
-| `RuleName`, `Revision` | The rule, and the rule set it ran under. Together they are what the condition is retrievable from — the revision identifies the configuration the expression was read from, so the reasoning is reconstructible without the expression being copied here |
+| `RuleId`, `RuleName`, `Revision` | The rule — by the identifier it keeps through every rename, and by the name it carried when it ran — and the rule set it ran under. The revision is what the condition is retrievable from: [the archive](#the-rules-an-account-keeps) resolves it to the rules it declared, so the reasoning is reconstructible without the expression being copied here. `RuleId` is null on an execution recorded without one, which names its rule by the name alone |
 | `Trigger` | What reached the message: `Arrival` for a rule applied as mail arrived, and `RequestedRun` or `ScheduledRun` for one applied by a whole-mailbox walk, according to what asked for the walk. Text for the reason every other outcome here is: it stays readable in an ad-hoc query and survives a reordering of the enum |
 | `Outcome`, `ConditionFailure` | What the condition concluded, and why it concluded nothing. The failure is present exactly when the outcome is `Failed`, which is what makes an expression that could not be evaluated distinguishable from one that evaluated to false |
 | `ReadFacts` | The names of the facts the condition read, as `text[]`. **Names and never values** — the array holds `senderDomain`, never a domain — and read rather than referenced, so a fact a short-circuited clause named does not appear |
@@ -2021,7 +2073,7 @@ The row survives the run it describes and there is no history behind it, exactly
 
 The row is never amended. An execution states a reading that has already happened, so the record only grows and shrinks — by the retention window `MailRules:HistoryRetention` declares, which the account's synchronization run erases against in bounded passes, and by the cascade from the message it names. That inheritance is the point rather than a convenience: the history is derived from mail content and carries the erasure obligations of the mail it describes whatever the window says.
 
-Nothing in either table is personal data. Rule names, folder aliases, mutation names, fact names, a derived revision, two identifiers, an instant, and a duration are the whole of it, and none is derived from what a message said.
+Nothing in either table is derived from what a message said: rule identifiers and names, folder aliases, mutation names, fact names, a derived revision, identifiers, an instant, and a duration are the whole of it. A rule's name is text an administrator wrote, though, so it is read as [the rule rows](#the-rules-an-account-keeps) are — it reaches no log line, metric, trace, or error, which name the rule's identifier instead.
 
 ## The conversation a message belongs to
 
@@ -2787,6 +2839,10 @@ account reach these four tables through the same cascade every other table is re
 | `ix_mail_rule_executions_account_evaluated` | `(MailboxAccountId, EvaluatedAt, Id)` | An account's rule history newest first, and the retention pass that erases what has outlived its window. The identifier is in the key because two executions of one batch share an instant and a keyset page needs a total order to continue from |
 | `ix_mail_rule_executions_account_rule_evaluated` | `(MailboxAccountId, RuleName, EvaluatedAt, Id)` | What one rule has been concluding, which is the question a rule that never seems to fire is investigated with |
 | `ix_mail_rule_executions_email_evaluated` | `(StoredEmailId, EvaluatedAt, Id)` | Why one message is where it is, and the rows the cascade removes when that message is erased |
+| `ix_mail_rules_account_position` | `(MailboxAccountId, Position)`, unique | One account's rules in the order a pass evaluates them, and the constraint that no two of them share a place in it |
+| `ix_mail_rules_account_normalized_name` | `(MailboxAccountId, NormalizedName)`, unique | A rule found by the name an administrator types, and the constraint that a name is unique within the account without regard to case |
+| `ix_mail_rule_set_revisions_account_version` | `(MailboxAccountId, Version)`, unique | One archive row per committed write |
+| `ix_mail_rule_set_revisions_account_revision_committed` | `(MailboxAccountId, Revision, CommittedAt)` | The set a recorded execution ran under: the newest row of the account carrying its revision committed at or before it was evaluated |
 | `ix_mailbox_mutation_audit_entries_account_completed` | `(MailboxAccountId, CompletedAt, Id)` | The two ways the trail is worked: a keyset-paginated page of an account's history, and the retention pass that erases what ended before a cutoff |
 | `ix_mail_answering_audit_entries_run_account` | `(RunId, MailboxAccountId)`, unique | One entry per run per account, whatever a repeated append attempts |
 | `ix_mail_answering_audit_entries_account_completed` | `(MailboxAccountId, CompletedAt, Id)` | The same two readers the trail above has: a keyset-paginated page of an account's runs, and the retention pass beside it |
@@ -2906,6 +2962,15 @@ column reaches a log, a metric, a trace, or an error message beyond the message'
 `job_schedules` holds no personal data either, for the reason `embedding_spend_periods` does not: an identity composed of MailFathom's own configured names, two instants, and the identifier of a job say when a recurring dispatch last acted and on which occasion, and none of them names a message. That is also why nothing cascades into it — erasing an account's mail says nothing about when its rules are due to run again.
 
 `mail_rederivation_positions` and `mail_rederivation_runs` hold no personal data either, and for the same reason `job_schedules` does not: an account alias, a folder alias, the local identifier of the last message a batch read, counts, and instants say how far an operator's refresh has come, and none of them is anything a message supplied. Nothing cascades into either, which is deliberate rather than an omission — a walk's position is about work an operator started, and erasing the mail behind that position leaves a cursor that the next batch simply steps past and counts that still describe work that was really done.
+
+`mail_rules` and `mail_rule_set_revisions` are sensitive with the mail they select. A condition can carry an address
+or a subject somebody typed, a destination names a folder whose name can carry a person's, and a rule's name is free
+text, so the rows are classified with the account's mail rather than as MailFathom's own configured names. They are not
+sealed: a pass has to read every condition to run it. The cascade from `mailbox_accounts` is what erases them with the
+account, the archive is bounded by the history's retention as [the rules an account keeps](#the-rules-an-account-keeps)
+states, and the one column naming a person, the archive's actor, is cleared when that person is erased. No condition,
+folder name, or rule name reaches a log line, a metric, a trace attribute, or an error message: a failure names the
+rule's identifier and the defect.
 
 `contacts`, `contact_addresses`, and `contact_phone_numbers` are the most concentrated personal data on this page: a name, the addresses and phone numbers somebody uses, and a note about them are an assembled record about an identified third party rather than mail that arrived. An asserted row is derived from nothing at all; a collected one is derived from a message, and still nothing cascades into any of the three, because what a collected row holds is a claim that the mailbox corresponds with somebody rather than a copy of the message that named them — erasing that message says nothing about whether it still does. That is also why none of them has a retention window: a contact is held until somebody erases it, and erasing one removes the person, every address row, and every phone-number row through the cascades above rather than marking any of them. What the collected half adds is an erasure of its own, and it is per mail account: it takes every row of that account's book and leaves what any user asserted, and what any other account collected, exactly where it was. **Each half leaves with its own holder.** Erasing the user takes their own book, because `contacts` keys onto `settings_accounts` on the asserted half and `contact_addresses` and `contact_phone_numbers` key onto `contacts`, so the addresses and the numbers are reached through the person holding them; what their mailboxes collected stays, for whoever else is assigned those mailboxes, until the last user of one is erased and the account goes with them. Nothing in any of the three tables reaches a log, a metric, a trace, or an error message; the contact identifier and the book holder's are what a failure names, and they are the two columns that are not personal data.
 

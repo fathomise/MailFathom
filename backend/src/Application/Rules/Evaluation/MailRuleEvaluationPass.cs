@@ -143,18 +143,30 @@ public sealed class MailRuleEvaluationPass
     /// </exception>
     /// <exception cref="OperationCanceledException">Thrown when the caller cancels. Committed batches stay durable.</exception>
     /// <remarks>
-    /// The rule set is read once here and held for both walks, which is the whole of the reload contract for a pass: an
-    /// edit reaches the next pass rather than this one, so what a rule means cannot change halfway through a mailbox.
+    /// <para>
+    /// The account's rule set is read once here and held for both walks, which is the whole of the change contract for a
+    /// pass: a write committed meanwhile reaches the next pass rather than this one, so what a rule means cannot change
+    /// halfway through a mailbox.
+    /// </para>
+    /// <para>
+    /// A held set walks nothing. Recording an arrival as evaluated is what takes it out of the queue, so evaluating it
+    /// against a set that runs no rule would let it slip past the rules it was meant to meet once the set is repaired.
+    /// </para>
     /// </remarks>
     public async Task<MailRuleEvaluationReport> RunAsync(
         MailAccountId account,
         CancellationToken cancellationToken)
     {
-        var ruleSet = this.ruleSetSource.Current;
+        var ruleSet = await this.ruleSetSource.ReadAsync(account, cancellationToken);
+
+        if (ruleSet.IsHeld)
+        {
+            return MailRuleEvaluationReport.Held(ruleSet);
+        }
 
         var arrivals = await this.WalkArrivalsAsync(
             account,
-            BoundRuleSet.For(ruleSet, account, MailRuleExecutionTrigger.Arrival),
+            BoundRuleSet.For(ruleSet, MailRuleExecutionTrigger.Arrival),
             cancellationToken);
 
         var outstandingRun = await this.WalkOutstandingRunAsync(account, ruleSet, cancellationToken);
@@ -249,8 +261,8 @@ public sealed class MailRuleEvaluationPass
     /// </para>
     /// <para>
     /// The revision check is the first thing the run meets. A run that has already started under one rule set cannot be
-    /// finished under another — MailFathom holds only the set its configuration currently declares — so a set that has
-    /// moved ends the run as superseded rather than letting one walk apply two rule sets to one mailbox.
+    /// finished under another — a pass compiles only the account's set as it stands now — so a set that has moved ends
+    /// the run as superseded rather than letting one walk apply two rule sets to one mailbox.
     /// </para>
     /// </remarks>
     private async Task<RequestedRunOutcome> WalkOutstandingRunAsync(
@@ -265,7 +277,7 @@ public sealed class MailRuleEvaluationPass
             return new RequestedRunOutcome(Walk: null, Ending: null);
         }
 
-        var boundRuleSet = BoundRuleSet.For(ruleSet, account, run.Trigger);
+        var boundRuleSet = BoundRuleSet.For(ruleSet, run.Trigger);
 
         if (run.Revision.IsSpecified && run.Revision != boundRuleSet.RuleSet.Revision)
         {
@@ -490,7 +502,7 @@ public sealed class MailRuleEvaluationPass
         IReadOnlyList<StoredEmailAwaitingRuleEvaluation> batch,
         CancellationToken cancellationToken)
     {
-        var outcome = new MailRuleEvaluationBatch(batch.Count);
+        var outcome = new MailRuleEvaluationBatch(batch.Count, boundRuleSet);
 
         foreach (var candidate in batch)
         {
@@ -547,10 +559,7 @@ public sealed class MailRuleEvaluationPass
         /// evaluate now with the fact absent, so answering it over rules this walk never reaches would hold arriving
         /// mail behind a manual-only rule that was never going to be asked about it.
         /// </remarks>
-        internal static BoundRuleSet For(
-            MailRuleSet ruleSet,
-            MailAccountId accountId,
-            MailRuleExecutionTrigger trigger)
+        internal static BoundRuleSet For(MailRuleSet ruleSet, MailRuleExecutionTrigger trigger)
         {
             var reach = ReachOf(trigger);
 
@@ -559,9 +568,17 @@ public sealed class MailRuleEvaluationPass
                 trigger,
                 reach,
                 ruleSet.Rules
-                    .Where(rule => rule.AppliesTo(accountId.Value) && reach.Reaches(rule))
+                    .Where(reach.Reaches)
                     .Any(rule => rule.Condition.ReferencedFacts.Contains(MailRuleFact.BodyText)));
         }
+
+        /// <summary>Reads the identifier of a rule of this set from the name it carried when the set was read.</summary>
+        /// <remarks>
+        /// A name is unique within the set, so it identifies the rule for the length of a pass; what reaches a log is the
+        /// identifier, because the name is text a person typed.
+        /// </remarks>
+        internal string IdentifierOf(string ruleName) =>
+            this.RuleSet.Rules.First(rule => StringComparer.Ordinal.Equals(rule.Name, ruleName)).Id.ToString();
 
         /// <summary>Reads which rules one walk runs from which walk it is.</summary>
         /// <remarks>
@@ -584,7 +601,13 @@ public sealed class MailRuleEvaluationPass
     /// <summary>What one batch's evaluations produced, before any of them were committed.</summary>
     private sealed class MailRuleEvaluationBatch
     {
-        internal MailRuleEvaluationBatch(int capacity) => this.EvaluatedEmailIds = new List<StoredEmailId>(capacity);
+        private readonly BoundRuleSet boundRuleSet;
+
+        internal MailRuleEvaluationBatch(int capacity, BoundRuleSet boundRuleSet)
+        {
+            this.EvaluatedEmailIds = new List<StoredEmailId>(capacity);
+            this.boundRuleSet = boundRuleSet;
+        }
 
         internal List<StoredEmailId> EvaluatedEmailIds { get; }
 
@@ -602,11 +625,11 @@ public sealed class MailRuleEvaluationPass
 
         internal int FailedActionCount { get; private set; }
 
-        internal SortedSet<string> MatchedRuleNames { get; } = new(StringComparer.Ordinal);
+        internal SortedSet<string> MatchedRuleIds { get; } = new(StringComparer.Ordinal);
 
-        internal SortedSet<string> FailedRuleNames { get; } = new(StringComparer.Ordinal);
+        internal SortedSet<string> FailedRuleIds { get; } = new(StringComparer.Ordinal);
 
-        internal SortedSet<string> UnappliedActionRuleNames { get; } = new(StringComparer.Ordinal);
+        internal SortedSet<string> UnappliedActionRuleIds { get; } = new(StringComparer.Ordinal);
 
         internal List<EvaluatedEmail> EvaluatedEmails { get; } = [];
 
@@ -620,16 +643,18 @@ public sealed class MailRuleEvaluationPass
             this.EvaluatedEmailIds.Add(candidate.StoredEmailId);
             this.EvaluatedEmails.Add(new EvaluatedEmail(candidate, evaluation, evaluatedAt));
 
-            if (evaluation.MatchedRuleNames.Count > 0)
+            var matched = evaluation.Evaluations.Where(rule => rule.Outcome == MailRuleOutcome.Matched).ToArray();
+
+            if (matched.Length > 0)
             {
                 this.MatchedEmailCount++;
-                this.MatchedRuleNames.UnionWith(evaluation.MatchedRuleNames);
+                this.MatchedRuleIds.UnionWith(matched.Select(rule => rule.RuleId.ToString()));
             }
 
             foreach (var failed in evaluation.Evaluations.Where(rule => rule.Outcome == MailRuleOutcome.Failed))
             {
                 this.FailedRuleCount++;
-                this.FailedRuleNames.Add(failed.RuleName);
+                this.FailedRuleIds.Add(failed.RuleId.ToString());
 
                 if (failed.Failure == MailRuleConditionFailure.EvaluationTimedOut)
                 {
@@ -642,7 +667,7 @@ public sealed class MailRuleEvaluationPass
             // count is of actions rather than of the rules that declared them, which is what the walk reports it as: one
             // rule declaring two changes can have one honored and one withheld.
             this.WithheldActionCount += evaluation.ActionPlan.WithheldActions.Count;
-            this.UnappliedActionRuleNames.UnionWith(evaluation.ActionPlan.WithheldRuleNames);
+            this.UnappliedActionRuleIds.UnionWith(evaluation.ActionPlan.WithheldActions.Select(withheld => withheld.RuleId.ToString()));
         }
 
         /// <summary>Drops what a commit attempt recorded, so a retry of it counts its own writes and not the lost ones.</summary>
@@ -656,7 +681,7 @@ public sealed class MailRuleEvaluationPass
         {
             this.RequestedActionCount += recording.RecordedCount;
             this.FailedActionCount += recording.Failures.Count;
-            this.UnappliedActionRuleNames.UnionWith(recording.Failures.Select(failure => failure.RuleName));
+            this.UnappliedActionRuleIds.UnionWith(recording.Failures.Select(failure => this.boundRuleSet.IdentifierOf(failure.RuleName)));
         }
     }
 
@@ -673,9 +698,9 @@ public sealed class MailRuleEvaluationPass
     /// <summary>Adds up the batches of one walk into the counts an operator reads.</summary>
     private sealed class EvaluationTally
     {
-        private readonly SortedSet<string> matchedRuleNames = new(StringComparer.Ordinal);
-        private readonly SortedSet<string> failedRuleNames = new(StringComparer.Ordinal);
-        private readonly SortedSet<string> unappliedActionRuleNames = new(StringComparer.Ordinal);
+        private readonly SortedSet<string> matchedRuleIds = new(StringComparer.Ordinal);
+        private readonly SortedSet<string> failedRuleIds = new(StringComparer.Ordinal);
+        private readonly SortedSet<string> unappliedActionRuleIds = new(StringComparer.Ordinal);
 
         private int evaluatedEmailCount;
         private int matchedEmailCount;
@@ -696,9 +721,9 @@ public sealed class MailRuleEvaluationPass
             this.requestedActionCount += batch.RequestedActionCount;
             this.withheldActionCount += batch.WithheldActionCount;
             this.failedActionCount += batch.FailedActionCount;
-            this.matchedRuleNames.UnionWith(batch.MatchedRuleNames);
-            this.failedRuleNames.UnionWith(batch.FailedRuleNames);
-            this.unappliedActionRuleNames.UnionWith(batch.UnappliedActionRuleNames);
+            this.matchedRuleIds.UnionWith(batch.MatchedRuleIds);
+            this.failedRuleIds.UnionWith(batch.FailedRuleIds);
+            this.unappliedActionRuleIds.UnionWith(batch.UnappliedActionRuleIds);
         }
 
         internal MailRuleEvaluationWalk ToWalk(bool emailsRemain) => new()
@@ -711,9 +736,9 @@ public sealed class MailRuleEvaluationPass
             RequestedActionCount = this.requestedActionCount,
             WithheldActionCount = this.withheldActionCount,
             FailedActionCount = this.failedActionCount,
-            MatchedRuleNames = [.. this.matchedRuleNames],
-            FailedRuleNames = [.. this.failedRuleNames],
-            UnappliedActionRuleNames = [.. this.unappliedActionRuleNames],
+            MatchedRuleIds = [.. this.matchedRuleIds],
+            FailedRuleIds = [.. this.failedRuleIds],
+            UnappliedActionRuleIds = [.. this.unappliedActionRuleIds],
             EmailsRemain = emailsRemain,
         };
     }

@@ -1383,17 +1383,24 @@ internal sealed partial class AccountSynchronizationSupervisor
         }
     }
 
-    /// <summary>Emits what the rules did, in counts and rule names; nothing derived from a message may appear here.</summary>
+    /// <summary>Emits what the rules did, in counts and rule identifiers; nothing derived from a message may appear here.</summary>
     /// <remarks>
     /// A pass that found nothing says nothing, so an account whose mail is all evaluated does not repeat a line per
-    /// interval forever. A rule's name is the one part of a rule that can be promised to carry no address somebody
-    /// typed, which is what makes naming the rules that matched safe as well as useful.
+    /// interval forever. A rule is named by its generated identifier and never by its name, because the name is text a
+    /// person typed and may carry an address or anything else they chose to write.
     /// </remarks>
     private void ReportRuleEvaluation(MailRuleEvaluationReport report)
     {
+        if (report.UncompiledRules is { Count: > 0 } uncompiled)
+        {
+            this.LogRuleSetHeld(this.account.Value, report.Revision.Value, IdentifierList([.. uncompiled.Select(rule => rule.ToString())]));
+
+            return;
+        }
+
         if (!report.Arrivals.IsEmpty)
         {
-            var matchedRuleNames = NameList(report.Arrivals.MatchedRuleNames);
+            var matchedRuleIds = IdentifierList(report.Arrivals.MatchedRuleIds);
 
             this.LogArrivedMailEvaluated(
                 this.account.Value,
@@ -1401,7 +1408,7 @@ internal sealed partial class AccountSynchronizationSupervisor
                 report.Arrivals.EvaluatedEmailCount,
                 report.Arrivals.MatchedEmailCount,
                 report.Arrivals.SkippedEmailCount,
-                matchedRuleNames,
+                matchedRuleIds,
                 report.Arrivals.EmailsRemain);
         }
 
@@ -1412,14 +1419,14 @@ internal sealed partial class AccountSynchronizationSupervisor
         {
             if (!requestedRun.IsEmpty)
             {
-                var matchedRuleNames = NameList(requestedRun.MatchedRuleNames);
+                var matchedRuleIds = IdentifierList(requestedRun.MatchedRuleIds);
 
                 this.LogRequestedRunProgressed(
                     this.account.Value,
                     requestedRun.EvaluatedEmailCount,
                     requestedRun.MatchedEmailCount,
                     requestedRun.SkippedEmailCount,
-                    matchedRuleNames,
+                    matchedRuleIds,
                     requestedRun.EmailsRemain);
             }
 
@@ -1449,13 +1456,13 @@ internal sealed partial class AccountSynchronizationSupervisor
             return;
         }
 
-        var failedRuleNames = NameList(walk.FailedRuleNames);
+        var failedRuleIds = IdentifierList(walk.FailedRuleIds);
 
         this.LogRuleEvaluationsFailed(
             this.account.Value,
             walk.FailedRuleCount,
             walk.TimedOutRuleCount,
-            failedRuleNames);
+            failedRuleIds);
     }
 
     /// <summary>States what the walk asked the mailbox to change, and separately what it declined to ask for.</summary>
@@ -1480,11 +1487,11 @@ internal sealed partial class AccountSynchronizationSupervisor
             this.account.Value,
             walk.WithheldActionCount,
             walk.FailedActionCount,
-            NameList(walk.UnappliedActionRuleNames));
+            IdentifierList(walk.UnappliedActionRuleIds));
     }
 
-    /// <summary>Renders a set of rule names for one log line, which is safe because a rule name carries nothing personal.</summary>
-    private static string NameList(IReadOnlyList<string> ruleNames) => string.Join(", ", ruleNames);
+    /// <summary>Renders a set of rule identifiers for one log line; names stay out, because a rule's name is text a person typed.</summary>
+    private static string IdentifierList(IReadOnlyList<string> ruleIds) => string.Join(", ", ruleIds);
 
     /// <summary>Gives every folder the account declares a folder row before any of them is synchronized.</summary>
     /// <remarks>
@@ -2082,7 +2089,7 @@ internal sealed partial class AccountSynchronizationSupervisor
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Account {AccountId} erased {ErasedCount} recorded rule executions that had outlived the configured history retention.")]
+        Message = "Account {AccountId} erased {ErasedCount} recorded rule executions and archived rule set revisions that had outlived the configured history retention.")]
     private partial void LogRuleExecutionsErased(string accountId, int erasedCount);
 
     /// <summary>Separates a retention pass that did not run from the ordinary case of it having nothing to erase.</summary>
@@ -2094,26 +2101,26 @@ internal sealed partial class AccountSynchronizationSupervisor
     /// <summary>States what the rules did to mail that has just arrived, naming the revision so an edit is visible in the record.</summary>
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Evaluated rule set {RuleSetRevision} over {EvaluatedEmailCount} newly stored messages of account {AccountId}; {MatchedEmailCount} matched, {SkippedEmailCount} are waiting for their text to be extracted, rules that matched: [{MatchedRuleNames}], and more remain: {EmailsRemain}.")]
+        Message = "Evaluated rule set {RuleSetRevision} over {EvaluatedEmailCount} newly stored messages of account {AccountId}; {MatchedEmailCount} matched, {SkippedEmailCount} are waiting for their text to be extracted, rules that matched: [{MatchedRuleIds}], and more remain: {EmailsRemain}.")]
     private partial void LogArrivedMailEvaluated(
         string accountId,
         string ruleSetRevision,
         int evaluatedEmailCount,
         int matchedEmailCount,
         int skippedEmailCount,
-        string matchedRuleNames,
+        string matchedRuleIds,
         bool emailsRemain);
 
     /// <summary>Reports one account run's share of a whole-mailbox run, which spans as many runs as its batch budget needs.</summary>
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Carried the whole-mailbox rule run of account {AccountId} over {EvaluatedEmailCount} messages; {MatchedEmailCount} matched, {SkippedEmailCount} are waiting for their text to be extracted, rules that matched: [{MatchedRuleNames}], and more remain: {EmailsRemain}.")]
+        Message = "Carried the whole-mailbox rule run of account {AccountId} over {EvaluatedEmailCount} messages; {MatchedEmailCount} matched, {SkippedEmailCount} are waiting for their text to be extracted, rules that matched: [{MatchedRuleIds}], and more remain: {EmailsRemain}.")]
     private partial void LogRequestedRunProgressed(
         string accountId,
         int evaluatedEmailCount,
         int matchedEmailCount,
         int skippedEmailCount,
-        string matchedRuleNames,
+        string matchedRuleIds,
         bool emailsRemain);
 
     [LoggerMessage(
@@ -2130,12 +2137,12 @@ internal sealed partial class AccountSynchronizationSupervisor
     /// <summary>Separates a rule that could not answer for one message from a pass that did not run, which are different faults.</summary>
     [LoggerMessage(
         Level = LogLevel.Warning,
-        Message = "{FailedRuleCount} rule evaluations produced no answer for account {AccountId}, {TimedOutRuleCount} of them by outlasting the condition timeout; rules: [{FailedRuleNames}]. The messages are recorded as evaluated and the pass continued.")]
+        Message = "{FailedRuleCount} rule evaluations produced no answer for account {AccountId}, {TimedOutRuleCount} of them by outlasting the condition timeout; rules: [{FailedRuleIds}]. The messages are recorded as evaluated and the pass continued.")]
     private partial void LogRuleEvaluationsFailed(
         string accountId,
         int failedRuleCount,
         int timedOutRuleCount,
-        string failedRuleNames);
+        string failedRuleIds);
 
     /// <summary>States what the rules asked the mailbox for, which the account's convergence pass carries rather than this one.</summary>
     [LoggerMessage(
@@ -2146,12 +2153,18 @@ internal sealed partial class AccountSynchronizationSupervisor
     /// <summary>Separates an action another rule had already settled from one the account or its folders no longer admit.</summary>
     [LoggerMessage(
         Level = LogLevel.Warning,
-        Message = "{WithheldActionCount} actions declared for account {AccountId} were withheld because an earlier rule had already settled the same message, and {FailedActionCount} named something the account no longer resolves or no longer permits; rules: [{UnappliedActionRuleNames}].")]
+        Message = "{WithheldActionCount} actions declared for account {AccountId} were withheld because an earlier rule had already settled the same message, and {FailedActionCount} named something the account no longer resolves or no longer permits; rules: [{UnappliedActionRuleIds}].")]
     private partial void LogRuleActionsUnapplied(
         string accountId,
         int withheldActionCount,
         int failedActionCount,
-        string unappliedActionRuleNames);
+        string unappliedActionRuleIds);
+
+    /// <summary>Names the rules holding the set and never their condition, which is text a person typed.</summary>
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "The rule set {RuleSetRevision} of account {AccountId} is held and ran no rule, because enabled rules no longer compile under the condition bounds in force: [{UncompiledRuleIds}]. Arriving mail waits unevaluated until a change to those rules repairs the set.")]
+    private partial void LogRuleSetHeld(string accountId, string ruleSetRevision, string uncompiledRuleIds);
 
     [LoggerMessage(
         Level = LogLevel.Warning,

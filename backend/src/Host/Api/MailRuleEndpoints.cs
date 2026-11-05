@@ -5,43 +5,41 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Rules;
+using MailFathom.Application.Rules.Editing;
 using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Rules.History;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
-using MailFathom.Host.Configuration;
-using MailFathom.Host.Configuration.Rules;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MailFathom.Host.Api;
 
-/// <summary>Serves the three things an operator does about this deployment's mail rules.</summary>
+/// <summary>Serves the three things an operator reads or asks of one mail account's rules.</summary>
 /// <remarks>
 /// <para>
-/// Reading which rules are loaded, asking for them to be run over a whole mailbox, and reading what they did. Nothing
-/// here creates, edits, enables, disables, or deletes a rule, and nothing ever will:
-/// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0010-rule-authoring-in-configuration-and-ncalc-conditions.md">ADR 0010</see>
-/// makes configuration the place a rule is authored so that what an instance will do to a mailbox is reviewable in a
-/// diff before it runs, and a write here would be the one path around that.
+/// Reading the account's stored rules, asking for them to be run over its whole mailbox, and reading what they did.
+/// Each mail account's rules are kept in PostgreSQL under
+/// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0048-keeping-a-mail-accounts-rules-in-postgresql-and-changing-them-at-runtime.md">ADR 0048</see>,
+/// and every write to them goes through <see cref="MailRuleSetEditor" />; no route here writes one yet.
 /// </para>
 /// <para>
 /// They are here rather than on the MCP surface because none of them is anything a model reasons over, and because what
 /// bounds administrative access is what should bound the ability to start a pass over a whole mailbox. The three grants
-/// differ accordingly: reading the loaded set and a run's progress is <c>mailfathom.admin.read</c>, asking for a pass is
+/// differ accordingly: reading the stored set and a run's progress is <c>mailfathom.admin.read</c>, asking for a pass is
 /// <c>mailfathom.admin.operate</c>, and the history is <c>mailfathom.admin.audit.read</c>, because what a rule concluded
 /// about somebody's mail is derived from that mail rather than a report of this deployment's own state.
 /// </para>
 /// <para>
-/// Nothing any of them answers with is mail. Rule names, folder aliases, mutation names, fact names, counts, instants,
-/// and identifiers are the whole of it — and the authored condition is absent even from the rule listing, because a
-/// compiled rule carries no text and the text is the operator's own file.
+/// Nothing any of them answers with is mail. Rule names, conditions, folder aliases, mutation names, fact names, counts,
+/// instants, and identifiers are the whole of it. A condition is authored text that can name a correspondent, which is
+/// why reading the set needs the read grant over the account rather than over the deployment.
 /// </para>
 /// </remarks>
 internal static class MailRuleEndpoints
 {
-    /// <summary>The route the loaded rule set is read from, relative to the administrative prefix.</summary>
+    /// <summary>The route one account's stored rules are read from, relative to the administrative prefix.</summary>
     internal const string RulesRoute = "/rules";
 
     /// <summary>The route a whole-mailbox run is asked for and read from, relative to the administrative prefix.</summary>
@@ -70,8 +68,8 @@ internal static class MailRuleEndpoints
     {
         ArgumentNullException.ThrowIfNull(api);
 
-        api.MapGet(RulesRoute, ReadRules)
-            .RequirePermission(MailFathomPermission.AdminRead);
+        api.MapGet(RulesRoute, ReadRulesAsync)
+            .RequirePermissionOverTarget(MailFathomPermission.AdminRead);
 
         // The attribute is reached for its metadata rather than as an MVC filter, exactly as the write route beside it
         // reaches it: it implements IRequestSizeLimitMetadata, which the routing pipeline applies to the request body
@@ -87,34 +85,35 @@ internal static class MailRuleEndpoints
             .RequirePermissionOverTarget(MailFathomPermission.AdminAuditRead);
     }
 
-    /// <summary>Reports the rule set in force, and whether the configuration on disk is the one it was read from.</summary>
-    /// <param name="ruleSets">Hands out the rule set compiled from the published configuration.</param>
-    /// <param name="settings">Reports whether the most recent candidate was adopted or refused.</param>
-    /// <returns><c>200</c> with the loaded set, on every instance including one that declares no rules.</returns>
+    /// <summary>Reports one account's stored rules, the set's version, its revision, and whether it is held.</summary>
+    /// <param name="account">The identifier the deployment generated for the account whose rules are read.</param>
+    /// <param name="accounts">Reports whether this deployment serves the named account.</param>
+    /// <param name="ruleSets">Reads the account's stored set.</param>
+    /// <param name="authorization">Answers whether the caller's scope covers the account the request names.</param>
+    /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
+    /// <returns><c>200</c> with the set, including an account that has no rules, or <c>400</c>.</returns>
     /// <remarks>
-    /// <para>
     /// The whole set rather than one rule, because a rule is only meaningful in the order it sits in: which rule is
     /// reached first is a property of the set, and a caller reading one rule alone could not tell whether anything above
     /// it ends the pass. Showing one rule is therefore a matter of choosing from this answer rather than of asking a
-    /// different question — which also keeps a rule that happens to be named after a route from being unreachable.
-    /// </para>
-    /// <para>
-    /// The refusal is reported beside the revision because together they are the question an operator actually has: a
-    /// reload that was refused leaves the previous rule set running and says so only in the log, so a file that was
-    /// edited and a deployment that is unchanged look identical from the outside without this.
-    /// </para>
+    /// different question.
     /// </remarks>
-    internal static Ok<MailRuleSetResponse> ReadRules(
+    internal static async Task<Results<Ok<MailRuleSetResponse>, ProblemHttpResult>> ReadRulesAsync(
+        [FromQuery] string? account,
+        [FromServices] IDeploymentMailAccountCatalog accounts,
         [FromServices] MailRuleSetReader ruleSets,
-        [FromServices] ValidatedSettingsSnapshot<MailRulesOptions> settings)
+        [FromServices] AccessAuthorization authorization,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(accounts);
         ArgumentNullException.ThrowIfNull(ruleSets);
-        ArgumentNullException.ThrowIfNull(settings);
 
-        return TypedResults.Ok(MailRuleSetResponse.For(
-            ruleSets.Read(),
-            settings.LatestReloadRefused,
-            settings.RefusedSettingCount));
+        if (await AdminAccountRequest.ResolveCoveredAsync(account, MailFathomPermission.AdminRead, accounts, authorization, cancellationToken) is not { } servedAccount)
+        {
+            return AdminAccountRequest.Refuse(account);
+        }
+
+        return TypedResults.Ok(MailRuleSetResponse.For(await ruleSets.ReadAsync(servedAccount, cancellationToken)));
     }
 
     /// <summary>Asks for one account's rules to be run over every message stored for it.</summary>

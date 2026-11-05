@@ -3,50 +3,63 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Rules.Conditions;
+using MailFathom.Application.Rules.Sets;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
 
 namespace MailFathom.Application.Rules;
 
-/// <summary>Reports the rule set in force to whoever may read it.</summary>
+/// <summary>Reports one mail account's stored rules to an administrator who may read that account.</summary>
 /// <remarks>
-/// <para>
-/// A pass reads <see cref="IMailRuleSetSource" /> directly and holds what it was given, which is the reload contract and
-/// is not what this is for. This is the operator's reading: what a caller is being told is what this deployment will do
-/// to a mailbox, which is a report of the deployment's own state and carries no mail — so it asks for the read grant,
-/// while what the rules concluded about somebody's messages is <see cref="History.MailRuleHistory" /> and a different
-/// one.
-/// </para>
-/// <para>
-/// The reading is not asynchronous, and the rule set itself cannot fail to be produced, for the reason the source it
-/// reads gives: a candidate rule set that could not be proven usable never becomes the current one. What the reading
-/// does refuse is a caller whose grant does not carry the permission, which it raises rather than reports.
-/// </para>
+/// A pass reads <see cref="IMailRuleSetSource" /> and holds what it was given, which is not what this is for. This is the
+/// administrator's reading: every rule as it is stored, disabled ones included, the set's version a write states it
+/// read, its revision, and whether the set is held because an enabled rule no longer compiles. It carries no mail, so it
+/// asks for the read grant over the account; what the rules concluded about somebody's messages is
+/// <see cref="History.MailRuleHistory" /> and a different one.
 /// </remarks>
 public sealed class MailRuleSetReader
 {
-    private readonly IMailRuleSetSource ruleSets;
+    private readonly IMailRuleSetStore store;
+    private readonly IMailRuleConditionCompiler compiler;
+    private readonly MailRuleConditionBounds bounds;
     private readonly AccessAuthorization authorization;
 
-    /// <summary>Initializes the reading over the published rule set.</summary>
-    /// <param name="ruleSets">Hands out the rule set compiled from the published configuration.</param>
+    /// <summary>Initializes the reading over the stored rules.</summary>
+    /// <param name="store">Keeps each account's rules.</param>
+    /// <param name="compiler">Reads each condition, which is how a held set is told apart.</param>
+    /// <param name="bounds">The condition bounds in force.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
-    public MailRuleSetReader(IMailRuleSetSource ruleSets, AccessAuthorization authorization)
+    public MailRuleSetReader(
+        IMailRuleSetStore store,
+        IMailRuleConditionCompiler compiler,
+        MailRuleConditionBounds bounds,
+        AccessAuthorization authorization)
     {
-        ArgumentNullException.ThrowIfNull(ruleSets);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(compiler);
+        ArgumentNullException.ThrowIfNull(bounds);
         ArgumentNullException.ThrowIfNull(authorization);
 
-        this.ruleSets = ruleSets;
+        this.store = store;
+        this.compiler = compiler;
+        this.bounds = bounds;
         this.authorization = authorization;
     }
 
-    /// <summary>Reads the rule set a pass starting now would run against.</summary>
-    /// <returns>The loaded rule set.</returns>
-    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the use case was reached by anything but a caller granted <see cref="MailFathomPermission.AdminRead" />.</exception>
-    public MailRuleSet Read()
+    /// <summary>Reads one account's rules as they are stored now.</summary>
+    /// <param name="account">The account, which must be one this deployment serves.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The stored set and the enabled rules that hold it, if any.</returns>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller is not granted <see cref="MailFathomPermission.AdminRead" /> over the account.</exception>
+    public async Task<MailRuleSetReading> ReadAsync(MailAccountId account, CancellationToken cancellationToken)
     {
-        this.authorization.RequirePermission(MailFathomPermission.AdminRead);
+        await this.authorization.RequirePermissionOverAsync(MailFathomPermission.AdminRead, account, cancellationToken);
 
-        return this.ruleSets.Current;
+        var stored = await this.store.ReadAsync(account, cancellationToken);
+        var compiled = StoredMailRuleSetSource.Compile(stored.Declarations, stored.Revision, this.compiler, this.bounds);
+
+        return new MailRuleSetReading(stored, compiled.UncompiledRules);
     }
 }

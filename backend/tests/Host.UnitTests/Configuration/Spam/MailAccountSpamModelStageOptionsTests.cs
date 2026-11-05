@@ -4,7 +4,6 @@
 
 using MailFathom.Application.Spam.Model;
 using MailFathom.Host.Configuration.Mail;
-using MailFathom.Host.Configuration.Rules;
 using MailFathom.Host.Configuration.Spam;
 using MailFathom.Infrastructure.Mail;
 using MailFathom.Infrastructure.Secrets.Discovery;

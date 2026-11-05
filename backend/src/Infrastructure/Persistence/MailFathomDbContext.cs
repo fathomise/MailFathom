@@ -262,6 +262,12 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<MailRuleExecutionEntity> MailRuleExecutions => this.Set<MailRuleExecutionEntity>();
 
+    internal DbSet<MailRuleSetEntity> MailRuleSets => this.Set<MailRuleSetEntity>();
+
+    internal DbSet<MailRuleEntity> MailRules => this.Set<MailRuleEntity>();
+
+    internal DbSet<MailRuleSetRevisionEntity> MailRuleSetRevisions => this.Set<MailRuleSetRevisionEntity>();
+
     internal DbSet<EmailThreadEntity> EmailThreads => this.Set<EmailThreadEntity>();
 
     internal DbSet<EmailThreadIdentifierEntity> EmailThreadIdentifiers => this.Set<EmailThreadIdentifierEntity>();
@@ -403,6 +409,9 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new MailAnsweringAuditedEmailConfiguration());
         modelBuilder.ApplyConfiguration(new MailRuleExecutionConfiguration());
         modelBuilder.ApplyConfiguration(new MailRuleExecutedActionConfiguration());
+        modelBuilder.ApplyConfiguration(new MailRuleSetConfiguration());
+        modelBuilder.ApplyConfiguration(new MailRuleConfiguration());
+        modelBuilder.ApplyConfiguration(new MailRuleSetRevisionConfiguration());
         modelBuilder.ApplyConfiguration(new EmailThreadConfiguration());
         modelBuilder.ApplyConfiguration(new EmailThreadIdentifierConfiguration());
         modelBuilder.ApplyConfiguration(new ContactConfiguration());

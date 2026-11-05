@@ -2,16 +2,13 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using MailFathom.Application.Rules.Conditions;
 using MailFathom.Host.Configuration.Answering;
 using MailFathom.Host.Configuration.Chat;
 using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Embeddings;
 using MailFathom.Host.Configuration.Endpoints;
-using MailFathom.Host.Configuration.Rules;
 using MailFathom.Host.Configuration.Signals;
 using MailFathom.Host.Configuration.UserSettings;
-using MailFathom.Infrastructure.Rules;
 using Microsoft.Extensions.Options;
 
 namespace MailFathom.Host.Configuration;
@@ -20,8 +17,8 @@ namespace MailFathom.Host.Configuration;
 /// <remarks>
 /// <para>
 /// <see cref="BoundSettings" /> is the other half of what a start judges, and the split between them is not a
-/// preference: a section whose value decides which sockets are opened, whether an endpoint is mapped, or whether a
-/// declared rule can be compiled at all is read before a container exists, so the options framework's validators are
+/// preference: a section whose value decides which sockets are opened, whether an endpoint is mapped, or which plans a
+/// declared model is mapped into is read before a container exists, so the options framework's validators are
 /// not available to it and the refusal is taken during composition. That makes it exactly the kind of rule a
 /// configuration write would otherwise escape, which is why it is stated here rather than inline in the composition
 /// root: the host refuses the first refusal, and a write is refused by every one of them.
@@ -52,22 +49,15 @@ internal static class ComposedSettings
 
     /// <summary>Finds every refusal these settings carry, in the order a start would meet them.</summary>
     /// <param name="configuration">The configuration to judge.</param>
-    /// <param name="declaredAccounts">
-    /// The mailboxes the users this deployment serves record, or <see langword="null" /> where the caller reads no
-    /// record. A configuration write passes the accounts the records hold, so a rule scoped to a mailbox nobody
-    /// records is refused before it commits rather than committed as a rule set a reload would refuse to apply.
-    /// </param>
     /// <returns>One refusal per section that would stop a start, empty when none would.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="configuration" /> is <see langword="null" />.</exception>
     /// <exception cref="InvalidOperationException">Thrown when a section will not bind at all and no earlier group had already answered with a refusal, which is the only case in which nothing better than the binder's own sentence is held.</exception>
-    public static IReadOnlyList<SettingsRefusal> FindRefusals(
-        IConfiguration configuration,
-        IReadOnlyCollection<DeclaredMailAccount>? declaredAccounts)
+    public static IReadOnlyList<SettingsRefusal> FindRefusals(IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
         // The order is the composition root's rather than this file's: the users are established before
-        // `AddMailRules`, which runs before `AddPersistenceAndProviders`, which runs before the surfaces are mapped. An
+        // `AddPersistenceAndProviders`, which runs before the surfaces are mapped. An
         // operator whose candidate carries a mistake in two of them is shown the same one first by a write and by a
         // start, which is what the summary promises and the only thing that makes the promise worth anything.
         List<SettingsRefusal> refusals = [.. FindWithdrawnUserAndMailboxSectionRefusals(configuration)];
@@ -80,7 +70,6 @@ internal static class ComposedSettings
         // would have stopped at.
         try
         {
-            refusals.AddRange(FindMailRuleRefusals(configuration, new NCalcMailRuleConditionCompiler(), declaredAccounts));
             refusals.AddRange(FindProviderRefusals(configuration));
             refusals.AddRange(FindSurfaceRefusals(configuration));
         }
@@ -204,34 +193,6 @@ internal static class ComposedSettings
 
             .. Refusal<DecisionModelOptions>(DecisionModelOptions.SectionName, decisionErrors),
         ];
-    }
-
-    /// <summary>Finds what the declared rule set would be refused for.</summary>
-    /// <param name="configuration">The configuration to judge.</param>
-    /// <param name="conditionCompiler">The compiler every condition is read through.</param>
-    /// <param name="declaredAccounts">
-    /// The mailboxes this deployment serves, or <see langword="null" /> where the caller cannot yet know them. A
-    /// mailbox is a user's own record, so composition passes nothing and leaves a rule's claims about mailboxes
-    /// unjudged. A reload and a configuration write pass the accounts the records hold and are refused by them.
-    /// </param>
-    /// <returns>The refusal, or nothing when every declaration compiles against what the caller could see.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configuration" /> or <paramref name="conditionCompiler" /> is <see langword="null" />.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when the section will not bind at all.</exception>
-    public static IReadOnlyList<SettingsRefusal> FindMailRuleRefusals(
-        IConfiguration configuration,
-        IMailRuleConditionCompiler conditionCompiler,
-        IReadOnlyCollection<DeclaredMailAccount>? declaredAccounts)
-    {
-        ArgumentNullException.ThrowIfNull(configuration);
-        ArgumentNullException.ThrowIfNull(conditionCompiler);
-
-        var declared = configuration
-            .GetSection(MailRulesOptions.SectionName)
-            .Get<MailRulesOptions>(binderOptions => binderOptions.ErrorOnUnknownConfiguration = true);
-
-        return Refusal<MailRulesOptions>(
-            MailRulesOptions.SectionName,
-            MailRuleDeclarationRules.FindDeclarationErrors(declared, conditionCompiler, declaredAccounts));
     }
 
     /// <summary>Finds what the sockets, the surfaces served on them, and the postures around them would be refused for.</summary>

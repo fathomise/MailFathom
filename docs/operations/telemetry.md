@@ -817,7 +817,7 @@ previous run was still going is skipped rather than replayed, so this is the onl
 all — nothing else records a walk that did not happen. **A steady non-zero rate is worth alerting on**: under
 `previous_run_in_flight` it says a schedule asks for a mailbox walk more often than the walk finishes, and under
 `refused_at_capacity` it says `Jobs:MaxQueueDepthPerType` is turning scheduled work away. Neither carries the schedule's
-own identity, which is composed of an account and a rule name and would grow with the configuration; which schedule is
+own identity, which is composed of an account and a rule's identifier and would grow with every rule written; which schedule is
 behind is read from the log line the worker writes beside the measurement.
 
 An instance with `Jobs:Enabled` switched off, or one with no registered handler, publishes none of the six: its worker

@@ -70,7 +70,7 @@ internal sealed class ComposedConfigurationDeployment : IDisposable
             row,
             row,
             new CandidateConfigurationComposer(configuration, layer),
-            new CandidateSettingsValidator([], ServedMailAccountReaders.HoldingNothing()),
+            new CandidateSettingsValidator([]),
             new RootSettingsReloader(layer.Provider, row, new RecordingLogger<RootSettingsReloader>()),
             new ConfigurationChangeAnnouncements(connect: null, new RecordingLogger<ConfigurationChangeAnnouncements>()),
             new PersistedSecretMaterial(DeclaredSecretScheme.Registered),

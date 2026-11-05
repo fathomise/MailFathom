@@ -32,6 +32,7 @@ internal static class MailRuleExecutionMapping
             // recorded decision belongs to the same user as the mail it was taken about.
             StoredEmailId = execution.StoredEmailId.Value,
             RuleName = execution.RuleName,
+            RuleId = execution.RuleId?.Value,
             Revision = execution.Revision.Value,
             Trigger = execution.Trigger.ToString(),
             Outcome = execution.Outcome.ToString(),
@@ -96,6 +97,7 @@ internal static class MailRuleExecutionMapping
             Account = MailAccountId.Create(entity.MailboxAccountId),
             StoredEmailId = StoredEmailId.Create(entity.StoredEmailId),
             RuleName = entity.RuleName,
+            RuleId = entity.RuleId is { } ruleId ? MailRuleId.Create(ruleId) : null,
             Revision = MailRuleSetRevision.Restore(entity.Revision),
             Trigger = trigger,
             Outcome = outcome,

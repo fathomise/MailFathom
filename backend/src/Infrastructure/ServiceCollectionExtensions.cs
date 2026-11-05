@@ -115,6 +115,7 @@ using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.Retrieval.AskMail.Audit;
 using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Rules.History;
+using MailFathom.Application.Rules.Sets;
 using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Derivation;
 using MailFathom.Application.SensitiveContent.Detection;
@@ -884,6 +885,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MailRuleEvaluationRunReader>();
         services.AddSingleton<MailRuleHistoryTelemetry>();
         services.AddScoped<IMailRuleExecutionStore, MailRuleExecutionStore>();
+        services.AddScoped<IMailRuleSetStore, MailRuleSetStore>();
         services.AddScoped<MailRuleHistory>();
     }
 

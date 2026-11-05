@@ -43,6 +43,7 @@ using MailFathom.Application.Rules.Actions;
 using MailFathom.Application.Rules.Conditions;
 using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Rules.History;
+using MailFathom.Application.Rules.Sets;
 using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Derivation;
 using MailFathom.Application.Spam;
@@ -468,6 +469,7 @@ internal static class SynchronizationTestHost
         // The history's retention pass rides the same run, and a supervisor resolves it from the same scope. These
         // tests configure no mail to evaluate, so it answers that there is nothing to erase.
         services.AddScoped<MailRuleHistoryRetention>();
+        services.AddSingleton(Substitute.For<IMailRuleSetStore>());
         services.AddLogging();
 
         // Each run hands its own snapshot to the scopes it opens, and every per-account reader answers from that
@@ -547,13 +549,14 @@ internal static class SynchronizationTestHost
         return store;
     }
 
-    /// <summary>Answers with a rule set that declares nothing, which is what a deployment configuring no rule has.</summary>
+    /// <summary>Answers with a rule set that declares nothing, which is what an account nobody wrote a rule for has.</summary>
     private static IMailRuleSetSource CreateSourceOfAnEmptyRuleSet()
     {
         var ruleSetSource = Substitute.For<IMailRuleSetSource>();
 
-        ruleSetSource.Current.Returns(
-            MailRuleSet.Create([], MailRuleSetRevision.Create([]), MailRuleConditionBounds.Default));
+        ruleSetSource
+            .ReadAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
+            .Returns(MailRuleSet.Create([], MailRuleSetRevision.Create([]), MailRuleConditionBounds.Default));
 
         return ruleSetSource;
     }

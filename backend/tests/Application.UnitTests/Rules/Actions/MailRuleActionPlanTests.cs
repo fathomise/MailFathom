@@ -142,6 +142,7 @@ public sealed class MailRuleActionPlanTests
         Assert.Same(MailRuleActionPlan.Nothing, MailRuleActionPlan.Compose([]));
 
     private static MailRule RuleNamed(string name, params MailRuleAction[] actions) => MailRule.Create(
+        MailRuleIds.For(name),
         name,
         ScriptedMailRuleCondition.Answering(matches: true),
         MailRuleActionSet.Create(actions));

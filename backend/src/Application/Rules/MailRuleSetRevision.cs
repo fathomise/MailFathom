@@ -7,55 +7,54 @@ using System.Text;
 
 namespace MailFathom.Application.Rules;
 
-/// <summary>Identifies the rule set a pass ran under, as a digest of the rules themselves in the order they were declared.</summary>
+/// <summary>Identifies what one mail account's rules mean, as a digest of its enabled rules in the order they are evaluated.</summary>
 /// <remarks>
 /// <para>
 /// Derived rather than declared, which is what makes it trustworthy: an authored version key can be forgotten, and an
 /// edit that changes the rules while leaving the key alone is exactly the case a history has to be able to tell apart.
-/// A publication counter was the other candidate and is worse for the opposite reason — it is process-local, so it
-/// restarts at zero and means something different on every replica, while two instances reading the same file must name
-/// the same revision.
+/// The set's version counts writes and is what a concurrent write is compared against; this names what the set means
+/// and is what a run is bound to. A rename moves the version and leaves this alone.
 /// </para>
 /// <para>
-/// The digest is taken over the bound rules, so it does not move for the wrong reasons: a change to an unrelated
-/// configuration key leaves it alone, and so does reformatting the file or reordering the keys within one rule.
-/// Reordering the rules themselves does move it, because declared order is part of what a rule set means. So is the
-/// scope: narrowing a rule to one account changes which mail it reaches, which is a different rule set rather than the
-/// same one applied differently. So are the triggers, for the same reason — a rule withdrawn from firing on arrival
-/// reaches different mail from the one that fires on it — and so is the schedule beside them, because moving when a rule
-/// walks a mailbox is moving which mail it reaches at any moment. So are the actions, for the reason the revision is part of a
-/// request's identity at all — a rule now filing into a different folder must ask afresh rather than be answered by the
-/// record of the filing it asked for before the edit.
+/// The digest is taken over one account's enabled rules and over what selects mail and what happens to it, so it does
+/// not move for the wrong reasons: renaming a rule changes what a person reads and nothing about which mail it reaches,
+/// so the identifier stands in for the name. Reordering the rules does move it, because evaluation order is part of
+/// what a rule set means. So do the triggers — a rule withdrawn from firing on arrival reaches different mail — and the
+/// schedule beside them. So do the actions, for the reason the revision is part of a request's identity at all — a rule
+/// now filing into a different folder must ask afresh rather than be answered by the record of the filing it asked for
+/// before the edit. A disabled rule is left out, so disabling one moves the revision exactly as removing it would, and
+/// re-enabling it unchanged returns the set to a revision it has had before.
 /// </para>
 /// <para>
 /// It carries none of the authored text and no ordering. A record naming a revision therefore holds nothing personal
 /// that the condition contributed, and a record that has to say which of two revisions came first carries its own
-/// timestamp rather than inferring one from the value.
+/// timestamp rather than inferring one from the value. Two accounts holding the same text under different identifiers
+/// have different revisions, which is right: a revision means something only beside the account it belongs to.
 /// </para>
 /// </remarks>
 public readonly record struct MailRuleSetRevision
 {
     /// <summary>How many hexadecimal characters of the digest the identity keeps.</summary>
     /// <remarks>
-    /// Twelve characters are forty-eight bits, which is far more than enough to tell apart the handful of revisions one
-    /// deployment's configuration passes through, and short enough to read in a log line without being elided.
+    /// Twelve characters are forty-eight bits, which is far more than enough to tell apart the revisions one account's
+    /// rule set passes through, and short enough to read in a log line without being elided.
     /// </remarks>
     private const int LengthInCharacters = 12;
 
     /// <summary>Separates the parts of one rule inside the digest input, and one rule from the next.</summary>
     /// <remarks>
-    /// Unit and record separators rather than punctuation, because neither can occur in a rule name or a condition. A
+    /// Unit and record separators rather than punctuation, because neither can occur in an identifier or a condition. A
     /// separator a value could contain would let two different rule sets render identically, which is the one way a
     /// derived identity can quietly stop distinguishing what it exists to distinguish.
     /// </remarks>
     private const char FieldSeparator = '\u001F';
     private const char RuleSeparator = '\u001E';
 
-    /// <summary>Separates the values inside a field holding several: the scope, the actions, and the triggers.</summary>
+    /// <summary>Separates the values inside a field holding several: the actions and the triggers.</summary>
     /// <remarks>
-    /// A third separator rather than a reused one, so that a scope of two accounts cannot render as the same text as a
-    /// rule whose next field begins where the second account would have. Every multi-valued field uses this one, which
-    /// stays unambiguous because a field separator ends each of them.
+    /// A third separator rather than a reused one, so that two actions cannot render as the same text as one action whose
+    /// next field begins where the second would have. Every multi-valued field uses this one, which stays unambiguous
+    /// because a field separator ends each of them.
     /// </remarks>
     private const char ListSeparator = '\u001D';
 
@@ -72,26 +71,26 @@ public readonly record struct MailRuleSetRevision
         ?? throw new InvalidOperationException("The value is the default of the struct and does not name a revision.");
 
     /// <summary>Reports whether a value carries a character this identity separates its own fields with.</summary>
-    /// <param name="value">A rule name, a condition, or an account identifier about to become part of a rule set.</param>
+    /// <param name="value">A condition or a destination folder about to become part of a rule set.</param>
     /// <returns><see langword="true" /> when the value would blur the boundary between two fields of the digest input.</returns>
     /// <remarks>
     /// The remarks above say a separator cannot occur in what is hashed, and this is what lets that be true rather than
-    /// hoped for: whatever binds a rule set asks first and refuses a value that answers yes. Without the check the claim
-    /// rests on the expression language's grammar, which is somebody else's decision and can change under this one — and
-    /// a rule set that renders identically to a different rule set is exactly the collision this identity exists to make
-    /// impossible.
+    /// hoped for: a write validating a candidate set asks first and refuses a value that answers yes. Without the check
+    /// the claim rests on the expression language's grammar, which is somebody else's decision and can change under this
+    /// one — and a rule set that renders identically to a different rule set is exactly the collision this identity
+    /// exists to make impossible.
     /// </remarks>
     public static bool ContainsSeparator(string? value) =>
         value?.AsSpan().IndexOfAny(FieldSeparator, RuleSeparator, ListSeparator) >= 0;
 
-    /// <summary>Derives the identity of a rule set from the rules it declares, in the order it declares them.</summary>
-    /// <param name="declarations">Every rule of the bound set, in declared order.</param>
+    /// <summary>Derives the identity of one account's rule set from its rules, in the order they are evaluated.</summary>
+    /// <param name="declarations">Every rule of the set in position order, disabled ones included; they are left out here.</param>
     /// <returns>The revision the set is known by.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="declarations" /> is <see langword="null" />.</exception>
     /// <remarks>
-    /// A set that declares no rules has an identity too, and it is the same one on every instance that declares none.
-    /// That is deliberate: a deployment which has removed its last rule is in a state a history should be able to name,
-    /// rather than one with no revision at all.
+    /// A set that enables no rule has an identity too, and it is the same one for every account that enables none. That
+    /// is deliberate: an account whose last rule was removed is in a state a history should be able to name, rather than
+    /// one with no revision at all.
     /// </remarks>
     public static MailRuleSetRevision Create(IReadOnlyList<MailRuleDeclaration> declarations)
     {
@@ -99,18 +98,16 @@ public readonly record struct MailRuleSetRevision
 
         var canonicalForm = new StringBuilder();
 
-        foreach (var declaration in declarations)
+        foreach (var declaration in declarations.Where(declaration => declaration.Enabled))
         {
             canonicalForm
-                .Append(declaration.Name)
+                .Append(declaration.Id)
                 .Append(FieldSeparator)
                 .Append(declaration.ConditionText)
                 .Append(FieldSeparator)
                 .AppendJoin(ListSeparator, declaration.Actions.Select(action => action.CanonicalForm))
                 .Append(FieldSeparator)
                 .Append(declaration.StopWhenMatched ? "stop" : "continue")
-                .Append(FieldSeparator)
-                .AppendJoin(ListSeparator, declaration.Accounts)
                 .Append(FieldSeparator)
                 .AppendJoin(ListSeparator, declaration.Triggers.Select(trigger => trigger.Name))
                 .Append(FieldSeparator)

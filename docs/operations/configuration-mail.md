@@ -175,13 +175,13 @@ deployment that does records the same not-assessed state a message with no reada
 which of the two reasons produced it. [Machine authorship](../features/machine-authorship.md) states what the reading is
 made of and what it deliberately does not claim.
 
-`RuleActions` is what a rule is judged against rather than what it is filtered by: a rule declaring an action this
-account does not permit **fails startup** naming the rule, the action, and the account, rather than running with that
-action quietly dropped. An unscoped rule reaches every declared account, so permitting an action on one account and not
-on another means either permitting it on both or narrowing the rule's own `Accounts` filter. Narrowing this block while
-a rule set that declares the action is in force is the one case the two do not resolve together, since the sections
-reload apart: the permission is read again as each change is written down, so the withdrawal takes effect at the next
-pass and the rule is refused the next time the rule section is read.
+`RuleActions` is what a rule is judged against rather than what it is filtered by: a change to the account's rules that
+would leave a rule declaring an action this account does not permit **is refused** naming the rule and the action,
+rather than committed with that action quietly dropped. A rule belongs to exactly one account, so the permission it is
+judged against is that account's and no other's. Narrowing this block while a stored rule declares the action is the
+one case the two do not resolve together: the permission is read again as each change is written down, so the
+withdrawal takes effect at the next pass, and the stored rule is refused the next time a write changes or enables it;
+a write that leaves it as stored, or disables it, still commits.
 [What an account permits a rule to do](../features/mail-rules.md#what-an-account-permits-a-rule-to-do) states why
 deletion is the one opt-in of the four.
 
@@ -1018,9 +1018,12 @@ read and answers each attachment with `downloadState: unavailable`.
 
 ## `MailRules`
 
-The rules that select mail, written here rather than held in a table, because a rule is a statement about how an
-instance is configured. [Mail rules](../features/mail-rules.md) documents the whole authoring surface a condition may
-use — every fact, every function, every operator — and this section documents the shape the rules are declared in.
+The limits every account's rules are read and run under. The rules themselves are not configuration: each mail
+account's rules are stored in the database and changed while the deployment runs, as
+[an account's rules](../features/mail-rules.md#an-accounts-rules) describes, and
+[ADR 0048](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0048-keeping-a-mail-accounts-rules-in-postgresql-and-changing-them-at-runtime.md)
+records why. [Mail rules](../features/mail-rules.md) documents the whole authoring surface a condition may use — every
+fact, every function, every operator — and this section documents the limits it is held to.
 
 | Key | Type | Default | Constraint | Change |
 | --- | --- | --- | --- | --- |
@@ -1029,38 +1032,19 @@ use — every fact, every function, every operator — and this section document
 | `MailRules:ConditionEvaluationTimeout` | TimeSpan | `00:00:01` | Greater than zero and at most `00:00:30`; bounds one condition against one email, including resolving the facts it names | reload |
 | `MailRules:EvaluationBatchSize` | int | `200` | 1 – 10000 messages read, evaluated, and committed together; the unit of progress an interrupted pass gives back | reload |
 | `MailRules:MaxEvaluationBatchesPerPass` | int | `5` | 1 – 1000 batches per walk per account run; what a pass leaves behind is the next run's, so a long queue drains over several runs instead of holding one up | reload |
-| `MailRules:HistoryRetention` | TimeSpan | `30.00:00:00` | At most 3650 days; how long a recorded rule execution is kept. Zero or less keeps one for exactly as long as the message it names. A pass records one execution per rule it reached per message, so this is the bound on a record that would otherwise grow with the mailbox | reload; the next account run erases against the new window |
-| `MailRules:Rules` | list | empty | At most 200 rules, evaluated in the order they are written | reload |
-| `MailRules:Rules:0:Name` | string | required | 1 – 64 characters of letters, digits, spaces, and `.`, `_`, `-`; unique across the section, ignoring case | reload |
-| `MailRules:Rules:0:Accounts` | list | empty | The accounts the rule applies to, each naming exactly the identifier of an account some served user is assigned; empty applies the rule to every account | reload |
-| `MailRules:Rules:0:Condition` | string | required | One expression producing a boolean, within the two limits above | reload |
-| `MailRules:Rules:0:StopWhenMatched` | bool | `false` | A match ends the pass and the rules below it are not reached | reload |
-| `MailRules:Rules:0:Enabled` | bool | `true` | A rule switched off is left out of the set entirely | reload |
-| `MailRules:Rules:0:Triggers` | list | `[]` | The automatic occasions that run the rule; `Arrival` and `Schedule` are the declared names, an unknown or repeated name is refused, and naming none is a rule nothing fires by itself that a whole-mailbox run applies | reload |
-| `MailRules:Rules:0:Schedule` | string | unset | When a rule declaring the `Schedule` trigger runs: `Every <hh:mm:ss>` or `Every <d.hh:mm:ss>`, from one minute to 365 days, or `Daily at <HH:mm>` optionally followed by a time-zone identifier and read in UTC without one. Required by that trigger and refused without it | reload |
-| `MailRules:Rules:0:Actions:MoveTo` | string | unset | The alias of the folder a match is filed into; the account must mirror it | reload |
-| `MailRules:Rules:0:Actions:CopyTo` | string | unset | The alias of the folder a copy of a match is placed in; the account must mirror it | reload |
-| `MailRules:Rules:0:Actions:Delete` | bool | unset | `true` removes a match from the folder it matched in; the account must permit deletion | reload |
-| `MailRules:Rules:0:Actions:MarkAsRead` | bool | unset | `true` sets the remote `\Seen` flag and `false` clears it; leaving the key out leaves the flag alone | reload |
-| `MailRules:Rules:0:Actions:MarkAsFlagged` | bool | unset | `true` sets the remote `\Flagged` flag and `false` clears it; leaving the key out leaves the flag alone | reload |
-| `MailRules:Rules:0:Actions:AddKeywords` | list | unset | The keywords put on a match beside the ones it carries; each an IMAP atom of at most 64 characters, at most 64 of them, and an empty list is refused | reload |
-| `MailRules:Rules:0:Actions:RemoveKeywords` | list | unset | The keywords taken off a match, under the same limits; an empty list is refused | reload |
-| `MailRules:Rules:0:Actions:SetKeywords` | list | unset | The keywords a match ends up carrying in place of whatever it carried; `[]` is what clears them all, and is the one empty keyword list that is accepted | reload |
+| `MailRules:HistoryRetention` | TimeSpan | `30.00:00:00` | At most 3650 days; how long a recorded rule execution is kept, and how long an archived version of an account's rules is kept once it is no longer the newest and no retained execution or run names its revision. Zero or less keeps both for exactly as long as the mail and the account they describe. A pass records one execution per rule it reached per message, so this is the bound on a record that would otherwise grow with the mailbox | reload; the next account run erases against the new window |
+| `MailRules:Rules` | section | unset | Not read. The key stays recognized, so a configuration still carrying rules binds rather than being refused, and none of them is applied | — |
 
-An absent action key is a change the rule does not ask for, which is why `MarkAsRead` carries a value rather than being
-a switch. At most one of `MoveTo`, `CopyTo`, and `Delete` may be declared by one rule, `Delete` admits nothing beside
-it, `SetKeywords` admits neither `AddKeywords` nor `RemoveKeywords` beside it, and every permitted combination is
-applied in MailFathom's own order — the flags and keywords first and the relocation or the deletion last. A keyword
-carrying a space, a control character, or one of `( ) { % * " \ ]` cannot be sent as an IMAP atom and is refused at
-startup naming the rule and the key. A rule declaring nothing here selects mail and changes nothing.
-[What a matching rule does](../features/mail-rules.md#what-a-matching-rule-does) states the whole table, the order, and
-how a change reaches the mail server.
+**A configuration still declaring `MailRules:Rules` starts, applies none of those rules, and says so once.** Each start
+logs one warning naming how many rules the section declares — the count and nothing else, since a condition and a folder
+name are what the person who wrote them typed — and the command that brings them into an account,
+`mfctl rules import --account`. The rules are imported per account, reviewed, and enabled; the section is then removed.
 
-Every condition is read while the host composes itself, and a defect in one — an unparseable expression, a name that is
-not a fact, a call that is not an available function, a comparison between shapes that could never match, a result that
-is not a boolean — fails startup naming the rule and what was wrong. So does a scope naming an account the deployment
-does not declare, which would otherwise leave the rule reaching no mail in silence. Every defect in every rule is
-reported together.
+**Tightening a condition limit can hold an account's rules.** A stored condition is judged against the limits in force
+when a pass compiles it, so a lower `MaxConditionLength` or `MaxConditionNestingDepth` can leave an enabled rule that no
+longer compiles. That account's set is then held rather than run in part, as
+[a held rule set](../features/mail-rules.md#a-held-rule-set) describes, until the rule is changed or the limit is raised.
 
-An edit that does not validate is **refused and logged, and the previously valid rule set stays in effect**. That is
-deliberately stronger than the framework's own reload behaviour, which would drop the candidate without saying so.
+A change to these keys that does not validate is **refused and logged, and the limits last accepted stay in effect**.
+That is deliberately stronger than the framework's own reload behaviour, which would drop the candidate without saying
+so.

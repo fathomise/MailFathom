@@ -39,8 +39,15 @@ public sealed record MailRuleExecution
     /// <summary>Gets the local identity of the email the rule was evaluated against.</summary>
     public required StoredEmailId StoredEmailId { get; init; }
 
-    /// <summary>Gets the name of the rule, which is MailFathom's own configured name for it.</summary>
+    /// <summary>Gets the name the rule carried when it was evaluated.</summary>
     public required string RuleName { get; init; }
+
+    /// <summary>Gets the identifier of the rule, which still names it after a rename.</summary>
+    /// <remarks>
+    /// Absent on an execution recorded before rules were stored per account, when a rule had no identifier and was
+    /// known by its name alone.
+    /// </remarks>
+    public MailRuleId? RuleId { get; init; }
 
     /// <summary>Gets the rule set revision the pass was bound to, which is what the condition is retrievable from.</summary>
     public required MailRuleSetRevision Revision { get; init; }

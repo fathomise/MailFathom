@@ -5,12 +5,13 @@
 using MailFathom.Application.Jobs.Scheduling;
 using MailFathom.Application.Rules;
 using MailFathom.Application.Rules.Actions;
+using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Folders;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Rules;
 
-/// <summary>Covers what moves a rule set's identity and, just as importantly, what leaves it alone.</summary>
+/// <summary>Covers what moves one account's rule set identity and, just as importantly, what leaves it alone.</summary>
 public sealed class MailRuleSetRevisionTests
 {
     private static readonly MailRuleAction FileIntoArchive =
@@ -25,10 +26,9 @@ public sealed class MailRuleSetRevisionTests
     };
 
     private static readonly MailRuleDeclaration FileInvoices =
-        new("file-invoices", "senderDomain == 'supplier.test'", Actions: [], StopWhenMatched: true, Accounts: [], Triggers: [MailRuleTrigger.Arrival]);
+        Declare("file-invoices", "senderDomain == 'supplier.test'", stopWhenMatched: true);
 
-    private static readonly MailRuleDeclaration ArchiveOld =
-        new("archive-old", "ageInDays > 365", Actions: [], StopWhenMatched: false, Accounts: [], Triggers: [MailRuleTrigger.Arrival]);
+    private static readonly MailRuleDeclaration ArchiveOld = Declare("archive-old", "ageInDays > 365");
 
     [Fact]
     public void Create_SameRulesInSameOrder_ProducesTheSameIdentity()
@@ -55,30 +55,62 @@ public sealed class MailRuleSetRevisionTests
     }
 
     [Theory]
-    [InlineData("file-invoices-renamed", "senderDomain == 'supplier.test'", true, new string[0])]
-    [InlineData("file-invoices", "senderDomain == 'other.test'", true, new string[0])]
-    [InlineData("file-invoices", "senderDomain == 'supplier.test'", false, new string[0])]
-    [InlineData("file-invoices", "senderDomain == 'supplier.test'", true, new[] { "primary" })]
+    [InlineData("another-rule", "senderDomain == 'supplier.test'", true)]
+    [InlineData("file-invoices", "senderDomain == 'other.test'", true)]
+    [InlineData("file-invoices", "senderDomain == 'supplier.test'", false)]
     public void Create_AnyPartOfARuleChanging_ProducesADifferentIdentity(
-        string name,
+        string identity,
         string conditionText,
-        bool stopWhenMatched,
-        string[] accounts)
+        bool stopWhenMatched)
     {
         // Act
         var changed = MailRuleSetRevision.Create(
         [
-            new MailRuleDeclaration(
-                name,
-                conditionText,
-                FileInvoices.Actions,
-                stopWhenMatched,
-                accounts,
-                FileInvoices.Triggers),
+            FileInvoices with
+            {
+                Id = MailRuleIds.For(identity),
+                ConditionText = conditionText,
+                StopWhenMatched = stopWhenMatched,
+            },
         ]);
 
         // Assert
         Assert.NotEqual(MailRuleSetRevision.Create([FileInvoices]), changed);
+    }
+
+    /// <summary>A rename changes what a person reads and nothing about which mail is selected, so the identity stays.</summary>
+    [Fact]
+    public void Create_ARuleRenamed_LeavesTheIdentityWhereItWas()
+    {
+        // Act
+        var renamed = MailRuleSetRevision.Create([FileInvoices with { Name = "supplier-invoices" }]);
+
+        // Assert
+        Assert.Equal(MailRuleSetRevision.Create([FileInvoices]), renamed);
+    }
+
+    /// <summary>Disabling a rule changes which mail is acted on exactly as removing it would, so the two are one set.</summary>
+    [Fact]
+    public void Create_ARuleDisabled_IsTheSameSetAsTheRuleRemoved()
+    {
+        // Act
+        var disabled = MailRuleSetRevision.Create([FileInvoices, ArchiveOld with { Enabled = false }]);
+
+        // Assert
+        Assert.Equal(MailRuleSetRevision.Create([FileInvoices]), disabled);
+        Assert.NotEqual(MailRuleSetRevision.Create([FileInvoices, ArchiveOld]), disabled);
+    }
+
+    /// <summary>Re-enabling an unchanged rule returns the set to a revision it has had before, which every record of it still describes.</summary>
+    [Fact]
+    public void Create_ARuleDisabledAndEnabledAgain_ReturnsToTheRevisionItHadBefore()
+    {
+        // Act
+        var before = MailRuleSetRevision.Create([FileInvoices, ArchiveOld]);
+        var after = MailRuleSetRevision.Create([FileInvoices, ArchiveOld with { Enabled = false } with { Enabled = true }]);
+
+        // Assert
+        Assert.Equal(before, after);
     }
 
     /// <summary>Which occasions run a rule is part of what the rule set means, so withdrawing one is a different set.</summary>
@@ -153,33 +185,11 @@ public sealed class MailRuleSetRevisionTests
     public void Create_RulesWhoseTextRunsTogether_StaysDistinctFromADifferentSplit()
     {
         // Act
-        var first = MailRuleSetRevision.Create(
-        [
-            new MailRuleDeclaration("a", "isSeen", Actions: [], StopWhenMatched: false, Accounts: [], Triggers: [MailRuleTrigger.Arrival]),
-            new MailRuleDeclaration("b", "isDraft", Actions: [], StopWhenMatched: false, Accounts: [], Triggers: [MailRuleTrigger.Arrival]),
-        ]);
-        var second = MailRuleSetRevision.Create(
-        [
-            new MailRuleDeclaration("a", "isSeen", Actions: [], StopWhenMatched: false, Accounts: [], Triggers: [MailRuleTrigger.Arrival]),
-            new MailRuleDeclaration("bisDraft", "continue", Actions: [], StopWhenMatched: false, Accounts: [], Triggers: [MailRuleTrigger.Arrival]),
-        ]);
+        var first = MailRuleSetRevision.Create([Declare("a", "isSeen"), Declare("b", "isDraft")]);
+        var second = MailRuleSetRevision.Create([Declare("a", "isSeenisDraft"), Declare("b", string.Empty)]);
 
         // Assert
         Assert.NotEqual(first, second);
-    }
-
-    /// <summary>The accounts inside one scope are separated too, so two scopes cannot render as the same text.</summary>
-    [Fact]
-    public void Create_ScopesWhoseAccountsRunTogether_StayDistinct()
-    {
-        // Act
-        var twoAccounts = MailRuleSetRevision.Create(
-            [new MailRuleDeclaration("a", "isSeen", Actions: [], StopWhenMatched: false, Accounts: ["primary", "work"], Triggers: [MailRuleTrigger.Arrival])]);
-        var oneAccount = MailRuleSetRevision.Create(
-            [new MailRuleDeclaration("a", "isSeen", Actions: [], StopWhenMatched: false, Accounts: ["primarywork"], Triggers: [MailRuleTrigger.Arrival])]);
-
-        // Assert
-        Assert.NotEqual(twoAccounts, oneAccount);
     }
 
     [Fact]
@@ -245,6 +255,17 @@ public sealed class MailRuleSetRevisionTests
         Assert.Throws<InvalidOperationException>(() => revision.Value);
         Assert.Equal("(unspecified)", revision.ToString());
     }
+
+    private static MailRuleDeclaration Declare(string name, string conditionText, bool stopWhenMatched = false) =>
+        new(
+            MailRuleIds.For(name),
+            name,
+            Enabled: true,
+            conditionText,
+            Actions: [],
+            stopWhenMatched,
+            Triggers: [MailRuleTrigger.Arrival],
+            Schedule: null);
 
     private static MailRuleDeclaration Scheduled(MailRuleDeclaration declaration, string schedule)
     {

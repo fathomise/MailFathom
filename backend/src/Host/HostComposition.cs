@@ -42,8 +42,11 @@ using MailFathom.Application.Retrieval.AskMail.Audit;
 using MailFathom.Application.Rules;
 using MailFathom.Application.Rules.Actions;
 using MailFathom.Application.Rules.Conditions;
+using MailFathom.Application.Rules.Editing;
 using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Rules.History;
+using MailFathom.Application.Rules.Preview;
+using MailFathom.Application.Rules.Sets;
 using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.Signals;
@@ -450,49 +453,32 @@ internal static class HostComposition
         builder.Services.AddScoped<SpamClassificationRunRequests>();
     }
 
-    /// <summary>Reads the declared rule set, refuses one that cannot be compiled, and registers what evaluates it.</summary>
+    /// <summary>Registers what keeps each mail account's rules, changes them, previews them, and evaluates them.</summary>
     private static void AddMailRules(WebApplicationBuilder builder)
     {
-        // Every condition is read while the host is being composed, because the condition language has no static type
-        // checker of its own: an unknown fact or a comparison that could never hold would otherwise be discovered on real
-        // mail. A rule set that cannot be read is a startup failure, stated in ComposedSettings so that a configuration
-        // write is refused by it as well, and one compiler serves composition, every reload, and every pass, because it
-        // holds no state.
-        //
-        // What a rule claims about a mailbox is left unjudged here, because every mailbox is a user's own record and no
-        // reading of the files could tell a scope naming one that exists from a scope naming one that does not.
-        // A reload and a configuration write refuse such a claim, reading the accounts the records hold.
-        var mailRuleConditionCompiler = new NCalcMailRuleConditionCompiler();
-
-        ComposedSettings.RefuseFirstOf(
-            ComposedSettings.FindMailRuleRefusals(
-                builder.Configuration,
-                mailRuleConditionCompiler,
-                declaredAccounts: null));
-
-        builder.Services.AddSingleton<IMailRuleConditionCompiler>(mailRuleConditionCompiler);
+        // One compiler serves every write, every preview, and every pass, because it holds no state. The compiled sets
+        // are cached by account and set version, once per process: a pass reads the account's stored set and compiles it
+        // whole again only after a write moved its version since the last one this replica saw.
+        builder.Services.AddSingleton<IMailRuleConditionCompiler, NCalcMailRuleConditionCompiler>();
         builder.Services.AddSingleton<MailRuleSetEvaluator>();
-        builder.Services.AddSingleton<IMailRuleSetSource, ConfiguredMailRuleSetSource>();
-        // The reading the administrative surface performs over that source. Scoped rather than singleton like the source
-        // itself, because what it asks before it reads is which principal reached it, and that is a fact about one request.
+        builder.Services.AddSingleton<MailRuleSetCompilationCache>();
+        builder.Services.AddScoped(provider =>
+            provider.GetRequiredService<ISettingsSnapshot<MailRulesOptions>>().Current.ToBounds());
+        builder.Services.AddScoped<IMailRuleSetSource, StoredMailRuleSetSource>();
         builder.Services.AddScoped<MailRuleSetReader>();
-        // The rule section validates itself on reload instead of letting the options framework drop an invalid candidate in
-        // silence. That default is the wrong behavior here above everywhere else: a user who mistypes a fact name would
-        // get an instance that goes on acting on mail under the previous rules while their file says otherwise. A refused
-        // candidate is logged and the last proven rule set stays in effect.
-        // The accounts a scope may name are read from the account records rather than captured here, so an account added
-        // at run time is one a rule can be scoped to without restarting the process.
+        builder.Services.AddScoped<MailRuleSetValidator>();
+        builder.Services.AddScoped<MailRuleSetEditor>();
+        builder.Services.AddScoped<MailRulePreview>();
+        // The limits validate themselves on reload instead of letting the options framework drop an invalid candidate in
+        // silence, so a refused candidate is logged and the last proven limits stay in effect.
         builder.Services.AddSingleton(provider => new ValidatedSettingsSnapshot<MailRulesOptions>(
             provider.GetRequiredService<IOptionsMonitor<MailRulesOptions>>(),
-            async (candidate, cancellationToken) => MailRuleDeclarationRules.FindDeclarationErrors(
-                candidate,
-                mailRuleConditionCompiler,
-                DeclaredMailAccounts.ReadFrom(
-                    await provider.GetRequiredService<IServedMailAccountReader>().ReadServedRecordsAsync(cancellationToken))),
+            (candidate, _) => Task.FromResult(candidate.FindConfigurationErrors()),
             MailRulesOptions.SectionName,
             provider.GetRequiredService<ILogger<ValidatedSettingsSnapshot<MailRulesOptions>>>()));
         builder.Services.AddSingleton<ISettingsSnapshot<MailRulesOptions>>(
             provider => provider.GetRequiredService<ValidatedSettingsSnapshot<MailRulesOptions>>());
+        builder.Services.AddHostedService<ConfiguredMailRulesIgnoredWarning>();
         // Evaluation is a step of the account's synchronization run, so its collaborators are scoped exactly as that run's
         // other steps are: one scope per work unit, and the pass bounds read from the published snapshot when the scope is
         // built rather than captured once at startup.

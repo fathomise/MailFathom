@@ -79,10 +79,9 @@ internal static class CliRootCommand
             CancelEmbeddingReindexCommand.Create(context),
         };
 
-        // Reading and running, and nothing that writes. A rule lives in the deployment's configuration so that what an
-        // instance will do to a mailbox is reviewable in a diff before it runs, so there is deliberately no command here
-        // that creates, edits, enables, disables, or deletes one — and there will not be.
-        Command rulesCommand = new("rules", "Read the deployment's mail rules, run them, and read what they did.")
+        // Reading, running, and reporting. An account's rules are stored per account and written through
+        // MailRuleSetEditor under a version check; no command here calls it yet.
+        Command rulesCommand = new("rules", "Read a mail account's rules, run them, and read what they did.")
         {
             ListRulesCommand.Create(context),
             ShowRuleCommand.Create(context),

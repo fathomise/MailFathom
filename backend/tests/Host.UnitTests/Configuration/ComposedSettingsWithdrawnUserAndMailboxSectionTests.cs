@@ -117,7 +117,7 @@ public sealed class ComposedSettingsWithdrawnUserAndMailboxSectionTests
         });
 
         // Act
-        var refusals = ComposedSettings.FindRefusals(configuration, declaredAccounts: null);
+        var refusals = ComposedSettings.FindRefusals(configuration);
 
         // Assert
         Assert.Equal("Accounts", refusals[0].SectionName);

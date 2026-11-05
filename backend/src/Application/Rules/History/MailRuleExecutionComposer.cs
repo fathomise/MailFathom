@@ -52,6 +52,7 @@ public static class MailRuleExecutionComposer
                 Account = account,
                 StoredEmailId = storedEmailId,
                 RuleName = ruleEvaluation.RuleName,
+                RuleId = ruleEvaluation.RuleId,
                 Revision = evaluation.Revision,
                 Trigger = trigger,
                 Outcome = ruleEvaluation.Outcome,

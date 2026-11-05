@@ -95,7 +95,7 @@ public sealed class MailRuleEvaluationPassTests
         Assert.Equal([arrived], this.store.Evaluated);
         Assert.Equal(1, report.Arrivals.EvaluatedEmailCount);
         Assert.Equal(1, report.Arrivals.MatchedEmailCount);
-        Assert.Equal(["file-it"], report.Arrivals.MatchedRuleNames);
+        Assert.Equal([MailRuleIds.For("file-it").ToString()], report.Arrivals.MatchedRuleIds);
         Assert.False(report.Arrivals.EmailsRemain);
     }
 
@@ -182,7 +182,7 @@ public sealed class MailRuleEvaluationPassTests
         Assert.Equal(1, this.mutations.OpenedRecordCount);
         Assert.Equal(1, report.Arrivals.RequestedActionCount);
         Assert.Equal(1, report.Arrivals.WithheldActionCount);
-        Assert.Equal(["file-everything"], report.Arrivals.UnappliedActionRuleNames);
+        Assert.Equal([MailRuleIds.For("file-everything").ToString()], report.Arrivals.UnappliedActionRuleIds);
     }
 
     /// <summary>A whole-mailbox run re-asks under the same identity, so re-running the rules performs each change once.</summary>
@@ -218,7 +218,7 @@ public sealed class MailRuleEvaluationPassTests
         // Assert
         Assert.Equal(0, this.mutations.OpenedRecordCount);
         Assert.Equal(1, report.Arrivals.FailedActionCount);
-        Assert.Equal(["file-it"], report.Arrivals.UnappliedActionRuleNames);
+        Assert.Equal([MailRuleIds.For("file-it").ToString()], report.Arrivals.UnappliedActionRuleIds);
     }
 
     /// <summary>A rule that selects mail and changes nothing is an ordinary rule, so the mailbox is asked for nothing.</summary>
@@ -255,22 +255,62 @@ public sealed class MailRuleEvaluationPassTests
         Assert.True(report.Arrivals.IsEmpty);
     }
 
-    /// <summary>An account with no rule of its own still leaves the queue behind it, so a later rule starts from now.</summary>
+    /// <summary>An account with no rules still leaves the queue behind it, so a later rule starts from now.</summary>
     [Fact]
-    public async Task RunAsync_NoRuleReachesThisAccount_StillRecordsItsArrivalsAsEvaluated()
+    public async Task RunAsync_AnAccountWithNoRules_StillRecordsItsArrivalsAsEvaluated()
     {
         // Arrange
-        var condition = ScriptedMailRuleCondition.Answering(matches: true);
         var arrived = this.store.Add(FactsFor(Account));
-        var pass = this.CreatePass(
-            RuleSetOf(ArrivalRule("other-account", condition, stopWhenMatched: false, accounts: [OtherAccount.Value])));
+        var pass = this.CreatePass(RuleSetOf());
 
         // Act
         await pass.RunAsync(Account, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(0, condition.EvaluationCount);
         Assert.True(this.store.IsEvaluated(arrived));
+    }
+
+    /// <summary>
+    /// A held set runs none of its rules, and its arrivals stay in the queue: consuming them would leave the mail a
+    /// repaired set was written for never evaluated by it.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_AHeldSet_EvaluatesNothingAndLeavesTheArrivalsQueued()
+    {
+        // Arrange
+        var arrived = this.store.Add(FactsFor(Account));
+        var held = MailRuleSet.Held(RuleSetOf().Revision, MailRuleConditionBounds.Default, [MailRuleIds.For("broken")]);
+        var pass = this.CreatePass(held);
+
+        // Act
+        var report = await pass.RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(report.IsHeld);
+        Assert.Equal([MailRuleIds.For("broken")], report.UncompiledRules);
+        Assert.False(this.store.IsEvaluated(arrived));
+        Assert.Empty(this.history.Executions);
+    }
+
+    /// <summary>A pass reads the account's set once and holds it, so a write committing mid-pass reaches the next pass whole.</summary>
+    [Fact]
+    public async Task RunAsync_APassWalkingArrivalsAndARequestedRun_ReadsTheAccountsSetOnce()
+    {
+        // Arrange
+        this.store.Add(FactsFor(Account));
+        this.store.Add(FactsFor(Account), evaluatedAt: EvaluatedAt.AddDays(-1));
+        this.runStore.Arrange(RequestedRun());
+        var ruleSetSource = Substitute.For<IMailRuleSetSource>();
+        ruleSetSource
+            .ReadAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
+            .Returns(RuleSetOf(ArrivalRule("file-it", ScriptedMailRuleCondition.Answering(matches: true))));
+        var pass = this.CreatePass(ruleSetSource);
+
+        // Act
+        await pass.RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        await ruleSetSource.Received(1).ReadAsync(Account, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -336,7 +376,7 @@ public sealed class MailRuleEvaluationPassTests
     {
         // Arrange
         var housekeeping = ScriptedMailRuleCondition.Answering(matches: true);
-        var ruleSet = RuleSetOf(MailRule.Create("housekeeping", housekeeping, triggers: []));
+        var ruleSet = RuleSetOf(MailRule.Create(MailRuleIds.For("housekeeping"), "housekeeping", housekeeping, triggers: []));
         this.store.Add(FactsFor(Account));
 
         // Act
@@ -348,8 +388,8 @@ public sealed class MailRuleEvaluationPassTests
 
         // Assert
         Assert.Equal(1, arrivalOnly.Arrivals.EvaluatedEmailCount);
-        Assert.Empty(arrivalOnly.Arrivals.MatchedRuleNames);
-        Assert.Equal(["housekeeping"], requested.RequestedRun?.MatchedRuleNames);
+        Assert.Empty(arrivalOnly.Arrivals.MatchedRuleIds);
+        Assert.Equal([MailRuleIds.For("housekeeping").ToString()], requested.RequestedRun?.MatchedRuleIds);
     }
 
     /// <summary>The body-text question is asked of the rules a walk runs, so a manual-only rule holds nothing up.</summary>
@@ -359,6 +399,7 @@ public sealed class MailRuleEvaluationPassTests
         // Arrange
         var ruleSet = RuleSetOf(
             MailRule.Create(
+                MailRuleIds.For("housekeeping"),
                 "housekeeping",
                 ScriptedMailRuleCondition.Answering(matches: true, MailRuleFact.BodyText),
                 triggers: []),
@@ -371,7 +412,7 @@ public sealed class MailRuleEvaluationPassTests
         // Assert
         Assert.Equal([awaiting], this.store.Evaluated);
         Assert.Equal(0, report.Arrivals.SkippedEmailCount);
-        Assert.Equal(["on-arrival"], report.Arrivals.MatchedRuleNames);
+        Assert.Equal([MailRuleIds.For("on-arrival").ToString()], report.Arrivals.MatchedRuleIds);
     }
 
     [Fact]
@@ -523,8 +564,8 @@ public sealed class MailRuleEvaluationPassTests
         Assert.Equal([unlucky, next], this.store.Evaluated);
         Assert.Equal(2, report.Arrivals.FailedRuleCount);
         Assert.Equal(0, report.Arrivals.TimedOutRuleCount);
-        Assert.Equal(["raises"], report.Arrivals.FailedRuleNames);
-        Assert.Equal(["answers"], report.Arrivals.MatchedRuleNames);
+        Assert.Equal([MailRuleIds.For("raises").ToString()], report.Arrivals.FailedRuleIds);
+        Assert.Equal([MailRuleIds.For("answers").ToString()], report.Arrivals.MatchedRuleIds);
     }
 
     [Fact]
@@ -719,9 +760,8 @@ public sealed class MailRuleEvaluationPassTests
         string name,
         IMailRuleCondition condition,
         MailRuleActionSet? actions = null,
-        bool stopWhenMatched = false,
-        IReadOnlyList<string>? accounts = null) =>
-        MailRule.Create(name, condition, actions, stopWhenMatched, accounts, [MailRuleTrigger.Arrival]);
+        bool stopWhenMatched = false) =>
+        MailRule.Create(MailRuleIds.For(name), name, condition, actions, stopWhenMatched, [MailRuleTrigger.Arrival]);
 
     private static MailRule FilingRule(string name, MailFolderAlias? destination = null) => ArrivalRule(
         name,
@@ -733,7 +773,7 @@ public sealed class MailRuleEvaluationPassTests
     {
         Assert.True(JobRecurrence.TryParse("Daily at 03:00", out var recurrence, out _));
 
-        return MailRule.Create(name, condition, triggers: [MailRuleTrigger.Schedule], schedule: recurrence);
+        return MailRule.Create(MailRuleIds.For(name), name, condition, triggers: [MailRuleTrigger.Schedule], schedule: recurrence);
     }
 
     private static MailRuleEvaluationRun RequestedRun() => new()
@@ -751,7 +791,7 @@ public sealed class MailRuleEvaluationPassTests
     private static MailRuleSet RuleSetOf(params MailRule[] rules) => MailRuleSet.Create(
         rules,
         MailRuleSetRevision.Create(
-            [.. rules.Select(rule => new MailRuleDeclaration(rule.Name, "isSeen", [.. rule.Actions.Actions], rule.StopWhenMatched, [.. rule.Accounts], [.. rule.Triggers], rule.Schedule))]),
+            [.. rules.Select(rule => new MailRuleDeclaration(rule.Id, rule.Name, Enabled: true, "isSeen", [.. rule.Actions.Actions], rule.StopWhenMatched, [.. rule.Triggers], rule.Schedule))]),
         MailRuleConditionBounds.Default);
 
     private static MailRule CopyingRule(string name) => ArrivalRule(
@@ -830,8 +870,17 @@ public sealed class MailRuleEvaluationPassTests
         MailboxChangeSubmission? submission = null)
     {
         var ruleSetSource = Substitute.For<IMailRuleSetSource>();
-        ruleSetSource.Current.Returns(ruleSet);
+        ruleSetSource.ReadAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>()).Returns(ruleSet);
 
+        return this.CreatePass(ruleSetSource, batchSize, maxBatchesPerPass, submission);
+    }
+
+    private MailRuleEvaluationPass CreatePass(
+        IMailRuleSetSource ruleSetSource,
+        int batchSize = 100,
+        int maxBatchesPerPass = 5,
+        MailboxChangeSubmission? submission = null)
+    {
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
         sessionFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ => new CommittingSession());
 

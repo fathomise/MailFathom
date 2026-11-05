@@ -6,8 +6,8 @@ using MailFathom.Application.Accounts;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Scheduling;
 using MailFathom.Application.Rules;
-using MailFathom.Application.Rules.Conditions;
 using MailFathom.Application.Rules.Evaluation;
+using MailFathom.Application.Rules.Sets;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Synchronization;
@@ -16,77 +16,96 @@ using Xunit;
 
 namespace MailFathom.Application.UnitTests.Rules.Evaluation;
 
-/// <summary>Which recurring dispatches a rule set asks for: one per scheduled rule and account it reaches.</summary>
+/// <summary>Which recurring dispatches the stored rules ask for: one per enabled scheduled rule of a served account.</summary>
 public sealed class MailRuleScheduleSourceTests
 {
+    private static readonly MailAccountId Work = MailAccountId.Create("work");
+
+    private static readonly MailAccountId Personal = MailAccountId.Create("personal");
+
     private readonly IDeploymentMailAccountCatalog accounts = Substitute.For<IDeploymentMailAccountCatalog>();
 
-    /// <summary>A rule reaching three mailboxes is three walks, each able to be under way or behind independently.</summary>
+    private readonly InMemoryMailRuleSetStore store = new();
+
+    /// <summary>A rule belongs to one account, so its schedule walks that mailbox and no other.</summary>
     [Fact]
-    public async Task ReadSchedulesAsync_AnUnscopedScheduledRule_DeclaresOneScheduleForEachServedAccount()
+    public async Task ReadSchedulesAsync_AScheduledRule_DeclaresOneScheduleForItsOwnAccount()
     {
         // Arrange
-        this.ArrangeAccounts("personal", "work");
-        var source = this.CreateSource(ScheduledRule("housekeeping", "Daily at 03:00"));
+        this.ArrangeAccounts(Personal, Work);
+        this.store.Arrange(new StoredMailRuleSet(Work, 1, [Scheduled("housekeeping", "Daily at 03:00")]));
 
         // Act
-        var schedules = await source.ReadSchedulesAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(
-            ["mail-rules:personal:housekeeping", "mail-rules:work:housekeeping"],
-            schedules.Select(schedule => schedule.Id.Value));
-        Assert.All(schedules, schedule => Assert.Equal(JobType.RunScheduledMailRules, schedule.Payload.JobType));
-    }
-
-    /// <summary>A rule scoped to one account asks for a walk of that mailbox and of no other.</summary>
-    [Fact]
-    public async Task ReadSchedulesAsync_AScheduledRuleScopedToOneAccount_DeclaresOnlyThatAccountsSchedule()
-    {
-        // Arrange
-        this.ArrangeAccounts("personal", "work");
-        var source = this.CreateSource(ScheduledRule("housekeeping", "Daily at 03:00", accounts: ["work"]));
-
-        // Act
-        var schedules = await source.ReadSchedulesAsync(TestContext.Current.CancellationToken);
+        var schedules = await this.CreateSource().ReadSchedulesAsync(TestContext.Current.CancellationToken);
 
         // Assert
         var schedule = Assert.Single(schedules);
-        Assert.Equal("mail-rules:work:housekeeping", schedule.Id.Value);
-        Assert.Equal(
-            MailAccountId.Create("work"),
-            schedule.Account);
+        Assert.Equal($"mail-rules:work:{MailRuleIds.For("housekeeping")}", schedule.Id.Value);
+        Assert.Equal(Work, schedule.Account);
+        Assert.Equal(JobType.RunScheduledMailRules, schedule.Payload.JobType);
     }
 
-    /// <summary>A rule declaring no schedule asks for no dispatch, which is every rule a deployment wrote before schedules existed.</summary>
+    /// <summary>The schedule is named by the rule's identifier, so a rename keeps the dispatch it already had.</summary>
     [Fact]
-    public async Task ReadSchedulesAsync_RulesDeclaringNoSchedule_AskForNoRecurringDispatch()
+    public async Task ReadSchedulesAsync_AScheduledRuleRenamed_KeepsItsScheduleIdentity()
     {
         // Arrange
-        this.ArrangeAccounts("personal");
-        var source = this.CreateSource(
-            MailRule.Create("on-arrival", Matching(), triggers: [MailRuleTrigger.Arrival]),
-            MailRule.Create("manual-only", Matching()));
+        this.ArrangeAccounts(Work);
+        var rule = Scheduled("housekeeping", "Daily at 03:00");
+        this.store.Arrange(new StoredMailRuleSet(Work, 1, [rule]));
+        var before = await this.CreateSource().ReadSchedulesAsync(TestContext.Current.CancellationToken);
+        this.store.Arrange(new StoredMailRuleSet(Work, 2, [rule with { Name = "nightly-tidy" }]));
 
         // Act
-        var schedules = await source.ReadSchedulesAsync(TestContext.Current.CancellationToken);
+        var after = await this.CreateSource().ReadSchedulesAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(Assert.Single(before).Id, Assert.Single(after).Id);
+    }
+
+    /// <summary>A disabled rule is never run, so its schedule asks for nothing.</summary>
+    [Fact]
+    public async Task ReadSchedulesAsync_ADisabledScheduledRule_AsksForNoDispatch()
+    {
+        // Arrange
+        this.ArrangeAccounts(Work);
+        this.store.Arrange(new StoredMailRuleSet(Work, 1, [Scheduled("housekeeping", "Daily at 03:00") with { Enabled = false }]));
+
+        // Act
+        var schedules = await this.CreateSource().ReadSchedulesAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(schedules);
     }
 
-    /// <summary>A deployment whose rules declare no schedule has no walk to declare, so it never reads the account records for one.</summary>
+    /// <summary>Rules of an account this deployment no longer serves ask for no walk of a mailbox nobody synchronizes.</summary>
+    [Fact]
+    public async Task ReadSchedulesAsync_AScheduledRuleOfAnAccountNotServed_AsksForNoDispatch()
+    {
+        // Arrange
+        this.ArrangeAccounts(Personal);
+        this.store.Arrange(new StoredMailRuleSet(Work, 1, [Scheduled("housekeeping", "Daily at 03:00")]));
+
+        // Act
+        var schedules = await this.CreateSource().ReadSchedulesAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(schedules);
+    }
+
+    /// <summary>Stored rules that declare no schedule have no walk to declare, so the account records are never read for one.</summary>
     [Fact]
     public async Task ReadSchedulesAsync_RulesDeclaringNoSchedule_ReadsNoServedAccount()
     {
         // Arrange
-        this.ArrangeAccounts("personal");
-        var source = this.CreateSource(MailRule.Create("on-arrival", Matching(), triggers: [MailRuleTrigger.Arrival]));
+        this.ArrangeAccounts(Work);
+        this.store.Arrange(new StoredMailRuleSet(Work, 1, [Declared("on-arrival", [MailRuleTrigger.Arrival], schedule: null)]));
 
         // Act
-        await source.ReadSchedulesAsync(TestContext.Current.CancellationToken);
+        var schedules = await this.CreateSource().ReadSchedulesAsync(TestContext.Current.CancellationToken);
 
         // Assert
+        Assert.Empty(schedules);
         await this.accounts.DidNotReceive().ReadServedAccountsAsync(Arg.Any<CancellationToken>());
     }
 
@@ -95,13 +114,14 @@ public sealed class MailRuleScheduleSourceTests
     public async Task ReadSchedulesAsync_TwoScheduledRules_DeclareTheirOwnOccasionsSeparately()
     {
         // Arrange
-        this.ArrangeAccounts("personal");
-        var source = this.CreateSource(
-            ScheduledRule("nightly", "Daily at 03:00"),
-            ScheduledRule("hourly", "Every 01:00:00"));
+        this.ArrangeAccounts(Work);
+        this.store.Arrange(new StoredMailRuleSet(
+            Work,
+            1,
+            [Scheduled("nightly", "Daily at 03:00"), Scheduled("hourly", "Every 01:00:00")]));
 
         // Act
-        var schedules = await source.ReadSchedulesAsync(TestContext.Current.CancellationToken);
+        var schedules = await this.CreateSource().ReadSchedulesAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(
@@ -109,46 +129,33 @@ public sealed class MailRuleScheduleSourceTests
             schedules.Select(schedule => schedule.Recurrence.CanonicalForm));
     }
 
-    private static MailRule ScheduledRule(string name, string declaration, IReadOnlyList<string>? accounts = null)
+    private static MailRuleDeclaration Scheduled(string name, string declaration)
     {
         Assert.True(JobRecurrence.TryParse(declaration, out var recurrence, out _));
 
-        return MailRule.Create(
-            name,
-            Matching(),
-            accounts: accounts,
-            triggers: [MailRuleTrigger.Schedule],
-            schedule: recurrence);
+        return Declared(name, [MailRuleTrigger.Schedule], recurrence);
     }
 
-    private static ScriptedMailRuleCondition Matching() => ScriptedMailRuleCondition.Answering(matches: true);
+    private static MailRuleDeclaration Declared(
+        string name,
+        IReadOnlyList<MailRuleTrigger> triggers,
+        JobRecurrence? schedule) => new(
+        MailRuleIds.For(name),
+        name,
+        Enabled: true,
+        "isSeen",
+        Actions: [],
+        StopWhenMatched: false,
+        triggers,
+        schedule);
 
-    private static MailRuleSet RuleSetOf(params MailRule[] rules) => MailRuleSet.Create(
-        rules,
-        MailRuleSetRevision.Create(
-            [.. rules.Select(rule => new MailRuleDeclaration(
-                rule.Name,
-                "isSeen",
-                [.. rule.Actions.Actions],
-                rule.StopWhenMatched,
-                [.. rule.Accounts],
-                [.. rule.Triggers],
-                rule.Schedule))]),
-        MailRuleConditionBounds.Default);
+    private MailRuleScheduleSource CreateSource() => new(this.store, this.accounts);
 
-    private MailRuleScheduleSource CreateSource(params MailRule[] rules)
-    {
-        var ruleSetSource = Substitute.For<IMailRuleSetSource>();
-        ruleSetSource.Current.Returns(RuleSetOf(rules));
-
-        return new MailRuleScheduleSource(ruleSetSource, this.accounts);
-    }
-
-    private void ArrangeAccounts(params string[] identifiers) => this.accounts.ReadServedAccountsAsync(Arg.Any<CancellationToken>()).Returns(
+    private void ArrangeAccounts(params MailAccountId[] identifiers) => this.accounts.ReadServedAccountsAsync(Arg.Any<CancellationToken>()).Returns(
     [
         .. identifiers.Select(identifier => new ServedMailAccount(
-            MailAccountId.Create(identifier),
-            MailAccountDisplayName.Create(identifier),
+            identifier,
+            MailAccountDisplayName.Create(identifier.Value),
             MailSynchronizationMode.Polling)),
     ]);
 }

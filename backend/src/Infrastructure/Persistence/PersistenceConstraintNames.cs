@@ -262,6 +262,14 @@ internal static class PersistenceConstraintNames
     /// </remarks>
     internal const string EmailThreadStateEntryForeignKeyName = "fk_email_thread_state_entries_states";
 
+    /// <summary>The key that keeps one rule set per account, which two first writes to one account's rules both insert.</summary>
+    /// <remarks>
+    /// The name EF Core's convention gives the key, which the mapping leaves as it is. Named here because losing the race
+    /// is the mechanism: a first write has no set row to lock, so two of them commit against the key, and the retry of
+    /// the one violating it locks the winner's row and answers a version conflict.
+    /// </remarks>
+    internal const string MailRuleSetPrimaryKeyConstraintName = "PK_mail_rule_sets";
+
     /// <summary>The key that keeps one whole-mailbox rule run per account, and which a second request is recognized by.</summary>
     /// <remarks>
     /// Named because losing this race is the mechanism rather than a fault: two requests for one account's first run
@@ -367,6 +375,18 @@ internal static class PersistenceConstraintNames
 
     /// <summary>The index that answers why one message was filed, which is the history's first question.</summary>
     internal const string MailRuleExecutionEmailIndexName = "ix_mail_rule_executions_email_evaluated";
+
+    /// <summary>The constraint that keeps one rule at each position of an account's evaluation order.</summary>
+    internal const string MailRulePositionUniqueIndexName = "ix_mail_rules_account_position";
+
+    /// <summary>The constraint that keeps a rule's name unique within its account without regard to case.</summary>
+    internal const string MailRuleNameUniqueIndexName = "ix_mail_rules_account_normalized_name";
+
+    /// <summary>The constraint that keeps one archive row per committed version of an account's rules.</summary>
+    internal const string MailRuleSetRevisionVersionUniqueIndexName = "ix_mail_rule_set_revisions_account_version";
+
+    /// <summary>The index a past run resolves the revision it ran under through.</summary>
+    internal const string MailRuleSetRevisionResolutionIndexName = "ix_mail_rule_set_revisions_account_revision_committed";
 
     /// <summary>The order one contact book is listed and paginated in.</summary>
     /// <remarks>

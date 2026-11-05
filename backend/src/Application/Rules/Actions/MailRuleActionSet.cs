@@ -51,9 +51,10 @@ public sealed class MailRuleActionSet
     /// <returns>One message per refused action, empty when the combination is one MailFathom applies.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="actions" /> is <see langword="null" />.</exception>
     /// <remarks>
-    /// Reported rather than thrown, because this is what an operator reads while their configuration is being validated
-    /// and every defect in a rule set is reported together. <see cref="Create" /> refuses the same combinations, which
-    /// is what keeps a set built without this check from reaching a mailbox.
+    /// Reported rather than thrown, because this is what a person reads when a write to an account's rules is refused,
+    /// and every defect in a candidate set is reported together. A message names the action by its mutation alone and
+    /// never quotes a destination or a keyword, which are text a person typed. <see cref="Create" /> refuses the same
+    /// combinations, which is what keeps a set built without this check from reaching a mailbox.
     /// </remarks>
     public static IReadOnlyList<string> FindErrors(string ruleName, IReadOnlyList<MailRuleAction> actions)
     {
@@ -250,11 +251,9 @@ public sealed class MailRuleActionSet
     /// <summary>Names one action the way an operator wrote it, so a refusal points at the key they edit.</summary>
     private static string Describe(MailRuleAction action) => action switch
     {
-        { Destination: { } destination } => $"'{action.Mutation.Name}' into '{destination}'",
         { DesiredSeenState: { } isSeen } => $"'{action.Mutation.Name}' to {(isSeen ? "read" : "unread")}",
         { DesiredFlaggedState: { } isFlagged } => $"'{action.Mutation.Name}' to {(isFlagged ? "flagged" : "unflagged")}",
         { Keywords: { IsEmpty: true } } => $"'{action.Mutation.Name}' naming none",
-        { Keywords: { } keywords } => $"'{action.Mutation.Name}' naming '{string.Join("', '", keywords.Values)}'",
         _ => $"'{action.Mutation.Name}'",
     };
 

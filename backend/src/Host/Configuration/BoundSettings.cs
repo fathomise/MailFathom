@@ -228,11 +228,9 @@ internal static class BoundSettings
                 binderOptions => binderOptions.ErrorOnUnknownConfiguration = true)
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        // Rules are authored in configuration rather than in a table, which ADR 0010 records: what an instance will do to a
-        // mailbox is then reviewable in a diff before it runs and reproducible from a repository afterwards. Bound strictly
-        // for the reason mail transport is — a misspelled key would otherwise be ignored, and the rule it belonged to would
-        // go on running while meaning something its author did not write. What the declarations themselves have to satisfy
-        // is not an attribute on this graph and is stated in <see cref="ComposedSettings" /> instead.
+        // The limits every account's rules are read and evaluated under; the rules themselves are kept per account in
+        // PostgreSQL under ADR 0048. Bound strictly for the reason mail transport is — a misspelled limit would otherwise
+        // be ignored and the default would bound every rule while the file said otherwise.
         services.AddOptions<MailRulesOptions>()
             .Bind(
                 configuration.GetSection(MailRulesOptions.SectionName),

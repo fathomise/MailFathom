@@ -9,79 +9,82 @@ using MailFathom.Application.Rules.History;
 
 namespace MailFathom.Host.Api;
 
-/// <summary>The rule set in force, as the administrative endpoint serves it.</summary>
-/// <param name="Revision">The derived identity of the set, which every recorded execution names.</param>
-/// <param name="ConfigurationAccepted">Whether the configuration as it now stands is the one this set was read from.</param>
-/// <param name="RefusedSettingCount">How many settings a refusal named, which is zero whenever the set is current.</param>
-/// <param name="Rules">The rules, in the order they are evaluated in.</param>
+/// <summary>One mail account's stored rules, as the administrative endpoint serves them.</summary>
+/// <param name="Account">The account the rules belong to.</param>
+/// <param name="Version">The set's version, which a write states it read.</param>
+/// <param name="Revision">The derived identity of the enabled rules, which every recorded execution names.</param>
+/// <param name="Held">Whether no pass runs the set, because an enabled rule no longer compiles.</param>
+/// <param name="UncompiledRules">The enabled rules that hold the set, by identifier, empty for a set that runs.</param>
+/// <param name="Rules">Every stored rule, disabled ones included, in the order they are evaluated in.</param>
 /// <remarks>
 /// The order is the answer as much as the rules are, so nothing here sorts: a caller reading this is finding out which
 /// rule reaches a message first and whether anything above it ends the pass.
 /// </remarks>
 internal sealed record MailRuleSetResponse(
+    string Account,
+    long Version,
     string Revision,
-    bool ConfigurationAccepted,
-    int RefusedSettingCount,
+    bool Held,
+    IReadOnlyList<Guid> UncompiledRules,
     IReadOnlyList<MailRuleResponse> Rules)
 {
-    /// <summary>Describes the loaded set for the wire.</summary>
-    /// <param name="ruleSet">The set the pass runs against.</param>
-    /// <param name="latestReloadRefused">Whether the most recent candidate was refused.</param>
-    /// <param name="refusedSettingCount">How many settings that refusal named.</param>
+    /// <summary>Describes one account's stored set for the wire.</summary>
+    /// <param name="reading">The stored set and the rules that hold it.</param>
     /// <returns>The response body.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="ruleSet" /> is <see langword="null" />.</exception>
-    internal static MailRuleSetResponse For(
-        MailRuleSet ruleSet,
-        bool latestReloadRefused,
-        int refusedSettingCount)
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="reading" /> is <see langword="null" />.</exception>
+    internal static MailRuleSetResponse For(MailRuleSetReading reading)
     {
-        ArgumentNullException.ThrowIfNull(ruleSet);
+        ArgumentNullException.ThrowIfNull(reading);
 
         return new MailRuleSetResponse(
-            ruleSet.Revision.Value,
-            !latestReloadRefused,
-            refusedSettingCount,
-            [.. ruleSet.Rules.Select(MailRuleResponse.For)]);
+            reading.Stored.Account.Value,
+            reading.Stored.Version,
+            reading.Stored.Revision.Value,
+            reading.IsHeld,
+            [.. reading.UncompiledRules.Select(rule => rule.Value)],
+            [.. reading.Stored.Declarations.Select(MailRuleResponse.For)]);
     }
 }
 
-/// <summary>One loaded rule, as the administrative endpoint serves it.</summary>
-/// <param name="Name">The name the rule is declared and reported under.</param>
-/// <param name="Accounts">The accounts it applies to, empty for a rule that applies to every account.</param>
-/// <param name="ReadableFacts">The facts its condition names, which is every fact it can cause to be resolved.</param>
+/// <summary>One stored rule, as the administrative endpoint serves it.</summary>
+/// <param name="Id">The identifier the rule keeps through every rename and edit.</param>
+/// <param name="Position">Where the rule sits in its account's order, counted from zero.</param>
+/// <param name="Name">The name a person reads it under.</param>
+/// <param name="Enabled">Whether a pass applies it.</param>
+/// <param name="Condition">The condition as it was written.</param>
 /// <param name="Actions">What a match asks the mailbox for, in the order the rule declares the changes.</param>
 /// <param name="StopWhenMatched">Whether a match ends the pass rather than continuing to the rules below.</param>
 /// <param name="Triggers">The automatic triggers it takes part in, empty for a rule only a requested run applies.</param>
 /// <param name="Schedule">The occasions the rule declares, in their canonical form, absent for a rule declaring none.</param>
-/// <remarks>
-/// The authored condition is deliberately absent. A compiled rule carries no text — which is what keeps an address the
-/// operator typed into a condition out of every record naming the rule — so what this reports of a condition is the
-/// facts it reaches. The text itself is in the operator's own configuration file, where it was written.
-/// </remarks>
 internal sealed record MailRuleResponse(
+    Guid Id,
+    int Position,
     string Name,
-    IReadOnlyList<string> Accounts,
-    IReadOnlyList<string> ReadableFacts,
+    bool Enabled,
+    string Condition,
     IReadOnlyList<MailRuleActionResponse> Actions,
     bool StopWhenMatched,
     IReadOnlyList<string> Triggers,
     string? Schedule)
 {
-    /// <summary>Describes one rule for the wire.</summary>
-    /// <param name="rule">The bound rule.</param>
+    /// <summary>Describes one stored rule for the wire.</summary>
+    /// <param name="rule">The stored rule.</param>
+    /// <param name="position">Where it sits in its account's order.</param>
     /// <returns>The response body.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="rule" /> is <see langword="null" />.</exception>
-    internal static MailRuleResponse For(MailRule rule)
+    internal static MailRuleResponse For(MailRuleDeclaration rule, int position)
     {
         ArgumentNullException.ThrowIfNull(rule);
 
         return new MailRuleResponse(
+            rule.Id.Value,
+            position,
             rule.Name,
-            [.. rule.Accounts.Order(StringComparer.Ordinal)],
-            [.. rule.Condition.ReferencedFacts.Select(fact => fact.Name)],
-            [.. rule.Actions.Actions.Select((action, position) => MailRuleActionResponse.For(action, position))],
+            rule.Enabled,
+            rule.ConditionText,
+            [.. rule.Actions.Select((action, actionPosition) => MailRuleActionResponse.For(action, actionPosition))],
             rule.StopWhenMatched,
-            [.. MailRuleTrigger.All.Where(rule.RunsOn).Select(trigger => trigger.Name)],
+            [.. rule.Triggers.Select(trigger => trigger.Name)],
             rule.Schedule?.CanonicalForm);
     }
 }
@@ -202,7 +205,8 @@ internal sealed record MailRuleHistoryPageResponse(
 /// <summary>One recorded rule execution, as the administrative endpoint serves it.</summary>
 /// <param name="Id">What addresses this execution.</param>
 /// <param name="Email">The stable local identity of the message, which is the same one every other read names it by.</param>
-/// <param name="Rule">The rule, which is MailFathom's own configured name for it.</param>
+/// <param name="Rule">The name the rule carried when it was evaluated.</param>
+/// <param name="RuleId">The rule's identifier, which still names it after a rename, absent for an execution recorded before rules had one.</param>
 /// <param name="Revision">The rule set revision the pass was bound to, which the condition is retrievable from.</param>
 /// <param name="Trigger">Which of the pass's two walks reached the message.</param>
 /// <param name="Outcome">What the condition concluded.</param>
@@ -213,13 +217,14 @@ internal sealed record MailRuleHistoryPageResponse(
 /// <param name="Duration">How long the condition took to answer.</param>
 /// <remarks>
 /// <strong>The facts are names and never values.</strong> What the condition compared is retrievable from the recorded
-/// revision, which identifies the configuration the expression was read from — so the reasoning is reconstructible
+/// revision, which the account's archive resolves to the rules it was taken over — so the reasoning is reconstructible
 /// without a sender address, a subject, or a span of extracted text ever leaving the mailbox.
 /// </remarks>
 internal sealed record MailRuleExecutionResponse(
     Guid Id,
     Guid Email,
     string Rule,
+    Guid? RuleId,
     string Revision,
     string Trigger,
     string Outcome,
@@ -241,6 +246,7 @@ internal sealed record MailRuleExecutionResponse(
             execution.Id.Value,
             execution.StoredEmailId.Value,
             execution.RuleName,
+            execution.RuleId?.Value,
             execution.Revision.Value,
             execution.Trigger.ToString(),
             execution.Outcome.ToString(),

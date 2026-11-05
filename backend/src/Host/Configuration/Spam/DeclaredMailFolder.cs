@@ -4,9 +4,9 @@
 
 using MailFathom.Domain.Folders;
 
-namespace MailFathom.Host.Configuration.Rules;
+namespace MailFathom.Host.Configuration.Spam;
 
-/// <summary>One folder as a rule set is judged against it: the name it carries and the role it plays.</summary>
+/// <summary>One folder as a claim about it is judged against it: the name it carries and the role it plays.</summary>
 /// <param name="Alias">MailFathom's own name for the folder.</param>
 /// <param name="Role">The role the folder plays, or <see langword="null" /> when configuration labelled it with none.</param>
 /// <param name="IsVisibleToAI">Whether the folder is one an AI function may read, which the spam model stage is judged against.</param>

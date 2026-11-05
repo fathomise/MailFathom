@@ -9,18 +9,16 @@ using MailFathom.Application.Rules.Evaluation;
 
 namespace MailFathom.Host.Configuration.Rules;
 
-/// <summary>Declares the rules this deployment applies to its mail, and the limits every one of them is read under.</summary>
+/// <summary>Declares the limits every mail account's rules are read and evaluated under.</summary>
 /// <remarks>
 /// <para>
-/// A configuration section rather than a table, which is the decision
-/// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0010-rule-authoring-in-configuration-and-ncalc-conditions.md">ADR 0010</see>
-/// records: what an instance will do to a mailbox is the most consequential thing it declares, and configuration is
-/// what makes that reviewable in a diff before it runs and reproducible from a repository afterwards. Nothing creates,
-/// edits, or deletes a rule at run time.
+/// The rules themselves are not configuration: each mail account's rules are kept in PostgreSQL and changed while the
+/// deployment runs, which is what
+/// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0048-keeping-a-mail-accounts-rules-in-postgresql-and-changing-them-at-runtime.md">ADR 0048</see>
+/// decides. What stays here is what an operator bounds for every account alike.
 /// </para>
 /// <para>
-/// The whole section is optional and every limit has a usable default, so an absent section is a deployment that
-/// applies no rules rather than one that applies unbounded ones.
+/// The whole section is optional and every limit has a usable default.
 /// </para>
 /// </remarks>
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "The options framework materializes this type during configuration binding.")]
@@ -29,13 +27,12 @@ internal sealed class MailRulesOptions : IValidatableObject
     /// <summary>The configuration section this declaration is bound from.</summary>
     public const string SectionName = "MailRules";
 
-    /// <summary>Gets or sets the rules, in the order they are evaluated in.</summary>
+    /// <summary>Gets or sets the rules an earlier release read from this section, which nothing applies any more.</summary>
     /// <remarks>
-    /// The count is capped because a pass evaluates every rule it reaches for every email, so the number of rules is
-    /// the one multiplier on that cost that a rule set declares rather than inherits.
+    /// Recognized rather than bound, so the strict binder does not read the retired key as a misspelling and stop a
+    /// deployment that still carries it. <c>ConfiguredMailRulesIgnoredWarning</c> reports how many it declares.
     /// </remarks>
-    [MaxLength(200)]
-    public IList<MailRuleOptions> Rules { get; set; } = [];
+    public IConfigurationSection? Rules { get; set; }
 
     /// <summary>Gets or sets the greatest number of characters one condition may be written in.</summary>
     [Range(1, 10_000)]
@@ -110,6 +107,22 @@ internal sealed class MailRulesOptions : IValidatableObject
         HistoryRetention = this.HistoryRetention,
     };
 
+    /// <summary>Finds every refusal the limits carry, the attribute bounds and <see cref="Validate" /> together.</summary>
+    /// <returns>One sentence per refused limit, empty when every limit is usable.</returns>
+    public IReadOnlyList<string> FindConfigurationErrors()
+    {
+        var results = new List<ValidationResult>();
+
+        Validator.TryValidateObject(this, new ValidationContext(this), results, validateAllProperties: true);
+
+        return
+        [
+            .. results
+                .Where(result => !string.IsNullOrWhiteSpace(result.ErrorMessage))
+                .Select(result => $"{SectionName}:{result.MemberNames.FirstOrDefault()} — {result.ErrorMessage}"),
+        ];
+    }
+
     /// <inheritdoc />
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
@@ -131,19 +144,6 @@ internal sealed class MailRulesOptions : IValidatableObject
             yield return new ValidationResult(
                 $"{SectionName} declares a HistoryRetention of {this.HistoryRetention}, and a rule execution may be kept for at most {LongestHistoryRetention}. Set it to zero to keep the history for exactly as long as the mail it describes.",
                 [nameof(this.HistoryRetention)]);
-        }
-
-        var duplicateName = this.Rules
-            .Select(rule => rule.Name)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .GroupBy(name => name, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault(group => group.Count() > 1);
-
-        if (duplicateName is not null)
-        {
-            yield return new ValidationResult(
-                $"{SectionName} declares more than one rule named '{duplicateName.Key}'. A rule is reported by its name, so two rules answering to one name could not be told apart in a log.",
-                [nameof(this.Rules)]);
         }
     }
 }

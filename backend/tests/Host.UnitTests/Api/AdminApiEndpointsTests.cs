@@ -370,7 +370,7 @@ public sealed class AdminApiEndpointsTests
                 $"POST {prefix}{EmbeddingProfileEndpoints.ActivationRoute} -> {MailFathomPermission.AdminSpend.Name}",
                 $"POST {prefix}{EmbeddingProfileEndpoints.ReindexCancellationRoute} -> {MailFathomPermission.AdminOperate.Name}",
                 $"GET {prefix}{HeldBackRecordEndpoints.HeldBackRecordsRoute} -> {MailFathomPermission.AdminRead.Name}",
-                $"GET {prefix}{MailRuleEndpoints.RulesRoute} -> {MailFathomPermission.AdminRead.Name}",
+                $"GET {prefix}{MailRuleEndpoints.RulesRoute} -> {MailFathomPermission.AdminRead.Name} over its target",
                 $"GET {prefix}{MailRuleEndpoints.RunsRoute} -> {MailFathomPermission.AdminRead.Name} over its target",
                 $"POST {prefix}{MailRuleEndpoints.RunsRoute} -> {MailFathomPermission.AdminOperate.Name} over its target",
                 $"GET {prefix}{MailRuleEndpoints.HistoryRoute} -> {MailFathomPermission.AdminAuditRead.Name} over its target",

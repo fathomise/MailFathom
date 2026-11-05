@@ -16,12 +16,30 @@ namespace MailFathom.Application.Rules.Evaluation;
 /// How the requested run stopped being outstanding, or <see langword="null" /> when it is still outstanding or when
 /// there was none.
 /// </param>
+/// <param name="UncompiledRules">
+/// The enabled rules whose condition no longer compiles, which held the set so that the pass walked nothing; empty for
+/// a pass that ran.
+/// </param>
 public sealed record MailRuleEvaluationReport(
     MailRuleSetRevision Revision,
     MailRuleEvaluationWalk Arrivals,
     MailRuleEvaluationWalk? RequestedRun,
-    MailRuleEvaluationRunEnding? RequestedRunEnding)
+    MailRuleEvaluationRunEnding? RequestedRunEnding,
+    IReadOnlyList<MailRuleId>? UncompiledRules = null)
 {
+    /// <summary>A pass that walked nothing because the account's set is held.</summary>
+    /// <param name="ruleSet">The held set.</param>
+    /// <returns>The report, naming the rules that hold the set.</returns>
+    public static MailRuleEvaluationReport Held(MailRuleSet ruleSet)
+    {
+        ArgumentNullException.ThrowIfNull(ruleSet);
+
+        return new(ruleSet.Revision, MailRuleEvaluationWalk.Empty, RequestedRun: null, RequestedRunEnding: null, ruleSet.UncompiledRules);
+    }
+
+    /// <summary>Gets whether the pass walked nothing because an enabled rule of the account's set no longer compiles.</summary>
+    public bool IsHeld => this.UncompiledRules is { Count: > 0 };
+
     /// <summary>A pass that had no rule set to run and no mail to run it over.</summary>
     /// <param name="revision">The revision the pass read.</param>
     /// <returns>The report.</returns>

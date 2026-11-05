@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Rules.Evaluation;
+using MailFathom.Application.Rules.Sets;
 using MailFathom.Domain.Accounts;
 
 namespace MailFathom.Application.Rules.History;
@@ -39,47 +40,70 @@ public sealed class MailRuleHistoryRetention
     public const int MaximumExecutionsErasedPerPass = 5_000;
 
     private readonly IMailRuleExecutionStore store;
+    private readonly IMailRuleSetStore ruleSets;
     private readonly MailRuleEvaluationOptions options;
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the retention pass from the declared window and the history it erases from.</summary>
     /// <param name="store">Holds the history the pass erases from.</param>
+    /// <param name="ruleSets">Holds the archive of committed rule sets, which follows the history's window.</param>
     /// <param name="options">Declares the window an execution is kept for.</param>
     /// <param name="timeProvider">Measures the window back from now.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
     public MailRuleHistoryRetention(
         IMailRuleExecutionStore store,
+        IMailRuleSetStore ruleSets,
         MailRuleEvaluationOptions options,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(ruleSets);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.store = store;
+        this.ruleSets = ruleSets;
         this.options = options;
         this.timeProvider = timeProvider;
     }
 
-    /// <summary>Erases everything in one account's history that has outlived the configured window.</summary>
+    /// <summary>Erases everything in one account's history, and in its rule set archive, that has outlived the configured window.</summary>
     /// <param name="account">The account whose history is aged.</param>
     /// <param name="cancellationToken">Cancels the erasure.</param>
-    /// <returns>How many executions were erased.</returns>
+    /// <returns>How many executions and archive rows were erased together.</returns>
     /// <remarks>
+    /// <para>
     /// A window of zero or less names no boundary at all and erases nothing, which is how a deployment declares that it
     /// keeps its history until the mail it describes is erased and no longer.
+    /// </para>
+    /// <para>
+    /// The archive of committed rule sets follows the history's window, after the executions: an archive row is erased
+    /// once it is older than the window, is not the account's newest, and no retained execution or evaluation run names
+    /// its revision. So what the current set says is never erased, what a retained run ran under is never erased, and the
+    /// record of who changed what is kept exactly as long as the history beside it.
+    /// </para>
     /// </remarks>
-    public Task<int> EraseExpiredAsync(MailAccountId account, CancellationToken cancellationToken)
+    public async Task<int> EraseExpiredAsync(MailAccountId account, CancellationToken cancellationToken)
     {
         if (this.options.HistoryRetention <= TimeSpan.Zero)
         {
-            return Task.FromResult(0);
+            return 0;
         }
 
-        return this.store.EraseEvaluatedBeforeAsync(
+        var boundary = this.timeProvider.GetUtcNow() - this.options.HistoryRetention;
+
+        var erasedExecutions = await this.store.EraseEvaluatedBeforeAsync(
             account,
-            this.timeProvider.GetUtcNow() - this.options.HistoryRetention,
+            boundary,
             MaximumExecutionsErasedPerPass,
             cancellationToken);
+
+        var erasedArchiveRows = await this.ruleSets.EraseExpiredArchiveAsync(
+            account,
+            boundary,
+            MaximumExecutionsErasedPerPass,
+            cancellationToken);
+
+        return erasedExecutions + erasedArchiveRows;
     }
 }

@@ -71,7 +71,7 @@ public sealed record MailRuleActionPlan
         {
             foreach (var (action, position) in rule.Actions.Actions.Select((action, position) => (action, position)))
             {
-                var planned = new PlannedMailRuleAction(rule.Name, action, position);
+                var planned = new PlannedMailRuleAction(rule.Id, rule.Name, action, position);
 
                 if (MailRuleActionSet.FindRefusal([.. honored.Select(honoredAction => honoredAction.Action)], action) is not null)
                 {

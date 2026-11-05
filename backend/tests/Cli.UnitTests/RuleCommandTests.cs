@@ -8,41 +8,41 @@ using Xunit;
 
 namespace MailFathom.Cli.UnitTests;
 
-/// <summary>Covers what the rule commands report, what they refuse, and the operation none of them has.</summary>
+/// <summary>Covers what the rule commands report and what they refuse.</summary>
 /// <remarks>
-/// <para>
-/// No command here writes a rule, and that absence is the contract rather than an omission: configuration is where a
-/// rule is authored, so what these assert is that an operator reaches every reading and every run, and that the tool
-/// says where a rule is changed instead of changing one.
-/// </para>
-/// <para>
-/// The other half is what never reaches the terminal. The history prints fact names, never fact values, so a subject or
-/// an address cannot arrive in a shell's scrollback through a command about rules.
-/// </para>
+/// The history prints fact names, never fact values, so a subject or an address cannot arrive in a shell's scrollback
+/// through a command about rules. A condition is the operator's own authored text and is printed only by
+/// <c>rules show</c>, which an operator asks for by name.
 /// </remarks>
 public sealed class RuleCommandTests : IDisposable
 {
     private const string Endpoint = CliCommandHarness.Endpoint;
     private const string Account = "work";
 
-    private const string LoadedRules = """
+    private const string StoredRules = """
         {
+          "account": "work",
+          "version": 4,
           "revision": "a1b2c3d4e5f6",
-          "configurationAccepted": true,
-          "refusedSettingCount": 0,
+          "held": false,
+          "uncompiledRules": [],
           "rules": [
             {
+              "id": "0199a0c0-0000-7000-8000-000000000001",
+              "position": 0,
               "name": "file-invoices",
-              "accounts": ["work"],
-              "readableFacts": ["senderDomain", "subject"],
+              "enabled": true,
+              "condition": "senderDomain == 'billing.example'",
               "actions": [{"position":0,"mutation":"relocate","destination":"archive","desiredSeenState":null}],
               "stopWhenMatched": true,
               "triggers": ["Arrival"]
             },
             {
+              "id": "0199a0c0-0000-7000-8000-000000000002",
+              "position": 1,
               "name": "mark-newsletters",
-              "accounts": [],
-              "readableFacts": ["senderDomain"],
+              "enabled": false,
+              "condition": "isSeen == false",
               "actions": [{"position":0,"mutation":"setSeen","destination":null,"desiredSeenState":true}],
               "stopWhenMatched": false,
               "triggers": []
@@ -55,13 +55,13 @@ public sealed class RuleCommandTests : IDisposable
 
     /// <summary>The order is the answer as much as the rules are, so nothing here sorts what the deployment sent.</summary>
     [Fact]
-    public async Task List_ALoadedSet_ReportsTheRulesInTheOrderTheyRun()
+    public async Task List_AStoredSet_ReportsTheRulesInTheOrderTheyRunAndWhichAreEnabled()
     {
         // Arrange
-        using var deployment = FakeRuleDeployment.Answering(rules: LoadedRules);
+        using var deployment = FakeRuleDeployment.Answering(rules: StoredRules);
 
         // Act
-        var exitCode = await this.RunAsync(deployment, "rules", "list", "--endpoint", Endpoint);
+        var exitCode = await this.RunAsync(deployment, "rules", "list", "--account", Account, "--endpoint", Endpoint);
 
         // Assert
         Assert.Equal(CliExitCode.Success, exitCode);
@@ -71,8 +71,13 @@ public sealed class RuleCommandTests : IDisposable
                 .Where(line => line.StartsWith("file-", StringComparison.Ordinal)
                     || line.StartsWith("mark-", StringComparison.Ordinal))
                 .Select(row => row.Split(' ')[0]));
+        Assert.Contains(
+            this.harness.Console.Lines,
+            row => row.StartsWith("mark-newsletters", StringComparison.Ordinal) && row.Contains("disabled", StringComparison.Ordinal));
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("relocate → archive", StringComparison.Ordinal));
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("ends the pass", StringComparison.Ordinal));
+        Assert.DoesNotContain(this.harness.Console.Lines, line => line.Contains("billing.example", StringComparison.Ordinal));
+        Assert.Equal("account=work", FakeRuleDeployment.LastRulesQuery(deployment));
     }
 
     /// <summary>
@@ -83,10 +88,10 @@ public sealed class RuleCommandTests : IDisposable
     public async Task List_ARuleOnlyARequestedRunApplies_SaysWhatRunsItRatherThanNothing()
     {
         // Arrange
-        using var deployment = FakeRuleDeployment.Answering(rules: LoadedRules);
+        using var deployment = FakeRuleDeployment.Answering(rules: StoredRules);
 
         // Act
-        var exitCode = await this.RunAsync(deployment, "rules", "list", "--endpoint", Endpoint);
+        var exitCode = await this.RunAsync(deployment, "rules", "list", "--account", Account, "--endpoint", Endpoint);
 
         // Assert
         Assert.Equal(CliExitCode.Success, exitCode);
@@ -94,10 +99,6 @@ public sealed class RuleCommandTests : IDisposable
             this.harness.Console.Lines,
             row => row.StartsWith("mark-newsletters", StringComparison.Ordinal)
                 && row.Contains("nothing automatically; 'mfctl rules run' applies it", StringComparison.Ordinal));
-        Assert.Contains(
-            this.harness.Console.Lines,
-            row => row.StartsWith("file-invoices", StringComparison.Ordinal)
-                && row.Contains("Arrival", StringComparison.Ordinal));
     }
 
     /// <summary>Naming the trigger without the occasions would leave an operator asking the one thing they came to ask.</summary>
@@ -107,14 +108,17 @@ public sealed class RuleCommandTests : IDisposable
         // Arrange
         using var deployment = FakeRuleDeployment.Answering(rules: """
             {
+              "account": "work",
+              "version": 1,
               "revision": "a1b2c3d4e5f6",
-              "configurationAccepted": true,
-              "refusedSettingCount": 0,
+              "held": false,
               "rules": [
                 {
+                  "id": "0199a0c0-0000-7000-8000-000000000003",
+                  "position": 0,
                   "name": "archive-old-newsletters",
-                  "accounts": [],
-                  "readableFacts": ["ageInDays"],
+                  "enabled": true,
+                  "condition": "ageInDays > 30",
                   "actions": [{"position":0,"mutation":"relocate","destination":"archive","desiredSeenState":null}],
                   "stopWhenMatched": false,
                   "triggers": ["Schedule"],
@@ -125,7 +129,7 @@ public sealed class RuleCommandTests : IDisposable
             """);
 
         // Act
-        var exitCode = await this.RunAsync(deployment, "rules", "list", "--endpoint", Endpoint);
+        var exitCode = await this.RunAsync(deployment, "rules", "list", "--account", Account, "--endpoint", Endpoint);
 
         // Assert
         Assert.Equal(CliExitCode.Success, exitCode);
@@ -135,64 +139,77 @@ public sealed class RuleCommandTests : IDisposable
                 && row.Contains("Schedule (daily:03:00:Europe/Warsaw)", StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// The one answer this command exists for. A refused reload leaves the previous rules running and says so to the
-    /// log alone, so an edited file and an unchanged deployment read identically until this is asked.
-    /// </summary>
+    /// <summary>A held set runs none of its rules, which reads exactly like rules that never match until this is asked.</summary>
     [Fact]
-    public async Task List_ConfigurationTheDeploymentRefused_SaysTheRulesRunningAreNotTheOnesOnDisk()
+    public async Task List_AHeldSet_SaysNoPassRunsItAndNamesTheRulesThatHoldIt()
     {
         // Arrange
         using var deployment = FakeRuleDeployment.Answering(rules: """
-            {"revision":"a1b2c3d4e5f6","configurationAccepted":false,"refusedSettingCount":2,"rules":[]}
+            {"account":"work","version":2,"revision":"a1b2c3d4e5f6","held":true,"uncompiledRules":["0199a0c0-0000-7000-8000-000000000001"],"rules":[]}
             """);
+
+        // Act
+        var exitCode = await this.RunAsync(deployment, "rules", "list", "--account", Account, "--endpoint", Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+        var hold = Assert.Single(this.harness.Console.Lines, line => line.StartsWith("Held:", StringComparison.Ordinal));
+        Assert.Contains("0199a0c0-0000-7000-8000-000000000001", hold, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task List_AnAccountWithNoRules_SaysNothingIsAppliedToItsMail()
+    {
+        // Arrange
+        using var deployment = FakeRuleDeployment.Answering(rules: """
+            {"account":"work","version":0,"revision":"e3b0c44298fc","held":false,"rules":[]}
+            """);
+
+        // Act
+        var exitCode = await this.RunAsync(deployment, "rules", "list", "--account", Account, "--endpoint", Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains("has no rules", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task List_NoAccountNamed_IsRefusedWithoutAskingTheDeploymentForAnything()
+    {
+        // Arrange
+        using var deployment = FakeRuleDeployment.Answering(rules: StoredRules);
 
         // Act
         var exitCode = await this.RunAsync(deployment, "rules", "list", "--endpoint", Endpoint);
 
         // Assert
+        Assert.NotEqual(CliExitCode.Success, exitCode);
+        Assert.Null(FakeRuleDeployment.LastRulesQuery(deployment));
+    }
+
+    /// <summary>Showing a rule prints the condition as it was written, because the database is the only place it is.</summary>
+    [Fact]
+    public async Task Show_AStoredRule_ReportsItsConditionAndWhatRunsIt()
+    {
+        // Arrange
+        using var deployment = FakeRuleDeployment.Answering(rules: StoredRules);
+
+        // Act
+        var exitCode = await this.RunAsync(deployment, "rules", "show", "file-invoices", "--account", Account, "--endpoint", Endpoint);
+
+        // Assert
         Assert.Equal(CliExitCode.Success, exitCode);
-        var acceptance = Assert.Single(
+        Assert.Contains(
             this.harness.Console.Lines,
-            line => line.StartsWith("Configuration:", StringComparison.Ordinal));
-        Assert.Contains("REFUSED", acceptance, StringComparison.Ordinal);
-        Assert.Contains("2 setting(s)", acceptance, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task List_ADeploymentDeclaringNoRules_SaysNothingIsAppliedToItsMail()
-    {
-        // Arrange
-        using var deployment = FakeRuleDeployment.Answering(rules: """
-            {"revision":"000000000000","configurationAccepted":true,"refusedSettingCount":0,"rules":[]}
-            """);
-
-        // Act
-        var exitCode = await this.RunAsync(deployment, "rules", "list", "--endpoint", Endpoint);
-
-        // Assert
-        Assert.Equal(CliExitCode.Success, exitCode);
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("declares no rules", StringComparison.Ordinal));
-    }
-
-    /// <summary>Showing a rule names where it is edited, because no command here edits one and never will.</summary>
-    [Fact]
-    public async Task Show_ALoadedRule_ReportsWhatItReadsAndWhereItIsChanged()
-    {
-        // Arrange
-        using var deployment = FakeRuleDeployment.Answering(rules: LoadedRules);
-
-        // Act
-        var exitCode = await this.RunAsync(deployment, "rules", "show", "file-invoices", "--endpoint", Endpoint);
-
-        // Assert
-        Assert.Equal(CliExitCode.Success, exitCode);
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("senderDomain, subject", StringComparison.Ordinal));
+            line => line.StartsWith("Condition:", StringComparison.Ordinal)
+                && line.Contains("senderDomain == 'billing.example'", StringComparison.Ordinal));
         Assert.Contains(
             this.harness.Console.Lines,
             line => line.StartsWith("Runs on:", StringComparison.Ordinal)
                 && line.Contains("Arrival", StringComparison.Ordinal));
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("MailRules", StringComparison.Ordinal));
+        Assert.Contains(
+            this.harness.Console.Lines,
+            line => line.Contains("0199a0c0-0000-7000-8000-000000000001", StringComparison.Ordinal));
     }
 
     /// <summary>A rule named after one of the deployment's own routes is chosen from the set like any other.</summary>
@@ -202,35 +219,67 @@ public sealed class RuleCommandTests : IDisposable
         // Arrange
         using var deployment = FakeRuleDeployment.Answering(rules: """
             {
+              "account": "work",
+              "version": 1,
               "revision": "a1b2c3d4e5f6",
-              "configurationAccepted": true,
-              "refusedSettingCount": 0,
+              "held": false,
               "rules": [
-                {"name":"history","accounts":[],"readableFacts":["isSeen"],"actions":[],"stopWhenMatched":false}
+                {"id":"0199a0c0-0000-7000-8000-000000000004","position":0,"name":"history","enabled":true,"condition":"isSeen","actions":[],"stopWhenMatched":false}
               ]
             }
             """);
 
         // Act
-        var exitCode = await this.RunAsync(deployment, "rules", "show", "history", "--endpoint", Endpoint);
+        var exitCode = await this.RunAsync(deployment, "rules", "show", "history", "--account", Account, "--endpoint", Endpoint);
 
         // Assert
         Assert.Equal(CliExitCode.Success, exitCode);
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("isSeen", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// A rule's name, condition, and destination are text whoever writes the account's rules typed, so none of them may
+    /// move the cursor or reorder the line an operator reads.
+    /// </summary>
     [Fact]
-    public async Task Show_ANameNothingIsLoadedUnder_FailsAndNamesTheCommandThatListsThem()
+    public async Task Show_ARuleCarryingTerminalSequences_PrintsItWithoutThem()
     {
         // Arrange
-        using var deployment = FakeRuleDeployment.Answering(rules: LoadedRules);
+        using var deployment = FakeRuleDeployment.Answering(rules: """
+            {
+              "account": "work",
+              "version": 1,
+              "revision": "a1b2c3d4e5f6",
+              "held": false,
+              "rules": [
+                {"id":"0199a0c0-0000-7000-8000-000000000005","position":0,"name":"tidy‮evil","enabled":true,"condition":"subject == '\u001B[2Jgone'","actions":[{"position":0,"mutation":"relocate","destination":"arch\u001B[1Aive"}],"stopWhenMatched":false}
+              ]
+            }
+            """);
 
         // Act
-        var exitCode = await this.RunAsync(deployment, "rules", "show", "not-a-rule", "--endpoint", Endpoint);
+        var exitCode = await this.RunAsync(deployment, "rules", "show", "tidy‮evil", "--account", Account, "--endpoint", Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+        Assert.DoesNotContain(this.harness.Console.Lines, line => line.Contains('\u001B', StringComparison.Ordinal) || line.Contains('‮', StringComparison.Ordinal));
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains("tidyevil", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Show_ANameTheAccountHoldsNoRuleUnder_FailsAndNamesTheCommandThatListsThem()
+    {
+        // Arrange
+        using var deployment = FakeRuleDeployment.Answering(rules: StoredRules);
+
+        // Act
+        var exitCode = await this.RunAsync(deployment, "rules", "show", "not-a-rule", "--account", Account, "--endpoint", Endpoint);
 
         // Assert
         Assert.Equal(CliExitCode.Failure, exitCode);
-        Assert.Contains(this.harness.Console.Errors, line => line.Contains("mfctl rules list", StringComparison.Ordinal));
+        Assert.Contains(
+            this.harness.Console.Errors,
+            line => line.Contains("mfctl rules list --account work", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -574,29 +623,6 @@ public sealed class RuleCommandTests : IDisposable
         // Assert
         Assert.Equal(CliExitCode.Success, exitCode);
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("--cursor MS4xLjEuYWJj", StringComparison.Ordinal));
-    }
-
-    /// <summary>
-    /// The absent operation, asserted rather than assumed. Configuration is where a rule is written, so a command that
-    /// wrote one would be the path around the review a configuration diff gives — and this is what would notice one.
-    /// </summary>
-    [Theory]
-    [InlineData("add")]
-    [InlineData("create")]
-    [InlineData("edit")]
-    [InlineData("enable")]
-    [InlineData("disable")]
-    [InlineData("delete")]
-    public async Task Rules_ACommandThatWouldWriteARule_DoesNotExist(string verb)
-    {
-        // Arrange
-        using var deployment = FakeRuleDeployment.Answering(rules: LoadedRules);
-
-        // Act
-        var exitCode = await this.RunAsync(deployment, "rules", verb, "--endpoint", Endpoint);
-
-        // Assert
-        Assert.NotEqual(CliExitCode.Success, exitCode);
     }
 
     private static FakeHttpMessageHandler EmptyHistory() =>

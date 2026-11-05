@@ -6,7 +6,6 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Domain.Folders;
-using MailFathom.Host.Configuration.Rules;
 
 namespace MailFathom.Host.Configuration.Spam;
 
