@@ -26,10 +26,10 @@ public sealed class MailRulesOptionsTests
     }
 
     [Fact]
-    public void Bind_AMisspelledLimit_IsRefusedByTheStrictBinder()
+    public void Bind_ALimitThisSectionDoesNotDeclare_IsRefusedByTheStrictBinder()
     {
         // Act, Assert
-        Assert.Throws<InvalidOperationException>(() => BindRules("""{ "MailRules": { "MaxConditionLenght": 10 } }"""));
+        Assert.Throws<InvalidOperationException>(() => BindRules("""{ "MailRules": { "MaxConditionCharacters": 10 } }"""));
     }
 
     [Fact]
