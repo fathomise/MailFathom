@@ -2978,7 +2978,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     formattedBlockHtml = (b) => b.table ? this.tableHtml(b.table.map((r, ri) => r.map(v => ri > 0 && /^[€$£]?[\d][\d.,]*\s?h?$/.test(v) ? { text: v, align: "end" } : v)), true)
       : b.list ? "<ul style=\"margin:0;padding-left:22px\">" + b.list.map(i => "<li>" + this.escapeHtml(i) + "</li>").join("") + "</ul>"
       : b.lead ? "<b>" + this.escapeHtml(b.lead) + "</b>"
-      : this.escapeHtml(b.p);
+      : this.escapeHtml(b.p).replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (m, words, href) =>
+        /* Until the draft is accepted, each link the agent wrote names its host beside its words. */
+        "<a href=\"" + href + "\">" + words + "</a><span data-mf-link-host contenteditable=\"false\" style=\"margin-left:6px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--text2);font-size:12px;white-space:nowrap\">goes to " + hostOf(href) + "</span>");
     saveRange = () => {
       const el = this.bodyRef.current, sel = window.getSelection();
       if (el && sel && sel.rangeCount && el.contains(sel.anchorNode)) this.savedRange = sel.getRangeAt(0).cloneRange();
@@ -3225,6 +3227,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const el = this.bodyRef.current;
       const block = el && el.querySelector("#ai-draft-block");
       if (block) {
+        block.querySelectorAll("[data-mf-link-host]").forEach(h => h.remove());
         block.style.borderLeft = "none";
         block.style.paddingLeft = "0";
         block.style.marginLeft = "0";

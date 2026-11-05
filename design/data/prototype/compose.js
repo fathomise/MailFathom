@@ -91,5 +91,5 @@ MailFathomDesign.data.composeFormattedDraft = [
     "Contoso has not yet confirmed the 5% cap on CPI indexation.",
     "Fabrikam's six-month notice period needs a look from legal.",
   ] },
-  { p: "If the cap is confirmed, I suggest we choose Nordwind Hosting by 28 August." },
+  { p: "If the cap is confirmed, I suggest we choose Nordwind Hosting by 28 August. The figures are in the [comparison sheet](https://files.example.com/procurement/hosting-2026)." },
 ];
