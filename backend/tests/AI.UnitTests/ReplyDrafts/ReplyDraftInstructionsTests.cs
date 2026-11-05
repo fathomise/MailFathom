@@ -427,6 +427,39 @@ public sealed class ReplyDraftInstructionsTests
         Assert.Contains($"reproduces the <{AgentTurnDocument.AskElementName}> element", text, StringComparison.Ordinal);
     }
 
+    /// <summary>A link is cited by number and shown by host and words, so its address has no element to travel in.</summary>
+    [Fact]
+    public void ComposeDraftingTurn_LinksADraftMayCarry_NumbersEachWithItsHostAndItsWords()
+    {
+        // Act
+        var written = Parsed(ReplyDraftInstructions.ComposeDraftingTurn(
+            new GuardedDraftingTurn(Subject: null, [], [], [], Selection: null, "Send the sheet.")
+            {
+                Links = [new GuardedDraftingLink(0, "forms.example.test", Words: null), new GuardedDraftingLink(1, "files.example.test", "comparison sheet")],
+            }));
+
+        // Assert
+        var links = Assert.Single(written.Elements(ReplyDraftInstructions.LinksElementName)).Elements(ReplyDraftInstructions.LinkElementName).ToArray();
+
+        Assert.Equal(["0", "1"], links.Select(Number));
+        Assert.Equal(["forms.example.test", "files.example.test"], links.Select(static link => link.Element(ReplyDraftInstructions.HostElementName)?.Value));
+        Assert.Equal([null, "comparison sheet"], links.Select(static link => link.Element(ReplyDraftInstructions.WordsElementName)?.Value));
+    }
+
+    /// <summary>The two conditions formatting is written under, said in the terms the person reading the instruction would use.</summary>
+    [Fact]
+    public void TextFor_TheInstruction_FormatsOnlyWhenAskedOrWhenALongReplyNeedsStructure()
+    {
+        // Act
+        var text = Normalized(ReplyDraftInstructions.TextFor(UserLanguage.English));
+
+        // Assert
+        Assert.Contains("Most replies are plain", text, StringComparison.Ordinal);
+        Assert.Contains("The person asked for it in what they typed", text, StringComparison.Ordinal);
+        Assert.Contains("the reply is long and structure clearly helps the person reading it", text, StringComparison.Ordinal);
+        Assert.Contains("only to a number the turn gave you", text, StringComparison.Ordinal);
+    }
+
     private static GuardedDraftingMessage Message(int position, string text, bool isChosen) =>
         new(position, "Karolina", new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero), text, isChosen, Attachments: []);
 

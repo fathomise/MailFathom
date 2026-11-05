@@ -40,6 +40,44 @@ function draftBody(draft: Readonly<Record<string, unknown>> = {}): string {
     });
 }
 
+const noEmphasis = { bold: false, italic: false, underline: false, strikethrough: false, monospace: false };
+
+// The draft above as the document the deployment answers beside it: a bold lead-in and words linked to an address.
+function draftDocument(overrides: Readonly<Record<string, unknown>> = {}) {
+    return {
+        schemaVersion: 1,
+        blocks: [
+            {
+                type: 'paragraph',
+                version: 1,
+                alignment: 'Inherited',
+                content: [
+                    { text: 'Terms: ', emphasis: 'Bold', foreground: null, link: null },
+                    {
+                        text: 'the signed offer',
+                        emphasis: 'None',
+                        foreground: null,
+                        link: {
+                            target: 'https://files.example.test/offer',
+                            host: null,
+                            asciiHost: null,
+                            deception: 'NotApplicable',
+                            isWorthWarningAbout: false,
+                        },
+                    },
+                ],
+            },
+        ],
+        refusal: 'None',
+        removedRemoteReferenceCount: 0,
+        retainedRemoteImageCount: 0,
+        inlineImageCount: 0,
+        undrawnInlineImageCount: 0,
+        truncated: false,
+        ...overrides,
+    };
+}
+
 type Answer = Omit<ClientResponse, 'headers'>;
 
 function answering(response: Answer): MailFathomTransport {
@@ -104,6 +142,7 @@ describe('draftMailReply', () => {
             value: {
                 outcome: 'drafted',
                 body: 'We accept the two-hour response time, with a 5% cap on indexation.',
+                document: null,
                 claims: [
                     {
                         text: 'The response time is two hours.',
@@ -115,6 +154,72 @@ describe('draftMailReply', () => {
                 proposedRecipients: [{ address: 'karolina@example.test', displayName: 'Karolina' }],
             },
         });
+    });
+
+    it('reads the draft as the document it was written as, its link and its emphasis included', async () => {
+        const result = await draftMailReply(
+            session,
+            answering({ status: 200, body: draftBody({ document: draftDocument() }) }),
+            request(),
+        );
+
+        expect(result.outcome === 'read' && result.value.outcome === 'drafted' && result.value.document).toStrictEqual({
+            blocks: [
+                {
+                    type: 'paragraph',
+                    alignment: 'Inherited',
+                    content: [
+                        {
+                            text: 'Terms: ',
+                            emphasis: { ...noEmphasis, bold: true },
+                            foreground: null,
+                            size: 'Normal',
+                            link: null,
+                        },
+                        {
+                            text: 'the signed offer',
+                            emphasis: noEmphasis,
+                            foreground: null,
+                            size: 'Normal',
+                            link: {
+                                target: 'https://files.example.test/offer',
+                                host: null,
+                                asciiHost: null,
+                                deception: 'NotApplicable',
+                                worthWarningAbout: false,
+                            },
+                        },
+                    ],
+                },
+            ],
+            refusal: 'None',
+            removedRemoteReferenceCount: 0,
+            retainedRemoteImageCount: 0,
+            inlineImageCount: 0,
+            undrawnInlineImageCount: 0,
+            truncated: false,
+            footer: null,
+        });
+    });
+
+    it('reads a draft whose document is null as one written as plain text alone', async () => {
+        const result = await draftMailReply(
+            session,
+            answering({ status: 200, body: draftBody({ document: null }) }),
+            request(),
+        );
+
+        expect(result.outcome === 'read' && result.value.outcome === 'drafted' && result.value.document).toBeNull();
+    });
+
+    it('refuses a draft whose document is not one, rather than falling back to its plain text', async () => {
+        const result = await draftMailReply(
+            session,
+            answering({ status: 200, body: draftBody({ document: draftDocument({ schemaVersion: 2 }) }) }),
+            request(),
+        );
+
+        expect(result).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
     it('posts the message being answered and the two texts beside it', async () => {

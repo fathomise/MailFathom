@@ -1049,6 +1049,7 @@ export const en = {
     'compose.dismissPictureRefusal': 'Dismiss',
     'compose.picturesInThisWindowOnly':
         "The pictures in this message are kept in this window only - the browser's storage would not take them. Reloading or closing the window loses them; the words, recipients, and subject are kept.",
+    'compose.linkGoesTo': 'goes to {host}',
     'compose.attach': 'Attach',
     'compose.attachedFiles': 'Attached files',
     'compose.removeFile': 'Remove {name}',

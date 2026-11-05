@@ -58,7 +58,7 @@ import { DiscardConfirmation } from './DiscardConfirmation';
 import { DraftingBlock, DraftingStanding, type DraftingContextStart } from './DraftingBlock';
 import { contextPointedAt, sameMessages, type ListPointer } from './draftingContext';
 import { draftingRead, failureSaid } from './draftingRead';
-import { writtenParagraphs } from './draftWords';
+import { draftWords } from './draftWords';
 import {
     forgetComposition,
     picturesKeptHereOnly,
@@ -579,7 +579,7 @@ export function Composer({
 
             setBeforeDrafting(before);
             setDraftGeneration((written) => written + 1);
-            revise({ words: writtenParagraphs(read.body) });
+            revise({ words: draftWords({ document: read.document, plainText: { text: read.body } }).words });
         });
     }
 
@@ -1144,6 +1144,7 @@ export function Composer({
                         pictures={composition.pictures}
                         addresses={issuedAddresses}
                         picturesKeptHereOnly={picturesOnlyHere}
+                        linkHostsShown={beforeDrafting !== null}
                         onWritten={(words) => {
                             revise({ words });
                         }}

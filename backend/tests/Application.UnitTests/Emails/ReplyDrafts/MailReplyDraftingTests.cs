@@ -4,6 +4,9 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.EmailContent.Rendering;
+using MailFathom.Application.EmailContent.Rendering.Document;
+using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Application.Mail.Delivery.Footers;
@@ -263,12 +266,12 @@ public sealed class MailReplyDraftingTests
     }
 
     /// <summary>
-    /// A draft is written out of somebody's correspondence and carries whatever it carried, so the body and every claim
-    /// are scanned on the way back — while the addresses are this deployment's own values a redaction would only make
-    /// unsendable.
+    /// A draft is written out of somebody's correspondence and carries whatever it carried, so the words of every block
+    /// and every claim are scanned on the way back, and the plain text is read again from the scanned blocks — while the
+    /// addresses are this deployment's own values a redaction would only make unsendable.
     /// </summary>
     [Fact]
-    public async Task DraftAsync_ADeploymentThatScans_ScansTheBodyAndTheClaimsAndLeavesTheRecipients()
+    public async Task DraftAsync_ADeploymentThatScans_ScansTheBlocksAndTheClaimsAndLeavesTheRecipients()
     {
         // Arrange
         using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
@@ -287,9 +290,27 @@ public sealed class MailReplyDraftingTests
         // Assert
         Assert.NotNull(draft);
         Assert.DoesNotContain(Marker, draft.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain(MailDocumentTexts.Collect(draft.Document), text => text.Contains(Marker, StringComparison.Ordinal));
         Assert.DoesNotContain(Marker, Assert.Single(draft.Claims).Text, StringComparison.Ordinal);
         Assert.Equal([Answered], Assert.Single(draft.Claims).Sources);
         Assert.Equal("karolina@example.test", Assert.Single(draft.ProposedRecipients).Address);
+    }
+
+    /// <summary>A link is cited by its number, so what the writer is handed to number is the whole of where a draft may send its reader.</summary>
+    [Fact]
+    public async Task DraftAsync_AnAddressThePersonTyped_HandsTheWriterItAsALinkTheDraftMayCite()
+    {
+        // Arrange
+        var writer = WriterReturning(Written("Here is the form."));
+        var drafting = CreateDrafting(SourceReaderReturning(Sources()), writer);
+
+        // Act
+        await drafting.DraftAsync(
+            Request() with { Instruction = "Send them https://forms.example.test/order please" },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["https://forms.example.test/order"], Brief(writer).Links.Select(static link => link.Link.Target));
     }
 
     /// <summary>A composer with nothing behind it drafts from what its author typed, reading no correspondence at all.</summary>
@@ -630,7 +651,8 @@ public sealed class MailReplyDraftingTests
         UserLanguage language = UserLanguage.English,
         bool derivesStyleFromSentMail = true,
         MailFolderIdentity[]? foldersWithheldFromAI = null,
-        MailFootersInForce? footers = null)
+        MailFootersInForce? footers = null,
+        ReplyDraftLinkReader? linkReader = null)
     {
         var accounts = servedAccounts ?? [Account];
         var catalog = Substitute.For<ICallerMailAccountCatalog>();
@@ -650,6 +672,7 @@ public sealed class MailReplyDraftingTests
         return new MailReplyDrafting(
             sourceReader,
             writer,
+            linkReader ?? new ReplyDraftLinkReader(Substitute.For<IEmailContentStore>(), Substitute.For<IEmailContentRenderer>()),
             scopeResolver,
             egressGuard ?? SensitiveContentEgressGuards.Inactive(),
             authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse, MailFathomPermission.MailRead),

@@ -1302,6 +1302,56 @@
     & th {
         font-weight: 600;
     }
+
+    /* A list keeps its marker and its indent and a link its accent underline, as the design draws both in a message
+       being written: the base layer takes all three away from every list and link in the client. */
+    & ul {
+        list-style-type: disc;
+    }
+
+    & ol {
+        list-style-type: decimal;
+    }
+
+    & :is(ul, ol) {
+        padding-inline-start: --spacing(5.5);
+    }
+
+    /* A paragraph stands apart from the block after it, as the design spaces a draft's blocks and as a mail client
+       draws the paragraphs the HTML part sends — a line somebody types is a `div` an engine writes and takes no gap. */
+    & :is(p, ul, ol) {
+        margin-block-end: --spacing(3);
+    }
+
+    & li > p,
+    & > :last-child {
+        margin-block-end: 0;
+    }
+
+    & a {
+        color: var(--color-accent-deep);
+        text-decoration-line: underline;
+        text-underline-offset: --spacing(0.5);
+    }
+
+    /* Until a draft is accepted, each link names where it goes beside its words, as the design's pill: generated
+       content rather than an element, so no reading of the region takes it for words and no caret lands in it. It is
+       an inline block so the link's underline and its run's emphasis stop at the link's own words. */
+    & a[data-link-host]::after {
+        content: attr(data-link-host);
+        display: inline-block;
+        margin-inline-start: --spacing(1.5);
+        padding: --spacing(0.25) --spacing(2);
+        border-radius: calc(infinity* 1px);
+        background-color: var(--color-accent-soft);
+        color: var(--color-text-soft);
+        font-size: var(--text-sm);
+        font-style: normal;
+        font-weight: normal;
+        line-height: var(--text-sm--line-height);
+        white-space: nowrap;
+        cursor: default;
+    }
 }
 
 /* A strip of controls under a finger, as the design draws the composer's formatting bar: one row that scrolls sideways

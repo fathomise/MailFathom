@@ -164,7 +164,107 @@ export const draftsReplies = { draftsReplies: true };
  */
 export const draftedReply = {
     drafted: true,
-    body: 'Yes — 4 200 net still stands, and Tuesday at ten works for us.\n\nBest regards',
+    body: [
+        'Yes — 4 200 net still stands, and Tuesday at ten works for us.',
+        '',
+        'Before the order:',
+        '',
+        '- the racking plan as in the drawing you sent',
+        '- delivery to the north gate',
+        '',
+        'Best regards',
+    ].join('\n'),
+    // The same reply as the document the deployment answers beside its plain text: a paragraph, a bold lead-in
+    // opening a section rather than a heading, a list under it, and words linked to an address.
+    document: {
+        schemaVersion: 1,
+        blocks: [
+            {
+                type: 'paragraph',
+                version: 1,
+                alignment: 'Inherited',
+                content: [
+                    {
+                        text: 'Yes — 4 200 net still stands, and Tuesday at ten works for us.',
+                        emphasis: 'None',
+                        foreground: null,
+                        link: null,
+                    },
+                ],
+            },
+            {
+                type: 'paragraph',
+                version: 1,
+                alignment: 'Inherited',
+                content: [{ text: 'Before the order:', emphasis: 'Bold', foreground: null, link: null }],
+            },
+            {
+                type: 'list',
+                version: 1,
+                ordered: false,
+                items: [
+                    {
+                        blocks: [
+                            {
+                                type: 'paragraph',
+                                version: 1,
+                                alignment: 'Inherited',
+                                content: [
+                                    {
+                                        text: 'the racking plan as in the ',
+                                        emphasis: 'None',
+                                        foreground: null,
+                                        link: null,
+                                    },
+                                    {
+                                        text: 'drawing you sent',
+                                        emphasis: 'None',
+                                        foreground: null,
+                                        link: {
+                                            target: 'https://files.nordwind.example/racking-plan',
+                                            host: 'files.nordwind.example',
+                                            asciiHost: null,
+                                            deception: 'None',
+                                            isWorthWarningAbout: false,
+                                        },
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                    {
+                        blocks: [
+                            {
+                                type: 'paragraph',
+                                version: 1,
+                                alignment: 'Inherited',
+                                content: [
+                                    {
+                                        text: 'delivery to the north gate',
+                                        emphasis: 'None',
+                                        foreground: null,
+                                        link: null,
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                type: 'paragraph',
+                version: 1,
+                alignment: 'Inherited',
+                content: [{ text: 'Best regards', emphasis: 'None', foreground: null, link: null }],
+            },
+        ],
+        refusal: 'None',
+        removedRemoteReferenceCount: 0,
+        retainedRemoteImageCount: 0,
+        inlineImageCount: 0,
+        undrawnInlineImageCount: 0,
+        truncated: false,
+    },
     claims: [
         {
             text: 'The agreed price is 4 200 net.',

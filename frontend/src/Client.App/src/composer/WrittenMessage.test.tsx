@@ -1071,3 +1071,96 @@ describe('WrittenMessage, pictures', () => {
         expect(screen.getByRole('status').textContent).toContain('kept in this window only');
     });
 });
+
+describe('WrittenMessage, where its links go', () => {
+    const linked: readonly WrittenNode[] = [
+        {
+            element: 'p',
+            address: null,
+            holds: [
+                { text: 'See ' },
+                { element: 'a', address: 'https://files.example.test/offer?id=7', holds: [{ text: 'the offer' }] },
+                { text: ' or ' },
+                { element: 'a', address: 'mailto:sales@example.test', holds: [{ text: 'write to sales' }] },
+            ],
+        },
+    ];
+
+    function drawLinked(linkHostsShown: boolean): {
+        written: ReturnType<typeof vi.fn>;
+        drawAgain: (linkHostsShown: boolean) => void;
+    } {
+        const written = vi.fn();
+        const addresses = pictureAddresses();
+        const drawn = (shown: boolean) => (
+            <LocalizationProvider>
+                <WrittenMessage
+                    opened={linked}
+                    pictures={new Map()}
+                    addresses={addresses}
+                    picturesKeptHereOnly={false}
+                    onWritten={written}
+                    onPictureHeld={vi.fn()}
+                    onSendAsked={vi.fn()}
+                    linkHostsShown={shown}
+                />
+            </LocalizationProvider>
+        );
+        const { rerender } = render(drawn(linkHostsShown));
+
+        return {
+            written,
+            drawAgain: (shown) => {
+                rerender(drawn(shown));
+            },
+        };
+    }
+
+    function linkTo(named: string): HTMLElement | null {
+        return screen.getByText(named).closest('a');
+    }
+
+    it('names the host each link goes to, and the mailbox a mail link writes to', () => {
+        drawLinked(true);
+
+        expect(linkTo('the offer')?.getAttribute('data-link-host')).toBe('goes to files.example.test');
+        expect(linkTo('write to sales')?.getAttribute('data-link-host')).toBe('goes to sales@example.test');
+    });
+
+    it('names none where nobody asked for them', () => {
+        drawLinked(false);
+
+        expect(linkTo('the offer')?.hasAttribute('data-link-host')).toBe(false);
+    });
+
+    it('never reads the host back as words of the message', () => {
+        const { written } = drawLinked(true);
+
+        fireEvent.input(words());
+
+        expect(written).toHaveBeenCalledWith(linked);
+        expect(words().textContent).toBe('See the offer or write to sales');
+    });
+
+    it('names the host of a link written after the region opened', () => {
+        drawLinked(true);
+
+        const added = document.createElement('a');
+
+        added.href = 'https://elsewhere.example.test/';
+        added.textContent = 'one more';
+        words().append(added);
+        fireEvent.input(words());
+
+        expect(added.getAttribute('data-link-host')).toBe('goes to elsewhere.example.test');
+    });
+
+    it('takes every host away once they are no longer asked for, and leaves the links', () => {
+        const { drawAgain } = drawLinked(true);
+
+        drawAgain(false);
+
+        expect(words().querySelector('[data-link-host]')).toBeNull();
+        expect(linkTo('the offer')?.getAttribute('href')).toBe('https://files.example.test/offer?id=7');
+    });
+});

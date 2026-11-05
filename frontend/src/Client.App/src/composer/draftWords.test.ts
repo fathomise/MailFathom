@@ -371,4 +371,10 @@ describe('draftWords', () => {
         expect(pictures.size).toBe(0);
         expect(htmlOf(words, asContentIdentifier)).toBe('<p>one</p>');
     });
+
+    it('breaks a line where a run carries a line break, rather than drawing it as a space', () => {
+        expect(htmlOf(wordsOf(bodyOf([paragraph(run('Best regards,\nAnna'))])), asContentIdentifier)).toBe(
+            '<p>Best regards,<br />Anna</p>',
+        );
+    });
 });

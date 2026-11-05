@@ -25,8 +25,9 @@ namespace MailFathom.AI.ReplyDrafts;
 /// when it was written, what it added and the words its attachments yielded under their file names, whether the person
 /// chose it, the names of the people in it, a few openings of the person's own recent sent mail, and whatever they
 /// typed — every text of them guarded first — and whether the account it is sent from appends the person's footer, which
-/// is a yes or a no and never the footer. <b>No address leaves at all</b>: the people
-/// are numbered, a proposal names a number, and the address it resolves to is looked up here afterwards.
+/// is a yes or a no and never the footer, and the host and words of each link a draft may carry. <b>No address leaves
+/// at all</b>: the people and the links are numbered, a proposal and a link name a number, and the address it resolves
+/// to is looked up here afterwards.
 /// </para>
 /// <para>
 /// It opens no chat call of its own. The agent is composed by <see cref="AgentComposition" /> like every other
@@ -147,7 +148,7 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
             this.plan.MaximumRequestImageOctets);
 
         var answer = await this.AskAsync(turn, brief.Language, cancellationToken);
-        var draft = ReplyDraftReading.Read(answer?.Text, sources.Messages, sources.Participants);
+        var draft = ReplyDraftReading.Read(answer?.Text, sources.Messages, sources.Participants, brief.Links);
 
         // The model that answered where one did, and the model the brief was put to where none could.
         var answeringAlias = answer?.Alias ?? this.plan.Endpoint.Alias;
@@ -193,9 +194,10 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
 
     /// <summary>Puts every text of the drafting through the egress guard before any of it is composed into a turn.</summary>
     /// <remarks>
-    /// The correspondence, the names, the person's own sent mail, and what they typed are all somebody's data and are
-    /// scanned like every other text this deployment sends. The positions and the instants are this deployment's own
-    /// and carry nothing anybody wrote, and an address is not offered because none is sent.
+    /// The correspondence, the names, the person's own sent mail, what they typed, and each link's host and words are
+    /// all somebody's data and are scanned like every other text this deployment sends. The positions and the instants
+    /// are this deployment's own and carry nothing anybody wrote, and an address — a person's or a link's — is not
+    /// offered because none is sent.
     /// </remarks>
     private static async Task<GuardedDraftingTurn> GuardedTurnAsync(
         ReplyDraftBrief brief,
@@ -242,6 +244,16 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
             styleSamples.Add(await GuardedAsync(egressGuard, sample, cancellationToken));
         }
 
+        var links = new List<GuardedDraftingLink>(brief.Links.Count);
+
+        foreach (var link in brief.Links)
+        {
+            links.Add(new GuardedDraftingLink(
+                link.Position,
+                await GuardedOptionalAsync(egressGuard, link.Link.Host, cancellationToken),
+                await GuardedOptionalAsync(egressGuard, link.Words, cancellationToken)));
+        }
+
         return new GuardedDraftingTurn(
             await GuardedOptionalAsync(egressGuard, sources.Subject, cancellationToken),
             people,
@@ -249,7 +261,10 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
             styleSamples,
             await GuardedOptionalAsync(egressGuard, brief.Selection, cancellationToken),
             await GuardedOptionalAsync(egressGuard, brief.Instruction, cancellationToken),
-            brief.ClosesWithFooter);
+            brief.ClosesWithFooter)
+        {
+            Links = links,
+        };
     }
 
     private static Task<string> GuardedAsync(

@@ -77,7 +77,8 @@ const writtenSizes: Readonly<Record<MailTextSize, WrittenSize | null>> = {
  * The words of a draft, as the closed tree the composer writes, and the pictures it carried.
  *
  * It reads the two parts any reading of a draft carries rather than one route's answer, because a draft in a folder is
- * read through the message's body and a draft MailFathom keeps through its own record, and both carry the same pair.
+ * read through the message's body, a draft MailFathom keeps through its own record, and a draft the deployment writes
+ * through the drafting route's answer, and all three carry the same pair.
  */
 export function draftWords(
     body: Pick<MailBody, 'document'> & { readonly plainText: { readonly text: string } },
@@ -162,33 +163,43 @@ function pictureHeld(image: MailInlineImage, pictures: Map<string, HeldPicture>)
 // The runs of one paragraph, each wrapped in whatever it carries. A run is wrapped from the inside out, so a bold
 // italic link is one element inside another rather than a shape this had to name.
 function runsWritten(runs: readonly MailInlineRun[]): readonly WrittenNode[] {
-    return runs.map((run) => {
-        let written: WrittenNode = { text: run.text };
+    return runs.flatMap((run): readonly WrittenNode[] => {
+        let written: readonly WrittenNode[] = linesWritten(run.text);
 
         for (const element of emphasised(run.emphasis)) {
-            written = { element, address: null, holds: [written] };
+            written = [{ element, address: null, holds: written }];
         }
 
         const colour = run.foreground === null ? null : writtenColour(run.foreground);
         const size = writtenSizes[run.size];
 
         if (colour !== null || size !== null) {
-            written = {
-                element: 'span',
-                address: null,
-                ...(colour === null ? {} : { colour }),
-                ...(size === null ? {} : { size }),
-                holds: [written],
-            };
+            written = [
+                {
+                    element: 'span',
+                    address: null,
+                    ...(colour === null ? {} : { colour }),
+                    ...(size === null ? {} : { size }),
+                    holds: written,
+                },
+            ];
         }
 
         // A link the composer would not make is drawn as its own words instead, which is the same refusal
         // `writtenText.ts` states for one somebody pastes: a scheme this client will not follow is not one it will
         // put back on the screen as a link either.
         return run.link !== null && followable(run.link.target)
-            ? { element: 'a' as const, address: run.link.target, holds: [written] }
+            ? [{ element: 'a' as const, address: run.link.target, holds: written }]
             : written;
     });
+}
+
+// A run's words with each line break it carries as the `br` the composer writes for one, since a newline inside text is
+// drawn as a space.
+function linesWritten(text: string): readonly WrittenNode[] {
+    return text
+        .split('\n')
+        .flatMap((line, index) => [...(index === 0 ? [] : [lineBreak]), ...(line === '' ? [] : [{ text: line }])]);
 }
 
 // Which of the composer's own emphases a run carries. Monospace is not among them: the composer writes no code and a
@@ -202,18 +213,10 @@ function emphasised(emphasis: MailTextEmphasis): readonly WrittenElement[] {
     ];
 }
 
-/**
- * Plain text as the closed tree, one paragraph per line.
- *
- * A line is a paragraph rather than a `br` because that is what the composer's own editable region produces from
- * typing, and text that goes back through it should come out the shape it went in. Exported because a drafted message
- * arrives as plain text too — the drafting route answers no document — and reading it any other way here would be a
- * second answer to the same question.
- *
- * @param text The text, with its line breaks.
- * @returns One paragraph per line, an empty line included.
- */
-export function writtenParagraphs(text: string): readonly WrittenNode[] {
+// Plain text as the closed tree, one paragraph per line. A line is a paragraph rather than a `br` because that is what
+// the composer's own editable region produces from typing, and text that goes back through it should come out the shape
+// it went in.
+function writtenParagraphs(text: string): readonly WrittenNode[] {
     return text.split('\n').map((line) => wrapping('p', line === '' ? [] : [{ text: line }]));
 }
 
@@ -293,12 +296,7 @@ function cellLine(block: MailDocumentBlock): readonly WrittenNode[] {
         case 'quote':
             return cellLines(block.blocks);
         case 'preformatted':
-            return block.text
-                .split('\n')
-                .flatMap((line, index) => [
-                    ...(index === 0 ? [] : [lineBreak]),
-                    ...(line === '' ? [] : [{ text: line }]),
-                ]);
+            return linesWritten(block.text);
         case 'table':
             return cellLines(block.rows.flatMap((row) => row.cells.flatMap((cell) => cell.blocks)));
         case 'image':

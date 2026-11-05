@@ -2,6 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Globalization;
+using MailFathom.Application.EmailContent.Rendering.Document;
+using MailFathom.Application.EmailContent.Rendering.Document.Blocks;
 using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Emails.ReplyDrafts;
@@ -38,25 +41,45 @@ public sealed record ReplyDraft
     /// <remarks>A reply goes to the people in the exchange. A proposal longer than this is a producer addressing a mailing list, and the bound holds whatever the conversation's own size is.</remarks>
     public const int MaximumProposedRecipients = 10;
 
+    private const string LineBreak = "\n";
+
+    private const string BlockBreak = "\n\n";
+
     private ReplyDraft(
         bool wasWritten,
+        MailDocument document,
         string body,
         IReadOnlyList<ReplyDraftClaim> claims,
         IReadOnlyList<EmailAddress> proposedRecipients)
     {
         this.WasWritten = wasWritten;
+        this.Document = document;
         this.Body = body;
         this.Claims = claims;
         this.ProposedRecipients = proposedRecipients;
     }
 
     /// <summary>Gets the answer a drafting that produced nothing gives, which leaves the composer as it was.</summary>
-    public static ReplyDraft Nothing { get; } = new(wasWritten: false, string.Empty, [], []);
+    public static ReplyDraft Nothing { get; } = new(
+        wasWritten: false,
+        MailDocument.Reduced(
+            [],
+            removedRemoteReferenceCount: 0,
+            retainedRemoteImageCount: 0,
+            inlineImageCount: 0,
+            undrawnInlineImageCount: 0,
+            truncated: false),
+        string.Empty,
+        [],
+        []);
 
     /// <summary>Gets whether a draft was written at all.</summary>
     public bool WasWritten { get; }
 
-    /// <summary>Gets the drafted reply as plain text, which is empty where none was written.</summary>
+    /// <summary>Gets the drafted reply as the composer's closed set of blocks, which holds none where none was written.</summary>
+    public MailDocument Document { get; }
+
+    /// <summary>Gets the drafted reply as plain text: this deployment's reading of <see cref="Document" />, never a second text a producer wrote.</summary>
     public string Body { get; }
 
     /// <summary>Gets what the draft asserts, in the order the producer wrote it, each with the messages backing it or with none.</summary>
@@ -65,8 +88,8 @@ public sealed record ReplyDraft
     /// <summary>Gets the people the draft proposes to reach, each of whom the conversation itself names.</summary>
     public IReadOnlyList<EmailAddress> ProposedRecipients { get; }
 
-    /// <summary>Records one drafted reply.</summary>
-    /// <param name="body">The drafted text.</param>
+    /// <summary>Records one drafted reply written as plain text, which is paragraphs of plain runs.</summary>
+    /// <param name="body">The drafted text, a blank line between paragraphs.</param>
     /// <param name="claims">What it asserts, with what backs each.</param>
     /// <param name="proposedRecipients">The people it proposes to reach.</param>
     /// <returns>The draft, with the body shortened to its bound and the two lists to theirs.</returns>
@@ -78,13 +101,72 @@ public sealed record ReplyDraft
         IReadOnlyList<EmailAddress> proposedRecipients)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(body);
+
+        return Written(
+            MailDocument.Reduced(
+                [
+                    .. MailTextBounds.TruncateAtTextElementBoundary(body, MaximumBodyLength)
+                        .ReplaceLineEndings(LineBreak)
+                        .Split(BlockBreak, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Select(static paragraph => new MailParagraphBlock(
+                            [new MailInlineRun(paragraph, MailTextEmphasis.None, Foreground: null, Link: null)],
+                            MailBlockAlignment.Inherited)),
+                ],
+                removedRemoteReferenceCount: 0,
+                retainedRemoteImageCount: 0,
+                inlineImageCount: 0,
+                undrawnInlineImageCount: 0,
+                truncated: false),
+            claims,
+            proposedRecipients);
+    }
+
+    /// <summary>Records one drafted reply written as blocks.</summary>
+    /// <param name="document">The drafted reply, already held to the composer's closed set and to its bounds.</param>
+    /// <param name="claims">What it asserts, with what backs each.</param>
+    /// <param name="proposedRecipients">The people it proposes to reach.</param>
+    /// <returns>The draft, with its plain text read from the blocks and the two lists shortened to their bounds.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when the blocks hold no words, a drafted reply being text somebody can edit rather than an absence dressed as one.</exception>
+    public static ReplyDraft Written(
+        MailDocument document,
+        IReadOnlyList<ReplyDraftClaim> claims,
+        IReadOnlyList<EmailAddress> proposedRecipients)
+    {
+        ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(claims);
         ArgumentNullException.ThrowIfNull(proposedRecipients);
 
+        var body = PlainTextOf(document.Blocks);
+
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            throw new ArgumentException("A drafted reply holds words somebody can edit.", nameof(document));
+        }
+
         return new ReplyDraft(
             wasWritten: true,
+            document,
             MailTextBounds.TruncateAtTextElementBoundary(body, MaximumBodyLength),
             [.. claims.Take(MaximumClaims)],
             [.. proposedRecipients.Take(MaximumProposedRecipients)]);
     }
+
+    /// <summary>Reads the blocks a draft is written in as plain text: a blank line between blocks, a line per list item and per table row.</summary>
+    /// <remarks>Only the three blocks a draft is written in carry words here, because the reading that builds a draft writes no other.</remarks>
+    private static string PlainTextOf(IReadOnlyList<MailDocumentBlock> blocks) => string.Join(
+        BlockBreak,
+        blocks.Select(PlainTextOf).Where(static text => !string.IsNullOrWhiteSpace(text)));
+
+    private static string PlainTextOf(MailDocumentBlock block) => block switch
+    {
+        MailParagraphBlock paragraph => string.Concat(paragraph.Content.Select(static run => run.Text)),
+        MailListBlock list => string.Join(
+            LineBreak,
+            list.Items.Select((item, index) => (list.Ordered ? (index + 1).ToString(CultureInfo.InvariantCulture) + ". " : "- ") + PlainTextOf(item.Blocks))),
+        MailTableBlock table => string.Join(
+            LineBreak,
+            table.Rows.Select(static row => string.Join(" | ", row.Cells.Select(static cell => PlainTextOf(cell.Blocks))))),
+        _ => string.Empty,
+    };
 }

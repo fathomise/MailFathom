@@ -207,6 +207,66 @@ function draftedReply(overrides: Readonly<Record<string, unknown>> = {}): string
     });
 }
 
+// The same draft as the document the deployment answers beside it: a paragraph linking words to an address, a bold
+// lead-in opening a section, and a list under it — the closed set the drafting agent writes in, on the wire.
+const formattedDraft = {
+    schemaVersion: 1,
+    blocks: [
+        {
+            type: 'paragraph',
+            version: 1,
+            alignment: 'Inherited',
+            content: [
+                { text: 'We accept the terms in ', emphasis: 'None', foreground: null, link: null },
+                {
+                    text: 'the signed offer',
+                    emphasis: 'None',
+                    foreground: null,
+                    link: {
+                        target: 'https://files.example.test/offer',
+                        host: null,
+                        asciiHost: null,
+                        deception: 'NotApplicable',
+                        isWorthWarningAbout: false,
+                    },
+                },
+                { text: '.', emphasis: 'None', foreground: null, link: null },
+            ],
+        },
+        {
+            type: 'paragraph',
+            version: 1,
+            alignment: 'Inherited',
+            content: [{ text: 'Open points:', emphasis: 'Bold', foreground: null, link: null }],
+        },
+        {
+            type: 'list',
+            version: 1,
+            ordered: false,
+            items: [
+                {
+                    blocks: [
+                        {
+                            type: 'paragraph',
+                            version: 1,
+                            alignment: 'Inherited',
+                            content: [
+                                { text: 'The cap on indexation', emphasis: 'None', foreground: null, link: null },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+    refusal: 'None',
+    removedRemoteReferenceCount: 0,
+    retainedRemoteImageCount: 0,
+    inlineImageCount: 0,
+    undrawnInlineImageCount: 0,
+    truncated: false,
+};
+
 /** What each route answers with, so one test states only the answer it is about. */
 interface Answers {
     readonly message?: { readonly status: number; readonly body: string };
@@ -2276,6 +2336,83 @@ describe('Composer drafting', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
         expect(screen.queryByText('The words are a draft the server wrote and you have not accepted yet.')).toBeNull();
+    });
+
+    it('puts a formatted draft in as the formatting it was written with', async () => {
+        drawComposer(
+            { kind: 'new' },
+            { drafting: { status: 200, body: draftedReply({ document: formattedDraft }) } },
+            [work],
+            true,
+            uploadsOneFile,
+            true,
+        );
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Write a draft' }));
+
+        expect((await screen.findByText('Open points:')).tagName).toBe('STRONG');
+
+        const words = screen.getByRole('textbox', { name: 'Message' });
+
+        expect(within(words).getByRole('listitem').textContent).toBe('The cap on indexation');
+        expect(within(words).getByText('the signed offer').closest('a')?.getAttribute('href')).toBe(
+            'https://files.example.test/offer',
+        );
+    });
+
+    it('names where each link of a draft goes until it is accepted, and never writes that into the message', async () => {
+        const { asked } = drawComposer(
+            { kind: 'new' },
+            { drafting: { status: 200, body: draftedReply({ document: formattedDraft }) } },
+            [work],
+            true,
+            uploadsOneFile,
+            true,
+        );
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Write a draft' }));
+
+        const link = (await screen.findByText('the signed offer')).closest('a');
+
+        await waitFor(() => {
+            expect(link?.getAttribute('data-link-host')).toBe('goes to files.example.test');
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+        expect(await screen.findByText('Draft filed in your own drafts.')).toBeDefined();
+
+        const saved = lastDraftRequest(asked)?.body ?? '';
+
+        expect(saved).toContain('https://files.example.test/offer');
+        expect(saved).not.toContain('goes to');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
+
+        await waitFor(() => {
+            expect(link?.hasAttribute('data-link-host')).toBe(false);
+        });
+        expect(link?.getAttribute('href')).toBe('https://files.example.test/offer');
+    });
+
+    it('stops naming where a draft’s links go once the words it replaced are restored', async () => {
+        drawComposer(
+            { kind: 'new' },
+            { drafting: { status: 200, body: draftedReply({ document: formattedDraft }) } },
+            [work],
+            true,
+            uploadsOneFile,
+            true,
+        );
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Write a draft' }));
+        await screen.findByText('the signed offer');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Restore my version' }));
+
+        await waitFor(() => {
+            expect(screen.queryByText('the signed offer')).toBeNull();
+        });
+        expect(composerFrame().querySelector('[data-link-host]')).toBeNull();
     });
 
     it('says a deployment that wrote nothing wrote nothing, and leaves the message as it was', async () => {

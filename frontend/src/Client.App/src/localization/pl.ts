@@ -1063,6 +1063,7 @@ export const pl: Catalogue = {
     'compose.dismissPictureRefusal': 'Zamknij',
     'compose.picturesInThisWindowOnly':
         'Obrazy w tej wiadomości są przechowywane tylko w tym oknie - pamięć przeglądarki ich nie przyjęła. Odświeżenie lub zamknięcie okna je usunie; tekst, odbiorcy i temat pozostaną.',
+    'compose.linkGoesTo': 'prowadzi do {host}',
     'compose.attach': 'Załącz',
     'compose.attachedFiles': 'Załączone pliki',
     'compose.removeFile': 'Usuń plik {name}',

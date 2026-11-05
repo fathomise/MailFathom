@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.Retrieval.AskMail;
@@ -87,6 +88,7 @@ public sealed class MailReplyDrafting
 
     private readonly IReplyDraftSourceReader sourceReader;
     private readonly IReplyDraftWriter writer;
+    private readonly ReplyDraftLinkReader linkReader;
     private readonly MailboxScopeResolver scopeResolver;
     private readonly SensitiveContentEgressGuard egressGuard;
     private readonly AccessAuthorization authorization;
@@ -98,6 +100,7 @@ public sealed class MailReplyDrafting
     /// <summary>Initializes the drafting.</summary>
     /// <param name="sourceReader">Reads the conversation of each context message and the manner its account writes in.</param>
     /// <param name="writer">Writes the reply, which is the one part of this that reaches a provider.</param>
+    /// <param name="linkReader">Reads the addresses the draft may link to, out of what the person typed and the correspondence it is written from.</param>
     /// <param name="scopeResolver">Decides which accounts and folders the conversation is read across.</param>
     /// <param name="egressGuard">Scans what the draft publishes to a client, where this deployment scans anything.</param>
     /// <param name="authorization">Enforces the permission this drafting is behind.</param>
@@ -109,6 +112,7 @@ public sealed class MailReplyDrafting
     public MailReplyDrafting(
         IReplyDraftSourceReader sourceReader,
         IReplyDraftWriter writer,
+        ReplyDraftLinkReader linkReader,
         MailboxScopeResolver scopeResolver,
         SensitiveContentEgressGuard egressGuard,
         AccessAuthorization authorization,
@@ -119,6 +123,7 @@ public sealed class MailReplyDrafting
     {
         ArgumentNullException.ThrowIfNull(sourceReader);
         ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(linkReader);
         ArgumentNullException.ThrowIfNull(scopeResolver);
         ArgumentNullException.ThrowIfNull(egressGuard);
         ArgumentNullException.ThrowIfNull(authorization);
@@ -128,6 +133,7 @@ public sealed class MailReplyDrafting
 
         this.sourceReader = sourceReader;
         this.writer = writer;
+        this.linkReader = linkReader;
         this.scopeResolver = scopeResolver;
         this.egressGuard = egressGuard;
         this.authorization = authorization;
@@ -206,7 +212,10 @@ public sealed class MailReplyDrafting
             sources,
             request,
             this.languages.LanguageOf(user),
-            await this.ClosesWithFooterAsync(user, request.SendingAccount, cancellationToken));
+            await this.ClosesWithFooterAsync(user, request.SendingAccount, cancellationToken)) with
+        {
+            Links = await this.linkReader.ReadAsync(instruction, sources.Messages, cancellationToken),
+        };
 
         var draft = await this.writer.WriteAsync(brief, cancellationToken);
 
@@ -305,9 +314,11 @@ public sealed class MailReplyDrafting
 
     /// <summary>Scans everything the draft would publish, under the point this surface is read on.</summary>
     /// <remarks>
-    /// One report for the draft rather than one per claim, because the draft is what a composer waits for. The body and
-    /// the claims are offered; the addresses are not, being values this deployment resolved out of its own store rather
-    /// than text a producer wrote, and a redacted address would be one nobody could send to.
+    /// One report for the draft rather than one per claim, because the draft is what a composer waits for. The words of
+    /// every block and the claims are offered, and the plain text is read again from the guarded blocks so the two
+    /// halves of the draft still say the same thing. The addresses are not offered, being values this deployment
+    /// resolved out of its own store rather than text a producer wrote — a recipient and a link target alike — and a
+    /// redacted address would be one nobody could send to or follow.
     /// </remarks>
     private async Task<ReplyDraft> GuardedAsync(ReplyDraft draft, CancellationToken cancellationToken)
     {
@@ -320,10 +331,12 @@ public sealed class MailReplyDrafting
             SensitiveContentEgressPoint.ClientReplyDraft,
             cancellationToken);
 
-        var body = await this.egressGuard.GuardAsync(
-            SensitiveContentEgressPoint.ClientReplyDraft,
-            draft.Body,
-            cancellationToken);
+        var document = MailDocumentTexts.Rewrite(
+            draft.Document,
+            await this.egressGuard.GuardAllAsync(
+                SensitiveContentEgressPoint.ClientReplyDraft,
+                MailDocumentTexts.Collect(draft.Document),
+                cancellationToken));
 
         var claims = new List<ReplyDraftClaim>(draft.Claims.Count);
 
@@ -339,6 +352,6 @@ public sealed class MailReplyDrafting
 
         scan.Completed();
 
-        return ReplyDraft.Written(body, claims, draft.ProposedRecipients);
+        return ReplyDraft.Written(document, claims, draft.ProposedRecipients);
     }
 }
