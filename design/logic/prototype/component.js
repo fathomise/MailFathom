@@ -3055,9 +3055,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       } else if (act === "deleteTable") {
         table.remove();
       }
-      this.caretCell = null;
-      this.setState({ tableCaret: false });
       if (this.bodyRef.current) this.bodyRef.current.focus();
+      this.noteEditorCaret();
     };
     /* A picture is chosen by a press on it, which outlines it and shows its strip; *Remove picture* or Delete takes it. */
     editorPress = (e) => {
@@ -3106,6 +3105,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const html = cd.getData("text/html") || "";
       const text = cd.getData("text/plain") || "";
       const plain = text.trim();
+      /* Ctrl+Shift+V lands the words alone. So does any paste into a table cell, which holds words, colour and size only. */
+      if (this.plainPaste || this.caretCell) {
+        this.plainPaste = false;
+        if (!plain && cd.files && cd.files.length) return this.setState({ pasteNotice: { text: "Nothing was pasted - a table cell holds words, colour and size only, so a picture goes outside the table." } });
+        return this.exec("insertText", this.caretCell ? text.replace(/[\t\r\n]+/g, " ").trim() : text);
+      }
       if (/^https?:\/\/\S+$/i.test(plain)) {
         const sel = window.getSelection();
         if (sel && sel.rangeCount && !sel.getRangeAt(0).collapsed) return this.exec("createLink", plain);
@@ -3124,7 +3129,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const name = file.name || "picture";
         const total = held.reduce((n, i) => n + Number(i.getAttribute("data-bytes") || 0), 0) + file.size;
         const refuse = (why) => this.setState({ pasteNotice: { text: "“" + name + "” was not added - " + why } });
-        if (P.types.indexOf(file.type) < 0) return refuse("the composer takes " + P.typeNames + " pictures, and this one is " + ((file.type.split("/")[1] || "another kind").toUpperCase()) + ".");
+        if (P.types.indexOf(file.type) < 0) return refuse("the composer takes " + P.typeNames + " pictures, and this one is " + (file.type.split("/")[1] ? file.type.split("/")[1].toUpperCase() : "another kind") + ".");
         if (file.size > P.maxBytes) return refuse("it is " + this.fileSize(file.size) + ", and one picture can be at most " + this.fileSize(P.maxBytes) + ".");
         if (held.length >= P.maxCount) return refuse("this message already holds " + P.maxCount + " pictures, the most one message can.");
         if (total > P.maxTotalBytes) return refuse("with it the pictures would come to " + this.fileSize(total) + ", and together they can be at most " + this.fileSize(P.maxTotalBytes) + ".");
@@ -3177,12 +3182,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const inner = Array.from(n.childNodes).map(walk).join("");
         if (/^H[1-6]$/.test(n.tagName)) { const em = Component.sizeEm(["largest", "larger", "large"][Number(n.tagName[1]) - 1]); return "<p><b" + (em ? " style=\"font-size:" + em + "\"" : "") + ">" + inner + "</b></p>"; }
         if (n.tagName === "A" && /^https?:/i.test(n.getAttribute("href") || "")) return "<a href=\"" + this.escapeHtml(n.getAttribute("href")) + "\">" + inner + "</a>";
-        const colour = n.style && n.style.color;
+        /* A colour survives only when it is one of the palette's own; any other is dropped, as a font is. */
+        const swatch = n.style && n.style.color ? COMPOSE_FMT.colours.find(c => rgbOf(c.hex) === n.style.color.replace(/\s+/g, "")) : null;
         const t = tag[n.tagName];
         if (t === "br") return "<br>";
         const wrapped = t ? "<" + t + ">" + inner + "</" + t + ">" : inner;
-        return colour ? "<span style=\"color:" + this.escapeHtml(colour) + "\">" + wrapped + "</span>" : wrapped;
+        return swatch ? "<span style=\"color:var(--ink-" + swatch.key + ")\">" + wrapped + "</span>" : wrapped;
       };
+      const rgbOf = (hex) => "rgb(" + [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(",") + ")";
       return walk(doc.body);
     };
 
@@ -3197,6 +3204,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const formatted = kind !== "short" && /\b(table|list|bullet|format)/i.test(this.state.composeAiText || "");
       const paras = (formatted ? COMPOSE_FORMATTED_DRAFT.map(this.formattedBlockHtml) : kind === "short" ? shortV : full).concat(signed ? [COMPOSE_DRAFTS.signOff] : []);
       el.innerHTML = "";
+      this.notePictures();
       const block = document.createElement("div");
       block.id = "ai-draft-block";
       block.style.borderLeft = "3px solid var(--accent)";
@@ -7832,6 +7840,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         closeAskOpen: !!st.closeAsk,
         composeKeyDown: (e) => {
           if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); askSend(); return; }
+          if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "v") this.plainPaste = true;
           if ((e.key === "Delete" || e.key === "Backspace") && this.selectedPicture) { e.preventDefault(); this.removePicture(); return; }
           if (this.selectedPicture && e.key.length === 1) this.unselectPicture();
           /* Tab walks a table's cells, and past the last one adds a row, as a word processor does. */
@@ -7851,6 +7860,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         },
         composePaste: this.composePaste,
         composeEditorPress: this.editorPress,
+        composeEditorInput: this.notePictures,
         askSend: askSend,
         sendAskOpen: !!st.sendAsk,
         sendWarnings: ((st.sendAsk && st.sendAsk.warnings) || []).map(w => ({ text: w })),
@@ -8480,13 +8490,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const colour = COMPOSE_FMT.colours.find(c => c.key === st.fmtColour) || null;
           const size = COMPOSE_FMT.sizes.find(z => z.key === (st.fmtSize || "normal"));
           const align = COMPOSE_FMT.alignments.find(a => a.key === (st.fmtAlign || "start"));
+          /* With the caret in a table cell, the blocks a cell cannot hold stand disabled and say why on a press. */
+          const cellOff = (b) => !!st.tableCaret && ["tbl", "ul", "ol", "q"].indexOf(b.key) >= 0;
           const btn = (b) => Object.assign({ hasBar: false, barStyle: "", ariaExpanded: null, ariaHaspopup: null }, b, {
             style: "position:relative;flex:0 0 auto;display:flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:8px;" +
               (touch ? "min-width:44px;height:44px;padding:0 9px;font-size:15px;border:1px solid var(--line);" : "min-width:30px;height:30px;padding:0 7px;font-size:13px;") +
-              (b.menu && menu === b.menu ? "background:var(--accent-soft);color:var(--accent-d);" : "color:var(--text2);") + (b.style || ""),
-            ariaExpanded: b.menu ? String(menu === b.menu) : null,
-            ariaHaspopup: b.menu ? "menu" : null,
-            run: b.menu ? (e) => this.openFmtMenu(b.menu, e) : b.run,
+              (b.menu && menu === b.menu ? "background:var(--accent-soft);color:var(--accent-d);" : "color:var(--text2);") + (b.style || "") + (cellOff(b) ? "opacity:0.4;cursor:not-allowed;" : ""),
+            title: cellOff(b) ? b.title + " - a table cell holds words, colour and size only" : b.title,
+            ariaDisabled: cellOff(b) ? "true" : null,
+            ariaExpanded: b.menu && !cellOff(b) ? String(menu === b.menu) : null,
+            ariaHaspopup: b.menu && !cellOff(b) ? "menu" : null,
+            run: cellOff(b) ? (e) => e && e.preventDefault && e.preventDefault() : b.menu ? (e) => this.openFmtMenu(b.menu, e) : b.run,
           });
           const groups = [
             [
