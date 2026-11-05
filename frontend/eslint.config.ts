@@ -94,10 +94,11 @@ const srcdocSyntax = [
 // the live document, so ADR 0047 makes it writable there alone, where it is given nothing but `htmlOf` output.
 const theOneEditingModule = 'src/Client.App/src/composer/editing.ts';
 
-// Refused as an argument to any call, so passing it through a wrapper such as `edit('insertHTML', …)` is refused too.
+// Refused as an argument to any call, so passing it through a wrapper such as `edit('insertHTML', …)` is refused too,
+// and in any case, because an engine reads a command name without regard to case.
 const insertHtmlSyntax = [
     {
-        selector: 'CallExpression > Literal[value="insertHTML"]',
+        selector: 'CallExpression > Literal[value=/^inserthtml$/i]',
         message: `insertHTML parses markup into the live document. ADR 0047 permits it only in ${theOneEditingModule}, which hands it htmlOf output through insertWritten.`,
     },
 ];
