@@ -731,6 +731,21 @@ test('inserts a table, fills it by Tab, adds a row and a column to it, keeps it 
     await expect(message.getByRole('row')).toHaveCount(3);
     await expect(message.getByRole('row').last().getByRole('cell')).toHaveText(['Tuesday', '10', 'closes 6']);
 
+    // Each of the other acts, undone again by the one that takes it away, so the table sent is the one built above.
+    await strip.getByRole('button', { name: 'Row above' }).click();
+    await strip.getByRole('button', { name: 'Row below' }).click();
+    await strip.getByRole('button', { name: 'Column before' }).click();
+    await expect(message.getByRole('row')).toHaveCount(5);
+    await expect(message.getByRole('row').nth(3).getByRole('cell')).toHaveText(['Tuesday', '10', '', 'closes 6']);
+
+    await message.getByRole('row').first().getByRole('columnheader').nth(2).click();
+    await strip.getByRole('button', { name: 'Remove column' }).click();
+    await message.getByRole('row').nth(2).getByRole('cell').first().click();
+    await strip.getByRole('button', { name: 'Remove row' }).click();
+    await message.getByRole('row').last().getByRole('cell').first().click();
+    await strip.getByRole('button', { name: 'Remove row' }).click();
+    await expect(message.getByRole('row')).toHaveCount(3);
+
     await page.reload();
     await expect(page.getByRole('navigation', { name: 'Spaces' })).toBeVisible();
     await page.getByRole('button', { name: 'New message', exact: true }).first().click();
@@ -743,6 +758,27 @@ test('inserts a table, fills it by Tab, adds a row and a column to it, keeps it 
             htmlBody: `<table style="border-collapse:collapse">${sentRow('th', 'Day', 'Hours', '')}${sentRow('td', 'Monday', '9', '')}${sentRow('td', 'Tuesday', '10', 'closes 6')}</table>`,
         }),
     ]);
+});
+
+test('deletes a table from its strip and takes the deletion back with one Ctrl+Z', async ({ page, deployment }) => {
+    await openMailWriting(page, deployment);
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+    await page.getByRole('textbox', { name: 'Message' }).click();
+    await page.getByRole('toolbar', { name: 'Formatting' }).getByRole('button', { name: 'Insert table' }).click();
+    await page.getByRole('menu', { name: 'Insert a table' }).getByRole('menuitem', { name: /^Insert a / }).click();
+    await page.keyboard.type('Day');
+
+    const message = page.getByRole('textbox', { name: 'Message' });
+
+    await page.getByRole('toolbar', { name: 'Table' }).getByRole('button', { name: 'Delete table' }).click();
+
+    await expect(message.getByRole('table')).toHaveCount(0);
+    await expect(page.getByRole('toolbar', { name: 'Table' })).toHaveCount(0);
+
+    await page.keyboard.press('Control+Z');
+
+    await expect(message.getByRole('table')).toHaveCount(1);
+    await expect(message.getByRole('columnheader').first()).toHaveText('Day');
 });
 
 /**
