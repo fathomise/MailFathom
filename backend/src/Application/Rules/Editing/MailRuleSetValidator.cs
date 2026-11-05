@@ -22,7 +22,10 @@ namespace MailFathom.Application.Rules.Editing;
 /// <para>
 /// Every rule is judged, enabled or not, because a created rule starts disabled and enabling it later is a write that
 /// must not be the first to discover its condition never compiled. A refusal names the rule by its identifier and never
-/// quotes its name, its condition, or a folder, because each of those is text a person typed.
+/// quotes its name, a folder, or a keyword, because each of those is text a person typed. A condition refusal is the
+/// compiler's own reading and may quote the one identifier or function it could not read, and the position it stopped
+/// at: that is what tells the writer what to correct, and it goes back only to the caller who wrote the condition. The
+/// editor logs no refusal, so none of it reaches a log line, a metric, or a trace.
 /// </para>
 /// </remarks>
 public sealed class MailRuleSetValidator

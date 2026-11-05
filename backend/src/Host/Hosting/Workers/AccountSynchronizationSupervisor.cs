@@ -1490,7 +1490,7 @@ internal sealed partial class AccountSynchronizationSupervisor
             IdentifierList(walk.UnappliedActionRuleIds));
     }
 
-    /// <summary>Renders a set of rule names for one log line, which is safe because a rule name carries nothing personal.</summary>
+    /// <summary>Renders a set of rule identifiers for one log line; names stay out, because a rule's name is text a person typed.</summary>
     private static string IdentifierList(IReadOnlyList<string> ruleIds) => string.Join(", ", ruleIds);
 
     /// <summary>Gives every folder the account declares a folder row before any of them is synchronized.</summary>

@@ -38,6 +38,13 @@ internal static class ConsoleSafeText
     /// </remarks>
     private const int MaximumExplanationLength = 600;
 
+    /// <summary>The longest condition kept, past which it is truncated.</summary>
+    /// <remarks>
+    /// The ceiling a deployment may raise <c>MailRules:MaxConditionLength</c> to, so reducing never cuts a condition an
+    /// operator is reading to see why it matches; past it the text is not a condition any deployment stores.
+    /// </remarks>
+    private const int MaximumConditionLength = 10_000;
+
     /// <summary>Reduces a message this command did not compose to printable, single-line text of bounded length.</summary>
     /// <param name="reported">What the provider or the deployment said, which may be anything.</param>
     /// <returns>The reduced message, or <see langword="null" /> when nothing usable remained.</returns>
@@ -47,6 +54,11 @@ internal static class ConsoleSafeText
     /// <param name="reported">The sentences the deployment said, which may be anything.</param>
     /// <returns>The reduced explanation, or <see langword="null" /> when nothing usable remained.</returns>
     internal static string? SanitizeExplanation(string? reported) => Reduce(reported, MaximumExplanationLength);
+
+    /// <summary>Reduces a stored rule's condition to printable, single-line text, keeping the whole of any condition a deployment accepts.</summary>
+    /// <param name="reported">The condition the deployment answered with, which a writer of the account's rules typed.</param>
+    /// <returns>The reduced condition, or <see langword="null" /> when nothing usable remained.</returns>
+    internal static string? SanitizeCondition(string? reported) => Reduce(reported, MaximumConditionLength);
 
     private static string? Reduce(string? reported, int maximumLength)
     {

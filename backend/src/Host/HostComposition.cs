@@ -457,8 +457,8 @@ internal static class HostComposition
     private static void AddMailRules(WebApplicationBuilder builder)
     {
         // One compiler serves every write, every preview, and every pass, because it holds no state. The compiled sets
-        // are cached by account and revision, once per process: a pass reads the account's stored set and compiles only
-        // what a write changed since the last one this replica saw.
+        // are cached by account and set version, once per process: a pass reads the account's stored set and compiles it
+        // whole again only after a write moved its version since the last one this replica saw.
         builder.Services.AddSingleton<IMailRuleConditionCompiler, NCalcMailRuleConditionCompiler>();
         builder.Services.AddSingleton<MailRuleSetEvaluator>();
         builder.Services.AddSingleton<MailRuleSetCompilationCache>();

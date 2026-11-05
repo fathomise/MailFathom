@@ -10,7 +10,7 @@ namespace MailFathom.Application.Rules;
 /// <remarks>
 /// A pass reads its account's set once when it starts and holds what it was given for its duration. That is the whole
 /// of the change contract for rules: a write committed while a pass runs reaches the next pass rather than this one, on
-/// every replica, because the database is the only source and a commit produces a revision nobody has compiled yet.
+/// every replica, because the database is the only source and a commit produces a version nobody has compiled yet.
 /// There is nothing to invalidate and no signal to send.
 /// </remarks>
 public interface IMailRuleSetSource

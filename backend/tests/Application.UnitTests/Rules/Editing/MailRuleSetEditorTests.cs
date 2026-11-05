@@ -42,6 +42,10 @@ public sealed class MailRuleSetEditorTests
 
     private readonly FakeTimeProvider timeProvider = new(Now);
 
+    public static TheoryData<AssignmentScope> ScopesCoveringTheAccount => [.. AccessAuthorizations.ScopesCoveringTheirTarget];
+
+    public static TheoryData<AssignmentScope> ScopesOutsideTheAccount => [.. AccessAuthorizations.ScopesOutsideTheirTarget];
+
     public MailRuleSetEditorTests()
     {
         this.permissions.GetRuleActionPermissions(Arg.Any<MailAccountId>()).Returns(MailRuleActionPermissions.Default);
@@ -350,6 +354,49 @@ public sealed class MailRuleSetEditorTests
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() => editor.RemoveAsync(
             new MailRuleSetWrite(Account, ExpectedVersion: 1),
+            rule.Id,
+            TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomPermission.AdminConfigurationWrite, refusal.RequiredPermission);
+        Assert.Equal(0, this.store.LockCount);
+        Assert.Empty(this.store.Archive);
+    }
+
+    /// <summary>The write grant is judged over the account the write names, so an administrator whose scope covers it writes.</summary>
+    [Theory]
+    [MemberData(nameof(ScopesCoveringTheAccount))]
+    public async Task RemoveAsync_AnAdministratorScopedOverTheAccount_CommitsTheWrite(AssignmentScope scope)
+    {
+        // Arrange
+        var rule = Declared("file-invoices");
+        this.store.Arrange(new StoredMailRuleSet(AccessAuthorizations.ScopedAccount, 1, [rule]));
+        var editor = this.CreateEditor(AccessAuthorizations.ForAdministratorScopedAt(scope, MailFathomPermission.AdminConfigurationWrite));
+
+        // Act
+        var result = await editor.RemoveAsync(
+            new MailRuleSetWrite(AccessAuthorizations.ScopedAccount, ExpectedVersion: 1),
+            rule.Id,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRuleSetChangeOutcome.Committed, result.Outcome);
+        Assert.Single(this.store.Archive);
+    }
+
+    /// <summary>A write grant over another account or organization is no grant over this one, and nothing is locked or written.</summary>
+    [Theory]
+    [MemberData(nameof(ScopesOutsideTheAccount))]
+    public async Task RemoveAsync_AnAdministratorScopedElsewhere_IsRefusedBeforeTakingTheLock(AssignmentScope scope)
+    {
+        // Arrange
+        var rule = Declared("file-invoices");
+        this.store.Arrange(new StoredMailRuleSet(AccessAuthorizations.ScopedAccount, 1, [rule]));
+        var editor = this.CreateEditor(AccessAuthorizations.ForAdministratorScopedAt(scope, MailFathomPermission.AdminConfigurationWrite));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() => editor.RemoveAsync(
+            new MailRuleSetWrite(AccessAuthorizations.ScopedAccount, ExpectedVersion: 1),
             rule.Id,
             TestContext.Current.CancellationToken));
 

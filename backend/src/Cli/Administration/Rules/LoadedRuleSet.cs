@@ -87,7 +87,7 @@ internal sealed record LoadedRuleAction(
     /// <returns>One phrase, such as <c>Relocate → archive</c>.</returns>
     internal string Describe() => this switch
     {
-        { Destination: { Length: > 0 } destination } => $"{this.Mutation} → {destination}",
+        { Destination: { Length: > 0 } destination } => $"{this.Mutation} → {ConsoleSafeText.Sanitize(destination)}",
         { DesiredSeenState: { } isSeen } => $"{this.Mutation} → {(isSeen ? "read" : "unread")}",
         _ => this.Mutation ?? "an unreported change",
     };

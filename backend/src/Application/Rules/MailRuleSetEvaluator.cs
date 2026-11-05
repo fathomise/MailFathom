@@ -17,11 +17,9 @@ namespace MailFathom.Application.Rules;
 /// for nothing, since it did not match.
 /// </para>
 /// <para>
-/// A rule scoped to accounts this email does not belong to is passed over rather than evaluated, and leaves no
-/// evaluation behind: it did not decline to match, it was not one of this account's rules. That also means it cannot end
-/// the pass, whatever it declares, so narrowing a stopping rule to one account is a statement about that account alone.
-/// A rule the walk's reach does not hold is passed over on exactly the same terms, so the history stays a record of
-/// decisions rather than of rules that were never asked.
+/// A rule the walk's reach does not hold is passed over rather than evaluated, and leaves no evaluation behind: it did not
+/// decline to match, it was not one of this walk's rules. That also means it cannot end the pass, whatever it declares,
+/// so the history stays a record of decisions rather than of rules that were never asked.
 /// </para>
 /// <para>
 /// The one place totality is applied. The expression evaluator underneath raises failures rather than returning them,

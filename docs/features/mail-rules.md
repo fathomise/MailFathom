@@ -687,8 +687,10 @@ So are its changes, against the rule itself and against its account:
 - **The permissions.** Every change is one the account's `RuleActions` permits a rule to take.
 
 Every defect in every rule is reported together, so a set with three mistakes is fixed in one write rather than three.
-Each names the rule by its identifier and says what is wrong, and none quotes what was written: not the rule's name, its
-condition, a folder, or a keyword, because each of those is text a person typed.
+Each names the rule by its identifier and says what is wrong, and none quotes the rule's name, a folder, or a keyword,
+because each of those is text a person typed. A condition that does not compile is reported the way the compiler read
+it — the position it stopped at, and the one fact or function name it could not read — because that is what says what
+to correct. A refusal goes back only to whoever asked for the write, and none is logged.
 
 ## Order, and stopping
 

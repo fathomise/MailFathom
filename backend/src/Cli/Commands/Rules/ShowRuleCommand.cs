@@ -83,10 +83,10 @@ internal static class ShowRuleCommand
     private static void WriteRule(CliContext context, LoadedRuleSet ruleSet, LoadedRule rule)
     {
         CliDetails details = new();
-        details.Add("Rule", $"{rule.Name ?? "an unnamed rule"} ({rule.Id:D})");
+        details.Add("Rule", $"{ConsoleSafeText.Sanitize(rule.Name) ?? "an unnamed rule"} ({rule.Id:D})");
         details.Add("State", $"{rule.DescribeState()}, position {rule.Position}");
-        details.Add("Rule set", $"{ruleSet.Revision ?? "unreported"}, version {ruleSet.Version}");
-        details.Add("Condition", rule.Condition ?? "unreported");
+        details.Add("Rule set", $"{ConsoleSafeText.Sanitize(ruleSet.Revision) ?? "unreported"}, version {ruleSet.Version}");
+        details.Add("Condition", ConsoleSafeText.SanitizeCondition(rule.Condition) ?? "unreported");
         details.Add("Runs on", rule.DescribeTriggers());
         details.Add("A match", rule.DescribeActions());
 

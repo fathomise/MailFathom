@@ -237,6 +237,35 @@ public sealed class RuleCommandTests : IDisposable
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("isSeen", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// A rule's name, condition, and destination are text whoever writes the account's rules typed, so none of them may
+    /// move the cursor or reorder the line an operator reads.
+    /// </summary>
+    [Fact]
+    public async Task Show_ARuleCarryingTerminalSequences_PrintsItWithoutThem()
+    {
+        // Arrange
+        using var deployment = FakeRuleDeployment.Answering(rules: """
+            {
+              "account": "work",
+              "version": 1,
+              "revision": "a1b2c3d4e5f6",
+              "held": false,
+              "rules": [
+                {"id":"0199a0c0-0000-7000-8000-000000000005","position":0,"name":"tidy‮evil","enabled":true,"condition":"subject == '\u001B[2Jgone'","actions":[{"position":0,"mutation":"relocate","destination":"arch\u001B[1Aive"}],"stopWhenMatched":false}
+              ]
+            }
+            """);
+
+        // Act
+        var exitCode = await this.RunAsync(deployment, "rules", "show", "tidy‮evil", "--account", Account, "--endpoint", Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+        Assert.DoesNotContain(this.harness.Console.Lines, line => line.Contains('\u001B', StringComparison.Ordinal) || line.Contains('‮', StringComparison.Ordinal));
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains("tidyevil", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task Show_ANameTheAccountHoldsNoRuleUnder_FailsAndNamesTheCommandThatListsThem()
     {

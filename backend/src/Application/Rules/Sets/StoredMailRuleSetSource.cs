@@ -8,7 +8,7 @@ using MailFathom.Domain.Accounts;
 
 namespace MailFathom.Application.Rules.Sets;
 
-/// <summary>Reads one account's stored rules and compiles its enabled ones, once per revision and bounds.</summary>
+/// <summary>Reads one account's stored rules and compiles its enabled ones, once per version and bounds.</summary>
 /// <remarks>
 /// A set whose enabled rules do not all compile is returned held rather than run in part: an ordered, stop-when-matched
 /// set with one rule removed is a set nobody wrote, and it can file mail a rule above it was written to stop. Each rule

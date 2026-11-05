@@ -70,7 +70,7 @@ internal static class ListRulesCommand
     /// <summary>Writes the set as an operator reads it: whether it runs, then the rules in the order they run.</summary>
     private static void WriteRuleSet(CliContext context, string account, LoadedRuleSet ruleSet)
     {
-        context.Console.WriteLine($"{account} — rule set {ruleSet.Revision ?? "unreported"}, version {ruleSet.Version}");
+        context.Console.WriteLine($"{account} — rule set {ConsoleSafeText.Sanitize(ruleSet.Revision) ?? "unreported"}, version {ruleSet.Version}");
         context.Console.WriteLine(DescribeHold(ruleSet));
 
         if (ruleSet.Rules is not { Count: > 0 } rules)
@@ -87,7 +87,7 @@ internal static class ListRulesCommand
         foreach (var rule in rules)
         {
             listing.AddRow(
-                rule.Name ?? "an unnamed rule",
+                ConsoleSafeText.Sanitize(rule.Name) ?? "an unnamed rule",
                 rule.DescribeState(),
                 rule.DescribeTriggers(),
                 rule.DescribeActions());

@@ -111,7 +111,7 @@ internal sealed class MailRuleSetStore(MailFathomDbContext readContext) : IMailR
             Revision = committed.Revision.Value,
             ReplacedRevision = committed.ReplacedRevision.Value,
             ActorUserId = committed.Actor?.Value,
-            Surface = committed.Surface.ToString(),
+            Surface = committed.Surface.Name,
             CommittedAt = committed.CommittedAt,
             Declarations = StoredMailRuleDeclaration.SerializeSet(committed.Declarations),
         });
@@ -224,7 +224,7 @@ internal sealed class MailRuleSetStore(MailFathomDbContext readContext) : IMailR
         MailRuleSetRevision.Restore(entity.Revision),
         MailRuleSetRevision.Restore(entity.ReplacedRevision),
         entity.ActorUserId is { } actor ? UserId.Create(actor) : null,
-        Enum.Parse<MailRuleChangeSurface>(entity.Surface),
+        MailRuleChangeSurface.Restore(entity.Surface),
         entity.CommittedAt,
         StoredMailRuleDeclaration.DeserializeSet(entity.Declarations));
 }
