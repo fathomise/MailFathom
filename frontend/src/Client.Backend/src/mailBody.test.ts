@@ -212,7 +212,9 @@ describe('readMailBody', () => {
                         {
                             type: 'paragraph',
                             alignment: 'Inherited',
-                            content: [{ text: 'Hello.', emphasis: noEmphasis, foreground: null, link: null }],
+                            content: [
+                                { text: 'Hello.', emphasis: noEmphasis, foreground: null, size: 'Normal', link: null },
+                            ],
                         },
                     ],
                     refusal: 'None',
@@ -294,6 +296,10 @@ describe('readMailBody refusing a document this deployment did not compose', () 
         ['a colour of the wrong length', paragraph(run('x', { foreground: '#fff' }))],
         ['an emphasis flag outside the set', paragraph(run('x', { emphasis: 'Bold, Blink' }))],
         ['an emphasis that is not a string', paragraph(run('x', { emphasis: 3 }))],
+        ['a size off the scale', paragraph(run('x', { size: 'Huge' }))],
+        ['a size written as a length', paragraph(run('x', { size: '1px' }))],
+        ['a size that is not a string', paragraph(run('x', { size: 4 }))],
+        ['a size written as null', paragraph(run('x', { size: null }))],
         ['text that is not a string', paragraph({ text: 7, emphasis: 'None', foreground: null, link: null })],
         ['an alignment outside the set', { type: 'paragraph', version: 1, content: [], alignment: 'Middle' }],
         [
@@ -590,7 +596,7 @@ describe('readMailBody meeting a deployment ahead of this client', () => {
             {
                 type: 'paragraph',
                 alignment: 'Inherited',
-                content: [{ text: 'After it.', emphasis: noEmphasis, foreground: null, link: null }],
+                content: [{ text: 'After it.', emphasis: noEmphasis, foreground: null, size: 'Normal', link: null }],
             },
         ]);
     });
@@ -633,9 +639,26 @@ describe('readMailBody reading what the contract holds', () => {
                     text: 'Loud.',
                     emphasis: { ...noEmphasis, bold: true, italic: true },
                     foreground: null,
+                    size: 'Normal',
                     link: null,
                 },
             ],
+        });
+    });
+
+    it.each(['Normal', 'Small', 'Large', 'Larger', 'Largest'])('reads a run sized %s on that step', async (size) => {
+        const result = await readingDocument([paragraph(run('Sized.', { size }))]);
+
+        expect(result.outcome === 'read' && result.value.document?.blocks[0]).toMatchObject({
+            content: [{ text: 'Sized.', size }],
+        });
+    });
+
+    it('reads a run carrying no size at body size', async () => {
+        const result = await readingDocument([paragraph(run('Unsized.'))]);
+
+        expect(result.outcome === 'read' && result.value.document?.blocks[0]).toMatchObject({
+            content: [{ text: 'Unsized.', size: 'Normal' }],
         });
     });
 

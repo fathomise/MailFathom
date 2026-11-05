@@ -9,6 +9,7 @@ namespace MailFathom.Infrastructure.Mail.Mime.Rendering;
 /// <summary>What one element of a message asked for, reduced to the closed property set the document admits.</summary>
 /// <param name="Hidden">Whether the element asked not to be drawn at all, which drops it and everything inside it.</param>
 /// <param name="Foreground">The text colour it asked for, or <see langword="null" /> where it asked for none.</param>
+/// <param name="Size">The step of the size scale it asked for, or <see langword="null" /> where it asked for none.</param>
 /// <param name="Background">The background colour it asked for, or <see langword="null" /> where it asked for none.</param>
 /// <param name="Alignment">How it asked its content to sit across the width it was given.</param>
 /// <param name="AddedEmphasis">The emphasis it added to whatever it inherited.</param>
@@ -18,6 +19,7 @@ namespace MailFathom.Infrastructure.Mail.Mime.Rendering;
 internal sealed record MailNodeStyle(
     bool Hidden,
     MailDocumentColour? Foreground,
+    MailTextSize? Size,
     MailDocumentColour? Background,
     MailBlockAlignment Alignment,
     MailTextEmphasis AddedEmphasis,
@@ -29,6 +31,7 @@ internal sealed record MailNodeStyle(
     public static MailNodeStyle None { get; } = new(
         Hidden: false,
         Foreground: null,
+        Size: null,
         Background: null,
         MailBlockAlignment.Inherited,
         MailTextEmphasis.None,

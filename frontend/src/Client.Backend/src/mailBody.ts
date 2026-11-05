@@ -86,6 +86,12 @@ export type MailDocumentRefusal = 'None' | 'NoHtmlPart' | 'ReductionFailed' | 'N
 /** How a block places its content across the width it was given. */
 export type MailBlockAlignment = 'Inherited' | 'Start' | 'Center' | 'End' | 'Justify';
 
+/**
+ * Which step of the closed size scale a run is drawn at. `Normal` is the message asking for nothing, or for body size,
+ * and a screen draws each other step as a type token of its own rather than at any length the sender wrote.
+ */
+export type MailTextSize = 'Normal' | 'Small' | 'Large' | 'Larger' | 'Largest';
+
 /** What the link's own words claim about where it goes, as the service judged it. */
 export type MailLinkDeception = 'NotApplicable' | 'None' | 'DisplayedHostDiffers';
 
@@ -125,6 +131,7 @@ export interface MailInlineRun {
     readonly text: string;
     readonly emphasis: MailTextEmphasis;
     readonly foreground: string | null;
+    readonly size: MailTextSize;
     readonly link: MailDocumentLink | null;
 }
 
@@ -344,6 +351,8 @@ const cleanings: readonly MailBodyCleaning[] = [
 ];
 
 const alignments: readonly MailBlockAlignment[] = ['Inherited', 'Start', 'Center', 'End', 'Justify'];
+
+const textSizes: readonly MailTextSize[] = ['Normal', 'Small', 'Large', 'Larger', 'Largest'];
 
 const deceptions: readonly MailLinkDeception[] = ['NotApplicable', 'None', 'DisplayedHostDiffers'];
 
@@ -949,15 +958,26 @@ function parseRun(value: unknown): MailInlineRun | null {
     const text = record['text'];
     const emphasis = parseEmphasis(record['emphasis']);
     const foreground = parseColour(record['foreground']);
+    const size = parseTextSize(record['size']);
     const link = parseLink(record['link'] ?? null);
 
     if (typeof text !== 'string' || text.length > bounds.maximumCharactersPerRun) {
         return null;
     }
 
-    return emphasis === null || foreground === undefined || link === undefined
+    return emphasis === null || foreground === undefined || size === null || link === undefined
         ? null
-        : { text, emphasis, foreground, link };
+        : { text, emphasis, foreground, size, link };
+}
+
+// A run arriving without a size is drawn at body size, which is what a document from a deployment that wrote none
+// means. A size that is present and off the scale is a document this deployment did not compose, and refuses the run.
+function parseTextSize(value: unknown): MailTextSize | null {
+    if (value === undefined) {
+        return 'Normal';
+    }
+
+    return isOneOf(value, textSizes) ? value : null;
 }
 
 function parseEmphasis(value: unknown): MailTextEmphasis | null {

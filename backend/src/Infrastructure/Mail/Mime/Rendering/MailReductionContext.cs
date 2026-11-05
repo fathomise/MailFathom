@@ -11,10 +11,11 @@ namespace MailFathom.Infrastructure.Mail.Mime.Rendering;
 /// <param name="QuoteDepth">How many quotations the walk is inside.</param>
 /// <param name="Emphasis">The emphasis in force.</param>
 /// <param name="Foreground">The text colour in force, or <see langword="null" /> where the pane's own decides.</param>
+/// <param name="Size">The step of the size scale in force.</param>
 /// <param name="Alignment">The alignment in force.</param>
 /// <param name="Link">The link in force, so text inside an anchor carries where it goes.</param>
 /// <remarks>
-/// Inheritance is carried explicitly rather than resolved from a style engine, which keeps it to the four things the
+/// Inheritance is carried explicitly rather than resolved from a style engine, which keeps it to the five things the
 /// document actually admits. Everything else an element could say about itself stops at that element.
 /// </remarks>
 internal sealed record MailReductionContext(
@@ -22,6 +23,7 @@ internal sealed record MailReductionContext(
     int QuoteDepth,
     MailTextEmphasis Emphasis,
     MailDocumentColour? Foreground,
+    MailTextSize Size,
     MailBlockAlignment Alignment,
     MailDocumentLink? Link)
 {
@@ -31,6 +33,7 @@ internal sealed record MailReductionContext(
         QuoteDepth: 0,
         MailTextEmphasis.None,
         Foreground: null,
+        MailTextSize.Normal,
         MailBlockAlignment.Inherited,
         Link: null);
 
@@ -47,6 +50,7 @@ internal sealed record MailReductionContext(
             Depth = this.Depth + 1,
             Emphasis = (this.Emphasis | style.AddedEmphasis) & ~style.RemovedEmphasis,
             Foreground = style.Foreground ?? this.Foreground,
+            Size = style.Size ?? this.Size,
             Alignment = style.Alignment is MailBlockAlignment.Inherited ? this.Alignment : style.Alignment,
         };
     }

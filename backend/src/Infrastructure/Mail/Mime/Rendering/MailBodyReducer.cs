@@ -201,7 +201,8 @@ internal sealed class MailBodyReducer
         switch (name)
         {
             case "br":
-                pending.Add(new MailInlineRun("\n", context.Emphasis, context.Foreground, context.Link));
+                pending.Add(
+                    new MailInlineRun("\n", context.Emphasis, context.Foreground, context.Link) { Size = context.Size });
 
                 break;
 
@@ -230,7 +231,13 @@ internal sealed class MailBodyReducer
 
             case "h1" or "h2" or "h3" or "h4" or "h5" or "h6":
                 this.Flush(blocks, pending, context);
-                this.EmitHeading(element, name, inside, blocks);
+                var level = int.Parse(name.AsSpan(1), CultureInfo.InvariantCulture);
+
+                this.EmitHeading(
+                    element,
+                    level,
+                    inside with { Size = style.Size ?? MailTextSizeReader.OfHeadingLevel(level) },
+                    blocks);
 
                 break;
 
@@ -456,7 +463,7 @@ internal sealed class MailBodyReducer
     /// </remarks>
     private void EmitHeading(
         IElement element,
-        string name,
+        int level,
         MailReductionContext context,
         List<MailDocumentBlock> blocks)
     {
@@ -477,7 +484,7 @@ internal sealed class MailBodyReducer
             this.Emit(
                 blocks,
                 new MailHeadingBlock(
-                    int.Parse(name.AsSpan(1), CultureInfo.InvariantCulture),
+                    level,
                     content,
                     context.Alignment));
         }
@@ -748,7 +755,8 @@ internal sealed class MailBodyReducer
             this.truncated = true;
         }
 
-        pending.Add(new MailInlineRun(text, context.Emphasis, context.Foreground, context.Link));
+        pending.Add(
+            new MailInlineRun(text, context.Emphasis, context.Foreground, context.Link) { Size = context.Size });
     }
 
     private static string Collapse(string data, bool atStart)
@@ -781,7 +789,7 @@ internal sealed class MailBodyReducer
     /// <para>
     /// A body written as one span per word is ordinary in templated mail, and a document carrying it that way would
     /// cost a pane a text element per word. Joining is safe because a run carries only what it is drawn with, so two
-    /// adjacent runs agreeing on all four members are one run by construction.
+    /// adjacent runs agreeing on all five members are one run by construction.
     /// </para>
     /// <para>
     /// This is where the two bounds a block's own words are held to are applied, because it is the last place the
@@ -837,6 +845,7 @@ internal sealed class MailBodyReducer
     private static bool SameFormatting(MailInlineRun left, MailInlineRun right) =>
         left.Emphasis == right.Emphasis
         && left.Foreground == right.Foreground
+        && left.Size == right.Size
         && Equals(left.Link, right.Link);
 
     /// <summary>Reads the words an anchor shows, which is what its target is judged against.</summary>

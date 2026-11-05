@@ -53,6 +53,7 @@ const workFooter: MailDocument = {
                 text,
                 emphasis: { bold: false, italic: false, underline: false, strikethrough: false, monospace: false },
                 foreground: null,
+                size: 'Normal',
                 link: null,
             },
         ],
