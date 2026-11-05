@@ -256,7 +256,8 @@ export function cellBefore(table: WrittenMarkup, at: TableCellPosition): TableCe
 }
 
 /**
- * Whether a table is one the composer may write: within both bounds, and no span reaching past its last row.
+ * Whether a table is one the composer may write: within both bounds, every row holding a cell, and no span reaching
+ * past its last row.
  * A table that is not is unwrapped to its cells' contents when it is read, and refused when a stored one holds it.
  */
 export function tableWithinBounds(table: WrittenMarkup): boolean {
@@ -268,7 +269,11 @@ export function tableWithinBounds(table: WrittenMarkup): boolean {
 
     return (
         laidOut(rows).columns <= mostTableColumns &&
-        rows.every((row, rowIndex) => cellsOf(row).every((cell) => rowIndex + (cell.rowSpan ?? 1) <= rows.length))
+        rows.every(
+            (row, rowIndex) =>
+                cellsOf(row).length > 0 &&
+                cellsOf(row).every((cell) => rowIndex + (cell.rowSpan ?? 1) <= rows.length),
+        )
     );
 }
 

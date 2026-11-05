@@ -2,11 +2,19 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
 import { WrittenMessage } from './WrittenMessage';
-import type { WrittenNode } from './writtenText';
+import {
+    newTable,
+    withColumnInserted,
+    withColumnRemoved,
+    withRowAppended,
+    withRowInserted,
+    withRowRemoved,
+} from './writtenTable';
+import { htmlOf, type WrittenMarkup, type WrittenNode } from './writtenText';
 
 // Two things this component asks the platform for are not in jsdom, and both are stated here rather than mocked away:
 // what the pointer can do, which decides whether the bar or the toggle is drawn, and the editing command itself, which
@@ -245,6 +253,7 @@ describe('WrittenMessage, the formatting bar', () => {
             'Numbered list',
             'Quote',
             'Insert a link',
+            'Insert table',
             'Clear formatting',
         ]);
     });
@@ -501,6 +510,193 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
         expect(line?.style.textAlign).toBe('center');
         expect(run?.getAttribute('color')).toBe('#b42318');
         expect(run?.getAttribute('size')).toBe('4');
+    });
+});
+
+describe('WrittenMessage, tables', () => {
+    function cell(text: string, element: 'td' | 'th' = 'td'): WrittenMarkup {
+        return { element, address: null, holds: [{ text }] };
+    }
+
+    const hours: WrittenMarkup = {
+        element: 'table',
+        address: null,
+        holds: [
+            { element: 'tr', address: null, holds: [cell('Day', 'th'), cell('Hours', 'th')] },
+            { element: 'tr', address: null, holds: [cell('Monday'), cell('9')] },
+        ],
+    };
+
+    const aLineAfter: WrittenNode = {
+        element: 'p',
+        address: null,
+        holds: [{ element: 'br', address: null, holds: [] }],
+    };
+
+    /** The caret at the end of one cell's words, and the document told the selection moved, as a browser tells it. */
+    function caretAfter(text: string): void {
+        select(text);
+        window.getSelection()?.collapseToEnd();
+        act(() => {
+            document.dispatchEvent(new Event('selectionchange'));
+        });
+    }
+
+    function cellAtTheCaret(): string | null | undefined {
+        const anchor = window.getSelection()?.anchorNode ?? null;
+
+        return (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest('td, th')?.textContent;
+    }
+
+    it('opens *Insert a table* on three by three with a header row, and inserts what it says with a line after it', () => {
+        drawWords();
+
+        press('Insert table');
+
+        expect(screen.getByRole('menu', { name: 'Insert a table' })).toBeDefined();
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'One row more' }));
+        fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'The first row is a header' }));
+
+        expect(
+            screen.getByRole('menuitemcheckbox', { name: 'The first row is a header' }).getAttribute('aria-checked'),
+        ).toBe('false');
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Insert a 4 × 3 table' }));
+
+        expect(acts()).toEqual([
+            { command: 'insertHTML', argument: htmlOf([newTable(4, 3, false), aLineAfter], 'editor') },
+        ]);
+        expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('says why a count goes no lower, and leaves the count where it is', () => {
+        drawWords();
+
+        press('Insert table');
+        fireEvent.click(screen.getByRole('menuitem', { name: 'One column fewer' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'One column fewer' }));
+
+        const least = screen.getByRole('menuitem', { name: 'Columns - at least 1' });
+
+        expect(least.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(least);
+
+        expect(screen.getByRole('menuitem', { name: 'Insert a 3 × 1 table' })).toBeDefined();
+    });
+
+    it('opens holding a table drawn with the grid the HTML part writes', () => {
+        drawWords([hours]);
+
+        const header = words().querySelector('th');
+
+        expect(header?.textContent).toBe('Day');
+        expect(header?.style.textAlign).toBe('left');
+        expect(header?.style.verticalAlign).toBe('top');
+        expect(words().querySelectorAll('tbody > tr')).toHaveLength(2);
+    });
+
+    it('stands the table’s strip while the caret is in a cell, and marks what a cell cannot hold', () => {
+        drawWords([hours]);
+
+        expect(screen.queryByRole('toolbar', { name: 'Table' })).toBeNull();
+
+        caretAfter('9');
+
+        const strip = screen.getByRole('toolbar', { name: 'Table' });
+
+        expect(Array.from(strip.querySelectorAll('button'), (control) => control.textContent)).toEqual([
+            'Row above',
+            'Row below',
+            'Column before',
+            'Column after',
+            'Remove row',
+            'Remove column',
+            'Delete table',
+        ]);
+
+        const list = screen.getByRole('button', {
+            name: 'Bulleted list - a table cell holds words, colour and size only',
+        });
+
+        expect(list.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(list);
+        press('Insert table - a table cell holds words, colour and size only');
+
+        expect(acts()).toEqual([]);
+        expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it.each([
+        ['Row above', withRowInserted(hours, { row: 1, cell: 1 }, 'before').table],
+        ['Row below', withRowInserted(hours, { row: 1, cell: 1 }, 'after').table],
+        ['Column before', withColumnInserted(hours, { row: 1, cell: 1 }, 'before').table],
+        ['Column after', withColumnInserted(hours, { row: 1, cell: 1 }, 'after').table],
+        ['Remove row', withRowRemoved(hours, { row: 1, cell: 1 }).table],
+        ['Remove column', withColumnRemoved(hours, { row: 1, cell: 1 }).table],
+    ])('writes %s over the whole table as one insertion', (named, edited) => {
+        drawWords([hours]);
+
+        caretAfter('9');
+        fireEvent.click(screen.getByRole('button', { name: named }));
+
+        expect(acts()).toEqual([{ command: 'insertHTML', argument: htmlOf(edited === null ? [] : [edited], 'editor') }]);
+        expect(selectedWhenCommanded).toEqual(['DayHoursMonday9']);
+    });
+
+    it('takes the whole table away as one step', () => {
+        drawWords([hours]);
+
+        caretAfter('Monday');
+        fireEvent.click(screen.getByRole('button', { name: 'Delete table' }));
+
+        expect(acts()).toEqual([{ command: 'delete', argument: undefined }]);
+    });
+
+    it('walks the cells with Tab, and adds a row with Tab in the last one', () => {
+        drawWords([hours]);
+
+        caretAfter('Monday');
+        fireEvent.keyDown(words(), { key: 'Tab' });
+
+        expect(cellAtTheCaret()).toBe('9');
+        expect(acts()).toEqual([]);
+
+        fireEvent.keyDown(words(), { key: 'Tab' });
+
+        expect(acts()).toEqual([
+            { command: 'insertHTML', argument: htmlOf([withRowAppended(hours).table ?? hours], 'editor') },
+        ]);
+    });
+
+    it('walks back with Shift+Tab, and leaves the table to the browser before the first cell', () => {
+        drawWords([hours]);
+
+        caretAfter('Hours');
+
+        expect(fireEvent.keyDown(words(), { key: 'Tab', shiftKey: true })).toBe(false);
+        expect(cellAtTheCaret()).toBe('Day');
+        expect(fireEvent.keyDown(words(), { key: 'Tab', shiftKey: true })).toBe(true);
+    });
+
+    it('breaks a line in a cell on Enter, a paragraph being a block no cell holds', () => {
+        drawWords([hours]);
+
+        caretAfter('Monday');
+        fireEvent.keyDown(words(), { key: 'Enter' });
+
+        expect(acts()).toEqual([{ command: 'insertLineBreak', argument: undefined }]);
+    });
+
+    it('pastes into a cell on one line', () => {
+        drawWords([hours]);
+
+        caretAfter('Monday');
+        fireEvent.paste(words(), { clipboardData: { getData: () => 'closed\nall day' } });
+
+        expect(acts()).toEqual([{ command: 'insertText', argument: 'closed all day' }]);
     });
 });
 

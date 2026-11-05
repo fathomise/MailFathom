@@ -3,7 +3,14 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import type { MailBody, MailDocumentBlock, MailInlineRun, MailTextEmphasis } from '@mailfathom/client-backend';
+import type {
+    MailBody,
+    MailDocumentBlock,
+    MailInlineRun,
+    MailTableCell,
+    MailTableRow,
+    MailTextEmphasis,
+} from '@mailfathom/client-backend';
 import { draftWords } from './draftWords';
 import { htmlOf, plainTextOf } from './writtenText';
 
@@ -36,6 +43,18 @@ function run(text: string, emphasis: Partial<MailTextEmphasis> = {}, target: str
 
 function paragraph(...content: readonly MailInlineRun[]): MailDocumentBlock {
     return { type: 'paragraph', content, alignment: 'Inherited' };
+}
+
+function cell(blocks: readonly MailDocumentBlock[], carries: Partial<MailTableCell> = {}): MailTableCell {
+    return { columnSpan: 1, rowSpan: 1, alignment: 'Inherited', background: null, blocks, ...carries };
+}
+
+function row(isHeader: boolean, ...cells: readonly MailTableCell[]): MailTableRow {
+    return { isHeader, cells };
+}
+
+function tableOf(rows: readonly MailTableRow[]): MailDocumentBlock {
+    return { type: 'table', columns: [], rows };
 }
 
 // Every block the composer has no shape for, which is what it drops rather than approximates.
@@ -161,36 +180,76 @@ describe('draftWords', () => {
         expect(htmlOf(draftWords(bodyOf([quote])))).toBe('<blockquote><p>you wrote</p></blockquote>');
     });
 
-    // The grid is not something the composer draws. A table dropped whole would take the message's words with it, so
-    // what is kept is what the cells say, in the order they say it.
-    it('keeps what a table’s cells say although the grid around them is lost', () => {
-        const table: MailDocumentBlock = {
-            type: 'table',
-            columns: [{ widthShare: null }, { widthShare: null }],
-            rows: [
-                {
-                    isHeader: false,
-                    cells: [
-                        {
-                            columnSpan: 1,
-                            rowSpan: 1,
-                            alignment: 'Inherited',
-                            background: null,
-                            blocks: [paragraph(run('Monday'))],
-                        },
-                        {
-                            columnSpan: 1,
-                            rowSpan: 1,
-                            alignment: 'Inherited',
-                            background: null,
-                            blocks: [paragraph(run('nine'))],
-                        },
-                    ],
-                },
-            ],
-        };
+    it('carries a table across as a table, its header row, alignments, fills, and spans kept', () => {
+        const table = tableOf([
+            row(true, cell([paragraph(run('Day'))]), cell([paragraph(run('Hours'))])),
+            row(false, cell([paragraph(run('Monday'))], { rowSpan: 2, background: '#F0F4FF' }), cell([paragraph(run('9'))], { alignment: 'End' })),
+            row(false, cell([paragraph(run('10'))], { alignment: 'Start' })),
+        ]);
 
-        expect(htmlOf(draftWords(bodyOf([table])))).toBe('<p>Monday</p><p>nine</p>');
+        expect(draftWords(bodyOf([table]))).toEqual([
+            {
+                element: 'table',
+                address: null,
+                holds: [
+                    {
+                        element: 'tr',
+                        address: null,
+                        holds: [
+                            { element: 'th', address: null, holds: [{ text: 'Day' }] },
+                            { element: 'th', address: null, holds: [{ text: 'Hours' }] },
+                        ],
+                    },
+                    {
+                        element: 'tr',
+                        address: null,
+                        holds: [
+                            {
+                                element: 'td',
+                                address: null,
+                                background: '#f0f4ff',
+                                rowSpan: 2,
+                                holds: [{ text: 'Monday' }],
+                            },
+                            { element: 'td', address: null, alignment: 'end', holds: [{ text: '9' }] },
+                        ],
+                    },
+                    { element: 'tr', address: null, holds: [{ element: 'td', address: null, holds: [{ text: '10' }] }] },
+                ],
+            },
+        ]);
+    });
+
+    it('carries what a cell holds as lines, a list, a quote, and a table inside it included', () => {
+        const nested = tableOf([row(false, cell([paragraph(run('x'))]), cell([paragraph(run('y'))]))]);
+        const list: MailDocumentBlock = {
+            type: 'list',
+            ordered: false,
+            items: [{ blocks: [paragraph(run('one'))] }, { blocks: [paragraph(run('two'))] }],
+        };
+        const table = tableOf([row(false, cell([paragraph(run('Note')), list, nested]))]);
+        const written = draftWords(bodyOf([table]));
+
+        expect(plainTextOf(written)).toBe('Note one two x y');
+        expect(htmlOf(written)).toContain('>Note<br />one<br />two<br />x<br />y</td>');
+    });
+
+    it('reads a row span past the last row as reaching the last row', () => {
+        const table = tableOf([row(false, cell([paragraph(run('a'))], { rowSpan: 3 }))]);
+
+        expect(htmlOf(draftWords(bodyOf([table])))).not.toContain('rowspan');
+    });
+
+    // A table past a bound is one the composer could not have made. Dropped whole it would take the message's words
+    // with it, so what is kept is what the cells say, in the order they say it.
+    it('keeps what the cells of a table past a bound say, although the grid around them is lost', () => {
+        const wide = tableOf([
+            row(false, ...Array.from({ length: 21 }, (_, index) => cell([paragraph(run(`c${String(index)}`))]))),
+        ]);
+
+        expect(htmlOf(draftWords(bodyOf([wide])))).toBe(
+            Array.from({ length: 21 }, (_, index) => `<p>c${String(index)}</p>`).join(''),
+        );
     });
 
     it('drops a block the composer has nothing to write it with, rather than approximating one', () => {

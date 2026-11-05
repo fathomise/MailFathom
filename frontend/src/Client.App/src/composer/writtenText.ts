@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import { cellsOf, mostTableColumns, mostTableRows, rowsOf, spanned, tableWithinBounds } from './writtenTable';
+
 // What somebody has written, as a closed tree rather than as markup, and the two readings a message going out needs
 // from it: the HTML part and the plain-text alternative beside it.
 //
@@ -33,6 +35,10 @@ export type WrittenElement =
     | 'span'
     | 'strike'
     | 'strong'
+    | 'table'
+    | 'td'
+    | 'th'
+    | 'tr'
     | 'u'
     | 'ul';
 
@@ -60,11 +66,21 @@ export interface WrittenMarkup {
     /** A run's step of the size scale, which only a `span` carries. */
     readonly size?: WrittenSize;
 
-    /** How a block places its lines, which only a paragraph, a line, and a list item carry. */
+    /** How a block places its lines, which only a paragraph, a line, a list item, and a table cell carry. */
     readonly alignment?: WrittenAlignment;
+
+    /** A table cell's fill, as an opaque `#rrggbb` in lower case. */
+    readonly background?: string;
+
+    /** How many columns and rows a table cell spans, each carried only where it is more than one. */
+    readonly columnSpan?: number;
+    readonly rowSpan?: number;
 
     readonly holds: readonly WrittenNode[];
 }
+
+/** Who a written tree is spelled for: the HTML part of a message going out, or the composer's own editable region. */
+export type WrittenDestination = 'mail' | 'editor';
 
 export type WrittenNode = WrittenText | WrittenMarkup;
 
@@ -83,19 +99,36 @@ const writableElements: readonly string[] = [
     'span',
     'strike',
     'strong',
+    'table',
+    'td',
+    'th',
+    'tr',
     'u',
     'ul',
 ];
 
+// A table's own parts, which stand only where a table puts them: a row in a table, a cell in a row.
+const tableParts: readonly string[] = ['table', 'td', 'th', 'tr'];
+
+// What a table cell may not hold, being a block of its own. A cell holds what a paragraph holds — runs, colour, size,
+// and line breaks — so in a cell each of these is read as the lines it held rather than kept.
+const blocksOutsideACell: readonly string[] = ['blockquote', 'div', 'li', 'ol', 'p', 'ul', ...tableParts];
+
 // A `span` an engine leaves in the region is its own bookkeeping — the rendering it carries a moved line over with —
 // rather than an element anybody chose, so it is read only through the region's drawing (`RunDrawing`) and otherwise
 // unwrapped. A run's colour and size are read off the `font` element the editing commands write, and the tree's
-// `span` is that reading.
-const readableElements: readonly string[] = writableElements.filter((element) => element !== 'span');
+// `span` is that reading. A table's parts are read by a walk of their own, because where each may stand is part of
+// what is read.
+const readableElements: readonly string[] = writableElements.filter(
+    (element) => element !== 'span' && !tableParts.includes(element),
+);
 
 const writtenSizes: readonly string[] = ['small', 'large', 'larger', 'largest'];
 const writtenAlignments: readonly string[] = ['start', 'center', 'end', 'justify'];
-const alignedElements: readonly string[] = ['div', 'li', 'p'];
+const alignedElements: readonly string[] = ['div', 'li', 'p', 'td', 'th'];
+const tableCells: readonly string[] = ['td', 'th'];
+
+const lineBreak: WrittenMarkup = { element: 'br', address: null, holds: [] };
 
 // The size scale as the HTML part writes it, the one place a step becomes a length.
 const sentSizes: Readonly<Record<WrittenSize, string>> = {
@@ -152,6 +185,26 @@ export function drawnAlignment(alignment: WrittenAlignment): string {
     return sentAlignments[alignment];
 }
 
+/**
+ * How a table cell is drawn, as CSS declarations: the same in the HTML part and in the editor, so the grid somebody
+ * fills in is the grid that is sent.
+ *
+ * Every cell carries one border, its padding, and its words at the top, which is what makes a table read as a grid in
+ * every client that drops a style sheet. It always carries an alignment too — its own, or start where it has none —
+ * because most clients centre a header cell by default and the composer draws one start-aligned like the cells below.
+ */
+export function cellDeclarationsOf(cell: WrittenMarkup): readonly (readonly [string, string])[] {
+    const background = cell.background === undefined ? null : writtenColour(cell.background);
+
+    return [
+        ['border', '1px solid #d0d5dd'],
+        ['padding', '4px 8px'],
+        ['vertical-align', 'top'],
+        ...(background === null ? [] : [['background-color', background] as const]),
+        ['text-align', sentAlignments[cell.alignment ?? 'start']],
+    ];
+}
+
 // The schemes a link written here may name. Everything else — `javascript:`, `data:`, a scheme nobody has heard of —
 // is a link the composer refuses to make rather than one a reader has to be careful about, and a relative address is
 // refused with them: what a message says is read on somebody else's machine, where this deployment's paths mean
@@ -202,7 +255,17 @@ export function pastedAddress(pasted: string): string | null {
  *   left is unwrapped.
  */
 export function writtenIn(parent: Node, drawing: RunDrawing | null = null): readonly WrittenNode[] {
-    return readWritten(parent, 0, { nodes: mostWrittenNodes }, drawing);
+    return readWritten(parent, 0, { nodes: mostWrittenNodes }, 'flow', drawing);
+}
+
+/**
+ * One table in the editable region, read exactly as `writtenIn` reads it, or `null` where what stands there is not a
+ * table the composer holds — one past a bound, which that reading takes apart into its cells' words.
+ */
+export function writtenTableIn(table: Element, drawing: RunDrawing | null = null): WrittenMarkup | null {
+    const [read, ...more] = readTable(table, 0, { nodes: mostWrittenNodes }, 'flow', drawing);
+
+    return read !== undefined && more.length === 0 && !('text' in read) && read.element === 'table' ? read : null;
 }
 
 /**
@@ -244,10 +307,15 @@ interface WritingBudget {
     nodes: number;
 }
 
+// Where what is being read stands: in the message's own flow of blocks, or inside a table cell, which holds what a
+// paragraph holds and nothing more.
+type Placement = 'flow' | 'cell';
+
 function readWritten(
     parent: Node,
     depth: number,
     budget: WritingBudget,
+    within: Placement,
     drawing: RunDrawing | null,
 ): readonly WrittenNode[] {
     // Past the depth a kept message may be read back at, an element is unwrapped rather than kept.
@@ -286,6 +354,38 @@ function readWritten(
         }
 
         const named = node.tagName.toLowerCase();
+
+        // A table needs three levels below it for its rows, its cells, and their words, so one too deep for them is
+        // read as the words it holds, as any element past the depth is.
+        if (named === 'table' && depth + 3 <= deepestWriting) {
+            written.push(...readTable(node, depth, budget, within, drawing));
+
+            continue;
+        }
+
+        // A block inside a cell is read as the lines it held: a break before it where words stand ahead of it, and one
+        // after it unless it already ended on one.
+        if (within === 'cell' && blocksOutsideACell.includes(named)) {
+            const lines = readWritten(node, depth, budget, 'cell', drawing);
+            const ahead = written[written.length - 1];
+
+            if (lines.length > 0) {
+                if (ahead !== undefined && !isBreak(ahead)) {
+                    budget.nodes -= 1;
+                    written.push(lineBreak);
+                }
+
+                written.push(...lines);
+
+                if (!isBreak(lines[lines.length - 1] ?? lineBreak)) {
+                    budget.nodes -= 1;
+                    written.push(lineBreak);
+                }
+            }
+
+            continue;
+        }
+
         const run = runOf(node, named, drawing);
         const writable = readableElements.includes(named) || run !== null;
 
@@ -295,7 +395,7 @@ function readWritten(
             budget.nodes -= 1;
         }
 
-        const holds = readWritten(node, depth + 1, budget, drawing);
+        const holds = readWritten(node, depth + 1, budget, within, drawing);
 
         if (!writable) {
             written.push(...holds);
@@ -371,9 +471,111 @@ function ownEntry<Value>(table: Readonly<Record<string, Value>>, key: string): V
     return Object.hasOwn(table, key) ? (table[key] ?? null) : null;
 }
 
-/** The HTML part of a message going out, with every value in it escaped rather than trusted. */
-export function htmlOf(written: readonly WrittenNode[]): string {
-    return written.map(markupOf).join('');
+// A table read row by row and cell by cell. A table inside a cell, and one past a bound, is not one the composer holds,
+// so either is read as what its cells said instead — the grid is what is lost, never the words.
+function readTable(
+    table: Element,
+    depth: number,
+    budget: WritingBudget,
+    within: Placement,
+    drawing: RunDrawing | null,
+): readonly WrittenNode[] {
+    const rows: WrittenMarkup[] = [];
+
+    budget.nodes -= 1;
+
+    for (const row of table instanceof HTMLTableElement ? table.rows : []) {
+        const cells: WrittenMarkup[] = [];
+
+        for (const cell of row.cells) {
+            if (budget.nodes <= 0) {
+                break;
+            }
+
+            budget.nodes -= 1;
+            cells.push(cellOf(cell, withoutTheLastBreak(readWritten(cell, depth + 3, budget, 'cell', drawing))));
+        }
+
+        if (cells.length > 0) {
+            budget.nodes -= 1;
+            rows.push({ element: 'tr', address: null, holds: cells });
+        }
+    }
+
+    // A span reaching past the last row is one an engine left behind when it took rows away, and it is drawn to the
+    // last row anyway, so it is read as reaching there rather than costing the table.
+    const read: WrittenMarkup = {
+        element: 'table',
+        address: null,
+        holds: rows.map((row, index) => ({
+            ...row,
+            holds: cellsOf(row).map((cell) =>
+                spanned(cell, cell.columnSpan ?? 1, Math.min(cell.rowSpan ?? 1, rows.length - index)),
+            ),
+        })),
+    };
+
+    if (within === 'flow' && tableWithinBounds(read)) {
+        return [read];
+    }
+
+    const contents = rowsOf(read)
+        .flatMap(cellsOf)
+        .map((cell) => cell.holds)
+        .filter((holds) => holds.length > 0);
+
+    return within === 'cell'
+        ? contents.flatMap((holds) => [...holds, lineBreak])
+        : contents.map((holds) => ({ element: 'div' as const, address: null, holds }));
+}
+
+// One cell with what it carries: its alignment where it is not the start every cell is drawn at anyway, its fill, and
+// its spans where they are more than one.
+function cellOf(cell: HTMLTableCellElement, holds: readonly WrittenNode[]): WrittenMarkup {
+    const alignment = alignmentOf(cell);
+    const background = backgroundOf(cell);
+
+    return spanned(
+        {
+            element: cell.tagName.toLowerCase() === 'th' ? 'th' : 'td',
+            address: null,
+            ...(alignment === null || alignment === 'start' ? {} : { alignment }),
+            ...(background === null ? {} : { background }),
+            holds,
+        },
+        cell.colSpan,
+        cell.rowSpan,
+    );
+}
+
+// A cell's fill. The style an engine reports gives a colour back as `rgb()` whatever it was written as, and a fill with
+// any transparency comes back as `rgba()`, which is no fill the tree carries.
+function backgroundOf(cell: HTMLTableCellElement): string | null {
+    return colourOfRgb(cell.style.backgroundColor) ?? writtenColour(cell.getAttribute('bgcolor') ?? '');
+}
+
+// An engine keeps a break at the end of a block so the block has a line to put the caret on, and draws no line for it,
+// so the last break in a cell is that placeholder rather than one somebody typed.
+function withoutTheLastBreak(holds: readonly WrittenNode[]): readonly WrittenNode[] {
+    const last = holds[holds.length - 1];
+
+    return last !== undefined && isBreak(last) ? holds.slice(0, -1) : holds;
+}
+
+function isBreak(node: WrittenNode): boolean {
+    return !('text' in node) && node.element === 'br';
+}
+
+/**
+ * The HTML part of a message going out, with every value in it escaped rather than trusted — or, for the editor, the
+ * same tree in the spelling the region is drawn in, which is what `insertHTML` is handed under ADR 0047.
+ *
+ * The two differ only where the editing commands spell something their own way: a run's colour and size, which the
+ * region holds as the `<font>` `foreColor` and `fontSize` write, and an empty cell, which the editor gives a break to
+ * put the caret on. Everything else is one serialization, so what somebody edits is what is sent.
+ */
+export function htmlOf(written: readonly WrittenNode[], destination: WrittenDestination = 'mail'): string {
+    return written.map((node) => markupOf(node, destination)).join('');
 }
 
 /**
@@ -395,7 +597,7 @@ export function plainTextOf(written: readonly WrittenNode[]): string {
 export function writtenTextIn(value: unknown): readonly WrittenNode[] | null {
     let remaining = mostWrittenNodes;
 
-    function nodesIn(held: unknown, depth: number): readonly WrittenNode[] | null {
+    function nodesIn(held: unknown, depth: number, within: StoredPlacement): readonly WrittenNode[] | null {
         if (!Array.isArray(held) || depth > deepestWriting) {
             return null;
         }
@@ -409,7 +611,7 @@ export function writtenTextIn(value: unknown): readonly WrittenNode[] | null {
                 return null;
             }
 
-            const read = nodeIn(node, depth);
+            const read = nodeIn(node, depth, within);
 
             if (read === null) {
                 return null;
@@ -421,7 +623,7 @@ export function writtenTextIn(value: unknown): readonly WrittenNode[] | null {
         return written;
     }
 
-    function nodeIn(node: unknown, depth: number): WrittenNode | null {
+    function nodeIn(node: unknown, depth: number, within: StoredPlacement): WrittenNode | null {
         if (typeof node !== 'object' || node === null || Array.isArray(node)) {
             return null;
         }
@@ -430,13 +632,16 @@ export function writtenTextIn(value: unknown): readonly WrittenNode[] | null {
         const text = record['text'];
 
         if (text !== undefined) {
-            return typeof text === 'string' && text.length <= longestWrittenRun ? { text } : null;
+            // Words stand in the flow and in a cell, and never loose in a table or a row, where nothing draws them.
+            return typeof text === 'string' && text.length <= longestWrittenRun && (within === 'flow' || within === 'cell')
+                ? { text }
+                : null;
         }
 
         const element = record['element'];
         const address = record['address'] ?? null;
 
-        if (typeof element !== 'string' || !writableElements.includes(element)) {
+        if (typeof element !== 'string' || !writableElements.includes(element) || !standsIn(element, within)) {
             return null;
         }
 
@@ -448,17 +653,89 @@ export function writtenTextIn(value: unknown): readonly WrittenNode[] | null {
         }
 
         const presented = presentationIn(element, record);
+        const celled = cellIn(element, record);
 
-        if (presented === null) {
+        if (presented === null || celled === null) {
             return null;
         }
 
-        const holds = nodesIn(record['holds'], depth + 1);
+        const holds = nodesIn(record['holds'], depth + 1, placementInside(element, within));
 
-        return holds === null ? null : { element: element as WrittenElement, address, ...presented, holds };
+        if (holds === null) {
+            return null;
+        }
+
+        const read: WrittenMarkup = { element: element as WrittenElement, address, ...presented, ...celled, holds };
+
+        // A table past a bound is one `writtenIn` would have taken apart, so a stored one is not this client's.
+        return element === 'table' && !tableWithinBounds(read) ? null : read;
     }
 
-    return nodesIn(value, 0);
+    return nodesIn(value, 0, 'flow');
+}
+
+// Where a stored node stands: the two places words do, and the two parts of a table between them.
+type StoredPlacement = Placement | 'table' | 'row';
+
+// Whether an element may stand where a stored tree put it: a row only in a table, a cell only in a row, nothing but a
+// cell's own runs inside a cell — so no table inside another — and none of a table's parts loose in the flow.
+function standsIn(element: string, within: StoredPlacement): boolean {
+    switch (within) {
+        case 'table':
+            return element === 'tr';
+        case 'row':
+            return tableCells.includes(element);
+        case 'cell':
+            return !blocksOutsideACell.includes(element);
+        case 'flow':
+            return element === 'table' || !tableParts.includes(element);
+    }
+}
+
+function placementInside(element: string, within: StoredPlacement): StoredPlacement {
+    if (element === 'table') {
+        return 'table';
+    }
+
+    if (element === 'tr') {
+        return 'row';
+    }
+
+    return tableCells.includes(element) ? 'cell' : within;
+}
+
+// The fill and the spans a stored cell carries, only on a cell and only as `writtenIn` writes them: an opaque colour in
+// its one spelling, and a span that is a whole number above one and inside the table's bounds.
+function cellIn(
+    element: string,
+    record: Record<string, unknown>,
+): { readonly background?: string; readonly columnSpan?: number; readonly rowSpan?: number } | null {
+    const background = record['background'];
+    const columnSpan = record['columnSpan'];
+    const rowSpan = record['rowSpan'];
+
+    if (background === undefined && columnSpan === undefined && rowSpan === undefined) {
+        return {};
+    }
+
+    const backgroundRead =
+        background === undefined || (typeof background === 'string' && writtenColour(background) === background);
+    const columnSpanRead = columnSpan === undefined || spanWithin(columnSpan, mostTableColumns);
+    const rowSpanRead = rowSpan === undefined || spanWithin(rowSpan, mostTableRows);
+
+    if (!tableCells.includes(element) || !backgroundRead || !columnSpanRead || !rowSpanRead) {
+        return null;
+    }
+
+    return {
+        ...(typeof background === 'string' ? { background } : {}),
+        ...(typeof columnSpan === 'number' ? { columnSpan } : {}),
+        ...(typeof rowSpan === 'number' ? { rowSpan } : {}),
+    };
+}
+
+function spanWithin(span: unknown, most: number): boolean {
+    return typeof span === 'number' && Number.isInteger(span) && span > 1 && span <= most;
 }
 
 // The colour, the size, and the alignment a stored element carries, each on the element `writtenIn` writes it on and
@@ -494,19 +771,58 @@ function presentationIn(
     };
 }
 
-function markupOf(node: WrittenNode): string {
+function markupOf(node: WrittenNode, destination: WrittenDestination): string {
     if ('text' in node) {
         return escaped(node.text);
     }
 
-    if (node.element === 'br') {
-        return '<br />';
+    const holds = htmlOf(node.holds, destination);
+
+    switch (node.element) {
+        case 'br':
+            return '<br />';
+        case 'span':
+            if (destination === 'editor') {
+                return `<font${fontAttributesOf(node)}>${holds}</font>`;
+            }
+
+            break;
+        case 'table':
+            return `<table style="border-collapse:collapse">${holds}</table>`;
+        case 'td':
+        case 'th':
+            return cellMarkupOf(node, holds, destination);
+        default:
+            break;
     }
 
     const address = node.address === null ? '' : ` href="${escaped(node.address).replace(/"/gu, '&quot;')}"`;
     const style = sentStyleOf(node);
 
-    return `<${node.element}${address}${style === '' ? '' : ` style="${style}"`}>${htmlOf(node.holds)}</${node.element}>`;
+    return `<${node.element}${address}${style === '' ? '' : ` style="${style}"`}>${holds}</${node.element}>`;
+}
+
+// A run's colour and size as `<font>` spells them, every value of which comes from the closed set.
+function fontAttributesOf(run: WrittenMarkup): string {
+    const colour = run.colour === undefined ? null : writtenColour(run.colour);
+
+    return `${colour === null ? '' : ` color="${colour}"`}${run.size === undefined ? '' : ` size="${fontSizeOf[run.size]}"`}`;
+}
+
+// A cell with its spans and its declarations. A break ending a cell draws no line of its own, so it is given a second
+// to stand on, which is also what `writtenIn` reads back as one; and in the editor an empty cell is given a break so
+// an engine has a line to put the caret on.
+function cellMarkupOf(cell: WrittenMarkup, holds: string, destination: WrittenDestination): string {
+    const last = cell.holds[cell.holds.length - 1];
+    const standing = last === undefined ? destination === 'editor' : isBreak(last);
+    const spans = `${cell.columnSpan === undefined ? '' : ` colspan="${cell.columnSpan.toFixed(0)}"`}${
+        cell.rowSpan === undefined ? '' : ` rowspan="${cell.rowSpan.toFixed(0)}"`
+    }`;
+    const style = cellDeclarationsOf(cell)
+        .map(([property, value]) => `${property}:${value}`)
+        .join(';');
+
+    return `<${cell.element}${spans} style="${style}">${holds}${standing ? '<br />' : ''}</${cell.element}>`;
 }
 
 // Mail clients drop style sheets, so what the composer presents goes out as an inline style — and every value in it is
@@ -565,6 +881,17 @@ function textOf(written: readonly WrittenNode[], list: 'ol' | 'ul' | null): stri
                 break;
             case 'div':
                 text += `${textOf(node.holds, null)}\n`;
+                break;
+            case 'table':
+                // A row to a line and its cells side by side, so a reader whose client shows the plain-text part
+                // still reads the figures in their rows. A break inside a cell would end the row, so it is a space.
+                text += `${rowsOf(node)
+                    .map((row) =>
+                        cellsOf(row)
+                            .map((cell) => textOf(cell.holds, null).replace(/\s+/gu, ' ').trim())
+                            .join(' | '),
+                    )
+                    .join('\n')}\n\n`;
                 break;
             default:
                 text += textOf(node.holds, null);

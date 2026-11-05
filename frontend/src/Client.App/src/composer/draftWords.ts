@@ -7,14 +7,18 @@ import type {
     MailBody,
     MailDocumentBlock,
     MailInlineRun,
+    MailTableBlock,
+    MailTableCell,
     MailTextEmphasis,
     MailTextSize,
 } from '@mailfathom/client-backend';
+import { spanned, tableWithinBounds } from './writtenTable';
 import {
     followable,
     writtenColour,
     type WrittenAlignment,
     type WrittenElement,
+    type WrittenMarkup,
     type WrittenNode,
     type WrittenSize,
 } from './writtenText';
@@ -30,10 +34,11 @@ import {
 // second typed tree. No string is parsed, no sanitizer is pinned, and what a hostile draft can put in the composer is
 // bounded by what `WrittenNode` can express.
 //
-// **What the composer cannot write is not written.** A draft carrying a table, a picture, or a block a later
-// deployment publishes has no shape here — the composer's set is what a person can type with its own controls, and
-// inventing an approximation would put words on the screen the author never wrote. A table's cells are still walked,
-// because the words in them are the message; the grid is what is lost. A body that leaves nothing the composer can
+// **What the composer cannot write is not written.** A draft carrying a picture, or a block a later deployment
+// publishes, has no shape here — the composer's set is what a person can type with its own controls, and inventing an
+// approximation would put words on the screen the author never wrote. A table the composer could not have made — one
+// past a bound — still has its cells walked, because the words in them are the message; the grid is what is lost. A
+// body that leaves nothing the composer can
 // write — one the deployment could not reduce at all, and one whose every block is a block this has no shape for —
 // falls back to its plain text, which is the rendering the deployment always answers with.
 
@@ -96,10 +101,8 @@ function writtenBlock(block: MailDocumentBlock): readonly WrittenNode[] {
         case 'preformatted':
             return writtenParagraphs(block.text);
 
-        // The grid is not something the composer draws, so what is kept is what the cells say, in the order they say
-        // it. A table dropped whole would take the message's words with it.
         case 'table':
-            return block.rows.flatMap((row) => row.cells.flatMap((cell) => cell.blocks.flatMap(writtenBlock)));
+            return writtenTable(block);
 
         case 'image':
         case 'separator':
@@ -166,6 +169,8 @@ export function writtenParagraphs(text: string): readonly WrittenNode[] {
     return text.split('\n').map((line) => wrapping('p', line === '' ? [] : [{ text: line }]));
 }
 
+const lineBreak: WrittenNode = { element: 'br', address: null, holds: [] };
+
 function wrapping(element: WrittenElement, holds: readonly WrittenNode[]): WrittenNode {
     return { element, address: null, holds };
 }
@@ -176,4 +181,75 @@ function aligned(alignment: MailBlockAlignment, holds: readonly WrittenNode[]): 
     const written = writtenAlignments[alignment];
 
     return written === null ? wrapping('p', holds) : { element: 'p', address: null, alignment: written, holds };
+}
+
+// A table as the composer holds one: a row of header cells where the document marks a header row, and each cell's
+// alignment, fill, and spans with its words as lines. A table past a bound is one the composer could not have made, so
+// it is taken apart into what its cells said, in the order they said it — dropped whole, it would take the message's
+// words with it.
+function writtenTable(block: MailTableBlock): readonly WrittenNode[] {
+    const rows = block.rows.length;
+    const table: WrittenMarkup = {
+        element: 'table',
+        address: null,
+        holds: block.rows.map((row, index) => ({
+            element: 'tr',
+            address: null,
+            holds: row.cells.map((cell) => writtenCell(cell, row.isHeader, rows - index)),
+        })),
+    };
+
+    return tableWithinBounds(table)
+        ? [table]
+        : block.rows.flatMap((row) => row.cells.flatMap((cell) => cell.blocks.flatMap(writtenBlock)));
+}
+
+// One cell. A span reaching past the last row is drawn to the last row anyway, so it is read as reaching there.
+function writtenCell(cell: MailTableCell, header: boolean, rowsFromHere: number): WrittenMarkup {
+    const alignment = writtenAlignments[cell.alignment];
+    const background = cell.background === null ? null : writtenColour(cell.background);
+
+    return spanned(
+        {
+            element: header ? 'th' : 'td',
+            address: null,
+            ...(alignment === null || alignment === 'start' ? {} : { alignment }),
+            ...(background === null ? {} : { background }),
+            holds: cellLines(cell.blocks),
+        },
+        cell.columnSpan,
+        Math.min(cell.rowSpan, rowsFromHere),
+    );
+}
+
+// What a cell holds, as a paragraph holds it: each block a line, a break between one line and the next. A list, a
+// quote, and a table inside the cell are none of them something a cell holds, so each is read as its lines too.
+function cellLines(blocks: readonly MailDocumentBlock[]): readonly WrittenNode[] {
+    return blocks
+        .map(cellLine)
+        .filter((line) => line.length > 0)
+        .flatMap((line, index) => (index === 0 ? line : [lineBreak, ...line]));
+}
+
+function cellLine(block: MailDocumentBlock): readonly WrittenNode[] {
+    switch (block.type) {
+        case 'paragraph':
+            return runsWritten(block.content);
+        case 'heading':
+            return [wrapping('strong', runsWritten(block.content))];
+        case 'list':
+            return cellLines(block.items.flatMap((item) => item.blocks));
+        case 'quote':
+            return cellLines(block.blocks);
+        case 'preformatted':
+            return block.text
+                .split('\n')
+                .flatMap((line, index) => [...(index === 0 ? [] : [lineBreak]), ...(line === '' ? [] : [{ text: line }])]);
+        case 'table':
+            return cellLines(block.rows.flatMap((row) => row.cells.flatMap((cell) => cell.blocks)));
+        case 'image':
+        case 'separator':
+        case 'unimplemented':
+            return [];
+    }
 }
