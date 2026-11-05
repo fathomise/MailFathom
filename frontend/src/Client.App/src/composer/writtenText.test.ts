@@ -3,7 +3,15 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import { followable, htmlOf, plainTextOf, writtenIn, writtenTextIn, type WrittenNode } from './writtenText';
+import {
+    followable,
+    htmlOf,
+    pastedAddress,
+    plainTextOf,
+    writtenIn,
+    writtenTextIn,
+    type WrittenNode,
+} from './writtenText';
 
 // A region shaped the way a browser leaves one after somebody has typed and formatted in it. It is built element by
 // element rather than from a string of markup, for the reason the module itself gives: nothing on this path turns a
@@ -193,6 +201,23 @@ describe('followable', () => {
         ['', false],
     ])('reads %s as a link this client would make: %s', (address, expected) => {
         expect(followable(address)).toBe(expected);
+    });
+});
+
+describe('pastedAddress', () => {
+    it.each([
+        ['https://example.invalid/invoice', 'https://example.invalid/invoice'],
+        ['  https://example.invalid/invoice\n', 'https://example.invalid/invoice'],
+        ['mailto:ada@example.invalid', 'mailto:ada@example.invalid'],
+        ['javascript:alert(1)', null],
+        ['data:text/html,<script>', null],
+        ['/drafts/1', null],
+        ['https://example.invalid/invoice and the rest', null],
+        ['https://example.invalid/a https://example.invalid/b', null],
+        ['See https://example.invalid/invoice', null],
+        ['', null],
+    ])('reads a paste of %j as the address %j', (pasted, expected) => {
+        expect(pastedAddress(pasted)).toBe(expected);
     });
 });
 

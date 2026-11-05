@@ -148,6 +148,65 @@ describe('WrittenMessage', () => {
     });
 });
 
+describe('WrittenMessage, a pasted address', () => {
+    const address = 'https://example.invalid/invoice';
+
+    // A paste lands in the region somebody is writing in, so the region holds the focus before the selection is made:
+    // jsdom collapses a selection when an unfocused region takes the focus, which a browser's paste never does.
+    function pasteText(text: string): void {
+        fireEvent.paste(words(), { clipboardData: { getData: () => text } });
+    }
+
+    function placeTheCaret(): void {
+        words().focus();
+        window.getSelection()?.collapse(words(), 0);
+    }
+
+    it('makes the selected words a link to it, keeping them as they were', () => {
+        drawWords([{ element: 'div', address: null, holds: [{ text: 'the invoice' }] }]);
+
+        words().focus();
+        select('the invoice');
+        pasteText(address);
+
+        expect(acts()).toEqual([{ command: 'createLink', argument: address }]);
+        expect(selectedWhenCommanded).toEqual(['the invoice']);
+    });
+
+    it('inserts a link showing the address, followed by a space, where nothing is selected', () => {
+        drawWords();
+
+        placeTheCaret();
+        pasteText(` ${address}\n`);
+
+        expect(acts()).toEqual([{ command: 'insertHTML', argument: `<a href="${address}">${address}</a>\u00a0` }]);
+    });
+
+    it.each(['javascript:alert(1)', 'data:text/html,<b>', '/drafts/1', `${address} and the rest`])(
+        'pastes %j as text rather than as a link',
+        (pasted) => {
+            drawWords([{ element: 'div', address: null, holds: [{ text: 'the invoice' }] }]);
+
+            select('the invoice');
+            pasteText(pasted);
+
+            expect(acts()).toEqual([{ command: 'insertText', argument: pasted }]);
+        },
+    );
+
+    it('pastes it as text under Ctrl+Shift+V, and as a link again on the next Ctrl+V', () => {
+        drawWords();
+
+        placeTheCaret();
+        fireEvent.keyDown(words(), { key: 'V', ctrlKey: true, shiftKey: true });
+        pasteText(address);
+        fireEvent.keyDown(words(), { key: 'v', ctrlKey: true });
+        pasteText(address);
+
+        expect(acts().map((act) => act.command)).toEqual(['insertText', 'insertHTML']);
+    });
+});
+
 describe('WrittenMessage, the formatting bar', () => {
     it.each([
         ['Bold', 'bold', undefined],

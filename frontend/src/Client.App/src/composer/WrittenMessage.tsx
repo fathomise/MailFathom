@@ -9,7 +9,8 @@ import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useCoarsePointer } from '../shell/useWideWorkspace';
-import { followable, writtenIn, type WrittenNode } from './writtenText';
+import { edit, insertWritten } from './editing';
+import { followable, pastedAddress, writtenIn, type WrittenNode } from './writtenText';
 
 // The words of a message being written, as the design draws them: an editable region over a row of formatting
 // controls, with the row replaced by a toggle where a finger is what drives the screen.
@@ -20,10 +21,8 @@ import { followable, writtenIn, type WrittenNode } from './writtenText';
 // later reading goes the other way, out of the document and into the closed set `writtenText.ts` states. Nothing here
 // writes markup and nothing parses any, which is what lets an editor exist at all under ADR 0024's rule.
 //
-// **`execCommand` is the editing, and it is deprecated with nothing to replace it.** No standard succeeded it, every
-// engine implements it, and the alternative is a document-editing model this client would have to write and test
-// itself. What it is told first is to compose with elements rather than with inline styles, which is what keeps its
-// output inside the set above.
+// **The editing is `editing.ts`'s**, and what it is told first is to compose with elements rather than with inline
+// styles, which is what keeps its output inside the set above.
 
 /** One control on the formatting bar: what it is called, what it does, and how the design draws it. */
 interface FormattingControl {
@@ -103,6 +102,7 @@ export function WrittenMessage({
     const [address, setAddress] = useState<string | null>(null);
     const words = useRef<HTMLDivElement>(null);
     const linking = useRef<Range | null>(null);
+    const pastingPlain = useRef(false);
     const addressId = useId();
 
     // What the design decides about the bar: drawn outright where a pointer is fine, and behind a toggle where a
@@ -141,6 +141,25 @@ export function WrittenMessage({
         }
 
         written();
+    }
+
+    // ADR 0047's paste order as far as the closed set reaches today: Ctrl+Shift+V lands the words alone, one address
+    // makes a link, and anything else is pasted as text.
+    function paste(pasted: string): void {
+        const address = pastingPlain.current ? null : pastedAddress(pasted);
+
+        pastingPlain.current = false;
+
+        if (address === null) {
+            apply('insertText', pasted);
+        } else if (window.getSelection()?.isCollapsed === false) {
+            // The selected words become the link and keep their own formatting, and a link they sat in is replaced.
+            apply('createLink', address);
+        } else {
+            // A space after the link, so what is typed next is not part of it.
+            insertWritten([{ element: 'a', address, holds: [{ text: address }] }, { text: '\u00a0' }]);
+            written();
+        }
     }
 
     function askForAnAddress(): void {
@@ -277,12 +296,17 @@ export function WrittenMessage({
                 className="min-h-42.5 flex-1 overflow-auto border-s-2 border-transparent px-4.25 py-4 text-lg text-text-soft outline-none focus-visible:border-accent low:min-h-18"
                 onInput={written}
                 onPaste={(event) => {
-                    // What arrives from somewhere else arrives as text. A message carries the formatting its author
-                    // gave it with these controls, and nothing this client did not write reaches the tree at all.
+                    // What arrives from somewhere else arrives as text or as a link this client writes itself. A
+                    // message carries the formatting its author gave it, and nothing this client did not write reaches
+                    // the tree at all.
                     event.preventDefault();
-                    apply('insertText', event.clipboardData.getData('text/plain'));
+                    paste(event.clipboardData.getData('text/plain'));
                 }}
                 onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                    // The paste event cannot tell Ctrl+Shift+V from Ctrl+V, so the key that raises it says which.
+                    pastingPlain.current =
+                        (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'v';
+
                     // The design's own shortcut, and it opens the confirmation rather than sending: what a keyboard
                     // saves is reaching for the control, never the reading of who the message is for.
                     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
@@ -295,14 +319,6 @@ export function WrittenMessage({
             </div>
         </>
     );
-}
-
-// The editing itself, named once rather than at each call site. `document.execCommand` is deprecated with nothing
-// standard to replace it: no successor shipped, every engine implements it, and the alternative is a document-editing
-// model this client would have to write and test itself.
-function edit(command: string, argument?: string): void {
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- The reason is the comment above this function.
-    document.execCommand(command, false, argument);
 }
 
 // What was already written, drawn as ordinary elements once. It is rendered from the closed set rather than from

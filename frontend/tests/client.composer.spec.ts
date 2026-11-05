@@ -659,3 +659,105 @@ test('offers nothing of what was being written to anybody else who signs in afte
     await expect(composer.getByLabel('Subject')).toHaveValue('');
     await expect(composer.getByRole('textbox', { name: 'Message' })).toHaveText('');
 });
+
+// A paste is read from the real clipboard, through the keys a person presses, because Ctrl+V and Ctrl+Shift+V raise the
+// same event and only the key that raised it tells them apart.
+const pastedAddress = 'https://example.invalid/invoice';
+
+/** Puts text on the clipboard, which the page may write to once it has been granted that. */
+async function copy(page: Page, text: string): Promise<void> {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.evaluate(`navigator.clipboard.writeText(${JSON.stringify(text)})`);
+}
+
+/** Opens a new message addressed and titled, with words written into it, ready to paste into. */
+async function writeToPasteInto(page: Page, deployment: FakeDeployment, written: string): Promise<Locator> {
+    await openMailWriting(page, deployment);
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+    await address(page, 'To', recipient);
+    await page.getByLabel('Subject').fill(subject);
+    await write(page, written);
+
+    return page.getByRole('textbox', { name: 'Message' });
+}
+
+/** Selects the word before the caret, the way somebody holding Ctrl and Shift over the left arrow would. */
+async function selectTheWordBefore(page: Page): Promise<void> {
+    await page.keyboard.press('Control+Shift+ArrowLeft');
+}
+
+test('links the selected words to an address pasted over them, takes it back with one Ctrl+Z, and sends the link', async ({
+    page,
+    deployment,
+}) => {
+    const message = await writeToPasteInto(page, deployment, 'Pay the invoice');
+
+    await copy(page, pastedAddress);
+    await selectTheWordBefore(page);
+    await page.keyboard.press('Control+V');
+
+    await expect(message.getByRole('link', { name: 'invoice', exact: true })).toHaveAttribute('href', pastedAddress);
+    await expect(message).toHaveText('Pay the invoice');
+
+    await page.keyboard.press('Control+Z');
+
+    await expect(message.getByRole('link')).toHaveCount(0);
+    await expect(message).toHaveText('Pay the invoice');
+
+    await page.keyboard.press('End');
+    await selectTheWordBefore(page);
+    await page.keyboard.press('Control+V');
+    await send(page);
+
+    expect(deployment.requests('POST', '/drafts').map(({ body }) => body)).toStrictEqual([
+        expect.objectContaining({
+            htmlBody: `Pay the <a href="${pastedAddress}">invoice</a>`,
+            plainTextBody: 'Pay the invoice',
+        }),
+    ]);
+});
+
+test('inserts a pasted address as a link showing it where nothing is selected, and keeps what is typed next out of it', async ({
+    page,
+    deployment,
+}) => {
+    const message = await writeToPasteInto(page, deployment, 'See ');
+
+    await copy(page, pastedAddress);
+    await page.keyboard.press('Control+V');
+    await page.keyboard.type('today');
+
+    await expect(message.getByRole('link', { name: pastedAddress })).toHaveText(pastedAddress);
+    await expect(message).toHaveText(new RegExp(`^See\\s${pastedAddress}\\stoday$`, 'u'));
+
+    await send(page);
+
+    expect(deployment.requests('POST', '/drafts').map(({ body }) => body)).toStrictEqual([
+        expect.objectContaining({
+            htmlBody: expect.stringContaining(`<a href="${pastedAddress}">${pastedAddress}</a>`),
+            plainTextBody: `See ${pastedAddress} today`,
+        }),
+    ]);
+});
+
+test('pastes as text an address it would not link to, words around an address, and an address under Ctrl+Shift+V', async ({
+    page,
+    deployment,
+}) => {
+    const message = await writeToPasteInto(page, deployment, 'Notes');
+    const pasted: readonly (readonly [string, string])[] = [
+        ['Control+V', 'javascript:alert(1)'],
+        ['Control+V', `pay ${pastedAddress}`],
+        ['Control+Shift+V', pastedAddress],
+    ];
+
+    for (const [keys, text] of pasted) {
+        await page.keyboard.press('Enter');
+        await copy(page, text);
+        await page.keyboard.press(keys);
+
+        await expect(message).toContainText(text);
+    }
+
+    await expect(message.getByRole('link')).toHaveCount(0);
+});
