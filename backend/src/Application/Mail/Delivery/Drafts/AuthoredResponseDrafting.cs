@@ -92,6 +92,7 @@ public sealed class AuthoredResponseDrafting(
         var authored = response.Email! with
         {
             Attachments = [.. response.Email!.Attachments, .. staged],
+            Pictures = request.Pictures,
             RequestsReadReceipt = request.ReceiptRequests.ReadReceipt,
         };
 

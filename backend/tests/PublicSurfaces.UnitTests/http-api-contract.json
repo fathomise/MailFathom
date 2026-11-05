@@ -1932,6 +1932,23 @@
         ],
         "type": "object"
       },
+      "ClientDraftPictureRequest": {
+        "properties": {
+          "content": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "ClientDraftReadingResponse": {
         "properties": {
           "document": {
@@ -2177,6 +2194,15 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "pictures": {
+            "items": {
+              "$ref": "#/components/schemas/ClientDraftPictureRequest"
+            },
+            "type": [
+              "null",
+              "array"
             ]
           },
           "plainTextBody": {

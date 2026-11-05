@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Text;
+using System.Text.Json;
 using MailFathom.Application.EmailContent;
 using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.EmailContent.Storage;
@@ -520,6 +521,140 @@ public sealed class ClientDraftEndpointTests
             MailFathomErrorCode.AuthoredMailScheduleRefused.Value,
             answer.ProblemDetails.Extensions[RouteAuthorization.ErrorCodeExtension]);
     }
+
+    /// <summary>Both write routes carry the bound the deployment's own bodies and the accepted pictures encode to, so the routing pipeline's <c>413</c> agrees with the composition.</summary>
+    /// <param name="method">The verb the write is made with.</param>
+    /// <param name="route">The route the write is made on.</param>
+    [Theory]
+    [InlineData("POST", ClientDraftEndpoints.DraftsRoute)]
+    [InlineData("PUT", ClientDraftEndpoints.DraftRoute)]
+    public void MapClientDrafts_AWriteRoute_CarriesTheBoundDerivedFromTheDeploymentsBounds(string method, string route)
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddRouting();
+        services.AddOptions<MailDeliveryOptions>().Configure(options => options.MaxBodyCharacters = 250_000);
+        var endpoints = new TestEndpointRouteBuilder(services.BuildServiceProvider());
+
+        // Act
+        endpoints.MapGroup(string.Empty).MapClientDrafts();
+
+        // Assert
+        var write = endpoints.Materialize()
+            .OfType<RouteEndpoint>()
+            .Single(endpoint =>
+                endpoint.RoutePattern.RawText == route
+                && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains(method));
+
+        Assert.Equal(
+            ClientDraftEndpoints.MaxWriteRequestBytes(new MailDeliveryOptions { MaxBodyCharacters = 250_000 }.ToOutgoingEmailBounds()),
+            write.Metadata.GetMetadata<IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
+    }
+
+    /// <summary>
+    /// The largest draft the bounds accept — both bodies at their length in the widest escape, every recipient a record
+    /// holds at the longest address, and every picture the composition accepts at the size base64 pads most — is
+    /// written as a body the bound admits.
+    /// </summary>
+    [Fact]
+    public void MaxWriteRequestBytes_TheLargestDraftTheBoundsAccept_IsABodyTheBoundAdmits()
+    {
+        // Arrange
+        var bounds = new MailDeliveryOptions { MaxBodyCharacters = 20_000 }.ToOutgoingEmailBounds();
+        var body = new string('\u0001', bounds.MaxBodyCharacters);
+        var pictureOctets = AuthoredEmailPicture.MaximumTotalOctets / AuthoredEmailPicture.MaximumCount;
+        var largest = new ClientDraftWriteRequest(
+            Account: "work",
+            Subject: "Quarterly report",
+            PlainTextBody: body,
+            HtmlBody: body,
+            To: [.. Enumerable.Range(0, OutgoingEmailRequest.MaximumRecipientCount)
+                .Select(_ => new string('a', OutgoingRecipient.MaximumAddressLength))],
+            Cc: null,
+            Bcc: null,
+            AnsweredEmailId: null,
+            Answers: null,
+            RequestsDeliveryNotification: true,
+            RequestsReadReceipt: true,
+            Pictures: [.. Enumerable.Range(0, AuthoredEmailPicture.MaximumCount)
+                .Select(index => new ClientDraftPictureRequest(
+                    new string((char)('a' + index), 64),
+                    Convert.ToBase64String(new byte[pictureOctets])))]);
+
+        // Act
+        var written = JsonSerializer.SerializeToUtf8Bytes(largest, JsonSerializerOptions.Web);
+
+        // Assert
+        Assert.Equal(1, pictureOctets % 3);
+        Assert.InRange(written.LongLength, 1, ClientDraftEndpoints.MaxWriteRequestBytes(bounds));
+    }
+
+    /// <summary>A body stating more pictures than one message carries is refused on the count, before any picture's content is read.</summary>
+    [Fact]
+    public void StatedPictures_MorePicturesThanAMessageCarries_IsRefusedOnTheCountBeforeAnyIsDecoded()
+    {
+        // Arrange
+        var request = WriteStating([.. Enumerable.Range(0, AuthoredEmailPicture.MaximumCount + 1)
+            .Select(index => new ClientDraftPictureRequest($"picture-{index}", "not base64 at all"))]);
+
+        // Act
+        var refusal = Assert.Throws<MailDraftRefusedException>(() => request.StatedPictures());
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.AuthoredMailPicturesTooMany, refusal.ErrorCode);
+    }
+
+    /// <summary>A picture whose content is not base64, or which states no name or no content, is a field no message can be composed from.</summary>
+    /// <param name="name">The name the picture states.</param>
+    /// <param name="content">The content the picture states.</param>
+    [Theory]
+    [InlineData("0198f0a0-4444-7000-8000-000000000001", "not base64 at all")]
+    [InlineData(null, "iVBORw0KGgo=")]
+    [InlineData("0198f0a0-4444-7000-8000-000000000001", null)]
+    public void StatedPictures_APictureStatingNoUsableNameOrContent_IsRefusedAsAFieldNoMessageIsComposedFrom(
+        string? name,
+        string? content)
+    {
+        // Arrange
+        var request = WriteStating([new ClientDraftPictureRequest(name, content)]);
+
+        // Act
+        var refusal = Assert.Throws<MailDraftRefusedException>(() => request.StatedPictures());
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.AuthoredMailFieldRefused, refusal.ErrorCode);
+        Assert.DoesNotContain("not base64", refusal.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A picture stated whole is decoded into the octets its base64 carries, under the name it was stated with.</summary>
+    [Fact]
+    public void StatedPictures_APictureStatedWhole_DecodesItsOctets()
+    {
+        // Arrange
+        byte[] octets = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01];
+        var request = WriteStating(
+            [new ClientDraftPictureRequest("0198f0a0-4444-7000-8000-000000000001", Convert.ToBase64String(octets))]);
+
+        // Act
+        var picture = Assert.Single(request.StatedPictures());
+
+        // Assert
+        Assert.Equal("0198f0a0-4444-7000-8000-000000000001", picture.Name);
+        Assert.Equal(octets, picture.Content.ToArray());
+    }
+
+    /// <summary>Builds a write of a message of its own stating the given pictures.</summary>
+    private static ClientDraftWriteRequest WriteStating(IReadOnlyList<ClientDraftPictureRequest> pictures) => new(
+        Account: "work",
+        Subject: "Quarterly report",
+        PlainTextBody: "See the chart.",
+        HtmlBody: "<p>See the chart.</p>",
+        To: null,
+        Cc: null,
+        Bcc: null,
+        AnsweredEmailId: null,
+        Answers: null,
+        Pictures: pictures);
 
     /// <summary>Builds the request an upload arrives as, whose body is the file and whose header is what it declares.</summary>
     private static DefaultHttpContext Upload(byte[] octets, string? contentType)

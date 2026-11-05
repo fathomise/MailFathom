@@ -96,6 +96,7 @@ public sealed class AuthoredMailDrafting(
             PlainTextBody = request.PlainTextBody,
             HtmlBody = request.HtmlBody,
             Attachments = attachments,
+            Pictures = request.Pictures,
             RequestsReadReceipt = request.ReceiptRequests.ReadReceipt,
         };
 
