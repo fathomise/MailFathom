@@ -734,6 +734,7 @@ public sealed class MailRuleActionRecorderTests
         MailRuleActionPlan.Compose([RuleNamed(ruleName, action)]);
 
     private static MailRule RuleNamed(string name, MailRuleAction action) => MailRule.Create(
+        MailRuleIds.For(name),
         name,
         ScriptedMailRuleCondition.Answering(matches: true),
         MailRuleActionSet.Create([action]));

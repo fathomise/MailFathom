@@ -77,7 +77,7 @@ public sealed class MailRuleConditionContractTests
     public void Matched_Evaluation_NamesNoFailure()
     {
         // Act
-        var evaluation = MailRuleEvaluation.Matched("rule");
+        var evaluation = MailRuleEvaluation.Matched(MailRuleIds.For("rule"), "rule");
 
         // Assert
         Assert.Equal(MailRuleOutcome.Matched, evaluation.Outcome);
@@ -88,7 +88,7 @@ public sealed class MailRuleConditionContractTests
     public void Failed_Evaluation_NamesWhyNoAnswerWasProduced()
     {
         // Act
-        var evaluation = MailRuleEvaluation.Failed("rule", MailRuleConditionFailure.EvaluationTimedOut);
+        var evaluation = MailRuleEvaluation.Failed(MailRuleIds.For("rule"), "rule", MailRuleConditionFailure.EvaluationTimedOut);
 
         // Assert
         Assert.Equal(MailRuleOutcome.Failed, evaluation.Outcome);
@@ -100,6 +100,6 @@ public sealed class MailRuleConditionContractTests
     {
         // Act, Assert
         Assert.Throws<ArgumentException>(
-            () => MailRuleSetEvaluation.Create(default, [MailRuleEvaluation.Matched("rule")], stoppedEarly: false));
+            () => MailRuleSetEvaluation.Create(default, [MailRuleEvaluation.Matched(MailRuleIds.For("rule"), "rule")], stoppedEarly: false));
     }
 }

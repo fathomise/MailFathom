@@ -368,6 +368,18 @@ internal static class PersistenceConstraintNames
     /// <summary>The index that answers why one message was filed, which is the history's first question.</summary>
     internal const string MailRuleExecutionEmailIndexName = "ix_mail_rule_executions_email_evaluated";
 
+    /// <summary>The constraint that keeps one rule at each position of an account's evaluation order.</summary>
+    internal const string MailRulePositionUniqueIndexName = "ix_mail_rules_account_position";
+
+    /// <summary>The constraint that keeps a rule's name unique within its account without regard to case.</summary>
+    internal const string MailRuleNameUniqueIndexName = "ix_mail_rules_account_normalized_name";
+
+    /// <summary>The constraint that keeps one archive row per committed version of an account's rules.</summary>
+    internal const string MailRuleSetRevisionVersionUniqueIndexName = "ix_mail_rule_set_revisions_account_version";
+
+    /// <summary>The index a past run resolves the revision it ran under through.</summary>
+    internal const string MailRuleSetRevisionResolutionIndexName = "ix_mail_rule_set_revisions_account_revision_committed";
+
     /// <summary>The order one contact book is listed and paginated in.</summary>
     /// <remarks>
     /// The holder leads it because a listing is read over a handful of named books: leading with the name would make a

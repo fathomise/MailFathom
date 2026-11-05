@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Rules.Editing;
 using MailFathom.CodeCoverage;
 
 namespace MailFathom.Infrastructure.Persistence.Entities;
@@ -30,8 +31,8 @@ internal sealed class MailRuleExecutionEntity
     /// <summary>The greatest length a rule set revision has, which is the derived identity's own fixed width.</summary>
     internal const int RevisionLength = 12;
 
-    /// <summary>The greatest length a rule name has, which the rule section already enforces on what it declares.</summary>
-    internal const int MaximumRuleNameLength = 64;
+    /// <summary>The greatest length a rule name has, which a write to an account's rules already enforces.</summary>
+    internal const int MaximumRuleNameLength = MailRuleSetValidator.MaximumNameLength;
 
     /// <summary>The greatest length a stored member name has, whichever of the bounded outcomes it belongs to.</summary>
     internal const int MaximumOutcomeLength = 64;
@@ -46,6 +47,9 @@ internal sealed class MailRuleExecutionEntity
     public Guid StoredEmailId { get; set; }
 
     public required string RuleName { get; set; }
+
+    /// <summary>Gets or sets the identifier of the rule, empty on an execution recorded before rules were stored per account.</summary>
+    public Guid? RuleId { get; set; }
 
     public required string Revision { get; set; }
 

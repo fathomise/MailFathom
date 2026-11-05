@@ -1,0 +1,223 @@
+// Copyright © 2026 Krzysztof Kasprowicz
+// Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
+// Project repository: https://github.com/fathomise/MailFathom
+
+using MailFathom.Application.Folders;
+using MailFathom.Application.Rules.Actions;
+using MailFathom.Application.Rules.Conditions;
+using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Folders;
+
+namespace MailFathom.Application.Rules.Editing;
+
+/// <summary>Judges a candidate rule set as a whole, which every write runs before it commits.</summary>
+/// <remarks>
+/// <para>
+/// One validation behind every surface, so <c>mfctl</c> and the client cannot accept different rules. It is the condition
+/// compilation and type check under the configured bounds, the rules a declaration already had to keep — each trigger at
+/// most once, a schedule exactly when the schedule trigger is declared, a set of actions that can be honored together —
+/// and three claims about the account: that it keeps no more than <see cref="MaximumRulesPerAccount" /> rules, that each
+/// action is one its <c>RuleActions</c> permits, and that each destination is a folder it maps.
+/// </para>
+/// <para>
+/// Every rule is judged, enabled or not, because a created rule starts disabled and enabling it later is a write that
+/// must not be the first to discover its condition never compiled. A refusal names the rule by its identifier and never
+/// quotes its name, its condition, or a folder, because each of those is text a person typed.
+/// </para>
+/// </remarks>
+public sealed class MailRuleSetValidator
+{
+    /// <summary>The most rules one account keeps, enabled or not.</summary>
+    /// <remarks>
+    /// A fixed bound rather than a setting: nothing about a deployment makes a larger set safer to evaluate on every
+    /// arrival, and a bound an operator lowered below a stored set would leave sets nobody may write without first
+    /// removing rules.
+    /// </remarks>
+    public const int MaximumRulesPerAccount = 200;
+
+    /// <summary>The most characters a rule's name may be written in.</summary>
+    public const int MaximumNameLength = 128;
+
+    private readonly IMailRuleConditionCompiler compiler;
+    private readonly IMailRuleActionPermissionReader permissions;
+    private readonly MailFolderReferenceResolver folders;
+
+    /// <summary>Initializes the validator.</summary>
+    /// <param name="compiler">Reads each condition against the fact surface.</param>
+    /// <param name="permissions">Reads which actions an account permits a rule to take.</param>
+    /// <param name="folders">Resolves a destination against the folders an account maps.</param>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    public MailRuleSetValidator(
+        IMailRuleConditionCompiler compiler,
+        IMailRuleActionPermissionReader permissions,
+        MailFolderReferenceResolver folders)
+    {
+        ArgumentNullException.ThrowIfNull(compiler);
+        ArgumentNullException.ThrowIfNull(permissions);
+        ArgumentNullException.ThrowIfNull(folders);
+
+        this.compiler = compiler;
+        this.permissions = permissions;
+        this.folders = folders;
+    }
+
+    /// <summary>Reports everything that stops a candidate set from being committed to an account.</summary>
+    /// <param name="account">The account the set would belong to, which must be one this deployment serves.</param>
+    /// <param name="candidate">The whole set as it would stand after the write, in position order.</param>
+    /// <param name="bounds">The condition bounds in force.</param>
+    /// <returns>One message per defect, empty when the set may be committed.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    public IReadOnlyList<string> FindErrors(
+        MailAccountId account,
+        IReadOnlyList<MailRuleDeclaration> candidate,
+        MailRuleConditionBounds bounds)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        ArgumentNullException.ThrowIfNull(bounds);
+
+        var permitted = this.permissions.GetRuleActionPermissions(account);
+
+        return
+        [
+            .. FindSetErrors(candidate),
+            .. candidate.SelectMany(rule => this.FindRuleErrors(account, rule, permitted, bounds)),
+        ];
+    }
+
+    private static IEnumerable<string> FindSetErrors(IReadOnlyList<MailRuleDeclaration> candidate)
+    {
+        if (candidate.Count > MaximumRulesPerAccount)
+        {
+            yield return $"An account keeps at most {MaximumRulesPerAccount} rules, and this change would leave it {candidate.Count}.";
+        }
+
+        var repeatedName = candidate
+            .Where(rule => !string.IsNullOrWhiteSpace(rule.Name))
+            .GroupBy(rule => rule.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1);
+
+        if (repeatedName is not null)
+        {
+            yield return $"Rules {string.Join(" and ", repeatedName.Select(rule => rule.Id))} carry one name, and a name is unique within an account without regard to case.";
+        }
+
+        var repeatedId = candidate.GroupBy(rule => rule.Id).FirstOrDefault(group => group.Count() > 1);
+
+        if (repeatedId is not null)
+        {
+            yield return $"Rule {repeatedId.Key} appears more than once in the set.";
+        }
+    }
+
+    private IEnumerable<string> FindRuleErrors(
+        MailAccountId account,
+        MailRuleDeclaration rule,
+        MailRuleActionPermissions permitted,
+        MailRuleConditionBounds bounds)
+    {
+        var ruleName = rule.Id.ToString();
+
+        return
+        [
+            .. FindNameErrors(rule, ruleName),
+            .. FindTriggerErrors(rule, ruleName),
+            .. FindActionErrors(rule, ruleName),
+            .. this.FindAccountErrors(account, rule, ruleName, permitted),
+            .. this.FindConditionErrors(rule, ruleName, bounds),
+        ];
+    }
+
+    private static IEnumerable<string> FindNameErrors(MailRuleDeclaration rule, string ruleName)
+    {
+        var name = rule.Name?.Trim() ?? string.Empty;
+
+        if (name.Length is 0 or > MaximumNameLength)
+        {
+            yield return $"Rule {ruleName} needs a name of 1 to {MaximumNameLength} characters.";
+        }
+        else if (name.Any(char.IsControl))
+        {
+            yield return $"Rule {ruleName} has a name carrying a control character.";
+        }
+    }
+
+    private static IEnumerable<string> FindTriggerErrors(MailRuleDeclaration rule, string ruleName)
+    {
+        if (rule.Triggers.Any(trigger => !trigger.IsSpecified))
+        {
+            yield return $"Rule {ruleName} declares a trigger that names nothing.";
+
+            yield break;
+        }
+
+        if (rule.Triggers.Distinct().Count() != rule.Triggers.Count)
+        {
+            yield return $"Rule {ruleName} declares one trigger more than once, and its triggers are a set.";
+        }
+
+        var declaresScheduleTrigger = rule.Triggers.Contains(MailRuleTrigger.Schedule);
+
+        if (declaresScheduleTrigger && rule.Schedule is null)
+        {
+            yield return $"Rule {ruleName} declares the '{MailRuleTrigger.Schedule.Name}' trigger and no schedule, so nothing would ever run it.";
+        }
+        else if (!declaresScheduleTrigger && rule.Schedule is not null)
+        {
+            yield return $"Rule {ruleName} declares a schedule and not the '{MailRuleTrigger.Schedule.Name}' trigger, so the occasions it names would run nothing.";
+        }
+    }
+
+    private static IEnumerable<string> FindActionErrors(MailRuleDeclaration rule, string ruleName)
+    {
+        if (rule.Actions.Any(action => action is null))
+        {
+            return [$"Rule {ruleName} declares an action that names nothing."];
+        }
+
+        var separated = rule.Actions.Any(action => action.Destination is { } destination
+            && MailRuleSetRevision.ContainsSeparator(destination.ToString()));
+
+        return separated
+            ? [$"Rule {ruleName} files into a folder named with a separator character a rule set's identity is derived with."]
+            : MailRuleActionSet.FindErrors(ruleName, rule.Actions);
+    }
+
+    private IEnumerable<string> FindAccountErrors(
+        MailAccountId account,
+        MailRuleDeclaration rule,
+        string ruleName,
+        MailRuleActionPermissions permitted)
+    {
+        var actions = rule.Actions.Where(action => action is not null).ToArray();
+
+        foreach (var action in actions.Where(action => !permitted.Permits(action.Mutation)))
+        {
+            yield return $"Rule {ruleName} declares '{action.Mutation.Name}', which this account does not permit a rule to do. Its administrator permits it in the account's RuleActions.";
+        }
+
+        foreach (var action in actions.Where(action => action.Destination is { } destination && !this.Maps(account, destination)))
+        {
+            yield return $"Rule {ruleName} declares '{action.Mutation.Name}' into a folder this account maps none for.";
+        }
+    }
+
+    /// <summary>Reports whether a destination names a folder this account maps, by its alias or the role it plays.</summary>
+    /// <remarks>
+    /// A destination named by a folder identifier is refused here until a rule's action can file by one.
+    /// </remarks>
+    private bool Maps(MailAccountId account, MailFolderReference destination) =>
+        destination is { Alias: not null } or { Role: not null } && this.folders.TryResolve(account, destination) is not null;
+
+    private IEnumerable<string> FindConditionErrors(
+        MailRuleDeclaration rule,
+        string ruleName,
+        MailRuleConditionBounds bounds)
+    {
+        if (MailRuleSetRevision.ContainsSeparator(rule.ConditionText))
+        {
+            return [$"Rule {ruleName} has a condition carrying a separator character a rule set's identity is derived with."];
+        }
+
+        return this.compiler.Compile(ruleName, rule.ConditionText, bounds).Errors;
+    }
+}

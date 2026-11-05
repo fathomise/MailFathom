@@ -444,6 +444,12 @@ internal static class UserAccountErasure
             erased += await writeContext.Database.ExecuteSqlRawAsync(statement, [userId], cancellationToken);
         }
 
+        // A change to a mailbox's rules is the mailbox's record rather than the person's, so its row stays and only
+        // stops saying who made the change.
+        erased += await writeContext.MailRuleSetRevisions
+            .Where(revision => revision.ActorUserId == userId)
+            .ExecuteUpdateAsync(revision => revision.SetProperty(row => row.ActorUserId, (Guid?)null), cancellationToken);
+
         return erased;
     }
 

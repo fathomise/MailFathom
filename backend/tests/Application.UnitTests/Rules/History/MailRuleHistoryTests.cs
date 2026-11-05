@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Rules.History;
+using MailFathom.Application.Rules.Sets;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.TestSupport;
@@ -96,5 +97,5 @@ public sealed class MailRuleHistoryTests
         pageSize: null,
         cursor: null).Query!;
 
-    private MailRuleHistory HistoryFor(AccessAuthorization authorization) => new(this.executions, authorization);
+    private MailRuleHistory HistoryFor(AccessAuthorization authorization) => new(this.executions, Substitute.For<IMailRuleSetStore>(), authorization);
 }

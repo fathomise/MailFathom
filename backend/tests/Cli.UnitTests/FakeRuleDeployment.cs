@@ -64,6 +64,16 @@ internal static class FakeRuleDeployment
             .TrimStart('?');
     }
 
+    /// <summary>Reads the query the last rule-set read was sent with, or nothing where none was sent.</summary>
+    /// <param name="deployment">The fake deployment the command talked to.</param>
+    /// <returns>The query without its leading <c>?</c>, or <see langword="null" />.</returns>
+    internal static string? LastRulesQuery(FakeHttpMessageHandler deployment) =>
+        deployment.RecordedRequests
+            .LastOrDefault(request => request.RequestUri?.AbsolutePath == AdminEndpointRoutes.RulesPath)?
+            .RequestUri?
+            .Query
+            .TrimStart('?');
+
     private static HttpResponseMessage Answer(
         HttpRequestMessage request,
         string? rules,

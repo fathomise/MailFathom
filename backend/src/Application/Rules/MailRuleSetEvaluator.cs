@@ -78,7 +78,7 @@ public sealed class MailRuleSetEvaluator
 
         foreach (var rule in ruleSet.Rules)
         {
-            if (!rule.AppliesTo(facts.Account) || !reach.Reaches(rule))
+            if (!reach.Reaches(rule))
             {
                 continue;
             }
@@ -135,8 +135,8 @@ public sealed class MailRuleSetEvaluator
             var readFacts = facts.TakeFactsRead();
 
             return matched
-                ? MailRuleEvaluation.Matched(rule.Name, readFacts, elapsed)
-                : MailRuleEvaluation.NotMatched(rule.Name, readFacts, elapsed);
+                ? MailRuleEvaluation.Matched(rule.Id, rule.Name, readFacts, elapsed)
+                : MailRuleEvaluation.NotMatched(rule.Id, rule.Name, readFacts, elapsed);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -146,6 +146,7 @@ public sealed class MailRuleSetEvaluator
         catch (OperationCanceledException)
         {
             return MailRuleEvaluation.Failed(
+                rule.Id,
                 rule.Name,
                 MailRuleConditionFailure.EvaluationTimedOut,
                 facts.TakeFactsRead(),
@@ -158,6 +159,7 @@ public sealed class MailRuleSetEvaluator
             // rule stopped answering, which the classification already states. The facts it reached before it stopped
             // are recorded, because a condition that fails on one of them is exactly the case an operator debugs.
             return MailRuleEvaluation.Failed(
+                rule.Id,
                 rule.Name,
                 MailRuleConditionFailure.EvaluationFaulted,
                 facts.TakeFactsRead(),

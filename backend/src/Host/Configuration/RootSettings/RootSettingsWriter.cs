@@ -79,7 +79,7 @@ internal sealed partial class RootSettingsWriter(
             return this.RefuseAsSuperseded(expectedVersion, inForce.Version);
         }
 
-        var judged = await this.JudgeAsync(inForce, edits, cancellationToken);
+        var judged = this.Judge(inForce, edits);
 
         if (judged.Refusal is { } refusal)
         {
@@ -95,10 +95,7 @@ internal sealed partial class RootSettingsWriter(
     /// the judgement goes. It holds a provider per source and a reload subscription on each, so a candidate abandoned
     /// undisposed would leave a file watcher per refused write.
     /// </remarks>
-    private async Task<CandidateJudgement> JudgeAsync(
-        RootSettingsDocument inForce,
-        IReadOnlyList<ConfigurationEdit> edits,
-        CancellationToken cancellationToken)
+    private CandidateJudgement Judge(RootSettingsDocument inForce, IReadOnlyList<ConfigurationEdit> edits)
     {
         try
         {
@@ -120,7 +117,7 @@ internal sealed partial class RootSettingsWriter(
 
             using var composed = composer.Compose(candidate);
 
-            return await validator.FindErrorsAsync(composed, cancellationToken) is { Count: > 0 } errors
+            return validator.FindErrors(composed) is { Count: > 0 } errors
                 ? new CandidateJudgement(
                     this.Refuse(MailFathomErrorCode.ConfigurationCandidateInvalid, inForce.Version, errors))
                 : new CandidateJudgement(candidate.Json);

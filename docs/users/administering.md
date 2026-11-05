@@ -364,25 +364,25 @@ gave the rule asks on your behalf. That asking is a command, and so is finding o
 
 | What you want | Command |
 | --- | --- |
-| See which rules your deployment is running, in order | `mfctl rules list` |
-| Read one of them in full | `mfctl rules show file-invoices` |
+| See which rules an account has, in order, and whether they run | `mfctl rules list --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
+| Read one of them in full | `mfctl rules show file-invoices --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
 | Apply them to mail that arrived before them | `mfctl rules run --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
 | Watch that run | `mfctl rules run-status --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
 | Find out what a rule did, or why a message is where it is | `mfctl rules history --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
 
-`mfctl rules list` is the one to run after editing a rule file. A deployment refuses a reload whose rules do not
-validate and goes on running the previous set, which it reports to its log and nowhere else — so this is where you find
-out whether your edit took effect, rather than from mail that kept being filed the old way. It prints one row per rule,
-and the `Runs on` column says what runs each of them, which is how a rule naming [no
+Each mail account has rules of its own, kept in the deployment's database rather than in a configuration file, so every
+one of these commands names the account it is about. `mfctl rules list` prints one row per rule, disabled ones
+included, and the line above them says whether the account's rules run at all: an account whose enabled rule no longer
+compiles is [held](../features/mail-rules.md#a-held-rule-set), and none of its rules runs until that rule is changed.
+The `Runs on` column says what runs each rule, which is how a rule naming [no
 trigger](../features/mail-rules.md#which-triggers-run-a-rule) is told apart from one that simply never matched: nothing
 fires such a rule by itself, and `mfctl rules run` is how it is run. A rule with a schedule says so in that same column,
 with the occasions it declares beside the trigger. It is also where a rule you meant to run over arriving mail shows
 that it never says `Arrival`.
 
-None of these five writes a rule, and none ever will: they run the rules and read what the rules concluded. Rules are
-configuration, so what changes one is [changing a setting without a
-restart](#changing-a-setting-without-a-restart) or an edit to the file your deployment reads — the file is where a rule
-is reviewable in a diff before it reaches a mailbox, and the persisted layer is what changes one without a restart.
+None of these five writes a rule: they read the rules, run them, and read what the rules concluded.
+[An account's rules](../features/mail-rules.md#an-accounts-rules) is what a rule is and how a change to an account's
+rules is written.
 [Reading the rules, running them, and finding out what they
 did](../operations/admin-endpoint.md#reading-the-rules-running-them-and-finding-out-what-they-did) is the operator's
 reference for all five, including what the history records and what it deliberately does not.

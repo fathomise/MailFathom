@@ -10230,6 +10230,13 @@
           "rule": {
             "type": "string"
           },
+          "ruleId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "trigger": {
             "type": "string"
           }
@@ -10238,6 +10245,7 @@
           "id",
           "email",
           "rule",
+          "ruleId",
           "revision",
           "trigger",
           "outcome",
@@ -10272,26 +10280,32 @@
       },
       "MailRuleResponse": {
         "properties": {
-          "accounts": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
           "actions": {
             "items": {
               "$ref": "#/components/schemas/MailRuleActionResponse"
             },
             "type": "array"
           },
+          "condition": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
-          "readableFacts": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
+          "position": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
           },
           "schedule": {
             "type": [
@@ -10310,9 +10324,11 @@
           }
         },
         "required": [
+          "id",
+          "position",
           "name",
-          "accounts",
-          "readableFacts",
+          "enabled",
+          "condition",
           "actions",
           "stopWhenMatched",
           "triggers",
@@ -10438,16 +10454,11 @@
       },
       "MailRuleSetResponse": {
         "properties": {
-          "configurationAccepted": {
-            "type": "boolean"
+          "account": {
+            "type": "string"
           },
-          "refusedSettingCount": {
-            "format": "int32",
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ]
+          "held": {
+            "type": "boolean"
           },
           "revision": {
             "type": "string"
@@ -10457,12 +10468,29 @@
               "$ref": "#/components/schemas/MailRuleResponse"
             },
             "type": "array"
+          },
+          "uncompiledRules": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
           }
         },
         "required": [
+          "account",
+          "version",
           "revision",
-          "configurationAccepted",
-          "refusedSettingCount",
+          "held",
+          "uncompiledRules",
           "rules"
         ],
         "type": "object"
@@ -18564,6 +18592,15 @@
     },
     "/api/admin/rules": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "account",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

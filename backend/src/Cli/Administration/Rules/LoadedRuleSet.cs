@@ -7,48 +7,45 @@ using MailFathom.Cli.Commands;
 
 namespace MailFathom.Cli.Administration.Rules;
 
-/// <summary>What a deployment reports about the mail rules it is running.</summary>
-/// <remarks>
-/// The set is what the deployment compiled from its configuration, which is not necessarily what the configuration now
-/// says: a reload whose rules did not validate is refused and leaves the previous set in force. That is why the
-/// acceptance travels with the revision — together they answer "did my edit take effect", which neither answers alone.
-/// </remarks>
-/// <param name="Revision">The derived identity of the set in force, which every recorded execution names.</param>
-/// <param name="ConfigurationAccepted">Whether the configuration as it now stands is the one this set was read from.</param>
-/// <param name="RefusedSettingCount">How many settings a refusal named, which is zero whenever the set is current.</param>
-/// <param name="Rules">The rules, in the order they are evaluated in.</param>
+/// <summary>What a deployment reports about one mail account's stored rules.</summary>
+/// <param name="Account">The account the rules belong to.</param>
+/// <param name="Version">The set's version, which a write states it read.</param>
+/// <param name="Revision">The derived identity of the enabled rules, which every recorded execution names.</param>
+/// <param name="Held">Whether no pass runs the set, because an enabled rule no longer compiles.</param>
+/// <param name="UncompiledRules">The enabled rules that hold the set, by identifier.</param>
+/// <param name="Rules">Every stored rule, disabled ones included, in the order they are evaluated in.</param>
 internal sealed record LoadedRuleSet(
+    [property: JsonPropertyName("account")] string? Account,
+    [property: JsonPropertyName("version")] long Version,
     [property: JsonPropertyName("revision")] string? Revision,
-    [property: JsonPropertyName("configurationAccepted")] bool ConfigurationAccepted,
-    [property: JsonPropertyName("refusedSettingCount")] int RefusedSettingCount,
+    [property: JsonPropertyName("held")] bool Held,
+    [property: JsonPropertyName("uncompiledRules")] IReadOnlyList<Guid>? UncompiledRules,
     [property: JsonPropertyName("rules")] IReadOnlyList<LoadedRule>? Rules);
 
-/// <summary>One rule a deployment has loaded.</summary>
-/// <remarks>
-/// The condition an operator wrote is deliberately not here: a compiled rule carries no text, so what a deployment can
-/// report of a condition is the facts it reaches. The text is in the operator's own file, where they wrote it.
-/// </remarks>
-/// <param name="Name">The name the rule is declared and reported under.</param>
-/// <param name="Accounts">The accounts it applies to, empty for a rule that applies to every account.</param>
-/// <param name="ReadableFacts">The facts its condition names, which is every fact it can cause to be resolved.</param>
+/// <summary>One stored rule of an account.</summary>
+/// <param name="Id">The identifier the rule keeps through every rename and edit.</param>
+/// <param name="Position">Where the rule sits in its account's order, counted from zero.</param>
+/// <param name="Name">The name a person reads it under.</param>
+/// <param name="Enabled">Whether a pass applies it.</param>
+/// <param name="Condition">The condition as it was written.</param>
 /// <param name="Actions">What a match asks the mailbox for, in the order the rule declares the changes.</param>
 /// <param name="StopWhenMatched">Whether a match ends the pass rather than continuing to the rules below.</param>
 /// <param name="Triggers">The automatic triggers it takes part in, empty for a rule only a requested run applies.</param>
 /// <param name="Schedule">The occasions it declares, absent for a rule declaring none.</param>
 internal sealed record LoadedRule(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("position")] int Position,
     [property: JsonPropertyName("name")] string? Name,
-    [property: JsonPropertyName("accounts")] IReadOnlyList<string>? Accounts,
-    [property: JsonPropertyName("readableFacts")] IReadOnlyList<string>? ReadableFacts,
+    [property: JsonPropertyName("enabled")] bool Enabled,
+    [property: JsonPropertyName("condition")] string? Condition,
     [property: JsonPropertyName("actions")] IReadOnlyList<LoadedRuleAction>? Actions,
     [property: JsonPropertyName("stopWhenMatched")] bool StopWhenMatched,
     [property: JsonPropertyName("triggers")] IReadOnlyList<string>? Triggers,
     [property: JsonPropertyName("schedule")] string? Schedule)
 {
-    /// <summary>Describes what the rule applies to in one line an operator reads.</summary>
-    /// <returns>The accounts it names, or that it names none.</returns>
-    internal string DescribeScope() => this.Accounts is { Count: > 0 } accounts
-        ? string.Join(", ", accounts)
-        : "every account";
+    /// <summary>Describes whether a pass applies the rule, in one word an operator reads.</summary>
+    /// <returns><c>enabled</c> or <c>disabled</c>.</returns>
+    internal string DescribeState() => this.Enabled ? "enabled" : "disabled";
 
     /// <summary>Describes what runs the rule in one line an operator reads.</summary>
     /// <returns>The triggers it takes part in, or that a requested run is the only thing that applies it.</returns>

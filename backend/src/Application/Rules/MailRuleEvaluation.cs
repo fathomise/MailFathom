@@ -16,12 +16,14 @@ namespace MailFathom.Application.Rules;
 public sealed record MailRuleEvaluation
 {
     private MailRuleEvaluation(
+        MailRuleId ruleId,
         string ruleName,
         MailRuleOutcome outcome,
         MailRuleConditionFailure? failure,
         IReadOnlyList<MailRuleFact> readFacts,
         TimeSpan duration)
     {
+        this.RuleId = ruleId;
         this.RuleName = ruleName;
         this.Outcome = outcome;
         this.Failure = failure;
@@ -29,7 +31,10 @@ public sealed record MailRuleEvaluation
         this.Duration = duration;
     }
 
-    /// <summary>Gets the name of the rule this is about.</summary>
+    /// <summary>Gets the identifier of the rule this is about.</summary>
+    public MailRuleId RuleId { get; }
+
+    /// <summary>Gets the name the rule carried when it was evaluated.</summary>
     public string RuleName { get; }
 
     /// <summary>Gets what the rule concluded.</summary>
@@ -55,38 +60,43 @@ public sealed record MailRuleEvaluation
     public MailRuleConditionFailure? Failure { get; }
 
     /// <summary>Records that the condition answered that the email matches.</summary>
+    /// <param name="ruleId">The rule's identifier.</param>
     /// <param name="ruleName">The rule's name.</param>
     /// <param name="readFacts">The facts the condition reached, or <see langword="null" /> where the caller observed none.</param>
     /// <param name="duration">How long the condition took to answer.</param>
     /// <returns>The evaluation.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="ruleName" /> is empty or whitespace.</exception>
     public static MailRuleEvaluation Matched(
+        MailRuleId ruleId,
         string ruleName,
         IReadOnlyList<MailRuleFact>? readFacts = null,
         TimeSpan duration = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ruleName);
 
-        return new MailRuleEvaluation(ruleName, MailRuleOutcome.Matched, failure: null, [.. readFacts ?? []], duration);
+        return new MailRuleEvaluation(ruleId, ruleName, MailRuleOutcome.Matched, failure: null, [.. readFacts ?? []], duration);
     }
 
     /// <summary>Records that the condition answered that the email does not match.</summary>
+    /// <param name="ruleId">The rule's identifier.</param>
     /// <param name="ruleName">The rule's name.</param>
     /// <param name="readFacts">The facts the condition reached, or <see langword="null" /> where the caller observed none.</param>
     /// <param name="duration">How long the condition took to answer.</param>
     /// <returns>The evaluation.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="ruleName" /> is empty or whitespace.</exception>
     public static MailRuleEvaluation NotMatched(
+        MailRuleId ruleId,
         string ruleName,
         IReadOnlyList<MailRuleFact>? readFacts = null,
         TimeSpan duration = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ruleName);
 
-        return new MailRuleEvaluation(ruleName, MailRuleOutcome.NotMatched, failure: null, [.. readFacts ?? []], duration);
+        return new MailRuleEvaluation(ruleId, ruleName, MailRuleOutcome.NotMatched, failure: null, [.. readFacts ?? []], duration);
     }
 
     /// <summary>Records that the condition produced no answer for this email.</summary>
+    /// <param name="ruleId">The rule's identifier.</param>
     /// <param name="ruleName">The rule's name.</param>
     /// <param name="failure">Why no answer was produced.</param>
     /// <param name="readFacts">The facts the condition reached before it stopped answering.</param>
@@ -94,6 +104,7 @@ public sealed record MailRuleEvaluation
     /// <returns>The evaluation.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="ruleName" /> is empty or whitespace.</exception>
     public static MailRuleEvaluation Failed(
+        MailRuleId ruleId,
         string ruleName,
         MailRuleConditionFailure failure,
         IReadOnlyList<MailRuleFact>? readFacts = null,
@@ -101,6 +112,6 @@ public sealed record MailRuleEvaluation
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ruleName);
 
-        return new MailRuleEvaluation(ruleName, MailRuleOutcome.Failed, failure, [.. readFacts ?? []], duration);
+        return new MailRuleEvaluation(ruleId, ruleName, MailRuleOutcome.Failed, failure, [.. readFacts ?? []], duration);
     }
 }

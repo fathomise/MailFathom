@@ -2418,6 +2418,63 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("mail_rederivation_runs", (string)null);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailRuleEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Actions")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Condition")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MailboxAccountId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Schedule")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("StopWhenMatched")
+                        .HasColumnType("boolean");
+
+                    b.PrimitiveCollection<string[]>("Triggers")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MailboxAccountId", "NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("ix_mail_rules_account_normalized_name");
+
+                    b.HasIndex("MailboxAccountId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("ix_mail_rules_account_position");
+
+                    b.ToTable("mail_rules", (string)null);
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailRuleEvaluationRunEntity", b =>
                 {
                     b.Property<string>("MailboxAccountId")
@@ -2539,10 +2596,13 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasColumnType("character(12)")
                         .IsFixedLength();
 
+                    b.Property<Guid?>("RuleId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("RuleName")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<Guid>("StoredEmailId")
                         .HasColumnType("uuid");
@@ -2564,6 +2624,72 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_mail_rule_executions_account_rule_evaluated");
 
                     b.ToTable("mail_rule_executions", (string)null);
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailRuleSetEntity", b =>
+                {
+                    b.Property<string>("MailboxAccountId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("MailboxAccountId");
+
+                    b.ToTable("mail_rule_sets", (string)null);
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailRuleSetRevisionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CommittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Declarations")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("MailboxAccountId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("ReplacedRevision")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character(12)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Revision")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character(12)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Surface")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MailboxAccountId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_mail_rule_set_revisions_account_version");
+
+                    b.HasIndex("MailboxAccountId", "Revision", "CommittedAt")
+                        .HasDatabaseName("ix_mail_rule_set_revisions_account_revision_committed");
+
+                    b.ToTable("mail_rule_set_revisions", (string)null);
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailboxAccountEntity", b =>
@@ -5596,6 +5722,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailRuleEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailRuleSetEntity", null)
+                        .WithMany()
+                        .HasForeignKey("MailboxAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailRuleExecutedActionEntity", b =>
                 {
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailRuleExecutionEntity", null)
@@ -5610,6 +5745,24 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", null)
                         .WithMany()
                         .HasForeignKey("StoredEmailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailRuleSetEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailboxAccountEntity", null)
+                        .WithMany()
+                        .HasForeignKey("MailboxAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailRuleSetRevisionEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailRuleSetEntity", null)
+                        .WithMany()
+                        .HasForeignKey("MailboxAccountId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

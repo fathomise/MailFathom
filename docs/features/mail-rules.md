@@ -2,113 +2,170 @@
 
 <!-- describes: backend/src/Application/Rules/**, backend/src/Infrastructure/Rules/**, backend/src/Infrastructure/Persistence/Rules/**, backend/src/Host/Configuration/Rules/** -->
 
-A mail rule selects mail and changes it. It is a name, a condition, the accounts it applies to, the occasions that run
-it, what a match leads to, and whether a match ends the pass, and a user writes it in the configuration their
-deployment already carries. This
-page documents both halves: every fact a condition can read, every function and operator available to it, the limits it
-is read and run under, the order a set of rules is evaluated in, and every change a matching rule can ask for.
+A mail rule selects mail and changes it. It belongs to one mail account, and it is a name, a condition, the occasions
+that run it, what a match leads to, whether a match ends the pass, and whether it runs at all. This page documents both
+halves: every fact a condition can read, every function and operator available to it, the limits it is read and run
+under, how an account's rules are stored and changed, the order they are evaluated in, and every change a matching rule
+can ask for.
 
-Rules live in configuration rather than in a table, and a condition is one expression rather than a nested structure of
-predicates. [ADR 0010](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0010-rule-authoring-in-configuration-and-ncalc-conditions.md)
-records both decisions and what each one costs. Nothing creates, edits, or deletes a rule at run time: not `mfctl`, not
-MCP, not the administrative endpoint. A user who wants to change what their instance selects edits a file.
+An account's rules are rows the deployment keeps for that account in PostgreSQL, and nothing in configuration declares
+one. [ADR 0048](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0048-keeping-a-mail-accounts-rules-in-postgresql-and-changing-them-at-runtime.md)
+records that decision — the identity, the version check, the archive, and the permissions below are all its — and
+[ADR 0010](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0010-rule-authoring-in-configuration-and-ncalc-conditions.md)
+the half it left standing: a condition is one expression rather than a nested structure of predicates. No MCP tool reads
+or changes a rule.
 
-## Writing a rule
+## An account's rules
 
-```json
-{
-  "MailRules": {
-    "Rules": [
-      {
-        "Name": "supplier-invoices",
-        "Accounts": [ "5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10" ],
-        "Condition": "senderDomain == 'supplier.test' and attachmentCount > 0",
-        "Triggers": [ "Arrival" ],
-        "Actions": { "MoveTo": "invoices", "MarkAsRead": true },
-        "StopWhenMatched": true
-      },
-      {
-        "Name": "old-newsletters",
-        "Condition": "contains(subject, 'newsletter') and ageInDays > 90",
-        "Enabled": false
-      }
-    ]
-  }
-}
+An account holds an ordered list of rules, at most 200 of them, enabled or not. What `mfctl rules show <name> --account
+<id>` prints for one of them is every part a rule has:
+
+```text
+Rule       supplier-invoices (0193a6f2-6c1e-7b4a-9d2f-5e8c1a3b7d40)
+State      enabled, position 0
+Rule set   3f9a1c0e7b52, version 7
+Condition  senderDomain == 'supplier.test' and attachmentCount > 0
+Runs on    Arrival
+A match    relocate → invoices, set-seen → read; ends the pass
 ```
 
-`Name` is what a rule is reported by, and it is restricted to letters, digits, spaces, and `.`, `_`, `-`. That
-restriction is deliberate: everything else about a rule may carry an address its author typed, and the name is the one
-part that can be promised to carry no such thing when it reaches a log line.
+**The identifier is what a rule is.** It is generated when the rule is created and never changes, so a schedule, a
+history record, and a request a rule opened against the mail server all hold on to it rather than to the name.
 
-`Enabled` defaults to `true`. A rule switched off is left out of the bound set entirely, so it costs nothing and
-changes the set's revision exactly as deleting it would.
+**The name is what a person reads.** It is 1 to 128 characters with no control character, and it is unique within the
+account without regard to case, so `Invoices` and `invoices` cannot be two rules of one account. Renaming a rule changes
+nothing about which mail it reaches: its revision, its schedule, and its history stay where they were.
 
-`Triggers` is what decides when a rule runs, and it defaults to nothing: a rule that should run over arriving mail says
-`[ "Arrival" ]`, and a rule that says nothing is one a whole-mailbox run applies. [The section
-below](#which-triggers-run-a-rule) states what each way of writing it means, and why it is a different statement from
-`Enabled`.
+**The position is the order a pass evaluates the rules in**, counted from `0` and always dense. Removing a rule moves
+every rule below it up by one, and moving one rewrites the positions between where it was and where it went.
 
-`Schedule` is when a rule declaring the `Schedule` trigger runs, written as `Every <interval>` or
-`Daily at <HH:mm> [<zone>]`. The key and the trigger are one declaration: neither is written without the other, and
-[running a rule on a schedule](#running-a-rule-on-a-schedule) states the syntax, what happens to an occasion that
-passed while nothing was running, and how such a run differs from one a user asks for.
+**Whether a rule is enabled decides whether it runs.** A disabled rule is kept, read, and reported, and no pass of any
+kind evaluates it: not an arrival, not a schedule, not a run somebody asked for. Disabling a rule changes the set's
+revision exactly as removing it would, and enabling it again unchanged returns the set to the revision it had before.
 
-## Which accounts a rule applies to
+`Runs on` is the rule's triggers, and its schedule where it declares one: [the section below](#which-triggers-run-a-rule)
+states what each means. `A match` is the changes a match asks for in the order they were declared, and whether a match
+ends the pass; [what a matching rule does](#what-a-matching-rule-does) states each of them.
 
-`Accounts` is the filter, and it is the one part of a rule that says which mail reaches it at all rather than which mail
-matches it.
+**A rule reaches its own account's mail and no other.** There is no filter naming accounts, because there is nothing for
+one to select between: a rule that should act on two mailboxes is two rules, one in each, and each is validated against
+the folders and the permissions of the account that holds it. The [`account`](#the-facts-a-condition-can-read) fact is
+still there, and always answers the account the rule belongs to.
 
-- **Naming no account is a rule for every account.** That is what a single-account deployment writes, and what a rule
-  about a sender rather than about a mailbox usually wants.
-- **Naming one or more accounts narrows the rule to exactly those.** Mail from any other account never reaches the
-  condition — the rule is not evaluated and records no outcome, because it is not that account's rule rather than a rule
-  that declined to match. It follows that a scoped rule cannot end another account's pass whatever `StopWhenMatched`
-  says.
+**Reading an account's rules** is `mfctl rules list --account <id>`, which prints the whole set in order with the
+revision and the version it stands at, and `mfctl rules show <name> --account <id>` for one rule. Both read
+`GET /rules?account=<id>` on the administrative endpoint, under `mailfathom.admin.read` over that account; [reading the
+rules, running them, and finding out what they
+did](../operations/admin-endpoint.md#reading-the-rules-running-them-and-finding-out-what-they-did) is where the commands
+and the response are documented. No command or route writes a rule; [how a change is
+written](#how-a-change-is-written) is what a write does.
 
-An account is named exactly by the identifier the deployment generated for it, which `mfctl account list` reports,
-and the comparison is case-sensitive. **An account no served user is assigned is refused by a configuration write and
-by a reload**, naming the rule and the identifier: a rule scoped to a mistyped account would otherwise reach no mail and
-say nothing about why. The judgement is made against the account records in the database rather than against a
-configuration key — every account that holds an address, whose settings bind, and that somebody is assigned — so a rule
-naming a mailbox nobody is assigned yet is refused until somebody is, the same answer every replica gives, and a
-reload that refuses keeps the rule set it last accepted.
+**An account's rules go with the account.** Erasing the account erases its rules and every archived version of them,
+because the rows cascade from the account's own. Erasing the person who wrote a rule does not: a rule is a standing
+decision about the mailbox's mail, not something sent in anybody's name, so it stays for everybody still assigned the
+mailbox, and the archive stops saying who wrote it.
 
-**A start neither refuses it nor reads every account to report it.** A mailbox can stop being served after the rule
-naming it was accepted — its user is erased, its account is erased, or its assignment ends — and a start refusing then
-could be undone only through the running host it refused. So a rule that names a mailbox nobody is served, or that
-reaches a mailbox which no longer maps its destination folder or permits its action, does nothing there until the
-account is assigned again, the mailbox maps what the rule needs, or the rule is changed; the next reload or
-configuration write is what names it.
+**A configuration still declaring `MailRules:Rules` binds and applies none of them.** The key stays recognized so a
+deployment carrying it still starts, and the start logs one warning with the number of rules the section declares —
+never what they say — and the command an operator imports them with. [Mail
+configuration](../operations/configuration-mail.md#mailrules) lists the keys the section still holds: the bounds a
+condition is read and run under, and how much a pass evaluates.
 
-The `account` fact stays available and is a different tool. The filter decides whether a rule runs; the fact lets one
-rule that does run say something about which account it is running for — `account == '5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10' ? … : …` inside a condition
-that applies to several.
+## How a change is written
 
-[Mail configuration](../operations/configuration-mail.md#mailrules) lists every key of the section with its
-type, default, and constraint.
+A change to an account's rules is one of five writes, and each is a whole transaction over the account's set:
+
+| Write | What it does |
+| --- | --- |
+| Create | Adds a rule at the end of the set, **disabled**, under a new identifier |
+| Replace | Changes what one rule declares, keeping its identifier, its position, and whether it runs |
+| Enable or disable | Switches one rule on or off, and nothing else about it |
+| Move | Puts one rule at another position; a position outside the set is refused |
+| Remove | Deletes one rule, moves the rules below it up, and withdraws its schedule |
+
+**Every rule starts disabled.** A rule acting on real mail is worth seeing before it runs, so a create never commits an
+enabled rule and enabling it is a write of its own — [previewing a rule](#previewing-a-rule) is
+how it is seen first.
+
+**A write states the version it read, and a stale one is refused.** The set carries a version that every committed
+write moves by one. A write takes the set's lock, compares the version it was given against the one stored, and refuses
+when they differ, changing nothing; the caller reads the set again and decides again. Two writes are never merged: two
+edits that each validate — one person moving a rule above another while somebody else makes that other rule end the
+pass — can produce a set neither of them wrote. The lock is the set's alone and serializes writes to one account's rules
+across every replica; a pass reading the set takes none.
+
+**The whole set is validated as it would stand afterwards.** A write builds the candidate — every rule, in order — and
+judges all of it, so a write is refused for a defect it would leave anywhere in the set rather than only in the rule it
+names. [What a rule set is checked for](#what-a-rule-set-is-checked-for) lists every check, and every defect is reported
+together. **A refused write commits nothing**: no rule row changes, the version stays where it was, and nothing is
+archived.
+
+**Every committed write is archived.** It appends one row naming the account, the version it produced, the revision it
+produced and the one it replaced, who wrote it, which surface it came through, when it committed, and every rule of the
+set as it then stood, disabled ones and names included. That row is what a past run's revision is resolved against —
+the newest archived version carrying that revision committed at or before the run started — and the record of who
+changed what. It is pruned with the rule history under `MailRules:HistoryRetention`, except that the account's newest
+row is never pruned and neither is one a retained execution or run still names.
+
+These writes are use cases with no surface over them: no `mfctl` command, administrative route, or client route
+calls one, so an account's rules cannot be changed from outside the process.
+
+## A held rule set
+
+**A stored set that no longer compiles runs none of its rules.** A set valid when it committed can stop compiling later
+— the condition bounds are configuration, and a narrower `MaxConditionLength` or nesting depth makes a condition that
+was within them a condition that is not. A pass that cannot compile every enabled rule of an account runs none of that
+account's rules rather than the ones that still compile, because an ordered, stop-when-matched set with one rule taken
+out is a set nobody wrote, and it can file mail a rule above it was written to keep.
+
+While a set is held:
+
+- **Arriving mail stays in the queue.** Nothing is recorded as evaluated, so the mail that arrived while the set was held
+  is what the repaired set evaluates first, rather than mail it never sees.
+- **A run somebody asked for stays outstanding.** One that had not started walking yet walks once the set compiles again,
+  under the rules the repair left; one already part-way through ends as superseded, as it would after any change to
+  the rules, and asking again runs it under the repaired set.
+- **Every reading says so.** `mfctl rules list` and `mfctl rules show` print that no pass runs the rules and which rules
+  no longer compile, by identifier, and `GET /rules` answers `held` with those identifiers. The reason is never quoted
+  with the condition.
+
+A disabled rule never holds a set, because no pass would compile it. A write repairs a held set the way it changes any
+other: replacing or disabling the rules that no longer compile, or removing them.
+
+## Previewing a rule
+
+A preview evaluates one rule over the mail an account already stores and reports what it would match, **without changing
+anything**: it asks the mail server for nothing, opens no change, records no evaluation and no history, and commits
+nothing at all. It previews either a rule a person is still writing, validated exactly as a write would validate it
+first, or a stored rule by its identifier — disabled or not, which is what a rule created disabled is for.
+
+It reads the mail a pass would read, in the order a whole-mailbox run walks it, and evaluates the rule alone, as though
+it were the account's only rule. Each matching message is reported with the changes the rule would ask for there. A page
+evaluates at most 1,000 messages and reports at most 100 matches, and says where the next page continues, so previewing
+a rule over a large mailbox is a sequence of bounded requests rather than one walk of all of it.
+
+What a preview reports names messages, so it needs `mailfathom.admin.audit.read` over the account, the same grant the
+history needs. Like the writes, it is a use case no surface publishes.
 
 ## Which triggers run a rule
 
 `Triggers` is the list of automatic occasions a rule takes part in. It governs automatic firing and nothing else, so it
 decides *when* a rule is reached rather than which mail it matches once it is.
 
-| Written | What the rule takes part in |
+| Triggers | What the rule takes part in |
 | --- | --- |
-| `[ "Arrival" ]` | Every message the account's synchronization run commits |
-| `[ "Schedule" ]` | The occasions the rule's own `Schedule` names, each of them a walk of the whole mailbox |
-| `[]` | No automatic occasion at all: nothing fires the rule, and a whole-mailbox run is what applies it |
-| the key left out | The same as `[]` — a rule takes part in the occasions it names and in no others |
+| `Arrival` | Every message the account's synchronization run commits |
+| `Schedule` | The occasions the rule's own schedule names, each of them a walk of the whole mailbox |
+| none | No automatic occasion at all: nothing fires the rule, and a whole-mailbox run is what applies it |
 
 **`Arrival` is a message the account's synchronization run has just committed.** It is named after the moment rather
 than after the transport, because `Push` already names a folder's
 [synchronization mode](imap-synchronization.md#choosing-the-mode-per-folder) and a rule is unaffected by which one its
 account uses: mail a polled run commits reaches this trigger exactly as mail a watched one commits does.
 
-**A rule that names no trigger runs on no arriving message.** Leaving the key out is a statement rather than an
-omission, and it is the same statement as writing `[]`: the rule is bound, validated, and reported, and a whole-mailbox
-run is what applies it. So a rule meant to file mail as it arrives writes `Arrival` — there is no occasion a rule joins
-without naming it.
+**A rule that names no trigger runs on no arriving message.** That is a statement rather than an omission: the rule is
+stored, validated, and reported, and a whole-mailbox run is what applies it. So a rule meant to file mail as it arrives
+declares `Arrival` — there is no occasion a rule joins without naming it.
 
 **Such a rule is one you run rather than one that runs**, which is what housekeeping wants — file everything
 older than a quarter, delete what a mailing list left behind — where firing on each arriving message is either useless
@@ -116,36 +173,34 @@ or exactly what the user is afraid of. [A whole-mailbox
 run](#running-the-rules-over-mail-you-already-have) is what applies it, and [a
 schedule](#running-a-rule-on-a-schedule) is how the same rule gets applied without anybody asking each time.
 
-**A rule a trigger does not reach is not evaluated and records no outcome**, exactly as a rule scoped to another
-account is not: it did not decline to match, it was not one of that pass's rules. It follows that such a rule cannot end
+**A rule a trigger does not reach is not evaluated and records no outcome**, exactly as a disabled rule is not: it did not decline to match, it was not one of that pass's rules. It follows that such a rule cannot end
 a pass either, whatever `StopWhenMatched` says.
 
 **A run somebody asks for is never a member of the list**, and it applies the whole rule set including the manual-only
 rules. Somebody asking for a run is the request itself, so a rule declining to run because it had not agreed to be asked
 would be surprising in the one place surprise is least affordable. `Schedule` is a member of the list for the opposite
 reason: nobody is asking, so the rule has to have said in advance that it wanted to be run. No run selects rules by name
-either: what a run applies is the set the configuration declares, narrowed only by what started the run.
+either: what a run applies is the account's enabled rules, narrowed only by what started the run.
 
-**A name this system does not recognize is refused when the configuration is read**, naming the rule and the value, and
-so is the same trigger written twice, because the value is a set. Neither is dropped: a list whose only entry was
-mistyped would otherwise arrive as an empty one, which would silently turn an automatic rule into a manual one — and a
-rule that never fires is indistinguishable from a rule nothing matched. The name is read the way the binder reads every
-other closed vocabulary this configuration declares, so `arrival` and `Arrival` are one trigger.
+**A write refuses a trigger that names nothing and the same trigger declared twice**, naming the rule, because the
+value is a set. Neither is dropped: a list whose only entry was mistyped would otherwise arrive as an empty one, which
+would silently turn an automatic rule into a manual one — and a rule that never fires is indistinguishable from a rule
+nothing matched.
 
 ### Running a rule on a schedule
 
-A rule declaring the `Schedule` trigger names its own occasions in a `Schedule` key, and each occasion is a walk of the
+A rule declaring the `Schedule` trigger names its own occasions in its schedule, and each occasion is a walk of the
 whole mailbox rather than anything about one message:
 
-```json
-{
-  "Name": "archive-old-newsletters",
-  "Condition": "contains(subject, 'newsletter') and ageInDays > 90",
-  "Triggers": [ "Schedule" ],
-  "Schedule": "Daily at 03:00 Europe/Warsaw",
-  "Actions": { "MoveTo": "archive" }
-}
+```text
+Rule       archive-old-newsletters (0193a6f2-7d0a-7c51-8e3b-1f4a6c9d2e80)
+Condition  contains(subject, 'newsletter') and ageInDays > 90
+Runs on    Schedule (daily:03:00:Europe/Warsaw)
+A match    relocate → archive
 ```
+
+`mfctl` prints a schedule in its canonical form, so `Daily at 03:00 Europe/Warsaw` reads back as
+`daily:03:00:Europe/Warsaw`.
 
 **The syntax is MailFathom's own, and it accepts exactly two forms.** It is deliberately not cron: a user writing
 when their own mailbox is tidied needs an interval or a time of day, and the four fields cron would add are ones nothing
@@ -165,13 +220,12 @@ here would honour to the minute anyway.
 - **The zone is a time-zone identifier the host recognizes**, so a deployment writing one gets that zone's wall clock
   including its daylight-saving changes. Leaving it out means UTC, which is what a user reads off the declaration
   without knowing where the container runs.
-- **Anything else is refused when the configuration is read**, naming the rule and what could not be read — a cron
-  expression, an unpadded time, a zone nothing knows. A schedule silently dropped would leave a rule that never runs,
+- **Anything else is not a schedule a rule can carry** — a cron expression, an unpadded time, a zone nothing knows. A schedule silently dropped would leave a rule that never runs,
   which is indistinguishable from a rule nothing matched.
 
 **Occasions are anchored rather than counted from the last run.** `Every 06:00:00` means midnight, 06:00, 12:00, and
-18:00 UTC whatever time the instance started, so restarting the process does not shift a schedule and two instances
-reading one configuration agree on when its occasions are.
+18:00 UTC whatever time the instance started, so restarting the process does not shift a schedule and two replicas
+reading one account's rules agree on when its occasions are.
 
 **A local time daylight saving skips happens when the gap ends, and one it passes through twice happens once.** A rule
 at `Daily at 02:30 Europe/Warsaw` runs at the instant the clock reaches 03:00 on the spring-forward day, and on the
@@ -204,47 +258,47 @@ prints `under way, started by ScheduledRun` — and every outcome it records car
 from `Arrival` for the walk of arriving mail and `RequestedRun` for the one somebody asked for. [Finding out what a rule
 did](#finding-out-what-a-rule-did) is where those records are read.
 
-**A rule scoped to accounts has one schedule per account it reaches**, so a mailbox behind on its walk does not delay
-another's. Two rules declaring different schedules for one account are two schedules, and either occasion walks the
+**Each scheduled rule is one schedule of its own account**, named `mail-rules:<account>:<rule identifier>`, so a mailbox
+behind on its walk does not delay another's and renaming a rule keeps the schedule it had. Removing the rule, disabling
+it, or taking its schedule away withdraws the schedule. Two rules declaring different schedules for one account are two schedules, and either occasion walks the
 mailbox for every scheduled rule that account has — the walk is per mailbox rather than per rule, so a rule whose
-occasion has not come round yet is still reached by one that has. Where that matters, give the rules the same schedule
-or put them on different accounts.
+occasion has not come round yet is still reached by one that has. Where that matters, give the rules the same schedule.
 
-### `Triggers: []` and `Enabled: false` say different things
+### No trigger and disabled say different things
 
-The two keys sound alike and are not:
+The two sound alike and are not:
 
-| | `Triggers: []` | `Enabled: false` |
+| | No trigger | Disabled |
 | --- | --- | --- |
-| In the bound rule set | Yes | No |
-| Validated when the configuration is read | Yes | Yes, apart from its condition |
+| In the set a pass compiles and runs | Yes | No |
+| Validated by every write | Yes | Yes |
+| Moves the revision | Only as its other parts do | Disabling it does, exactly as removing it would |
 | Run when mail arrives | No | No |
 | Run by a whole-mailbox run | Yes | No |
-| What it is for | A rule a user applies deliberately | A rule taken out of service without deleting the condition |
+| What it is for | A rule a person applies deliberately | A rule not yet enabled, or taken out of service without deleting it |
 
 ## What a matching rule does
 
-A rule declares what a match leads to in an `Actions` block, one named key per change:
+A rule declares what a match leads to as a list of changes, each named as the mutation it is requested through — the
+name `mfctl rules show` and `GET /rules` report it by:
 
-| Key | Value | What a match asks for |
+| Change | What it carries | What a match asks for |
 | --- | --- | --- |
-| `MoveTo` | a folder alias or role | The message leaves the folder it matched in and is filed into the named one |
-| `CopyTo` | a folder alias or role | A second copy of the message is placed in the named folder, and the one that matched stays where it is |
-| `Delete` | `true` | The message is removed from the folder it matched in |
-| `MarkAsRead` | `true` or `false` | The message's remote `\Seen` flag is set, or cleared |
-| `MarkAsFlagged` | `true` or `false` | The message's remote `\Flagged` flag is set, or cleared — the star a mail client draws |
-| `AddKeywords` | a list of keywords | Each named keyword is put on the message, beside the ones it already carries |
-| `RemoveKeywords` | a list of keywords | Each named keyword is taken off the message, leaving the ones the rule did not name |
-| `SetKeywords` | a list of keywords, possibly empty | The message ends up carrying exactly the named keywords and no others |
+| `relocate` | a folder alias or role | The message leaves the folder it matched in and is filed into the named one |
+| `copy` | a folder alias or role | A second copy of the message is placed in the named folder, and the one that matched stays where it is |
+| `delete` | nothing | The message is removed from the folder it matched in |
+| `set-seen` | read or unread | The message's remote `\Seen` flag is set, or cleared |
+| `set-flagged` | flagged or not | The message's remote `\Flagged` flag is set, or cleared — the star a mail client draws |
+| `add-keywords` | a list of keywords | Each named keyword is put on the message, beside the ones it already carries |
+| `remove-keywords` | a list of keywords | Each named keyword is taken off the message, leaving the ones the rule did not name |
+| `set-keywords` | a list of keywords, possibly empty | The message ends up carrying exactly the named keywords and no others |
 
-**An absent key is a change the rule does not ask for**, which is why `MarkAsRead` carries a value rather than being a
-switch: `MarkAsRead: false` is a rule asking for mail to be marked *unread*, and leaving the key out is a rule that does
-not touch the flag at all. `MarkAsFlagged` reads the same way. `Delete: false` says the same thing as leaving `Delete`
-out. The distinction is sharpest on `SetKeywords`: writing `[]` is a rule asking for every keyword to be cleared, which
-is the one thing the other two keyword keys cannot say however many keywords they name, while leaving the key out is a
-rule that does not touch keywords at all. One key per action rather than a list of action objects, because a rule
-declaring the same action twice is then unrepresentable rather than merely refused, and because a binder drops a list
-element whose value it cannot read — which would leave a rule quietly doing less than its file says.
+**A change a rule does not declare is one it does not ask for**, which is why `set-seen` carries a state rather than
+being a switch: a rule declaring `set-seen` to unread asks for mail to be marked *unread*, and a rule declaring no
+`set-seen` does not touch the flag at all. `set-flagged` reads the same way. The distinction is sharpest on
+`set-keywords`: an empty list is a rule asking for every keyword to be cleared, which is the one thing the other two
+keyword changes cannot say however many keywords they name, while declaring none of the three is a rule that does not
+touch keywords at all.
 
 **A rule that declares no action is not a defect.** It selects mail and changes nothing, which is what a rule ending the
 pass with `StopWhenMatched` does to keep the mail it names away from the rules below it.
@@ -256,11 +310,10 @@ including one it deliberately does not mirror, which is how mail is filed somewh
 and when it moves.
 
 A destination may instead name the **role** the folder plays, written `role:<role>` — `role:Junk`, `role:Archive`, and
-the rest. That is what lets one rule file mail correctly across accounts whose folders you named differently, since the
-role is asked of the account the mail belongs to. Anything without the `role:` prefix is an alias, so an alias spelled
-`Junk` still means that alias. Startup refuses a role no folder of a reached account carries, exactly as it refuses an
-alias the account maps nothing for, and refuses text that reads as neither an alias nor a role, naming the roles that
-exist.
+the rest. That is what lets the rules of several accounts read alike when their folders were named differently, since the role is
+asked of the account the rule belongs to. Anything without the `role:` prefix is an alias, so an alias spelled `Junk`
+still means that alias. A write refuses a role no folder of the account carries, exactly as it refuses an alias the
+account maps nothing for.
 [What a role says, beside how a folder is found](imap-synchronization.md#what-a-role-says-beside-how-a-folder-is-found)
 states what a role is and why an account has at most one folder per role.
 
@@ -272,60 +325,60 @@ The text is yours to choose, and the convention worth following is the one clien
 
 What IMAP requires is that a keyword be a single unbroken token, so a keyword may not contain a space, a control
 character, any of `( ) { % * " \ ]`, or anything above US-ASCII — `café` is refused for that last reason and `cafe` is
-not. One that does is refused at startup, naming the rule and the key it was written
-in, because a keyword that cannot be sent is a rule that cannot do what it says. A keyword is at most 64 characters and
+not. One that does is refused, because a keyword that cannot be sent is a rule that cannot do what
+it says. A keyword is at most 64 characters and
 a rule names at most 64 of them in one key, which are the same bounds MailFathom reads a message's keywords under.
 Keywords are compared without regard to case, so naming both `$todo` and `$Todo` is naming one keyword — and the
 spelling you wrote is the one sent to the server.
 
-`AddKeywords: []` and `RemoveKeywords: []` are refused at startup, because a list naming nothing asks the server for
-nothing and is a mistyped list far more often than an intent. `SetKeywords: []` is the one that means something.
+`add-keywords` and `remove-keywords` naming no keyword are refused, because a list naming nothing asks the server for
+nothing and is a mistyped list far more often than an intent. An empty `set-keywords` is the one that means something.
 
 **A condition reads keywords as well as writing them.** [`keywords`](#the-facts-a-condition-can-read) is a fact, so a
 rule can select on a label an earlier run put on a message, under the same case-insensitive comparison.
 
-What it reads is what the server last reported, never what a rule asked for. A keyword a rule declares in this pass is
+What it reads is what the server last reported, never what a rule asked for. A keyword a rule asks for in this pass is
 a change written down: the account's next run carries it to the server, and the fact carries it once
 [reconciliation](imap-synchronization.md#reconciling-against-the-server) has read the message's flags back. So a rule
 below one that adds `$Invoice` does not see `$Invoice` on that message in the same pass, which is deliberate — a fact
 that answered from a change nobody had performed yet would report labels the mailbox does not carry.
 
-**A server may refuse to keep a keyword**, and that is the one refusal that cannot be reported at startup. A folder
+**A server may refuse to keep a keyword**, and that is the one refusal a write cannot report. A folder
 tells MailFathom which flags it keeps permanently when it is opened, so a server that keeps no arbitrary keyword — some
-do not — is discovered as the change is issued, and `AddKeywords` and `SetKeywords` then fail with
+do not — is discovered as the change is issued, and `add-keywords` and `set-keywords` then fail with
 `MailboxMutationUnsupported` naming the account and the folder alias rather than being accepted and forgotten.
-`RemoveKeywords` is never refused for that reason: taking a keyword off a message that carries one is meaningful
+`remove-keywords` is never refused for that reason: taking a keyword off a message that carries one is meaningful
 whatever the folder keeps.
 
 ### Which combinations a rule may declare
 
 At most one action decides where the matched occurrence ends up — a relocation, a copy, or a deletion — and a deletion
 admits nothing beside it. Beyond that, a rule may declare any mixture of flag and keyword changes, with one exception:
-`SetKeywords` states the whole set, so nothing else about the same message's keywords may be declared beside it.
+`set-keywords` states the whole set, so nothing else about the same message's keywords may be declared beside it.
 
 | Combination | Verdict | Why |
 | --- | --- | --- |
-| `MoveTo` alone | permitted | |
-| `CopyTo` alone | permitted | |
-| `Delete` alone | permitted | |
-| `MarkAsRead` alone | permitted | |
-| `MarkAsFlagged` alone | permitted | |
-| `MarkAsRead` and `MarkAsFlagged` | permitted | Two different flags, so neither decides anything about the other |
-| `AddKeywords` and `RemoveKeywords` | permitted | The removal is issued first, so a keyword named by both ends up on the message |
-| `SetKeywords` alone, including `[]` | permitted | An empty list is what clears every keyword |
-| `MoveTo` and `MarkAsRead` | permitted | The flag is written first, on the occurrence the condition matched |
-| `CopyTo` and `MarkAsRead` | permitted | The same: the flag is written before the copy is placed |
-| `MoveTo`, `MarkAsFlagged`, and `AddKeywords` | permitted | Every flag and keyword change is written before the message is filed |
-| `MoveTo` and `CopyTo` | refused | Two fates for one occurrence; whichever ran second would act on a message no longer where the rule matched it |
-| `MoveTo` and `Delete` | refused | The same, and the deletion would undo the filing |
-| `CopyTo` and `Delete` | refused | The same |
-| `Delete` and `MarkAsRead` | refused | A flag written on a message being removed is a flag nobody will ever read |
-| `Delete` and `AddKeywords` | refused | The same |
-| `SetKeywords` and `AddKeywords` | refused | Two answers about one set of keywords; which one held would come down to which ran second |
-| `SetKeywords` and `RemoveKeywords` | refused | The same |
+| `relocate` alone | permitted | |
+| `copy` alone | permitted | |
+| `delete` alone | permitted | |
+| `set-seen` alone | permitted | |
+| `set-flagged` alone | permitted | |
+| `set-seen` and `set-flagged` | permitted | Two different flags, so neither decides anything about the other |
+| `add-keywords` and `remove-keywords` | permitted | The removal is issued first, so a keyword named by both ends up on the message |
+| `set-keywords` alone, including `[]` | permitted | An empty list is what clears every keyword |
+| `relocate` and `set-seen` | permitted | The flag is written first, on the occurrence the condition matched |
+| `copy` and `set-seen` | permitted | The same: the flag is written before the copy is placed |
+| `relocate`, `set-flagged`, and `add-keywords` | permitted | Every flag and keyword change is written before the message is filed |
+| `relocate` and `copy` | refused | Two fates for one occurrence; whichever ran second would act on a message no longer where the rule matched it |
+| `relocate` and `delete` | refused | The same, and the deletion would undo the filing |
+| `copy` and `delete` | refused | The same |
+| `delete` and `set-seen` | refused | A flag written on a message being removed is a flag nobody will ever read |
+| `delete` and `add-keywords` | refused | The same |
+| `set-keywords` and `add-keywords` | refused | Two answers about one set of keywords; which one held would come down to which ran second |
+| `set-keywords` and `remove-keywords` | refused | The same |
 
-**A refused combination is refused where it is written.** Startup fails naming the rule, the key, and which action could
-not be honored beside which, rather than a run resolving it against a mailbox — no resolution invented at run time would
+**A refused combination is refused where it is written.** The write fails naming the rule and which change could not be
+honored beside which, rather than a run resolving it against a mailbox — no resolution invented at run time would
 be the one the operator meant, and a rule that resolved differently depending on what a server answered would not be a
 rule.
 
@@ -333,23 +386,23 @@ rule.
 
 The actions of one rule are applied in **MailFathom's order rather than the order they were written in**, so that every
 permitted combination acts on the occurrence the condition matched, and so that the answer is the same on every run and
-on every instance:
+on every replica:
 
-1. `MarkAsRead`
-2. `MarkAsFlagged`
-3. `SetKeywords`
-4. `RemoveKeywords`
-5. `AddKeywords`
-6. `CopyTo`
-7. `MoveTo`
-8. `Delete`
+1. `set-seen`
+2. `set-flagged`
+3. `set-keywords`
+4. `remove-keywords`
+5. `add-keywords`
+6. `copy`
+7. `relocate`
+8. `delete`
 
 The same order governs the actions of two rules that both match one email, which no single rule's block could order on
 its own.
 
-Only two positions in that list decide anything observable. Every flag and keyword change comes before `CopyTo`,
-`MoveTo`, and `Delete`, so all of them act on the occurrence the condition matched rather than on one that has already
-been filed elsewhere; and `RemoveKeywords` comes before `AddKeywords`, so a keyword one rule takes off and another puts
+Only two positions in that list decide anything observable. Every flag and keyword change comes before `copy`,
+`relocate`, and `delete`, so all of them act on the occurrence the condition matched rather than on one that has already
+been filed elsewhere; and `remove-keywords` comes before `add-keywords`, so a keyword one rule takes off and another puts
 on ends up on the message. The rest is fixed for determinism — each of those actions writes a different flag, and the
 one pair that would contradict another is refused before it is applied.
 
@@ -369,7 +422,7 @@ each is the point of the arrangement:
   [a change nobody finished finishes by itself](imap-synchronization.md#a-change-nobody-finished-finishes-by-itself)
   states every way one can be left and what becomes of it.
 - **Asking twice asks once.** The record's identity is the email occurrence, the mutation, and who asked — and for a
-  rule, *who asked* is the rule's name together with the revision of the rule set that matched. So a whole-mailbox run
+  rule, *who asked* is the rule's identifier together with the revision of the rule set that matched. So a whole-mailbox run
   over mail a rule has already acted on issues nothing, while an edit to the rule set is a new revision and therefore a
   fresh request. A user who moved the message back by hand is not overruled by the rule that filed it. A held account
   opens no record to match against, so there a repeat is harmless only where the stored state already matches: a flag
@@ -409,17 +462,16 @@ undone by editing a rule afterwards.
 `WriteKeywords` is one switch for all three keyword actions rather than three, because permitting an addition while
 refusing a removal would leave mail accumulating labels nothing is allowed to take off again.
 
-**A rule declaring an action an account it reaches does not permit is refused when the configuration is read**, naming
-the rule, the action, and the account. It is refused rather than skipped for the reason a mistyped account identifier
-is: a rule that silently did less on one account than on another would be indistinguishable from a rule that never
-matched there. An unscoped rule reaches every declared account, so the remedy is either to permit the action on that
-account or to narrow the rule's `Accounts` filter to the accounts that permit it.
+**A write leaving a rule that declares an action its account does not permit is refused**, naming the rule and the
+action, and that holds for a disabled rule too. It is refused rather than skipped, because a rule that silently did less
+than it declares would be indistinguishable from a rule that never matched. The remedy is to permit the action in the
+account's `RuleActions` or to change the rule.
 
-**Withdrawing a permission takes effect at the next pass, not at the next edit of the rules.** The two sections reload
-independently, so narrowing what an account permits leaves a rule set nobody edited in force; the permission is
-therefore read again when each change is written down, and an action it now refuses is
-[a failed action](#when-a-change-cannot-be-made) rather than one more deletion. The rule itself stays as written and is
-refused the next time the rule section is read, which is the message that says what to edit.
+**Withdrawing a permission takes effect at the next pass, not at the next write to the rules.** The account's settings
+and its rules are written independently, so narrowing what an account permits leaves a rule set nobody edited in force;
+the permission is therefore read again when each change is written down, and an action it now refuses is
+[a failed action](#when-a-change-cannot-be-made) rather than one more deletion. The rule itself stays as stored, and the
+next write to the account's rules is refused until it is changed, which is the message that says what to edit.
 
 ### When a change cannot be made
 
@@ -432,7 +484,7 @@ Each is recorded against the rule that asked, and the actions beside it are stil
 | `DestinationFolderUnmapped` | No mapping of the account answers to the name — one was withdrawn between the rule set being read and the change being written |
 | `DestinationFolderNotAdvertised` | The mapping is there and the server holds no folder for it: the folder was deleted or renamed, the path was never right, or one the mapping asked to have created could not be |
 | `DestinationFolderAmbiguous` | The mapping names a role that two advertised folders carry, so which one was meant is yours to state |
-| `AccountNoLongerConfigured` | The account was withdrawn from the configuration between the rule set being read and the change being written |
+| `AccountNoLongerConfigured` | The account stopped being served between the rule set being read and the change being written |
 | `ActionNoLongerPermitted` | The account has stopped permitting this action since the rule set that declares it was read |
 | `EmailNotOnMailServer` | The stored email carries no occurrence, because no mail server holds it any longer, so there is nowhere a change could be carried to |
 | `EmailNoLongerStored` | The account's mailbox is one MailFathom holds itself, and the email was erased between the pass reading it and the change being made |
@@ -442,8 +494,8 @@ Each is recorded against the rule that asked, and the actions beside it are stil
 Nothing is written down in any of these cases: filing into whichever folder looked closest to the name is precisely
 what a stale destination must not do. The account run reports how many changes it asked for, how many it withheld because
 another matching rule had already settled the same message, and how many named something that no longer resolves,
-together with the rules involved. Counts and rule names only — nothing derived from a message reaches a log line, a
-metric, or a span.
+together with the identifiers of the rules involved. Counts and rule identifiers only — no rule's name, condition, or
+folder, and nothing derived from a message, reaches a log line, a metric, or a span.
 
 On a held account every action is made to the stored email as the pass commits, in the transaction that records
 the rule's decision, rather than written down for a server: a move files into the local folder the destination's role
@@ -562,7 +614,7 @@ and `folder in ('inbox')` is refused with a message saying so; write `folder == 
 A text set — `recipientAddresses`, `recipientDomains` — is neither compared nor tested with `in`, because a set has no
 single value to compare. `contains` is how a set is asked about a member, and both refusals say so.
 
-**Everything else the expression language offers is refused when the configuration is read**, including the bitwise and
+**Everything else the expression language offers is refused when the condition is compiled**, including the bitwise and
 shift operators, `**`, the null-coalescing `??`, the pattern-matching `like`, and the factorial `!` suffix. The last two
 are refused for cost rather than tidiness: a factorial turns a short expression into arbitrarily large arithmetic, and a
 pattern match takes an authored pattern and runs it against mail content.
@@ -583,7 +635,7 @@ pattern match takes an authored pattern and runs it against mail content.
 for a member equal to the term. Both are literal searches rather than pattern matches, which is what keeps the cost of a
 text condition the length of the two strings and nothing else.
 
-**No other function is available**, and naming one is refused when the configuration is read rather than at evaluation.
+**No other function is available**, and naming one is refused when the condition is compiled rather than at evaluation.
 The expression language ships a mathematical library — `Sqrt`, `Max`, `Round` and the rest — and none of it is part of
 this surface.
 
@@ -594,9 +646,10 @@ this surface.
 | `MaxConditionLength` | 1000 characters | How long one condition may be written |
 | `MaxConditionNestingDepth` | 16 levels | How deeply the parsed condition may nest |
 | `ConditionEvaluationTimeout` | 1 second | How long one condition may take, including resolving the facts it names; at most 30 seconds |
-| `Rules` | 200 rules | How many rules one set may declare |
+| Rules per account | 200, fixed | How many rules one account keeps, enabled or not |
 
-The first two are checked when the configuration is read, so a condition over either is refused with the rule named. The
+The first two are checked when a condition is compiled, so a write leaving a condition over either is refused with the
+rule named, and a stored condition over a bound narrowed since it committed [holds its set](#a-held-rule-set). The
 depth limit is checked twice there — once over the written text before it reaches a parser, because a parser descends
 into a nesting before there is anything to inspect, and again over the parsed condition, which is what catches depth
 reached through operators rather than brackets.
@@ -610,8 +663,8 @@ can follow, and depth alone would admit a flat expression of ten thousand terms.
 
 ## What a rule set is checked for
 
-Every condition is read while the host composes itself, before any mail is seen. Reading one checks four things, and
-each is refused with a message naming the rule, what was wrong, and where:
+Every write judges the whole set as it would stand afterwards, and every condition in it is compiled — a disabled
+rule's included, so enabling a rule is never the moment its defects are discovered. Compiling one checks four things:
 
 - **Syntax.** The condition parses, and a failure reports the position it failed at.
 - **The names.** Every identifier is one of the twenty-six facts and every call is one of the seven functions.
@@ -620,51 +673,36 @@ each is refused with a message naming the rule, what was wrong, and where:
 - **The result.** The condition produces a boolean. A condition producing text or a number is refused rather than read
   as truthy, so what a rule means never depends on a coercion nobody wrote down.
 
-The rule's `Accounts` filter is checked beside those four: every identifier names a declared account, none is blank, and
-none is repeated. Its `Triggers` list is checked the same way: every name is one this system declares, none is blank,
-and none is repeated. Its `Schedule` is checked against that list and against itself: a rule declaring the `Schedule`
-trigger carries one, a rule carrying one declares that trigger, and the expression is one [this system
-runs](#running-a-rule-on-a-schedule) — each refused naming the rule.
+The set itself is checked beside those four: it keeps at most 200 rules, no two of them share a name without regard to
+case, and no identifier appears twice. So is each rule's own shape: a name of 1 to 128 characters with no control
+character, triggers that each name something and none twice, and a schedule exactly when the rule declares the
+`Schedule` trigger — a rule declaring the trigger carries one, and a rule carrying one declares the trigger.
 
-So is its `Actions` block, against the rule itself and against every account the rule reaches:
+So are its changes, against the rule itself and against its account:
 
-- **The destinations.** Each names something readable as a folder alias or as `role:<role>`, and each names a folder the
-  account maps — a rule filing into a folder no mapping declares has nowhere to file. Mirroring is not asked about: a
-  mapped folder the account does not mirror is resolved when the first change files into it.
-- **The combination.** The actions are ones MailFathom applies together, per [the table above](#which-combinations-a-rule-may-declare).
-- **The permissions.** Every action is one the account permits a rule to take.
+- **The destinations.** Each names a folder alias or a `role:<role>`, and each names a folder the account maps — a rule
+  filing into a folder no mapping declares has nowhere to file. Mirroring is not asked about: a mapped folder the
+  account does not mirror is resolved when the first change files into it.
+- **The combination.** The changes are ones MailFathom applies together, per [the table above](#which-combinations-a-rule-may-declare).
+- **The permissions.** Every change is one the account's `RuleActions` permits a rule to take.
 
-Every defect in every rule is reported together, so a rule set with three mistakes is fixed once rather than three
-restarts running.
-
-**An invalid rule set fails startup**, because there is no previously valid set to fall back to. What a rule claims
-about a mailbox is the exception: that an account it names is recorded, and that each account it reaches maps its
-destinations and permits its actions, are reported by a start rather than refused, for the reason
-[above](#which-accounts-a-rule-applies-to) gives. A configuration write and a reload still refuse them.
-
-## Reload, and what a bad edit does
-
-The section reloads. An edit takes effect for the next pass, and a pass already running finishes against the rule set it
-started with — the reload contract [ADR 0002](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0002-configuration-reading-mapping-and-reload-boundary.md)
-defines for every group that reaches a running operation.
-
-**An edit that does not validate is refused and logged, and the previous rule set stays in effect.** That is deliberately
-not the options framework's own behaviour, which would discard the candidate silently: a user who mistypes a fact name
-would otherwise get an instance still acting under the rules their file no longer states.
+Every defect in every rule is reported together, so a set with three mistakes is fixed in one write rather than three.
+Each names the rule by its identifier and says what is wrong, and none quotes what was written: not the rule's name, its
+condition, a folder, or a keyword, because each of those is text a person typed.
 
 ## Order, and stopping
 
-Rules are evaluated in the order they are written, skipping the ones scoped to other accounts and the ones the walk's
-trigger does not reach. That order is the whole of the contract — nothing sorts, groups, or reorders a set — so two rules that both match one email produce the same
-outcome on every run and on every instance.
+Rules are evaluated in position order, skipping the disabled ones and the ones the walk's trigger does not reach. That
+order is the whole of the contract — nothing sorts, groups, or reorders a set — so two rules that both match one email
+produce the same outcome on every run and on every replica.
 
 `StopWhenMatched` on a rule that matches ends the pass, and the rules below it are not reached. It defaults to `false`.
 A rule that does not match never stops a pass whatever it declares.
 
-**Declared order also settles what two matching rules do to one email.** Their actions are gathered in that order, and
+**Position order also settles what two matching rules do to one email.** Their actions are gathered in that order, and
 an action the ones already gathered leave no room for is **withheld** — judged by exactly the table one rule's own
 actions are judged by, so two rules naming incompatible fates settle the way one rule declaring both would have been
-refused. Two rules filing one email into different folders therefore file it into the folder the rule written first
+refused. Two rules filing one email into different folders therefore file it into the folder the rule placed first
 names; the same two rules the other way round file it the other way; and a rule deleting an email leaves nothing for a
 later rule to file. Whatever survives is then applied in the fixed order above, so a flag a later rule asked for is
 still written before an earlier rule moves the message.
@@ -679,6 +717,12 @@ message rather than leaving it to be settled this way.
 already has everything a rule pass needs — one account at a time, a slot count that stops one account starving another,
 a jittered backoff when something is wrong, and a shutdown that lets work in flight finish — so evaluation joins it
 instead of adding a second thing to configure and watch.
+
+**A pass reads its account's rules once, when it starts, and holds them to the end.** A write committed while a pass is
+running reaches the next pass and never the one running, so no pass applies half of one set and half of another. The
+compiled conditions are kept in the process by the set's version, so a pass compiles an account's rules only after a
+write changed them, and a write on another replica is noticed by the next pass there because it reads a version it has
+not seen.
 
 The step comes after every folder has synchronized and committed, after the classification pass, and outside the
 synchronization transaction entirely. Only one thing runs after it, and it runs after it because of this pass: the cut
@@ -776,15 +820,14 @@ again under the rules now in force.
 - **It runs where every other pass runs.** The request records that the run is wanted and nothing more; the work happens
   as a step of the account's synchronization run, bounded by the same two settings. Whoever asked is not what keeps it
   alive, so closing a terminal does not cancel a walk of a mailbox.
-- **A run you ask for applies the whole rule set.** Every rule the configuration declares for the account is run,
-  including the ones that declare no automatic trigger, and nothing selects a subset of them for one run. A run a
+- **A run you ask for applies the whole rule set.** Every enabled rule of the account is run, including the ones that
+  declare no automatic trigger, and nothing selects a subset of them for one run. A run a
   schedule started is the one narrower case: it applies the rules that declared a schedule, which is what they opted
   into.
-- **It is bound to one rule set.** The revision in force when the run starts is recorded with it, so a reload cannot
-  change what the run is doing halfway through. If the rules do change while a run is outstanding, the run ends as
-  **superseded** and says so, because MailFathom keeps only the rule set its configuration currently declares and
-  finishing under a different one would apply two rule sets to one mailbox. Asking again re-runs under the rules now in
-  force.
+- **It is bound to one rule set.** The revision in force when the run starts walking is recorded with it, so a write
+  cannot change what the run is doing halfway through. If the rules do change while a run is outstanding, the run ends
+  as **superseded** and says so, because finishing under a different set would apply two rule sets to one mailbox.
+  Asking again re-runs under the rules now in force.
 - **It is resumable and cancellable.** Its position is committed with each batch, so a restart or a shutdown costs at
   most the batch that was in flight, and the run finishes over as many account runs as it needs.
 
@@ -800,7 +843,8 @@ way to a request rather than answering it.
 
 ## Finding out what a rule did
 
-A rule that concluded something about a message leaves a record of it: the rule, the revision it ran under, whether the
+A rule that concluded something about a message leaves a record of it: the rule's identifier and the name it then
+had, the revision it ran under, whether the
 condition matched, the facts it read, and each change it asked for with what became of that change. `mfctl rules
 history --account <id>` reads it, narrowed to a rule with `--rule` or to a message with `--email`. That is the answer
 to both "what is this rule doing" and "why is this message here", and it is the only place either is answered — a rule
@@ -809,8 +853,8 @@ publishes nothing about itself through MCP, and a run reports counts rather than
 Three distinctions the record exists to keep:
 
 - **Reached and answered no** is recorded; **never reached** leaves nothing at all. A rule below one that ends the pass
-  is the second case, and reading it as the first is what makes a misspelled scope look like a condition that is never
-  true.
+  is the second case, and reading it as the first is what makes a rule placed below the wrong one look like a condition
+  that is never true.
 - **Could not answer** is neither of those. It is recorded as failed with its [reason](#when-a-condition-cannot-answer)
   rather than folded into a non-match.
 - **A change that was refused** is distinguishable from one **another rule had already settled**, and from a rule that
@@ -824,8 +868,9 @@ a role this account maps no folder with, an alias nothing has bound — names no
 
 **The facts are recorded by name and never by value.** That a condition read `senderDomain` is kept; what the domain
 was is not, and neither is a subject, a matched span, or any other value the message supplied. The revision recorded
-beside them is what the expression is retrievable from, so the reasoning is reconstructible without the record becoming
-a second copy of the mailbox. What a change did to the mail server is likewise not restated here: the record points at
+beside them is what the expression is retrievable from — the account's [archive](#how-a-change-is-written) keeps what
+each revision declared for as long as a record names it — so the reasoning is reconstructible without the record
+becoming a second copy of the mailbox. What a change did to the mail server is likewise not restated here: the record points at
 the mutation it opened, and [what happened to that
 mutation](imap-synchronization.md#an-account-can-keep-a-record-of-what-was-done-to-it-and-none-does-by-default) is the
 mutation's own trail to answer.
@@ -850,27 +895,31 @@ pass carries on to the rules below it — one unlucky email must not stop a rule
 
 ## The revision a pass runs under
 
-A rule set is identified by a digest over its rules, taken in declared order, rendered as twelve lowercase hexadecimal
-characters. The identity is derived rather than declared, so it cannot be left stale by an edit that forgot to bump it,
-and two instances reading the same file name the same revision.
+An account's rule set is identified by a digest over its enabled rules, taken in position order, rendered as twelve
+lowercase hexadecimal characters. The identity is derived rather than declared, so it cannot be left stale by a write
+that forgot to bump it, and every replica reading the same rows names the same revision.
 
-What moves it and what does not:
+The revision is not the version. The version counts writes, moves by one with every committed write, and is what a write
+is checked against; the revision names what the set means, and is what a run is bound to and a history record carries.
+So a rename moves the version and leaves the revision alone.
 
-- Changing a rule's name, its condition, its actions, its `StopWhenMatched`, the accounts it applies to, or the
-  triggers it takes part in moves it.
-- Adding, removing, or switching off a rule moves it.
-- Writing a rule's default triggers out in full leaves it alone, because a rule that says nothing and a rule that says
-  `[ "Arrival" ]` are the same rule.
-- Reordering the rules moves it, because declared order is part of what a rule set means.
-- Reformatting the file, reordering the keys within one rule, and changing an unrelated configuration section all leave
-  it alone.
+What moves the revision and what does not:
+
+- Changing an enabled rule's condition, its changes, whether it ends the pass, its triggers, or its schedule moves it.
+- Enabling, disabling, adding an enabled rule, or removing one moves it. A rule created disabled leaves it alone, and
+  enabling a rule unchanged after disabling it returns the set to the revision it had before.
+- Moving an enabled rule to another position moves it, because the order is part of what a set means.
+- Renaming a rule leaves it alone, because the identifier stands in for the name: a name is what a person reads, and it
+  changes nothing about which mail the rule reaches.
+- Every write to a disabled rule leaves it alone.
 
 The identity carries none of the authored text and no ordering. A record naming a revision therefore holds nothing
 personal that a condition contributed, and a record that has to say which of two revisions came first carries its own
-timestamp rather than inferring one.
+timestamp rather than inferring one. A revision means something only beside its account: two accounts holding the same
+text under different identifiers have different revisions.
 
 The revision is also half of what makes a change idempotent, so moving it has a consequence worth stating: a rule whose
-actions were edited asks afresh for mail it has already acted on, while an unchanged rule re-evaluated under the same
+changes were edited asks afresh for mail it has already acted on, while an unchanged rule re-evaluated under the same
 revision asks for nothing it has already asked for.
 
 ## Worked conditions
@@ -879,12 +928,6 @@ A single sender:
 
 ```text
 senderAddress == 'billing@supplier.test'
-```
-
-One account's mail only, which is the `Accounts` filter beside the condition rather than anything in it:
-
-```json
-{ "Name": "work-invoices", "Accounts": [ "5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10" ], "Condition": "contains(subject, 'invoice')", "Triggers": [ "Arrival" ] }
 ```
 
 Anything from a domain, in one of two folders:
@@ -957,120 +1000,99 @@ machineAuthorship == 'likely' and senderTrust == 'unknown'
 
 ## Worked rules
 
-Filing supplier invoices and marking them read, on one account, so that the rules below never see them:
+Each rule below is written the way `mfctl rules show` reports it — its condition, what runs it, and what a match does —
+and each belongs to the account it is stored on.
 
-```json
-{
-  "Name": "supplier-invoices",
-  "Accounts": [ "5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10" ],
-  "Condition": "senderDomain == 'supplier.test' and attachmentCount > 0",
-  "Triggers": [ "Arrival" ],
-  "Actions": { "MoveTo": "invoices", "MarkAsRead": true },
-  "StopWhenMatched": true
-}
+Filing supplier invoices and marking them read, so that the rules below never see them:
+
+```text
+Rule       supplier-invoices
+Condition  senderDomain == 'supplier.test' and attachmentCount > 0
+Runs on    Arrival
+A match    relocate → invoices, set-seen → read; ends the pass
 ```
 
 Keeping a copy of everything a regulator sends, without disturbing where the message itself sits or whether it has been
 read:
 
-```json
-{
-  "Name": "regulator-copies",
-  "Condition": "senderDomain == 'regulator.example'",
-  "Triggers": [ "Arrival" ],
-  "Actions": { "CopyTo": "compliance" }
-}
+```text
+Rule       regulator-copies
+Condition  senderDomain == 'regulator.example'
+Runs on    Arrival
+A match    copy → compliance
 ```
 
 Putting automated notices back in front of somebody by clearing the flag, and nothing else:
 
-```json
-{
-  "Name": "unread-alerts",
-  "Condition": "contains(subject, 'alert') and isSeen",
-  "Triggers": [ "Arrival" ],
-  "Actions": { "MarkAsRead": false }
-}
+```text
+Rule       unread-alerts
+Condition  contains(subject, 'alert') and isSeen
+Runs on    Arrival
+A match    set-seen → unread
 ```
 
 Marking mail from a handful of people for attention, leaving it exactly where it arrived:
 
-```json
-{
-  "Name": "star-the-board",
-  "Condition": "senderDomain == 'board.example'",
-  "Triggers": [ "Arrival" ],
-  "Actions": { "MarkAsFlagged": true }
-}
+```text
+Rule       star-the-board
+Condition  senderDomain == 'board.example'
+Runs on    Arrival
+A match    set-flagged
 ```
 
-Labelling mail so it can be found by tag in any mail client, without moving it out of the inbox:
+Labelling mail so it can be found by tag in any mail client, without moving it out of the inbox, with `$Invoice` and
+`$Todo` as the keywords:
 
-```json
-{
-  "Name": "label-invoices",
-  "Accounts": [ "5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10" ],
-  "Condition": "contains(subject, 'invoice') and attachmentCount > 0",
-  "Triggers": [ "Arrival" ],
-  "Actions": { "AddKeywords": [ "$Invoice", "$Todo" ] }
-}
+```text
+Rule       label-invoices
+Condition  contains(subject, 'invoice') and attachmentCount > 0
+Runs on    Arrival
+A match    add-keywords
 ```
 
-Taking a label off once the thing it stood for is over, and stating the whole set rather than adding to it:
+Taking a label off once the thing it stood for is over, by stating the whole set — `$Invoice` and `$Done` — rather than
+adding to it:
 
-```json
-{
-  "Name": "settle-invoices",
-  "Accounts": [ "5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10" ],
-  "Condition": "contains(subject, 'payment received') and ageInDays > 1",
-  "Actions": { "SetKeywords": [ "$Invoice", "$Done" ] },
-  "Triggers": []
-}
+```text
+Rule       settle-invoices
+Condition  contains(subject, 'payment received') and ageInDays > 1
+Runs on    nothing automatically; 'mfctl rules run' applies it
+A match    set-keywords
 ```
 
-Deleting mail nobody needs — which the account has to permit under `RuleActions:Delete`, and which is
-refused at startup if it does not:
+Deleting mail nobody needs — which the account has to permit under `RuleActions:Delete`, and which a write refuses if
+it does not:
 
-```json
-{
-  "Name": "drop-build-notifications",
-  "Accounts": [ "5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10" ],
-  "Condition": "senderAddress == 'builds@ci.example' and ageInDays > 7",
-  "Triggers": [ "Arrival" ],
-  "Actions": { "Delete": true }
-}
+```text
+Rule       drop-build-notifications
+Condition  senderAddress == 'builds@ci.example' and ageInDays > 7
+Runs on    Arrival
+A match    delete
 ```
 
 Quarterly housekeeping nothing fires by itself, which the user applies by asking for a whole-mailbox run:
 
-```json
-{
-  "Name": "retire-old-newsletters",
-  "Condition": "contains(subject, 'newsletter') and ageInDays > 90",
-  "Actions": { "MoveTo": "archive" },
-  "Triggers": []
-}
+```text
+Rule       retire-old-newsletters
+Condition  contains(subject, 'newsletter') and ageInDays > 90
+Runs on    nothing automatically; 'mfctl rules run' applies it
+A match    relocate → archive
 ```
 
 The same housekeeping without anybody asking, run once a night in the user's own time zone:
 
-```json
-{
-  "Name": "retire-old-newsletters-nightly",
-  "Condition": "contains(subject, 'newsletter') and ageInDays > 90",
-  "Actions": { "MoveTo": "archive" },
-  "Triggers": [ "Schedule" ],
-  "Schedule": "Daily at 03:00 Europe/Warsaw"
-}
+```text
+Rule       retire-old-newsletters-nightly
+Condition  contains(subject, 'newsletter') and ageInDays > 90
+Runs on    Schedule (daily:03:00:Europe/Warsaw)
+A match    relocate → archive
 ```
 
 Selecting mail and changing nothing, which is what a rule owning a message ahead of the rules below it looks like:
 
-```json
-{
-  "Name": "leave-family-mail-alone",
-  "Condition": "senderDomain == 'family.example'",
-  "Triggers": [ "Arrival" ],
-  "StopWhenMatched": true
-}
+```text
+Rule       leave-family-mail-alone
+Condition  senderDomain == 'family.example'
+Runs on    Arrival
+A match    nothing; ends the pass
 ```

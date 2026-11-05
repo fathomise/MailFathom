@@ -14,7 +14,18 @@ namespace MailFathom.Application.UnitTests.Rules;
 public sealed class MailRuleSetTests
 {
     private static readonly MailRuleSetRevision Revision =
-        MailRuleSetRevision.Create([new MailRuleDeclaration("rule", "isSeen", Actions: [], StopWhenMatched: false, Accounts: [], Triggers: [MailRuleTrigger.Arrival])]);
+        MailRuleSetRevision.Create(
+        [
+            new MailRuleDeclaration(
+                MailRuleIds.For("rule"),
+                "rule",
+                Enabled: true,
+                "isSeen",
+                Actions: [],
+                StopWhenMatched: false,
+                Triggers: [MailRuleTrigger.Arrival],
+                Schedule: null),
+        ]);
 
     [Fact]
     public void Create_Rules_KeepsThemInTheOrderTheyWereDeclared()
@@ -46,7 +57,7 @@ public sealed class MailRuleSetTests
         Assert.Equal(Revision, ruleSet.Revision);
     }
 
-    /// <summary>A rule is reported by its name, so two rules answering to one name could not be told apart afterwards.</summary>
+    /// <summary>A person reads a rule by its name, so two rules answering to one name could not be told apart.</summary>
     [Theory]
     [InlineData("duplicate")]
     [InlineData("DUPLICATE")]
@@ -54,7 +65,37 @@ public sealed class MailRuleSetTests
     {
         // Act, Assert
         Assert.Throws<ArgumentException>(
-            () => MailRuleSet.Create([CreateRule("duplicate"), CreateRule(secondName)], Revision, MailRuleConditionBounds.Default));
+            () => MailRuleSet.Create([CreateRule("duplicate"), CreateRule(secondName, "second")], Revision, MailRuleConditionBounds.Default));
+    }
+
+    /// <summary>A rule's identifier is what every record names it by, so two rules under one would be one rule twice.</summary>
+    [Fact]
+    public void Create_TwoRulesUnderOneIdentifier_IsRefused()
+    {
+        // Act, Assert
+        Assert.Throws<ArgumentException>(
+            () => MailRuleSet.Create([CreateRule("first", "shared"), CreateRule("second", "shared")], Revision, MailRuleConditionBounds.Default));
+    }
+
+    [Fact]
+    public void Create_RuleWithoutAnIdentifier_IsRefused()
+    {
+        // Act, Assert
+        Assert.Throws<ArgumentException>(
+            () => MailRule.Create(default, "rule", ScriptedMailRuleCondition.Answering(matches: true)));
+    }
+
+    /// <summary>A held set carries no rule a pass could run, and names the ones that hold it.</summary>
+    [Fact]
+    public void Held_RulesThatNoLongerCompile_IsHeldAndEmpty()
+    {
+        // Act
+        var ruleSet = MailRuleSet.Held(Revision, MailRuleConditionBounds.Default, [MailRuleIds.For("broken")]);
+
+        // Assert
+        Assert.True(ruleSet.IsHeld);
+        Assert.Empty(ruleSet.Rules);
+        Assert.Equal([MailRuleIds.For("broken")], ruleSet.UncompiledRules);
     }
 
     [Fact]
@@ -86,14 +127,14 @@ public sealed class MailRuleSetTests
     {
         // Act, Assert
         Assert.ThrowsAny<ArgumentException>(
-            () => MailRule.Create(name!, ScriptedMailRuleCondition.Answering(matches: true), stopWhenMatched: false));
+            () => MailRule.Create(MailRuleIds.For("rule"), name!, ScriptedMailRuleCondition.Answering(matches: true), stopWhenMatched: false));
     }
 
     [Fact]
     public void Create_RuleWithoutACondition_IsRefused()
     {
         // Act, Assert
-        Assert.Throws<ArgumentNullException>(() => MailRule.Create("rule", null!, stopWhenMatched: false));
+        Assert.Throws<ArgumentNullException>(() => MailRule.Create(MailRuleIds.For("rule"), "rule", null!, stopWhenMatched: false));
     }
 
     /// <summary>The schedule and the trigger are one declaration, so a rule carrying one without the other is refused.</summary>
@@ -102,6 +143,7 @@ public sealed class MailRuleSetTests
     {
         // Act, Assert
         Assert.Throws<ArgumentException>(() => MailRule.Create(
+            MailRuleIds.For("nightly"),
             "nightly",
             ScriptedMailRuleCondition.Answering(matches: true),
             triggers: [MailRuleTrigger.Schedule]));
@@ -116,12 +158,13 @@ public sealed class MailRuleSetTests
 
         // Act, Assert
         Assert.Throws<ArgumentException>(() => MailRule.Create(
+            MailRuleIds.For("nightly"),
             "nightly",
             ScriptedMailRuleCondition.Answering(matches: true),
             triggers: [MailRuleTrigger.Arrival],
             schedule: recurrence));
     }
 
-    private static MailRule CreateRule(string name) =>
-        MailRule.Create(name, ScriptedMailRuleCondition.Answering(matches: true), stopWhenMatched: false);
+    private static MailRule CreateRule(string name, string? identity = null) =>
+        MailRule.Create(MailRuleIds.For(identity ?? name), name, ScriptedMailRuleCondition.Answering(matches: true), stopWhenMatched: false);
 }

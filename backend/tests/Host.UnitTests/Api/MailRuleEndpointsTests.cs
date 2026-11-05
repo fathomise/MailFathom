@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Security.Cryptography;
+using System.Text;
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Jobs.Scheduling;
@@ -12,6 +14,7 @@ using MailFathom.Application.Rules.Conditions;
 using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Rules.Facts;
 using MailFathom.Application.Rules.History;
+using MailFathom.Application.Rules.Sets;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -19,9 +22,8 @@ using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
 using MailFathom.Domain.Synchronization;
 using MailFathom.Host.Api;
-using MailFathom.Host.Configuration;
-using MailFathom.Host.Configuration.Rules;
 using MailFathom.Host.UnitTests.TestDoubles;
+using MailFathom.Infrastructure.Rules;
 using MailFathom.TestSupport;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -35,12 +37,11 @@ using Xunit;
 
 namespace MailFathom.Host.UnitTests.Api;
 
-/// <summary>Covers what the rule routes answer, what they refuse, and the one thing none of them can be asked to do.</summary>
+/// <summary>Covers what the rule routes answer and what they refuse.</summary>
 /// <remarks>
-/// The absent operation is as much the contract as the present ones: configuration is where a rule is authored, so a
-/// route that wrote one would be the path around the review a configuration diff gives. What is asserted here is the
-/// three readings an operator performs, the answer that a run was already under way, and every refusal being a
-/// <c>400</c> that names what to change without echoing anything the mailbox supplied.
+/// What is asserted here is the three readings an operator performs over one account, the answer that a run was
+/// already under way, and every refusal being a <c>400</c> that names what to change without echoing anything the
+/// mailbox supplied.
 /// </remarks>
 public sealed class MailRuleEndpointsTests
 {
@@ -95,97 +96,88 @@ public sealed class MailRuleEndpointsTests
             runRoute.Metadata.GetMetadata<IRequestSizeLimitMetadata>()!.MaxRequestBodySize);
     }
 
-    /// <summary>The order is the answer as much as the rules are, and the authored condition is never part of it.</summary>
+    /// <summary>The order is the answer as much as the rules are, so disabled rules are served where they sit.</summary>
     [Fact]
-    public async Task ReadRules_ALoadedSet_ServesItInEvaluationOrderWithoutTheAuthoredCondition()
+    public async Task ReadRulesAsync_AStoredSet_ServesEveryRuleInOrderWithItsConditionAndTheVersion()
     {
         // Arrange
-        var ruleSet = RuleSetOf(
-            MailRule.Create(
-                "file-invoices",
-                ConditionReading(MailRuleFact.SenderDomain),
-                MailRuleActionSet.Create([MailRuleAction.Relocate(MailFolderReference.ToAlias(Archive))]),
-                stopWhenMatched: true),
-            MailRule.Create("mark-newsletters", ConditionReading(MailRuleFact.Subject)));
-        await using var settings = CreateSettings();
+        var fileInvoices = Declare(
+            "file-invoices",
+            "senderDomain == 'supplier.example'",
+            actions: [MailRuleAction.Relocate(MailFolderReference.ToAlias(Archive))],
+            stopWhenMatched: true);
+        var stored = new StoredMailRuleSet(Account, 7, [fileInvoices, Declare("mark-newsletters", "isSeen", enabled: false)]);
 
         // Act
-        var result = MailRuleEndpoints.ReadRules(SourceOf(ruleSet), settings);
+        var result = await this.ReadRulesAsync(stored);
 
         // Assert
-        Assert.Equal(["file-invoices", "mark-newsletters"], result.Value!.Rules.Select(rule => rule.Name));
-        Assert.Equal(ruleSet.Revision.Value, result.Value.Revision);
-        Assert.Equal(["senderDomain"], result.Value.Rules[0].ReadableFacts);
-        Assert.True(result.Value.Rules[0].StopWhenMatched);
+        var served = Assert.IsType<Ok<MailRuleSetResponse>>(result.Result).Value!;
+        Assert.Equal(["file-invoices", "mark-newsletters"], served.Rules.Select(rule => rule.Name));
+        Assert.Equal([0, 1], served.Rules.Select(rule => rule.Position));
+        Assert.Equal([true, false], served.Rules.Select(rule => rule.Enabled));
+        Assert.Equal(fileInvoices.Id.Value, served.Rules[0].Id);
+        Assert.Equal("senderDomain == 'supplier.example'", served.Rules[0].Condition);
+        Assert.Equal(7, served.Version);
+        Assert.Equal(stored.Revision.Value, served.Revision);
+        Assert.Equal(Account.Value, served.Account);
+        Assert.False(served.Held);
+        Assert.True(served.Rules[0].StopWhenMatched);
 
-        var action = Assert.Single(result.Value.Rules[0].Actions);
+        var action = Assert.Single(served.Rules[0].Actions);
         Assert.Equal(
             (0, MailboxMutation.Relocate.Name, Archive.Value),
             (action.Position, action.Mutation, action.Destination));
     }
 
-    /// <summary>
-    /// What runs a rule is part of what the rule is, and a rule nothing fires by itself is the one an operator asks
-    /// about, so the answer distinguishes it rather than leaving both looking like a rule that never matched.
-    /// </summary>
-    [Fact]
-    public async Task ReadRules_ARuleOnlyARequestedRunApplies_ReportsItAsTakingPartInNoTrigger()
-    {
-        // Arrange
-        var ruleSet = RuleSetOf(
-            MailRule.Create(
-                "file-invoices",
-                ConditionReading(MailRuleFact.SenderDomain),
-                triggers: [MailRuleTrigger.Arrival]),
-            MailRule.Create(
-                "retire-old-newsletters",
-                ConditionReading(MailRuleFact.Subject),
-                triggers: []));
-        await using var settings = CreateSettings();
-
-        // Act
-        var result = MailRuleEndpoints.ReadRules(SourceOf(ruleSet), settings);
-
-        // Assert
-        Assert.Equal(["Arrival"], result.Value!.Rules[0].Triggers);
-        Assert.Empty(result.Value.Rules[1].Triggers);
-        Assert.All(result.Value.Rules, rule => Assert.Null(rule.Schedule));
-    }
-
     /// <summary>The trigger says a schedule runs the rule and only the schedule itself says when, so both are served.</summary>
     [Fact]
-    public async Task ReadRules_AScheduledRule_ReportsTheOccasionsItDeclares()
+    public async Task ReadRulesAsync_AScheduledRule_ReportsTheOccasionsItDeclares()
     {
         // Arrange
         Assert.True(JobRecurrence.TryParse("Daily at 03:00 Europe/Warsaw", out var recurrence, out _));
-        var ruleSet = RuleSetOf(MailRule.Create(
-            "archive-old-newsletters",
-            ConditionReading(MailRuleFact.Subject),
-            triggers: [MailRuleTrigger.Schedule],
-            schedule: recurrence));
-        await using var settings = CreateSettings();
+        var stored = new StoredMailRuleSet(
+            Account,
+            1,
+            [Declare("archive-old-newsletters", "ageInDays > 30") with { Triggers = [MailRuleTrigger.Schedule], Schedule = recurrence }]);
 
         // Act
-        var result = MailRuleEndpoints.ReadRules(SourceOf(ruleSet), settings);
+        var result = await this.ReadRulesAsync(stored);
 
         // Assert
-        Assert.Equal(["Schedule"], result.Value!.Rules[0].Triggers);
-        Assert.Equal("daily:03:00:Europe/Warsaw", result.Value.Rules[0].Schedule);
+        var served = Assert.IsType<Ok<MailRuleSetResponse>>(result.Result).Value!;
+        Assert.Equal(["Schedule"], served.Rules[0].Triggers);
+        Assert.Equal("daily:03:00:Europe/Warsaw", served.Rules[0].Schedule);
     }
 
-    /// <summary>A deployment nobody has edited says its configuration is the one the running set was read from.</summary>
+    /// <summary>A held set runs none of its rules, which an operator cannot tell from rules that never match unless told.</summary>
     [Fact]
-    public async Task ReadRules_ConfigurationNothingHasRefused_ReportsTheSetAsCurrent()
+    public async Task ReadRulesAsync_AnEnabledRuleThatNoLongerCompiles_ReportsTheSetHeldNamingTheRule()
     {
         // Arrange
-        await using var settings = CreateSettings();
+        var broken = Declare("broken", "noSuchFact == 1");
+        var stored = new StoredMailRuleSet(Account, 2, [broken, Declare("fine", "isSeen")]);
 
         // Act
-        var result = MailRuleEndpoints.ReadRules(SourceOf(RuleSetOf()), settings);
+        var result = await this.ReadRulesAsync(stored);
 
         // Assert
-        Assert.True(result.Value!.ConfigurationAccepted);
-        Assert.Equal(0, result.Value.RefusedSettingCount);
+        var served = Assert.IsType<Ok<MailRuleSetResponse>>(result.Result).Value!;
+        Assert.True(served.Held);
+        Assert.Equal([broken.Id.Value], served.UncompiledRules);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("nowhere")]
+    public async Task ReadRulesAsync_AnAccountThisDeploymentDoesNotServe_IsRefused(string? account)
+    {
+        // Act
+        var result = await this.ReadRulesAsync(StoredMailRuleSet.Empty(Account), account);
+
+        // Assert
+        AssertRefused(result.Result);
     }
 
     [Fact]
@@ -563,46 +555,44 @@ public sealed class MailRuleEndpointsTests
         return catalog;
     }
 
-    private static MailRuleSetReader SourceOf(MailRuleSet ruleSet)
-    {
-        var source = Substitute.For<IMailRuleSetSource>();
-        source.Current.Returns(ruleSet);
-
-        return new MailRuleSetReader(source, AdministrativeGrant.WholeSurface);
-    }
-
-    private static MailRuleSet RuleSetOf(params MailRule[] rules) => MailRuleSet.Create(
-        rules,
-        MailRuleSetRevision.Create(
-        [
-            .. rules.Select(rule => new MailRuleDeclaration(
-                rule.Name,
-                "isSeen",
-                [.. rule.Actions.Actions],
-                rule.StopWhenMatched,
-                [.. rule.Accounts],
-                [.. rule.Triggers])),
-        ]),
-        MailRuleConditionBounds.Default);
-
-    private static IMailRuleCondition ConditionReading(params MailRuleFact[] facts)
-    {
-        var condition = Substitute.For<IMailRuleCondition>();
-        condition.ReferencedFacts.Returns(facts);
-
-        return condition;
-    }
-
-    private static ValidatedSettingsSnapshot<MailRulesOptions> CreateSettings() => new(
-        new TestOptionsMonitor<MailRulesOptions>(new MailRulesOptions()),
-        (_, _) => Task.FromResult<IReadOnlyList<string>>([]),
-        "MailRules",
-        new RecordingLogger<ValidatedSettingsSnapshot<MailRulesOptions>>());
+    private static MailRuleDeclaration Declare(
+        string name,
+        string condition,
+        bool enabled = true,
+        IReadOnlyList<MailRuleAction>? actions = null,
+        bool stopWhenMatched = false) => new(
+        MailRuleId.Create(new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(name)).AsSpan(0, 16))),
+        name,
+        enabled,
+        condition,
+        actions ?? [],
+        stopWhenMatched,
+        Triggers: [MailRuleTrigger.Arrival],
+        Schedule: null);
 
     private void ArrangePage(params MailRuleExecution[] executions) =>
         this.history
             .ReadPageAsync(Arg.Any<MailRuleExecutionQuery>(), Arg.Any<CancellationToken>())
             .Returns(new MailRuleExecutionPage(executions, NextCursor: null));
+
+    private Task<Results<Ok<MailRuleSetResponse>, ProblemHttpResult>> ReadRulesAsync(
+        StoredMailRuleSet stored,
+        string? account = "work")
+    {
+        var store = Substitute.For<IMailRuleSetStore>();
+        store.ReadAsync(stored.Account, Arg.Any<CancellationToken>()).Returns(stored);
+
+        return MailRuleEndpoints.ReadRulesAsync(
+            account,
+            CatalogServing(Account),
+            new MailRuleSetReader(
+                store,
+                new NCalcMailRuleConditionCompiler(),
+                MailRuleConditionBounds.Default,
+                AdministrativeGrant.WholeSurface),
+            AdministrativeGrant.WholeSurface,
+            TestContext.Current.CancellationToken);
+    }
 
     private Task<Results<Ok<MailRuleRunStartResponse>, ProblemHttpResult>> StartRunAsync(
         MailRuleRunRequest? request,
@@ -643,7 +633,7 @@ public sealed class MailRuleEndpointsTests
             pageSize,
             cursor,
             CatalogServing(Account),
-            new MailRuleHistory(this.history, AdministrativeGrant.WholeSurface),
+            new MailRuleHistory(this.history, Substitute.For<IMailRuleSetStore>(), AdministrativeGrant.WholeSurface),
             AdministrativeGrant.WholeSurface,
             TestContext.Current.CancellationToken);
 

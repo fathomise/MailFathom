@@ -48,6 +48,7 @@ public sealed class MailRuleReachTests
     }
 
     private static MailRule CreateRule(string name, IReadOnlyList<MailRuleTrigger>? triggers) => MailRule.Create(
+        MailRuleIds.For(name),
         name,
         ScriptedMailRuleCondition.Answering(matches: true),
         triggers: triggers);

@@ -33,9 +33,9 @@ public sealed class MailRuleExecutionComposerTests
     {
         // Arrange
         var evaluation = SetOf(
-            MailRuleEvaluation.Matched("file-invoices"),
-            MailRuleEvaluation.NotMatched("drop-notifications"),
-            MailRuleEvaluation.NotMatched("mark-newsletters"));
+            MailRuleEvaluation.Matched(MailRuleIds.For("file-invoices"), "file-invoices"),
+            MailRuleEvaluation.NotMatched(MailRuleIds.For("drop-notifications"), "drop-notifications"),
+            MailRuleEvaluation.NotMatched(MailRuleIds.For("mark-newsletters"), "mark-newsletters"));
 
         // Act
         var executions = Compose(evaluation, MailRuleActionRecording.Nothing);
@@ -44,6 +44,9 @@ public sealed class MailRuleExecutionComposerTests
         Assert.Equal(
             ["file-invoices", "drop-notifications", "mark-newsletters"],
             executions.Select(execution => execution.RuleName));
+        Assert.Equal(
+            [MailRuleIds.For("file-invoices"), MailRuleIds.For("drop-notifications"), MailRuleIds.For("mark-newsletters")],
+            executions.Select(execution => execution.RuleId.GetValueOrDefault()));
         Assert.All(executions, execution => Assert.Equal(Revision, execution.Revision));
         Assert.All(executions, execution => Assert.Equal(EvaluatedAt, execution.EvaluatedAt));
         Assert.All(executions, execution => Assert.Equal(Email, execution.StoredEmailId));
@@ -60,7 +63,7 @@ public sealed class MailRuleExecutionComposerTests
         // Arrange
         var evaluation = MailRuleSetEvaluation.Create(
             Revision,
-            [MailRuleEvaluation.Matched("file-invoices")],
+            [MailRuleEvaluation.Matched(MailRuleIds.For("file-invoices"), "file-invoices")],
             stoppedEarly: true);
 
         // Act
@@ -77,8 +80,8 @@ public sealed class MailRuleExecutionComposerTests
     {
         // Arrange
         var evaluation = SetOf(
-            MailRuleEvaluation.Failed("file-invoices", MailRuleConditionFailure.EvaluationTimedOut),
-            MailRuleEvaluation.NotMatched("drop-notifications"));
+            MailRuleEvaluation.Failed(MailRuleIds.For("file-invoices"), "file-invoices", MailRuleConditionFailure.EvaluationTimedOut),
+            MailRuleEvaluation.NotMatched(MailRuleIds.For("drop-notifications"), "drop-notifications"));
 
         // Act
         var executions = Compose(evaluation, MailRuleActionRecording.Nothing);
@@ -101,7 +104,7 @@ public sealed class MailRuleExecutionComposerTests
             []);
 
         // Act
-        var executions = Compose(SetOf(MailRuleEvaluation.Matched("file-invoices")), recording);
+        var executions = Compose(SetOf(MailRuleEvaluation.Matched(MailRuleIds.For("file-invoices"), "file-invoices")), recording);
 
         // Assert
         var action = Assert.Single(executions[0].Actions);
@@ -128,7 +131,7 @@ public sealed class MailRuleExecutionComposerTests
             ]);
 
         // Act
-        var executions = Compose(SetOf(MailRuleEvaluation.Matched("file-invoices")), recording);
+        var executions = Compose(SetOf(MailRuleEvaluation.Matched(MailRuleIds.For("file-invoices"), "file-invoices")), recording);
 
         // Assert
         var action = Assert.Single(executions[0].Actions);
@@ -154,7 +157,7 @@ public sealed class MailRuleExecutionComposerTests
             ]);
 
         // Act
-        var executions = Compose(SetOf(MailRuleEvaluation.Matched("file-invoices")), recording);
+        var executions = Compose(SetOf(MailRuleEvaluation.Matched(MailRuleIds.For("file-invoices"), "file-invoices")), recording);
 
         // Assert
         var action = Assert.Single(executions[0].Actions);
@@ -174,7 +177,7 @@ public sealed class MailRuleExecutionComposerTests
 
         var evaluation = MailRuleSetEvaluation.Create(
             Revision,
-            [MailRuleEvaluation.Matched("file-invoices"), MailRuleEvaluation.Matched("file-junk")],
+            [MailRuleEvaluation.Matched(MailRuleIds.For("file-invoices"), "file-invoices"), MailRuleEvaluation.Matched(MailRuleIds.For("file-junk"), "file-junk")],
             stoppedEarly: false,
             plan);
 
@@ -200,7 +203,7 @@ public sealed class MailRuleExecutionComposerTests
 
         var evaluation = MailRuleSetEvaluation.Create(
             Revision,
-            [MailRuleEvaluation.Matched("file-invoices"), MailRuleEvaluation.Matched("file-everything")],
+            [MailRuleEvaluation.Matched(MailRuleIds.For("file-invoices"), "file-invoices"), MailRuleEvaluation.Matched(MailRuleIds.For("file-everything"), "file-everything")],
             stoppedEarly: false,
             plan);
 
@@ -244,7 +247,7 @@ public sealed class MailRuleExecutionComposerTests
 
         var evaluation = MailRuleSetEvaluation.Create(
             Revision,
-            [MailRuleEvaluation.Matched("file-everything"), MailRuleEvaluation.Matched("file-invoices")],
+            [MailRuleEvaluation.Matched(MailRuleIds.For("file-everything"), "file-everything"), MailRuleEvaluation.Matched(MailRuleIds.For("file-invoices"), "file-invoices")],
             stoppedEarly: false,
             plan);
 
@@ -280,8 +283,8 @@ public sealed class MailRuleExecutionComposerTests
             []);
 
         var evaluation = SetOf(
-            MailRuleEvaluation.Matched("file-invoices"),
-            MailRuleEvaluation.NotMatched("drop-notifications"));
+            MailRuleEvaluation.Matched(MailRuleIds.For("file-invoices"), "file-invoices"),
+            MailRuleEvaluation.NotMatched(MailRuleIds.For("drop-notifications"), "drop-notifications"));
 
         // Act
         var executions = Compose(evaluation, recording);
@@ -300,7 +303,7 @@ public sealed class MailRuleExecutionComposerTests
         var executions = MailRuleExecutionComposer.Compose(
             Account,
             Email,
-            SetOf(MailRuleEvaluation.Matched("file-invoices")),
+            SetOf(MailRuleEvaluation.Matched(MailRuleIds.For("file-invoices"), "file-invoices")),
             trigger,
             MailRuleActionRecording.Nothing,
             EvaluatedAt);
@@ -318,8 +321,7 @@ public sealed class MailRuleExecutionComposerTests
     public void Compose_AConditionThatReadFacts_RecordsTheirNamesAndNothingTheyResolvedTo()
     {
         // Arrange
-        var evaluation = SetOf(MailRuleEvaluation.Matched(
-            "file-invoices",
+        var evaluation = SetOf(MailRuleEvaluation.Matched(MailRuleIds.For("file-invoices"), "file-invoices",
             [MailRuleFact.SenderDomain, MailRuleFact.AttachmentCount],
             TimeSpan.FromMilliseconds(7)));
 
@@ -348,6 +350,7 @@ public sealed class MailRuleExecutionComposerTests
             typeof(MailAccountId),
             typeof(MailAccountId),
             typeof(StoredEmailId),
+            typeof(MailRuleId?),
             typeof(MailRuleSetRevision),
             typeof(MailRuleExecutionTrigger),
             typeof(MailRuleOutcome),
@@ -386,6 +389,7 @@ public sealed class MailRuleExecutionComposerTests
         MailRuleSetEvaluation.Create(Revision, evaluations, stoppedEarly: false);
 
     private static MailRule RuleNamed(string name, params MailRuleAction[] actions) => MailRule.Create(
+        MailRuleIds.For(name),
         name,
         ScriptedMailRuleCondition.Answering(matches: true),
         MailRuleActionSet.Create(actions));

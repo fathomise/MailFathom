@@ -269,7 +269,7 @@ public sealed class MailRuleActionRecorder
         List<MailRuleActionFailure> failures)
     {
         var action = planned.Action;
-        var requester = MailboxMutationRequester.Rule(planned.RuleName, revision.Value);
+        var requester = MailboxMutationRequester.Rule(planned.RuleId.ToString(), revision.Value);
 
         if (action.DesiredSeenState is { } isSeen)
         {

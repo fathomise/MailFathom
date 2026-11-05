@@ -742,19 +742,27 @@ internal sealed class AdminApiClient
             CliJsonContext.Default.ContentReleaseReport,
             cancellationToken);
 
-    /// <summary>Asks the deployment which mail rules it has loaded.</summary>
+    /// <summary>Asks the deployment for one mail account's stored rules.</summary>
     /// <param name="token">The bearer credential to present.</param>
+    /// <param name="account">The account whose rules are read.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
-    /// <returns>The rule set in force, and whether the configuration on disk is the one it was read from.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="token" /> is <see langword="null" />.</exception>
-    /// <exception cref="CliFailure">Thrown when the deployment refused the credential, could not be reached, or answered with something that is not a rule set.</exception>
-    internal Task<LoadedRuleSet> ReadRulesAsync(string token, CancellationToken cancellationToken) =>
-        this.RequestAsync(
+    /// <returns>The account's rules, the set's version and revision, and whether it is held.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment refused the request or the credential, could not be reached, or answered with something that is not a rule set.</exception>
+    internal Task<LoadedRuleSet> ReadRulesAsync(
+        string token,
+        string account,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+
+        return this.RequestAsync(
             HttpMethod.Get,
-            AdminEndpointRoutes.RulesPath,
+            $"{AdminEndpointRoutes.RulesPath}?account={Uri.EscapeDataString(account)}",
             token,
             CliJsonContext.Default.LoadedRuleSet,
             cancellationToken);
+    }
 
     /// <summary>Asks the deployment to run one account's rules over every message it holds for that account.</summary>
     /// <param name="token">The bearer credential to present.</param>

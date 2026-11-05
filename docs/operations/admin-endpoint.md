@@ -294,7 +294,7 @@ Over organization 0198f0aa-… it is granted mailfathom.admin.read, mailfathom.a
 
 **Some operations are the deployment's alone**, and a grant below the deployment never reaches them whatever else does:
 the configuration reads and writes under `/api/admin/configuration`, the embedding routes under `/api/admin/embeddings`,
-the loaded rules, the stopped jobs naming no account, the outbox's summary and listing, the content move and the release
+the stopped jobs naming no account, the outbox's summary and listing, the content move and the release
 of what it left behind, creating and deleting an organization, changing its short name, rotating and revoking its
 [signing key](organization-signing-keys.md), and defining a role.
 [What only the deployment scope grants](permissions.md#what-only-the-deployment-scope-grants) lists them per
@@ -433,7 +433,7 @@ These routes accept a grant held at any of the three, and check it against the t
 | --- | --- |
 | `GET /api/admin/mailbox/mutations/audit` | The mail account `account` names |
 | `GET /api/admin/answering/audit` | The mail account `account` names |
-| `GET /api/admin/rules/history` | The mail account `account` names |
+| `GET /api/admin/rules`, `GET /api/admin/rules/history` | The mail account `account` names |
 | `GET /api/admin/spam/classifications` | The mail account `account` names |
 | `GET /api/admin/outbox/{id}` | The mail account the message was queued from |
 | `GET /api/admin/contacts`, `GET /api/admin/contacts/by-address`, `GET /api/admin/contacts/{id}`, `GET /api/admin/contacts/{id}/export` | The user `user` names, and each mail account whose collected book that user reads |
@@ -610,7 +610,7 @@ and a request with none is refused as any other.
 | `GET /api/admin/embeddings/activation` | `mailfathom.admin.read` | Reports what activating the declared model would do and what it would cost, writing nothing. |
 | `POST /api/admin/embeddings/activation` | `mailfathom.admin.spend` | Takes up the declared model and begins embedding under it. **This is the one route that starts a provider bill.** |
 | `POST /api/admin/embeddings/reindex/cancellation` | `mailfathom.admin.operate` | Stops the reindex under way, leaving the generation that is serving where it is. |
-| `GET /api/admin/rules` | `mailfathom.admin.read` | Reports the [mail rules](../features/mail-rules.md) this deployment has loaded, in the order they run, and whether the configuration as it now stands is the one they were read from. |
+| `GET /api/admin/rules` | `mailfathom.admin.read` | Reports one account's stored [mail rules](../features/mail-rules.md), disabled ones included, in the order they run, with the set's version and revision and whether the set is held. |
 | `POST /api/admin/rules/runs` | `mailfathom.admin.operate` | Asks for one account's rules to be run over every message already stored for it, and answers with the run already under way where there is one. |
 | `GET /api/admin/rules/runs` | `mailfathom.admin.read` | Reports where that run has got to, or how the last one ended. |
 | `GET /api/admin/rules/history` | `mailfathom.admin.audit.read` | Reads one account's record of what its rules concluded and what those conclusions asked for. |
@@ -1078,41 +1078,76 @@ identifier are the whole of it.
 
 ### Reading the rules, running them, and finding out what they did
 
-Five commands, and none of *them* writes a rule: they run the rules and read what the rules concluded, and none of
-them creates, edits, enables, disables, or deletes one. A rule is authored in configuration, where an edit is
-reviewable in a diff before it reaches a mailbox, and that remains where a rule belongs — but `mfctl config` reaches
-those settings like any other, so `mfctl config set MailRules:Rules:1:Enabled false` is a change an operator can make
-without a restart and without a diff. [`MailRules`](configuration-mail.md#mailrules) is the section they are declared
-in, [mail rules](../features/mail-rules.md) is the whole authoring surface, and [reading and changing the
-configuration](#reading-and-changing-the-deployments-own-configuration) is what a persisted change is.
+Five commands, and none of them writes a rule: they read an account's rules, run them, and read what they
+concluded, and none of them creates, edits, enables, disables, moves, or deletes one. A mail account's rules are stored
+in the database beside the account rather than declared in configuration, and every change to them is one versioned,
+validated, archived write — [an account's rules](../features/mail-rules.md#an-accounts-rules) and [how a change is
+written](../features/mail-rules.md#how-a-change-is-written) hold both. [Mail rules](../features/mail-rules.md) is the
+whole authoring surface, and [`MailRules`](configuration-mail.md#mailrules) holds the limits every account's rules are
+read under.
 
-**`mfctl rules list` is the command to run after editing rules.** A reload whose rules do not validate is refused and
-leaves the previous set running, which reaches the deployment's log and nothing else — so an edited file and an
-unchanged deployment read identically until this is asked:
+**`mfctl rules list --account <id>` reports one account's rules, in the order they run.** Every rule the account
+stores is listed, disabled ones included, and the line above the table says whether a pass runs them at all:
 
 ```console
-$ mfctl rules list
-production — rule set a1b2c3d4e5f6
-Configuration: accepted. What is running is what the file says.
+$ mfctl rules list --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10
+5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 — rule set a1b2c3d4e5f6, version 7
+Running: every enabled rule below is applied.
 
-Rule                     Applies to     Runs on                                              A match
-file-invoices            work           Arrival                                              relocate → archive; ends the pass
-retire-old-newsletters   every account  nothing automatically; 'mfctl rules run' applies it  setSeen → read
-archive-old-newsletters  every account  Schedule (daily:03:00:Europe/Warsaw)                 relocate → archive
+Rule                     State     Runs on                                              A match
+file-invoices            enabled   Arrival                                              relocate → archive; ends the pass
+retire-old-newsletters   enabled   nothing automatically; 'mfctl rules run' applies it  setSeen → read
+archive-old-newsletters  disabled  Schedule (daily:03:00:Europe/Warsaw)                 relocate → archive
 ```
 
 The order is the answer as much as the rules are: which rule reaches a message first is a property of the set, and a
-rule above another that ends the pass is why the one below it never runs. `mfctl rules show <name>` reports one rule in
-full, including the facts its condition can read. Neither prints the condition an operator wrote — a compiled rule
-carries no text, which is what keeps an address somebody typed into a condition out of every record naming the rule.
+rule above another that ends the pass is why the one below it never runs. The **version** counts the writes the set
+has taken, and is what a write states it read; the **revision** names what the enabled rules mean, and is what every
+recorded execution names — [the revision a pass runs
+under](../features/mail-rules.md#the-revision-a-pass-runs-under) says what moves each. An account with no rules says
+`This account has no rules, so nothing is applied to its mail.` in place of the table.
 
-`Runs on` is the [triggers](../features/mail-rules.md#which-triggers-run-a-rule) the rule declares, and the second
-rule above is what a rule naming none reads as — whether it writes `"Triggers": []` or leaves the key out, which say
-the same thing. Such a rule is bound, validated, and applied by a whole-mailbox run like any other, and no arriving
-message reaches it — so the wording says what does run it rather than reporting an empty list, because a rule nothing
-fires by itself and a rule that never matches look identical in a history that records neither. A rule declaring
-`Schedule` names its occasions beside the trigger, in the canonical form the deployment read them as — which is how an
-operator tells a schedule that was accepted as written from one they meant to write.
+**A held set says so before anything else.** When an enabled rule no longer compiles — a condition limit was
+tightened, or a release withdrew a fact it read — no pass runs any of the account's rules, and the line names the
+rules holding it by identifier:
+
+```console
+Held: no pass runs these rules, because 0199c3d0-0000-7000-8000-00000000000a no longer compile. Change or remove those rules to release the set.
+```
+
+[A held rule set](../features/mail-rules.md#a-held-rule-set) says why the set is held whole rather than run without
+those rules, and what releases it.
+
+**`mfctl rules show <name> --account <id>` reports one rule in full**, including the condition as it was written,
+its identifier, its position, and whether it is enabled:
+
+```console
+$ mfctl rules show file-invoices --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10
+Rule       file-invoices (0199c3d0-0000-7000-8000-000000000001)
+State      enabled, position 0
+Rule set   a1b2c3d4e5f6, version 7
+Condition  senderDomain == 'supplier.test' and attachmentCount > 0
+Runs on    Arrival
+A match    relocate → archive; ends the pass
+```
+
+The name is matched ignoring case, because a name is unique within an account without regard to it; a name the account
+has no rule under is answered with `<id> has no rule named '<name>'.` and the `mfctl rules list` command that names
+the ones it has. The condition is printed because an administrator reading the account's rules is reading what its
+owner wrote, and the database is the one place that text is kept — every record *naming* a rule names it by its
+identifier and revision instead, so no log line, metric, or execution carries the condition.
+
+`Runs on` is the [triggers](../features/mail-rules.md#which-triggers-run-a-rule) the rule declares, and the second rule
+above is what a rule naming none reads as. Such a rule is stored, validated, and applied by a whole-mailbox run like any
+other, and no arriving message reaches it — so the wording says what does run it rather than reporting an empty list,
+because a rule nothing fires by itself and a rule that never matches look identical in a history that records neither.
+A rule declaring `Schedule` names its occasions beside the trigger, in the canonical form the deployment read them as —
+which is how an operator tells a schedule that was accepted as written from one they meant to write.
+
+`GET /api/admin/rules?account=<id>` is what both commands read. It requires `account`, refuses one this deployment
+does not serve with a `400`, and answers `account`, `version`, `revision`, `held`, `uncompiledRules` — the identifiers
+holding the set, empty when it runs — and `rules`, each with its `id`, `position`, `name`, `enabled`, `condition`,
+`actions`, `stopWhenMatched`, `triggers`, and `schedule`.
 
 **`mfctl rules run --account <id>` applies the rules to mail that arrived before them.** It returns as soon as the
 deployment has written the request down and never waits for the walk; the pass is a step of the account's
@@ -1154,20 +1189,24 @@ another rule had already settled the message's fate.
 
 **The facts are names and never values.** `senderDomain` says the condition read the sender's domain; what that domain
 was is not recorded, and neither is a subject, a matched span, or any other value the mailbox supplied. What the
-condition compared is retrievable from the rule set revision printed beside it, which identifies the configuration the
-expression was read from — so the reasoning is reconstructible without the record becoming a second copy of the
-mailbox. The same holds for what the run asked for: the record points at the mutation it opened rather than restating
+condition compared is retrievable from the rule set revision printed beside it, which the account's archive of
+committed rule sets resolves to the rules that revision declared — so the reasoning is reconstructible after the rule
+was edited or removed, without the record becoming a second copy of the mailbox. Each entry of
+`GET /api/admin/rules/history` carries the rule's `ruleId` beside its name, so a rule renamed since keeps one
+identity across its history. The same holds for what the run asked for: the record points at the mutation it opened rather than restating
 what happened on the server, which [the mutation
 trail](../features/imap-synchronization.md#an-account-can-keep-a-record-of-what-was-done-to-it-and-none-does-by-default)
 answers.
 
 The history is held for [`MailRules:HistoryRetention`](configuration-mail.md#mailrules) and is erased with the mail
-it describes, whichever comes first. Nothing any of these four routes answers with is mail: rule names, folder aliases,
-special-use roles, mutation names, fact names, counts, instants, and identifiers are the whole of it.
+it describes, whichever comes first. Nothing the three run and history routes answer with is mail: rule names, folder
+aliases, special-use roles, mutation names, fact names, counts, instants, and identifiers are the whole of it. The
+rules route answers a condition as its author wrote it, which can carry an address, and is read under
+`mailfathom.admin.read` over the account for that reason.
 
 Both views call the folder `destination`, and each answers it to the depth its own reader can use. A **declared**
 rule's action carries the text the rule wrote — an alias, or a role as `role:Junk` — because that view answers *what
-does this deployment's configuration say*. A **history** entry carries the alias the run resolved to, because that view
+does this account's rule say*. A **history** entry carries the alias the run resolved to, because that view
 answers *what happened to this message*. An action the run never requested — refused, or withheld because another rule
 had already settled the message — carries what the rule wrote instead, since a role that reached no folder has no alias
 to name and the rule's own words are what an operator has to correct.

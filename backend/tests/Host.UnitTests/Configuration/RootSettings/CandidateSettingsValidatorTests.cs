@@ -6,8 +6,6 @@ using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Host.Configuration.RootSettings;
 using MailFathom.Host.UnitTests.TestDoubles;
-using MailFathom.Infrastructure.Persistence.Users;
-using MailFathom.Infrastructure.Persistence.Users.AccountSettings;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 
@@ -21,19 +19,15 @@ namespace MailFathom.Host.UnitTests.Configuration.RootSettings;
 /// </summary>
 public sealed class CandidateSettingsValidatorTests
 {
-    private static readonly Guid ServedAccount = new("0199a0c0-0000-7000-8000-00000000000a");
-
-    private static readonly Guid UnservedAccount = new("0199a0c0-0000-7000-8000-00000000000b");
-
     /// <summary>A configuration naming nothing is what a deployment that configured nothing runs, so it is usable.</summary>
     [Fact]
-    public async Task FindErrorsAsync_AConfigurationNamingNothing_FindsNothing()
+    public void FindErrors_AConfigurationNamingNothing_FindsNothing()
     {
         // Arrange
         var validator = Validator();
 
         // Act
-        var errors = await validator.FindErrorsAsync(Compose(new()), TestContext.Current.CancellationToken);
+        var errors = validator.FindErrors(Compose(new()));
 
         // Assert
         Assert.Empty(errors);
@@ -41,13 +35,13 @@ public sealed class CandidateSettingsValidatorTests
 
     /// <summary>A property no section defines is refused by the strict binding, and the message names the key.</summary>
     [Fact]
-    public async Task FindErrorsAsync_APropertyNoSectionDefines_NamesIt()
+    public void FindErrors_APropertyNoSectionDefines_NamesIt()
     {
         // Arrange
         var validator = Validator();
 
         // Act
-        var errors = await validator.FindErrorsAsync(Compose(new() { ["MailboxSearch:SnippetsPerEmails"] = "3" }), TestContext.Current.CancellationToken);
+        var errors = validator.FindErrors(Compose(new() { ["MailboxSearch:SnippetsPerEmails"] = "3" }));
 
         // Assert
         Assert.Contains(errors, error => error.Contains("SnippetsPerEmails", StringComparison.Ordinal));
@@ -55,13 +49,13 @@ public sealed class CandidateSettingsValidatorTests
 
     /// <summary>A value outside the range its data annotation states is refused.</summary>
     [Fact]
-    public async Task FindErrorsAsync_AValueOutsideItsRange_NamesTheSetting()
+    public void FindErrors_AValueOutsideItsRange_NamesTheSetting()
     {
         // Arrange
         var validator = Validator();
 
         // Act
-        var errors = await validator.FindErrorsAsync(Compose(new() { ["MailboxSearch:SnippetsPerEmail"] = "-1" }), TestContext.Current.CancellationToken);
+        var errors = validator.FindErrors(Compose(new() { ["MailboxSearch:SnippetsPerEmail"] = "-1" }));
 
         // Assert
         Assert.Contains(errors, error => error.Contains("SnippetsPerEmail", StringComparison.Ordinal));
@@ -72,13 +66,13 @@ public sealed class CandidateSettingsValidatorTests
     /// container constructs that one too — with the detectors this deployment registered rather than with none.
     /// </summary>
     [Fact]
-    public async Task FindErrorsAsync_AScannerNoRegisteredDetectorServes_NamesIt()
+    public void FindErrors_AScannerNoRegisteredDetectorServes_NamesIt()
     {
         // Arrange
         var validator = Validator();
 
         // Act
-        var errors = await validator.FindErrorsAsync(Compose(new() { ["SensitiveContent:Secrets:Enabled"] = "true" }), TestContext.Current.CancellationToken);
+        var errors = validator.FindErrors(Compose(new() { ["SensitiveContent:Secrets:Enabled"] = "true" }));
 
         // Assert
         Assert.Contains(errors, error => error.Contains("no detector", StringComparison.Ordinal));
@@ -86,7 +80,7 @@ public sealed class CandidateSettingsValidatorTests
 
     /// <summary>The same scanner is usable where a detector serves it, so the rule reads the catalogs it was given.</summary>
     [Fact]
-    public async Task FindErrorsAsync_AScannerARegisteredDetectorServes_FindsNothing()
+    public void FindErrors_AScannerARegisteredDetectorServes_FindsNothing()
     {
         // Arrange
         var validator = Validator(new StubSensitiveContentCatalog(
@@ -94,7 +88,7 @@ public sealed class CandidateSettingsValidatorTests
             [StubSensitiveContentCatalog.Declare("Credentials", detectedByDefault: true, "ApiKey")]));
 
         // Act
-        var errors = await validator.FindErrorsAsync(Compose(new() { ["SensitiveContent:Secrets:Enabled"] = "true" }), TestContext.Current.CancellationToken);
+        var errors = validator.FindErrors(Compose(new() { ["SensitiveContent:Secrets:Enabled"] = "true" }));
 
         // Assert
         Assert.Empty(errors);
@@ -106,19 +100,18 @@ public sealed class CandidateSettingsValidatorTests
     /// aggregate rather than as one.
     /// </summary>
     [Fact]
-    public async Task FindErrorsAsync_ACandidateTwoBoundSectionsBothRefuse_NamesBoth()
+    public void FindErrors_ACandidateTwoBoundSectionsBothRefuse_NamesBoth()
     {
         // Arrange
         var validator = Validator();
 
         // Act
-        var errors = await validator.FindErrorsAsync(
+        var errors = validator.FindErrors(
             Compose(new()
             {
                 ["MailboxSearch:SnippetsPerEmail"] = "-1",
                 ["MailSynchronization:MaxConcurrentAccounts"] = "0",
-            }),
-            TestContext.Current.CancellationToken);
+            }));
 
         // Assert
         Assert.Contains(errors, error => error.Contains("SnippetsPerEmail", StringComparison.Ordinal));
@@ -130,47 +123,45 @@ public sealed class CandidateSettingsValidatorTests
     /// the process would hold a socket and serve nothing on it, and no options validator can reach that.
     /// </summary>
     [Fact]
-    public async Task FindErrorsAsync_ACandidateThatWouldServeNothing_NamesTheSurfaces()
+    public void FindErrors_ACandidateThatWouldServeNothing_NamesTheSurfaces()
     {
         // Arrange
         var validator = Validator();
 
         // Act
-        var errors = await validator.FindErrorsAsync(
+        var errors = validator.FindErrors(
             Compose(new()
             {
                 ["McpEndpoint:Enabled"] = "false",
                 ["AdminEndpoint:Enabled"] = "false",
                 ["ClientEndpoint:Enabled"] = "false",
                 ["HealthEndpoints:Enabled"] = "false",
-            }),
-            TestContext.Current.CancellationToken);
+            }));
 
         // Assert
         Assert.Contains(errors, error => error.Contains("No network surface is enabled", StringComparison.Ordinal));
     }
 
     /// <summary>
-    /// A rule condition the compiler refuses is refused here too, for the same reason: the declaration gate runs while
-    /// the host is composing itself, so a write that escaped it would commit and stop the next start.
+    /// The rules the section once declared are kept per mail account now and nothing reads them here, so a candidate
+    /// still carrying one — however unreadable — is not refused for it, exactly as a start is not.
     /// </summary>
     [Fact]
-    public async Task FindErrorsAsync_ARuleConditionThatWillNotCompile_NamesTheRule()
+    public void FindErrors_ASectionStillDeclaringRules_FindsNothingAboutThem()
     {
         // Arrange
         var validator = Validator();
 
         // Act
-        var errors = await validator.FindErrorsAsync(
+        var errors = validator.FindErrors(
             Compose(new()
             {
                 ["MailRules:Rules:0:Name"] = "unreadable",
                 ["MailRules:Rules:0:Condition"] = "NoSuchFact == (",
-            }),
-            TestContext.Current.CancellationToken);
+            }));
 
         // Assert
-        Assert.Contains(errors, error => error.Contains("MailRules:Rules", StringComparison.Ordinal));
+        Assert.DoesNotContain(errors, error => error.Contains("MailRules", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -180,21 +171,20 @@ public sealed class CandidateSettingsValidatorTests
     /// anyway would collide on the empty key and leave this port raising rather than refusing.
     /// </summary>
     [Fact]
-    public async Task FindErrorsAsync_TwoHttpsProfilesTheSectionAlreadyRefuses_IsAnErrorRatherThanAnException()
+    public void FindErrors_TwoHttpsProfilesTheSectionAlreadyRefuses_IsAnErrorRatherThanAnException()
     {
         // Arrange
         var validator = Validator();
 
         // Act
-        var errors = await validator.FindErrorsAsync(
+        var errors = validator.FindErrors(
             Compose(new()
             {
                 ["McpEndpoint:Enabled"] = "true",
                 ["McpEndpoint:Transport"] = "HttpAndHttps",
                 ["McpEndpoint:Https:Endpoints:0:Port"] = "8443",
                 ["McpEndpoint:Https:Endpoints:1:Port"] = "8444",
-            }),
-            TestContext.Current.CancellationToken);
+            }));
 
         // Assert
         Assert.Contains(errors, error => error.Contains("McpEndpoint:Https:Endpoints", StringComparison.Ordinal));
@@ -207,47 +197,44 @@ public sealed class CandidateSettingsValidatorTests
     /// is what has to take that refusal for a candidate.
     /// </summary>
     [Fact]
-    public async Task FindErrorsAsync_AnUnknownKeyInTheChatSection_IsRefused()
+    public void FindErrors_AnUnknownKeyInTheChatSection_IsRefused()
     {
         // Arrange
         var validator = Validator();
 
         // Act
-        var errors = await validator.FindErrorsAsync(
+        var errors = validator.FindErrors(
             Compose(new()
             {
                 ["Chat:ModelName"] = "gpt-4o-mini",
-            }),
-            TestContext.Current.CancellationToken);
+            }));
 
         // Assert
         Assert.Contains(errors, error => error.Contains("ModelName", StringComparison.Ordinal));
     }
 
     /// <summary>
-    /// A start reads the mail rules before it reads the providers, so a candidate faulty in both is refused for the
-    /// rule first. The provider reading raises rather than returning where a key is misspelled, and the refusal a start
-    /// would have reported is what has to survive that — otherwise a write answers the same candidate with the second
-    /// of its two mistakes while a start answers with the first.
+    /// A start reads the withdrawn user sections before it reads the providers, so a candidate faulty in both is refused
+    /// for the withdrawn section first. The provider reading raises rather than returning where a key is misspelled, and
+    /// the refusal a start would have reported is what has to survive that — otherwise a write answers the same
+    /// candidate with the second of its two mistakes while a start answers with the first.
     /// </summary>
     [Fact]
-    public async Task FindErrorsAsync_AMailRuleThatWillNotCompileBesideAnUnknownChatKey_KeepsTheRuleRefusal()
+    public void FindErrors_AWithdrawnUserSectionBesideAnUnknownChatKey_KeepsTheEarlierRefusal()
     {
         // Arrange
         var validator = Validator();
 
         // Act
-        var errors = await validator.FindErrorsAsync(
+        var errors = validator.FindErrors(
             Compose(new()
             {
-                ["MailRules:Rules:0:Name"] = "unreadable",
-                ["MailRules:Rules:0:Condition"] = "NoSuchFact == (",
+                ["Accounts:0:Name"] = "alex",
                 ["Chat:ModelName"] = "gpt-4o-mini",
-            }),
-            TestContext.Current.CancellationToken);
+            }));
 
         // Assert
-        Assert.Contains(errors, error => error.Contains("MailRules:Rules", StringComparison.Ordinal));
+        Assert.Contains(errors, error => error.Contains("Accounts is no longer read", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -256,77 +243,24 @@ public sealed class CandidateSettingsValidatorTests
     /// as a value a validator refuses — so it comes back as an error rather than as an exception the write raises.
     /// </summary>
     [Fact]
-    public async Task FindErrorsAsync_AResilienceSectionNamingNoDependencyClass_IsAnErrorRatherThanAnException()
+    public void FindErrors_AResilienceSectionNamingNoDependencyClass_IsAnErrorRatherThanAnException()
     {
         // Arrange
         var validator = Validator();
 
         // Act
-        var errors = await validator.FindErrorsAsync(
+        var errors = validator.FindErrors(
             Compose(new()
             {
                 ["Resilience:EmailDelivry:MaxAttempts"] = "3",
-            }),
-            TestContext.Current.CancellationToken);
+            }));
 
         // Assert
         Assert.Contains(errors, error => error.Contains("EmailDelivry", StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// A rule scoped to a mailbox no served record holds is refused by the write rather than committed as a rule set
-    /// the reload would then refuse to apply, which is what judging it against the account records buys.
-    /// </summary>
-    [Fact]
-    public async Task FindErrorsAsync_ARuleScopedToAMailboxNoServedRecordHolds_NamesTheMailbox()
-    {
-        // Arrange
-        var validator = new CandidateSettingsValidator([], RecordsHolding(ServedAccount));
-
-        // Act
-        var errors = await validator.FindErrorsAsync(RuleScopedTo(UnservedAccount), TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Contains(
-            errors,
-            error => error.Contains($"mail account named '{UnservedAccount:D}'", StringComparison.Ordinal));
-    }
-
-    /// <summary>
-    /// The control for the refusal above: a rule scoped to a mailbox a served record holds is written, so the records'
-    /// mailboxes reach the judgement rather than an empty set that would refuse every scoped rule.
-    /// </summary>
-    [Fact]
-    public async Task FindErrorsAsync_ARuleScopedToAMailboxAServedRecordHolds_FindsNothingAboutTheMailbox()
-    {
-        // Arrange
-        var validator = new CandidateSettingsValidator([], RecordsHolding(ServedAccount));
-
-        // Act
-        var errors = await validator.FindErrorsAsync(RuleScopedTo(ServedAccount), TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.DoesNotContain(errors, error => error.Contains($"'{ServedAccount:D}'", StringComparison.Ordinal));
-    }
-
     private static CandidateSettingsValidator Validator(params ISensitiveContentCatalog[] catalogs) =>
-        new(catalogs, ServedMailAccountReaders.HoldingNothing());
-
-    /// <summary>Serves one record per identifier a test names, each with a document that binds.</summary>
-    private static IServedMailAccountReader RecordsHolding(params Guid[] accountIds) =>
-        ServedMailAccountReaders.Holding(
-        [
-            .. accountIds.Select(accountId => new MailAccountRecord(accountId, "alex@example.test", "Alex at work", ServableMailAccountDocuments.Completing("{}"), Version: 1)),
-        ]);
-
-    /// <summary>A candidate declaring one rule, scoped to the mailbox identifier a test names.</summary>
-    private static IConfiguration RuleScopedTo(Guid accountId) =>
-        Compose(new()
-        {
-            ["MailRules:Rules:0:Name"] = "file-invoices",
-            ["MailRules:Rules:0:Condition"] = "isSeen",
-            ["MailRules:Rules:0:Accounts:0"] = accountId.ToString("D"),
-        });
+        new(catalogs);
 
     private static IConfiguration Compose(Dictionary<string, string?> settings) =>
         new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
