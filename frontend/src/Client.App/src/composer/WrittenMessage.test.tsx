@@ -225,7 +225,7 @@ describe('WrittenMessage, the formatting bar', () => {
         expect(acts()).toEqual([{ command, argument }]);
     });
 
-    it('draws the design’s nine controls in the design’s own order', () => {
+    it('draws the design’s controls in the design’s own order, each named for the choice it holds', () => {
         drawWords();
 
         const named = screen
@@ -238,6 +238,9 @@ describe('WrittenMessage, the formatting bar', () => {
             'Italic',
             'Underline',
             'Strikethrough',
+            'Text colour - Automatic',
+            'Text size - Normal',
+            'Alignment - Align left',
             'Bulleted list',
             'Numbered list',
             'Quote',
@@ -315,11 +318,158 @@ describe('WrittenMessage, the formatting bar', () => {
     });
 });
 
+describe('WrittenMessage, the colour, size, and alignment menus', () => {
+    function choose(name: string): void {
+        fireEvent.click(screen.getByRole('menuitemradio', { name }));
+    }
+
+    it('opens a control’s choices as a menu, the choice it holds checked and focused', () => {
+        drawWords();
+
+        press('Text size - Normal');
+
+        const menu = screen.getByRole('menu', { name: 'Text size' });
+
+        expect(
+            screen.getAllByRole('menuitemradio').map((choice) => choice.getAttribute('aria-label')),
+        ).toEqual(['Small', 'Normal', 'Large', 'Larger', 'Largest']);
+        expect(screen.getByRole('menuitemradio', { name: 'Normal' }).getAttribute('aria-checked')).toBe('true');
+        expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Normal' }));
+        expect(screen.getByRole('button', { name: 'Text size - Normal' }).getAttribute('aria-expanded')).toBe('true');
+        expect(menu).toBeDefined();
+    });
+
+    it('offers Automatic and the nine named swatches, so no colour is told by colour alone', () => {
+        drawWords();
+
+        press('Text colour - Automatic');
+
+        expect(
+            screen.getAllByRole('menuitemradio').map((choice) => choice.getAttribute('aria-label')),
+        ).toEqual(['Automatic', 'Red', 'Orange', 'Amber', 'Green', 'Teal', 'Blue', 'Purple', 'Pink', 'Grey']);
+    });
+
+    it('colours the selection with the swatch’s own value, and the control then names that swatch', () => {
+        drawWords([{ element: 'p', address: null, holds: [{ text: 'urgent' }] }]);
+
+        select('urgent');
+        press('Text colour - Automatic');
+        choose('Blue');
+
+        expect(acts()).toEqual([{ command: 'foreColor', argument: '#175cd3' }]);
+        expect(selectedWhenCommanded).toEqual(['urgent']);
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Text colour - Blue' })).toBeDefined();
+    });
+
+    it('takes the colour off by asking for the colour the words are already drawn in', () => {
+        drawWords();
+
+        press('Text colour - Automatic');
+        choose('Red');
+        press('Text colour - Red');
+        choose('Automatic');
+
+        expect(acts()).toEqual([
+            { command: 'foreColor', argument: '#b42318' },
+            { command: 'foreColor', argument: getComputedStyle(words()).color },
+        ]);
+        expect(screen.getByRole('button', { name: 'Text colour - Automatic' })).toBeDefined();
+    });
+
+    it.each([
+        ['Small', '2'],
+        ['Normal', '3'],
+        ['Large', '4'],
+        ['Larger', '5'],
+        ['Largest', '6'],
+    ])('sizes the selection %s with the step font size %s names', (named, fontSize) => {
+        drawWords();
+
+        press('Text size - Normal');
+        choose(named);
+
+        expect(acts()).toEqual([{ command: 'fontSize', argument: fontSize }]);
+        expect(screen.getByRole('button', { name: `Text size - ${named}` })).toBeDefined();
+    });
+
+    it.each([
+        ['Align left', 'justifyLeft'],
+        ['Centre', 'justifyCenter'],
+        ['Align right', 'justifyRight'],
+        ['Justify', 'justifyFull'],
+    ])('aligns the paragraphs the selection reaches: %s', (named, command) => {
+        drawWords();
+
+        press('Alignment - Align left');
+        choose(named);
+
+        expect(acts()).toEqual([{ command, argument: undefined }]);
+        expect(screen.getByRole('button', { name: `Alignment - ${named}` })).toBeDefined();
+    });
+
+    it('is walked by the arrow keys and left by escape, focus going back to the control it opened from', () => {
+        drawWords();
+
+        press('Alignment - Align left');
+        fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowDown' });
+
+        expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Centre' }));
+
+        fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Alignment - Align left' }));
+        expect(acts()).toEqual([]);
+    });
+
+    it('closes when the same control is pressed again, and when somebody presses somewhere else', () => {
+        drawWords();
+
+        press('Text colour - Automatic');
+        press('Text colour - Automatic');
+
+        expect(screen.queryByRole('menu')).toBeNull();
+
+        press('Text colour - Automatic');
+        fireEvent.pointerDown(words());
+
+        expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('closes when something is pasted into the words', () => {
+        drawWords();
+
+        press('Text size - Normal');
+        fireEvent.paste(words(), { clipboardData: { getData: () => 'pasted' } });
+
+        expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('opens holding a coloured, sized, aligned message drawn as the editing commands would have written it', () => {
+        drawWords([
+            {
+                element: 'p',
+                address: null,
+                alignment: 'center',
+                holds: [{ element: 'span', address: null, colour: '#b42318', size: 'large', holds: [{ text: 'Due' }] }],
+            },
+        ]);
+
+        const line = words().querySelector('p');
+        const run = words().querySelector('font');
+
+        expect(line?.style.textAlign).toBe('center');
+        expect(run?.getAttribute('color')).toBe('#b42318');
+        expect(run?.getAttribute('size')).toBe('4');
+    });
+});
+
 describe('WrittenMessage, the two pointer compositions', () => {
     it('draws the bar outright where a mouse drives the screen, with the hint beside it', () => {
         drawWords();
 
-        expect(screen.getByRole('group', { name: 'Text formatting' })).toBeDefined();
+        expect(screen.getByRole('toolbar', { name: 'Formatting' })).toBeDefined();
         expect(screen.getByText('Formatting acts on whatever you have selected.')).toBeDefined();
         expect(screen.queryByRole('button', { name: 'Text formatting' })).toBeNull();
     });
@@ -330,7 +480,7 @@ describe('WrittenMessage, the two pointer compositions', () => {
         drawWords();
 
         expect(screen.getByRole('button', { name: 'Text formatting' })).toBeDefined();
-        expect(screen.queryByRole('group', { name: 'Text formatting' })).toBeNull();
+        expect(screen.queryByRole('toolbar', { name: 'Formatting' })).toBeNull();
         expect(screen.queryByText('Formatting acts on whatever you have selected.')).toBeNull();
     });
 
@@ -340,7 +490,7 @@ describe('WrittenMessage, the two pointer compositions', () => {
         drawWords();
         press('Text formatting');
 
-        expect(screen.getByRole('group', { name: 'Text formatting' })).toBeDefined();
+        expect(screen.getByRole('toolbar', { name: 'Formatting' })).toBeDefined();
         expect(screen.getByRole('button', { name: 'Hide formatting' })).toBeDefined();
     });
 });

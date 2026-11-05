@@ -19,7 +19,28 @@
 
 /** The elements a written message may be made of, which is what the formatting controls produce and nothing else. */
 export type WrittenElement =
-    'a' | 'b' | 'blockquote' | 'br' | 'div' | 'em' | 'i' | 'li' | 'ol' | 'p' | 's' | 'strike' | 'strong' | 'u' | 'ul';
+    | 'a'
+    | 'b'
+    | 'blockquote'
+    | 'br'
+    | 'div'
+    | 'em'
+    | 'i'
+    | 'li'
+    | 'ol'
+    | 'p'
+    | 's'
+    | 'span'
+    | 'strike'
+    | 'strong'
+    | 'u'
+    | 'ul';
+
+/** A marked step of the size scale ADR 0047 states. Normal is the absence of one rather than a fifth value. */
+export type WrittenSize = 'small' | 'large' | 'larger' | 'largest';
+
+/** How a block places its lines. Start and end rather than left and right, because that is what the document says. */
+export type WrittenAlignment = 'start' | 'center' | 'end' | 'justify';
 
 /** A run of text somebody typed. */
 export interface WrittenText {
@@ -32,6 +53,15 @@ export interface WrittenMarkup {
 
     /** Where a link goes, which only a link carries and which is always one this client would follow. */
     readonly address: string | null;
+
+    /** A run's colour, as an opaque `#rrggbb` in lower case, which only a `span` carries. */
+    readonly colour?: string;
+
+    /** A run's step of the size scale, which only a `span` carries. */
+    readonly size?: WrittenSize;
+
+    /** How a block places its lines, which only a paragraph, a line, and a list item carry. */
+    readonly alignment?: WrittenAlignment;
 
     readonly holds: readonly WrittenNode[];
 }
@@ -50,11 +80,76 @@ const writableElements: readonly string[] = [
     'ol',
     'p',
     's',
+    'span',
     'strike',
     'strong',
     'u',
     'ul',
 ];
+
+// A `span` an engine leaves in the region is its own bookkeeping — the computed style it carries a merged line over
+// with — rather than a colour or a size anybody chose, so the region's spans are unwrapped. A run's colour and size are
+// read off the `font` element the editing commands write instead, and the tree's `span` is that reading.
+const readableElements: readonly string[] = writableElements.filter((element) => element !== 'span');
+
+const writtenSizes: readonly string[] = ['small', 'large', 'larger', 'largest'];
+const writtenAlignments: readonly string[] = ['start', 'center', 'end', 'justify'];
+const alignedElements: readonly string[] = ['div', 'li', 'p'];
+
+// The size scale as the HTML part writes it, the one place a step becomes a length.
+const sentSizes: Readonly<Record<WrittenSize, string>> = {
+    small: '12px',
+    large: '18px',
+    larger: '24px',
+    largest: '32px',
+};
+
+// The size scale as `<font size>` spells it, which is how `fontSize` writes a step: ADR 0047's table, read both ways.
+const fontSizeSteps: Readonly<Record<string, WrittenSize | null>> = {
+    '1': 'small',
+    '2': 'small',
+    '3': null,
+    '4': 'large',
+    '5': 'larger',
+    '6': 'largest',
+    '7': 'largest',
+};
+
+/** The `<font size>` the size control asks `fontSize` for, and the one the region is drawn back with. */
+export const fontSizeOf: Readonly<Record<WrittenSize, string>> = {
+    small: '2',
+    large: '4',
+    larger: '5',
+    largest: '6',
+};
+
+// How an alignment is written into the HTML part and back into the region. Start and end are left and right because
+// the composer writes no direction, and the engine Outlook renders with reads neither keyword.
+const sentAlignments: Readonly<Record<WrittenAlignment, string>> = {
+    start: 'left',
+    center: 'center',
+    end: 'right',
+    justify: 'justify',
+};
+
+const readAlignments: Readonly<Record<string, WrittenAlignment>> = {
+    left: 'start',
+    start: 'start',
+    center: 'center',
+    right: 'end',
+    end: 'end',
+    justify: 'justify',
+};
+
+/** A colour the tree may carry, in the one spelling it carries it in, or `null` for anything that is not one. */
+export function writtenColour(value: string): string | null {
+    return /^#[0-9a-f]{6}$/iu.test(value) ? value.toLowerCase() : null;
+}
+
+/** How an alignment is drawn, which is the same `text-align` the HTML part writes. */
+export function drawnAlignment(alignment: WrittenAlignment): string {
+    return sentAlignments[alignment];
+}
 
 // The schemes a link written here may name. Everything else — `javascript:`, `data:`, a scheme nobody has heard of —
 // is a link the composer refuses to make rather than one a reader has to be careful about, and a relative address is
@@ -148,7 +243,8 @@ function readWritten(parent: Node, depth: number, budget: WritingBudget): readon
         }
 
         const named = node.tagName.toLowerCase();
-        const writable = writableElements.includes(named);
+        const run = named === 'font' ? runStyleOf(node) : null;
+        const writable = readableElements.includes(named) || run !== null;
 
         // An element that is kept is one of the nodes the budget counts, and it is counted before what it holds is
         // read, so a wide tree cannot spend the whole budget on children and then add a parent past the bound.
@@ -164,6 +260,12 @@ function readWritten(parent: Node, depth: number, budget: WritingBudget): readon
             continue;
         }
 
+        if (run !== null) {
+            written.push({ element: 'span', address: null, ...run, holds });
+
+            continue;
+        }
+
         const element = named as WrittenElement;
         const address = element === 'a' ? node.getAttribute('href') : null;
 
@@ -175,10 +277,34 @@ function readWritten(parent: Node, depth: number, budget: WritingBudget): readon
             continue;
         }
 
-        written.push({ element, address, holds });
+        const alignment = alignedElements.includes(element) ? alignmentOf(node) : null;
+
+        written.push(alignment === null ? { element, address, holds } : { element, address, alignment, holds });
     }
 
     return written;
+}
+
+// The colour and the size a `font` element states, each only where it is on the closed set: a colour an engine wrote
+// in some other notation and a size off the scale are dropped rather than approximated, and a `font` left with neither
+// is unwrapped like any other element this client has no name for.
+function runStyleOf(font: Element): { readonly colour?: string; readonly size?: WrittenSize } | null {
+    const colour = writtenColour(font.getAttribute('color') ?? '');
+    const size = fontSizeSteps[font.getAttribute('size') ?? ''] ?? null;
+
+    if (colour === null && size === null) {
+        return null;
+    }
+
+    return { ...(colour === null ? {} : { colour }), ...(size === null ? {} : { size }) };
+}
+
+// The alignment a block states, written by the engine as `text-align` or, in an engine that still spells it the old
+// way, as an `align` attribute. Anything else is no alignment at all.
+function alignmentOf(block: Element): WrittenAlignment | null {
+    const stated = block instanceof HTMLElement && block.style.textAlign !== '' ? block.style.textAlign : null;
+
+    return readAlignments[(stated ?? block.getAttribute('align') ?? '').toLowerCase()] ?? null;
 }
 
 /** The HTML part of a message going out, with every value in it escaped rather than trusted. */
@@ -257,12 +383,51 @@ export function writtenTextIn(value: unknown): readonly WrittenNode[] | null {
             return null;
         }
 
+        const presented = presentationIn(element, record);
+
+        if (presented === null) {
+            return null;
+        }
+
         const holds = nodesIn(record['holds'], depth + 1);
 
-        return holds === null ? null : { element: element as WrittenElement, address, holds };
+        return holds === null ? null : { element: element as WrittenElement, address, ...presented, holds };
     }
 
     return nodesIn(value, 0);
+}
+
+// The colour, the size, and the alignment a stored element carries, each on the element `writtenIn` writes it on and
+// only in the spelling it writes. A `span` carrying neither is one `writtenIn` never writes, so it is refused with the
+// rest.
+function presentationIn(
+    element: string,
+    record: Record<string, unknown>,
+): { readonly colour?: string; readonly size?: WrittenSize; readonly alignment?: WrittenAlignment } | null {
+    const colour = record['colour'];
+    const size = record['size'];
+    const alignment = record['alignment'];
+
+    const colourRead = colour === undefined || (typeof colour === 'string' && writtenColour(colour) === colour);
+    const sizeRead = size === undefined || (typeof size === 'string' && writtenSizes.includes(size));
+    const alignmentRead =
+        alignment === undefined || (typeof alignment === 'string' && writtenAlignments.includes(alignment));
+
+    if (!colourRead || !sizeRead || !alignmentRead) {
+        return null;
+    }
+
+    const spanned = colour !== undefined || size !== undefined;
+
+    if (spanned !== (element === 'span') || (alignment !== undefined && !alignedElements.includes(element))) {
+        return null;
+    }
+
+    return {
+        ...(colour === undefined ? {} : { colour }),
+        ...(size === undefined ? {} : { size: size as WrittenSize }),
+        ...(alignment === undefined ? {} : { alignment: alignment as WrittenAlignment }),
+    };
 }
 
 function markupOf(node: WrittenNode): string {
@@ -275,8 +440,24 @@ function markupOf(node: WrittenNode): string {
     }
 
     const address = node.address === null ? '' : ` href="${escaped(node.address).replace(/"/gu, '&quot;')}"`;
+    const style = sentStyleOf(node);
 
-    return `<${node.element}${address}>${htmlOf(node.holds)}</${node.element}>`;
+    return `<${node.element}${address}${style === '' ? '' : ` style="${style}"`}>${htmlOf(node.holds)}</${node.element}>`;
+}
+
+// Mail clients drop style sheets, so what the composer presents goes out as an inline style — and every value in it is
+// one of the closed set's rather than text anybody wrote, which is why nothing here is escaped. The colour is checked
+// once more on the way out because it is the one value whose type is a string.
+function sentStyleOf(node: WrittenMarkup): string {
+    const colour = node.colour === undefined ? null : writtenColour(node.colour);
+
+    return [
+        colour === null ? null : `color:${colour}`,
+        node.size === undefined ? null : `font-size:${sentSizes[node.size]}`,
+        node.alignment === undefined ? null : `text-align:${sentAlignments[node.alignment]}`,
+    ]
+        .filter((declaration) => declaration !== null)
+        .join(';');
 }
 
 function escaped(text: string): string {

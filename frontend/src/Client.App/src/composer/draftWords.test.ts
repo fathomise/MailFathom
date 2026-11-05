@@ -113,6 +113,38 @@ describe('draftWords', () => {
         expect(htmlOf(draftWords(bodyOf([heading])))).toBe('<p><strong>Agenda</strong></p>');
     });
 
+    it('keeps a run’s colour and its step of the size scale, so a reopened draft looks as it was written', () => {
+        const coloured: MailInlineRun = { ...run('Due Friday', { bold: true }), foreground: '#B42318', size: 'Larger' };
+
+        expect(htmlOf(draftWords(bodyOf([paragraph(coloured)])))).toBe(
+            '<p><span style="color:#b42318;font-size:24px"><strong>Due Friday</strong></span></p>',
+        );
+    });
+
+    it('keeps the step a heading’s level gave its words, beside the emphasis that says it was one', () => {
+        const heading: MailDocumentBlock = {
+            type: 'heading',
+            level: 1,
+            content: [{ ...run('Agenda'), size: 'Largest' }],
+            alignment: 'Center',
+        };
+
+        expect(htmlOf(draftWords(bodyOf([heading])))).toBe(
+            '<p style="text-align:center"><strong><span style="font-size:32px">Agenda</span></strong></p>',
+        );
+    });
+
+    it.each([
+        ['Start', 'left'],
+        ['Center', 'center'],
+        ['End', 'right'],
+        ['Justify', 'justify'],
+    ] as const)('keeps a paragraph aligned to its %s, written as %s', (alignment, written) => {
+        const aligned: MailDocumentBlock = { type: 'paragraph', content: [run('Line')], alignment };
+
+        expect(htmlOf(draftWords(bodyOf([aligned])))).toBe(`<p style="text-align:${written}">Line</p>`);
+    });
+
     it('carries a list across as the list it was, its items in the order they were written', () => {
         const list: MailDocumentBlock = {
             type: 'list',

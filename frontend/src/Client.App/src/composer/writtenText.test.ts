@@ -110,6 +110,89 @@ describe('writtenIn', () => {
         expect(writtenTextIn(JSON.parse(JSON.stringify(written)) as unknown)).not.toBeNull();
     });
 
+    it('reads the colour and the size an engine wrote on one font element as one run carrying both', () => {
+        const font = element('font', 'urgent');
+
+        font.setAttribute('color', '#B42318');
+        font.setAttribute('size', '4');
+
+        expect(writtenIn(region(font))).toEqual([
+            { element: 'span', address: null, colour: '#b42318', size: 'large', holds: [{ text: 'urgent' }] },
+        ]);
+    });
+
+    it.each([
+        ['1', 'small'],
+        ['2', 'small'],
+        ['4', 'large'],
+        ['5', 'larger'],
+        ['6', 'largest'],
+        ['7', 'largest'],
+    ])('reads a font of size %s as the %s step of the scale', (written, step) => {
+        const font = element('font', 'words');
+
+        font.setAttribute('size', written);
+
+        expect(writtenIn(region(font))).toEqual([{ element: 'span', address: null, size: step, holds: [{ text: 'words' }] }]);
+    });
+
+    it.each([
+        ['a normal size', 'size', '3'],
+        ['a relative size', 'size', '+1'],
+        ['a colour by name', 'color', 'red'],
+        ['a colour with transparency', 'color', '#b4231880'],
+        ['a colour in a function', 'color', 'rgb(180, 35, 24)'],
+    ])('drops %s rather than approximating it, keeping the words', (_, attribute, value) => {
+        const font = element('font', 'words');
+
+        font.setAttribute(attribute, value);
+
+        expect(writtenIn(region(font))).toEqual([{ text: 'words' }]);
+    });
+
+    it('reads no colour or size off a span an engine left behind, which is its bookkeeping rather than a choice', () => {
+        const span = element('span', 'merged');
+
+        span.setAttribute('style', 'color: rgb(180, 35, 24); font-size: 24px');
+
+        expect(writtenIn(region(span))).toEqual([{ text: 'merged' }]);
+    });
+
+    it.each([
+        ['p', 'text-align: center', 'center'],
+        ['div', 'text-align: right', 'end'],
+        ['li', 'text-align: left', 'start'],
+        ['p', 'text-align: justify', 'justify'],
+    ])('reads the alignment a %s states as %s', (block, style, alignment) => {
+        const aligned = element(block, 'Line');
+
+        aligned.setAttribute('style', style);
+
+        expect(writtenIn(region(aligned))).toEqual([
+            { element: block, address: null, alignment: alignment, holds: [{ text: 'Line' }] },
+        ]);
+    });
+
+    it('reads an alignment an engine wrote as the old attribute', () => {
+        const aligned = element('div', 'Line');
+
+        aligned.setAttribute('align', 'center');
+
+        expect(writtenIn(region(aligned))).toEqual([
+            { element: 'div', address: null, alignment: 'center', holds: [{ text: 'Line' }] },
+        ]);
+    });
+
+    it('reads no alignment on a block that cannot carry one', () => {
+        const quotation = element('blockquote', 'Quoted');
+
+        quotation.setAttribute('style', 'text-align: center');
+
+        expect(writtenIn(region(quotation))).toEqual([
+            { element: 'blockquote', address: null, holds: [{ text: 'Quoted' }] },
+        ]);
+    });
+
     it('reads a region nested past the bound as words, so what it composes is always kept and read back', () => {
         let deepest = element('div', 'Still here');
 
@@ -141,6 +224,42 @@ describe('htmlOf', () => {
         expect(htmlOf([{ text: 'One' }, { element: 'br', address: null, holds: [] }, { text: 'Two' }])).toBe(
             'One<br />Two',
         );
+    });
+
+    it('writes a run’s colour and size as an inline style from the closed values', () => {
+        const written: readonly WrittenNode[] = [
+            { element: 'span', address: null, colour: '#175cd3', size: 'larger', holds: [{ text: 'Note' }] },
+        ];
+
+        expect(htmlOf(written)).toBe('<span style="color:#175cd3;font-size:24px">Note</span>');
+    });
+
+    it.each([
+        ['small', '12px'],
+        ['large', '18px'],
+        ['larger', '24px'],
+        ['largest', '32px'],
+    ] as const)('writes the %s step as %s', (size, length) => {
+        expect(htmlOf([{ element: 'span', address: null, size, holds: [{ text: 'a' }] }])).toBe(
+            `<span style="font-size:${length}">a</span>`,
+        );
+    });
+
+    it.each([
+        ['start', 'left'],
+        ['center', 'center'],
+        ['end', 'right'],
+        ['justify', 'justify'],
+    ] as const)('writes the %s alignment as %s, the composer writing no direction', (alignment, written) => {
+        expect(htmlOf([{ element: 'p', address: null, alignment, holds: [{ text: 'a' }] }])).toBe(
+            `<p style="text-align:${written}">a</p>`,
+        );
+    });
+
+    it('writes no colour that is not one, whatever the tree was handed', () => {
+        expect(
+            htmlOf([{ element: 'span', address: null, colour: 'red;background:url(x)', holds: [{ text: 'a' }] }]),
+        ).toBe('<span>a</span>');
     });
 });
 
@@ -181,6 +300,20 @@ describe('plainTextOf', () => {
         const written = writtenIn(region('Read the ', element('b', 'third'), ' column.'));
 
         expect(plainTextOf(written)).toBe('Read the third column.');
+    });
+
+    it('reads a coloured, sized, aligned line as its words alone', () => {
+        const written: readonly WrittenNode[] = [
+            {
+                element: 'p',
+                address: null,
+                alignment: 'center',
+                holds: [{ element: 'span', address: null, colour: '#b42318', size: 'large', holds: [{ text: 'Due' }] }],
+            },
+            { element: 'p', address: null, holds: [{ text: 'Friday' }] },
+        ];
+
+        expect(plainTextOf(written)).toBe('Due\n\nFriday');
     });
 
     it('is nothing for a message nobody has written in', () => {
@@ -228,6 +361,37 @@ describe('writtenTextIn', () => {
         ];
 
         expect(writtenTextIn(JSON.parse(JSON.stringify(written)))).toEqual(written);
+    });
+
+    it('reads back the colours, sizes, and alignments this client wrote', () => {
+        const written: readonly WrittenNode[] = [
+            {
+                element: 'li',
+                address: null,
+                alignment: 'justify',
+                holds: [
+                    { element: 'span', address: null, colour: '#667085', holds: [{ text: 'quiet' }] },
+                    { element: 'span', address: null, size: 'small', holds: [{ text: 'print' }] },
+                ],
+            },
+        ];
+
+        expect(writtenTextIn(JSON.parse(JSON.stringify(written)))).toEqual(written);
+    });
+
+    it.each([
+        ['a colour that is not #rrggbb', [{ element: 'span', address: null, colour: 'red', holds: [] }]],
+        ['a colour in a spelling this client does not write', [{ element: 'span', address: null, colour: '#B42318', holds: [] }]],
+        ['a step off the scale', [{ element: 'span', address: null, size: 'huge', holds: [] }]],
+        ['normal written as a step', [{ element: 'span', address: null, size: 'normal', holds: [] }]],
+        ['an alignment outside the four', [{ element: 'p', address: null, alignment: 'left', holds: [] }]],
+        ['a colour on something that is not a run', [{ element: 'p', address: null, colour: '#b42318', holds: [] }]],
+        ['a size on something that is not a run', [{ element: 'b', address: null, size: 'large', holds: [] }]],
+        ['an alignment on a run', [{ element: 'span', address: null, size: 'large', alignment: 'center', holds: [] }]],
+        ['an alignment on a block that carries none', [{ element: 'blockquote', address: null, alignment: 'end', holds: [] }]],
+        ['a run carrying neither a colour nor a size', [{ element: 'span', address: null, holds: [] }]],
+    ])('refuses %s', (_, kept) => {
+        expect(writtenTextIn(kept)).toBeNull();
     });
 
     it.each([
