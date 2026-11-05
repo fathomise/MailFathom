@@ -75,10 +75,10 @@ internal static class AuthoredMailRefusalPublication
                 "A picture inside a message is named by one to sixty-four letters, digits, dots, hyphens, and underscores, opening with a letter or a digit, and no two pictures of one message share a name."),
             AuthoredEmailRefusalReason.PictureReferenceUnknown => new PublishedMailRefusal(
                 MailFathomErrorCode.AuthoredMailPictureReferenceUnknown,
-                "The htmlBody of a message refers by 'cid:' to a picture the message does not carry."),
+                "An image in the htmlBody of a message has a 'cid:' source naming a picture the message does not carry."),
             AuthoredEmailRefusalReason.PictureUnreferenced => new PublishedMailRefusal(
                 MailFathomErrorCode.AuthoredMailPictureUnreferenced,
-                "A picture the message carries is referred to nowhere in its htmlBody, as 'cid:' followed by the picture's name."),
+                "A picture the message carries is drawn by no image in its htmlBody, whose source would be 'cid:' followed by the picture's name."),
             AuthoredEmailRefusalReason.PictureTypeNotAccepted => new PublishedMailRefusal(
                 MailFathomErrorCode.AuthoredMailPictureTypeRefused,
                 "A picture inside a message is a PNG, a JPEG, or a GIF image, judged by what its content opens as."),

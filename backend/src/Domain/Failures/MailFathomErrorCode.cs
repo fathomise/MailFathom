@@ -719,7 +719,7 @@ public readonly record struct MailFathomErrorCode
     /// <remarks>A picture is named by one to sixty-four letters, digits, dots, hyphens, and underscores, opening with a letter or a digit, and each picture of one message by a name of its own. The message states the rule and never the name.</remarks>
     public static MailFathomErrorCode AuthoredMailPictureNameRefused { get; } = new(51018);
 
-    /// <summary>Gets subcategory 1, request validation: the HTML alternative of a message a caller authored refers by <c>cid:</c> to a picture the request does not carry.</summary>
+    /// <summary>Gets subcategory 1, request validation: an image in the HTML alternative of a message a caller authored has a <c>cid:</c> source naming a picture the request does not carry.</summary>
     /// <remarks>It is separate from <see cref="AuthoredMailPictureUnreferenced" /> because the remedy is the opposite one: here a picture is missing from the request, there a picture is missing from the markup.</remarks>
     public static MailFathomErrorCode AuthoredMailPictureReferenceUnknown { get; } = new(51019);
 

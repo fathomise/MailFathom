@@ -3605,8 +3605,9 @@ A revision states the whole draft again, so one that leaves either out switches 
   the send records that it was not carried, so nothing waits for a delivery report that cannot come.
 
 **A picture travels inside the message, beside the words rather than as an attachment.** A write and a revision take
-an optional `pictures` list, each entry stating a `name` and its `content` as base64, and the `htmlBody` refers to each
-picture as `cid:` followed by its name. There is no media type to state: what a picture is gets read from the
+an optional `pictures` list, each entry stating a `name` and its `content` as base64, and the `htmlBody` draws each
+picture with an `<img>` whose `src` is `cid:` followed by its name — an image's source being the one place a reference
+is read from and rewritten, as the composer writes it. There is no media type to state: what a picture is gets read from the
 signature its octets open with. The message is composed with the markup and its pictures in a `multipart/related`,
 inside the `multipart/alternative` beside the plain text and inside a `multipart/mixed` where files are attached —
 the part a footer's images join at send. The deployment mints the content identifier each picture goes out under
@@ -3620,8 +3621,8 @@ code of its own, and the draft is left as it was:
 | A picture over 2 MiB (2,097,152 octets), the most a reopened draft draws inline | `51022` |
 | Pictures together over 2.5 MiB (2,621,440 octets) | `51023` |
 | A picture opening as none of PNG, JPEG, and GIF | `51021` |
-| A `cid:` reference in `htmlBody` naming no picture the request carries | `51019` |
-| A picture `htmlBody` refers to nowhere | `51020` |
+| An `<img>` in `htmlBody` whose `src` is `cid:` naming no picture the request carries | `51019` |
+| A picture no `<img src="cid:…">` in `htmlBody` names | `51020` |
 | A picture without its name or its content, or whose content is not base64 | `51013` |
 
 The whole message is still held to `MailDelivery:MaxMessageBytes`. A revision states the pictures again, as it states
