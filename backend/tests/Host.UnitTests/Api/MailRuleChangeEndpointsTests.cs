@@ -432,6 +432,26 @@ public sealed class MailRuleChangeEndpointsTests
         Assert.Equal(keywords, string.Join(' ', requested.Keywords!));
     }
 
+    /// <summary>The preview checks the account itself, so an account outside the caller's organization is answered as unserved rather than as refused.</summary>
+    [Fact]
+    public async Task PreviewRuleAsync_AnAccountOutsideTheCallersOrganization_RefusesItAsUnknown()
+    {
+        // Arrange
+        var authorization = AccessAuthorizations.ForAdministratorScoped(
+            ScopedGrant.Of(
+            [
+                (MailFathomPermission.AdminAuditRead,
+                    AssignmentScope.Organization(new Guid("0198f0aa-0000-7000-8000-0000000000e9"))),
+            ]),
+            new StatedAdministrativeTargets().WithMailAccount(Account, new Guid("0198f0aa-0000-7000-8000-0000000000ea")));
+
+        // Act
+        var result = await this.PreviewAsync(new MailRulePreviewPageRequest(Account.Value, Rule: "file-invoices"), authorization);
+
+        // Assert
+        Assert.Equal(AdminAccountRequest.Refuse(Account.Value).ProblemDetails.Detail, AssertRefused(result.Result).ProblemDetails.Detail);
+    }
+
     [Fact]
     public async Task PreviewRuleAsync_AStoredRuleTheAccountDoesNotHold_IsRefused()
     {
@@ -546,7 +566,9 @@ public sealed class MailRuleChangeEndpointsTests
             AdministrativeGrant.WholeSurface,
             TestContext.Current.CancellationToken);
 
-    private Task<Results<Ok<MailRulePreviewResponse>, ProblemHttpResult>> PreviewAsync(MailRulePreviewPageRequest request) =>
+    private Task<Results<Ok<MailRulePreviewResponse>, ProblemHttpResult>> PreviewAsync(
+        MailRulePreviewPageRequest request,
+        AccessAuthorization? authorization = null) =>
         MailRuleEndpoints.PreviewRuleAsync(
             request,
             CatalogServing(Account),
@@ -558,9 +580,9 @@ public sealed class MailRuleChangeEndpointsTests
                 new MailRuleSetEvaluator(this.timeProvider),
                 Substitute.For<IMailFolderMappingReader>(),
                 MailRuleConditionBounds.Default,
-                AdministrativeGrant.WholeSurface,
+                authorization ?? AdministrativeGrant.WholeSurface,
                 this.timeProvider),
-            AdministrativeGrant.WholeSurface,
+            authorization ?? AdministrativeGrant.WholeSurface,
             TestContext.Current.CancellationToken);
 
     private sealed class CommittingSession : IPersistenceSession

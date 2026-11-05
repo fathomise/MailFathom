@@ -1085,7 +1085,8 @@ identifier are the whole of it.
 
 ### Reading the rules, running them, and finding out what they did
 
-Five commands that change nothing: they read an account's rules, run them, and read what they concluded. The
+Five commands that write no rule: they read an account's rules, run them over the mail already stored, and read what
+they concluded. The
 commands that create, edit, enable, disable, move, delete, and preview a rule are [the next
 section](#changing-and-previewing-the-rules). A mail account's rules are stored in the database beside the account
 rather than declared in configuration, and every change to them is one versioned, validated, archived write — [an
@@ -1273,8 +1274,9 @@ This account's rules are at version 9, and the change was written against versio
 **A refused change lists every defect, and quotes no more of the rule than its author needs.** Each line names the
 rule by its identifier. A condition the deployment could not read is refused naming the one identifier or function it
 stopped at, or with the parser's own message and position; the rule's name, folders, keywords, and the rest of its
-condition are never quoted. `mfctl` prints those reasons and records only the sentence that the rule was refused, so
-its invocation record keeps none of them, and the deployment logs and measures none of them. A rule object carrying `Accounts`
+condition are never quoted. `mfctl` prints the deployment's reasons for any refused change or preview and records
+only the sentence that the request was refused, so its invocation record keeps none of them, and the deployment logs and
+measures none of them. A rule object carrying `Accounts`
 or `Enabled` is refused by the key, because a rule reaches only the account that holds it and only `enable` enables
 one.
 

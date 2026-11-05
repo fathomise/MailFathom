@@ -76,8 +76,8 @@ internal sealed class AdminApiClient
         StampedAssemblyVersion.ReadFrom(typeof(AdminApiClient).Assembly).Version;
 
     private readonly DeploymentTransport transport;
-    /// <summary>What a refused rule fails with once its reasons are printed.</summary>
-    internal const string RuleRefused = "The deployment refused the rule for the reasons above, and nothing changed.";
+    /// <summary>What a refused rule change or preview fails with once the deployment's reasons are printed.</summary>
+    internal const string RuleRefused = "The deployment refused the request for the reasons above, and nothing changed.";
 
     private readonly ICliConsole console;
 
@@ -888,12 +888,13 @@ internal sealed class AdminApiClient
             JsonContent.Create(request, CliJsonContext.Default.MailRulePreviewPageRequest)));
     }
 
-    /// <summary>Prints the reasons a rule was refused for, and fails with a sentence that carries none of them.</summary>
+    /// <summary>Prints why the deployment refused a rule change or preview, and fails with a sentence that carries none of it.</summary>
     /// <remarks>
     /// A condition the deployment could not read is refused naming the one identifier or function it stopped at, or with
-    /// the parser's own message, and both are text the author typed. The author needs them at the terminal; the
-    /// invocation record keeps the failure sentence of every command, so what it is handed here is a sentence without
-    /// them.
+    /// the parser's own message, and both are text the author typed. The author needs them at the terminal, so they are
+    /// written as a notice, which the runner's refusal watch does not capture; the invocation record keeps the failure
+    /// sentence of every command, so what it is handed is <see cref="RuleRefused" />. Every <c>400</c> these routes answer
+    /// is treated alike rather than the validator's alone, because telling them apart would mean reading the sentence.
     /// </remarks>
     private async Task<T> PrintingRuleRefusalAsync<T>(Task<T> request)
     {
@@ -903,7 +904,7 @@ internal sealed class AdminApiClient
         }
         catch (CliFailure refusal) when (refusal.Status is HttpStatusCode.BadRequest)
         {
-            this.console.WriteError(refusal.Message);
+            this.console.WriteNotice(refusal.Message);
 
             throw new CliFailure(RuleRefused, HttpStatusCode.BadRequest);
         }

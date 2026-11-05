@@ -198,8 +198,8 @@ public sealed class RuleChangeCommandTests : IDisposable
 
         // Assert
         Assert.NotEqual(CliExitCode.Success, exitCode);
-        Assert.Contains(this.harness.Console.Failures, line => line.Contains("position 12", StringComparison.Ordinal));
-        Assert.Equal(AdminApiClient.RuleRefused, this.harness.Console.Failures[^1]);
+        Assert.Contains(this.harness.Console.Errors, line => line.Contains("position 12", StringComparison.Ordinal));
+        Assert.Equal([AdminApiClient.RuleRefused], this.harness.Console.Failures);
         Assert.DoesNotContain(
             this.harness.Console.Lines.Concat(this.harness.Console.Errors),
             line => line.Contains("supplier.example", StringComparison.Ordinal));
@@ -221,8 +221,27 @@ public sealed class RuleChangeCommandTests : IDisposable
 
         // Assert
         Assert.NotEqual(CliExitCode.Success, exitCode);
-        Assert.Contains(this.harness.Console.Failures, line => line.Contains("'alice'", StringComparison.Ordinal));
-        Assert.Equal(AdminApiClient.RuleRefused, this.harness.Console.Failures[^1]);
+        Assert.Contains(this.harness.Console.Errors, line => line.Contains("'alice'", StringComparison.Ordinal));
+        Assert.Equal([AdminApiClient.RuleRefused], this.harness.Console.Failures);
+    }
+
+    /// <summary>A rule the account does not hold is told to the operator, and recorded as a refused request like any other.</summary>
+    [Fact]
+    public async Task Delete_ARuleTheAccountDoesNotHold_PrintsWhyAndRemovesNothing()
+    {
+        // Arrange
+        using var deployment = FakeRuleDeployment.Answering(
+            rules: StoredRules,
+            change: (HttpStatusCode.BadRequest, """{"detail":"This account has no rule with that identifier or name. Nothing changed."}"""));
+
+        // Act
+        var exitCode = await this.RunAsync(deployment, "rules", "delete", "flag-suplier", "--account", Account, "--yes", "--endpoint", Endpoint);
+
+        // Assert
+        Assert.NotEqual(CliExitCode.Success, exitCode);
+        Assert.Contains(this.harness.Console.Errors, line => line.StartsWith("This account has no rule", StringComparison.Ordinal));
+        Assert.Equal([AdminApiClient.RuleRefused], this.harness.Console.Failures);
+        Assert.DoesNotContain(this.harness.Console.Lines, line => line.StartsWith("Removed", StringComparison.Ordinal));
     }
 
     /// <summary>A keyword change is shown with the keywords it names, and a replacement clearing them as clearing them.</summary>
