@@ -623,7 +623,10 @@ test('colours, sizes, and aligns what was written from the bar, keeps it across 
     await formatting.getByRole('button', { name: 'Text colour - Automatic' }).click();
     await page.getByRole('menu', { name: 'Text colour' }).getByRole('menuitemradio', { name: 'Red' }).click();
     await formatting.getByRole('button', { name: 'Text size - Normal' }).click();
-    await page.getByRole('menu', { name: 'Text size' }).getByRole('menuitemradio', { name: 'Large' }).click();
+    await page
+        .getByRole('menu', { name: 'Text size' })
+        .getByRole('menuitemradio', { name: 'Large', exact: true })
+        .click();
 
     // The third by the keyboard alone: the control opens its menu on the choice it holds, the arrow walks to the
     // next, and Enter takes it.
