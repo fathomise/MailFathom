@@ -45,6 +45,33 @@ internal static class ReplyDraftForms
         };
     }
 
+    /// <summary>Names how the draft's links miss the addresses a case expects, or answers <see langword="null" /> where they are exactly those.</summary>
+    /// <param name="draft">The draft as the deployment read it.</param>
+    /// <param name="expectedTargets">Every address the draft has to link.</param>
+    /// <returns>What is missing or extra, in words a failed run can be read by.</returns>
+    public static string? LinkShortfall(ReplyDraft draft, IReadOnlyList<string> expectedTargets)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        ArgumentNullException.ThrowIfNull(expectedTargets);
+
+        if (!draft.WasWritten)
+        {
+            return "There is no draft to carry a link.";
+        }
+
+        var targets = MailDocumentLinks.Of(draft.Document).Select(static linked => linked.Link.Target).ToArray();
+        var missing = expectedTargets.Except(targets, StringComparer.Ordinal).ToArray();
+        var stray = targets.Except(expectedTargets, StringComparer.Ordinal).ToArray();
+
+        return (missing.Length, stray.Length) switch
+        {
+            (0, 0) => null,
+            (_, 0) => $"The draft does not link {string.Join(", ", missing)}.",
+            (0, _) => $"The draft links what the case does not expect: {string.Join(", ", stray)}.",
+            _ => $"The draft does not link {string.Join(", ", missing)}, and links {string.Join(", ", stray)} instead.",
+        };
+    }
+
     /// <summary>Names every link the model wrote that cites no number the turn published.</summary>
     /// <param name="body">The body as the model wrote it.</param>
     /// <param name="publishedLinks">How many links the turn numbered.</param>

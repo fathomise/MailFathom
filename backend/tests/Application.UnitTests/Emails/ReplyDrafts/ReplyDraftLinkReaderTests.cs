@@ -95,6 +95,48 @@ public sealed class ReplyDraftLinkReaderTests
     }
 
     [Fact]
+    public async Task ReadAsync_MoreDistinctLinksThanTheBound_PublishesTheBoundNumberedInTurnAfterWhatThePersonTyped()
+    {
+        // Arrange
+        var reader = ReaderOver(
+        [
+            .. Enumerable.Range(0, ReplyDraftLinkReader.MaximumLinks + 5).Select(static index => LinkedRun(
+                $"sheet {index}",
+                new MailDocumentLink($"https://files.example.test/{index}", "files.example.test", null, MailLinkDeception.None))),
+        ]);
+
+        // Act
+        var links = await reader.ReadAsync(
+            "Point them at https://forms.example.test/order",
+            [MessageOf(Message)],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(Enumerable.Range(0, ReplyDraftLinkReader.MaximumLinks), links.Select(static link => link.Position));
+        Assert.Equal(
+            [
+                "https://forms.example.test/order",
+                .. Enumerable.Range(0, ReplyDraftLinkReader.MaximumLinks - 1).Select(static index => $"https://files.example.test/{index}"),
+            ],
+            links.Select(static link => link.Link.Target));
+    }
+
+    [Fact]
+    public async Task ReadAsync_WordsLongerThanTheBound_AreCutToIt()
+    {
+        // Arrange
+        var reader = ReaderOver(LinkedRun(
+            new string('w', ReplyDraftLinkReader.MaximumWordsLength + 50),
+            new MailDocumentLink("https://files.example.test/sheet", "files.example.test", null, MailLinkDeception.None)));
+
+        // Act
+        var links = await reader.ReadAsync(instruction: null, [MessageOf(Message)], TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new string('w', ReplyDraftLinkReader.MaximumWordsLength), Assert.Single(links).Words);
+    }
+
+    [Fact]
     public async Task ReadAsync_AMessageWithNoStoredContent_PublishesNothingAndRendersNothing()
     {
         // Arrange

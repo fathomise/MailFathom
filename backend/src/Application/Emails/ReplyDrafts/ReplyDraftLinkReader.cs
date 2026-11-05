@@ -80,7 +80,7 @@ public sealed class ReplyDraftLinkReader
     }
 
     /// <summary>Reads each web address the person typed, as the words around it are separated.</summary>
-    internal static IEnumerable<(MailDocumentLink Link, string? Words)> TypedIn(string? instruction) =>
+    private static IEnumerable<(MailDocumentLink Link, string? Words)> TypedIn(string? instruction) =>
         (instruction ?? string.Empty)
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
             .Select(static word => word.TrimEnd(TrailingPunctuation))
@@ -91,7 +91,7 @@ public sealed class ReplyDraftLinkReader
             .Select(static link => (link, (string?)null));
 
     /// <summary>Numbers what may be cited, leaving out what a host cannot honestly describe.</summary>
-    internal static IReadOnlyList<ReplyDraftLink> Numbered(IEnumerable<(MailDocumentLink Link, string? Words)> found) =>
+    private static IReadOnlyList<ReplyDraftLink> Numbered(IEnumerable<(MailDocumentLink Link, string? Words)> found) =>
     [
         .. found
             .Where(static linked => linked.Link.Host is not null && !linked.Link.IsWorthWarningAbout && IsWeb(linked.Link))

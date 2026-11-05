@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Collections.Frozen;
+using System.Globalization;
 using System.Text.Json;
 using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.EmailContent.Rendering.Document.Blocks;
@@ -53,6 +54,10 @@ internal static class ReplyDraftBlockReading
     /// <summary>How deep words are looked for inside a shape this does not read.</summary>
     private const int MaximumWordsDepth = 6;
 
+    /// <summary>The most the plain reading writes around one list item: the longest number, its stop, and the line it ends.</summary>
+    private static readonly int ListItemSeparatorsLength =
+        MaximumListItems.ToString(CultureInfo.InvariantCulture).Length + ". ".Length + ReplyDraft.LineBreak.Length;
+
     /// <summary>The palette a person picks a colour from, by the name each swatch is offered under.</summary>
     /// <remarks>ADR 0047 Question 2 states the values; each reaches 4.5:1 against the white page a message is read on.</remarks>
     private static readonly FrozenDictionary<string, MailDocumentColour> Swatches = new Dictionary<string, MailDocumentColour>(StringComparer.OrdinalIgnoreCase)
@@ -102,7 +107,7 @@ internal static class ReplyDraftBlockReading
             _ => [],
         };
 
-        IReadOnlyList<MailDocumentBlock> worded = [.. blocks.Where(static block => block is not MailParagraphBlock paragraph || paragraph.Content.Count > 0)];
+        IReadOnlyList<MailDocumentBlock> worded = [.. blocks.Where(HoldsWords)];
 
         return worded.Count is 0
             ? null
@@ -115,7 +120,21 @@ internal static class ReplyDraftBlockReading
                 truncated: reading.IsExhausted);
     }
 
+    /// <summary>Whether a block holds a word somebody can edit, which an empty list, a table of empty cells, or a run of spaces does not.</summary>
+    private static bool HoldsWords(MailDocumentBlock block) => block switch
+    {
+        MailParagraphBlock paragraph => paragraph.Content.Any(static run => !string.IsNullOrWhiteSpace(run.Text)),
+        MailListBlock list => list.Items.Any(static item => item.Blocks.Any(HoldsWords)),
+        MailTableBlock table => table.Rows.Any(static row => row.Cells.Any(static cell => cell.Blocks.Any(HoldsWords))),
+        _ => false,
+    };
+
     /// <summary>One reading, holding the links it resolves against and what is left of the words it may keep.</summary>
+    /// <remarks>
+    /// What is left is charged for the separators the draft's plain reading writes as well as for the words — a blank
+    /// line ahead of each block, a marker and a line per list item, a line per table row, and a bar per cell — so the
+    /// plain reading of everything kept fits the bound rather than being cut short beside a document that was not.
+    /// </remarks>
     private sealed class Reading(IReadOnlyList<ReplyDraftLink> links)
     {
         private int remainingCharacters = ReplyDraft.MaximumBodyLength;
@@ -124,14 +143,14 @@ internal static class ReplyDraftBlockReading
 
         internal IEnumerable<MailDocumentBlock> BlocksOf(JsonElement block)
         {
-            if (this.IsExhausted)
-            {
-                return [];
-            }
-
             if (block.ValueKind is JsonValueKind.String)
             {
                 return this.ParagraphsOf(block.GetString()!);
+            }
+
+            if (!this.Charged(ReplyDraft.BlockBreak.Length))
+            {
+                return [];
             }
 
             return TypeOf(block) switch
@@ -144,12 +163,22 @@ internal static class ReplyDraftBlockReading
         }
 
         /// <summary>Reads plain text as paragraphs between its blank lines, each one plain run.</summary>
-        internal IEnumerable<MailDocumentBlock> ParagraphsOf(string text) =>
-        [
-            .. Normalized(text)
-                .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(paragraph => new MailParagraphBlock(this.PlainRun(paragraph), MailBlockAlignment.Inherited)),
-        ];
+        internal List<MailDocumentBlock> ParagraphsOf(string text)
+        {
+            var paragraphs = new List<MailDocumentBlock>();
+
+            foreach (var paragraph in Normalized(text).Split(ReplyDraft.BlockBreak, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (!this.Charged(ReplyDraft.BlockBreak.Length))
+                {
+                    break;
+                }
+
+                paragraphs.Add(new MailParagraphBlock(this.PlainRun(paragraph), MailBlockAlignment.Inherited));
+            }
+
+            return paragraphs;
+        }
 
         private static string? TypeOf(JsonElement block) =>
             block.ValueKind is JsonValueKind.Object
@@ -184,6 +213,16 @@ internal static class ReplyDraftBlockReading
             });
         }
 
+        /// <summary>The plain words inside a shape this does not take, a space between each.</summary>
+        private static string WordsTextOf(JsonElement element)
+        {
+            var words = new List<string>();
+
+            CollectWords(element, 0, words);
+
+            return string.Join(' ', words.Where(static word => !string.IsNullOrWhiteSpace(word)));
+        }
+
         private static void CollectWords(JsonElement element, int depth, List<string> words)
         {
             if (depth > MaximumWordsDepth)
@@ -215,17 +254,30 @@ internal static class ReplyDraftBlockReading
             }
         }
 
-        private MailListBlock ListOf(JsonElement block) => new(
-            IsTrue(block, "ordered"),
-            [
-                .. (block.TryGetProperty("items", out var items) && items.ValueKind is JsonValueKind.Array
-                        ? items.EnumerateArray().Take(MaximumListItems)
-                        : [])
-                    .Select(this.RunsOf)
-                    .ToArray()
-                    .Where(static runs => runs.Count > 0)
-                    .Select(static runs => new MailListItem([new MailParagraphBlock(runs, MailBlockAlignment.Inherited)])),
-            ]);
+        private MailListBlock ListOf(JsonElement block)
+        {
+            var items = new List<MailListItem>();
+            var written = block.TryGetProperty("items", out var listed) && listed.ValueKind is JsonValueKind.Array
+                ? listed.EnumerateArray().Take(MaximumListItems)
+                : [];
+
+            foreach (var item in written)
+            {
+                if (!this.Charged(ListItemSeparatorsLength))
+                {
+                    break;
+                }
+
+                var runs = this.RunsOf(item);
+
+                if (runs.Any(static run => !string.IsNullOrWhiteSpace(run.Text)))
+                {
+                    items.Add(new MailListItem([new MailParagraphBlock(runs, MailBlockAlignment.Inherited)]));
+                }
+            }
+
+            return new MailListBlock(IsTrue(block, "ordered"), items);
+        }
 
         private IEnumerable<MailDocumentBlock> TableOf(JsonElement block)
         {
@@ -254,21 +306,31 @@ internal static class ReplyDraftBlockReading
             [
                 new MailTableBlock(
                     [.. Enumerable.Repeat(new MailTableColumn(WidthShare: null), columns)],
-                    [
-                        .. rows.Select((row, index) => new MailTableRow(
-                            header && index is 0,
-                            [
-                                .. row.Select(this.CellOf),
-                                .. Enumerable.Repeat(EmptyCell(), columns - row.Length),
-                            ])),
-                    ]),
+                    [.. rows.Select((row, index) => this.RowOf(row, header && index is 0, columns))]),
             ];
+        }
+
+        private MailTableRow RowOf(JsonElement[] row, bool isHeader, int columns)
+        {
+            this.Charge(ReplyDraft.LineBreak.Length);
+
+            return new MailTableRow(
+                isHeader,
+                [
+                    .. row.Select(this.CellOf),
+                    .. Enumerable.Repeat(EmptyCell(), columns - row.Length),
+                ]);
         }
 
         private static MailTableCell EmptyCell() => new(1, 1, MailBlockAlignment.Inherited, Background: null, []);
 
         private MailTableCell CellOf(JsonElement cell)
         {
+            if (!this.Charged(ReplyDraft.CellBreak.Length))
+            {
+                return EmptyCell();
+            }
+
             var runs = this.RunsOf(cell);
 
             return new MailTableCell(
@@ -276,7 +338,7 @@ internal static class ReplyDraftBlockReading
                 1,
                 AlignmentOf(cell),
                 Background: null,
-                runs.Count is 0 ? [] : [new MailParagraphBlock(runs, MailBlockAlignment.Inherited)]);
+                runs.Any(static run => !string.IsNullOrWhiteSpace(run.Text)) ? [new MailParagraphBlock(runs, MailBlockAlignment.Inherited)] : []);
         }
 
         /// <summary>Reads the runs a paragraph holds, under the name the instruction gives them or as its words.</summary>
@@ -330,18 +392,14 @@ internal static class ReplyDraftBlockReading
 
         private MailParagraphBlock WordsAsParagraph(JsonElement element) => new(this.WordsOf(element), MailBlockAlignment.Inherited);
 
+        /// <summary>Reads one row of a table past its bounds as a paragraph of its cells' words, a bar between two cells as the plain reading writes one.</summary>
         private MailParagraphBlock WordsAsParagraph(JsonElement[] row) =>
-            new([.. row.SelectMany(cell => this.WordsOf(cell)).Take(MaximumRuns)], MailBlockAlignment.Inherited);
+            this.Charged(ReplyDraft.BlockBreak.Length)
+                ? new(this.PlainRun(string.Join(ReplyDraft.CellBreak, row.Select(WordsTextOf).Where(static words => words.Length > 0))), MailBlockAlignment.Inherited)
+                : new([], MailBlockAlignment.Inherited);
 
         /// <summary>Reads a shape this does not take as the plain words inside it, a space between each.</summary>
-        private IReadOnlyList<MailInlineRun> WordsOf(JsonElement element)
-        {
-            var words = new List<string>();
-
-            CollectWords(element, 0, words);
-
-            return this.PlainRun(string.Join(' ', words.Where(static word => !string.IsNullOrWhiteSpace(word))));
-        }
+        private IReadOnlyList<MailInlineRun> WordsOf(JsonElement element) => this.PlainRun(WordsTextOf(element));
 
         private IReadOnlyList<MailInlineRun> PlainRun(string text) =>
             this.Kept(text, MailTextEmphasis.None, foreground: null, link: null);
@@ -355,7 +413,8 @@ internal static class ReplyDraftBlockReading
         {
             var normalized = Normalized(text);
 
-            if (this.IsExhausted || string.IsNullOrWhiteSpace(normalized))
+            // A run of spaces alone is kept, since it is what stands between the words of the runs either side of it.
+            if (this.IsExhausted || normalized.Length is 0)
             {
                 return [];
             }
@@ -366,5 +425,15 @@ internal static class ReplyDraftBlockReading
 
             return [new MailInlineRun(kept, emphasis, foreground, link)];
         }
+
+        /// <summary>Charges what the plain reading writes beside the words, and says whether anything is left to read after it.</summary>
+        private bool Charged(int characters)
+        {
+            this.Charge(characters);
+
+            return !this.IsExhausted;
+        }
+
+        private void Charge(int characters) => this.remainingCharacters = Math.Max(0, this.remainingCharacters - characters);
     }
 }

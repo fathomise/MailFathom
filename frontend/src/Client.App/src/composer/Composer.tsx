@@ -64,7 +64,9 @@ import {
     picturesKeptHereOnly,
     rememberComposition,
     rememberedComposition,
+    rememberedReplacedByDraft,
     rememberPictures,
+    rememberReplacedByDraft,
     subscribeToPictureKeeping,
 } from './keptComposition';
 import { pictureAddresses } from './pictureAddresses';
@@ -86,7 +88,7 @@ import { useDraftAtDeployment, type AttachedFile, type DraftStanding } from './u
 import { useSendingOptions } from './useSendingOptions';
 import { useSendTimeWording } from './useSendTimeWording';
 import { WrittenMessage } from './WrittenMessage';
-import { picturesNamedIn, type WrittenNode } from './writtenText';
+import { picturesNamedIn } from './writtenText';
 
 // Writing a message, as the design composes it: one model in two shapes, decided by the width the client has
 // rather than by which head it runs on. Wide, it is the reading column — what is being written stands where what is
@@ -273,7 +275,9 @@ export function Composer({
     // both the way back and the fact the send confirmation cautions about: a draft nobody has read is words somebody
     // else wrote, and accepting it is what makes them the author's own.
     const [drafting, setDrafting] = useState(false);
-    const [beforeDrafting, setBeforeDrafting] = useState<readonly WrittenNode[] | null>(null);
+    const [beforeDrafting, setBeforeDrafting] = useState(() =>
+        keptFor(opening) === null ? null : rememberedReplacedByDraft(),
+    );
 
     // What the AI drafts from, as messages: a reply starts with the one it answers and a new message with none. The
     // first context a composition takes is where it started, and a context that differs from that as a set is what the
@@ -512,6 +516,10 @@ export function Composer({
     useEffect(() => {
         keepThePictures();
     }, [namedPictures]);
+
+    useEffect(() => {
+        rememberReplacedByDraft(beforeDrafting);
+    }, [beforeDrafting]);
 
     // Opening the composer is a view change, so focus goes into it rather than staying on the control that opened it.
     // Once, as the fields appear, on the first one there is to write in — the words wherever the recipients are written
@@ -1320,11 +1328,11 @@ function sentAs(composition: Composition, copiesShown: boolean): Composition {
 // Where a composition starts: what this tab was already writing where it matches what is being opened, an empty
 // message of its own, or nothing at all while the message an answer is written against is still being read.
 function opened(opening: ComposerOpening, accounts: readonly MailAccount[]): Composition | null {
-    const kept = rememberedComposition();
+    const kept = keptFor(opening);
 
     const addressed = opening.kind === 'new' ? (opening.to ?? []) : [];
 
-    if (kept !== null && sameOpening(kept, opening)) {
+    if (kept !== null) {
         // What was being written is kept and whoever the opening named is added to it: somebody who asks to write to a
         // person while half a message of their own is open is addressing that message rather than starting a second
         // one, and a repeat is not written down twice.
@@ -1332,6 +1340,13 @@ function opened(opening: ComposerOpening, accounts: readonly MailAccount[]): Com
     }
 
     return opening.kind === 'new' ? nothingWrittenYet(accounts[0]?.id ?? '', addressed) : null;
+}
+
+// What this tab was writing, where it is what is being opened.
+function keptFor(opening: ComposerOpening): Composition | null {
+    const kept = rememberedComposition();
+
+    return kept !== null && sameOpening(kept, opening) ? kept : null;
 }
 
 function sameOpening(kept: Composition, opening: ComposerOpening): boolean {

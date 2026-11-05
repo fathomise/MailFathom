@@ -152,8 +152,9 @@ public sealed class ReplyDraftBlockReadingTests
 
         // Assert
         var paragraph = Assert.IsType<MailParagraphBlock>(Assert.Single(document.Blocks));
+        var expected = string.Join(ReplyDraft.CellBreak, Enumerable.Range(0, ReplyDraftBlockReading.MaximumTableColumns + 1).Select(static column => $"c{column}"));
 
-        Assert.Equal(ReplyDraftBlockReading.MaximumTableColumns + 1, paragraph.Content.Count);
+        Assert.Equal(expected, Assert.Single(paragraph.Content).Text);
     }
 
     [Fact]
@@ -166,14 +167,53 @@ public sealed class ReplyDraftBlockReadingTests
         var document = Read($$"""["{{filler}}", "{{new string('b', 20)}}", "never read"]""");
 
         // Assert
+        var body = ReplyDraft.Written(document, [], []).Body;
+
         Assert.True(document.Truncated);
-        Assert.Equal(ReplyDraft.MaximumBodyLength, document.Blocks.Cast<MailParagraphBlock>().Sum(static paragraph => paragraph.Content.Sum(static run => run.Text.Length)));
         Assert.Equal(2, document.Blocks.Count);
+        Assert.InRange(body.Length, ReplyDraft.MaximumBodyLength - ReplyDraft.BlockBreak.Length, ReplyDraft.MaximumBodyLength);
+        Assert.EndsWith("b", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Read_AListPastTheDraftsBound_KeepsItsPlainReadingWithinTheBoundAndWhole()
+    {
+        // Arrange
+        var items = string.Join(", ", Enumerable.Range(0, ReplyDraftBlockReading.MaximumListItems).Select(static item => $"\"{new string('a', 99)}{item % 10}\""));
+
+        // Act
+        var document = Read($$"""[{ "type": "list", "ordered": true, "items": [{{items}}] }]""");
+
+        // Assert
+        var list = Assert.IsType<MailListBlock>(Assert.Single(document.Blocks));
+        var lastItem = Assert.Single(Assert.IsType<MailParagraphBlock>(Assert.Single(list.Items[^1].Blocks)).Content).Text;
+        var body = ReplyDraft.Written(document, [], []).Body;
+
+        Assert.True(document.Truncated);
+        Assert.True(body.Length <= ReplyDraft.MaximumBodyLength);
+        Assert.EndsWith(lastItem, body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Read_ARunOfSpacesBetweenTwoRuns_KeepsTheWordsApart()
+    {
+        // Act
+        var document = Read("""[{ "type": "paragraph", "runs": [{ "text": "Total:", "bold": true }, " ", "42"] }]""");
+
+        // Assert
+        var paragraph = Assert.IsType<MailParagraphBlock>(Assert.Single(document.Blocks));
+
+        Assert.Equal("Total: 42", string.Concat(paragraph.Content.Select(static run => run.Text)));
     }
 
     [Theory]
     [InlineData("[]")]
     [InlineData("""["   ", { "type": "paragraph", "runs": [] }]""")]
+    [InlineData("""[{ "type": "paragraph", "runs": [" "] }]""")]
+    [InlineData("""[{ "type": "list", "items": [] }]""")]
+    [InlineData("""[{ "type": "list", "items": ["", " "] }]""")]
+    [InlineData("""[{ "type": "table", "rows": [[""]] }]""")]
+    [InlineData("""[{ "type": "table", "rows": [[]] }]""")]
     [InlineData("42")]
     public void Read_ABodyHoldingNoWords_ReadsNothing(string body)
     {

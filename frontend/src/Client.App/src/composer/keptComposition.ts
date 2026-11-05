@@ -15,7 +15,7 @@ import {
     pictureIn,
     type HeldPicture,
 } from './pictures';
-import { picturesNamedIn, writtenTextIn } from './writtenText';
+import { picturesNamedIn, writtenTextIn, type WrittenNode } from './writtenText';
 
 // Where what somebody is typing survives a reload, which a single-page application makes a cold start rather than a
 // way out. It is the local draft the composer keeps continuously, and it is a different thing from the draft in the
@@ -36,6 +36,11 @@ const storageKey = 'mailfathom.composition';
 // that refuses a few megabytes of pictures must not take the words, the recipients, and the subject down with them, so
 // the two are written apart and the platform's own quota decides what survives a reload.
 const picturesKey = 'mailfathom.composition.pictures';
+
+// What a draft the deployment wrote replaced, kept beside the composition while nobody has accepted or given up that
+// draft. Its presence is what says the words are not yet the author's own, so a reload keeps the way back, the caution
+// before a send, and each link's host beside its words rather than handing the draft over as written by hand.
+const replacedStorageKey = 'mailfathom.composition.replacedByDraft';
 
 // What a kept composition may carry before it is read as somebody's edit rather than as this client's own writing. The
 // address is the longest one the mail standards allow and the subject is a header line, each far above anything the
@@ -164,6 +169,37 @@ function keepPictures(composition: Composition): boolean {
     }
 }
 
+/**
+ * What a draft nobody has accepted yet replaced in what this tab was writing, or `null` where no such draft stands.
+ *
+ * Only the pictures kept beside the draft are kept, those being the ones its words name, so a picture only the replaced
+ * words held is dropped from them after a reload rather than read back as a name nothing holds.
+ */
+export function rememberedReplacedByDraft(): readonly WrittenNode[] | null {
+    try {
+        const stored = window.sessionStorage.getItem(replacedStorageKey);
+
+        return stored === null
+            ? null
+            : writtenTextIn(JSON.parse(stored), (picture) => rememberedPictures().has(picture));
+    } catch {
+        return null;
+    }
+}
+
+/** Keeps what a standing draft replaced, or drops it once the draft is accepted or given up. */
+export function rememberReplacedByDraft(replaced: readonly WrittenNode[] | null): void {
+    try {
+        if (replaced === null) {
+            window.sessionStorage.removeItem(replacedStorageKey);
+        } else {
+            window.sessionStorage.setItem(replacedStorageKey, JSON.stringify(replaced));
+        }
+    } catch {
+        // A refused store loses only the standing over a reload, which is what a composer with no store had anyway.
+    }
+}
+
 /** Drops what was being written, which is what sending it, giving it up, and signing out each do. */
 export function forgetComposition(): void {
     // The refusal was about the pictures of what was being written, so it goes with them.
@@ -172,6 +208,7 @@ export function forgetComposition(): void {
     try {
         window.sessionStorage.removeItem(storageKey);
         window.sessionStorage.removeItem(picturesKey);
+        window.sessionStorage.removeItem(replacedStorageKey);
     } catch {
         // A store that refuses a removal refused the write that would have put something there.
     }

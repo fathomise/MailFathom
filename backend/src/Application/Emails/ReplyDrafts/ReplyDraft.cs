@@ -41,9 +41,14 @@ public sealed record ReplyDraft
     /// <remarks>A reply goes to the people in the exchange. A proposal longer than this is a producer addressing a mailing list, and the bound holds whatever the conversation's own size is.</remarks>
     public const int MaximumProposedRecipients = 10;
 
-    private const string LineBreak = "\n";
+    /// <summary>What the plain reading writes between two lines of one block: a list's items, a table's rows.</summary>
+    public const string LineBreak = "\n";
 
-    private const string BlockBreak = "\n\n";
+    /// <summary>What the plain reading writes between two blocks.</summary>
+    public const string BlockBreak = "\n\n";
+
+    /// <summary>What the plain reading writes between two cells of one table row.</summary>
+    public const string CellBreak = " | ";
 
     private ReplyDraft(
         bool wasWritten,
@@ -144,6 +149,8 @@ public sealed record ReplyDraft
             throw new ArgumentException("A drafted reply holds words somebody can edit.", nameof(document));
         }
 
+        // The reading that builds a draft charges every separator above against the bound, so this cut is reached only
+        // where a scanner's replacement came out longer than the words it replaced.
         return new ReplyDraft(
             wasWritten: true,
             document,
@@ -166,7 +173,7 @@ public sealed record ReplyDraft
             list.Items.Select((item, index) => (list.Ordered ? (index + 1).ToString(CultureInfo.InvariantCulture) + ". " : "- ") + PlainTextOf(item.Blocks))),
         MailTableBlock table => string.Join(
             LineBreak,
-            table.Rows.Select(static row => string.Join(" | ", row.Cells.Select(static cell => PlainTextOf(cell.Blocks))))),
+            table.Rows.Select(static row => string.Join(CellBreak, row.Cells.Select(static cell => PlainTextOf(cell.Blocks))))),
         _ => string.Empty,
     };
 }

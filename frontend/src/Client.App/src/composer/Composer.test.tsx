@@ -29,7 +29,12 @@ import { WorkspaceProvider } from '../workspace/Workspace';
 import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { Composer } from './Composer';
 import type { ComposerOpening } from './composition';
-import { rememberComposition, rememberedComposition } from './keptComposition';
+import {
+    rememberComposition,
+    rememberedComposition,
+    rememberedReplacedByDraft,
+    rememberReplacedByDraft,
+} from './keptComposition';
 
 const session: ClientSession = {
     baseAddress: 'https://mail.example.invalid',
@@ -2394,7 +2399,7 @@ describe('Composer drafting', () => {
         expect(link?.getAttribute('href')).toBe('https://files.example.test/offer');
     });
 
-    it('stops naming where a draft’s links go once the words it replaced are restored', async () => {
+    it('stops naming where links go once the words a draft replaced are restored, the author’s own link included', async () => {
         drawComposer(
             { kind: 'new' },
             { drafting: { status: 200, body: draftedReply({ document: formattedDraft }) } },
@@ -2404,15 +2409,71 @@ describe('Composer drafting', () => {
             true,
         );
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Write a draft' }));
-        await screen.findByText('the signed offer');
+        const words = await screen.findByRole('textbox', { name: 'Message' });
+
+        fireEvent.input(words, {
+            target: { innerHTML: '<p>See <a href="https://notes.example.test/mine">my notes</a></p>' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Write a draft' }));
+
+        const drafted = (await screen.findByText('the signed offer')).closest('a');
+
+        await waitFor(() => {
+            expect(drafted?.getAttribute('data-link-host')).toBe('goes to files.example.test');
+        });
 
         fireEvent.click(screen.getByRole('button', { name: 'Restore my version' }));
 
-        await waitFor(() => {
-            expect(screen.queryByText('the signed offer')).toBeNull();
+        const own = (await screen.findByText('my notes')).closest('a');
+
+        expect(own?.getAttribute('href')).toBe('https://notes.example.test/mine');
+        expect(own?.hasAttribute('data-link-host')).toBe(false);
+    });
+
+    it('keeps a draft nobody accepted standing over a reload, each of its links still naming where it goes', async () => {
+        rememberComposition({
+            answering: null,
+            continuing: null,
+            account: 'work',
+            subject: '',
+            to: [],
+            cc: [],
+            bcc: [],
+            words: [
+                {
+                    element: 'p',
+                    address: null,
+                    holds: [
+                        { text: 'See ' },
+                        {
+                            element: 'a',
+                            address: 'https://files.example.test/offer',
+                            holds: [{ text: 'the signed offer' }],
+                        },
+                    ],
+                },
+            ],
+            pictures: new Map(),
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: false,
         });
-        expect(composerFrame().querySelector('[data-link-host]')).toBeNull();
+        rememberReplacedByDraft([{ text: 'What I had written' }]);
+
+        drawComposer({ kind: 'new' }, {}, [work], true, uploadsOneFile, true);
+
+        expect(await screen.findByText('AI draft - check the facts and tone before sending')).toBeDefined();
+
+        const link = screen.getByText('the signed offer').closest('a');
+
+        await waitFor(() => {
+            expect(link?.getAttribute('data-link-host')).toBe('goes to files.example.test');
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
+
+        await waitFor(() => {
+            expect(rememberedReplacedByDraft()).toBeNull();
+        });
     });
 
     it('says a deployment that wrote nothing wrote nothing, and leaves the message as it was', async () => {
