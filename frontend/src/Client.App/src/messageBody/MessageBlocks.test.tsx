@@ -398,32 +398,33 @@ describe('MessageBlocks, a run in a colour the sender chose', () => {
 });
 
 describe('MessageBlocks, a run at a size the sender chose', () => {
-    // A size is drawn, unlike a colour, because it says which words are a headline and which are small print. What is
-    // asserted is that each step is this client's own token, relative to the body text, and never a length the sender
-    // wrote — no element carries a style attribute, so nothing below `small` or above `largest` can be drawn.
-    function sizedWords(size: MailTextSize): HTMLElement | null {
-        drawing([{ type: 'paragraph', content: [run('Sized words', { size })], alignment: 'Inherited' }]);
-
-        return screen.getByText('Sized words').closest('[class*="text-step-"]');
+    // A size is drawn, unlike a colour, as a step of this client's own scale. What a test can state about that is
+    // structural: the words are drawn, with their emphasis, and no element carries a length the sender wrote. How big
+    // each step looks is the design's, and is held against it as images rather than here.
+    function drawingSized(size: MailTextSize, emphasis = noEmphasis) {
+        return drawing([
+            { type: 'paragraph', content: [run('Sized words', { size, emphasis })], alignment: 'Inherited' },
+        ]);
     }
 
-    it.each([
-        ['Small', 'text-step-small'],
-        ['Large', 'text-step-large'],
-        ['Larger', 'text-step-larger'],
-        ['Largest', 'text-step-largest'],
-    ] as const)('draws a run sized %s at the client own step', (size, token) => {
-        const drawn = sizedWords(size);
+    it.each(['Normal', 'Small', 'Large', 'Larger', 'Largest'] as const)(
+        'draws a run sized %s once, with no length of the sender on any element',
+        (size) => {
+            const { container } = drawingSized(size);
 
-        expect(drawn?.classList.contains(token)).toBe(true);
-        expect(drawn?.getAttribute('style')).toBeNull();
+            expect(screen.getAllByText('Sized words')).toHaveLength(1);
+            expect(container.querySelector('[style]')).toBeNull();
+        },
+    );
+
+    it('draws a sized monospace run as code holding its words', () => {
+        const { container } = drawingSized('Largest', { ...noEmphasis, monospace: true });
+
+        expect(container.querySelector('code')?.textContent).toBe('Sized words');
+        expect(container.querySelector('[style]')).toBeNull();
     });
 
-    it('draws a run at body size with no step of its own, so the body text around it decides', () => {
-        expect(sizedWords('Normal')).toBeNull();
-    });
-
-    it('keeps the emphasis and the small print of a sized run inside its step', () => {
+    it('keeps the emphasis of a sized run in the small print', () => {
         const { container } = drawing([
             {
                 type: 'paragraph',
@@ -438,15 +439,16 @@ describe('MessageBlocks, a run at a size the sender chose', () => {
             },
         ]);
 
-        expect(container.querySelector('.text-step-larger .text-muted strong')?.textContent).toBe('Deadline');
+        expect(container.querySelector('strong')?.textContent).toBe('Deadline');
+        expect(container.querySelector('[style]')).toBeNull();
     });
 
-    it('draws a heading at its own measure rather than at the step its words carry', () => {
+    it('draws a heading at its own level whatever step its words carry', () => {
         const { container } = drawing([
             { type: 'heading', level: 1, content: [run('A masthead', { size: 'Largest' })], alignment: 'Start' },
         ]);
 
         expect(screen.getByRole('heading', { level: 3, name: 'A masthead' })).toBeDefined();
-        expect(container.querySelector('[class*="text-step-"]')).toBeNull();
+        expect(container.querySelector('[style]')).toBeNull();
     });
 });

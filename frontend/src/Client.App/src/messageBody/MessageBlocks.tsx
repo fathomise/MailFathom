@@ -14,6 +14,7 @@ import type {
     MailPreformattedBlock,
     MailQuoteBlock,
     MailTableBlock,
+    MailTextSize,
 } from '@mailfathom/client-backend';
 import { useLocalization } from '../localization/useLocalization';
 import { MessageLink } from './MessageLink';
@@ -304,18 +305,23 @@ function MessageRunGroup({ runs }: { readonly runs: readonly MailInlineRun[] }) 
 function MessageRun({ run }: { readonly run: MailInlineRun }) {
     // A `<br>` the sender wrote survives as a newline inside the run rather than as a block of its own, which is what
     // `MailInlineRun` states — so a signature, a postal address, and a poem are all line breaks this has to keep.
-    const emphasized = emphasize(run, <span className="whitespace-pre-line">{run.text}</span>);
+    //
+    // A size, unlike a colour, is drawn: it says which words are a headline and which are small print, which is meaning
+    // in the way emphasis is. It is drawn as a step of this client's own scale relative to the text around the words,
+    // never at a length the sender wrote, and on the words themselves rather than around their emphasis — inline code
+    // sets a size of its own, so a step outside it would be overridden rather than applied.
+    const words = <span className={wordsShape(run.size)}>{run.text}</span>;
+    const emphasized = emphasize(run, words);
 
     // The sender's colour decides which of this client's own two it is drawn in rather than what it is drawn in, for the
     // reason `messageBody/senderColour.ts` holds: a reading surface is drawn in the reader's theme, and what survives
     // of the sender's own presentation is the emphasis above, which means something a colour does not.
     const receding = run.foreground !== null && senderColourRole(run.foreground) === 'receding';
-    const coloured = receding ? <span className="text-muted">{emphasized}</span> : emphasized;
+    return receding ? <span className="text-muted">{emphasized}</span> : emphasized;
+}
 
-    // A size, unlike a colour, is drawn: it says which words are a headline and which are small print, which is meaning
-    // in the way emphasis is. It is drawn as a step of this client's own scale relative to the body text, never at a
-    // length the sender wrote.
-    return run.size === 'Normal' ? coloured : <span className={textSizeShapes[run.size]}>{coloured}</span>;
+function wordsShape(size: MailTextSize): string {
+    return size === 'Normal' ? 'whitespace-pre-line' : `whitespace-pre-line ${textSizeShapes[size]}`;
 }
 
 // Emphasis is drawn with the elements that mean it rather than with a class, so the meaning survives a stylesheet and
