@@ -1336,8 +1336,10 @@ Seven things around those commands are worth knowing before they are discovered:
   `sudo locale-gen pl_PL.UTF-8 de_DE.UTF-8` on a Debian or Ubuntu machine, because a locale the machine has not
   generated is refused by `setlocale` and reaches the WebView as no language preference at all. A case names the
   command and stops where the locale is missing, rather than reading back the English that absence produces. It is what
-  proves the two rules a WebView answers rather than the client: that an instant
-  is placed against the zone the runtime reports, and that a first run opens in the language the platform states. The
+  proves the three rules a WebView answers rather than the client: that an instant is placed against the zone the
+  runtime reports, that a first run opens in the language the platform states, and that a file a paste event carries
+  reaches the composer and is drawn from the object URL the composer issued — the event being one the case builds,
+  since WebDriver reaches no system clipboard. The
   port the corpus server binds is derived from the workspace's own path like the browser suite's, and the shell is built
   with that address in it, so two worktrees neither contend nor drive each other's client.
   `frontend/tests/AGENTS.md` § _The desktop suite_ is what it covers and what it deliberately leaves to the other

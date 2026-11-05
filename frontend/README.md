@@ -720,7 +720,8 @@ outlives moving between the spaces. What is being written is deliberately not in
 to the composer, so nothing above it can read half a message off the frame.
 
 **Two drafts are kept, and they are different promises.** What is being typed is written continuously to the tab's own
-store, so a reload returns to it — that is `keptComposition.ts`, and it is the session's store rather than the
+store, so a reload returns to it — that is `keptComposition.ts`, which keeps the pictures beside the words under a key of
+their own so a store too full for them loses the pictures and not the words, and it is the session's store rather than the
 machine's because words, a subject, and the addresses they are for are personal data under the same rules as the mail
 already on the screen; signing out drops it in the same act that empties the workspace. A sign-in the deployment ends
 is not somebody signing out, so what they were writing waits for the same person to sign in again in this tab, and is
@@ -739,7 +740,10 @@ bounds a poisoned session store to what the type can express rather than to what
 part is written by escaping that tree and the plain-text alternative is read off the same tree, so the two halves of one
 message cannot come to disagree. `WrittenMessage.tsx` draws the region and the formatting controls above it, replaced by
 a toggle where a finger drives the screen and the message needs the room a bar would take; what arrives from somewhere
-else arrives as text, so nothing this client did not write reaches the tree at all.
+else arrives as text, as a link to the one address pasted, or as a picture — a PNG, JPEG, or GIF judged by its own
+octets, held under a name the composer minted, and drawn from an object URL the composer issued — so nothing this client
+did not write reaches the tree at all, and no remote address ever becomes a picture's source. A picture goes out inside
+the message, referred to from the HTML part as `cid:` and its name.
 
 **Nothing is sent without an explicit confirmation, and the confirmation names every address**, the blind copies
 included — those being the ones a header row never shows back. It also names what the message would go out without: no

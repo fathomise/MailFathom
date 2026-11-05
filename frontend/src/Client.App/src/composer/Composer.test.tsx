@@ -576,6 +576,7 @@ describe('Composer, a message of its own', () => {
             cc: [],
             bcc: [],
             words: [{ text: 'Half a sentence' }],
+            pictures: new Map(),
             requestsDeliveryNotification: false,
             requestsReadReceipt: false,
         });
@@ -605,6 +606,7 @@ describe('Composer, a message of its own', () => {
             cc: [],
             bcc: [],
             words: [{ text: 'Half a sentence' }],
+            pictures: new Map(),
             requestsDeliveryNotification: false,
             requestsReadReceipt: false,
         });
@@ -626,6 +628,7 @@ describe('Composer, a message of its own', () => {
             cc: [],
             bcc: [],
             words: [],
+            pictures: new Map(),
             requestsDeliveryNotification: false,
             requestsReadReceipt: false,
         });
@@ -2140,6 +2143,7 @@ describe('Composer, an answer', () => {
             cc: [],
             bcc: [],
             words: [{ text: 'Half an answer' }],
+            pictures: new Map(),
             requestsDeliveryNotification: false,
             requestsReadReceipt: false,
         });
@@ -2365,6 +2369,7 @@ describe('Composer drafting', () => {
             cc: [],
             bcc: [],
             words: [{ text: 'What I had written' }],
+            pictures: new Map(),
             requestsDeliveryNotification: false,
             requestsReadReceipt: false,
         });

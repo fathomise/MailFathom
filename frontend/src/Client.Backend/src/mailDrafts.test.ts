@@ -33,7 +33,8 @@ const composition: MailDraftComposition = {
     account: 'work',
     subject: 'Renewal terms',
     plainTextBody: 'The figure in the third column is the one to check.',
-    htmlBody: '<div>The figure in the <b>third</b> column is the one to check.</div>',
+    htmlBody: '<div>The figure in the <b>third</b> column is the one to check.</div><img src="cid:chart" />',
+    pictures: [{ name: 'chart', content: 'iVBORw0KGgo=' }],
     to: ['anna@example.invalid'],
     cc: [],
     bcc: [],
@@ -96,7 +97,8 @@ describe('writeMailDraft', () => {
         expect(requests[0]?.headers['Authorization']).toBe('Basic dGVzdA==');
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
             plainTextBody: 'The figure in the third column is the one to check.',
-            htmlBody: '<div>The figure in the <b>third</b> column is the one to check.</div>',
+            htmlBody: '<div>The figure in the <b>third</b> column is the one to check.</div><img src="cid:chart" />',
+            pictures: [{ name: 'chart', content: 'iVBORw0KGgo=' }],
             to: ['anna@example.invalid'],
             cc: [],
             bcc: [],
@@ -115,6 +117,7 @@ describe('writeMailDraft', () => {
             answers: 'everyone',
             plainTextBody: 'Agreed.',
             htmlBody: null,
+            pictures: [],
             to: ['anna@example.invalid'],
             cc: ['piotr@example.invalid'],
             bcc: [],
@@ -125,6 +128,7 @@ describe('writeMailDraft', () => {
         expect(JSON.parse(requests[0]?.body ?? '')).toStrictEqual({
             plainTextBody: 'Agreed.',
             htmlBody: null,
+            pictures: [],
             to: ['anna@example.invalid'],
             cc: ['piotr@example.invalid'],
             bcc: [],

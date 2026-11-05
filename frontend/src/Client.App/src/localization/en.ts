@@ -1028,6 +1028,27 @@ export const en = {
     'compose.linkAddress': 'Link address',
     'compose.linkAddressPlaceholder': 'Where the link goes',
     'compose.insertLink': 'Insert',
+    'compose.picture': 'Picture',
+    'compose.pictureDescribed': '{name} · {size} · sent at most {width} px wide',
+    'compose.pictureUnnamed': 'picture',
+    'compose.pictureWithoutAName': 'Unnamed picture',
+    'compose.removePicture': 'Remove picture',
+    'compose.pictureTooLarge': '“{name}” was not added - it is {size}, and one picture can be at most {most}.',
+    'compose.pictureOneTooMany':
+        '“{name}” was not added - this message already holds {count} pictures, the most one message can.',
+    'compose.picturesTooMuchTogether':
+        '“{name}” was not added - with it the pictures would come to {size}, and together they can be at most {most}.',
+    'compose.pictureKindNotTaken':
+        '“{name}” was not added - the composer takes PNG, JPEG, and GIF pictures, and this one is {kind}.',
+    'compose.pictureKindUnknown':
+        '“{name}” was not added - the composer takes PNG, JPEG, and GIF pictures, and this one is another kind.',
+    'compose.picturesTooManyInThePaste':
+        'Nothing was pasted - this paste carries {carried} pictures and the message already holds {held}, but one message can hold at most {most}.',
+    'compose.pictureInACell':
+        'Nothing was pasted - a table cell holds words, colour and size only, so a picture goes outside the table.',
+    'compose.dismissPictureRefusal': 'Dismiss',
+    'compose.picturesInThisWindowOnly':
+        "The pictures in this message are kept in this window only - the browser's storage would not take them. Reloading or closing the window loses them; the words, recipients, and subject are kept.",
     'compose.attach': 'Attach',
     'compose.attachedFiles': 'Attached files',
     'compose.removeFile': 'Remove {name}',

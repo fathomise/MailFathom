@@ -2,11 +2,18 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { nothingWrittenYet, type Composition } from './composition';
-import { forgetComposition, rememberComposition, rememberedComposition } from './keptComposition';
+import {
+    forgetComposition,
+    picturesKeptHereOnly,
+    rememberComposition,
+    rememberedComposition,
+    rememberPictures,
+} from './keptComposition';
 
 const storageKey = 'mailfathom.composition';
+const picturesKey = 'mailfathom.composition.pictures';
 
 const written: Composition = {
     ...nothingWrittenYet('work'),
@@ -14,6 +21,7 @@ const written: Composition = {
     to: ['ada@example.invalid'],
     cc: ['bo@example.invalid'],
     words: [{ text: 'Here it is.' }],
+    pictures: new Map(),
 };
 
 afterEach(() => {
@@ -107,5 +115,117 @@ describe('rememberedComposition', () => {
         window.sessionStorage.setItem(storageKey, stored);
 
         expect(rememberedComposition()).toBeNull();
+    });
+});
+
+describe('rememberPictures', () => {
+    const pictureName = '01890a5d-ac96-774b-bcce-b302099a8057';
+    const otherPictureName = '01890a5d-ac96-774b-bcce-b302099a8058';
+
+    // The smallest PNG header that states a size: the signature, then the header chunk naming itself and 3 by 2 pixels.
+    const octets = new Uint8Array([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 3, 0, 0, 0, 2,
+    ]);
+    const content = btoa(String.fromCharCode(...octets));
+
+    const withPicture: Composition = {
+        ...written,
+        words: [{ text: 'Here it is.' }, { element: 'img', picture: pictureName, width: 300, height: 200 }],
+        pictures: new Map([
+            [pictureName, { octets, type: 'image/png', width: 300, height: 200, label: 'chart.png' }],
+            [otherPictureName, { octets, type: 'image/png', width: 3, height: 2, label: null }],
+        ]),
+    };
+
+    it('keeps the pictures the words name beside them, so a reload returns to both', () => {
+        rememberComposition(withPicture);
+
+        expect(rememberPictures(withPicture)).toBe(true);
+        expect(rememberedComposition()).toEqual({
+            ...withPicture,
+            pictures: new Map([[pictureName, withPicture.pictures.get(pictureName)]]),
+        });
+    });
+
+    it('reads back the words without a picture the store did not keep, rather than refusing them', () => {
+        rememberComposition(withPicture);
+
+        expect(rememberedComposition()).toEqual({
+            ...withPicture,
+            words: [{ text: 'Here it is.' }],
+            pictures: new Map(),
+        });
+    });
+
+    it('removes the pictures it kept earlier where the store refuses the new ones, and says it did not keep them', () => {
+        rememberPictures(withPicture);
+        const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+            throw new DOMException('full', 'QuotaExceededError');
+        });
+
+        try {
+            expect(rememberPictures(withPicture)).toBe(false);
+        } finally {
+            setItem.mockRestore();
+        }
+
+        expect(window.sessionStorage.getItem(picturesKey)).toBeNull();
+        expect(picturesKeptHereOnly()).toBe(true);
+
+        rememberPictures(withPicture);
+
+        expect(picturesKeptHereOnly()).toBe(false);
+    });
+
+    it('stops saying the pictures were not kept once the composition is forgotten', () => {
+        const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+            throw new DOMException('full', 'QuotaExceededError');
+        });
+
+        try {
+            rememberPictures(withPicture);
+        } finally {
+            setItem.mockRestore();
+        }
+
+        forgetComposition();
+
+        expect(picturesKeptHereOnly()).toBe(false);
+    });
+
+    it('keeps a picture whose name is longer than a kept label may be, under the name cut to that length', () => {
+        const named = 'a'.repeat(1024);
+        const longNamed: Composition = {
+            ...withPicture,
+            pictures: new Map([[pictureName, { octets, type: 'image/png', width: 300, height: 200, label: named }]]),
+        };
+
+        rememberComposition(longNamed);
+        rememberPictures(longNamed);
+
+        expect(rememberedComposition()?.pictures.get(pictureName)?.label).toBe(named.slice(0, 256));
+    });
+
+    it('keeps nothing once the words name no picture', () => {
+        rememberPictures(withPicture);
+        rememberPictures(written);
+
+        expect(window.sessionStorage.getItem(picturesKey)).toBeNull();
+    });
+
+    it.each([
+        ['a name the composer never mints', [{ name: 'chart', content, width: 3, height: 2, label: null }]],
+        [
+            'content that is not a picture',
+            [{ name: pictureName, content: btoa('text'), width: 3, height: 2, label: null }],
+        ],
+        ['a side of nothing', [{ name: pictureName, content, width: 0, height: 2, label: null }]],
+        ['a label that is not text', [{ name: pictureName, content, width: 3, height: 2, label: 7 }]],
+        ['more pictures than a composition holds', Array.from({ length: 17 }, () => ({}))],
+    ])('keeps no picture where the store holds %s', (_, kept) => {
+        rememberComposition(withPicture);
+        window.sessionStorage.setItem(picturesKey, JSON.stringify(kept));
+
+        expect(rememberedComposition()?.pictures).toEqual(new Map());
     });
 });

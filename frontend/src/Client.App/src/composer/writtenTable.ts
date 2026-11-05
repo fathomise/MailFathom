@@ -431,7 +431,7 @@ function headerRow(row: WrittenMarkup): boolean {
 }
 
 function isMarkup(node: WrittenNode): node is WrittenMarkup {
-    return !('text' in node);
+    return 'holds' in node;
 }
 
 function wrapping(element: 'table' | 'tr' | 'th' | 'td', holds: readonly WrittenNode[]): WrittenMarkup {

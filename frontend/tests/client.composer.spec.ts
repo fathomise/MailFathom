@@ -86,6 +86,7 @@ test('sends a new message carrying exactly the recipient, the subject, and the w
         {
             plainTextBody: words,
             htmlBody: words,
+            pictures: [],
             to: [recipient],
             cc: [],
             bcc: [],
@@ -186,6 +187,7 @@ for (const answer of [
             {
                 plainTextBody: words,
                 htmlBody: words,
+                pictures: [],
                 to: answer.to.length === 0 ? [recipient] : answer.to,
                 cc: answer.cc,
                 bcc: [],
@@ -289,6 +291,7 @@ test('keeps a draft with its file when the composer is left, lists it in Drafts,
     // The words come back from the deployment as its own paragraphs, so the markup is the one part allowed to differ.
     const written = {
         plainTextBody: words,
+        pictures: [],
         to: [recipient],
         cc: [],
         bcc: [],
@@ -937,4 +940,67 @@ test('pastes as text an address it would not link to, words around an address, a
     }
 
     await expect(message.getByRole('link')).toHaveCount(0);
+});
+
+// A picture of one pixel, whole, because the engine decodes what is written to its clipboard and re-encodes it.
+const onePixelPng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+/** Puts a picture on the clipboard beside markup naming a remote one, which is how a browser's *Copy image* writes it. */
+async function copyPicture(page: Page): Promise<void> {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    // Written as the page's own script, as `copy` above is, because this suite is compiled without the DOM's types.
+    await page.evaluate(`navigator.clipboard.write([
+        new ClipboardItem({
+            'image/png': new Blob([Uint8Array.from(atob('${onePixelPng}'), (character) => character.charCodeAt(0))], {
+                type: 'image/png',
+            }),
+            'text/html': new Blob(['<img src="https://pictures.example.invalid/chart.png">'], { type: 'text/html' }),
+        }),
+    ])`);
+}
+
+test('pastes a picture from an address of its own, takes its removal back with one Ctrl+Z, keeps it across a reload, and sends it inside the message', async ({
+    page,
+    deployment,
+}) => {
+    const hostsAsked = new Set<string>();
+
+    page.on('request', (request) => hostsAsked.add(new URL(request.url()).host));
+
+    const message = await writeToPasteInto(page, deployment, 'The chart');
+    const picture = message.getByRole('img');
+
+    await copyPicture(page);
+    await page.keyboard.press('Control+V');
+
+    await expect(picture).toHaveCount(1);
+    await expect(picture).toHaveAttribute('src', /^blob:/u);
+
+    await picture.click();
+    await page.getByRole('toolbar', { name: 'Picture' }).getByRole('button', { name: 'Remove picture' }).click();
+
+    await expect(picture).toHaveCount(0);
+
+    await page.keyboard.press('Control+Z');
+
+    await expect(picture).toHaveCount(1);
+
+    await page.reload();
+    await expect(page.getByRole('navigation', { name: 'Spaces' })).toBeVisible();
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+
+    await expect(picture).toHaveCount(1);
+    await expect(message).toHaveText('The chart');
+
+    await send(page);
+
+    const [sent] = deployment.requests('POST', '/drafts').map(({ body }) => body as Record<string, unknown>);
+    const pictures = sent?.['pictures'] as readonly { readonly name: string; readonly content: string }[];
+
+    expect(pictures).toHaveLength(1);
+    expect(sent).toMatchObject({
+        plainTextBody: 'The chart',
+        htmlBody: expect.stringContaining(`src="cid:${pictures[0]?.name ?? ''}" width="1" height="1"`),
+    });
+    expect(hostsAsked).not.toContain('pictures.example.invalid');
 });

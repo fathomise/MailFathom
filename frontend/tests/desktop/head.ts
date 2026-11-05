@@ -10,7 +10,7 @@ import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
 // How the desktop head is driven, which is the one thing neither of the other two browser suites can do.
-// `frontend/tests/AGENTS.md` § *The desktop suite* is where the boundary is drawn and where the two rules this proves
+// `frontend/tests/AGENTS.md` § *The desktop suite* is where the boundary is drawn and where the three rules this proves
 // are named; what is here is the mechanism.
 //
 // `tauri-driver` is the mechanism, and it is Tauri's own rather than anything invented here: it speaks the W3C

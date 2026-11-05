@@ -45,7 +45,8 @@ export const directivesBothHeadsShare: ContentSecurityPolicyDirectives = {
     // a decision rather than an oversight: what keeps a picture out of an AI answer is the service, which neutralises
     // picture markup in every answer before it is published, and the answer's renderer, which draws no image at all — so
     // narrowing this directive would buy the answer nothing and cost the reading pane the remote pictures a reader asked for.
-    'img-src': "'self' data: https: http:",
+    // `blob:` is a picture somebody pasted into the composer, drawn from an object URL the composer issued for it.
+    'img-src': "'self' data: blob: https: http:",
 
     // The same hosts for the same reason: the ask restores the sender's web font beside the pictures, and a framed
     // document inherits this directive. The client's own typeface is committed into the bundle and is `'self'`.

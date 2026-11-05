@@ -282,6 +282,7 @@ describe('whatWouldBeMissing', () => {
                 to: ['ada@example.invalid'],
                 subject: 'Invoice',
                 words: [{ text: 'Here it is.' }],
+                pictures: new Map(),
             }),
         ).toEqual([]);
     });
@@ -312,6 +313,12 @@ describe('anythingWritten', () => {
     it('is something once anybody is addressed or anything is written', () => {
         expect(anythingWritten({ ...nothingWrittenYet('work'), words: [{ text: 'Hello' }] })).toBe(true);
         expect(anythingWritten({ ...nothingWrittenYet('work'), cc: ['ada@example.invalid'] })).toBe(true);
+        expect(
+            anythingWritten({
+                ...nothingWrittenYet('work'),
+                words: [{ element: 'img', picture: pictureName, width: 2, height: 1 }],
+            }),
+        ).toBe(true);
     });
 
     it('is nothing for a subject alone, an answer opening with one it did not write', () => {
@@ -328,6 +335,7 @@ describe('wireComposition', () => {
             subject: 'Invoice',
             plainTextBody: '',
             htmlBody: null,
+            pictures: [],
             to: ['ada@example.invalid'],
             cc: [],
             bcc: [],
@@ -349,6 +357,7 @@ describe('wireComposition', () => {
             answering: { storedEmailId: 'e1', answers: 'senderOnly' },
             subject: 'Re: Invoice',
             words: [{ text: 'Thank you.' }],
+            pictures: new Map(),
         });
 
         expect(wire).toEqual({
@@ -356,6 +365,7 @@ describe('wireComposition', () => {
             answers: 'senderOnly',
             plainTextBody: 'Thank you.',
             htmlBody: 'Thank you.',
+            pictures: [],
             to: [],
             cc: [],
             bcc: [],
@@ -363,7 +373,31 @@ describe('wireComposition', () => {
             requestsReadReceipt: false,
         });
     });
+
+    it('carries each picture the words still name, by its content identifier, and none the words let go of', () => {
+        const wire = wireComposition({
+            ...nothingWrittenYet('work'),
+            words: [{ text: 'See' }, { element: 'img', picture: pictureName, width: 2, height: 1 }],
+            pictures: new Map([
+                [pictureName, heldPicture([1, 2, 3])],
+                [removedPictureName, heldPicture([4, 5, 6])],
+            ]),
+        });
+
+        expect(wire.htmlBody).toBe(
+            `See<img src="cid:${pictureName}" width="2" height="1" style="max-width:100%;height:auto" />`,
+        );
+        expect(wire.plainTextBody).toBe('See');
+        expect(wire.pictures).toEqual([{ name: pictureName, content: 'AQID' }]);
+    });
 });
+
+const pictureName = '01890a5d-ac96-774b-bcce-b302099a8057';
+const removedPictureName = '01890a5d-ac96-774b-bcce-b302099a8058';
+
+function heldPicture(octets: readonly number[]) {
+    return { octets: new Uint8Array(octets), type: 'image/png' as const, width: 2, height: 1, label: null };
+}
 
 describe('looksLikeAnAddress', () => {
     it.each([

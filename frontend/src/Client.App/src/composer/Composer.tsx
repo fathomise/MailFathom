@@ -2,7 +2,16 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useEffectEvent, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import {
+    useEffect,
+    useEffectEvent,
+    useId,
+    useRef,
+    useState,
+    useSyncExternalStore,
+    type KeyboardEvent,
+    type ReactNode,
+} from 'react';
 import {
     draftMailReply,
     longestDraftInstruction,
@@ -50,7 +59,15 @@ import { DraftingBlock, DraftingStanding, type DraftingContextStart } from './Dr
 import { contextPointedAt, sameMessages, type ListPointer } from './draftingContext';
 import { draftingRead, failureSaid } from './draftingRead';
 import { writtenParagraphs } from './draftWords';
-import { forgetComposition, rememberComposition, rememberedComposition } from './keptComposition';
+import {
+    forgetComposition,
+    picturesKeptHereOnly,
+    rememberComposition,
+    rememberedComposition,
+    rememberPictures,
+    subscribeToPictureKeeping,
+} from './keptComposition';
+import { pictureAddresses } from './pictureAddresses';
 import type { RecipientSuggestion } from './recipientSuggestions';
 import { AbsentRecipients } from './AbsentRecipients';
 import { RecipientField } from './RecipientField';
@@ -69,7 +86,7 @@ import { useDraftAtDeployment, type AttachedFile, type DraftStanding } from './u
 import { useSendingOptions } from './useSendingOptions';
 import { useSendTimeWording } from './useSendTimeWording';
 import { WrittenMessage } from './WrittenMessage';
-import type { WrittenNode } from './writtenText';
+import { picturesNamedIn, type WrittenNode } from './writtenText';
 
 // Writing a message, as the design composes it: one model in two shapes, decided by the width the client has
 // rather than by which head it runs on. Wide, it is the reading column — what is being written stands where what is
@@ -322,6 +339,24 @@ export function Composer({
         };
     }, []);
 
+    // The object URLs the pictures are drawn from, which live as long as the composition rather than as long as one
+    // editable region, and whether the session store took the pictures the words name.
+    const [issuedAddresses] = useState(pictureAddresses);
+    const picturesOnlyHere = useSyncExternalStore(subscribeToPictureKeeping, picturesKeptHereOnly);
+
+    // Revoked once the composer is gone for good. A task later rather than at once, because a development build mounts
+    // every component twice and the second mount draws the same pictures from the same addresses.
+    useEffect(
+        () => () => {
+            setTimeout(() => {
+                if (!present.current) {
+                    issuedAddresses.release();
+                }
+            }, 0);
+        },
+        [issuedAddresses],
+    );
+
     // An answer opens addressed to the people in the conversation, which means reading the message it answers. A
     // request going out is what an effect is for; the answer is discarded where the composer stopped listening for it,
     // and a message already restored from what this tab was writing needs no read at all.
@@ -463,6 +498,20 @@ export function Composer({
             rememberComposition(composition);
         }
     }, [composition]);
+
+    // The pictures the words name are kept beside them, and written again only when which pictures those are changes:
+    // a few megabytes encoded on every keystroke would be what typing costs. What the store answered is said above the
+    // words while it would not take them.
+    const namedPictures = composition === null ? '' : picturesNamedIn(composition.words).join(' ');
+    const keepThePictures = useEffectEvent(() => {
+        if (composition !== null) {
+            rememberPictures(composition);
+        }
+    });
+
+    useEffect(() => {
+        keepThePictures();
+    }, [namedPictures]);
 
     // Opening the composer is a view change, so focus goes into it rather than staying on the control that opened it.
     // Once, as the fields appear, on the first one there is to write in — the words wherever the recipients are written
@@ -703,6 +752,7 @@ export function Composer({
                 }
             } else if (!deploymentMayHaveIt && rememberedComposition() === null) {
                 rememberComposition(written);
+                rememberPictures(written);
             }
         });
     }
@@ -1091,8 +1141,16 @@ export function Composer({
                     <WrittenMessage
                         key={draftGeneration}
                         opened={composition.words}
+                        pictures={composition.pictures}
+                        addresses={issuedAddresses}
+                        picturesKeptHereOnly={picturesOnlyHere}
                         onWritten={(words) => {
                             revise({ words });
+                        }}
+                        onPictureHeld={(name, picture) => {
+                            setComposition((held) =>
+                                held === null ? null : { ...held, pictures: new Map(held.pictures).set(name, picture) },
+                            );
                         }}
                         onSendAsked={() => {
                             if (sendable && sendRefused === null) {

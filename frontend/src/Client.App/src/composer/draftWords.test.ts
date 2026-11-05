@@ -69,6 +69,26 @@ const undrawn: readonly MailDocumentBlock[] = [
     { type: 'unimplemented', identity: 'chart', version: 3 },
 ];
 
+const asContentIdentifier = (picture: string) => ({ address: `cid:${picture}`, label: null });
+
+function wordsOf(body: MailBody) {
+    return draftWords(body).words;
+}
+
+// The smallest PNG header that states a size: the signature, then the header chunk naming itself and 3 by 2 pixels.
+const tinyPng = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 3, 0, 0, 0, 2,
+]);
+
+function imageBlock(source: string, width: number | null = null, height: number | null = null): MailDocumentBlock {
+    return {
+        type: 'image',
+        image: { source, alternativeText: 'chart.png', width, height },
+        link: null,
+        alignment: 'Inherited',
+    };
+}
+
 function bodyOf(blocks: readonly MailDocumentBlock[], plainText = ''): MailBody {
     return {
         storedEmailId: 'message-1',
@@ -94,29 +114,34 @@ function bodyOf(blocks: readonly MailDocumentBlock[], plainText = ''): MailBody 
 
 describe('draftWords', () => {
     it('carries each paragraph across as a paragraph, which is what the composer writes one as', () => {
-        expect(htmlOf(draftWords(bodyOf([paragraph(run('Half a thought')), paragraph(run('and the rest'))])))).toBe(
-            '<p>Half a thought</p><p>and the rest</p>',
-        );
+        expect(
+            htmlOf(
+                wordsOf(bodyOf([paragraph(run('Half a thought')), paragraph(run('and the rest'))])),
+                asContentIdentifier,
+            ),
+        ).toBe('<p>Half a thought</p><p>and the rest</p>');
     });
 
     it('wraps a run in each emphasis it carries, one element inside another rather than a shape named for the pair', () => {
-        expect(htmlOf(draftWords(bodyOf([paragraph(run('urgent', { bold: true, italic: true }))])))).toBe(
-            '<p><em><strong>urgent</strong></em></p>',
-        );
+        expect(
+            htmlOf(wordsOf(bodyOf([paragraph(run('urgent', { bold: true, italic: true }))])), asContentIdentifier),
+        ).toBe('<p><em><strong>urgent</strong></em></p>');
     });
 
     // The composer writes no code, so borrowing an element that means something else would say what the author did
     // not: what is lost is the face the run was set in rather than the words.
     it('drops the one emphasis the composer has no element for, keeping the words that carried it', () => {
-        expect(htmlOf(draftWords(bodyOf([paragraph(run('rm -rf', { monospace: true }))])))).toBe('<p>rm -rf</p>');
+        expect(htmlOf(wordsOf(bodyOf([paragraph(run('rm -rf', { monospace: true }))])), asContentIdentifier)).toBe(
+            '<p>rm -rf</p>',
+        );
     });
 
     it('keeps a link the client would follow, and draws one it would not as its own words', () => {
-        const followed = draftWords(bodyOf([paragraph(run('the page', {}, 'https://example.test/page'))]));
-        const refused = draftWords(bodyOf([paragraph(run('the page', {}, 'javascript:alert(1)'))]));
+        const followed = wordsOf(bodyOf([paragraph(run('the page', {}, 'https://example.test/page'))]));
+        const refused = wordsOf(bodyOf([paragraph(run('the page', {}, 'javascript:alert(1)'))]));
 
-        expect(htmlOf(followed)).toBe('<p><a href="https://example.test/page">the page</a></p>');
-        expect(htmlOf(refused)).toBe('<p>the page</p>');
+        expect(htmlOf(followed, asContentIdentifier)).toBe('<p><a href="https://example.test/page">the page</a></p>');
+        expect(htmlOf(refused, asContentIdentifier)).toBe('<p>the page</p>');
     });
 
     // The composer writes no headings, so the line keeps the weight that says it was one rather than levelling into
@@ -129,13 +154,13 @@ describe('draftWords', () => {
             alignment: 'Inherited',
         };
 
-        expect(htmlOf(draftWords(bodyOf([heading])))).toBe('<p><strong>Agenda</strong></p>');
+        expect(htmlOf(wordsOf(bodyOf([heading])), asContentIdentifier)).toBe('<p><strong>Agenda</strong></p>');
     });
 
     it('keeps a run’s colour and its step of the size scale, so a reopened draft looks as it was written', () => {
         const coloured: MailInlineRun = { ...run('Due Friday', { bold: true }), foreground: '#B42318', size: 'Larger' };
 
-        expect(htmlOf(draftWords(bodyOf([paragraph(coloured)])))).toBe(
+        expect(htmlOf(wordsOf(bodyOf([paragraph(coloured)])), asContentIdentifier)).toBe(
             '<p><span style="color:#b42318;font-size:24px"><strong>Due Friday</strong></span></p>',
         );
     });
@@ -148,7 +173,7 @@ describe('draftWords', () => {
             alignment: 'Center',
         };
 
-        expect(htmlOf(draftWords(bodyOf([heading])))).toBe(
+        expect(htmlOf(wordsOf(bodyOf([heading])), asContentIdentifier)).toBe(
             '<p style="text-align:center"><strong><span style="font-size:32px">Agenda</span></strong></p>',
         );
     });
@@ -161,7 +186,9 @@ describe('draftWords', () => {
     ] as const)('keeps a paragraph aligned to its %s, written as %s', (alignment, written) => {
         const aligned: MailDocumentBlock = { type: 'paragraph', content: [run('Line')], alignment };
 
-        expect(htmlOf(draftWords(bodyOf([aligned])))).toBe(`<p style="text-align:${written}">Line</p>`);
+        expect(htmlOf(wordsOf(bodyOf([aligned])), asContentIdentifier)).toBe(
+            `<p style="text-align:${written}">Line</p>`,
+        );
     });
 
     it('carries a list across as the list it was, its items in the order they were written', () => {
@@ -171,13 +198,15 @@ describe('draftWords', () => {
             items: [{ blocks: [paragraph(run('first'))] }, { blocks: [paragraph(run('second'))] }],
         };
 
-        expect(htmlOf(draftWords(bodyOf([list])))).toBe('<ol><li><p>first</p></li><li><p>second</p></li></ol>');
+        expect(htmlOf(wordsOf(bodyOf([list])), asContentIdentifier)).toBe(
+            '<ol><li><p>first</p></li><li><p>second</p></li></ol>',
+        );
     });
 
     it('carries a quotation across as one, which is a shape the composer draws', () => {
         const quote: MailDocumentBlock = { type: 'quote', depth: 1, blocks: [paragraph(run('you wrote'))] };
 
-        expect(htmlOf(draftWords(bodyOf([quote])))).toBe('<blockquote><p>you wrote</p></blockquote>');
+        expect(htmlOf(wordsOf(bodyOf([quote])), asContentIdentifier)).toBe('<blockquote><p>you wrote</p></blockquote>');
     });
 
     it('carries a table across as a table, its header row, alignments, fills, and spans kept', () => {
@@ -191,7 +220,7 @@ describe('draftWords', () => {
             row(false, cell([paragraph(run('10'))], { alignment: 'Start' })),
         ]);
 
-        expect(draftWords(bodyOf([table]))).toEqual([
+        expect(wordsOf(bodyOf([table]))).toEqual([
             {
                 element: 'table',
                 address: null,
@@ -236,16 +265,24 @@ describe('draftWords', () => {
             items: [{ blocks: [paragraph(run('one'))] }, { blocks: [paragraph(run('two'))] }],
         };
         const table = tableOf([row(false, cell([paragraph(run('Note')), list, nested]))]);
-        const written = draftWords(bodyOf([table]));
+        const written = wordsOf(bodyOf([table]));
 
         expect(plainTextOf(written)).toBe('Note one two x y');
-        expect(htmlOf(written)).toContain('>Note<br />one<br />two<br />x<br />y</td>');
+        expect(htmlOf(written, asContentIdentifier)).toContain('>Note<br />one<br />two<br />x<br />y</td>');
+    });
+
+    it('drops a picture a cell carried, since a table cell holds none', () => {
+        const picture = imageBlock(`data:image/png;base64,${btoa(String.fromCharCode(...tinyPng))}`);
+        const { words, pictures } = draftWords(bodyOf([tableOf([row(false, cell([paragraph(run('x')), picture]))])]));
+
+        expect(pictures.size).toBe(0);
+        expect(htmlOf(words, asContentIdentifier)).not.toContain('<img');
     });
 
     it('reads a row span past the last row as reaching the last row', () => {
         const table = tableOf([row(false, cell([paragraph(run('a'))], { rowSpan: 3 }))]);
 
-        expect(htmlOf(draftWords(bodyOf([table])))).not.toContain('rowspan');
+        expect(htmlOf(wordsOf(bodyOf([table])), asContentIdentifier)).not.toContain('rowspan');
     });
 
     // A table past a bound is one the composer could not have made. Dropped whole it would take the message's words
@@ -255,31 +292,83 @@ describe('draftWords', () => {
             row(false, ...Array.from({ length: 21 }, (_, index) => cell([paragraph(run(`c${String(index)}`))]))),
         ]);
 
-        expect(htmlOf(draftWords(bodyOf([wide])))).toBe(
+        expect(htmlOf(wordsOf(bodyOf([wide])), asContentIdentifier)).toBe(
             Array.from({ length: 21 }, (_, index) => `<p>c${String(index)}</p>`).join(''),
         );
     });
 
     it('drops a block the composer has nothing to write it with, rather than approximating one', () => {
-        expect(htmlOf(draftWords(bodyOf([...undrawn.slice(0, 1), paragraph(run('one')), ...undrawn.slice(1)])))).toBe(
-            '<p>one</p>',
-        );
+        expect(
+            htmlOf(
+                wordsOf(bodyOf([...undrawn.slice(0, 1), paragraph(run('one')), ...undrawn.slice(1)])),
+                asContentIdentifier,
+            ),
+        ).toBe('<p>one</p>');
     });
 
     // The blocks are dropped one by one, so a message made of nothing else reduces to nothing at all — and what is
     // left to open the composer on is the rendering the deployment always carries beside the document.
     it('falls back to the plain text where every block is one it has nothing to write', () => {
-        expect(plainTextOf(draftWords(bodyOf(undrawn, 'The chart is attached')))).toBe('The chart is attached');
+        expect(plainTextOf(wordsOf(bodyOf(undrawn, 'The chart is attached')))).toBe('The chart is attached');
     });
 
     it('keeps preformatted text line by line, which is the shape the composer’s own region produces', () => {
         const preformatted: MailDocumentBlock = { type: 'preformatted', text: 'one\ntwo' };
 
-        expect(htmlOf(draftWords(bodyOf([preformatted])))).toBe('<p>one</p><p>two</p>');
+        expect(htmlOf(wordsOf(bodyOf([preformatted])), asContentIdentifier)).toBe('<p>one</p><p>two</p>');
     });
 
     // A body the deployment could not reduce is answered as plain text, which is the rendering it always carries.
     it('falls back to the plain text where the deployment reduced no document at all', () => {
-        expect(plainTextOf(draftWords(bodyOf([], 'Sent from a phone\n\nsorry')))).toBe('Sent from a phone\n\nsorry');
+        expect(plainTextOf(wordsOf(bodyOf([], 'Sent from a phone\n\nsorry')))).toBe('Sent from a phone\n\nsorry');
+    });
+
+    it('holds a picture the draft carried inline again, under a name of its own, at the size it was drawn', () => {
+        const { words, pictures } = draftWords(
+            bodyOf([
+                paragraph(run('See')),
+                imageBlock(`data:image/png;base64,${btoa(String.fromCharCode(...tinyPng))}`, 300, 200),
+            ]),
+        );
+        const [name] = [...pictures.keys()];
+
+        expect(pictures.size).toBe(1);
+        expect(name).toBeDefined();
+        expect(pictures.get(name ?? '')).toEqual({
+            octets: tinyPng,
+            type: 'image/png',
+            width: 300,
+            height: 200,
+            label: 'chart.png',
+        });
+        expect(words).toEqual([
+            { element: 'p', address: null, holds: [{ text: 'See' }] },
+            { element: 'div', address: null, holds: [{ element: 'img', picture: name, width: 300, height: 200 }] },
+        ]);
+    });
+
+    it('takes the size from the picture’s own header where the draft states none', () => {
+        const { words } = draftWords(
+            bodyOf([imageBlock(`data:image/png;base64,${btoa(String.fromCharCode(...tinyPng))}`)]),
+        );
+
+        expect(words).toEqual([
+            {
+                element: 'div',
+                address: null,
+                holds: [expect.objectContaining({ element: 'img', width: 3, height: 2 })],
+            },
+        ]);
+    });
+
+    it.each([
+        ['a remote address', 'https://example.invalid/chart.png'],
+        ['a kind it does not take', `data:image/png;base64,${btoa('a page of text, not a picture')}`],
+        ['text that is not base64', 'data:image/png;base64,not base64 at all!'],
+    ])('drops a picture behind %s', (_, source) => {
+        const { words, pictures } = draftWords(bodyOf([paragraph(run('one')), imageBlock(source)]));
+
+        expect(pictures.size).toBe(0);
+        expect(htmlOf(words, asContentIdentifier)).toBe('<p>one</p>');
     });
 });

@@ -14,10 +14,17 @@ import { cellsOf, mostTableColumns, mostTableRows, rowsOf, spanned, tableWithinB
 // no foreign markup is parsed anywhere on this path, no sanitizer is pinned, and what a poisoned session store could
 // put back on the screen is bounded by what this type can express rather than by what a filter remembered to strip.
 //
+// **A picture is a name, never an address.** The tree refers to a picture the composer holds by the name it minted for
+// it, under ADR 0047 Question 2, and how that picture is written is what a reading of the tree is handed: an object
+// URL the composer issued and the picture's name as its alternative text, for the editor, and `cid:` and the name, for
+// the HTML part. So a remote address can never become a picture.
+//
 // The set is DOM-shaped rather than semantic, and deliberately so. What produces it is a browser editing a
 // `contenteditable` region, and each engine wraps a line, a list, and an emphasis its own way — a semantic block model
 // would have to guess which of those it was looking at, and would lose whatever it guessed wrong. Reading the shape
 // that is actually there loses nothing, and closing the *set* is what makes it safe.
+
+import { isPictureName, isPictureSide, widestSentPicture } from './pictures';
 
 /** The elements a written message may be made of, which is what the formatting controls produce and nothing else. */
 export type WrittenElement =
@@ -82,7 +89,25 @@ export interface WrittenMarkup {
 /** Who a written tree is spelled for: the HTML part of a message going out, or the composer's own editable region. */
 export type WrittenDestination = 'mail' | 'editor';
 
-export type WrittenNode = WrittenText | WrittenMarkup;
+/** A picture the composer holds, by the name it minted for it, at the pixel size its octets state. */
+export interface WrittenPicture {
+    readonly element: 'img';
+    readonly picture: string;
+    readonly width: number;
+    readonly height: number;
+}
+
+export type WrittenNode = WrittenText | WrittenMarkup | WrittenPicture;
+
+/** The picture an address in the editor names, which only an object URL the composer issued does. */
+export type PictureAt = (source: string) => Omit<WrittenPicture, 'element'> | null;
+
+/**
+ * How a picture is written for the reading at hand, from the name the tree holds: its source, and the alternative text
+ * it is named by, which the editor gives it so a screen reader names the picture somebody is writing beside, and the
+ * HTML part does not, a file's name being nothing the recipient was meant to read.
+ */
+export type PictureSource = (picture: string) => { readonly address: string; readonly label: string | null };
 
 const writableElements: readonly string[] = [
     'a',
@@ -251,11 +276,18 @@ export function pastedAddress(pasted: string): string | null {
  * one of them is cut here rather than kept whole, because the alternative is not a longer message: it is a message
  * kept, refused on the next reload, and taken down with the recipients and the subject it was written beside.
  *
+ * @param parent What is read, which is the editable region or a part of it.
+ * @param pictureAt Which picture an image's source names. An image whose source names none — a remote address, an
+ *   object URL another page issued — is dropped, which is what keeps every picture in the tree one the composer holds.
  * @param drawing How the region draws a run, where the region is one that does — without it, every `span` an engine
  *   left is unwrapped.
  */
-export function writtenIn(parent: Node, drawing: RunDrawing | null = null): readonly WrittenNode[] {
-    return readWritten(parent, 0, { nodes: mostWrittenNodes }, 'flow', drawing);
+export function writtenIn(
+    parent: Node,
+    pictureAt: PictureAt,
+    drawing: RunDrawing | null = null,
+): readonly WrittenNode[] {
+    return readWritten(parent, 0, { nodes: mostWrittenNodes, pictureAt }, 'flow', drawing);
 }
 
 /**
@@ -263,9 +295,10 @@ export function writtenIn(parent: Node, drawing: RunDrawing | null = null): read
  * table the composer holds — one past a bound, which that reading takes apart into its cells' words.
  */
 export function writtenTableIn(table: Element, drawing: RunDrawing | null = null): WrittenMarkup | null {
-    const [read, ...more] = readTable(table, 0, { nodes: mostWrittenNodes }, 'flow', drawing);
+    // A table's cells hold no picture, so nothing in one is asked which picture it names.
+    const [read, ...more] = readTable(table, 0, { nodes: mostWrittenNodes, pictureAt: () => null }, 'flow', drawing);
 
-    return read !== undefined && more.length === 0 && !('text' in read) && read.element === 'table' ? read : null;
+    return read !== undefined && more.length === 0 && 'holds' in read && read.element === 'table' ? read : null;
 }
 
 /**
@@ -302,9 +335,11 @@ export function colourOfRgb(drawn: string): string | null {
     return hex.includes(null) ? null : `#${hex.join('')}`;
 }
 
-// What is left of the one bound that is spent across a whole reading rather than measured node by node.
+// What is left of the one bound that is spent across a whole reading rather than measured node by node, and what the
+// reading asks about a picture.
 interface WritingBudget {
     nodes: number;
+    readonly pictureAt: PictureAt;
 }
 
 // Where what is being read stands: in the message's own flow of blocks, or inside a table cell, which holds what a
@@ -354,6 +389,19 @@ function readWritten(
         }
 
         const named = node.tagName.toLowerCase();
+
+        // A cell holds no picture, so one an engine left in a cell is not read as one.
+        if (named === 'img') {
+            const source = node.getAttribute('src');
+            const picture = source === null || within === 'cell' ? null : budget.pictureAt(source);
+
+            if (picture !== null) {
+                budget.nodes -= 1;
+                written.push({ element: 'img', ...picture });
+            }
+
+            continue;
+        }
 
         // A table needs three levels below it for its rows, its cells, and their words, so one too deep for them is
         // read as the words it holds, as any element past the depth is.
@@ -572,10 +620,43 @@ function isBreak(node: WrittenNode): boolean {
  *
  * The two differ only where the editing commands spell something their own way: a run's colour and size, which the
  * region holds as the `<font>` `foreColor` and `fontSize` write, and an empty cell, which the editor gives a break to
- * put the caret on. Everything else is one serialization, so what somebody edits is what is sent.
+ * put the caret on — and a picture's source and name, which `pictureSource` writes. Everything else is one
+ * serialization, so what somebody edits is what is sent.
+ *
+ * @param written The tree.
+ * @param pictureSource How a picture is written: `cid:` and its name and no alternative text for the HTML part, and the
+ *   object URL the composer issued for it and its name as alternative text in the editor.
+ * @param destination Who the tree is spelled for.
  */
-export function htmlOf(written: readonly WrittenNode[], destination: WrittenDestination = 'mail'): string {
-    return written.map((node) => markupOf(node, destination)).join('');
+export function htmlOf(
+    written: readonly WrittenNode[],
+    pictureSource: PictureSource,
+    destination: WrittenDestination = 'mail',
+): string {
+    return written.map((node) => markupOf(node, pictureSource, destination)).join('');
+}
+
+/** The names of the pictures a tree refers to, each once, in the order it first refers to them. */
+export function picturesNamedIn(written: readonly WrittenNode[]): readonly string[] {
+    const named = new Set<string>();
+
+    const walk = (nodes: readonly WrittenNode[]): void => {
+        for (const node of nodes) {
+            if ('text' in node) {
+                continue;
+            }
+
+            if (node.element === 'img') {
+                named.add(node.picture);
+            } else {
+                walk(node.holds);
+            }
+        }
+    };
+
+    walk(written);
+
+    return [...named];
 }
 
 /**
@@ -593,8 +674,18 @@ export function plainTextOf(written: readonly WrittenNode[]): string {
  *
  * Answers `null` for anything this client did not write, bounds included, because a message with a hole in it is worse
  * than an empty composer: it reaches the confirmation as words nobody typed.
+ *
+ * **A picture the kept pictures do not hold is dropped rather than refused**, as long as its name is one the composer
+ * mints: that is exactly what a store that would not take the pictures leaves behind, and refusing the tree for it
+ * would take the words, the recipients, and the subject down with the picture.
+ *
+ * @param value What was kept.
+ * @param holdsPicture Whether a picture of this name was kept beside the tree.
  */
-export function writtenTextIn(value: unknown): readonly WrittenNode[] | null {
+export function writtenTextIn(
+    value: unknown,
+    holdsPicture: (picture: string) => boolean,
+): readonly WrittenNode[] | null {
     let remaining = mostWrittenNodes;
 
     function nodesIn(held: unknown, depth: number, within: StoredPlacement): readonly WrittenNode[] | null {
@@ -617,13 +708,15 @@ export function writtenTextIn(value: unknown): readonly WrittenNode[] | null {
                 return null;
             }
 
-            written.push(read);
+            if (read !== dropped) {
+                written.push(read);
+            }
         }
 
         return written;
     }
 
-    function nodeIn(node: unknown, depth: number, within: StoredPlacement): WrittenNode | null {
+    function nodeIn(node: unknown, depth: number, within: StoredPlacement): WrittenNode | typeof dropped | null {
         if (typeof node !== 'object' || node === null || Array.isArray(node)) {
             return null;
         }
@@ -641,6 +734,12 @@ export function writtenTextIn(value: unknown): readonly WrittenNode[] | null {
         }
 
         const element = record['element'];
+
+        // A picture stands only in the flow: a cell holds none, and nothing stands loose in a table or a row.
+        if (element === 'img') {
+            return within === 'flow' ? pictureIn(record) : null;
+        }
+
         const address = record['address'] ?? null;
 
         if (typeof element !== 'string' || !writableElements.includes(element) || !standsIn(element, within)) {
@@ -671,6 +770,16 @@ export function writtenTextIn(value: unknown): readonly WrittenNode[] | null {
 
         // A table past a bound is one `writtenIn` would have taken apart, so a stored one is not this client's.
         return element === 'table' && !tableWithinBounds(read) ? null : read;
+    }
+
+    function pictureIn(record: Record<string, unknown>): WrittenPicture | typeof dropped | null {
+        const { picture, width, height } = record;
+
+        if (typeof picture !== 'string' || !isPictureName(picture) || !isPictureSide(width) || !isPictureSide(height)) {
+            return null;
+        }
+
+        return holdsPicture(picture) ? { element: 'img', picture, width, height } : dropped;
     }
 
     return nodesIn(value, 0, 'flow');
@@ -773,12 +882,19 @@ function presentationIn(
     };
 }
 
-function markupOf(node: WrittenNode, destination: WrittenDestination): string {
+// What a kept picture the kept pictures do not hold reads as: nothing in its place, and the rest of the tree read.
+const dropped = Symbol('dropped');
+
+function markupOf(node: WrittenNode, pictureSource: PictureSource, destination: WrittenDestination): string {
     if ('text' in node) {
         return escaped(node.text);
     }
 
-    const holds = htmlOf(node.holds, destination);
+    if (node.element === 'img') {
+        return pictureMarkupOf(node, pictureSource);
+    }
+
+    const holds = htmlOf(node.holds, pictureSource, destination);
 
     switch (node.element) {
         case 'br':
@@ -798,7 +914,7 @@ function markupOf(node: WrittenNode, destination: WrittenDestination): string {
             break;
     }
 
-    const address = node.address === null ? '' : ` href="${escaped(node.address).replace(/"/gu, '&quot;')}"`;
+    const address = node.address === null ? '' : ` href="${attribute(node.address)}"`;
     const style = sentStyleOf(node);
 
     return `<${node.element}${address}${style === '' ? '' : ` style="${style}"`}>${holds}</${node.element}>`;
@@ -842,8 +958,30 @@ function sentStyleOf(node: WrittenMarkup): string {
         .join(';');
 }
 
+/**
+ * The size a picture is written at: the size it is drawn at, at most the widest a message carries and its height
+ * scaled to that. Outlook honours the two attributes and ignores the style, and every other client honours both.
+ */
+export function sentSizeOf(node: WrittenPicture): { readonly width: number; readonly height: number } {
+    const width = Math.min(node.width, widestSentPicture);
+
+    return { width, height: Math.max(1, Math.round((node.height * width) / node.width)) };
+}
+
+function pictureMarkupOf(node: WrittenPicture, pictureSource: PictureSource): string {
+    const { width, height } = sentSizeOf(node);
+    const { address, label } = pictureSource(node.picture);
+    const named = label === null ? '' : ` alt="${attribute(label)}"`;
+
+    return `<img src="${attribute(address)}"${named} width="${width.toFixed(0)}" height="${height.toFixed(0)}" style="max-width:100%;height:auto" />`;
+}
+
 function escaped(text: string): string {
     return text.replace(/&/gu, '&amp;').replace(/</gu, '&lt;').replace(/>/gu, '&gt;');
+}
+
+function attribute(text: string): string {
+    return escaped(text).replace(/"/gu, '&quot;');
 }
 
 // The text a tree reads as, before the whitespace it accumulated is collapsed. A list is walked knowing which kind it
@@ -862,6 +1000,9 @@ function textOf(written: readonly WrittenNode[], list: 'ol' | 'ul' | null): stri
         }
 
         switch (node.element) {
+            // A picture says nothing to a reader of the plain text, so it is left out of it rather than described.
+            case 'img':
+                break;
             case 'br':
                 text += '\n';
                 break;

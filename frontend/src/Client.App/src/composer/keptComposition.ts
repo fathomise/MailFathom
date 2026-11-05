@@ -4,7 +4,18 @@
 
 import type { MailDraftAnswer } from '@mailfathom/client-backend';
 import { mostRecipientsInOneHeader, type Composition } from './composition';
-import { writtenTextIn } from './writtenText';
+import {
+    base64Of,
+    isPictureName,
+    isPictureSide,
+    mostPictureOctets,
+    mostPictures,
+    mostPicturesOctets,
+    octetsOf,
+    pictureIn,
+    type HeldPicture,
+} from './pictures';
+import { picturesNamedIn, writtenTextIn } from './writtenText';
 
 // Where what somebody is typing survives a reload, which a single-page application makes a cold start rather than a
 // way out. It is the local draft the composer keeps continuously, and it is a different thing from the draft in the
@@ -21,6 +32,11 @@ import { writtenTextIn } from './writtenText';
 // publishes stores of its own that win over the document's under the test runner.
 const storageKey = 'mailfathom.composition';
 
+// The pictures a kept composition names, under a key of their own beside it, as ADR 0047 Question 4 states: a store
+// that refuses a few megabytes of pictures must not take the words, the recipients, and the subject down with them, so
+// the two are written apart and the platform's own quota decides what survives a reload.
+const picturesKey = 'mailfathom.composition.pictures';
+
 // What a kept composition may carry before it is read as somebody's edit rather than as this client's own writing. The
 // address is the longest one the mail standards allow and the subject is a header line, each far above anything the
 // composer itself writes there. What the words are held to is `writtenText.ts`'s own, that being where the shape they
@@ -29,6 +45,7 @@ const storageKey = 'mailfathom.composition';
 const longestAddress = 320;
 const longestSubject = 998;
 const longestIdentifier = 256;
+const longestLabel = 256;
 
 const answers: readonly MailDraftAnswer[] = ['senderOnly', 'everyone', 'forward'];
 
@@ -47,7 +64,7 @@ export function rememberedComposition(): Composition | null {
     }
 
     try {
-        return compositionIn(JSON.parse(stored));
+        return compositionIn(JSON.parse(stored), rememberedPictures());
     } catch {
         return null;
     }
@@ -56,26 +73,174 @@ export function rememberedComposition(): Composition | null {
 /** Keeps what this tab is writing, so a reload returns to it rather than to an empty message. */
 export function rememberComposition(composition: Composition): void {
     try {
-        window.sessionStorage.setItem(storageKey, JSON.stringify(composition));
+        // The pictures are kept apart, by `rememberPictures`, and the words name each by the name it is kept under.
+        window.sessionStorage.setItem(storageKey, JSON.stringify({ ...composition, pictures: undefined }));
     } catch {
         // A browser refusing storage still runs the client. What is being written then lasts as long as the screen
         // holding it, which is what a composer that failed over a store would have lost anyway.
     }
 }
 
+/**
+ * Keeps the pictures the words of what this tab is writing name, beside the words.
+ *
+ * The write is attempted and its refusal caught. **A refused write removes the pictures kept before it**, so octets kept
+ * for an older tree are never read back against a newer one: a reload then reads the words without the pictures, which
+ * `writtenTextIn` drops rather than refuses.
+ *
+ * @returns Whether the pictures survive a reload, which `picturesKeptHereOnly` then answers the other way round.
+ */
+export function rememberPictures(composition: Composition): boolean {
+    const kept = keepPictures(composition);
+
+    noteRefusedPictures(!kept);
+
+    return kept;
+}
+
+function noteRefusedPictures(refused: boolean): void {
+    if (refusedPictures !== refused) {
+        refusedPictures = refused;
+
+        for (const listener of keepingListeners) {
+            listener();
+        }
+    }
+}
+
+// Whether the store refused the last pictures it was handed, which is this module's to know because the store is
+// outside React: the composer subscribes to it rather than copying an answer into state of its own.
+let refusedPictures = false;
+const keepingListeners = new Set<() => void>();
+
+/** Whether the store refused the pictures of what this tab is writing, so a reload would lose them. */
+export function picturesKeptHereOnly(): boolean {
+    return refusedPictures;
+}
+
+/** Subscribes to `picturesKeptHereOnly` changing, in the shape `useSyncExternalStore` takes. */
+export function subscribeToPictureKeeping(listener: () => void): () => void {
+    keepingListeners.add(listener);
+
+    return () => {
+        keepingListeners.delete(listener);
+    };
+}
+
+function keepPictures(composition: Composition): boolean {
+    const kept = picturesNamedIn(composition.words).flatMap((name) => {
+        const picture = composition.pictures.get(name);
+
+        return picture === undefined
+            ? []
+            : [
+                  {
+                      name,
+                      content: base64Of(picture.octets),
+                      width: picture.width,
+                      height: picture.height,
+                      // Held to the bound it is read back by, so one long name cannot cost every picture a reload.
+                      label: picture.label?.slice(0, longestLabel) ?? null,
+                  },
+              ];
+    });
+
+    try {
+        if (kept.length === 0) {
+            window.sessionStorage.removeItem(picturesKey);
+        } else {
+            window.sessionStorage.setItem(picturesKey, JSON.stringify(kept));
+        }
+
+        return true;
+    } catch {
+        try {
+            window.sessionStorage.removeItem(picturesKey);
+        } catch {
+            // A store that refuses a removal as well holds nothing a reload could read back against the new words.
+        }
+
+        return false;
+    }
+}
+
 /** Drops what was being written, which is what sending it, giving it up, and signing out each do. */
 export function forgetComposition(): void {
+    // The refusal was about the pictures of what was being written, so it goes with them.
+    noteRefusedPictures(false);
+
     try {
         window.sessionStorage.removeItem(storageKey);
+        window.sessionStorage.removeItem(picturesKey);
     } catch {
         // A store that refuses a removal refused the write that would have put something there.
     }
 }
 
+// The pictures kept beside the words, read back as untrusted input. Anything this client did not write reads as no
+// pictures at all, which costs the pictures and nothing else: the words drop each picture they name and keep the rest.
+function rememberedPictures(): ReadonlyMap<string, HeldPicture> {
+    try {
+        const stored = window.sessionStorage.getItem(picturesKey);
+
+        return stored === null ? new Map() : (picturesIn(JSON.parse(stored)) ?? new Map());
+    } catch {
+        return new Map();
+    }
+}
+
+function picturesIn(value: unknown): ReadonlyMap<string, HeldPicture> | null {
+    if (!Array.isArray(value) || value.length > mostPictures) {
+        return null;
+    }
+
+    const pictures = new Map<string, HeldPicture>();
+    let together = 0;
+
+    for (const entry of value) {
+        const picture = keptPictureIn(entry);
+
+        if (picture === null || pictures.has(picture.name)) {
+            return null;
+        }
+
+        together += picture.held.octets.length;
+        pictures.set(picture.name, picture.held);
+    }
+
+    return together > mostPicturesOctets ? null : pictures;
+}
+
+function keptPictureIn(entry: unknown): { readonly name: string; readonly held: HeldPicture } | null {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+        return null;
+    }
+
+    const { name, content, width, height, label } = entry as Record<string, unknown>;
+    const octets = typeof content === 'string' ? octetsOf(content) : null;
+    const read = octets === null || octets.length > mostPictureOctets ? null : pictureIn(octets);
+    const labelled =
+        label === null ? null : typeof label === 'string' && label.length <= longestLabel ? label : undefined;
+
+    if (
+        typeof name !== 'string' ||
+        !isPictureName(name) ||
+        octets === null ||
+        read === null ||
+        !isPictureSide(width) ||
+        !isPictureSide(height) ||
+        labelled === undefined
+    ) {
+        return null;
+    }
+
+    return { name, held: { octets, type: read.type, width, height, label: labelled } };
+}
+
 // Read back as untrusted input, because a store is a place a person can write. Anything this client did not write is
 // answered as nothing kept rather than as a message with a hole in it — which is what would otherwise reach the
 // confirmation as a recipient nobody typed.
-function compositionIn(value: unknown): Composition | null {
+function compositionIn(value: unknown, pictures: ReadonlyMap<string, HeldPicture>): Composition | null {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
         return null;
     }
@@ -83,7 +248,7 @@ function compositionIn(value: unknown): Composition | null {
     const record = value as Record<string, unknown>;
     const account = record['account'];
     const subject = record['subject'];
-    const words = writtenTextIn(record['words']);
+    const words = writtenTextIn(record['words'], (picture) => pictures.has(picture));
     const answering = answeringIn(record['answering'] ?? null);
     const continuing = record['continuing'] ?? null;
     const to = addressesIn(record['to']);
@@ -134,6 +299,7 @@ function compositionIn(value: unknown): Composition | null {
         cc,
         bcc,
         words,
+        pictures,
         requestsDeliveryNotification,
         requestsReadReceipt,
     };

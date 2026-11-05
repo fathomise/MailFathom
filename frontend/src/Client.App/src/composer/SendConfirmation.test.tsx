@@ -16,6 +16,7 @@ const addressed: Composition = {
     cc: ['bo@example.invalid'],
     bcc: ['auditor@example.invalid'],
     words: [{ text: 'Here it is.' }],
+    pictures: new Map(),
 };
 
 function drawConfirmation(composition: Composition = addressed, disabled = false): { sent: ReturnType<typeof vi.fn> } {

@@ -118,6 +118,7 @@ export const iconNames = [
     'mail',
     'mark_email_read',
     'mark_email_unread',
+    'memory',
     'menu',
     'search',
     'more_horiz',

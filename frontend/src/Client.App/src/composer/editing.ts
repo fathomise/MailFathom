@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { htmlOf, type WrittenNode } from './writtenText';
+import { htmlOf, type PictureSource, type WrittenNode } from './writtenText';
 
 // The editing the composer's region is given, named once rather than at each call site.
 //
@@ -20,8 +20,14 @@ export function edit(command: string, argument?: string): void {
     document.execCommand(command, false, argument);
 }
 
-/** Puts written nodes where the caret is, in place of anything selected, as one step somebody can undo. */
-export function insertWritten(written: readonly WrittenNode[]): void {
+/**
+ * Puts written nodes where the caret is, in place of anything selected, as one step somebody can undo.
+ *
+ * @param written What is put there.
+ * @param pictureSource The object URL the composer issued for each picture, which is the one source the region reads
+ *   back as a picture.
+ */
+export function insertWritten(written: readonly WrittenNode[], pictureSource: PictureSource): void {
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- The reason is the comment at the top of this file.
-    document.execCommand('insertHTML', false, htmlOf(written, 'editor'));
+    document.execCommand('insertHTML', false, htmlOf(written, pictureSource, 'editor'));
 }

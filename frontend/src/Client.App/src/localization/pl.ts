@@ -1042,6 +1042,27 @@ export const pl: Catalogue = {
     'compose.linkAddress': 'Adres linku',
     'compose.linkAddressPlaceholder': 'Dokąd prowadzi link',
     'compose.insertLink': 'Wstaw',
+    'compose.picture': 'Obraz',
+    'compose.pictureDescribed': '{name} · {size} · wysyłany w szerokości najwyżej {width} px',
+    'compose.pictureUnnamed': 'obraz',
+    'compose.pictureWithoutAName': 'Obraz bez nazwy',
+    'compose.removePicture': 'Usuń obraz',
+    'compose.pictureTooLarge': 'Nie dodano „{name}” - ma {size}, a jeden obraz może mieć najwyżej {most}.',
+    'compose.pictureOneTooMany':
+        'Nie dodano „{name}” - ta wiadomość ma już {count} obrazów, czyli najwięcej, ile może mieć jedna wiadomość.',
+    'compose.picturesTooMuchTogether':
+        'Nie dodano „{name}” - razem z nim obrazy zajęłyby {size}, a łącznie mogą zajmować najwyżej {most}.',
+    'compose.pictureKindNotTaken':
+        'Nie dodano „{name}” - edytor przyjmuje obrazy PNG, JPEG i GIF, a ten jest w formacie {kind}.',
+    'compose.pictureKindUnknown':
+        'Nie dodano „{name}” - edytor przyjmuje obrazy PNG, JPEG i GIF, a ten jest w innym formacie.',
+    'compose.picturesTooManyInThePaste':
+        'Nic nie wklejono - liczba wklejanych obrazów: {carried}, w wiadomości jest już: {held}, a jedna wiadomość może mieć najwyżej {most}.',
+    'compose.pictureInACell':
+        'Nic nie wklejono - komórka tabeli mieści tylko słowa, kolor i rozmiar, więc obraz trzeba wstawić poza tabelą.',
+    'compose.dismissPictureRefusal': 'Zamknij',
+    'compose.picturesInThisWindowOnly':
+        'Obrazy w tej wiadomości są przechowywane tylko w tym oknie - pamięć przeglądarki ich nie przyjęła. Odświeżenie lub zamknięcie okna je usunie; tekst, odbiorcy i temat pozostaną.',
     'compose.attach': 'Załącz',
     'compose.attachedFiles': 'Załączone pliki',
     'compose.removeFile': 'Usuń plik {name}',

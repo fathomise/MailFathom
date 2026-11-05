@@ -230,8 +230,10 @@ machine asks for one and the bundle is built where a bundle is actually wanted.
 `.github/workflows/build-test-frontend.yml`, builds the shell in debug without bundles and drives the WebView it renders
 in over the WebDriver protocol, which is what `pnpm test:desktop` is. What it costs is the toolchain and a debug
 compilation on a runner rather than on the machine the change is being written on, and what it buys is the one class of
-break no browser suite can see: an instant placed against a zone the WebView reported differently, and a first run
-opening in a language the platform stated and nothing else reads.
+break no browser suite can see: an instant placed against a zone the WebView reported differently, a first run opening
+in a language the platform stated and nothing else reads, and a file a paste event carries not reaching the composer,
+not being inserted, or not being drawn from its `blob:` address — the event being one the case builds, since WebDriver
+reaches no system clipboard.
 [`frontend/tests/AGENTS.md`](https://github.com/fathomise/MailFathom/blob/main/frontend/tests/AGENTS.md) § _The
 desktop suite_ is what that job may assert. So the pull-request answer about the client is its linter, type check, unit
 suites, browser suite, and that — and a `deb`, an `rpm`, or an installer is still nobody's pull-request concern.
