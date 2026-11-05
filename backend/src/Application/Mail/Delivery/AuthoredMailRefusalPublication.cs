@@ -70,6 +70,33 @@ internal static class AuthoredMailRefusalPublication
             AuthoredEmailRefusalReason.BoundExceeded => new PublishedMailRefusal(
                 MailFathomErrorCode.AuthoredMailBoundExceeded,
                 BoundMessage(field, refusal.Bound)),
+            AuthoredEmailRefusalReason.PictureNameUnusable => new PublishedMailRefusal(
+                MailFathomErrorCode.AuthoredMailPictureNameRefused,
+                "A picture inside a message is named by one to sixty-four letters, digits, dots, hyphens, and underscores, opening with a letter or a digit, and no two pictures of one message share a name."),
+            AuthoredEmailRefusalReason.PictureReferenceUnknown => new PublishedMailRefusal(
+                MailFathomErrorCode.AuthoredMailPictureReferenceUnknown,
+                "The htmlBody of a message refers by 'cid:' to a picture the message does not carry."),
+            AuthoredEmailRefusalReason.PictureUnreferenced => new PublishedMailRefusal(
+                MailFathomErrorCode.AuthoredMailPictureUnreferenced,
+                "A picture the message carries is referred to nowhere in its htmlBody, as 'cid:' followed by the picture's name."),
+            AuthoredEmailRefusalReason.PictureTypeNotAccepted => new PublishedMailRefusal(
+                MailFathomErrorCode.AuthoredMailPictureTypeRefused,
+                "A picture inside a message is a PNG, a JPEG, or a GIF image, judged by what its content opens as."),
+            AuthoredEmailRefusalReason.PictureTooLarge => new PublishedMailRefusal(
+                MailFathomErrorCode.AuthoredMailPictureTooLarge,
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"A picture inside a message holds at most {refusal.Bound} bytes.")),
+            AuthoredEmailRefusalReason.PicturesTooLarge => new PublishedMailRefusal(
+                MailFathomErrorCode.AuthoredMailPicturesTooLarge,
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"The pictures inside one message hold at most {refusal.Bound} bytes together.")),
+            AuthoredEmailRefusalReason.TooManyPictures => new PublishedMailRefusal(
+                MailFathomErrorCode.AuthoredMailPicturesTooMany,
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"One message carries at most {refusal.Bound} pictures inside it.")),
             _ => throw new InvalidOperationException(
                 "The composition refusal reason is not one this system declares."),
         };
@@ -321,6 +348,7 @@ internal static class AuthoredMailRefusalPublication
         AuthoredEmailField.Attachment => "attachment",
         AuthoredEmailField.Sender => "sending address",
         AuthoredEmailField.Message => "whole message",
+        AuthoredEmailField.Picture => "picture",
         _ => throw new InvalidOperationException("The authored email field is not one this system declares."),
     };
 }

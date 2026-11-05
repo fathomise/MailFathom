@@ -4,6 +4,7 @@
 
 using System.Text.Json.Serialization;
 using MailFathom.Application.EmailContent.Rendering.Document;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
@@ -22,6 +23,7 @@ namespace MailFathom.Host.Api;
 /// <param name="Answers">Which answer is being written — <c>senderOnly</c>, <c>everyone</c>, or <c>forward</c> — or <see langword="null" /> for a message of its own.</param>
 /// <param name="RequestsDeliveryNotification">Whether the author asks to be told when each recipient's server delivers the message or cannot, off where absent.</param>
 /// <param name="RequestsReadReceipt">Whether the author asks each recipient's mail client for a read receipt, off where absent.</param>
+/// <param name="Pictures">The pictures the author placed inside the message, each referred to from <paramref name="HtmlBody" /> as <c>cid:</c> and its name, or <see langword="null" /> for none.</param>
 /// <remarks>
 /// <para>
 /// The two shapes are one request because a revision has to be able to stay whichever shape the draft already is: a
@@ -44,7 +46,8 @@ internal sealed record ClientDraftWriteRequest(
     Guid? AnsweredEmailId,
     string? Answers,
     bool? RequestsDeliveryNotification = null,
-    bool? RequestsReadReceipt = null)
+    bool? RequestsReadReceipt = null,
+    IReadOnlyList<ClientDraftPictureRequest>? Pictures = null)
 {
     /// <summary>Gets the two requests the body states, each off where the body does not state it.</summary>
     /// <remarks>
@@ -54,6 +57,57 @@ internal sealed record ClientDraftWriteRequest(
     internal OutgoingReceiptRequests ReceiptRequests => new(
         this.RequestsDeliveryNotification ?? false,
         this.RequestsReadReceipt ?? false);
+
+    /// <summary>Reads the pictures the body states, counting them before any is decoded.</summary>
+    /// <returns>The pictures, which is none where the body states none.</returns>
+    /// <exception cref="MailDraftRefusedException">Thrown when the body states more pictures than one message carries, or a picture without its name or with content that is not base64.</exception>
+    /// <remarks>
+    /// The content travels as base64 text and is decoded here rather than by the serializer, so a body stating more
+    /// pictures than any message carries is refused on the count alone. Every other rule a picture is held to is the
+    /// composition's, which holds every caller to it.
+    /// </remarks>
+    internal IReadOnlyList<AuthoredEmailPicture> StatedPictures()
+    {
+        var pictures = this.Pictures ?? [];
+
+        if (pictures.Count > AuthoredEmailPicture.MaximumCount)
+        {
+            throw MailDraftRefusedException.From(new AuthoredEmailRefusal(
+                AuthoredEmailRefusalReason.TooManyPictures,
+                AuthoredEmailField.Picture,
+                AuthoredEmailPicture.MaximumCount));
+        }
+
+        return [.. pictures.Select(static picture => picture?.Stated()
+            ?? throw MailDraftRefusedException.From(new AuthoredEmailRefusal(
+                AuthoredEmailRefusalReason.FieldUnusable,
+                AuthoredEmailField.Picture)))];
+    }
+}
+
+/// <summary>One picture a draft write places inside the message.</summary>
+/// <param name="Name">The name the HTML alternative refers to it by, as <c>cid:</c> followed by the name.</param>
+/// <param name="Content">Its octets, written as base64.</param>
+/// <remarks>
+/// There is no media type: the composition reads what the picture is from its octets. Both members are mail content,
+/// so neither reaches a log, an error message, or a telemetry event.
+/// </remarks>
+internal sealed record ClientDraftPictureRequest(string? Name = null, string? Content = null)
+{
+    /// <summary>Decodes the picture, or answers <see langword="null" /> where the body states no picture it could be.</summary>
+    internal AuthoredEmailPicture? Stated()
+    {
+        if (this.Name is not { } name || this.Content is not { } content)
+        {
+            return null;
+        }
+
+        var octets = new byte[content.Length / 4 * 3];
+
+        return Convert.TryFromBase64String(content, octets, out var written)
+            ? new AuthoredEmailPicture(name, octets.AsMemory(0, written))
+            : null;
+    }
 }
 
 /// <summary>The drafts one user is writing, as the client endpoint serves them.</summary>

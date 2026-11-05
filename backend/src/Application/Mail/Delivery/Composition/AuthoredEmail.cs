@@ -49,6 +49,14 @@ public sealed record AuthoredEmail
     /// <summary>Gets the files the author attached, which is ordinarily none.</summary>
     public IReadOnlyList<AuthoredEmailAttachment> Attachments { get; init; } = [];
 
+    /// <summary>Gets the pictures the author placed inside the message, which is ordinarily none.</summary>
+    /// <remarks>
+    /// Each is referred to from <see cref="HtmlBody" /> as <c>cid:</c> followed by its name, and only from there: a
+    /// picture no reference names and a reference naming no picture are both refused, so every picture sent is one the
+    /// recipient sees where the author put it.
+    /// </remarks>
+    public IReadOnlyList<AuthoredEmailPicture> Pictures { get; init; } = [];
+
     /// <summary>Gets the conversation this message answers, which is <see cref="OutgoingThreadPlacement.None" /> for a message that answers nothing.</summary>
     /// <remarks>
     /// It sits beside the authored fields and is not one of them. Nobody writes these identifiers: a boundary that

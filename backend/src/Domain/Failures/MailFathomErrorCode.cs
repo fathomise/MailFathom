@@ -715,6 +715,34 @@ public readonly record struct MailFathomErrorCode
     /// </remarks>
     public static MailFathomErrorCode OrganizationContactReadOnly { get; } = new(51017);
 
+    /// <summary>Gets subcategory 1, request validation: a picture a caller placed inside a message is named by text the composer never mints, or shares its name with another.</summary>
+    /// <remarks>A picture is named by one to sixty-four letters, digits, dots, hyphens, and underscores, opening with a letter or a digit, and each picture of one message by a name of its own. The message states the rule and never the name.</remarks>
+    public static MailFathomErrorCode AuthoredMailPictureNameRefused { get; } = new(51018);
+
+    /// <summary>Gets subcategory 1, request validation: the HTML alternative of a message a caller authored refers by <c>cid:</c> to a picture the request does not carry.</summary>
+    /// <remarks>It is separate from <see cref="AuthoredMailPictureUnreferenced" /> because the remedy is the opposite one: here a picture is missing from the request, there a picture is missing from the markup.</remarks>
+    public static MailFathomErrorCode AuthoredMailPictureReferenceUnknown { get; } = new(51019);
+
+    /// <summary>Gets subcategory 1, request validation: a picture a caller placed inside a message is referred to nowhere in its HTML alternative.</summary>
+    /// <remarks>A picture nobody can see is not sent as an attachment instead, because the author did not attach it; the request carries it beside markup that never draws it, which is a composer out of step with itself.</remarks>
+    public static MailFathomErrorCode AuthoredMailPictureUnreferenced { get; } = new(51020);
+
+    /// <summary>Gets subcategory 1, request validation: a picture a caller placed inside a message opens as none of PNG, JPEG, and GIF.</summary>
+    /// <remarks>The type is read from the signature the octets open with rather than from anything the caller declared, so the three every mail client draws are the whole of what is sent inside a message.</remarks>
+    public static MailFathomErrorCode AuthoredMailPictureTypeRefused { get; } = new(51021);
+
+    /// <summary>Gets subcategory 1, request validation: one picture a caller placed inside a message holds more octets than a reopened draft draws inline.</summary>
+    /// <remarks>The message names the bound, so a caller learns how much smaller the picture has to be. It is separate from <see cref="AuthoredMailPicturesTooLarge" /> because one picture fits by being made smaller and the other by sending fewer.</remarks>
+    public static MailFathomErrorCode AuthoredMailPictureTooLarge { get; } = new(51022);
+
+    /// <summary>Gets subcategory 1, request validation: the pictures a caller placed inside one message together hold more octets than one message carries.</summary>
+    /// <remarks>The bound is about what the author's own sent copy can still draw with a footer's images beside it, and the message names it.</remarks>
+    public static MailFathomErrorCode AuthoredMailPicturesTooLarge { get; } = new(51023);
+
+    /// <summary>Gets subcategory 1, request validation: a caller placed more pictures inside one message than one message carries.</summary>
+    /// <remarks>It is refused before any picture is decoded, so a request carrying more than the bound costs nothing beyond reading it.</remarks>
+    public static MailFathomErrorCode AuthoredMailPicturesTooMany { get; } = new(51024);
+
     /// <summary>Gets subcategory 2, pagination: a continuation cursor is not one this system issued.</summary>
     public static MailFathomErrorCode MailboxQueryCursorMalformed { get; } = new(52001);
 
@@ -1261,6 +1289,13 @@ public readonly record struct MailFathomErrorCode
         AuthoredMailScheduleRefused,
         OutgoingEmailIdentifierMalformed,
         OrganizationContactReadOnly,
+        AuthoredMailPictureNameRefused,
+        AuthoredMailPictureReferenceUnknown,
+        AuthoredMailPictureUnreferenced,
+        AuthoredMailPictureTypeRefused,
+        AuthoredMailPictureTooLarge,
+        AuthoredMailPicturesTooLarge,
+        AuthoredMailPicturesTooMany,
         MailboxQueryCursorMalformed,
         MailboxQueryCursorFilterMismatch,
         ContactCursorMalformed,

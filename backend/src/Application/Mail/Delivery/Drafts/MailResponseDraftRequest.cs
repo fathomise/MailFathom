@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Application.Mail.Delivery.Authoring;
+using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
@@ -41,6 +42,13 @@ public sealed record MailResponseDraftRequest
 
     /// <summary>Gets the HTML alternative the author wrote, or <see langword="null" /> when they wrote none.</summary>
     public string? HtmlBody { get; init; }
+
+    /// <summary>Gets the pictures the author placed inside the message, each referred to from <see cref="HtmlBody" /> by <c>cid:</c> and its name.</summary>
+    /// <remarks>
+    /// A revision states them again, for the reason it states the words again: a draft is composed afresh each time, so
+    /// a picture the revision leaves out is a picture the revised draft no longer carries.
+    /// </remarks>
+    public IReadOnlyList<AuthoredEmailPicture> Pictures { get; init; } = [];
 
     /// <summary>Gets which reports the author asked to be told about once the draft is sent, which is neither unless they asked.</summary>
     public OutgoingReceiptRequests ReceiptRequests { get; init; } = OutgoingReceiptRequests.None;

@@ -31,6 +31,13 @@ public sealed record AuthoredEmailRefusal(
         AuthoredEmailRefusalReason.InternationalizationUnsupported =>
             MailFathomErrorCode.OutgoingEmailInternationalizationUnsupported,
         AuthoredEmailRefusalReason.BoundExceeded => MailFathomErrorCode.OutgoingEmailBoundExceeded,
+        AuthoredEmailRefusalReason.PictureNameUnusable
+            or AuthoredEmailRefusalReason.PictureReferenceUnknown
+            or AuthoredEmailRefusalReason.PictureUnreferenced
+            or AuthoredEmailRefusalReason.PictureTypeNotAccepted => MailFathomErrorCode.OutgoingEmailFieldUnusable,
+        AuthoredEmailRefusalReason.PictureTooLarge
+            or AuthoredEmailRefusalReason.PicturesTooLarge
+            or AuthoredEmailRefusalReason.TooManyPictures => MailFathomErrorCode.OutgoingEmailBoundExceeded,
         _ => throw new InvalidOperationException(
             "The composition refusal reason is not one this system declares."),
     };

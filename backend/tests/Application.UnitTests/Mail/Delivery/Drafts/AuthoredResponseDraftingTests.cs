@@ -180,6 +180,27 @@ public sealed class AuthoredResponseDraftingTests
         Assert.True(composed.RequestsReadReceipt);
     }
 
+    /// <summary>The pictures an answer's author placed inside it reach the composition beside the quoted original, which carries none of its own.</summary>
+    [Fact]
+    public async Task SaveAsync_AnAnswerCarryingAPicture_ComposesThePictureIntoIt()
+    {
+        // Arrange
+        var harness = Harness();
+        var drafting = DraftingOverAnsweredMail(harness, out var composer);
+        var picture = new AuthoredEmailPicture("0198f0a0-4444-7000-8000-000000000001", new byte[] { 0x89, 0x50 });
+
+        // Act
+        await drafting.SaveAsync(Forward() with { Pictures = [picture] }, TestContext.Current.CancellationToken);
+
+        // Assert
+        var composed = (AuthoredEmail)composer
+            .ReceivedCalls()
+            .Last(call => call.GetMethodInfo().Name == nameof(IAuthoredEmailComposer.ComposeDraft))
+            .GetArguments()[1]!;
+
+        Assert.Equal([picture], composed.Pictures);
+    }
+
     private static MailResponseDraftRequest Request() => new()
     {
         Reader = MailboxReaderKind.Agent,

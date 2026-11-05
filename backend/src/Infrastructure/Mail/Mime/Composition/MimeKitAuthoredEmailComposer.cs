@@ -4,14 +4,17 @@
 
 using System.Buffers;
 using System.Text;
+using AngleSharp.Html.Parser;
 using MailFathom.Application.Mail.Delivery;
 using MailFathom.Application.Mail.Delivery.Composition;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
 using MimeKit;
+using MimeKit.Utils;
 
 namespace MailFathom.Infrastructure.Mail.Mime.Composition;
 
@@ -215,6 +218,11 @@ internal sealed class MimeKitAuthoredEmailComposer(
         if (this.RefuseAttachmentsBeyondBounds(authored) is { } attachmentRefusal)
         {
             return MailDraftComposition.Refused(attachmentRefusal);
+        }
+
+        if (RefusePicturesNotSent(authored) is { } pictureRefusal)
+        {
+            return MailDraftComposition.Refused(pictureRefusal);
         }
 
         var recipientRefusal = this.ResolveRecipients(
@@ -448,7 +456,8 @@ internal sealed class MimeKitAuthoredEmailComposer(
         // The whole-message bound is measured on what the message became, which means assembling every part and
         // transfer-encoding it first. Content already past that bound before any of it happens is refused here instead,
         // because encoding only ever makes the octets more numerous, never fewer.
-        if (authored.Attachments.Sum(static attachment => (long)attachment.Content.Length) > bounds.MaxMessageBytes)
+        if (authored.Attachments.Sum(static attachment => (long)attachment.Content.Length)
+            + authored.Pictures.Sum(static picture => (long)picture.Content.Length) > bounds.MaxMessageBytes)
         {
             return new AuthoredEmailRefusal(
                 AuthoredEmailRefusalReason.BoundExceeded,
@@ -462,6 +471,77 @@ internal sealed class MimeKitAuthoredEmailComposer(
                 AuthoredEmailRefusalReason.FieldUnusable,
                 AuthoredEmailField.Attachment)
             : null;
+    }
+
+    /// <summary>Refuses pictures that could not be sent inside the message as the author placed them.</summary>
+    /// <remarks>
+    /// <para>
+    /// The count is refused first and before any picture is read, then each name, each picture's octets, and their sum,
+    /// so the cheapest answer is the one a request far past a bound meets. What the octets are is read from their
+    /// signature, the reading a footer's image is held to. The references come last, because they are the one check
+    /// that parses the markup.
+    /// </para>
+    /// <para>
+    /// The references are read whether or not the message carries a picture: a <c>cid:</c> reference naming nothing is
+    /// a picture the recipient would be shown as missing, and no author meant to send that.
+    /// </para>
+    /// </remarks>
+    private static AuthoredEmailRefusal? RefusePicturesNotSent(AuthoredEmail authored)
+    {
+        var pictures = authored.Pictures;
+
+        if (pictures.Count > AuthoredEmailPicture.MaximumCount)
+        {
+            return PictureRefusal(AuthoredEmailRefusalReason.TooManyPictures, AuthoredEmailPicture.MaximumCount);
+        }
+
+        if (pictures.Any(static picture => !MailFooterContent.IsImageName(picture.Name))
+            || pictures.DistinctBy(static picture => picture.Name, StringComparer.Ordinal).Count() != pictures.Count)
+        {
+            return PictureRefusal(AuthoredEmailRefusalReason.PictureNameUnusable);
+        }
+
+        if (pictures.Any(static picture => picture.Content.Length > AuthoredEmailPicture.MaximumOctets))
+        {
+            return PictureRefusal(AuthoredEmailRefusalReason.PictureTooLarge, AuthoredEmailPicture.MaximumOctets);
+        }
+
+        if (pictures.Sum(static picture => (long)picture.Content.Length) > AuthoredEmailPicture.MaximumTotalOctets)
+        {
+            return PictureRefusal(AuthoredEmailRefusalReason.PicturesTooLarge, AuthoredEmailPicture.MaximumTotalOctets);
+        }
+
+        if (pictures.Any(static picture => MailFooterContent.AcceptedImageMediaTypeOf(picture.Content.Span) is null))
+        {
+            return PictureRefusal(AuthoredEmailRefusalReason.PictureTypeNotAccepted);
+        }
+
+        var referenced = authored.HtmlBody is { } html ? PictureReferencesIn(html) : [];
+        var carried = pictures.Select(static picture => picture.Name).ToHashSet(StringComparer.Ordinal);
+
+        if (!referenced.IsSubsetOf(carried))
+        {
+            return PictureRefusal(AuthoredEmailRefusalReason.PictureReferenceUnknown);
+        }
+
+        return carried.IsSubsetOf(referenced)
+            ? null
+            : PictureRefusal(AuthoredEmailRefusalReason.PictureUnreferenced);
+    }
+
+    /// <summary>Writes one refusal about the message's pictures.</summary>
+    private static AuthoredEmailRefusal PictureRefusal(AuthoredEmailRefusalReason reason, long? bound = null) =>
+        new(reason, AuthoredEmailField.Picture, bound);
+
+    /// <summary>Reads the names the markup's images refer to by <c>cid:</c>.</summary>
+    private static HashSet<string> PictureReferencesIn(string html)
+    {
+        using var document = new HtmlParser().ParseDocument(html);
+
+        return document.Images
+            .Select(static image => MailFooterMarkup.ContentReferenceName(image.GetAttribute("src")))
+            .OfType<string>()
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     /// <summary>Parses every authored recipient into the mailbox the envelope will offer, or refuses naming the header.</summary>
@@ -602,7 +682,7 @@ internal sealed class MimeKitAuthoredEmailComposer(
             message.Headers.Replace(HeaderId.DispositionNotificationTo, sender.Address.Address);
         }
 
-        message.Body = BuildBody(authored);
+        message.Body = BuildBody(authored, sender.Domain);
 
         return this.Serialize(
             message,
@@ -708,12 +788,34 @@ internal sealed class MimeKitAuthoredEmailComposer(
 
     /// <summary>Builds the body an author wrote, as the plain text alone or as an alternative of both representations.</summary>
     /// <remarks>
+    /// <para>
     /// The plain text is the author's own and is never derived from the markup. A body produced by stripping tags is
     /// text nobody wrote, and every recipient whose client prefers plain text reads that instead of the message.
+    /// </para>
+    /// <para>
+    /// The pictures become the <c>multipart/related</c> the markup is the root of, inside the alternative beside the
+    /// plain text and inside the <c>multipart/mixed</c> beside any attachment — the shape the footer composer finds and
+    /// reuses, so a footer appended at send lands in the same part.
+    /// </para>
     /// </remarks>
-    private static MimeEntity BuildBody(AuthoredEmail authored)
+    private static MimeEntity BuildBody(AuthoredEmail authored, string contentIdDomain)
     {
         var body = new BodyBuilder { TextBody = authored.PlainTextBody, HtmlBody = authored.HtmlBody };
+
+        if (authored.Pictures.Count > 0)
+        {
+            var contentIds = authored.Pictures.ToDictionary(
+                static picture => picture.Name,
+                _ => MimeUtils.GenerateMessageId(contentIdDomain),
+                StringComparer.Ordinal);
+
+            body.HtmlBody = ReferencingContentIds(authored.HtmlBody!, contentIds);
+
+            foreach (var picture in authored.Pictures)
+            {
+                body.LinkedResources.Add(PicturePart(picture, contentIds[picture.Name]));
+            }
+        }
 
         foreach (var attachment in authored.Attachments)
         {
@@ -725,6 +827,37 @@ internal sealed class MimeKitAuthoredEmailComposer(
 
         return body.ToMessageBody();
     }
+
+    /// <summary>Points each picture reference in the markup at the content identifier minted for this message.</summary>
+    /// <remarks>
+    /// The markup is written back from its parsed body, which is the fragment a composer writes. The name an author's
+    /// composer chose never reaches a header: the part carries the minted identifier, and no file name.
+    /// </remarks>
+    private static string ReferencingContentIds(string html, Dictionary<string, string> contentIds)
+    {
+        using var document = new HtmlParser().ParseDocument(html);
+
+        foreach (var image in document.Images)
+        {
+            if (MailFooterMarkup.ContentReferenceName(image.GetAttribute("src")) is { } name
+                && contentIds.TryGetValue(name, out var contentId))
+            {
+                image.SetAttribute("src", $"cid:{contentId}");
+            }
+        }
+
+        return document.Body?.InnerHtml ?? string.Empty;
+    }
+
+    /// <summary>Builds the part one picture travels as, under the type its octets open as.</summary>
+    private static MimePart PicturePart(AuthoredEmailPicture picture, string contentId) =>
+        new(ContentType.Parse(MailFooterContent.AcceptedImageMediaTypeOf(picture.Content.Span)!))
+        {
+            Content = new MimeContent(new MemoryStream(picture.Content.ToArray(), writable: false)),
+            ContentId = contentId,
+            ContentDisposition = new ContentDisposition(ContentDisposition.Inline),
+            ContentTransferEncoding = ContentEncoding.Base64,
+        };
 
     /// <summary>Builds the two parts of a read receipt: the words for a person, then the fields for a mail client.</summary>
     private static MultipartReport BuildReadReceiptBody(ReadReceiptAnswer answer, OutgoingSenderIdentity sender)

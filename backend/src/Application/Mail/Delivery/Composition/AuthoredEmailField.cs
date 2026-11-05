@@ -42,4 +42,7 @@ public enum AuthoredEmailField
 
     /// <summary>The composed message as a whole, rather than any one field of it.</summary>
     Message = 9,
+
+    /// <summary>A picture placed inside the message, by its name, its octets, or the reference the HTML alternative makes to it.</summary>
+    Picture = 10,
 }

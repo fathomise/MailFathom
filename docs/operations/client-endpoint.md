@@ -3604,6 +3604,35 @@ A revision states the whole draft again, so one that leaves either out switches 
   `outgoingEmailId`. Where the submission server does not advertise `DSN`, the message is sent without the request and
   the send records that it was not carried, so nothing waits for a delivery report that cannot come.
 
+**A picture travels inside the message, beside the words rather than as an attachment.** A write and a revision take
+an optional `pictures` list, each entry stating a `name` and its `content` as base64, and the `htmlBody` refers to each
+picture as `cid:` followed by its name. There is no media type to state: what a picture is gets read from the
+signature its octets open with. The message is composed with the markup and its pictures in a `multipart/related`,
+inside the `multipart/alternative` beside the plain text and inside a `multipart/mixed` where files are attached —
+the part a footer's images join at send. The deployment mints the content identifier each picture goes out under
+and rewrites the reference to it, so the name a client chose never reaches a header. Each refusal is `400` with a
+code of its own, and the draft is left as it was:
+
+| Refusal | Code |
+| --- | --- |
+| More than 16 pictures in one message, counted before any is decoded | `51024` |
+| A name other than one to sixty-four letters, digits, dots, hyphens, and underscores opening with a letter or a digit, or a name two pictures share | `51018` |
+| A picture over 2 MiB (2,097,152 octets), the most a reopened draft draws inline | `51022` |
+| Pictures together over 2.5 MiB (2,621,440 octets) | `51023` |
+| A picture opening as none of PNG, JPEG, and GIF | `51021` |
+| A `cid:` reference in `htmlBody` naming no picture the request carries | `51019` |
+| A picture `htmlBody` refers to nowhere | `51020` |
+| A picture without its name or its content, or whose content is not base64 | `51013` |
+
+The whole message is still held to `MailDelivery:MaxMessageBytes`. A revision states the pictures again, as it states
+the words, so a picture it leaves out is one the revised draft no longer carries. **A saved draft keeps its pictures**:
+opened again, its `document` carries each one inlined as a `data:` source, which is what a composer reads it back
+from. **A write's body is bounded by what the largest draft it could save is written as**: both bodies at
+`MailDelivery:MaxBodyCharacters` in JSON's widest escape, every picture the bounds above accept in base64, and 1 MiB
+for the account, the subject, the recipients, and the structure around them. A body one octet past that is answered
+`413` before it is read. Pictures are mail content and none of them, nor their names, reaches a log, an error
+message, or a telemetry event.
+
 **A send may name the time the message leaves.** The send route takes no body for a message sent at once, or a body
 stating `dueAt` — an instant with its offset — and `dueTimeZone`, the IANA zone that time was named in, such as
 `Europe/Warsaw`. The two come together or not at all: one without the other, a zone this deployment does not know, or

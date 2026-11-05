@@ -92,23 +92,26 @@ public sealed partial record MailFooterContent(string Html, IReadOnlyList<MailFo
             : null;
     }
 
+    /// <summary>Reads which of the accepted image types the octets open as, from the signature the format begins with.</summary>
+    /// <param name="content">The image's octets.</param>
+    /// <returns>One of <see cref="AcceptedImageMediaTypes" />, or <see langword="null" /> when the octets open as none of them.</returns>
+    /// <remarks>
+    /// The signature is the whole check, as for a portrait: nothing decodes the image. It is shared with the pictures
+    /// an author places inside a message, so a footer's image and a pasted picture are judged by one reading.
+    /// </remarks>
+    public static string? AcceptedImageMediaTypeOf(ReadOnlySpan<byte> content) =>
+        content.StartsWith(PngSignature) ? "image/png"
+        : content.StartsWith(JpegSignature) ? "image/jpeg"
+        : content.StartsWith(Gif87aSignature) || content.StartsWith(Gif89aSignature) ? "image/gif"
+        : null;
+
     /// <summary>Reports whether an image is of an accepted type and its octets open with that format's signature.</summary>
     /// <remarks>
     /// The declared type is a string an uploader wrote, and the image goes out under it on every message its author
-    /// sends, so the octets are held to it. The signature is the whole check, as for a portrait: nothing decodes the image.
+    /// sends, so the octets are held to it.
     /// </remarks>
-    private static bool OpensAsItsMediaType(MailFooterImage image)
-    {
-        var content = image.Content.Span;
-
-        return image.MediaType.ToUpperInvariant() switch
-        {
-            "IMAGE/PNG" => content.StartsWith(PngSignature),
-            "IMAGE/JPEG" => content.StartsWith(JpegSignature),
-            "IMAGE/GIF" => content.StartsWith(Gif87aSignature) || content.StartsWith(Gif89aSignature),
-            _ => false,
-        };
-    }
+    private static bool OpensAsItsMediaType(MailFooterImage image) =>
+        string.Equals(AcceptedImageMediaTypeOf(image.Content.Span), image.MediaType, StringComparison.OrdinalIgnoreCase);
 
     [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\z", RegexOptions.CultureInvariant)]
     private static partial Regex ImageNamePattern();

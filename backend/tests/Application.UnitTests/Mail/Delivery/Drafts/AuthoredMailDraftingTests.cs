@@ -243,6 +243,32 @@ public sealed class AuthoredMailDraftingTests
         Assert.Equal(["report.pdf"], composed.Attachments.Select(file => file.FileName));
     }
 
+    /// <summary>The pictures the author placed inside the message reach the composition as the request stated them.</summary>
+    [Fact]
+    public async Task SaveAsync_AMessageCarryingAPicture_ComposesThePictureIntoIt()
+    {
+        // Arrange
+        var composer = ComposingAuthoredEmails.ThatComposesDrafts(ComposedMime);
+        var drafting = DraftingOver(Harness(new InMemoryOutgoingEmailStore()), composer: composer);
+        var picture = new AuthoredEmailPicture("0198f0a0-4444-7000-8000-000000000001", new byte[] { 0x89, 0x50 });
+
+        // Act
+        await drafting.SaveAsync(
+            new MailDraftRequest
+            {
+                Account = MailAccountSelector.For(Account),
+                Subject = "a chart",
+                PlainTextBody = "See the chart.",
+                HtmlBody = "<img src=\"cid:0198f0a0-4444-7000-8000-000000000001\">",
+                Pictures = [picture],
+                Author = OutgoingEmailRequester.Command("mfctl-4f2a"),
+            },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([picture], LastComposed(composer).Pictures);
+    }
+
     /// <summary>
     /// The two requests are kept on the draft and the read receipt is composed into its message; a revision that asks for
     /// neither switches both off, because each revision states the whole draft again.

@@ -82,15 +82,50 @@ internal static class ClientDraftEndpoints
     /// <summary>The <c>answers</c> value naming a forward.</summary>
     internal const string ForwardAnswer = "forward";
 
-    /// <summary>The greatest request body a write to a draft reads before refusing it.</summary>
+    /// <summary>The most octets one character of either body takes once written into JSON, which is its widest escape.</summary>
+    /// <remarks>A character outside what JSON carries bare is written as <c>\uXXXX</c>, and a pair of surrogates as two of them.</remarks>
+    internal const int MaxJsonOctetsPerBodyCharacter = 6;
+
+    /// <summary>The octets a write to a draft is allowed beyond its two bodies and its pictures.</summary>
     /// <remarks>
-    /// A draft carries the text somebody typed and the addresses they named, and the composition refuses a body longer
-    /// than the deployment composes anyway. Stated for the reason every other write on this surface states one: the
-    /// server's own default is measured in tens of megabytes, which here would let an authenticated client make the
-    /// process buffer a body orders of magnitude larger than any draft it could save. The files are not in it — an
-    /// upload is a route of its own bounded by the operator's own attachment size.
+    /// The account, the subject, the answered message, the receipt requests, and up to
+    /// <see cref="OutgoingEmailRequest.MaximumRecipientCount" /> addresses of up to
+    /// <see cref="OutgoingRecipient.MaximumAddressLength" /> characters each at the widest escape, which is under half of
+    /// it, with room for the names written beside them and the structure around everything.
     /// </remarks>
-    internal const int MaxWriteRequestBytes = 2 * 1024 * 1024;
+    internal const int MaxWriteRequestEnvelopeBytes = 1024 * 1024;
+
+    /// <summary>The octets one picture's own JSON takes beside its base64: the two keys, a name at its longest, and the punctuation between them.</summary>
+    internal const int MaxJsonOctetsPerPictureBesideContent = 128;
+
+    /// <summary>Computes the greatest request body a write to a draft reads before refusing it.</summary>
+    /// <param name="bounds">What this deployment composes, whose body bound decides how much text a draft may carry.</param>
+    /// <returns>What the largest draft this deployment composes is written as, and no more.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="bounds" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// <para>
+    /// Derived from the bounds a draft is refused by rather than typed as a number of its own, so the <c>413</c> the
+    /// routing pipeline answers and the refusals the composition gives agree: a body the bound admits states at most
+    /// two bodies at their configured length and every picture the composition accepts, and one past it states more
+    /// than any draft could carry. The files are not in it — an upload is a route of its own bounded by the operator's
+    /// own attachment size.
+    /// </para>
+    /// <para>
+    /// The pictures are counted at their widest encoding: base64 rounds each picture up to a whole group of four, so
+    /// <see cref="AuthoredEmailPicture.MaximumCount" /> pictures sharing <see cref="AuthoredEmailPicture.MaximumTotalOctets" />
+    /// encode to at most that many octets plus two of padding per picture, four for every three.
+    /// </para>
+    /// </remarks>
+    internal static long MaxWriteRequestBytes(OutgoingEmailBounds bounds)
+    {
+        ArgumentNullException.ThrowIfNull(bounds);
+
+        var bodies = 2L * bounds.MaxBodyCharacters * MaxJsonOctetsPerBodyCharacter;
+        var picturesBase64 = ((long)AuthoredEmailPicture.MaximumTotalOctets + (2L * AuthoredEmailPicture.MaximumCount)) / 3 * 4;
+        var pictures = picturesBase64 + ((long)AuthoredEmailPicture.MaximumCount * MaxJsonOctetsPerPictureBesideContent);
+
+        return MaxWriteRequestEnvelopeBytes + bodies + pictures;
+    }
 
     /// <summary>The greatest request body the send route reads before refusing it.</summary>
     /// <remarks>An instant and one zone identifier bounded at <see cref="ZonedInstant.MaximumZoneIdLength" /> characters, with room for the widest UTF-8 encoding of each and the JSON around them. A body past it is answered <c>413</c> before the handler is reached.</remarks>
@@ -112,17 +147,19 @@ internal static class ClientDraftEndpoints
     /// The upload's bound is the operator's configured attachment size rather than a constant, read here from the
     /// options the deployment bound at startup. A transport bound smaller than the one the use case enforces would
     /// refuse a file the deployment says it composes, and a larger one would let the process buffer octets no draft
-    /// could ever carry — so there is one number and this is where the routing pipeline is told it.
+    /// could ever carry — so there is one number and this is where the routing pipeline is told it. A write's bound is
+    /// read from the same options, for the same reason, through <see cref="MaxWriteRequestBytes" />.
     /// </remarks>
     internal static void MapClientDrafts(this RouteGroupBuilder api)
     {
         ArgumentNullException.ThrowIfNull(api);
 
-        var uploadLimit = ((IEndpointRouteBuilder)api).ServiceProvider
+        var bounds = ((IEndpointRouteBuilder)api).ServiceProvider
             .GetRequiredService<IOptions<MailDeliveryOptions>>()
             .Value
-            .ToOutgoingEmailBounds()
-            .MaxAttachmentBytes;
+            .ToOutgoingEmailBounds();
+        var uploadLimit = bounds.MaxAttachmentBytes;
+        var writeLimit = MaxWriteRequestBytes(bounds);
 
         api.MapGet(DraftsRoute, ReadDraftsAsync)
             .RequirePermission(MailFathomPermission.MailDraftsWrite);
@@ -134,11 +171,11 @@ internal static class ClientDraftEndpoints
         // surface reaches it: it implements IRequestSizeLimitMetadata, which the routing pipeline applies to the
         // request body feature, so a body over the bound is answered 413 before the handler is reached.
         api.MapPost(DraftsRoute, WriteDraftAsync)
-            .WithMetadata(new RequestSizeLimitAttribute(MaxWriteRequestBytes))
+            .WithMetadata(new RequestSizeLimitAttribute(writeLimit))
             .RequirePermission(MailFathomPermission.MailDraftsWrite);
 
         api.MapPut(DraftRoute, ReviseDraftAsync)
-            .WithMetadata(new RequestSizeLimitAttribute(MaxWriteRequestBytes))
+            .WithMetadata(new RequestSizeLimitAttribute(writeLimit))
             .RequirePermission(MailFathomPermission.MailDraftsWrite);
 
         api.MapDelete(DraftRoute, DiscardDraftAsync)
@@ -544,6 +581,7 @@ internal static class ClientDraftEndpoints
             Subject = request.Subject,
             PlainTextBody = request.PlainTextBody ?? string.Empty,
             HtmlBody = request.HtmlBody,
+            Pictures = request.StatedPictures(),
             ReceiptRequests = request.ReceiptRequests,
             Author = Author(),
             Revises = revises,
@@ -575,6 +613,7 @@ internal static class ClientDraftEndpoints
             Act = act,
             PlainTextBody = request.PlainTextBody ?? string.Empty,
             HtmlBody = request.HtmlBody,
+            Pictures = request.StatedPictures(),
             ReceiptRequests = request.ReceiptRequests,
             Recipients = NamedRecipients(request),
             Author = Author(),
