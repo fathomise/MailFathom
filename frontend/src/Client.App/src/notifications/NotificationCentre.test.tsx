@@ -671,7 +671,7 @@ describe('NotificationCentre, a failure’s row', () => {
     const change: ClientNotification = {
         ...mail,
         id: 'n-change',
-        title: 'A change did not reach your mailbox',
+        title: 'Your mailbox refused a change',
         statement: { cause: 'MailboxChangeAbandoned', counted: 2, outOf: null },
         target: { kind: 'MailboxChange', storedEmailId: 'm-9', changeRecordId: 'r-1' },
     };
@@ -704,7 +704,10 @@ describe('NotificationCentre, a failure’s row', () => {
             { notifications: [change] },
             null,
             undefined,
-            { ...nothingPending, abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'flag' }] },
+            {
+                ...nothingPending,
+                abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'flag', permanent: false }],
+            },
             { session: { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' }, transport },
         );
 
@@ -728,7 +731,7 @@ describe('NotificationCentre, a failure’s row', () => {
 
         panel({ notifications: [move] }, null, undefined, {
             ...nothingPending,
-            abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'move' }],
+            abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'move', permanent: false }],
         });
 
         fireEvent.click(screen.getByRole('button', { name: 'Move again…' }));
@@ -740,16 +743,14 @@ describe('NotificationCentre, a failure’s row', () => {
     it('puts focus on the row’s own control once a decision on it is taken, rather than leaving it nowhere', () => {
         panel({ notifications: [change] }, null, undefined, {
             ...nothingPending,
-            abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'flag' }],
+            abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'flag', permanent: false }],
             settle: vi.fn(),
         });
         showAll();
 
         fireEvent.click(screen.getByRole('button', { name: 'Let it go' }));
 
-        expect(document.activeElement).toBe(
-            within(rowFor('A change did not reach your mailbox')).getAllByRole('button')[0],
-        );
+        expect(document.activeElement).toBe(within(rowFor('Your mailbox refused a change')).getAllByRole('button')[0]);
     });
 
     it('says where a failure came from without the identifier the deployment wrote there', () => {
@@ -763,13 +764,29 @@ describe('NotificationCentre, a failure’s row', () => {
 
         panel({ notifications: [change] }, null, undefined, {
             ...nothingPending,
-            abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'flag' }],
+            abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'flag', permanent: false }],
             settle,
         });
 
         fireEvent.click(screen.getByRole('button', { name: 'Let it go' }));
 
         expect(settle).toHaveBeenCalledExactlyOnceWith('r-1', 'letGo');
+    });
+
+    // Refused for good, the same change would be refused again, so letting it go is all that is offered.
+    it('offers a change the mail server refused for good nothing but letting it go', () => {
+        const forGood: ClientNotification = {
+            ...change,
+            statement: { cause: 'MailboxChangeRefused', counted: 2, outOf: null },
+        };
+
+        panel({ notifications: [forGood] }, null, undefined, {
+            ...nothingPending,
+            abandoned: [{ recordId: 'r-1', storedEmailId: 'm-9', act: 'flag', permanent: true }],
+        });
+
+        expect(screen.getByRole('button', { name: 'Let it go' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Ask again' })).toBeNull();
     });
 
     it('offers nothing to decide about a change no longer waiting on anybody', () => {

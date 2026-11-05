@@ -533,10 +533,10 @@ supervisor counts it under none, so an account backed off for every restart woul
 stopped.
 
 **`synchronizationStateSince`, `behindSince`, `waitingChangeCount`, and `oldestWaitingChangeCommittedAt` are what the
-client's account freshness line is drawn from.** The line turns the account *not current* once one of three causes has
-held for sixty seconds without a break — the server unreachable, the account behind, or a change waiting — and each is
-measured from the instant the deployment publishes here rather than from when a client first read it, so a client that
-opens late, or reconnects, does not restart the sixty seconds.
+client's account freshness line is drawn from.** The line turns the account *not current* once one of its causes has
+held for sixty seconds without a break — the server unreachable or failing, the account behind, or a change waiting — and
+each is measured from the instant the deployment publishes here rather than from when a client first read it, so a
+client that opens late, or reconnects, does not restart the sixty seconds.
 
 - `synchronizationStateSince` is since when the account has been in `synchronizationState`: for `Unreachable` and
   `Failing`, since the first of this deployment's attempts that ended that way without a break; for `Synchronized`,
@@ -5615,9 +5615,12 @@ refusal that outlasts those attempts reaches the screen as a deployment that did
 **A deployment that is briefly away costs a reader a short wait rather than a failed screen.** A read answered `502`,
 `503`, or `504`, or met by a connection refused or dropped, is sent again on the same schedule and honours a
 `Retry-After` on any of them — so a restart or a rolling upgrade that a proxy in front of the deployment answers for
-with `503` and a `Retry-After` of a few seconds is waited out rather than reported. A write is not: none of these proves
-that the first attempt was not acted on, so a write is sent again only after the limiter's `429`, which does. The spread
-between attempts is what stops a fleet of clients that lost one deployment from returning to it in step.
+with `503` and a `Retry-After` of a few seconds is waited out rather than reported. A write is not, with one exception: none of these
+proves that the first attempt was not acted on, so a write is sent again only after the limiter's `429`, which does. The
+exception is the four mailbox act routes — flags, moves, deletes, and spam marks — which carry the `requestId` the
+client draws once per batch: a repeat under it is answered with the first attempt's outcome and changes nothing a
+second time, so those are sent again on the same schedule a read is. A withdrawal or a release carries no key and is
+not. The spread between attempts is what stops a fleet of clients that lost one deployment from returning to it in step.
 
 **No request carries a timeout of its own; the client asks whether the deployment is still there instead.** Drafting a
 reply waits on an AI provider, a folder act waits on a mail server, an attachment moves at the speed of the link, and
@@ -5638,13 +5641,15 @@ reopening over a link that died cannot wait on either for as long as the browser
 
 **A write nobody answered is reported as outcome unknown, never as nothing having been saved.** That covers a write the
 probe abandoned, one the network failed in transit, and one answered `502`, `503`, or `504`, since a gateway may have
-handed it on before it gave up. None of them is sent again — no write route takes an idempotency key yet — and no notice
-about one offers to send it again: a change to a mailbox is drawn as asked, and a message whose send went unanswered is
-said not to be known to have left, with the Outbox as the place to look before sending it a second time. It reads
-everything again once the deployment answers and draws what that read shows; for a change to a mailbox it goes on
-drawing the change until then, and says so once where that read drew something other than the change. A write the client
-has had no answer to for ten seconds says *Still sending…* until it is answered or ends unknown. A refusal the
-deployment stated, a `4xx` or a `429` carrying a problem document, is an answer and keeps its own handling.
+handed it on before it gave up. No notice about one offers to send it again. A mailbox act is drawn as asked and held in
+the tab: once the deployment answers again it is sent again, under the key it first went with, every five seconds until
+it is answered — so it lands once however often it goes — and that answer then settles it as any answer does. It is held
+in memory and nowhere else, so closing the tab drops it, which the notice says. Any other write is not sent again: a
+message whose send went unanswered is said not to be known to have left, with the Outbox as the place to look before
+sending it a second time, and the client reads everything again once the deployment answers and draws what that read
+shows. A write the client has had no answer to for ten seconds says *Still sending…* until it is answered or ends
+unknown, and the same act is refused on the same message while its request is unanswered. A refusal the deployment
+stated, a `4xx` or a `429` carrying a problem document, is an answer and keeps its own handling.
 
 **Both are attached to this surface's routes rather than applied as the process's default policy**, which is what keeps
 the health probes answering while the client endpoint is refusing. A default limiter would count a readiness probe

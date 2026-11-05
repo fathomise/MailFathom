@@ -136,6 +136,7 @@ describe('readNotifications', () => {
         ['a refused send', { cause: 'SendRefused', counted: 1, outOf: null }],
         ['a given-up change', { cause: 'MailboxChangeAbandoned', counted: 4, outOf: null }],
         ['a draft copy not kept', { cause: 'DraftCopyNotKept', counted: 0, outOf: null }],
+        ['a change the mail server refused for good', { cause: 'MailboxChangeRefused', counted: 2, outOf: null }],
     ])('reads %s as the condition it was and the number it is counted with', async (_named, statement) => {
         const answer = await readNotifications(
             session,
@@ -157,6 +158,7 @@ describe('readNotifications', () => {
         ['a count that is not a whole number', { cause: 'MailArrived', counted: 1.5, outOf: null }],
         ['no condition at all', undefined],
         ['a given-up change naming no act', { cause: 'MailboxChangeAbandoned', counted: null, outOf: null }],
+        ['a refused change naming no act', { cause: 'MailboxChangeRefused', counted: null, outOf: null }],
     ])('reads a notification stating %s as one with no statement, keeping the row', async (_named, statement) => {
         const answer = await readNotifications(
             session,

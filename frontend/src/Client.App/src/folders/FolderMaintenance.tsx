@@ -343,7 +343,8 @@ export function FolderMaintenanceProvider({
             //
             // Held for the life of the tab, as a marking made by opening is, so once the deployment's own
             // count has caught up the tree still subtracts these and undercounts mail that arrives unread afterwards.
-            // Following the records through `pendingChanges/` and forgetting each as it converges is the upgrade.
+            // Letting each go once a listing read after the answer draws its message, as the mailbox acts do, is the
+            // upgrade.
             recordMarked(outcome.markedRead);
 
             if (outcome.unknown.length > 0) {

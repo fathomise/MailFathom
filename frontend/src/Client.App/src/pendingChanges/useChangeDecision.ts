@@ -8,54 +8,20 @@ import type { MoveDestination } from '../mailboxActs/mailboxDestinations';
 import { useMailboxActs, type ActedMessage, type MailboxAct } from '../mailboxActs/useMailboxActs';
 import type { AbandonedAct } from '../notifications/failures';
 import { useToasts } from '../toasts/useToasts';
-import type { ChangeAct } from './changeStandings';
-import { usePendingChanges, type AbandonedChange, type UndecidedChange } from './usePendingChanges';
+import { usePendingChanges, type AbandonedChange } from './usePendingChanges';
 
-// The question one change the mailbox did not take puts in front of the person, and the two answers to it. It is one
-// hook rather than a pair of handlers on each surface because the question is asked in two places — on the message the
-// change was asked of, and on the notification it raised — and one change answered differently from two places is the
-// same failure shown as two.
+// One answer to a change the deployment undid after the mail server refused it, for every surface that offers one: the
+// notice on the message and the row in the notification centre. Both ask the same two questions — what is this, and
+// what does asking again mean for it — and a second reading of either is how the notice and the row would come to
+// disagree about one refusal.
 //
-// Two kinds of change reach here. One this tab followed is the pending-changes queue's own, and asking it again is the
-// act that produced it, submitted afresh. One this tab knows only from its notification has no producer here, so
-// asking it again is the act performed now, on the message as it stands — which is why a move offers the folder choice
-// rather than guessing which folder was meant, and why a copy and a change of tags, which no surface here performs, are
-// let go and never asked again.
+// Asking again is a new act under a new key, performed on the message as it stands now: the deployment already put the
+// message back, so the act is made at once, as any act is, and reaches the mail server afterwards like any other.
 
-/** One change waiting on the person, whichever of the two ways this tab came to know about it. */
-export type ChangeQuestion =
-    | { readonly kind: 'followed'; readonly change: UndecidedChange }
-    | { readonly kind: 'abandoned'; readonly change: AbandonedChange };
-
-/**
- * What asking a change again does: the act goes out again as it is, a folder has to be chosen first, or nothing here
- * can ask it and the only answer is to let it go.
- */
+/** What asking a change again does: the act goes out again as it is, a folder has to be chosen first, or it cannot. */
 export type AskingAgain = 'asks' | 'choosesFolder' | null;
 
-const exhaustedTitles: Readonly<Record<ChangeAct, MessageKey>> = {
-    markRead: 'change.notMarkedRead',
-    flag: 'change.notFlagged',
-    unflag: 'change.notUnflagged',
-    markUnread: 'change.notMarkedUnread',
-    archive: 'change.notArchived',
-    delete: 'change.notDeleted',
-    move: 'change.notMoved',
-    putBack: 'change.notPutBack',
-};
-
-const unknownTitles: Readonly<Record<ChangeAct, MessageKey>> = {
-    markRead: 'change.markingReadUnknown',
-    flag: 'change.flaggingUnknown',
-    unflag: 'change.unflaggingUnknown',
-    markUnread: 'change.markingUnreadUnknown',
-    archive: 'change.archivingUnknown',
-    delete: 'change.deletingUnknown',
-    move: 'change.movingUnknown',
-    putBack: 'change.puttingBackUnknown',
-};
-
-const abandonedTitles: Readonly<Record<AbandonedAct, MessageKey>> = {
+const refusedTitles: Readonly<Record<AbandonedAct, MessageKey>> = {
     markRead: 'change.notMarkedRead',
     markUnread: 'change.notMarkedUnread',
     flag: 'change.notFlagged',
@@ -66,8 +32,29 @@ const abandonedTitles: Readonly<Record<AbandonedAct, MessageKey>> = {
     changeTags: 'change.tagsNotChanged',
 };
 
-// What asking a given-up change again performs. A move is asked through the folder choice, and the two acts no
-// surface here performs are absent, which is what leaves letting go as their only answer.
+/** What undoing each act did, said for a refusal asking again may change and for one it may not. */
+const refusedTexts: Readonly<Record<'transient' | 'permanent', Readonly<Record<AbandonedAct, MessageKey>>>> = {
+    transient: texts('change.refusedText'),
+    permanent: texts('change.refusedForGoodText'),
+};
+
+function texts(family: 'change.refusedText' | 'change.refusedForGoodText'): Readonly<Record<AbandonedAct, MessageKey>> {
+    return {
+        markRead: `${family}.markRead`,
+        markUnread: `${family}.markUnread`,
+        flag: `${family}.flag`,
+        unflag: `${family}.unflag`,
+        move: `${family}.move`,
+        delete: `${family}.delete`,
+        copy: `${family}.copy`,
+        changeTags: `${family}.changeTags`,
+    };
+}
+
+/**
+ * The act a refused change is performed again as, or `null` where this client performs none: a copy and a change of
+ * tags are acts the deployment records for other askers, and the Mail space offers neither.
+ */
 const performedAgain: Readonly<Record<AbandonedAct, MailboxAct | null>> = {
     markRead: 'markRead',
     markUnread: 'markUnread',
@@ -79,39 +66,32 @@ const performedAgain: Readonly<Record<AbandonedAct, MailboxAct | null>> = {
     changeTags: null,
 };
 
-/** How the question about one change is said: its title, the sentence under it, and whether nobody knows the outcome. */
+/** How the notice about one change is said: its title and the sentence under it. */
 export interface ChangeQuestionWords {
     readonly title: MessageKey;
     readonly text: MessageKey;
-    readonly unknown: boolean;
 }
 
-export function wordChangeQuestion(question: ChangeQuestion): ChangeQuestionWords {
-    if (question.kind === 'abandoned') {
-        return { title: abandonedTitles[question.change.act], text: 'change.exhaustedText', unknown: false };
-    }
-
-    return question.change.standing === 'unanswered'
-        ? { title: unknownTitles[question.change.act], text: 'change.unknownText', unknown: true }
-        : { title: exhaustedTitles[question.change.act], text: 'change.exhaustedText', unknown: false };
+export function wordChangeQuestion(change: AbandonedChange): ChangeQuestionWords {
+    return {
+        title: refusedTitles[change.act],
+        text: refusedTexts[change.permanent ? 'permanent' : 'transient'][change.act],
+    };
 }
 
 export interface ChangeDecision {
-    /** The question standing over one message, or `null` where none does. */
-    readonly questionAbout: (storedEmailId: string) => ChangeQuestion | null;
+    /** The refused change standing over one message, or `null` where none does. */
+    readonly questionAbout: (storedEmailId: string) => AbandonedChange | null;
 
-    /** The question about one record, or `null` where it has already been answered. */
-    readonly questionOf: (recordId: string) => ChangeQuestion | null;
+    /** The refused change one record names, or `null` where it has already been answered. */
+    readonly questionOf: (recordId: string) => AbandonedChange | null;
 
-    readonly askingAgain: (question: ChangeQuestion) => AskingAgain;
+    readonly askingAgain: (change: AbandonedChange) => AskingAgain;
 
-    /**
-     * Asks the change again, on the message as it stands now. A followed change ignores both, because its producer
-     * already knows what it asked of which message; a given-up move needs the folder somebody chose.
-     */
-    readonly askAgain: (question: ChangeQuestion, message: ActedMessage | null, destination?: MoveDestination) => void;
+    /** Asks the change again, on the message as it stands now; a move needs the folder somebody chose. */
+    readonly askAgain: (change: AbandonedChange, message: ActedMessage | null, destination?: MoveDestination) => void;
 
-    readonly letGo: (question: ChangeQuestion) => void;
+    readonly letGo: (change: AbandonedChange) => void;
 }
 
 export function useChangeDecision(): ChangeDecision {
@@ -120,47 +100,32 @@ export function useChangeDecision(): ChangeDecision {
     const acts = useMailboxActs();
     const toasts = useToasts();
 
-    function questionWhere(
-        matches: (change: { readonly recordId: string; readonly storedEmailId: string }) => boolean,
-    ) {
-        const followed = pending.undecided.find(matches);
+    function askingAgain(change: AbandonedChange): AskingAgain {
+        const act = performedAgain[change.act];
 
-        if (followed !== undefined) {
-            return { kind: 'followed', change: followed } as const;
+        if (change.permanent || act === null) {
+            return null;
         }
 
-        const abandoned = pending.abandoned.find(matches);
-
-        return abandoned === undefined ? null : ({ kind: 'abandoned', change: abandoned } as const);
+        return act === 'move' ? 'choosesFolder' : 'asks';
     }
 
-    function askingAgain(question: ChangeQuestion): AskingAgain {
-        if (question.kind === 'followed') {
-            return 'asks';
-        }
+    function askAgain(change: AbandonedChange, message: ActedMessage | null, destination?: MoveDestination): void {
+        const act = performedAgain[change.act];
 
-        const act = performedAgain[question.change.act];
-
-        return act === null ? null : act === 'move' ? 'choosesFolder' : 'asks';
-    }
-
-    function askAgain(question: ChangeQuestion, message: ActedMessage | null, destination?: MoveDestination): void {
-        if (question.kind === 'followed') {
-            pending.settle(question.change.recordId, 'askAgain');
-
+        if (askingAgain(change) === null || act === null || message === null) {
             return;
         }
 
-        const act = performedAgain[question.change.act];
-
-        if (act === null || message === null || (act === 'move' && destination === undefined)) {
+        if (act === 'move' && destination === undefined) {
             return;
         }
 
-        pending.settle(question.change.recordId, 'askAgain');
+        pending.settle(change.recordId, 'askAgain');
         acts.perform(act, [message], destination);
 
-        // A filing act reports itself with the way back; a flag reports nothing of its own, so it is said here.
+        // A move and a delete say what they did in their own toast, which carries the way back; the flag acts report
+        // nothing of their own, so what asking again did is said here.
         if (act !== 'move' && act !== 'delete') {
             toasts.raise({
                 kind: 'neutral',
@@ -171,12 +136,13 @@ export function useChangeDecision(): ChangeDecision {
     }
 
     return {
-        questionAbout: (storedEmailId) => questionWhere((change) => change.storedEmailId === storedEmailId),
-        questionOf: (recordId) => questionWhere((change) => change.recordId === recordId),
+        questionAbout: (storedEmailId) =>
+            pending.abandoned.find((change) => change.storedEmailId === storedEmailId) ?? null,
+        questionOf: (recordId) => pending.abandoned.find((change) => change.recordId === recordId) ?? null,
         askingAgain,
         askAgain,
-        letGo: (question) => {
-            pending.settle(question.change.recordId, 'letGo');
+        letGo: (change) => {
+            pending.settle(change.recordId, 'letGo');
         },
     };
 }

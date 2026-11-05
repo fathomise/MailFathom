@@ -121,6 +121,10 @@ export const workAccount = {
     behind: false,
     filesJunk: false,
     shared: false,
+    synchronizationStateSince: null,
+    behindSince: null,
+    waitingChangeCount: 0,
+    oldestWaitingChangeCommittedAt: null,
 };
 
 /**
@@ -137,6 +141,10 @@ export const failingAccount = {
     behind: true,
     filesJunk: false,
     shared: true,
+    synchronizationStateSince: null,
+    behindSince: null,
+    waitingChangeCount: 0,
+    oldestWaitingChangeCommittedAt: null,
 };
 
 /**
@@ -153,6 +161,10 @@ export const accountBehind = {
     behind: true,
     filesJunk: false,
     shared: false,
+    synchronizationStateSince: null,
+    behindSince: null,
+    waitingChangeCount: 0,
+    oldestWaitingChangeCommittedAt: null,
 };
 
 /** What the accounts route answers at rest: one mailbox, up to date, with nothing to report. */

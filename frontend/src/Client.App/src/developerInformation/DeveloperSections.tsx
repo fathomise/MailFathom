@@ -764,27 +764,9 @@ function DataSection({ context, now }: { readonly context: DeveloperContext; rea
 
             <SubHeading name="developer.changes" />
             <Facts>
-                <Fact name="developer.changesWaiting">{wordNumber(changes.waiting.length, locale)}</Fact>
-                <Fact name="developer.changesUndecided">{wordNumber(changes.undecided.length, locale)}</Fact>
-                <Fact name="developer.followingStopped">
-                    <YesNo value={changes.stoppedFollowing} />
-                </Fact>
+                <Fact name="developer.changesUnanswered">{wordNumber(changes.unanswered, locale)}</Fact>
+                <Fact name="developer.changesUndecided">{wordNumber(changes.abandoned.length, locale)}</Fact>
             </Facts>
-            {changes.waiting.length + changes.undecided.length === 0 ? null : (
-                <ul className="flex flex-col gap-0.5 text-base">
-                    {[...changes.waiting, ...changes.undecided].map((change) => (
-                        <li key={change.recordId} className="flex flex-wrap gap-x-2">
-                            <Literal>{change.act}</Literal>
-                            <span className="text-muted">
-                                <Literal>{change.recordId}</Literal>
-                            </span>
-                            <span className="text-faint">
-                                <Literal>{change.storedEmailId}</Literal>
-                            </span>
-                        </li>
-                    ))}
-                </ul>
-            )}
         </>
     );
 }

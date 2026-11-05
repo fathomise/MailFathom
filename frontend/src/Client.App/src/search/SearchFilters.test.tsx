@@ -18,6 +18,10 @@ const work: MailAccount = {
     behind: false,
     filesJunk: false,
     shared: false,
+    synchronizationStateSince: null,
+    behindSince: null,
+    waitingChangeCount: 0,
+    oldestWaitingChangeCommittedAt: null,
 };
 
 const anywhere = askIn(everything, 'invoice');

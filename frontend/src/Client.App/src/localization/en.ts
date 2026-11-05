@@ -854,7 +854,7 @@ export const en = {
     'act.archiving': 'Archiving…',
     'act.deleting': 'Moving to the trash…',
     'act.filing': 'Filing…',
-    'act.underway': '{control} - this is already on its way to your mail server.',
+    'act.underway': '{control} - this is already under way, and the server has not answered yet.',
     'act.notOffered': '{control} - this credential may not change mail on your mail server.',
     'act.nothingToActOn': '{control} - nothing is open or selected for this to be about.',
     'act.noArchiveFolder': '{control} - this account names no archive folder, so there is nowhere to archive to.',
@@ -1401,8 +1401,42 @@ export const en = {
         'Searching by meaning is not working on this server at the moment, so these results carry the words you typed only. Your administrator can look into that.',
 
     'connection.current': 'Every account is up to date.',
-    'connection.behind': 'Some accounts are behind.',
-    'connection.failing': 'Some accounts stopped synchronizing.',
+    'freshness.notCurrentOne': '{account} is not up to date.',
+    'freshness.notCurrentSome': 'Some accounts are not up to date.',
+    'freshness.restOne': '{account} is up to date.',
+    'freshness.restAll': 'Every other account is up to date.',
+    'freshness.unreachable': 'Mail server unreachable',
+    'freshness.unreachableNothingWaiting':
+        'Its mail server cannot be reached, since {since}. Nothing is waiting for it.',
+    'freshness.unreachableUndatedNothingWaiting': 'Its mail server cannot be reached. Nothing is waiting for it.',
+    'freshness.unreachableUndatedText.one':
+        'Its mail server cannot be reached. One change is waiting. It is kept in MailFathom and reaches the mail server once it is back.',
+    'freshness.unreachableUndatedText.few':
+        'Its mail server cannot be reached. {count} changes are waiting. They are kept in MailFathom and reach the mail server once it is back.',
+    'freshness.unreachableUndatedText.many':
+        'Its mail server cannot be reached. {count} changes are waiting. They are kept in MailFathom and reach the mail server once it is back.',
+    'freshness.unreachableUndatedText.other':
+        'Its mail server cannot be reached. {count} changes are waiting. They are kept in MailFathom and reach the mail server once it is back.',
+    'freshness.waiting.one': 'One change waiting',
+    'freshness.waiting.few': '{count} changes waiting',
+    'freshness.waiting.many': '{count} changes waiting',
+    'freshness.waiting.other': '{count} changes waiting',
+    'freshness.waitingText.one':
+        'One change has waited more than a minute for its mail server. It is kept in MailFathom, shown as made, and reaches the server on its own.',
+    'freshness.waitingText.few':
+        '{count} changes have waited more than a minute for its mail server. They are kept in MailFathom, shown as made, and reach the server on their own.',
+    'freshness.waitingText.many':
+        '{count} changes have waited more than a minute for its mail server. They are kept in MailFathom, shown as made, and reach the server on their own.',
+    'freshness.waitingText.other':
+        '{count} changes have waited more than a minute for its mail server. They are kept in MailFathom, shown as made, and reach the server on their own.',
+    'freshness.unreachableText.one':
+        'Its mail server cannot be reached, since {since}. One change is waiting. It is kept in MailFathom and reaches the mail server once it is back.',
+    'freshness.unreachableText.few':
+        'Its mail server cannot be reached, since {since}. {count} changes are waiting. They are kept in MailFathom and reach the mail server once it is back.',
+    'freshness.unreachableText.many':
+        'Its mail server cannot be reached, since {since}. {count} changes are waiting. They are kept in MailFathom and reach the mail server once it is back.',
+    'freshness.unreachableText.other':
+        'Its mail server cannot be reached, since {since}. {count} changes are waiting. They are kept in MailFathom and reach the mail server once it is back.',
     'connection.noAccounts': 'No mail account is configured for this user yet.',
     'connection.retry': 'Try again',
     'connection.connecting': 'Reaching the server…',
@@ -2021,22 +2055,6 @@ export const en = {
     'link.askWordsNameAnotherHost': 'Its words name {named}, but it goes to {host}.',
     'link.askOpen': 'Open link',
 
-    'pendingChange.waiting.one': 'One change has not reached your mailbox yet.',
-    'pendingChange.waiting.few': '{count} changes have not reached your mailbox yet.',
-    'pendingChange.waiting.many': '{count} changes have not reached your mailbox yet.',
-    'pendingChange.waiting.other': '{count} changes have not reached your mailbox yet.',
-    'pendingChange.markRead': 'Marked read',
-    'pendingChange.flag': 'Flagged',
-    'pendingChange.unflag': 'Flag removed',
-    'pendingChange.markUnread': 'Marked unread',
-    'pendingChange.archive': 'Archived',
-    'pendingChange.delete': 'Deleted',
-    'pendingChange.move': 'Filed in another folder',
-    'pendingChange.putBack': 'Put back where it was',
-    'pendingChange.undecided': 'A change needs your decision.',
-    'pendingChange.exhausted': 'Your mailbox would not take this change, and MailFathom has stopped trying to make it.',
-    'pendingChange.unanswered':
-        'The change went out and your mailbox never answered, so it may or may not have been made.',
     'pendingChange.askAgain': 'Ask again',
     'pendingChange.letGo': 'Let it go',
     'pendingChange.notMarkedRead.one': 'One message was not marked read.',
@@ -2079,39 +2097,50 @@ export const en = {
         'That folder does not take it: drafts stay in the drafts folder or a folder you made, and nothing else goes there.',
     'pendingChange.outcomeUnknown': 'Not known whether this reached the server',
     'pendingChange.outcomeUnknownBody':
-        'The connection went as this change was made. It stays shown as you asked until the server answers again, and then as the server holds it.',
+        'The connection went as this change was made. It stays shown as you made it and is confirmed once the connection is back. Closing this tab before then drops it.',
     'pendingChange.refused': 'The server refused this change.',
     'pendingChange.refusedBody': 'Nothing was written down, so your mailbox is unchanged: {reason}.',
-    'pendingChange.reread': 'The screen now shows what the server holds',
-    'pendingChange.rereadBody': 'Changes made as the connection went are shown as the server holds them now.',
     'pendingChange.retry': 'Try again',
-    'pendingChange.stoppedFollowing': 'This client stopped checking where your changes have got to.',
-    'pendingChange.stoppedFollowingBody':
-        'The server did not answer {total} times running. The changes themselves are written down and are still being made.',
-    'pendingChange.stoppedFollowingReason':
-        'The server answered, but this client could not act on the answer: {reason}. Nothing is being checked until you ask it to.',
-    'pendingChange.followAgain': 'Check again',
-    'change.notMarkedRead': 'Not marked read - your mailbox did not take this change',
-    'change.notMarkedUnread': 'Not marked unread - your mailbox did not take this change',
-    'change.notFlagged': 'Not flagged - your mailbox did not take this change',
-    'change.notUnflagged': 'Not unflagged - your mailbox did not take this change',
-    'change.notArchived': 'Not archived - your mailbox did not take this change',
-    'change.notDeleted': 'Not deleted - your mailbox did not take this change',
-    'change.notMoved': 'Not moved - your mailbox did not take this change',
-    'change.notPutBack': 'Not put back - your mailbox did not take this change',
-    'change.notCopied': 'Not copied - your mailbox did not take this change',
-    'change.tagsNotChanged': 'Tags not changed - your mailbox did not take this change',
-    'change.exhaustedText': 'The mail server would not take it, so this message is shown where the server holds it.',
-    'change.markingReadUnknown': 'Marking read may not have happened',
-    'change.markingUnreadUnknown': 'Marking unread may not have happened',
-    'change.flaggingUnknown': 'Flagging may not have happened',
-    'change.unflaggingUnknown': 'Unflagging may not have happened',
-    'change.archivingUnknown': 'Archiving may not have happened',
-    'change.deletingUnknown': 'Deleting may not have happened',
-    'change.movingUnknown': 'Moving may not have happened',
-    'change.puttingBackUnknown': 'Putting it back may not have happened',
-    'change.unknownText':
-        'The mail server never answered, so nobody knows whether it took the change. The message is shown as the server last reported it.',
+    'change.notMarkedRead': 'Not marked read - your mailbox refused this change',
+    'change.notMarkedUnread': 'Not marked unread - your mailbox refused this change',
+    'change.notFlagged': 'Not flagged - your mailbox refused this change',
+    'change.notUnflagged': 'Not unflagged - your mailbox refused this change',
+    'change.notDeleted': 'Not deleted - your mailbox refused this change',
+    'change.notMoved': 'Not moved - your mailbox refused this change',
+    'change.notCopied': 'Not copied - your mailbox refused this change',
+    'change.tagsNotChanged': 'Tags not changed - your mailbox refused this change',
+    'change.refusedText.markRead':
+        'The mail server would not take it, so MailFathom marked it unread again. It may take it if you ask again.',
+    'change.refusedText.markUnread':
+        'The mail server would not take it, so MailFathom marked it read again. It may take it if you ask again.',
+    'change.refusedText.flag':
+        'The mail server would not take it, so MailFathom took the flag off again. It may take it if you ask again.',
+    'change.refusedText.unflag':
+        'The mail server would not take it, so MailFathom put the flag back. It may take it if you ask again.',
+    'change.refusedText.move':
+        'The mail server would not take it, so MailFathom put the message back where the server holds it. It may take it if you ask again.',
+    'change.refusedText.delete':
+        'The mail server would not take it, so MailFathom put the message back where the server holds it. It may take it if you ask again.',
+    'change.refusedText.copy':
+        'The mail server would not take it, so MailFathom took the copy away again. It may take it if you ask again.',
+    'change.refusedText.changeTags':
+        'The mail server would not take it, so MailFathom put its tags back as they were. It may take it if you ask again.',
+    'change.refusedForGoodText.markRead':
+        'The mail server refused it for good, so MailFathom marked it unread again. Asking again would not help.',
+    'change.refusedForGoodText.markUnread':
+        'The mail server refused it for good, so MailFathom marked it read again. Asking again would not help.',
+    'change.refusedForGoodText.flag':
+        'The mail server refused it for good, so MailFathom took the flag off again. Asking again would not help.',
+    'change.refusedForGoodText.unflag':
+        'The mail server refused it for good, so MailFathom put the flag back. Asking again would not help.',
+    'change.refusedForGoodText.move':
+        'The mail server refused it for good, so MailFathom put the message back where the server holds it. Asking again would not help.',
+    'change.refusedForGoodText.delete':
+        'The mail server refused it for good, so MailFathom put the message back where the server holds it. Asking again would not help.',
+    'change.refusedForGoodText.copy':
+        'The mail server refused it for good, so MailFathom took the copy away again. Asking again would not help.',
+    'change.refusedForGoodText.changeTags':
+        'The mail server refused it for good, so MailFathom put its tags back as they were. Asking again would not help.',
     'change.moveAgain': 'Move again…',
     'change.askedAgainTitle': 'Asked again',
     'change.askedAgain': 'MailFathom is telling your mailbox again.',
@@ -2188,23 +2217,41 @@ export const en = {
     'notifications.said.taskReminderDue.title': 'Reminder: {subject}',
     'notifications.said.sendRefused.title': 'Not sent - it waits in the Outbox',
     'notifications.said.sendRefused.untitled': 'A message with no subject was not sent. It waits in the Outbox.',
-    'notifications.said.mailboxChangeAbandoned.title': 'A change did not reach your mailbox',
     'notifications.said.mailboxChangeAbandoned.markRead':
-        'Mark as read - the mail server would not take it, so the message is still where the server holds it.',
+        'Mark as read - the mail server would not take it, so MailFathom marked it unread again.',
     'notifications.said.mailboxChangeAbandoned.markUnread':
-        'Mark as unread - the mail server would not take it, so the message is still where the server holds it.',
+        'Mark as unread - the mail server would not take it, so MailFathom marked it read again.',
     'notifications.said.mailboxChangeAbandoned.flag':
-        'Flag - the mail server would not take it, so the message is still where the server holds it.',
+        'Flag - the mail server would not take it, so MailFathom took the flag off again.',
     'notifications.said.mailboxChangeAbandoned.unflag':
-        'Remove the flag - the mail server would not take it, so the message is still where the server holds it.',
+        'Remove the flag - the mail server would not take it, so MailFathom put the flag back.',
     'notifications.said.mailboxChangeAbandoned.move':
-        'Move - the mail server would not take it, so the message is still where the server holds it.',
+        'Move - the mail server would not take it, so MailFathom put the message back where the server holds it.',
     'notifications.said.mailboxChangeAbandoned.delete':
-        'Delete - the mail server would not take it, so the message is still where the server holds it.',
+        'Delete - the mail server would not take it, so MailFathom put the message back where the server holds it.',
     'notifications.said.mailboxChangeAbandoned.copy':
-        'Copy - the mail server would not take it, so the message is still where the server holds it.',
+        'Copy - the mail server would not take it, so MailFathom took the copy away again.',
     'notifications.said.mailboxChangeAbandoned.changeTags':
-        'Change the tags - the mail server would not take it, so the message is still where the server holds it.',
+        'Change the tags - the mail server would not take it, so MailFathom put its tags back as they were.',
+    'notifications.said.mailboxChangeRefused.title': 'Your mailbox refused a change',
+    'notifications.said.mailboxChangeRefused.markRead':
+        'Mark as read - the mail server refused it for good, so MailFathom marked it unread again.',
+    'notifications.said.mailboxChangeRefused.markUnread':
+        'Mark as unread - the mail server refused it for good, so MailFathom marked it read again.',
+    'notifications.said.mailboxChangeRefused.flag':
+        'Flag - the mail server refused it for good, so MailFathom took the flag off again.',
+    'notifications.said.mailboxChangeRefused.unflag':
+        'Remove the flag - the mail server refused it for good, so MailFathom put the flag back.',
+    'notifications.said.mailboxChangeRefused.move':
+        'Move - the mail server refused it for good, so MailFathom put the message back where the server holds it.',
+    'notifications.said.mailboxChangeRefused.delete':
+        'Delete - the mail server refused it for good, so MailFathom put the message back where the server holds it.',
+    'notifications.said.mailboxChangeRefused.copy':
+        'Copy - the mail server refused it for good, so MailFathom took the copy away again.',
+    'notifications.said.mailboxChangeRefused.changeTags':
+        'Change the tags - the mail server refused it for good, so MailFathom put its tags back as they were.',
+    'notifications.outcomeUnknownBody':
+        'The connection went as this change was made. It stays shown as you asked until the server answers again, and then as the server holds it.',
     'notifications.said.draftCopyNotKept.title': 'Draft out of step with your server',
     'notifications.said.draftCopyNotKept.untitled':
         "A draft with no subject is kept in MailFathom, but your mail server's copy may be missing or out of date.",
@@ -2736,9 +2783,8 @@ export const en = {
     'developer.accounts': 'Mail accounts',
     'developer.behind': 'behind',
     'developer.changes': 'Changes',
-    'developer.changesWaiting': 'On their way to a mailbox',
+    'developer.changesUnanswered': 'Held for an answer',
     'developer.changesUndecided': 'Waiting on you',
-    'developer.followingStopped': 'Stopped following',
     'developer.viewport': 'Viewport',
     'developer.pixelRatio': 'Device pixel ratio',
     'developer.breakpoints': 'Breakpoints reached',

@@ -201,7 +201,7 @@ function asking(
     leaves = act === 'archive' || act === 'move' || act === 'delete',
     destroys = act === 'delete' && !leaves,
 ): MailboxActs {
-    return { ...nothingActed, asked: new Map([[storedEmailId, { act, from, leaves, destroys }]]) };
+    return { ...nothingActed, asked: new Map([[storedEmailId, { act, from, leaves, destroys, awaiting: true }]]) };
 }
 
 /** What a client that has marked exactly this message read carries, which is what a row reads its state through. */

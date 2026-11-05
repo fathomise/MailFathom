@@ -51,6 +51,10 @@ function account(id: string): MailAccount {
         behind: false,
         filesJunk: false,
         shared: false,
+        synchronizationStateSince: null,
+        behindSince: null,
+        waitingChangeCount: 0,
+        oldestWaitingChangeCommittedAt: null,
     };
 }
 

@@ -24,6 +24,10 @@ function account(synchronizationState: MailSynchronizationState): MailAccount {
         behind: false,
         filesJunk: false,
         shared: false,
+        synchronizationStateSince: null,
+        behindSince: null,
+        waitingChangeCount: 0,
+        oldestWaitingChangeCommittedAt: null,
     };
 }
 
@@ -218,7 +222,24 @@ describe('useConnectionWatch', () => {
         });
     });
 
-    it('measures an unreachable mail server from when this client first read it so', () => {
+    it('measures an unreachable mail server from the instant the deployment reports, not from when it was read', () => {
+        const reported = {
+            ...account('Unreachable'),
+            synchronizationStateSince: new Date(Date.now() - 59_000).toISOString(),
+        };
+        const view = renderHook(() => useConnectionWatch(signedIn, connected({}, [reported]), false, changes()));
+
+        expect(view.result.current.status.level).toBe('online');
+
+        pass(2_000);
+
+        expect(view.result.current.status).toMatchObject({
+            level: 'delayed',
+            delays: [{ kind: 'mailServer', account: 'Work' }],
+        });
+    });
+
+    it('measures an unreachable mail server from when this client first read it so where the deployment states no instant', () => {
         const watched = changes();
         const view = renderHook(({ connection }) => useConnectionWatch(signedIn, connection, false, watched), {
             initialProps: { connection: connected({}, [account('Synchronized')]) },

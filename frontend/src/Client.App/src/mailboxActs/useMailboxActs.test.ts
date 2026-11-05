@@ -57,7 +57,7 @@ function asking(
     leaves = act === 'archive' || act === 'move' || act === 'delete',
     destroys = act === 'delete' && !leaves,
 ): MailboxActs {
-    return { ...nothingActed, asked: new Map([[storedEmailId, { act, from, leaves, destroys }]]) };
+    return { ...nothingActed, asked: new Map([[storedEmailId, { act, from, leaves, destroys, awaiting: true }]]) };
 }
 
 // What retires a pending act, which is the whole of why this client polls nothing: an act writes a record and the
@@ -142,7 +142,8 @@ describe('drawnFlagged', () => {
                         from: email.folder,
                         leaves: false,
                         destroys: false,
-                        beside: { act: 'flag', from: email.folder, leaves: false, destroys: false },
+                        awaiting: true,
+                        beside: { act: 'flag', from: email.folder, leaves: false, destroys: false, awaiting: true },
                     },
                 ],
             ]),
@@ -165,7 +166,8 @@ describe('flagPending', () => {
                     from: email.folder,
                     leaves: false,
                     destroys: false,
-                    beside: { act: 'markUnread', from: email.folder, leaves: false, destroys: false },
+                    awaiting: true,
+                    beside: { act: 'markUnread', from: email.folder, leaves: false, destroys: false, awaiting: true },
                 },
             ],
         ]),

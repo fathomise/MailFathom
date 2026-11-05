@@ -94,6 +94,10 @@ export const workAccount = {
     behind: false,
     filesJunk: false,
     shared: false,
+    synchronizationStateSince: null,
+    behindSince: null,
+    waitingChangeCount: 0,
+    oldestWaitingChangeCommittedAt: null,
 };
 
 // Far enough out that nothing in a test renews a session on its own: renewal is its own file, and a fixture that

@@ -4,12 +4,10 @@
 
 import type { ClientFailureReason, MailMutationOutcome } from '@mailfathom/client-backend';
 import type { MessageKey } from '../localization/en';
-import type { ChangeAct } from './changeStandings';
-import type { UndecidedChange } from './usePendingChanges';
+import type { ChangeAct } from './changeSubmission';
 
-// What a change is called on a screen. It sits apart from the provider that raises the sentences and from the block
-// that draws them because both need it, and apart from `changeStandings.ts` because naming is a rendering decision
-// rather than part of the rule that module states.
+// What a refused change is called on a screen. It sits apart from the provider that raises the sentences because
+// naming is a rendering decision rather than part of reading an answer, which `changeSubmission.ts` does.
 //
 // The tables are split the way the sentences are: what did not happen is the act's own, and why is the deployment's
 // answer and therefore one table for every act. That is what keeps a second act from costing a sentence per outcome,
@@ -26,18 +24,6 @@ export const refusalTitles: Readonly<Record<ChangeAct, Readonly<Record<Intl.LDML
     delete: forms('notDeleted'),
     move: forms('notFiled'),
     putBack: forms('notPutBack'),
-};
-
-/** What the act itself is called, which is the half of an undecided change that says what was asked for. */
-export const actNames: Readonly<Record<ChangeAct, MessageKey>> = {
-    markRead: 'pendingChange.markRead',
-    flag: 'pendingChange.flag',
-    unflag: 'pendingChange.unflag',
-    markUnread: 'pendingChange.markUnread',
-    archive: 'pendingChange.archive',
-    delete: 'pendingChange.delete',
-    move: 'pendingChange.move',
-    putBack: 'pendingChange.putBack',
 };
 
 /** The four forms one act's refusal is counted in, which every act declares the same way. */
@@ -81,23 +67,7 @@ export const refusalReasons: Readonly<Record<MailMutationOutcome, MessageKey | n
     'destination-not-allowed': 'pendingChange.destinationNotAllowed',
 };
 
-/** What a standing the deployment could not settle says, which is the other half of the two a person is shown. */
-export const standingReasons: Readonly<Record<UndecidedChange['standing'], MessageKey>> = {
-    exhausted: 'pendingChange.exhausted',
-    unanswered: 'pendingChange.unanswered',
-};
-
-/** How many changes are still on their way, said in the form the count needs. */
-export const waitingCounts: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
-    zero: 'pendingChange.waiting.other',
-    one: 'pendingChange.waiting.one',
-    two: 'pendingChange.waiting.other',
-    few: 'pendingChange.waiting.few',
-    many: 'pendingChange.waiting.many',
-    other: 'pendingChange.waiting.other',
-};
-
-/** What each way a read can fail is called, which is what a person is told when following stops for one of them. */
+/** What each way a request can fail is called, which is what a refusal the server stated is said with. */
 export const failureLabels: Readonly<Record<ClientFailureReason, MessageKey>> = {
     unauthenticated: 'failure.unauthenticated',
     unauthorized: 'failure.unauthorized',

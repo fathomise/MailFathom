@@ -29,7 +29,9 @@ function marked(...storedEmailIds: readonly string[]): ReadMarking {
 function asking(...asked: readonly (readonly [string, AskedAct['act']])[]): MailboxActs {
     return {
         ...nothingActed,
-        asked: new Map(asked.map(([id, act]) => [id, { act, from: inbox.folder, leaves: false, destroys: false }])),
+        asked: new Map(
+            asked.map(([id, act]) => [id, { act, from: inbox.folder, leaves: false, destroys: false, awaiting: true }]),
+        ),
     };
 }
 
@@ -148,7 +150,7 @@ describe('underway', () => {
     function askedFrom(act: AskedAct['act'], from: string): MailboxActs {
         return {
             ...nothingActed,
-            asked: new Map([['message-1', { act, from, leaves: true, destroys: false }]]),
+            asked: new Map([['message-1', { act, from, leaves: true, destroys: false, awaiting: true }]]),
         };
     }
 
@@ -181,7 +183,8 @@ describe('a message waiting on both flags', () => {
                     from: inbox.folder,
                     leaves: false,
                     destroys: false,
-                    beside: { act: 'markUnread', from: inbox.folder, leaves: false, destroys: false },
+                    awaiting: true,
+                    beside: { act: 'markUnread', from: inbox.folder, leaves: false, destroys: false, awaiting: true },
                 },
             ],
         ]),
@@ -218,7 +221,7 @@ describe('an act asked in another folder', () => {
     function askedInTheInbox(act: AskedAct['act']): MailboxActs {
         return {
             ...nothingActed,
-            asked: new Map([['message-1', { act, from: 'work-inbox', leaves: true, destroys: false }]]),
+            asked: new Map([['message-1', { act, from: 'work-inbox', leaves: true, destroys: false, awaiting: true }]]),
         };
     }
 

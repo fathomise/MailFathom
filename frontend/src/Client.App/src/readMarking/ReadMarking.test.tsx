@@ -3,10 +3,11 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { act, fireEvent, renderHook, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ClientRequest, ClientSession, MailFathomTransport } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { PendingChangesProvider } from '../pendingChanges/PendingChanges';
+import { unansweredWriteRetryDelay } from '../pendingChanges/usePendingChanges';
 import { ToastsProvider } from '../toasts/Toasts';
 import { ReadMarkingProvider } from './ReadMarking';
 import { drawnUnread, useReadMarking, type MessageOpened } from './useReadMarking';
@@ -18,6 +19,10 @@ const session: ClientSession = {
 
 const signedInAs = `${session.baseAddress}\nreader`;
 const somebodyElse = `${session.baseAddress}\nsomebody-else`;
+
+afterEach(() => {
+    vi.useRealTimers();
+});
 
 function opened(storedEmailId: string, message: Partial<MessageOpened> = {}): MessageOpened {
     return { storedEmailId, account: 'work', folder: 'INBOX', unread: true, ...message };
@@ -62,14 +67,14 @@ function marking(
 ) {
     const signedIn = asked === undefined ? session : asked;
 
-    // What became of a submission is read by the queue that follows changes, and what that queue says is said on the
+    // What a submission's answer says is read by the pending-changes queue, and what that queue says is said on the
     // toast surface. Both are above this provider wherever the client actually runs, so both are above it here: a
-    // marking proven against a tree that follows nothing would be proven against an arrangement nobody ships.
+    // marking proven against a tree with neither would be proven against an arrangement nobody ships.
     return renderHook(() => useReadMarking(), {
         wrapper: ({ children }) => (
             <LocalizationProvider>
                 <ToastsProvider>
-                    <PendingChangesProvider session={signedIn} transport={transport}>
+                    <PendingChangesProvider signedInAs={signedIn === null ? null : signedInAs}>
                         <ReadMarkingProvider
                             session={signedIn}
                             signedInAs={signedIn === null ? null : signedInAs}
@@ -299,6 +304,39 @@ describe('ReadMarkingProvider', () => {
         expect(drawnUnread(result.current, 'first', true)).toBe(false);
     });
 
+    // A marking nobody answered is sent again once the server answers, as the same request rather than a second one.
+    it('sends a marking nobody answered again under the key it first went with', async () => {
+        vi.useFakeTimers();
+
+        const answered = recording();
+        const requests: ClientRequest[] = [];
+        let answering = false;
+        const { result } = marking((request) => {
+            requests.push(request);
+
+            return answering ? answered.transport(request) : Promise.reject(new Error('the connection was refused'));
+        });
+
+        act(() => {
+            result.current.markRead(opened('first'));
+        });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        answering = true;
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(unansweredWriteRetryDelay);
+        });
+
+        const keys = requests.map((request) => (JSON.parse(request.body ?? '{}') as { requestId: string }).requestId);
+
+        expect(keys).toHaveLength(2);
+        expect(keys[1]).toBe(keys[0]);
+        expect(drawnUnread(result.current, 'first', true)).toBe(false);
+    });
+
     // Asking again is the queue handing the change back to whoever submitted it, and what this component owes that is
     // the marking exactly as it was — the same account and the same folder — before the request goes out a second
     // time. A restore that lost where the message was counted would leave a folder's unread count answering for a
@@ -337,7 +375,7 @@ describe('ReadMarkingProvider', () => {
             wrapper: ({ children }) => (
                 <LocalizationProvider>
                     <ToastsProvider>
-                        <PendingChangesProvider session={session} transport={refused}>
+                        <PendingChangesProvider signedInAs={signedIn}>
                             <ReadMarkingProvider
                                 session={session}
                                 signedInAs={signedIn}

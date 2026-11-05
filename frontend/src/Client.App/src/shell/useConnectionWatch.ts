@@ -118,7 +118,9 @@ export function useConnectionWatch(
     const [firstUnreachable, setFirstUnreachable] = useState<FirstUnreachable>(new Map());
 
     // An account that left the state and came back has started again; one still in it keeps when it was first seen,
-    // which is when the accounts answered with it.
+    // which is when the accounts answered with it. That stands in only where the deployment did not say since when the
+    // account has been unreachable: the instant it reports is the one the sixty seconds run from, so a client that
+    // opens late or reconnects does not start them again.
     const unreachableNamed = unreachable.map(({ id }) => id).join('\n');
     const unreachableHeld = [...firstUnreachable.keys()].join('\n');
 
@@ -140,8 +142,9 @@ export function useConnectionWatch(
                       since: channel.since ?? clock,
                       hasStood: channel.hasStood,
                   },
-        unreachableAccounts: unreachable.flatMap(({ id, displayName }) => {
-            const since = firstUnreachable.get(id);
+        unreachableAccounts: unreachable.flatMap(({ id, displayName, synchronizationStateSince }) => {
+            const reported = synchronizationStateSince === null ? Number.NaN : Date.parse(synchronizationStateSince);
+            const since = Number.isNaN(reported) ? firstUnreachable.get(id) : reported;
 
             return since === undefined ? [] : [{ account: displayName, since }];
         }),

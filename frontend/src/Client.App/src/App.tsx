@@ -874,12 +874,6 @@ export function App({
         [openTabs, showSend, composing, session, readMail, revise],
     );
 
-    // The changes this tab has followed, so the notification a given-up one raises does not speak over the queue that
-    // already told the person. A ref because nothing is drawn from it, and it only ever grows: a record identity is
-    // never reused, and a change this tab settled is one nobody needs telling about again either.
-    const changesFollowedHere = useRef(new Set<string>());
-    const followedHere = useCallback((recordId: string) => changesFollowedHere.current.has(recordId), []);
-
     // Asked for on the grants the routes are admitted under: the notification routes read and mark what this
     // deployment drew for one person, so a credential that may not do both meets no bell rather than a bell that
     // answers nothing or refuses its first press.
@@ -892,11 +886,10 @@ export function App({
         connection.online,
         followNotification,
         mailAccounts,
-        followedHere,
         disconnectedNow,
     );
 
-    // What stands unread about a change the deployment gave up on is a question still waiting on the person, wherever
+    // What stands unread about a change the deployment undid is a question still waiting on the person, wherever
     // it was asked; reading the row is how it was answered.
     const abandonedChanges = useMemo<readonly AbandonedChange[]>(
         () =>
@@ -904,7 +897,14 @@ export function App({
                 const failure = notification.read ? null : failureOf(notification);
 
                 return failure?.kind === 'change'
-                    ? [{ recordId: failure.recordId, storedEmailId: failure.storedEmailId, act: failure.act }]
+                    ? [
+                          {
+                              recordId: failure.recordId,
+                              storedEmailId: failure.storedEmailId,
+                              act: failure.act,
+                              permanent: failure.permanent,
+                          },
+                      ]
                     : [];
             }),
         [notifications.notifications],
@@ -1208,21 +1208,17 @@ export function App({
             connection per screen would be several sockets saying the same thing. */}
                         <SignalledChangesContext value={signalledChanges}>
                             <ConnectionStatusContext value={connectionWatch.status}>
-                                {/* Above everything that changes a mailbox, because following a change is not the business of whichever
-            screen asked for one: what is waiting, what the deployment refused, and what only a person can settle are
-            one queue whoever produced the change. */}
+                                {/* Above everything that changes a mailbox, because what becomes of a change is not the business of
+            whichever screen asked for one: what the deployment refused, what nobody answered, and what only a person can
+            settle are one queue whoever produced the change. */}
                                 {/* Above the frame for the reason the marking is, and above the acts because the acts read it: what the
-            list has drawn is where a message belongs, and every act on one has to name that. Above the pending changes
-            too, because a write nobody answered is settled by the first page the lists draw once the server answers
-            again. It holds nothing that is drawn, so nothing below re-renders because of it. */}
+            list has drawn is where a message belongs, and every act on one has to name that, and a page the lists draw
+            once an act was answered is what lets the act's own claim go. It holds nothing that is drawn, so nothing below
+            re-renders because of it. */}
                                 <ListedMailProvider>
                                     <PendingChangesProvider
-                                        session={session}
-                                        transport={readMail}
+                                        signedInAs={signedInAs}
                                         abandoned={abandonedChanges}
-                                        onFollowed={(recordIds) => {
-                                            recordIds.forEach((recordId) => changesFollowedHere.current.add(recordId));
-                                        }}
                                         onDecided={notifications.changeDecided}
                                     >
                                         {/* Above the frame rather than inside a space, because three unrelated places below read what has been
@@ -1264,6 +1260,7 @@ export function App({
                                                         >
                                                             <MailboxActsProvider
                                                                 session={readsMail ? session : null}
+                                                                signedInAs={readsMail ? signedInAs : null}
                                                                 transport={readMail}
                                                                 online={connection.online}
                                                                 flags={writesFlags}

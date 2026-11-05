@@ -869,7 +869,7 @@ export const pl: Catalogue = {
     'act.archiving': 'Archiwizujemy…',
     'act.deleting': 'Przenosimy do kosza…',
     'act.filing': 'Przenosimy…',
-    'act.underway': '{control} – to już jest w drodze na Twój serwer pocztowy.',
+    'act.underway': '{control} – to już jest w toku, a serwer jeszcze nie odpowiedział.',
     'act.notOffered': '{control} – to poświadczenie nie może zmieniać poczty na Twoim serwerze.',
     'act.nothingToActOn': '{control} – nic nie jest otwarte ani zaznaczone, czego miałoby to dotyczyć.',
     'act.noArchiveFolder': '{control} – to konto nie wskazuje katalogu archiwum, więc nie ma dokąd archiwizować.',
@@ -1424,8 +1424,43 @@ export const pl: Catalogue = {
         'Wyszukiwanie po znaczeniu w tej chwili nie działa na tym serwerze, więc te wyniki zawierają wyłącznie wpisane przez ciebie słowa. Administrator może się temu przyjrzeć.',
 
     'connection.current': 'Wszystkie konta są aktualne.',
-    'connection.behind': 'Część kont ma zaległości.',
-    'connection.failing': 'Część kont przestała się synchronizować.',
+    'freshness.notCurrentOne': 'Konto {account} nie jest aktualne.',
+    'freshness.notCurrentSome': 'Część kont nie jest aktualna.',
+    'freshness.restOne': 'Konto {account} jest aktualne.',
+    'freshness.restAll': 'Pozostałe konta są aktualne.',
+    'freshness.unreachable': 'Serwer poczty nieosiągalny',
+    'freshness.unreachableNothingWaiting':
+        'Nie można połączyć się z jego serwerem poczty od {since}. Nic na niego nie czeka.',
+    'freshness.unreachableUndatedNothingWaiting':
+        'Nie można połączyć się z jego serwerem poczty. Nic na niego nie czeka.',
+    'freshness.unreachableUndatedText.one':
+        'Nie można połączyć się z jego serwerem poczty. Czeka jedna zmiana. Jest przechowywana w MailFathom i dotrze do serwera poczty, gdy ten wróci.',
+    'freshness.unreachableUndatedText.few':
+        'Nie można połączyć się z jego serwerem poczty. Czekają {count} zmiany. Są przechowywane w MailFathom i dotrą do serwera poczty, gdy ten wróci.',
+    'freshness.unreachableUndatedText.many':
+        'Nie można połączyć się z jego serwerem poczty. Czeka {count} zmian. Są przechowywane w MailFathom i dotrą do serwera poczty, gdy ten wróci.',
+    'freshness.unreachableUndatedText.other':
+        'Nie można połączyć się z jego serwerem poczty. Czeka {count} zmiany. Są przechowywane w MailFathom i dotrą do serwera poczty, gdy ten wróci.',
+    'freshness.waiting.one': 'Jedna zmiana czeka',
+    'freshness.waiting.few': '{count} zmiany czekają',
+    'freshness.waiting.many': '{count} zmian czeka',
+    'freshness.waiting.other': '{count} zmiany czeka',
+    'freshness.waitingText.one':
+        'Jedna zmiana czeka ponad minutę na jego serwer poczty. Jest przechowywana w MailFathom, pokazana tak, jak ją wprowadzono, i sama dotrze do serwera.',
+    'freshness.waitingText.few':
+        '{count} zmiany czekają ponad minutę na jego serwer poczty. Są przechowywane w MailFathom, pokazane tak, jak je wprowadzono, i same dotrą do serwera.',
+    'freshness.waitingText.many':
+        '{count} zmian czeka ponad minutę na jego serwer poczty. Są przechowywane w MailFathom, pokazane tak, jak je wprowadzono, i same dotrą do serwera.',
+    'freshness.waitingText.other':
+        '{count} zmiany czeka ponad minutę na jego serwer poczty. Są przechowywane w MailFathom, pokazane tak, jak je wprowadzono, i same dotrą do serwera.',
+    'freshness.unreachableText.one':
+        'Nie można połączyć się z jego serwerem poczty od {since}. Czeka jedna zmiana. Jest przechowywana w MailFathom i dotrze do serwera poczty, gdy ten wróci.',
+    'freshness.unreachableText.few':
+        'Nie można połączyć się z jego serwerem poczty od {since}. Czekają {count} zmiany. Są przechowywane w MailFathom i dotrą do serwera poczty, gdy ten wróci.',
+    'freshness.unreachableText.many':
+        'Nie można połączyć się z jego serwerem poczty od {since}. Czeka {count} zmian. Są przechowywane w MailFathom i dotrą do serwera poczty, gdy ten wróci.',
+    'freshness.unreachableText.other':
+        'Nie można połączyć się z jego serwerem poczty od {since}. Czeka {count} zmiany. Są przechowywane w MailFathom i dotrą do serwera poczty, gdy ten wróci.',
     'connection.noAccounts': 'Dla tego właściciela nie skonfigurowano jeszcze żadnego konta pocztowego.',
     'connection.retry': 'Spróbuj ponownie',
     'connection.connecting': 'Łączenie z serwerem…',
@@ -2056,22 +2091,6 @@ export const pl: Catalogue = {
     'link.askWordsNameAnotherHost': 'Jego słowa wskazują {named}, ale prowadzi do {host}.',
     'link.askOpen': 'Otwórz odnośnik',
 
-    'pendingChange.waiting.one': 'Jedna zmiana nie dotarła jeszcze do Twojej skrzynki.',
-    'pendingChange.waiting.few': '{count} zmiany nie dotarły jeszcze do Twojej skrzynki.',
-    'pendingChange.waiting.many': '{count} zmian nie dotarło jeszcze do Twojej skrzynki.',
-    'pendingChange.waiting.other': '{count} zmian nie dotarło jeszcze do Twojej skrzynki.',
-    'pendingChange.markRead': 'Oznaczenie jako przeczytane',
-    'pendingChange.flag': 'Oflagowanie',
-    'pendingChange.unflag': 'Zdjęcie flagi',
-    'pendingChange.markUnread': 'Oznaczenie jako nieprzeczytane',
-    'pendingChange.archive': 'Archiwizacja',
-    'pendingChange.delete': 'Usunięcie',
-    'pendingChange.move': 'Przeniesienie do innego folderu',
-    'pendingChange.putBack': 'Przywrócenie na miejsce',
-    'pendingChange.undecided': 'Zmiana czeka na Twoją decyzję.',
-    'pendingChange.exhausted': 'Twoja skrzynka nie przyjęła tej zmiany, a MailFathom przestał próbować ją wprowadzić.',
-    'pendingChange.unanswered':
-        'Zmiana została wysłana, a skrzynka nigdy nie odpowiedziała – mogła zostać wprowadzona albo nie.',
     'pendingChange.askAgain': 'Poproś ponownie',
     'pendingChange.letGo': 'Odpuść',
     'pendingChange.notMarkedRead.one': 'Jedna wiadomość nie została oznaczona jako przeczytana.',
@@ -2114,41 +2133,50 @@ export const pl: Catalogue = {
         'Ten folder jej nie przyjmie: wersje robocze zostają w folderze wersji roboczych albo w folderze utworzonym przez Ciebie, a nic innego tam nie trafia.',
     'pendingChange.outcomeUnknown': 'Nie wiadomo, czy to dotarło do serwera',
     'pendingChange.outcomeUnknownBody':
-        'Połączenie zerwało się w chwili tej zmiany. Pozostaje pokazana tak, jak o nią poproszono, dopóki serwer znów nie odpowie, a potem tak, jak zapisał ją serwer.',
+        'Połączenie zerwało się w chwili tej zmiany. Pozostaje pokazana tak, jak ją wprowadzono, i zostanie potwierdzona, gdy połączenie wróci. Zamknięcie tej karty wcześniej ją porzuci.',
     'pendingChange.refused': 'Serwer odrzucił tę zmianę.',
     'pendingChange.refusedBody': 'Nic nie zostało zapisane, więc skrzynka pozostaje bez zmian: {reason}.',
-    'pendingChange.reread': 'Ekran pokazuje teraz to, co zapisał serwer',
-    'pendingChange.rereadBody':
-        'Zmiany wprowadzone w chwili zerwania połączenia są pokazane tak, jak zapisał je serwer.',
     'pendingChange.retry': 'Spróbuj ponownie',
-    'pendingChange.stoppedFollowing': 'Ten klient przestał sprawdzać, dokąd doszły Twoje zmiany.',
-    'pendingChange.stoppedFollowingBody':
-        'Serwer nie odpowiedział {total} razy z rzędu. Same zmiany są zapisane i nadal są wprowadzane.',
-    'pendingChange.stoppedFollowingReason':
-        'Serwer odpowiedział, ale ten klient nie mógł nic z tą odpowiedzią zrobić: {reason}. Nic nie jest sprawdzane, dopóki o to nie poprosisz.',
-    'pendingChange.followAgain': 'Sprawdź ponownie',
-    'change.notMarkedRead': 'Nie oznaczono jako przeczytanej - Twoja skrzynka nie przyjęła tej zmiany',
-    'change.notMarkedUnread': 'Nie oznaczono jako nieprzeczytanej - Twoja skrzynka nie przyjęła tej zmiany',
-    'change.notFlagged': 'Nie oflagowano - Twoja skrzynka nie przyjęła tej zmiany',
-    'change.notUnflagged': 'Nie zdjęto flagi - Twoja skrzynka nie przyjęła tej zmiany',
-    'change.notArchived': 'Nie zarchiwizowano - Twoja skrzynka nie przyjęła tej zmiany',
-    'change.notDeleted': 'Nie usunięto - Twoja skrzynka nie przyjęła tej zmiany',
-    'change.notMoved': 'Nie przeniesiono - Twoja skrzynka nie przyjęła tej zmiany',
-    'change.notPutBack': 'Nie odłożono z powrotem - Twoja skrzynka nie przyjęła tej zmiany',
-    'change.notCopied': 'Nie skopiowano - Twoja skrzynka nie przyjęła tej zmiany',
-    'change.tagsNotChanged': 'Nie zmieniono etykiet - Twoja skrzynka nie przyjęła tej zmiany',
-    'change.exhaustedText':
-        'Serwer poczty jej nie przyjął, więc ta wiadomość jest pokazana tam, gdzie trzyma ją serwer.',
-    'change.markingReadUnknown': 'Oznaczenie jako przeczytanej mogło nie nastąpić',
-    'change.markingUnreadUnknown': 'Oznaczenie jako nieprzeczytanej mogło nie nastąpić',
-    'change.flaggingUnknown': 'Oflagowanie mogło nie nastąpić',
-    'change.unflaggingUnknown': 'Zdjęcie flagi mogło nie nastąpić',
-    'change.archivingUnknown': 'Archiwizacja mogła nie nastąpić',
-    'change.deletingUnknown': 'Usunięcie mogło nie nastąpić',
-    'change.movingUnknown': 'Przeniesienie mogło nie nastąpić',
-    'change.puttingBackUnknown': 'Odłożenie z powrotem mogło nie nastąpić',
-    'change.unknownText':
-        'Serwer poczty nigdy nie odpowiedział, więc nikt nie wie, czy przyjął zmianę. Wiadomość jest pokazana tak, jak serwer ostatnio ją zgłosił.',
+    'change.notMarkedRead': 'Nie oznaczono jako przeczytanej - Twoja skrzynka odrzuciła tę zmianę',
+    'change.notMarkedUnread': 'Nie oznaczono jako nieprzeczytanej - Twoja skrzynka odrzuciła tę zmianę',
+    'change.notFlagged': 'Nie oflagowano - Twoja skrzynka odrzuciła tę zmianę',
+    'change.notUnflagged': 'Nie zdjęto flagi - Twoja skrzynka odrzuciła tę zmianę',
+    'change.notDeleted': 'Nie usunięto - Twoja skrzynka odrzuciła tę zmianę',
+    'change.notMoved': 'Nie przeniesiono - Twoja skrzynka odrzuciła tę zmianę',
+    'change.notCopied': 'Nie skopiowano - Twoja skrzynka odrzuciła tę zmianę',
+    'change.tagsNotChanged': 'Nie zmieniono etykiet - Twoja skrzynka odrzuciła tę zmianę',
+    'change.refusedText.markRead':
+        'Serwer poczty jej nie przyjął, więc MailFathom ponownie oznaczył ją jako nieprzeczytaną. Może ją przyjąć, jeśli poprosisz ponownie.',
+    'change.refusedText.markUnread':
+        'Serwer poczty jej nie przyjął, więc MailFathom ponownie oznaczył ją jako przeczytaną. Może ją przyjąć, jeśli poprosisz ponownie.',
+    'change.refusedText.flag':
+        'Serwer poczty jej nie przyjął, więc MailFathom zdjął flagę. Może ją przyjąć, jeśli poprosisz ponownie.',
+    'change.refusedText.unflag':
+        'Serwer poczty jej nie przyjął, więc MailFathom przywrócił flagę. Może ją przyjąć, jeśli poprosisz ponownie.',
+    'change.refusedText.move':
+        'Serwer poczty jej nie przyjął, więc MailFathom odłożył wiadomość z powrotem tam, gdzie trzyma ją serwer. Może ją przyjąć, jeśli poprosisz ponownie.',
+    'change.refusedText.delete':
+        'Serwer poczty jej nie przyjął, więc MailFathom odłożył wiadomość z powrotem tam, gdzie trzyma ją serwer. Może ją przyjąć, jeśli poprosisz ponownie.',
+    'change.refusedText.copy':
+        'Serwer poczty jej nie przyjął, więc MailFathom usunął kopię. Może ją przyjąć, jeśli poprosisz ponownie.',
+    'change.refusedText.changeTags':
+        'Serwer poczty jej nie przyjął, więc MailFathom przywrócił jej etykiety. Może ją przyjąć, jeśli poprosisz ponownie.',
+    'change.refusedForGoodText.markRead':
+        'Serwer poczty odrzucił ją na stałe, więc MailFathom ponownie oznaczył ją jako nieprzeczytaną. Ponowna prośba nic nie da.',
+    'change.refusedForGoodText.markUnread':
+        'Serwer poczty odrzucił ją na stałe, więc MailFathom ponownie oznaczył ją jako przeczytaną. Ponowna prośba nic nie da.',
+    'change.refusedForGoodText.flag':
+        'Serwer poczty odrzucił ją na stałe, więc MailFathom zdjął flagę. Ponowna prośba nic nie da.',
+    'change.refusedForGoodText.unflag':
+        'Serwer poczty odrzucił ją na stałe, więc MailFathom przywrócił flagę. Ponowna prośba nic nie da.',
+    'change.refusedForGoodText.move':
+        'Serwer poczty odrzucił ją na stałe, więc MailFathom odłożył wiadomość z powrotem tam, gdzie trzyma ją serwer. Ponowna prośba nic nie da.',
+    'change.refusedForGoodText.delete':
+        'Serwer poczty odrzucił ją na stałe, więc MailFathom odłożył wiadomość z powrotem tam, gdzie trzyma ją serwer. Ponowna prośba nic nie da.',
+    'change.refusedForGoodText.copy':
+        'Serwer poczty odrzucił ją na stałe, więc MailFathom usunął kopię. Ponowna prośba nic nie da.',
+    'change.refusedForGoodText.changeTags':
+        'Serwer poczty odrzucił ją na stałe, więc MailFathom przywrócił jej etykiety. Ponowna prośba nic nie da.',
     'change.moveAgain': 'Przenieś ponownie…',
     'change.askedAgainTitle': 'Poproszono ponownie',
     'change.askedAgain': 'MailFathom ponownie przekazuje to Twojej skrzynce.',
@@ -2225,23 +2253,41 @@ export const pl: Catalogue = {
     'notifications.said.taskReminderDue.title': 'Przypomnienie: {subject}',
     'notifications.said.sendRefused.title': 'Nie wysłano - czeka w Nadawczej',
     'notifications.said.sendRefused.untitled': 'Wiadomość bez tematu nie została wysłana. Czeka w Nadawczej.',
-    'notifications.said.mailboxChangeAbandoned.title': 'Zmiana nie dotarła do Twojej skrzynki',
     'notifications.said.mailboxChangeAbandoned.markRead':
-        'Oznacz jako przeczytaną - serwer poczty jej nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+        'Oznacz jako przeczytaną - serwer poczty tego nie przyjął, więc MailFathom ponownie oznaczył ją jako nieprzeczytaną.',
     'notifications.said.mailboxChangeAbandoned.markUnread':
-        'Oznacz jako nieprzeczytaną - serwer poczty jej nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+        'Oznacz jako nieprzeczytaną - serwer poczty tego nie przyjął, więc MailFathom ponownie oznaczył ją jako przeczytaną.',
     'notifications.said.mailboxChangeAbandoned.flag':
-        'Oflaguj - serwer poczty tego nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+        'Oflaguj - serwer poczty tego nie przyjął, więc MailFathom zdjął flagę.',
     'notifications.said.mailboxChangeAbandoned.unflag':
-        'Zdejmij flagę - serwer poczty tego nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+        'Zdejmij flagę - serwer poczty tego nie przyjął, więc MailFathom przywrócił flagę.',
     'notifications.said.mailboxChangeAbandoned.move':
-        'Przenieś - serwer poczty tego nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+        'Przenieś - serwer poczty tego nie przyjął, więc MailFathom odłożył wiadomość z powrotem tam, gdzie trzyma ją serwer.',
     'notifications.said.mailboxChangeAbandoned.delete':
-        'Usuń - serwer poczty tego nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+        'Usuń - serwer poczty tego nie przyjął, więc MailFathom odłożył wiadomość z powrotem tam, gdzie trzyma ją serwer.',
     'notifications.said.mailboxChangeAbandoned.copy':
-        'Skopiuj - serwer poczty tego nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+        'Skopiuj - serwer poczty tego nie przyjął, więc MailFathom usunął kopię.',
     'notifications.said.mailboxChangeAbandoned.changeTags':
-        'Zmień etykiety - serwer poczty tego nie przyjął, więc wiadomość jest tam, gdzie trzyma ją serwer.',
+        'Zmień etykiety - serwer poczty tego nie przyjął, więc MailFathom przywrócił jej etykiety.',
+    'notifications.said.mailboxChangeRefused.title': 'Twoja skrzynka odrzuciła zmianę',
+    'notifications.said.mailboxChangeRefused.markRead':
+        'Oznacz jako przeczytaną - serwer poczty odrzucił to na stałe, więc MailFathom ponownie oznaczył ją jako nieprzeczytaną.',
+    'notifications.said.mailboxChangeRefused.markUnread':
+        'Oznacz jako nieprzeczytaną - serwer poczty odrzucił to na stałe, więc MailFathom ponownie oznaczył ją jako przeczytaną.',
+    'notifications.said.mailboxChangeRefused.flag':
+        'Oflaguj - serwer poczty odrzucił to na stałe, więc MailFathom zdjął flagę.',
+    'notifications.said.mailboxChangeRefused.unflag':
+        'Zdejmij flagę - serwer poczty odrzucił to na stałe, więc MailFathom przywrócił flagę.',
+    'notifications.said.mailboxChangeRefused.move':
+        'Przenieś - serwer poczty odrzucił to na stałe, więc MailFathom odłożył wiadomość z powrotem tam, gdzie trzyma ją serwer.',
+    'notifications.said.mailboxChangeRefused.delete':
+        'Usuń - serwer poczty odrzucił to na stałe, więc MailFathom odłożył wiadomość z powrotem tam, gdzie trzyma ją serwer.',
+    'notifications.said.mailboxChangeRefused.copy':
+        'Skopiuj - serwer poczty odrzucił to na stałe, więc MailFathom usunął kopię.',
+    'notifications.said.mailboxChangeRefused.changeTags':
+        'Zmień etykiety - serwer poczty odrzucił to na stałe, więc MailFathom przywrócił jej etykiety.',
+    'notifications.outcomeUnknownBody':
+        'Połączenie zerwało się w chwili tej zmiany. Pozostaje pokazana tak, jak o nią poproszono, dopóki serwer znów nie odpowie, a potem tak, jak zapisał ją serwer.',
     'notifications.said.draftCopyNotKept.title': 'Szkic niezgodny z serwerem',
     'notifications.said.draftCopyNotKept.untitled':
         'Szkic bez tematu jest zachowany w MailFathom, ale jego kopii na serwerze poczty może brakować albo może być nieaktualna.',
@@ -2774,9 +2820,8 @@ export const pl: Catalogue = {
     'developer.accounts': 'Konta pocztowe',
     'developer.behind': 'zaległe',
     'developer.changes': 'Zmiany',
-    'developer.changesWaiting': 'W drodze do skrzynki',
+    'developer.changesUnanswered': 'Czekają na odpowiedź',
     'developer.changesUndecided': 'Czekają na ciebie',
-    'developer.followingStopped': 'Przestano śledzić',
     'developer.viewport': 'Okno',
     'developer.pixelRatio': 'Gęstość pikseli',
     'developer.breakpoints': 'Osiągnięte progi',

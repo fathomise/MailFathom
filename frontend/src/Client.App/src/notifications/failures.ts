@@ -38,12 +38,16 @@ export type Failure =
           readonly recordId: string;
           readonly storedEmailId: string;
           readonly act: AbandonedAct;
+
+          /** Whether the mail server refused it for good, which offers nothing to ask again. */
+          readonly permanent: boolean;
       }
     | { readonly kind: 'draft'; readonly draftId: string };
 
 /**
  * What a row reporting a failure offers to decide: a refused send is sent again or taken back to edit, and a change the
- * mailbox did not take is asked again — moved again, for a move, which asks for the folder once more — or let go.
+ * mailbox refused is asked again — moved again, for a move, which asks for the folder once more — or let go, and only
+ * let go where the refusal was for good.
  */
 export type FailureDecision = 'sendAgain' | 'edit' | 'askAgain' | 'moveAgain' | 'letGo';
 
@@ -75,7 +79,15 @@ export function failureOf(notification: ClientNotification): Failure | null {
 
     const act = abandonedActOf(statement.counted);
 
-    return statement.cause === 'MailboxChangeAbandoned' && target.kind === 'MailboxChange' && act !== null
-        ? { kind: 'change', recordId: target.changeRecordId, storedEmailId: target.storedEmailId, act }
+    const refusal = statement.cause === 'MailboxChangeAbandoned' || statement.cause === 'MailboxChangeRefused';
+
+    return refusal && target.kind === 'MailboxChange' && act !== null
+        ? {
+              kind: 'change',
+              recordId: target.changeRecordId,
+              storedEmailId: target.storedEmailId,
+              act,
+              permanent: statement.cause === 'MailboxChangeRefused',
+          }
         : null;
 }

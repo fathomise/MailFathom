@@ -171,6 +171,10 @@ export const refusalSaid: Readonly<Record<ActRefusal, MessageKey>> = {
 /**
  * Whether this act is already being carried out for every message the control is about.
  *
+ * **Only until the deployment answers.** The answer is the change made, or refused, so a control pressed after it is a
+ * new act rather than the same request twice; while nothing has answered, pressing it again would send that request a
+ * second time under a new key, which is what this refuses.
+ *
  * **An act is only under way where it was asked**, which is the rule `actPending` states and the one a control has to
  * read the same way: the three acts that file a message elsewhere take it out of the folder they were asked in, and
  * the message then arrives somewhere else — where that act is finished rather than travelling, whatever this client
@@ -185,7 +189,9 @@ export function underway(acts: MailboxActs, act: MailboxAct, messages: readonly 
     return (
         messages.length > 0 &&
         messages.every((message) => {
-            return askedHere(acts, message, act)?.act === act;
+            const asked = askedHere(acts, message, act);
+
+            return asked?.act === act && asked.awaiting;
         })
     );
 }

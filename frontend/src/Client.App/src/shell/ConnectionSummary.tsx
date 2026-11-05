@@ -2,23 +2,28 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ReactNode } from 'react';
-import type { ClientFailureReason, MailAccountDirectory } from '@mailfathom/client-backend';
+import { useEffect, useId, useState, type ReactNode } from 'react';
+import type { ClientFailureReason, MailAccount } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import { SecondaryButton } from '../controls/SecondaryButton';
 import type { MessageKey } from '../localization/en';
+import { wordRecentInstant } from '../localization/instants';
 import { useLocalization } from '../localization/useLocalization';
-import { PendingChangeLines } from '../pendingChanges/PendingChangeLines';
-import { needsAttention } from '../synchronization/synchronizationState';
-import { AccountLine } from './AccountLine';
+import { useReadingZone } from '../localization/useReadingZone';
+import { synchronizationStateLabel } from '../synchronization/synchronizationState';
+import { nextFreshnessChangeIn, staleAccounts, type StaleAccount } from './accountFreshness';
 import { offers } from './capabilities';
 import { disconnected, useConnectionStatus } from './connectionStatus';
 import { mostReconnectionAttempts, type Connection } from './useConnection';
 
-// The line at the foot of Mail's folder column saying what the client is looking at and how current it is, and the short panel behind it
-// naming each account once one of them needs a look. Three different things blur into one spinner unless they are kept apart, so each has its own
-// sentence: whether this client can reach its deployment at all, whether that deployment is refreshing these accounts,
-// and which of them is not current.
+// The line at the foot of Mail's folder column saying what the client is looking at and how current it is, and the short
+// panel above it naming each account once one of them needs a look. Three different things blur into one spinner unless
+// they are kept apart, so each has its own sentence: whether this client can reach its deployment at all, whether that
+// deployment is refreshing these accounts, and which of them is not current.
+//
+// It is the one place that says a change MailFathom holds has not reached a mail server: no message, row, or toast
+// marks one. `accountFreshness.ts` holds the rule for when an account is not current — a cause that clears inside a
+// minute never shows — and this line draws what the rule answers. Sends are not among them; the Outbox reports those.
 //
 // A credential that may not read mail says nothing here. There is no freshness to report and the reason is not about
 // this line, so it is said once, where everything this credential may not do is said.
@@ -39,47 +44,32 @@ const toneColours: Readonly<Record<Tone, string>> = {
     quiet: 'bg-faint',
 };
 
-interface Freshness {
-    readonly message: MessageKey;
-    readonly tone: Tone;
+/** The forms one count is said in, by the rule `Intl.PluralRules` selects. */
+type Counted = Readonly<Record<Intl.LDMLPluralRule, MessageKey>>;
+
+function counted(
+    family:
+        | 'freshness.waiting'
+        | 'freshness.waitingText'
+        | 'freshness.unreachableText'
+        | 'freshness.unreachableUndatedText',
+): Counted {
+    return {
+        zero: `${family}.other`,
+        one: `${family}.one`,
+        two: `${family}.other`,
+        few: `${family}.few`,
+        many: `${family}.many`,
+        other: `${family}.other`,
+    };
 }
 
-function freshnessOf(directory: MailAccountDirectory): Freshness {
-    if (directory.accounts.length === 0) {
-        return { message: 'connection.noAccounts', tone: 'quiet' };
-    }
+const waitingStates = counted('freshness.waiting');
+const waitingTexts = counted('freshness.waitingText');
+const unreachableTexts = counted('freshness.unreachableText');
+const unreachableUndatedTexts = counted('freshness.unreachableUndatedText');
 
-    if (!directory.synchronizationEnabled) {
-        return { message: 'accounts.notRefreshing', tone: 'quiet' };
-    }
-
-    // An account nothing is fixing is read before the lag below, because it says something a lagging one does not.
-    if (directory.accounts.some((account) => needsAttention(account.synchronizationState))) {
-        return { message: 'connection.failing', tone: 'attention' };
-    }
-
-    const current = directory.accounts.every(
-        (account) => !account.behind && account.synchronizationState === 'Synchronized',
-    );
-
-    return current
-        ? { message: 'connection.current', tone: 'healthy' }
-        : { message: 'connection.behind', tone: 'attention' };
-}
-
-// What this client has asked its mailbox for stands above what the deployment last answered, and outside every branch
-// below it: a change waiting on a person is true whether or not the accounts were readable, and it would otherwise be
-// invisible in exactly the states — offline, unreachable — that produced it.
 export function ConnectionSummary({ connection }: { readonly connection: Connection }) {
-    return (
-        <div className="flex flex-col gap-2">
-            <PendingChangeLines />
-            <Freshness connection={connection} />
-        </div>
-    );
-}
-
-function Freshness({ connection }: { readonly connection: Connection }) {
     const { locale, translate } = useLocalization();
     const status = useConnectionStatus();
     const { session, accounts, online, attempts, reread } = connection;
@@ -153,39 +143,195 @@ function Freshness({ connection }: { readonly connection: Connection }) {
     }
 
     const directory = accounts.value;
-    const freshness = freshnessOf(directory);
 
     // A user holding no account is told so and told what would fill it, rather than being handed a disclosure with
     // nothing behind it.
     if (directory.accounts.length === 0) {
         return (
-            <Line tone={freshness.tone}>
-                {translate(freshness.message)} {translate('accounts.noneDeclared')}
+            <Line tone="quiet">
+                {translate('connection.noAccounts')} {translate('accounts.noneDeclared')}
             </Line>
         );
     }
 
-    // Every account current is said by the green dot and nothing more, as the design draws it: a disclosure there
-    // would open onto a list of accounts each saying the same thing. A deployment not refreshing them is one sentence
-    // about the deployment rather than about any account. Only an account that needs a look earns the list.
-    if (freshness.tone !== 'attention') {
-        return <Line tone={freshness.tone}>{translate(freshness.message)}</Line>;
+    // A deployment not refreshing them is one sentence about the deployment rather than about any account.
+    if (!directory.synchronizationEnabled) {
+        return <Line tone="quiet">{translate('accounts.notRefreshing')}</Line>;
     }
 
-    return (
-        <details className="group text-sm text-muted">
-            <summary className="flex cursor-pointer items-center gap-2">
-                <Dot tone={freshness.tone} />
-                {translate(freshness.message)}
-                <Icon name="expand_more" className="size-icon-sm transition group-open:rotate-180" />
-            </summary>
+    return <AccountsFreshness accounts={directory.accounts} readAt={connection.accountsReadAt} />;
+}
 
-            <ul className="mt-2 flex flex-col gap-1.75 rounded-md bg-sunken px-3 py-2.25">
-                {directory.accounts.map((account) => (
-                    <AccountLine key={account.id} account={account} />
-                ))}
-            </ul>
-        </details>
+// Every account current is said by the green dot and nothing more, as the design draws it: a disclosure there would
+// open onto a list of accounts each saying the same thing. Only an account that needs a look earns the details, which
+// open above the line, inside the folder column, and go on their own once every account is current again.
+function AccountsFreshness({
+    accounts,
+    readAt,
+}: {
+    readonly accounts: readonly MailAccount[];
+    readonly readAt: number | null;
+}) {
+    const { translate } = useLocalization();
+    const [clock, setClock] = useState(() => Date.now());
+
+    // The answer can only be as old as the read that brought it, so a clock that has not ticked since is never read as
+    // earlier than that.
+    const now = Math.max(clock, readAt ?? 0);
+    const stale = staleAccounts(accounts, now);
+    const nextChange = nextFreshnessChangeIn(accounts, now);
+
+    // The clock moves at the instant some cause ends its minute, so the line turns when it is due rather than at the
+    // next unrelated render, and is waited for again each time it moves, since a second cause may still be inside its
+    // minute.
+    useEffect(() => {
+        if (nextChange === null) {
+            return;
+        }
+
+        const waiting = window.setTimeout(() => {
+            setClock(Date.now());
+        }, nextChange);
+
+        return () => {
+            window.clearTimeout(waiting);
+        };
+    }, [nextChange]);
+
+    if (stale.length === 0) {
+        return <Line tone="healthy">{translate('connection.current')}</Line>;
+    }
+
+    return <NotCurrent accounts={accounts} stale={stale} now={now} />;
+}
+
+/**
+ * The line once some account is not current: a control naming it, which opens the details above itself.
+ *
+ * A component of its own so that whether the details are open belongs to one stretch of not being current: once every
+ * account is current again the line is green and this goes with what it held, so the next account to fall behind is
+ * said closed rather than opening onto it.
+ */
+function NotCurrent({
+    accounts,
+    stale,
+    now,
+}: {
+    readonly accounts: readonly MailAccount[];
+    readonly stale: readonly StaleAccount[];
+    readonly now: number;
+}) {
+    const { translate } = useLocalization();
+    const [open, setOpen] = useState(false);
+    const detailsId = useId();
+    const first = stale[0];
+    const sentence =
+        stale.length === 1 && first !== undefined
+            ? translate('freshness.notCurrentOne', { account: first.account.displayName })
+            : translate('freshness.notCurrentSome');
+    const current = accounts.filter((account) => !stale.some((one) => one.account.id === account.id));
+    const onlyCurrent = current.length === 1 ? current[0] : undefined;
+
+    return (
+        <div className="flex flex-col gap-2.25 text-sm">
+            {open ? (
+                <div id={detailsId} className="flex flex-col gap-2.25 rounded-md bg-sunken px-3 py-2.5">
+                    <ul className="flex flex-col gap-2.25">
+                        {stale.map((one) => (
+                            <StaleAccountRow key={one.account.id} stale={one} now={now} />
+                        ))}
+                    </ul>
+
+                    {current.length === 0 ? null : (
+                        <p className="border-t border-line-soft pt-2 text-xs text-muted">
+                            {onlyCurrent === undefined
+                                ? translate('freshness.restAll')
+                                : translate('freshness.restOne', { account: onlyCurrent.displayName })}
+                        </p>
+                    )}
+                </div>
+            ) : null}
+
+            <button
+                type="button"
+                aria-expanded={open}
+                aria-controls={open ? detailsId : undefined}
+                onClick={() => {
+                    setOpen((was) => !was);
+                }}
+                className="-mx-1.5 flex min-h-7.5 items-center gap-2 rounded-md px-1.5 text-start text-text-soft transition hover:bg-hover"
+            >
+                <Dot tone="attention" />
+                <span role="status" className="min-w-0 flex-1 text-pretty">
+                    {sentence}
+                </span>
+                <Icon name={open ? 'expand_more' : 'expand_less'} className="size-icon-sm shrink-0 text-muted" />
+            </button>
+        </div>
+    );
+}
+
+/** One account that is not current: its name, what holds it up, and where changes wait, that they are kept. */
+function StaleAccountRow({ stale: { account, cause }, now }: { readonly stale: StaleAccount; readonly now: number }) {
+    const { locale, translate } = useLocalization();
+    const zone = useReadingZone();
+    const plural = new Intl.PluralRules(locale);
+    const formatted = (count: number): string => new Intl.NumberFormat(locale).format(count);
+
+    function heldUp(): { readonly state: string; readonly text: string | null } {
+        switch (cause.kind) {
+            case 'unreachable': {
+                const since = wordRecentInstant(cause.since, locale, now, zone);
+
+                // A deployment that states no start is still owed the waiting changes and that they are kept, which is
+                // the half of the sentence a person acts on; only the time is left out.
+                if (since === null) {
+                    return {
+                        state: translate('freshness.unreachable'),
+                        text:
+                            cause.waiting === 0
+                                ? translate('freshness.unreachableUndatedNothingWaiting')
+                                : translate(unreachableUndatedTexts[plural.select(cause.waiting)], {
+                                      count: formatted(cause.waiting),
+                                  }),
+                    };
+                }
+
+                return {
+                    state: translate('freshness.unreachable'),
+                    text:
+                        cause.waiting === 0
+                            ? translate('freshness.unreachableNothingWaiting', { since })
+                            : translate(unreachableTexts[plural.select(cause.waiting)], {
+                                  since,
+                                  count: formatted(cause.waiting),
+                              }),
+                };
+            }
+            case 'waiting':
+                return {
+                    state: translate(waitingStates[plural.select(cause.waiting)], { count: formatted(cause.waiting) }),
+                    text: translate(waitingTexts[plural.select(cause.waiting)], { count: formatted(cause.waiting) }),
+                };
+            case 'state':
+                return {
+                    state: translate(synchronizationStateLabel(account.synchronizationState, account.behind)),
+                    text: null,
+                };
+        }
+    }
+
+    const { state, text } = heldUp();
+
+    return (
+        <li className="flex min-w-0 flex-col gap-0.75">
+            <span className="flex min-w-0 items-center gap-2">
+                <Dot tone="attention" />
+                <span className="truncate font-semibold text-text">{account.displayName}</span>
+            </span>
+            <span className="ps-3.75 text-xs font-semibold text-warning-text">{state}</span>
+            {text === null ? null : <span className="ps-3.75 text-xs/relaxed text-pretty text-text-soft">{text}</span>}
+        </li>
     );
 }
 

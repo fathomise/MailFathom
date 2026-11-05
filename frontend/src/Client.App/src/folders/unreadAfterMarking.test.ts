@@ -16,6 +16,10 @@ function account(id: string, displayName: string): MailAccount {
         behind: false,
         filesJunk: false,
         shared: false,
+        synchronizationStateSince: null,
+        behindSince: null,
+        waitingChangeCount: 0,
+        oldestWaitingChangeCommittedAt: null,
     };
 }
 

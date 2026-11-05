@@ -2,6 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import {
+    mailDeleteMutationsRoute,
+    mailFlagMutationsRoute,
+    mailMoveMutationsRoute,
+    mailSpamMarksRoute,
+} from './mailMutations';
 import type { ClientResponse } from './transport';
 
 // What this client does about a request that failed for a reason that passes on its own. It is the one answer to that
@@ -20,15 +26,30 @@ import type { ClientResponse } from './transport';
 //   whether the request was acted on: a gateway that timed out may have handed the request on first.
 // - A network failure — a connection refused, reset, or cut short — proves nothing either.
 //
-// So only a request that is safe to repeat is sent again after either of the last two, and a request is safe to repeat
-// when it is a `GET`. Every write on this surface is treated as not safe, whatever its method: no client route takes an
-// idempotency key, and a `PUT` or `DELETE` whose first attempt landed is answered differently the second time — a
-// draft already deleted is `404` — so the nominal idempotency of an HTTP method is not a route's contract. A write
-// route that comes to guarantee a repeat lands once is added to `repeatable` below, with the guarantee it rests on.
+// So only a request that is safe to repeat is sent again after either of the last two: a `GET`, and a write to a route
+// that guarantees a repeat lands once. The nominal idempotency of an HTTP method is not a route's contract — a `PUT` or
+// `DELETE` whose first attempt landed is answered differently the second time, and a draft already deleted is `404` —
+// so every other write is treated as not safe, and a route joins `keyedWriteRoutes` below only with that guarantee.
 //
 // The worst case one request can spend waiting is `mostRetries` waits of at most `longestHonouredRetryAfter` and a
 // quarter, 37.5 seconds, reached only by a deployment naming a `Retry-After` of ten seconds three times running. With no
 // `Retry-After` the three waits add up to at most 2.2 seconds.
+
+/**
+ * The write routes a repeat lands on once: the four mailbox acts.
+ *
+ * Each carries the key its act was generated with, and the deployment keeps that key in its database for 24 hours: a
+ * repeat under it — on any replica, or while the first attempt is still running — is answered with the first attempt's
+ * outcome for every message and changes nothing a second time. So a flag change, a move, a delete, and a spam mark are
+ * sent again after a network failure or a `502`–`504` exactly as a read is. The release of a delete's wait names
+ * records rather than mail and takes no key, which is why it is not here.
+ */
+const keyedWriteRoutes: readonly string[] = [
+    mailFlagMutationsRoute,
+    mailMoveMutationsRoute,
+    mailDeleteMutationsRoute,
+    mailSpamMarksRoute,
+];
 
 /** The most times one request is put on the wire again after a failure that passes on its own. */
 export const mostRetries = 3;
@@ -54,6 +75,7 @@ const longestHonouredRetryAfter = 10_000;
  * back from one outage from being the next.
  *
  * @param method The method the request was made with.
+ * @param path Where the request went, which is what says whether a write is one a repeat lands on once.
  * @param answer What the deployment answered the attempt just made with, or `null` where nothing answered at all.
  * @param made How many times this request has already been put on the wire again.
  * @param drawn A value in `[0, 1)`, which the caller draws so that this stays a function of its arguments.
@@ -61,11 +83,12 @@ const longestHonouredRetryAfter = 10_000;
  */
 export function retryDelay(
     method: string,
+    path: string,
     answer: Pick<ClientResponse, 'status' | 'headers'> | null,
     made: number,
     drawn: number,
 ): number | null {
-    if (made >= mostRetries || !passesOnItsOwn(method, answer)) {
+    if (made >= mostRetries || !passesOnItsOwn(method, path, answer)) {
         return null;
     }
 
@@ -78,9 +101,13 @@ export function retryDelay(
     return retryAfter > longestHonouredRetryAfter ? null : Math.round(retryAfter * (1 + drawn / 4));
 }
 
-function passesOnItsOwn(method: string, answer: Pick<ClientResponse, 'status' | 'headers'> | null): boolean {
+function passesOnItsOwn(
+    method: string,
+    path: string,
+    answer: Pick<ClientResponse, 'status' | 'headers'> | null,
+): boolean {
     if (answer === null) {
-        return repeatable(method);
+        return repeatable(method, path);
     }
 
     switch (answer.status) {
@@ -89,14 +116,17 @@ function passesOnItsOwn(method: string, answer: Pick<ClientResponse, 'status' | 
         case 502:
         case 503:
         case 504:
-            return repeatable(method);
+            return repeatable(method, path);
         default:
             return false;
     }
 }
 
-function repeatable(method: string): boolean {
-    return method.toUpperCase() === 'GET';
+function repeatable(method: string, path: string): boolean {
+    const upper = method.toUpperCase();
+    const route = path.split(/[?#]/u, 1)[0] ?? '';
+
+    return upper === 'GET' || (upper === 'POST' && keyedWriteRoutes.some((keyed) => route.endsWith(keyed)));
 }
 
 function statesAProblem(headers: Readonly<Record<string, string>>): boolean {

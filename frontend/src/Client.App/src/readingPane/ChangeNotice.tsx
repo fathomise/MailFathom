@@ -12,12 +12,13 @@ import { useMailboxActs, type ActedMessage } from '../mailboxActs/useMailboxActs
 import { toneBox, toneInk } from '../outbox/outboxStanding';
 import { useChangeDecision, wordChangeQuestion } from '../pendingChanges/useChangeDecision';
 
-// A change the mailbox did not take, said on the message it was asked of: what did not happen, why the message is
-// drawn where it is, and the two answers. It is drawn in the Outbox refusal's shape because it is the same kind of
-// statement — something asked for that did not land — and it stands until it is answered, here or on its notification.
+// A change the mail server refused, said on the message it was asked of: what did not happen, what undoing it did, and
+// the answers it offers — asking again where that may help, and letting it go. It is drawn in the Outbox refusal's
+// shape because it is the same kind of statement — something asked for that did not land — and it stands until it is
+// answered, here or on its notification.
 //
 // The message itself is drawn as the deployment holds it, which is the whole of the correction: nothing here undoes
-// anything, because the change never happened on the server and a mirrored account shows the server's state.
+// anything, because the deployment already put the message back the way the mail server holds it.
 //
 // Answering it takes the notice away with the control that answered, so focus is put on the message it stood over —
 // the region the reading pane and the conversation both draw a message in — rather than left to fall to the document.
@@ -39,7 +40,6 @@ export function ChangeNotice({ message }: { readonly message: ActedMessage }) {
     }
 
     const words = wordChangeQuestion(question);
-    const tone = words.unknown ? 'warning' : 'error';
     const again = decision.askingAgain(question);
 
     return (
@@ -47,12 +47,12 @@ export function ChangeNotice({ message }: { readonly message: ActedMessage }) {
             <div
                 ref={notice}
                 role="status"
-                className={`flex items-start gap-2.75 rounded-xl border px-3.5 py-3 ${toneBox[tone].box}`}
+                className={`flex items-start gap-2.75 rounded-xl border px-3.5 py-3 ${toneBox.error.box}`}
             >
-                <Icon name={words.unknown ? 'help' : 'sync_problem'} className={`size-icon-lg ${toneInk[tone]}`} />
+                <Icon name="sync_problem" className={`size-icon-lg ${toneInk.error}`} />
 
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <p className={`text-md font-semibold ${toneBox[tone].title}`}>{translate(words.title)}</p>
+                    <p className={`text-md font-semibold ${toneBox.error.title}`}>{translate(words.title)}</p>
                     <p className="text-base/relaxed text-pretty text-text-soft">{translate(words.text)}</p>
 
                     <div className="flex flex-wrap gap-2 pt-1.5">

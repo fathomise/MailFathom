@@ -98,13 +98,16 @@ test('draws a folder the deployment says the mailbox gained, where the tree alre
     expect(sessionReads(deployment)).toBe(1);
 });
 
-test('says an account stopped synchronizing once the deployment says its state moved', async ({ page, deployment }) => {
+test('says some accounts are not up to date once the deployment says their state moved', async ({
+    page,
+    deployment,
+}) => {
     await openTheInboxOverTheChannel(page, deployment);
     await expect(page.getByText('Every account is up to date.')).toBeVisible();
 
     deployment.troubleTheAccounts();
 
-    await expect(page.getByText('Some accounts stopped synchronizing.')).toBeVisible();
+    await expect(page.getByText('Some accounts are not up to date.')).toBeVisible();
     await expect(page.getByText('Every account is up to date.')).toHaveCount(0);
     await expect(row(page, 'Message 0')).toBeVisible();
 });

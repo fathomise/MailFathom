@@ -203,12 +203,14 @@ describe('MailboxActControls', () => {
         const performed = vi.fn();
 
         drawControls({
-            asked: new Map([['message-1', { act: 'archive', from: invoice.folder, leaves: true, destroys: false }]]),
+            asked: new Map([
+                ['message-1', { act: 'archive', from: invoice.folder, leaves: true, destroys: false, awaiting: true }],
+            ]),
             perform: performed,
         });
 
         const control = screen.getByRole('button', {
-            name: 'Archive - this is already on its way to your mail server.',
+            name: 'Archive - this is already under way, and the server has not answered yet.',
         });
 
         fireEvent.click(control);
@@ -222,7 +224,10 @@ describe('MailboxActControls', () => {
         drawControls(
             {
                 asked: new Map([
-                    ['message-1', { act: 'archive', from: invoice.folder, leaves: true, destroys: false }],
+                    [
+                        'message-1',
+                        { act: 'archive', from: invoice.folder, leaves: true, destroys: false, awaiting: true },
+                    ],
                 ]),
             },
             [invoice, receipt],

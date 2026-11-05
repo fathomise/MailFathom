@@ -145,6 +145,23 @@ export interface AskedAct {
     readonly destroys: boolean;
 
     /**
+     * Whether the deployment has not answered the act yet, which is the one stretch in which it is under way: pressed
+     * again then, it would be the same request sent twice. A request nobody answered stays awaiting until it is sent
+     * again and answered.
+     */
+    readonly awaiting: boolean;
+
+    /**
+     * When the deployment answered that it had already made the change, or absent where it has not.
+     *
+     * A change made is in every listing read afterwards, so the first page asked for after this instant that draws the
+     * message is what the server holds, and the claim goes — which is also how a change the mail server later refused
+     * and MailFathom undid is drawn undone. A change only recorded reaches no listing until the mailbox converges, so
+     * its claim stays.
+     */
+    readonly appliedAt?: number;
+
+    /**
      * The act still asked of the *other* flag, where one was asked in the same folder before this one and has not been
      * let go of.
      *

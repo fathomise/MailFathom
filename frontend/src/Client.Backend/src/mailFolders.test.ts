@@ -20,6 +20,10 @@ const workAccount = {
     behind: false,
     filesJunk: false,
     shared: false,
+    synchronizationStateSince: null,
+    behindSince: null,
+    waitingChangeCount: 0,
+    oldestWaitingChangeCommittedAt: null,
 };
 
 const inbox = {
@@ -90,6 +94,10 @@ describe('readMailFolders', () => {
                             behind: false,
                             filesJunk: false,
                             shared: false,
+                            synchronizationStateSince: null,
+                            behindSince: null,
+                            waitingChangeCount: 0,
+                            oldestWaitingChangeCommittedAt: null,
                         },
                         folders: [
                             {

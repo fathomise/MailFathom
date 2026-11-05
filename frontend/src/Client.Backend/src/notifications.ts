@@ -104,7 +104,8 @@ export type NotificationCause =
     | 'MessageArrived'
     | 'SendRefused'
     | 'MailboxChangeAbandoned'
-    | 'DraftCopyNotKept';
+    | 'DraftCopyNotKept'
+    | 'MailboxChangeRefused';
 
 /**
  * What a notification says, as the condition it was raised for and the numbers it is stated with.
@@ -196,6 +197,7 @@ const causes: readonly NotificationCause[] = [
     'SendRefused',
     'MailboxChangeAbandoned',
     'DraftCopyNotKept',
+    'MailboxChangeRefused',
 ];
 const screens: readonly NotificationScreen[] = ['Mail', 'Settings'];
 
@@ -451,6 +453,7 @@ const countsPerCause: Readonly<Record<NotificationCause, readonly ('counted' | '
     SendRefused: ['counted'],
     MailboxChangeAbandoned: ['counted'],
     DraftCopyNotKept: ['counted'],
+    MailboxChangeRefused: ['counted'],
 };
 
 /**

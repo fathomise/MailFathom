@@ -4,95 +4,72 @@
 
 import { createContext, useContext } from 'react';
 import type { AbandonedAct } from '../notifications/failures';
-import type { ChangeSubmission, ChangeStanding, PendingChange } from './changeStandings';
+import type { ChangeSubmission } from './changeSubmission';
 
-// The changes this client has asked its mailbox for and is still following, and the two ways of adding to that and of
-// taking something out of it. It belongs to the whole application rather than to a screen for the reason
-// `readMarking/useReadMarking.ts` gives about its own: what asks for a change and what says where changes stand are
-// different parts of the frame, and neither is above the other.
+// What becomes of the changes this client asks its mailbox for, and the changes the deployment undid that wait on the
+// person. It belongs to the whole application rather than to a screen for the reason `readMarking/useReadMarking.ts`
+// gives about its own: what asks for a change and what says what became of it are different parts of the frame, and
+// neither is above the other.
 //
 // The context and its hook sit apart from the provider that fills them for the reason `workspace/useWorkspace.ts`
 // gives: a module Vite hot-reloads may export components alone.
 
-/** How often the client asks where its own changes have got to, while any of them is still on its way. */
-export const followedChangeInterval = 5_000;
-
 /**
- * The most consecutive times the client asks and is not answered before it stops asking and hands the retry over.
+ * How long a write nobody answered waits, once the server answers, before it is sent again under its own key.
  *
- * Bounded rather than endless because what is being followed has already been written down durably: the change is not
- * at risk while nobody is watching it, so asking forever would spend a phone's battery to learn nothing.
- *
- * It is a count rather than a retry: the client asks on the same interval whether the last read was answered or not,
- * so a failure changes nothing about when the next one goes out. What passes within a single read is the transport's
- * to retry, and this counts only the reads that outlasted it.
+ * A pause rather than at once, because a write can go unanswered while the server answers everything else — a gateway
+ * that dropped one request — and sending it again in the same instant would only meet the same gateway. The key makes
+ * every repeat land once, so what the pause bounds is the load, never the outcome.
  */
-export const mostFollowingAttempts = 5;
-
-/** A change the deployment could not settle, and which of the two things it could not settle about it. */
-export interface UndecidedChange extends PendingChange {
-    readonly standing: Extract<ChangeStanding, 'exhausted' | 'unanswered'>;
-}
+export const unansweredWriteRetryDelay = 5_000;
 
 /**
- * A change the deployment gave up on that this tab did not follow, known from the notification it raised.
+ * A change the deployment undid after the mail server refused it, known from the notification it raised.
  *
- * It is what a change asked for in another tab, on another device, or before a reload comes back as: the record has
- * nothing left to follow, so it is a question for the person and nothing else, and it stands until they answer it.
+ * It is what every refusal comes back as, whichever tab or device asked for it: the record has nothing left to follow,
+ * so it is a question for the person and nothing else, and it stands until they answer it.
  */
 export interface AbandonedChange {
     readonly recordId: string;
     readonly storedEmailId: string;
     readonly act: AbandonedAct;
+
+    /** Whether the mail server refused it for good, so asking again would be refused the same way and is not offered. */
+    readonly permanent: boolean;
 }
 
-/** What a person may do about a change the deployment could not settle. Both are acts; neither is a default. */
+/** What a person may do about a change the deployment undid. Both are acts; neither is a default. */
 export type ChangeResolution = 'askAgain' | 'letGo';
 
 export interface PendingChanges {
-    /** The changes on their way to a mailbox, oldest first, which is the order they were asked for in. */
-    readonly waiting: readonly PendingChange[];
+    /** How many messages a write nobody answered is held for, waiting to be sent again once the server answers. */
+    readonly unanswered: number;
 
-    /** The changes waiting on a person rather than on a mailbox. */
-    readonly undecided: readonly UndecidedChange[];
-
-    /** The changes given up on that this tab never followed, less any it is already asking about itself. */
+    /** The changes the deployment undid that still wait on the person. */
     readonly abandoned: readonly AbandonedChange[];
 
-    /** Whether the client has stopped asking where its changes stand, having been unanswered too many times running. */
-    readonly stoppedFollowing: boolean;
-
-    /** Follows what one submission became: what was written down is waited on, and what was refused is reported. */
+    /** Reads what one submission's answer says: what was refused is said, and what nobody answered is sent again. */
     readonly follow: (submission: ChangeSubmission) => void;
 
     /**
-     * Settles one change the deployment could not, by asking for it again or by letting it go.
-     *
-     * A change this tab followed is asked again by the act that produced it. One it only knows as abandoned has no
-     * producer here, so settling it records the person's answer and nothing more: whoever asks it again performs the
-     * act itself, which is `useChangeDecision.ts`'s.
+     * Records the person's answer to one change the deployment undid. Whoever asks it again performs the act itself,
+     * which is `useChangeDecision.ts`'s; this marks it answered.
      */
     readonly settle: (recordId: string, resolution: ChangeResolution) => void;
-
-    /** Asks again where the followed changes stand, from a person asking rather than from the client trying on its own. */
-    readonly followAgain: () => void;
 }
 
 /**
- * What a tree with no provider above it reads, which is a client that follows nothing.
+ * What a tree with no provider above it reads, which is a client that holds nothing.
  *
  * A default rather than a refusal, for the reason `readMarking/useReadMarking.ts` gives about the same shape: a client
- * with no session, or one whose credential may change no flag, really does follow nothing, and every screen below is
+ * with no session, or one whose credential may change no flag, really does hold nothing, and every screen below is
  * drawn the same way under either.
  */
 export const nothingPending: PendingChanges = {
-    waiting: [],
-    undecided: [],
+    unanswered: 0,
     abandoned: [],
-    stoppedFollowing: false,
     follow: () => undefined,
     settle: () => undefined,
-    followAgain: () => undefined,
 };
 
 export const PendingChangesContext = createContext<PendingChanges>(nothingPending);

@@ -18,7 +18,8 @@ import { Icon } from '../controls/Icon';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
-import { useChangeDecision, type AskingAgain, type ChangeQuestion } from '../pendingChanges/useChangeDecision';
+import { useChangeDecision, type AskingAgain } from '../pendingChanges/useChangeDecision';
+import type { AbandonedChange } from '../pendingChanges/usePendingChanges';
 import { useAgentHandOver } from '../routing/agentHandOver';
 import { saidByTheStatus, useConnectionStatus } from '../shell/connectionStatus';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
@@ -280,7 +281,7 @@ export function NotificationCentre({
                 : [
                       {
                           decision: asking,
-                          underWay: askingFor.includes(question.change.recordId),
+                          underWay: askingFor.includes(question.recordId),
                           refused: decisionRefused(asking),
                           take: () => {
                               askAgain(notification, question, again);
@@ -305,13 +306,7 @@ export function NotificationCentre({
         }
     }
 
-    function askAgain(notification: ClientNotification, question: ChangeQuestion, again: AskingAgain): void {
-        if (question.kind === 'followed') {
-            changes.askAgain(question, null);
-
-            return;
-        }
-
+    function askAgain(notification: ClientNotification, question: AbandonedChange, again: AskingAgain): void {
         if (again === 'choosesFolder' || session === null || transport === undefined) {
             clear();
             centre.follow(notification);
@@ -319,7 +314,7 @@ export function NotificationCentre({
             return;
         }
 
-        const recordId = question.change.recordId;
+        const recordId = question.recordId;
 
         if (askingFor.includes(recordId)) {
             return;
@@ -327,7 +322,7 @@ export function NotificationCentre({
 
         setAskingFor((asking) => [...asking, recordId]);
 
-        void readMailMessage(session, transport, question.change.storedEmailId).then((answer) => {
+        void readMailMessage(session, transport, question.storedEmailId).then((answer) => {
             setAskingFor((asking) => asking.filter((asked) => asked !== recordId));
 
             if (answer.outcome === 'failed') {
@@ -338,8 +333,7 @@ export function NotificationCentre({
 
                 toasts.raise({
                     kind: 'error',
-                    title: translate('pendingChange.undecided'),
-                    body: translate('change.notAskedAgain', {
+                    title: translate('change.notAskedAgain', {
                         reason: translate(failureLabels[answer.failure.reason]),
                     }),
                 });
