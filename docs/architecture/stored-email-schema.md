@@ -1746,7 +1746,10 @@ two stored identities, two account names, a folder path, and instants.
 A row outlives its filing for as long as the delete it held back is kept, because that delete being given up is what the
 row is read for afterwards: it tells the person the message is now in both accounts. It goes with the mail of either
 account — erasing an account's mail, which is what removing the last user assigned to it does, deletes every filing
-naming that account on either side, since the two columns are not the one the erasure's walk reads.
+naming that account on either side, since the two columns are not the one the erasure's walk reads. A filing into the
+erased account that has not landed is still holding its source's delete back, so that delete goes with it and the
+source shows again where it was, as it does when a filing is given up; deleting the row alone would free the delete to
+take the only copy left.
 
 ## The audit trail of finished mutations
 

@@ -176,16 +176,22 @@ public sealed class OrchestratedCrossAccountFilingStoreTests(MailFathomOrchestra
         Assert.Equal(CrossAccountFilingStage.Abandoned, found.Stage);
     }
 
-    /// <summary>A filing names two accounts and no key reaches it, so erasing either account's mail takes the filing with it.</summary>
+    /// <summary>
+    /// A filing names two accounts and no key reaches it, so erasing the mail of the account a message is being filed
+    /// into takes the filing with it — and, because the source outlives it, takes back the delete the filing held back
+    /// and shows the source again rather than leaving that delete free to be issued against the only copy.
+    /// </summary>
     [Fact]
-    public async Task EraseMailOfAccountAsync_TheAccountAMessageWasFiledInto_TakesTheFilingWithIt()
+    public async Task EraseMailOfAccountAsync_TheAccountAMessageIsBeingFiledInto_TakesTheFilingAndShowsTheSourceAgain()
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
         var filed = await ArrangeAsync(services, uid: 6404U, cancellationToken);
-        var filing = await RecordAsync(services, filed, removal: null, erasesHeldSource: false, cancellationToken);
+        var removal = await OpenRemovalAsync(services, filed, cancellationToken);
+        var filing = await RecordAsync(services, filed, removal, erasesHeldSource: false, cancellationToken);
         var recordedBeforeErasing = await FilingExistsAsync(services, filing, cancellationToken);
+        var sourceBeforeErasing = await ReadStoredEmailAsync(services, filed.Source, cancellationToken);
 
         // Act
         await services.CommitAsync(
@@ -194,8 +200,10 @@ public sealed class OrchestratedCrossAccountFilingStoreTests(MailFathomOrchestra
 
         // Assert
         Assert.True(recordedBeforeErasing);
+        Assert.NotNull(sourceBeforeErasing.LocalDeleteCommittedAt);
         Assert.False(await FilingExistsAsync(services, filing, cancellationToken));
-        Assert.True(await StoredEmailExistsAsync(services, filed.Source, cancellationToken));
+        Assert.False(await MutationExistsAsync(services, removal, cancellationToken));
+        Assert.Null((await ReadStoredEmailAsync(services, filed.Source, cancellationToken)).LocalDeleteCommittedAt);
     }
 
     /// <summary>Stores the source on the served account and the destination's copy on an account of its own, which holds no occurrence yet.</summary>
@@ -314,6 +322,16 @@ public sealed class OrchestratedCrossAccountFilingStoreTests(MailFathomOrchestra
                 .GetRequiredService<MailFathomDbContext>()
                 .StoredEmails
                 .AnyAsync(email => email.Id == storedEmailId.Value, token),
+            cancellationToken);
+
+    private static Task<bool> MutationExistsAsync(
+        OrchestratedMailFathomServices services,
+        MailboxMutationRecordId mutation,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope
+                .GetRequiredService<MailFathomDbContext>()
+                .MailboxMutations
+                .AnyAsync(row => row.Id == mutation.Value, token),
             cancellationToken);
 
     private static Task<bool> FilingExistsAsync(

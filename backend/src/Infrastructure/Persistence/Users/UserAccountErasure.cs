@@ -5,6 +5,8 @@
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Persistence;
 using MailFathom.CodeCoverage;
+using MailFathom.Domain.Mutations;
+using MailFathom.Domain.Mutations.Filing;
 using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
@@ -251,12 +253,55 @@ internal static class UserAccountErasure
                 cancellationToken);
         }
 
+        erased += await WithdrawUnlandedFilingsIntoAsync(writeContext, accountId, cancellationToken);
+
         // A filing names two accounts and neither by the column the walk above reads, so it goes when either does.
         erased += await writeContext.CrossAccountFilings
             .Where(filing => filing.DestinationAccountId == accountId || filing.SourceAccountId == accountId)
             .ExecuteDeleteAsync(cancellationToken);
 
         return erased;
+    }
+
+    /// <summary>Takes back the source's half of every filing into the account that has not landed, where the source outlives it.</summary>
+    /// <returns>How many removals were withdrawn.</returns>
+    /// <remarks>
+    /// Such a filing is what holds its source's delete back, and the destination's copy is going with this account's
+    /// mail. Deleting the filing alone would free that delete to be issued against the only copy left. So the delete,
+    /// which nothing has issued yet, goes with the filing, and the source shows again where it was — the same end a filing
+    /// given up reaches, which leaves the message in one account rather than in none.
+    /// </remarks>
+    private static async Task<int> WithdrawUnlandedFilingsIntoAsync(
+        MailFathomDbContext writeContext,
+        string accountId,
+        CancellationToken cancellationToken)
+    {
+        var unlanded = writeContext.CrossAccountFilings.Where(filing =>
+            filing.DestinationAccountId == accountId &&
+            filing.SourceAccountId != accountId &&
+            (filing.Stage == CrossAccountFilingStage.Recorded || filing.Stage == CrossAccountFilingStage.AppendIssued));
+
+        var withdrawn = await writeContext.MailboxMutations
+            .Where(mutation => mutation.Stage == MailboxMutationStage.Recorded &&
+                unlanded.Any(filing => filing.RemovalMutationId == mutation.Id))
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var delete = MailboxMutation.Delete.Name;
+
+        await writeContext.StoredEmails
+            .Where(source => source.LocalDeleteCommittedAt != null &&
+                unlanded.Any(filing => filing.SourceStoredEmailId == source.Id) &&
+                !writeContext.MailboxMutations.Any(mutation =>
+                    mutation.StoredEmailId == source.Id &&
+                    mutation.Mutation == delete &&
+                    mutation.Stage != MailboxMutationStage.Completed &&
+                    mutation.Stage != MailboxMutationStage.Abandoned &&
+                    mutation.Stage != MailboxMutationStage.Cancelled))
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(source => source.LocalDeleteCommittedAt, (DateTimeOffset?)null),
+                cancellationToken);
+
+        return withdrawn;
     }
 
     /// <summary>Deletes what one user authored in one account, leaving the mailbox and everybody else's rows whole.</summary>
