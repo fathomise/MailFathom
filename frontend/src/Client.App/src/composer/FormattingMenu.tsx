@@ -17,7 +17,7 @@ import { useCoarsePointer } from '../shell/useWideWorkspace';
 
 export function FormattingMenu({
     named,
-    broad,
+    width,
     under,
     openedFrom,
     onClose,
@@ -26,8 +26,8 @@ export function FormattingMenu({
     /** The menu's name, drawn as its head and carried as its accessible name. */
     readonly named: string;
 
-    /** Whether it is drawn at the colour menu's width rather than the narrower one the others take. */
-    readonly broad: boolean;
+    /** How wide it is drawn: the colour menu's width, the table's, or the narrower one the others take. */
+    readonly width: 'broad' | 'table' | 'narrow';
 
     /** Where the control it opened from starts, measured from the start of the box the menu stands in. */
     readonly under: number;
@@ -67,11 +67,16 @@ export function FormattingMenu({
         );
     }, [under, coarse]);
 
-    // Focus goes to the choice it holds, so the keyboard starts where the reader's eye does.
+    // Focus goes to the choice it holds, so the keyboard starts where the reader's eye does — a choice among several,
+    // that is, rather than a switch that happens to be on.
     useEffect(() => {
         const items = walkable(panel.current);
 
-        (items.find((item) => item.getAttribute('aria-checked') === 'true') ?? items[0])?.focus();
+        (
+            items.find(
+                (item) => item.getAttribute('role') === 'menuitemradio' && item.getAttribute('aria-checked') === 'true',
+            ) ?? items[0]
+        )?.focus();
     }, []);
 
     // Leaving it without a choice puts focus back on the control it opened from, except where the whole screen is
@@ -137,7 +142,7 @@ export function FormattingMenu({
             aria-label={named}
             style={start === null || coarse ? undefined : { left: start }}
             className={`absolute top-full z-30 mt-1 flex animate-pop-in flex-col gap-0.5 rounded-lg border border-line bg-panel p-2 text-text shadow-overlay pointer-coarse:inset-x-3 ${
-                broad ? 'w-75' : 'w-55'
+                menuWidths[width]
             } pointer-coarse:w-auto`}
             onKeyDown={onKeyDown}
         >
@@ -187,7 +192,19 @@ export function FormattingChoice({
     );
 }
 
-/** The choices as the keyboard reaches them, read out of the document so nothing here holds a second list of them. */
+const menuWidths: Readonly<Record<'broad' | 'table' | 'narrow', string>> = {
+    broad: 'w-75',
+    table: 'w-70',
+    narrow: 'w-55',
+};
+
+/** The items as the keyboard reaches them, read out of the document so nothing here holds a second list of them. */
 function walkable(panel: HTMLElement | null): HTMLElement[] {
-    return panel === null ? [] : Array.from(panel.querySelectorAll<HTMLElement>('[role="menuitemradio"]'));
+    return panel === null
+        ? []
+        : Array.from(
+              panel.querySelectorAll<HTMLElement>(
+                  '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]',
+              ),
+          );
 }

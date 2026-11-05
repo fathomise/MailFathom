@@ -1280,6 +1280,28 @@
         font-size: var(--text-step-largest);
         line-height: var(--text-step-largest--line-height);
     }
+
+    /* A table is drawn as it is sent, but for two things: its border is the theme's own rule rather than the grey the
+       HTML part writes inline, and one wider than the editor scrolls sideways inside it rather than widening the
+       composer. A header cell is bold with no fill, and keeps the start alignment every cell carries. */
+    & table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+        margin-block: --spacing(1) --spacing(3);
+        font-size: var(--text-md);
+    }
+
+    /* The design's least width is the words' own, outside the cell's padding. */
+    & :is(td, th) {
+        box-sizing: content-box;
+        min-width: --spacing(12);
+        border-color: var(--color-line-strong) !important;
+    }
+
+    & th {
+        font-weight: 600;
+    }
 }
 
 /* A strip of controls under a finger, as the design draws the composer's formatting bar: one row that scrolls sideways

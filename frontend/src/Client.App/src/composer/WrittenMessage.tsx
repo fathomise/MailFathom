@@ -2,7 +2,17 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { createElement, Fragment, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import {
+    createElement,
+    Fragment,
+    useEffect,
+    useId,
+    useRef,
+    useState,
+    type CSSProperties,
+    type KeyboardEvent,
+    type ReactNode,
+} from 'react';
 import { Icon } from '../controls/Icon';
 import type { IconName } from '../controls/icons';
 import { useTip } from '../controls/useTip';
@@ -12,14 +22,30 @@ import { useCoarsePointer } from '../shell/useWideWorkspace';
 import { edit, insertWritten } from './editing';
 import { FormattingChoice, FormattingMenu } from './FormattingMenu';
 import { drawingOf } from './regionDrawing';
+import { TableInsertion, TableStrip, type TableAct } from './TableControls';
 import {
+    cellAfter,
+    cellBefore,
+    newTable,
+    withColumnInserted,
+    withColumnRemoved,
+    withRowAppended,
+    withRowInserted,
+    withRowRemoved,
+    type TableCellPosition,
+    type TableEdit,
+} from './writtenTable';
+import {
+    cellDeclarationsOf,
     drawnAlignment,
     followable,
     fontSizeOf,
     pastedAddress,
     writtenIn,
+    writtenTableIn,
     type RunDrawing,
     type WrittenAlignment,
+    type WrittenMarkup,
     type WrittenNode,
     type WrittenSize,
 } from './writtenText';
@@ -41,8 +67,13 @@ import {
 // the commands find already there is what they wrote themselves and they merge with it rather than nesting around it.
 // `writtenIn` reads each into the closed value and drops whatever is off the closed set; the stylesheet's
 // `written-region` draws them by the design's rules rather than the browser's.
+//
+// **A table is edited as a tree, never in place.** `execCommand` has no table editing, so every table control — and
+// Tab past the last cell — reads the caret's table into the closed set, asks `writtenTable.ts` for the table that
+// replaces it, and writes that over the old one through `insertWritten`, which keeps the edit one step on the engine's
+// own undo stack. ADR 0047's Question 5 is the decision.
 
-type FormattingMenuKind = 'colour' | 'size' | 'alignment';
+type FormattingMenuKind = 'colour' | 'size' | 'alignment' | 'table';
 
 /** One control on the formatting bar: what it is called, what it does, and how the design draws it. */
 interface FormattingControl {
@@ -66,8 +97,11 @@ interface FormattingControl {
     /** Whether it asks for an address before it acts, which only the link does. */
     readonly asksForAnAddress?: true;
 
-    /** The menu of choices it opens instead of acting, for the three that take one. */
+    /** The menu of choices it opens instead of acting, for the four that take one. */
     readonly opens?: FormattingMenuKind;
+
+    /** Whether it makes a block a table cell cannot hold, so it stands unavailable while the caret is in one. */
+    readonly notInACell?: true;
 }
 
 // The design's own controls, in the design's own six groups, which a fine pointer wraps whole and never splits.
@@ -90,17 +124,33 @@ const formattingGroups: readonly (readonly FormattingControl[])[] = [
     ],
     [{ key: 'alignment', named: 'compose.formatAlignment', opens: 'alignment' }],
     [
-        { key: 'bulleted', command: 'insertUnorderedList', named: 'compose.formatBulletedList', mark: '•—' },
-        { key: 'numbered', command: 'insertOrderedList', named: 'compose.formatNumberedList', mark: '1.' },
+        {
+            key: 'bulleted',
+            command: 'insertUnorderedList',
+            named: 'compose.formatBulletedList',
+            mark: '•—',
+            notInACell: true,
+        },
+        {
+            key: 'numbered',
+            command: 'insertOrderedList',
+            named: 'compose.formatNumberedList',
+            mark: '1.',
+            notInACell: true,
+        },
         {
             key: 'quote',
             command: 'formatBlock',
             argument: 'blockquote',
             named: 'compose.formatQuote',
             icon: 'format_quote',
+            notInACell: true,
         },
     ],
-    [{ key: 'link', command: 'createLink', named: 'compose.formatLink', icon: 'link', asksForAnAddress: true }],
+    [
+        { key: 'link', command: 'createLink', named: 'compose.formatLink', icon: 'link', asksForAnAddress: true },
+        { key: 'table', named: 'compose.formatTable', icon: 'table', opens: 'table', notInACell: true },
+    ],
     [{ key: 'clear', command: 'removeFormat', named: 'compose.formatClear', icon: 'format_clear' }],
 ];
 
@@ -215,6 +265,7 @@ export function WrittenMessage({
     const [address, setAddress] = useState<string | null>(null);
     const [menu, setMenu] = useState<OpenMenu | null>(null);
     const [chosen, setChosen] = useState<Chosen>({ colour: null, size: normalStep, alignment: startAlignment });
+    const [inACell, setInACell] = useState(false);
     const words = useRef<HTMLDivElement>(null);
     const bar = useRef<HTMLDivElement>(null);
     const holding = useRef<Range | null>(null);
@@ -224,6 +275,20 @@ export function WrittenMessage({
     // What the design decides about the bar: drawn outright where a pointer is fine, and behind a toggle where a
     // finger is what drives the screen — the keyboard and the message needing the room a bar would take.
     const drawTheBar = !coarse || barShown;
+
+    // Where the caret stands decides whether the table's strip stands, and the selection is the document's, so it is
+    // followed from there rather than from whichever of the region's events happened to move it.
+    useEffect(() => {
+        function caretMoved(): void {
+            setInACell(cellAtTheCaret(words.current) !== null);
+        }
+
+        document.addEventListener('selectionchange', caretMoved);
+
+        return () => {
+            document.removeEventListener('selectionchange', caretMoved);
+        };
+    }, []);
 
     function written(): void {
         if (words.current !== null) {
@@ -241,11 +306,11 @@ export function WrittenMessage({
             range !== null && words.current?.contains(range.commonAncestorContainer) === true ? range : null;
     }
 
-    function apply(command: string, argument?: string): void {
+    // The selection a control took the focus away from, put back before a command reads it. Only the link and the
+    // four menus ask for anything, so this is null for the rest and they act on what the region still holds.
+    function takeBackTheSelection(): void {
         words.current?.focus();
 
-        // The selection a control took the focus away from, put back before the command reads it. Only the link and
-        // the three menus ask for anything, so this is null for the rest and they act on what the region still holds.
         const held = holding.current;
 
         if (held !== null) {
@@ -255,6 +320,10 @@ export function WrittenMessage({
             selection?.addRange(held);
             holding.current = null;
         }
+    }
+
+    function apply(command: string, argument?: string): void {
+        takeBackTheSelection();
 
         try {
             // Elements rather than inline styles, so what the commands below compose stays inside the closed set
@@ -270,14 +339,16 @@ export function WrittenMessage({
     }
 
     // ADR 0047's paste order as far as the closed set reaches today: Ctrl+Shift+V lands the words alone, one address
-    // makes a link, and anything else is pasted as text.
+    // makes a link, and anything else is pasted as text — on one line in a table cell, which holds no block a second
+    // line would start.
     function paste(pasted: string): void {
         const address = pastingPlain.current ? null : pastedAddress(pasted);
+        const landing = cellAtTheCaret(words.current) === null ? pasted : pasted.replace(/\s*[\r\n\t]+\s*/gu, ' ');
 
         pastingPlain.current = false;
 
         if (address === null) {
-            apply('insertText', pasted);
+            apply('insertText', landing);
         } else if (window.getSelection()?.isCollapsed === false) {
             // The selected words become the link and keep their own formatting, and a link they sat in is replaced.
             apply('createLink', address);
@@ -340,6 +411,12 @@ export function WrittenMessage({
     }
 
     function controlName(control: FormattingControl): string {
+        const named = ownName(control);
+
+        return inACell && control.notInACell === true ? translate('compose.formatInACell', { control: named }) : named;
+    }
+
+    function ownName(control: FormattingControl): string {
         if (control.opens === undefined) {
             return translate(control.named);
         }
@@ -348,12 +425,18 @@ export function WrittenMessage({
             colour: { colour: translate(chosen.colour?.named ?? 'compose.colourAutomatic') },
             size: { size: translate(chosen.size.named) },
             alignment: { alignment: translate(chosen.alignment.named) },
+            table: {},
         };
 
         return translate(control.named, holds[control.opens]);
     }
 
     function press(control: FormattingControl, element: HTMLElement): void {
+        // A control making a block a cell cannot hold does nothing there, and its name says why.
+        if (inACell && control.notInACell === true) {
+            return;
+        }
+
         if (control.opens !== undefined) {
             openTheMenu(control.opens, element);
         } else if (control.asksForAnAddress === true) {
@@ -361,6 +444,120 @@ export function WrittenMessage({
         } else if (control.command !== undefined) {
             apply(control.command, control.argument);
         }
+    }
+
+    // What a table edit leaves, written over the old table — or, with no table left, the old one taken away — as one
+    // step on the engine's undo stack, and the caret put in the cell the edit names.
+    function replaceTheTable(table: HTMLTableElement, edited: TableEdit): void {
+        const region = words.current;
+
+        if (region === null) {
+            return;
+        }
+
+        region.focus();
+
+        const range = document.createRange();
+        const selection = window.getSelection();
+
+        range.selectNode(table);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+
+        if (edited.table === null) {
+            edit('delete');
+            written();
+        } else {
+            putTheTable(region, edited.table, [], edited.caret);
+        }
+    }
+
+    // A table written where the selection is, followed by whatever the caller adds after it, with the caret put in
+    // the cell named. The new table is the one the region did not hold before, which is how it is found whatever an
+    // engine wrapped it in.
+    function putTheTable(
+        region: HTMLElement,
+        table: WrittenMarkup,
+        after: readonly WrittenNode[],
+        caret: TableCellPosition | null,
+    ): void {
+        const standing = new Set(region.querySelectorAll('table'));
+
+        insertWritten([table, ...after]);
+
+        const placed = [...region.querySelectorAll('table')].find((each) => !standing.has(each));
+        const cell = placed === undefined || caret === null ? null : cellAt(placed, caret);
+
+        if (cell !== null) {
+            placeTheCaretIn(cell);
+        }
+
+        written();
+    }
+
+    // A new table at the caret, or in place of the selection, with an empty paragraph after it so there is a line to
+    // carry on writing on, and the caret in its first cell.
+    function insertTheTable(rows: number, columns: number, headed: boolean): void {
+        setMenu(null);
+        takeBackTheSelection();
+
+        if (words.current !== null) {
+            putTheTable(
+                words.current,
+                newTable(rows, columns, headed),
+                [{ element: 'p', address: null, holds: [{ element: 'br', address: null, holds: [] }] }],
+                { row: 0, cell: 0 },
+            );
+        }
+    }
+
+    function actOnTheTable(act: TableAct): void {
+        const around = tableAroundTheCaret(words.current);
+
+        if (around === null) {
+            return;
+        }
+
+        const edited = tableEdits[act](around.written, around.at);
+
+        // An edit past a bound answers the same table, and writing that back would only add a step to undo.
+        if (edited.table !== around.written) {
+            replaceTheTable(around.element, edited);
+        }
+    }
+
+    // Tab and Shift+Tab walk the cells, and Tab past the last adds a row. Shift+Tab before the first leaves the table
+    // the way it leaves anything, which is the one answer here that is the browser's rather than the table's.
+    function moveAcrossTheTable(backwards: boolean): boolean {
+        const around = tableAroundTheCaret(words.current);
+
+        if (around === null) {
+            return false;
+        }
+
+        const next = backwards ? cellBefore(around.written, around.at) : cellAfter(around.written, around.at);
+
+        if (next !== null) {
+            const cell = cellAt(around.element, next);
+
+            if (cell !== null) {
+                placeTheCaretIn(cell);
+            }
+
+            return true;
+        }
+
+        if (backwards) {
+            return false;
+        }
+
+        const appended = withRowAppended(around.written);
+
+        if (appended.table !== around.written) {
+            replaceTheTable(around.element, appended);
+        }
+
+        return true;
     }
 
     function insertTheLink(): void {
@@ -398,6 +595,7 @@ export function WrittenMessage({
                                             name={controlName(control)}
                                             expanded={expandedFor(control, address !== null, menu?.kind ?? null)}
                                             opensAMenu={control.opens !== undefined}
+                                            unavailable={inACell && control.notInACell === true}
                                             marked={control.marked}
                                             onPress={(element) => {
                                                 press(control, element);
@@ -419,7 +617,7 @@ export function WrittenMessage({
                         <FormattingMenu
                             key={menu.kind}
                             named={translate(menuNames[menu.kind])}
-                            broad={menu.kind === 'colour'}
+                            width={menuWidths[menu.kind]}
                             under={menu.under}
                             openedFrom={menu.openedFrom}
                             onClose={closeTheMenu}
@@ -494,6 +692,8 @@ export function WrittenMessage({
                                       </FormattingChoice>
                                   ))
                                 : null}
+
+                            {menu.kind === 'table' ? <TableInsertion onInsert={insertTheTable} /> : null}
                         </FormattingMenu>
                     )}
                 </div>
@@ -555,6 +755,8 @@ export function WrittenMessage({
                 </button>
             ) : null}
 
+            {inACell ? <TableStrip onAct={actOnTheTable} /> : null}
+
             {beforeTheWords}
 
             <div
@@ -587,6 +789,25 @@ export function WrittenMessage({
                     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
                         event.preventDefault();
                         onSendAsked();
+
+                        return;
+                    }
+
+                    const plainKey = !event.ctrlKey && !event.metaKey && !event.altKey;
+
+                    if (event.key === 'Tab' && plainKey && moveAcrossTheTable(event.shiftKey)) {
+                        event.preventDefault();
+                    }
+
+                    // Enter in a cell is a line in that cell, since a paragraph is a block no cell holds.
+                    if (
+                        event.key === 'Enter' &&
+                        plainKey &&
+                        !event.shiftKey &&
+                        cellAtTheCaret(words.current) !== null
+                    ) {
+                        event.preventDefault();
+                        apply('insertLineBreak');
                     }
                 }}
             >
@@ -619,6 +840,31 @@ function WrittenPart({ node }: { readonly node: WrittenNode }): ReactNode {
     }
 
     const holds = <WrittenTree written={node.holds} />;
+
+    if (node.element === 'table') {
+        return (
+            <table style={{ borderCollapse: 'collapse' }}>
+                <tbody>{holds}</tbody>
+            </table>
+        );
+    }
+
+    // A cell is drawn with the declarations the HTML part writes, and an empty one, or one ending on a break, with
+    // the break an engine needs to put the caret on — `htmlOf`'s editor spelling, in React's.
+    if (node.element === 'td' || node.element === 'th') {
+        const last = node.holds[node.holds.length - 1];
+
+        return createElement(
+            node.element,
+            {
+                style: drawnDeclarations(cellDeclarationsOf(node)),
+                ...(node.columnSpan === undefined ? {} : { colSpan: node.columnSpan }),
+                ...(node.rowSpan === undefined ? {} : { rowSpan: node.rowSpan }),
+            },
+            holds,
+            last === undefined || (!('text' in last) && last.element === 'br') ? <br /> : null,
+        );
+    }
 
     // A run's colour and size go back into the region in the editing commands' own spelling, which is what lets the
     // next command merge with them — the module comment above says why.
@@ -659,7 +905,98 @@ const menuNames: Readonly<Record<FormattingMenuKind, MessageKey>> = {
     colour: 'compose.colourMenu',
     size: 'compose.sizeMenu',
     alignment: 'compose.alignmentMenu',
+    table: 'compose.tableMenu',
 };
+
+const menuWidths: Readonly<Record<FormattingMenuKind, 'broad' | 'table' | 'narrow'>> = {
+    colour: 'broad',
+    size: 'narrow',
+    alignment: 'narrow',
+    table: 'table',
+};
+
+// What each of the strip's controls asks `writtenTable.ts` for.
+const tableEdits: Readonly<Record<TableAct, (table: WrittenMarkup, at: TableCellPosition) => TableEdit>> = {
+    rowAbove: (table, at) => withRowInserted(table, at, 'before'),
+    rowBelow: (table, at) => withRowInserted(table, at, 'after'),
+    columnBefore: (table, at) => withColumnInserted(table, at, 'before'),
+    columnAfter: (table, at) => withColumnInserted(table, at, 'after'),
+    removeRow: withRowRemoved,
+    removeColumn: withColumnRemoved,
+    delete: () => ({ table: null, caret: null }),
+};
+
+// The cell the caret stands in, where it stands in one of the region's own tables.
+function cellAtTheCaret(region: HTMLElement | null): HTMLTableCellElement | null {
+    const anchor = window.getSelection()?.anchorNode ?? null;
+
+    if (region === null || anchor === null || !region.contains(anchor)) {
+        return null;
+    }
+
+    const cell = (anchor instanceof Element ? anchor : anchor.parentElement)?.closest('td, th') ?? null;
+
+    return cell instanceof HTMLTableCellElement && region.contains(cell) ? cell : null;
+}
+
+/** The caret's table, in the document and as the tree reads it, and where its cell stands in that tree. */
+interface TableAroundTheCaret {
+    readonly element: HTMLTableElement;
+    readonly written: WrittenMarkup;
+    readonly at: TableCellPosition;
+}
+
+function tableAroundTheCaret(region: HTMLElement | null): TableAroundTheCaret | null {
+    const cell = cellAtTheCaret(region);
+    const element = cell?.closest('table') ?? null;
+    const row = cell?.parentElement ?? null;
+
+    if (cell === null || !(element instanceof HTMLTableElement) || !(row instanceof HTMLTableRowElement)) {
+        return null;
+    }
+
+    const written = region === null ? null : writtenTableIn(element, drawingOfRegion(region));
+    const rowIndex = rowsWithCells(element).indexOf(row);
+
+    return written === null || rowIndex < 0 ? null : { element, written, at: { row: rowIndex, cell: cell.cellIndex } };
+}
+
+// The rows the tree counts, which are the ones holding a cell: `writtenIn` keeps no row with nothing in it.
+function rowsWithCells(table: HTMLTableElement): HTMLTableRowElement[] {
+    return [...table.rows].filter((row) => row.cells.length > 0);
+}
+
+function cellAt(table: HTMLTableElement, at: TableCellPosition): HTMLTableCellElement | null {
+    return rowsWithCells(table)[at.row]?.cells[at.cell] ?? null;
+}
+
+// The caret at the end of what a cell holds, ahead of the break an engine keeps there for a line to stand on.
+function placeTheCaretIn(cell: HTMLTableCellElement): void {
+    const range = document.createRange();
+    const selection = window.getSelection();
+    const last = cell.lastChild;
+
+    if (last instanceof HTMLBRElement) {
+        range.setStartBefore(last);
+        range.collapse(true);
+    } else {
+        range.selectNodeContents(cell);
+        range.collapse(false);
+    }
+
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+}
+
+// CSS declarations as React's style object names them.
+function drawnDeclarations(declarations: readonly (readonly [string, string])[]): CSSProperties {
+    return Object.fromEntries(
+        declarations.map(([property, value]) => [
+            property.replace(/-([a-z])/gu, (_, letter: string) => letter.toUpperCase()),
+            value,
+        ]),
+    );
+}
 
 // Whether a control says it has something open: the link its address row, and a menu control its menu. The rest
 // carry no such state and say nothing.
@@ -708,6 +1045,7 @@ function FormattingControl({
     name,
     expanded,
     opensAMenu,
+    unavailable,
     marked,
     onPress,
     children,
@@ -715,6 +1053,7 @@ function FormattingControl({
     readonly name: string;
     readonly expanded: boolean | undefined;
     readonly opensAMenu: boolean;
+    readonly unavailable: boolean;
     readonly marked: string | undefined;
     readonly onPress: (control: HTMLElement) => void;
     readonly children: ReactNode;
@@ -739,11 +1078,12 @@ function FormattingControl({
                 }}
                 type="button"
                 aria-label={name}
-                aria-expanded={expanded}
-                aria-haspopup={opensAMenu ? 'menu' : undefined}
+                aria-expanded={unavailable ? undefined : expanded}
+                aria-haspopup={opensAMenu && !unavailable ? 'menu' : undefined}
+                aria-disabled={unavailable ? true : undefined}
                 className={`relative flex h-7.5 items-center pointer-fine:min-w-7.5 justify-center rounded-md px-1.75 text-base transition hover:bg-hover hover:text-text pointer-coarse:border pointer-coarse:border-line ${
                     opensAMenu && expanded === true ? 'bg-accent-soft text-accent-deep' : 'text-text-soft'
-                } ${marked ?? ''}`}
+                } ${unavailable ? 'cursor-not-allowed opacity-40' : ''} ${marked ?? ''}`}
                 onMouseDown={(event) => {
                     // The selection is what every one of these acts on, and a press that moved the focus would have
                     // collapsed it before the command ran.

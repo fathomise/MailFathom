@@ -23,5 +23,5 @@ export function edit(command: string, argument?: string): void {
 /** Puts written nodes where the caret is, in place of anything selected, as one step somebody can undo. */
 export function insertWritten(written: readonly WrittenNode[]): void {
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- The reason is the comment at the top of this file.
-    document.execCommand('insertHTML', false, htmlOf(written));
+    document.execCommand('insertHTML', false, htmlOf(written, 'editor'));
 }

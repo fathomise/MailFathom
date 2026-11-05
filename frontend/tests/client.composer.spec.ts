@@ -681,6 +681,109 @@ test('takes a colour off again with Automatic, so the message goes out with no c
     ]);
 });
 
+const cellStyle = 'border:1px solid #d0d5dd;padding:4px 8px;vertical-align:top;text-align:left';
+
+/** One row of a table as the composer sends it, each cell written out with the grid every cell is drawn in. */
+function sentRow(element: 'td' | 'th', ...cells: readonly string[]): string {
+    return `<tr>${cells.map((cell) => `<${element} style="${cellStyle}">${cell}</${element}>`).join('')}</tr>`;
+}
+
+// Every structural act writes the table back through the engine's own editing command, so what the region reads back
+// after it — and after a reload, which draws the kept tree rather than what the engine wrote — is the tree that was
+// written, or the message sent differs from the table on the screen.
+test('inserts a table, fills it by Tab, adds a row and a column to it, keeps it across a reload, and sends it as a grid', async ({
+    page,
+    deployment,
+}) => {
+    await openMailWriting(page, deployment);
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+    await address(page, 'To', recipient);
+    await page.getByLabel('Subject').fill(subject);
+    await page.getByRole('textbox', { name: 'Message' }).click();
+
+    await page.getByRole('toolbar', { name: 'Formatting' }).getByRole('button', { name: 'Insert table' }).click();
+
+    const insertion = page.getByRole('menu', { name: 'Insert a table' });
+
+    await insertion.getByRole('menuitem', { name: 'One row fewer' }).click();
+    await insertion.getByRole('menuitem', { name: 'One column fewer' }).click();
+    await insertion.getByRole('menuitem', { name: 'Insert a 2 × 2 table' }).click();
+
+    const message = page.getByRole('textbox', { name: 'Message' });
+    const strip = page.getByRole('toolbar', { name: 'Table' });
+
+    await expect(message.getByRole('table')).toHaveCount(1);
+    await expect(strip).toBeVisible();
+
+    // Tab out of the last cell is what adds the third row.
+    for (const cell of ['Day', 'Hours', 'Monday', '9']) {
+        await page.keyboard.type(cell);
+        await page.keyboard.press('Tab');
+    }
+
+    await page.keyboard.type('Tuesday');
+    await page.keyboard.press('Tab');
+    await page.keyboard.type('10');
+    await strip.getByRole('button', { name: 'Column after' }).click();
+    await page.keyboard.press('Tab');
+    await page.keyboard.type('closes 6');
+
+    await expect(message.getByRole('row')).toHaveCount(3);
+    await expect(message.getByRole('row').last().getByRole('cell')).toHaveText(['Tuesday', '10', 'closes 6']);
+
+    // Each of the other acts, undone again by the one that takes it away, so the table sent is the one built above.
+    await strip.getByRole('button', { name: 'Row above' }).click();
+    await strip.getByRole('button', { name: 'Row below' }).click();
+    await strip.getByRole('button', { name: 'Column before' }).click();
+    await expect(message.getByRole('row')).toHaveCount(5);
+    await expect(message.getByRole('row').nth(3).getByRole('cell')).toHaveText(['Tuesday', '10', '', 'closes 6']);
+
+    await message.getByRole('row').first().getByRole('columnheader').nth(2).click();
+    await strip.getByRole('button', { name: 'Remove column' }).click();
+    await message.getByRole('row').nth(2).getByRole('cell').first().click();
+    await strip.getByRole('button', { name: 'Remove row' }).click();
+    await message.getByRole('row').last().getByRole('cell').first().click();
+    await strip.getByRole('button', { name: 'Remove row' }).click();
+    await expect(message.getByRole('row')).toHaveCount(3);
+
+    await page.reload();
+    await expect(page.getByRole('navigation', { name: 'Spaces' })).toBeVisible();
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+    await expect(page.getByRole('textbox', { name: 'Message' }).getByRole('row')).toHaveCount(3);
+    await send(page);
+
+    expect(deployment.requests('POST', '/drafts').map(({ body }) => body)).toStrictEqual([
+        expect.objectContaining({
+            plainTextBody: 'Day | Hours |\nMonday | 9 |\nTuesday | 10 | closes 6',
+            htmlBody: `<table style="border-collapse:collapse">${sentRow('th', 'Day', 'Hours', '')}${sentRow('td', 'Monday', '9', '')}${sentRow('td', 'Tuesday', '10', 'closes 6')}</table>`,
+        }),
+    ]);
+});
+
+test('deletes a table from its strip and takes the deletion back with one Ctrl+Z', async ({ page, deployment }) => {
+    await openMailWriting(page, deployment);
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+    await page.getByRole('textbox', { name: 'Message' }).click();
+    await page.getByRole('toolbar', { name: 'Formatting' }).getByRole('button', { name: 'Insert table' }).click();
+    await page
+        .getByRole('menu', { name: 'Insert a table' })
+        .getByRole('menuitem', { name: /^Insert a / })
+        .click();
+    await page.keyboard.type('Day');
+
+    const message = page.getByRole('textbox', { name: 'Message' });
+
+    await page.getByRole('toolbar', { name: 'Table' }).getByRole('button', { name: 'Delete table' }).click();
+
+    await expect(message.getByRole('table')).toHaveCount(0);
+    await expect(page.getByRole('toolbar', { name: 'Table' })).toHaveCount(0);
+
+    await page.keyboard.press('Control+Z');
+
+    await expect(message.getByRole('table')).toHaveCount(1);
+    await expect(message.getByRole('columnheader').first()).toHaveText('Day');
+});
+
 /**
  * Writes a message, has the deployment stop accepting the sign-in at the next read of a folder, and signs in again as
  * the login named — which is where what was written either comes back or does not.

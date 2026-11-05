@@ -10,8 +10,10 @@ import {
     pastedAddress,
     plainTextOf,
     writtenIn,
+    writtenTableIn,
     writtenTextIn,
     type RunDrawing,
+    type WrittenMarkup,
     type WrittenNode,
 } from './writtenText';
 
@@ -501,5 +503,238 @@ describe('writtenTextIn', () => {
         }
 
         expect(writtenTextIn([deepest])).toBeNull();
+    });
+});
+
+describe('a table', () => {
+    function cell(text: string, carries: Partial<WrittenMarkup> = {}, element: 'td' | 'th' = 'td'): WrittenMarkup {
+        return { element, address: null, ...carries, holds: text === '' ? [] : [{ text }] };
+    }
+
+    function row(...cells: WrittenNode[]): WrittenMarkup {
+        return { element: 'tr', address: null, holds: cells };
+    }
+
+    function table(...rows: WrittenNode[]): WrittenMarkup {
+        return { element: 'table', address: null, holds: rows };
+    }
+
+    function attributed(made: HTMLElement, attributes: Readonly<Record<string, string>>): HTMLElement {
+        for (const [name, value] of Object.entries(attributes)) {
+            made.setAttribute(name, value);
+        }
+
+        return made;
+    }
+
+    const lineBreak: WrittenNode = { element: 'br', address: null, holds: [] };
+
+    describe('read from the region', () => {
+        it('is read row by row, through the body an engine wraps its rows in', () => {
+            const read = writtenIn(
+                region(
+                    element(
+                        'table',
+                        element(
+                            'tbody',
+                            element('tr', element('th', 'Item'), element('th', 'Price')),
+                            element('tr', element('td', 'Tea'), element('td', '3')),
+                        ),
+                    ),
+                ),
+            );
+
+            expect(read).toEqual([
+                table(row(cell('Item', {}, 'th'), cell('Price', {}, 'th')), row(cell('Tea'), cell('3'))),
+            ]);
+        });
+
+        it('keeps what a cell carries: its alignment, its fill, and its spans', () => {
+            const read = writtenIn(
+                region(
+                    element(
+                        'table',
+                        element(
+                            'tr',
+                            attributed(element('td', '12.50'), {
+                                style: 'text-align:right;background-color:#F0F4FF',
+                                colspan: '2',
+                            }),
+                        ),
+                        element('tr', element('td', 'a'), attributed(element('td', 'b'), { bgcolor: '#FDE8E8' })),
+                    ),
+                ),
+            );
+
+            expect(read).toEqual([
+                table(
+                    row(cell('12.50', { alignment: 'end', background: '#f0f4ff', columnSpan: 2 })),
+                    row(cell('a'), cell('b', { background: '#fde8e8' })),
+                ),
+            ]);
+        });
+
+        it('reads a start alignment as none, since every cell is drawn at the start anyway', () => {
+            const read = writtenIn(
+                region(element('table', element('tr', attributed(element('td', 'a'), { style: 'text-align:left' })))),
+            );
+
+            expect(read).toEqual([table(row(cell('a')))]);
+        });
+
+        it('drops the break an engine keeps at the end of a cell to stand on', () => {
+            const read = writtenIn(
+                region(
+                    element('table', element('tr', element('td', element('br')), element('td', 'a', element('br')))),
+                ),
+            );
+
+            expect(read).toEqual([table(row(cell(''), cell('a')))]);
+        });
+
+        it('reads a block inside a cell as the lines it held', () => {
+            const read = writtenIn(
+                region(
+                    element('table', element('tr', element('td', 'one', element('div', 'two'), element('p', 'three')))),
+                ),
+            );
+
+            expect(read).toEqual([
+                table(
+                    row({
+                        element: 'td',
+                        address: null,
+                        holds: [{ text: 'one' }, lineBreak, { text: 'two' }, lineBreak, { text: 'three' }],
+                    }),
+                ),
+            ]);
+        });
+
+        it('takes a table inside a cell apart into what its cells said, a line each', () => {
+            const nested = element('table', element('tr', element('td', 'x'), element('td', 'y')));
+            const read = writtenIn(region(element('table', element('tr', element('td', nested)))));
+
+            expect(read).toEqual([
+                table(row({ element: 'td', address: null, holds: [{ text: 'x' }, lineBreak, { text: 'y' }] })),
+            ]);
+        });
+
+        it('takes a table one column past the bound apart into its cells’ lines', () => {
+            const wide = element('tr', ...Array.from({ length: 21 }, (_, index) => element('td', `c${String(index)}`)));
+            const read = writtenIn(region(element('table', wide)));
+
+            expect(read).toHaveLength(21);
+            expect(read[0]).toEqual({ element: 'div', address: null, holds: [{ text: 'c0' }] });
+        });
+
+        it('reads a row span reaching past the last row as reaching the last row', () => {
+            const read = writtenIn(
+                region(
+                    element(
+                        'table',
+                        element('tr', attributed(element('td', 'a'), { rowspan: '5' }), element('td', 'b')),
+                        element('tr', element('td', 'c')),
+                    ),
+                ),
+            );
+
+            expect(read).toEqual([table(row(cell('a', { rowSpan: 2 }), cell('b')), row(cell('c')))]);
+        });
+
+        it('is read alone for an edit, and not at all where it is past a bound', () => {
+            const wide = element('tr', ...Array.from({ length: 21 }, () => element('td', 'a')));
+
+            expect(writtenTableIn(element('table', element('tr', element('td', 'a'))))).toEqual(table(row(cell('a'))));
+            expect(writtenTableIn(element('table', wide))).toBeNull();
+        });
+    });
+
+    describe('written out', () => {
+        const grid = 'border:1px solid #d0d5dd;padding:4px 8px;vertical-align:top';
+
+        it('is a bordered grid whose every cell says its alignment, with its fill and spans where it has them', () => {
+            const written = table(
+                row(cell('Item', {}, 'th')),
+                row(cell('3', { alignment: 'end', background: '#f0f4ff', columnSpan: 2, rowSpan: 3 })),
+            );
+
+            expect(htmlOf([written])).toBe(
+                `<table style="border-collapse:collapse"><tr><th style="${grid};text-align:left">Item</th></tr>` +
+                    `<tr><td colspan="2" rowspan="3" style="${grid};background-color:#f0f4ff;text-align:right">3</td></tr></table>`,
+            );
+        });
+
+        it('gives a cell ending on a break a second break, so the line it ends is drawn', () => {
+            expect(htmlOf([{ element: 'td', address: null, holds: [{ text: 'a' }, lineBreak] }])).toBe(
+                `<td style="${grid};text-align:left">a<br /><br /></td>`,
+            );
+        });
+
+        it('gives the editor an empty cell a break to put the caret on, and the HTML part none', () => {
+            expect(htmlOf([cell('')])).toBe(`<td style="${grid};text-align:left"></td>`);
+            expect(htmlOf([cell('')], 'editor')).toBe(`<td style="${grid};text-align:left"><br /></td>`);
+        });
+
+        it('spells a run for the editor as the font the editing commands write, and for the mail as a style', () => {
+            const run: WrittenMarkup = {
+                element: 'span',
+                address: null,
+                colour: '#b42318',
+                size: 'large',
+                holds: [{ text: 'late' }],
+            };
+
+            expect(htmlOf([run], 'editor')).toBe('<font color="#b42318" size="4">late</font>');
+            expect(htmlOf([run])).toBe('<span style="color:#b42318;font-size:18px">late</span>');
+        });
+
+        it('reads in plain text as a row to a line, its cells side by side', () => {
+            const written = table(
+                row(cell('Item', {}, 'th'), cell('Price', {}, 'th')),
+                row(
+                    { element: 'td', address: null, holds: [{ text: 'Green' }, lineBreak, { text: 'tea' }] },
+                    cell('3'),
+                ),
+            );
+
+            expect(plainTextOf([{ element: 'p', address: null, holds: [{ text: 'Prices:' }] }, written])).toBe(
+                'Prices:\n\nItem | Price\nGreen tea | 3',
+            );
+        });
+    });
+
+    describe('kept and read back', () => {
+        it('reads back a table this client wrote, with everything its cells carry', () => {
+            const kept = [
+                table(
+                    row(cell('Item', { alignment: 'center' }, 'th')),
+                    row(cell('3', { alignment: 'end', background: '#f0f4ff', columnSpan: 2, rowSpan: 2 })),
+                    row(cell('4')),
+                ),
+            ];
+
+            expect(writtenTextIn(kept)).toEqual(kept);
+        });
+
+        const paragraph: WrittenMarkup = { element: 'p', address: null, holds: [] };
+
+        it.each([
+            ['a row outside a table', [row(cell('a'))]],
+            ['a cell straight in a table', [table(cell('a'))]],
+            ['words loose in a row', [table(row({ text: 'a' }))]],
+            ['a paragraph in a cell', [table(row({ element: 'td', address: null, holds: [paragraph] }))]],
+            ['a table in a cell', [table(row({ element: 'td', address: null, holds: [table(row(cell('a')))] }))]],
+            ['a fill that is no colour the tree carries', [table(row(cell('a', { background: 'red' })))]],
+            ['a span of one, which is no span', [table(row(cell('a', { columnSpan: 1 })))]],
+            ['a fill on something that is not a cell', [{ ...paragraph, background: '#f0f4ff' }]],
+            ['a span on something that is not a cell', [{ ...paragraph, columnSpan: 2 }]],
+            ['a table one row past the bound', [table(...Array.from({ length: 201 }, () => row(cell('a'))))]],
+            ['a table one column past the bound', [table(row(...Array.from({ length: 21 }, () => cell('a'))))]],
+            ['a row span past the last row', [table(row(cell('a', { rowSpan: 2 })))]],
+            ['a table with no row', [table()]],
+            ['a row with no cell', [table(row(cell('a')), row())]],
+        ])('refuses %s', (_, kept) => {
+            expect(writtenTextIn(kept)).toBeNull();
+        });
     });
 });

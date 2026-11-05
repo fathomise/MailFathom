@@ -3025,6 +3025,20 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const rows = Array.from({ length: d.rows }, () => Array.from({ length: d.cols }, () => ""));
       this.restoreRange();
       this.exec("insertHTML", this.tableHtml(rows, d.header) + "<p><br></p>");
+      /* The caret goes into the new table's first cell, so its strip stands at once and typing fills it. */
+      const sel = window.getSelection();
+      const at = sel && sel.rangeCount ? sel.anchorNode : null;
+      const after = at ? (at.nodeType === 1 ? at : at.parentElement).closest("p") : null;
+      const table = after && after.previousElementSibling && after.previousElementSibling.tagName === "TABLE" ? after.previousElementSibling : null;
+      const first = table ? table.querySelector("th,td") : null;
+      if (first) {
+        const r = document.createRange();
+        r.selectNodeContents(first);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+      this.noteEditorCaret();
       this.setState({ fmtMenu: null });
     };
     /* Where the caret stands decides which strip shows under the bar: the table's controls while it is in a cell. */
@@ -8597,7 +8611,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               key: "c" + i,
               style: "height:" + (touch ? 12 : 10) + "px;border-radius:2px;border:1px solid var(--border2);background:" + (td.header && i < Math.min(td.cols, 10) ? "var(--accent-line)" : "var(--panel)"),
             })),
-            tablePreviewNote: (td.rows > 6 || td.cols > 10 ? "Showing the first " + Math.min(td.rows, 6) + " rows and " + Math.min(td.cols, 10) + " columns. " : "") + "At most " + T.maxRows + " rows and " + T.maxColumns + " columns.",
+            tablePreviewNote: (td.rows > 6 || td.cols > 10 ? "The preview shows at most 6 rows and 10 columns. " : "") + "At most " + T.maxRows + " rows and " + T.maxColumns + " columns.",
             tableHeaderChecked: String(!!td.header),
             tableHeaderGlyph: td.header ? "check_box" : "check_box_outline_blank",
             toggleTableHeader: () => setDraft({ header: !td.header }),
