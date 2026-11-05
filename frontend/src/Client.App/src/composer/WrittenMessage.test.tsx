@@ -330,9 +330,13 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
 
         const menu = screen.getByRole('menu', { name: 'Text size' });
 
-        expect(
-            screen.getAllByRole('menuitemradio').map((choice) => choice.getAttribute('aria-label')),
-        ).toEqual(['Small', 'Normal', 'Large', 'Larger', 'Largest']);
+        expect(screen.getAllByRole('menuitemradio').map((choice) => choice.getAttribute('aria-label'))).toEqual([
+            'Small',
+            'Normal',
+            'Large',
+            'Larger',
+            'Largest',
+        ]);
         expect(screen.getByRole('menuitemradio', { name: 'Normal' }).getAttribute('aria-checked')).toBe('true');
         expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Normal' }));
         expect(screen.getByRole('button', { name: 'Text size - Normal' }).getAttribute('aria-expanded')).toBe('true');
@@ -344,9 +348,18 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
 
         press('Text colour - Automatic');
 
-        expect(
-            screen.getAllByRole('menuitemradio').map((choice) => choice.getAttribute('aria-label')),
-        ).toEqual(['Automatic', 'Red', 'Orange', 'Amber', 'Green', 'Teal', 'Blue', 'Purple', 'Pink', 'Grey']);
+        expect(screen.getAllByRole('menuitemradio').map((choice) => choice.getAttribute('aria-label'))).toEqual([
+            'Automatic',
+            'Red',
+            'Orange',
+            'Amber',
+            'Green',
+            'Teal',
+            'Blue',
+            'Purple',
+            'Pink',
+            'Grey',
+        ]);
     });
 
     it('colours the selection with the swatch’s own value, and the control then names that swatch', () => {
@@ -457,7 +470,7 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
         ]);
 
         const line = words().querySelector('p');
-        const run = words().querySelector('font');
+        const run = words().querySelector<HTMLElement>('font');
 
         expect(line?.style.textAlign).toBe('center');
         expect(run?.getAttribute('color')).toBe('#b42318');

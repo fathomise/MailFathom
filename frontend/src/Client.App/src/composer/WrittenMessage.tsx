@@ -332,18 +332,17 @@ export function WrittenMessage({
     }
 
     function controlName(control: FormattingControl): string {
-        switch (control.opens) {
-            case 'colour':
-                return translate(control.named, {
-                    colour: translate(chosen.colour?.named ?? 'compose.colourAutomatic'),
-                });
-            case 'size':
-                return translate(control.named, { size: translate(chosen.size.named) });
-            case 'alignment':
-                return translate(control.named, { alignment: translate(chosen.alignment.named) });
-            case undefined:
-                return translate(control.named);
+        if (control.opens === undefined) {
+            return translate(control.named);
         }
+
+        const holds: Readonly<Record<FormattingMenuKind, Readonly<Record<string, string>>>> = {
+            colour: { colour: translate(chosen.colour?.named ?? 'compose.colourAutomatic') },
+            size: { size: translate(chosen.size.named) },
+            alignment: { alignment: translate(chosen.alignment.named) },
+        };
+
+        return translate(control.named, holds[control.opens]);
     }
 
     function press(control: FormattingControl, element: HTMLElement): void {

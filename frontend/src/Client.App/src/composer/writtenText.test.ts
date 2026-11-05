@@ -133,7 +133,9 @@ describe('writtenIn', () => {
 
         font.setAttribute('size', written);
 
-        expect(writtenIn(region(font))).toEqual([{ element: 'span', address: null, size: step, holds: [{ text: 'words' }] }]);
+        expect(writtenIn(region(font))).toEqual([
+            { element: 'span', address: null, size: step, holds: [{ text: 'words' }] },
+        ]);
     });
 
     it.each([
@@ -381,14 +383,20 @@ describe('writtenTextIn', () => {
 
     it.each([
         ['a colour that is not #rrggbb', [{ element: 'span', address: null, colour: 'red', holds: [] }]],
-        ['a colour in a spelling this client does not write', [{ element: 'span', address: null, colour: '#B42318', holds: [] }]],
+        [
+            'a colour in a spelling this client does not write',
+            [{ element: 'span', address: null, colour: '#B42318', holds: [] }],
+        ],
         ['a step off the scale', [{ element: 'span', address: null, size: 'huge', holds: [] }]],
         ['normal written as a step', [{ element: 'span', address: null, size: 'normal', holds: [] }]],
         ['an alignment outside the four', [{ element: 'p', address: null, alignment: 'left', holds: [] }]],
         ['a colour on something that is not a run', [{ element: 'p', address: null, colour: '#b42318', holds: [] }]],
         ['a size on something that is not a run', [{ element: 'b', address: null, size: 'large', holds: [] }]],
         ['an alignment on a run', [{ element: 'span', address: null, size: 'large', alignment: 'center', holds: [] }]],
-        ['an alignment on a block that carries none', [{ element: 'blockquote', address: null, alignment: 'end', holds: [] }]],
+        [
+            'an alignment on a block that carries none',
+            [{ element: 'blockquote', address: null, alignment: 'end', holds: [] }],
+        ],
         ['a run carrying neither a colour nor a size', [{ element: 'span', address: null, holds: [] }]],
     ])('refuses %s', (_, kept) => {
         expect(writtenTextIn(kept)).toBeNull();
