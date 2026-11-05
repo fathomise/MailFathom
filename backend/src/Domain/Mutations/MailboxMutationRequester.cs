@@ -12,8 +12,8 @@ namespace MailFathom.Domain.Mutations;
 /// <remarks>
 /// <para>
 /// This is one third of a mutation's idempotency identity, beside the email occurrence and the mutation itself. It has
-/// to answer one question: would asking again be the same request or a new one. A rule answers it with its own name and
-/// the revision it was evaluated at, so re-evaluating an unchanged rule over the same email performs nothing and
+/// to answer one question: would asking again be the same request or a new one. A rule answers it with its identifier
+/// and the revision it was evaluated at, so re-evaluating an unchanged rule over the same email performs nothing and
 /// changing the rule asks afresh. An invocation answers it with the identity of the invocation, so a retried call is
 /// the same request and a second call is a second one.
 /// </para>
@@ -176,10 +176,11 @@ public sealed record MailboxMutationRequester
     /// <summary>Validates one part of a composed identity, including that it cannot be mistaken for another split of it.</summary>
     /// <remarks>
     /// The separator is refused rather than escaped, because what a composed identity has to guarantee is that two
-    /// distinct pairs cannot write the same string: a rule named <c>a</c> at revision <c>b@c</c> and a rule named
-    /// <c>a@b</c> at revision <c>c</c> would otherwise compose one identity, and the unique index would read the second
-    /// rule's genuine request as a repeat of the first one's and perform nothing. A rule name an operator wrote carries
-    /// no at-sign, so refusing it costs nothing a caller can legitimately want.
+    /// distinct pairs cannot write the same string: a rule identified as <c>a</c> at revision <c>b@c</c> and a rule
+    /// identified as <c>a@b</c> at revision <c>c</c> would otherwise compose one identity, and the unique index would read
+    /// the second rule's genuine request as a repeat of the first one's and perform nothing. A rule's identifier is
+    /// generated and a revision is a hexadecimal digest, so neither carries an at-sign and refusing it costs nothing a
+    /// caller can legitimately want.
     /// </remarks>
     private static string ValidComposedPart(string identityPart, string parameterName)
     {

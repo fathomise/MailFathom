@@ -91,6 +91,11 @@ internal sealed class MailRuleSetStore(MailFathomDbContext readContext) : IMailR
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(committed);
 
+        if (!committed.Surface.IsSpecified)
+        {
+            throw new ArgumentException("A committed change names the surface it came through.", nameof(committed));
+        }
+
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
         var accountId = committed.Account.Value;
 
@@ -111,7 +116,7 @@ internal sealed class MailRuleSetStore(MailFathomDbContext readContext) : IMailR
             Revision = committed.Revision.Value,
             ReplacedRevision = committed.ReplacedRevision.Value,
             ActorUserId = committed.Actor?.Value,
-            Surface = committed.Surface.Name,
+            Surface = committed.Surface.ToString(),
             CommittedAt = committed.CommittedAt,
             Declarations = StoredMailRuleDeclaration.SerializeSet(committed.Declarations),
         });
@@ -224,7 +229,7 @@ internal sealed class MailRuleSetStore(MailFathomDbContext readContext) : IMailR
         MailRuleSetRevision.Restore(entity.Revision),
         MailRuleSetRevision.Restore(entity.ReplacedRevision),
         entity.ActorUserId is { } actor ? UserId.Create(actor) : null,
-        MailRuleChangeSurface.Restore(entity.Surface),
+        MailRuleChangeSurface.TryParse(entity.Surface, out var surface) ? surface : default,
         entity.CommittedAt,
         StoredMailRuleDeclaration.DeserializeSet(entity.Declarations));
 }

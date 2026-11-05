@@ -180,7 +180,8 @@ would leave a rule declaring an action this account does not permit **is refused
 rather than committed with that action quietly dropped. A rule belongs to exactly one account, so the permission it is
 judged against is that account's and no other's. Narrowing this block while a stored rule declares the action is the
 one case the two do not resolve together: the permission is read again as each change is written down, so the
-withdrawal takes effect at the next pass, and the rule is refused the next time anybody writes that account's rules.
+withdrawal takes effect at the next pass, and the stored rule is refused the next time a write changes or enables it;
+a write that leaves it as stored, or disables it, still commits.
 [What an account permits a rule to do](../features/mail-rules.md#what-an-account-permits-a-rule-to-do) states why
 deletion is the one opt-in of the four.
 

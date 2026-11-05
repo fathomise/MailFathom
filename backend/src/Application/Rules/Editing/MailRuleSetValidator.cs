@@ -20,8 +20,8 @@ namespace MailFathom.Application.Rules.Editing;
 /// action is one its <c>RuleActions</c> permits, and that each destination is a folder it maps.
 /// </para>
 /// <para>
-/// Every rule is judged, enabled or not, because a created rule starts disabled and enabling it later is a write that
-/// must not be the first to discover its condition never compiled. A refusal names the rule by its identifier and never
+/// A rule the write adds or changes is judged whether it is enabled or not, because a created rule starts disabled and
+/// enabling it later must not be the first write to discover its condition never compiled. A refusal names the rule by its identifier and never
 /// quotes its name, a folder, or a keyword, because each of those is text a person typed. A condition refusal is the
 /// compiler's own reading and may quote the one identifier or function it could not read, and the position it stopped
 /// at: that is what tells the writer what to correct, and it goes back only to the caller who wrote the condition. The
@@ -66,26 +66,49 @@ public sealed class MailRuleSetValidator
 
     /// <summary>Reports everything that stops a candidate set from being committed to an account.</summary>
     /// <param name="account">The account the set would belong to, which must be one this deployment serves.</param>
+    /// <param name="stored">The set as it stands before the write, empty when the candidate replaces nothing.</param>
     /// <param name="candidate">The whole set as it would stand after the write, in position order.</param>
     /// <param name="bounds">The condition bounds in force.</param>
     /// <returns>One message per defect, empty when the set may be committed.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <remarks>
+    /// The count and the uniqueness of names and identifiers are claims about the whole set and are judged over all of it.
+    /// Every other check is judged only on a rule the write adds, changes, or enables. A rule left as it was stored, or one
+    /// the write only disables, is not judged again, because a narrowed <c>RuleActions</c>, an unmapped folder, or a lowered
+    /// bound would otherwise refuse every later write to the account — including the one disabling the rule it broke.
+    /// </remarks>
     public IReadOnlyList<string> FindErrors(
         MailAccountId account,
+        IReadOnlyList<MailRuleDeclaration> stored,
         IReadOnlyList<MailRuleDeclaration> candidate,
         MailRuleConditionBounds bounds)
     {
+        ArgumentNullException.ThrowIfNull(stored);
         ArgumentNullException.ThrowIfNull(candidate);
         ArgumentNullException.ThrowIfNull(bounds);
 
         var permitted = this.permissions.GetRuleActionPermissions(account);
+        var storedById = stored.ToDictionary(rule => rule.Id);
 
         return
         [
             .. FindSetErrors(candidate),
-            .. candidate.SelectMany(rule => this.FindRuleErrors(account, rule, permitted, bounds)),
+            .. candidate
+                .Where(rule => IsJudged(rule, storedById.GetValueOrDefault(rule.Id)))
+                .SelectMany(rule => this.FindRuleErrors(account, rule, permitted, bounds)),
         ];
     }
+
+    private static bool IsJudged(MailRuleDeclaration rule, MailRuleDeclaration? stored) =>
+        stored is null || (rule.Enabled && !stored.Enabled) || !HasSameContent(rule, stored);
+
+    private static bool HasSameContent(MailRuleDeclaration rule, MailRuleDeclaration stored) =>
+        string.Equals(rule.Name, stored.Name, StringComparison.Ordinal)
+        && string.Equals(rule.ConditionText, stored.ConditionText, StringComparison.Ordinal)
+        && rule.Actions.Select(action => action.CanonicalForm).SequenceEqual(stored.Actions.Select(action => action.CanonicalForm))
+        && rule.StopWhenMatched == stored.StopWhenMatched
+        && rule.Triggers.SequenceEqual(stored.Triggers)
+        && string.Equals(rule.Schedule?.CanonicalForm, stored.Schedule?.CanonicalForm, StringComparison.Ordinal);
 
     private static IEnumerable<string> FindSetErrors(IReadOnlyList<MailRuleDeclaration> candidate)
     {

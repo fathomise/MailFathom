@@ -14,9 +14,9 @@ namespace MailFathom.Application.Rules.Editing;
 /// <remarks>
 /// <para>
 /// Every write is one transaction that takes the set's row lock, refuses the write when the set's version is not the one
-/// the caller stated it read, builds the whole set as it would stand afterwards, validates that candidate as a whole,
-/// and only then writes the rules, moves the version by one, and appends the archive row naming the revision it produced,
-/// the revision it replaced, the actor, and the surface. A refused candidate changes no row, moves no version, and
+/// the caller stated it read, builds the whole set as it would stand afterwards, validates that candidate against the
+/// set it replaces, and only then writes the rules, moves the version by one, and appends the archive row naming the
+/// revision it produced, the revision it replaced, the actor, and the surface. A refused candidate changes no row, moves no version, and
 /// appends nothing.
 /// </para>
 /// <para>
@@ -236,7 +236,7 @@ public sealed class MailRuleSetEditor
                         : Unchanged(MailRuleSetChangeOutcome.RuleNotFound, stored, rule, []);
                 }
 
-                var errors = this.validator.FindErrors(write.Account, candidate, this.bounds);
+                var errors = this.validator.FindErrors(write.Account, stored.Declarations, candidate, this.bounds);
 
                 if (errors.Count > 0)
                 {

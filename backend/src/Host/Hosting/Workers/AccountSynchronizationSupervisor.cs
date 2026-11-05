@@ -1383,11 +1383,11 @@ internal sealed partial class AccountSynchronizationSupervisor
         }
     }
 
-    /// <summary>Emits what the rules did, in counts and rule names; nothing derived from a message may appear here.</summary>
+    /// <summary>Emits what the rules did, in counts and rule identifiers; nothing derived from a message may appear here.</summary>
     /// <remarks>
     /// A pass that found nothing says nothing, so an account whose mail is all evaluated does not repeat a line per
-    /// interval forever. A rule's name is the one part of a rule that can be promised to carry no address somebody
-    /// typed, which is what makes naming the rules that matched safe as well as useful.
+    /// interval forever. A rule is named by its generated identifier and never by its name, because the name is text a
+    /// person typed and may carry an address or anything else they chose to write.
     /// </remarks>
     private void ReportRuleEvaluation(MailRuleEvaluationReport report)
     {

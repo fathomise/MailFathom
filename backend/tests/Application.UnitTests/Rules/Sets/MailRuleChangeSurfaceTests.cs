@@ -11,34 +11,31 @@ namespace MailFathom.Application.UnitTests.Rules.Sets;
 public sealed class MailRuleChangeSurfaceTests
 {
     [Fact]
-    public void Restore_TheStoredNameOfADeclaredSurface_ReturnsThatSurface()
+    public void TryParse_TheStoredNameOfEveryDeclaredSurface_ReturnsThatSurface()
     {
         // Act
-        var restored = MailRuleChangeSurface.Restore(MailRuleChangeSurface.Administration.Name);
+        var parsed = MailRuleChangeSurface.All
+            .Select(surface => MailRuleChangeSurface.TryParse(surface.ToString(), out var read) ? read : default)
+            .ToArray();
 
         // Assert
-        Assert.Equal(MailRuleChangeSurface.Administration, restored);
-        Assert.True(restored.IsDeclared);
+        Assert.Equal(MailRuleChangeSurface.All, parsed);
     }
 
-    /// <summary>An older replica reads a row a newer one wrote, so a surface it does not know is kept rather than refused.</summary>
-    [Fact]
-    public void Restore_ANameThisBuildDoesNotDeclare_KeepsItAsAnUndeclaredSurface()
-    {
-        // Act
-        var restored = MailRuleChangeSurface.Restore("Client");
-
-        // Assert
-        Assert.Equal("Client", restored.Name);
-        Assert.False(restored.IsDeclared);
-    }
-
+    /// <summary>An older replica reads a row a newer one wrote, so a surface it does not know is unknown rather than new.</summary>
     [Theory]
+    [InlineData("Client")]
+    [InlineData("administration")]
     [InlineData("")]
-    [InlineData(" ")]
-    public void Restore_ABlankName_IsRefused(string name)
+    [InlineData(null)]
+    public void TryParse_ANameThisBuildDoesNotDeclare_AnswersTheUnspecifiedDefault(string? name)
     {
-        // Act, Assert
-        Assert.Throws<ArgumentException>(() => MailRuleChangeSurface.Restore(name));
+        // Act
+        var parsed = MailRuleChangeSurface.TryParse(name, out var surface);
+
+        // Assert
+        Assert.False(parsed);
+        Assert.False(surface.IsSpecified);
+        Assert.Equal("(unspecified)", surface.ToString());
     }
 }

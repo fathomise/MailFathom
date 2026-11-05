@@ -266,9 +266,69 @@ public sealed class MailRuleSetValidatorTests
         Assert.Equal(0, this.compiler.CompileCount);
     }
 
-    /// <summary>A refusal is read, returned, and may be logged, so it names the rule by identifier and never echoes what a person typed.</summary>
+    /// <summary>
+    /// A narrowed <c>RuleActions</c> is not checked against stored rules, so a rule it broke blocks no write that leaves
+    /// the rule as it was stored.
+    /// </summary>
     [Fact]
-    public void FindErrors_ARefusedRule_QuotesNeitherItsNameItsConditionNorItsFolder()
+    public void FindErrors_AStoredRuleNoLongerPermittedLeftAsItWas_DoesNotRefuseAnUnrelatedCreate()
+    {
+        // Arrange
+        var deleting = Declared("delete-it") with { Actions = [MailRuleAction.Delete()] };
+        var created = Declared("created") with { Enabled = false };
+
+        // Act
+        var errors = this.FindErrors([deleting], [deleting, created]);
+
+        // Assert
+        Assert.Empty(errors);
+    }
+
+    /// <summary>Disabling the rule that broke is how a write takes it out of the set's way, so it is not judged again.</summary>
+    [Fact]
+    public void FindErrors_AStoredRuleNoLongerPermittedBeingDisabled_FindsNothing()
+    {
+        // Arrange
+        var deleting = Declared("delete-it") with { Actions = [MailRuleAction.Delete()] };
+
+        // Act
+        var errors = this.FindErrors([deleting], [deleting with { Enabled = false }]);
+
+        // Assert
+        Assert.Empty(errors);
+    }
+
+    /// <summary>Enabling a stored rule is a write that puts it back into every pass, so it is judged as if it were new.</summary>
+    [Fact]
+    public void FindErrors_AStoredRuleNoLongerPermittedBeingEnabled_IsRefused()
+    {
+        // Arrange
+        var deleting = Declared("delete-it") with { Enabled = false, Actions = [MailRuleAction.Delete()] };
+
+        // Act
+        var errors = this.FindErrors([deleting], [deleting with { Enabled = true }]);
+
+        // Assert
+        Assert.Single(errors);
+    }
+
+    /// <summary>A rule whose content the write changes is judged, whichever field moved.</summary>
+    [Fact]
+    public void FindErrors_AStoredRuleNoLongerPermittedBeingRenamed_IsRefused()
+    {
+        // Arrange
+        var deleting = Declared("delete-it") with { Actions = [MailRuleAction.Delete()] };
+
+        // Act
+        var errors = this.FindErrors([deleting], [deleting with { Name = "renamed" }]);
+
+        // Assert
+        Assert.Single(errors);
+    }
+
+    /// <summary>A refusal names the rule by identifier and never quotes the name or the folder a person typed.</summary>
+    [Fact]
+    public void FindErrors_ARefusedRule_QuotesNeitherItsNameNorItsFolder()
     {
         // Arrange
         this.permissions
@@ -311,7 +371,11 @@ public sealed class MailRuleSetValidatorTests
         return Declared(name) with { Triggers = [MailRuleTrigger.Schedule], Schedule = recurrence };
     }
 
-    private IReadOnlyList<string> FindErrors(IReadOnlyList<MailRuleDeclaration> candidate) =>
+    private IReadOnlyList<string> FindErrors(IReadOnlyList<MailRuleDeclaration> candidate) => this.FindErrors([], candidate);
+
+    private IReadOnlyList<string> FindErrors(
+        IReadOnlyList<MailRuleDeclaration> stored,
+        IReadOnlyList<MailRuleDeclaration> candidate) =>
         new MailRuleSetValidator(this.compiler, this.permissions, this.folderMappings.Resolver)
-            .FindErrors(Account, candidate, MailRuleConditionBounds.Default);
+            .FindErrors(Account, stored, candidate, MailRuleConditionBounds.Default);
 }

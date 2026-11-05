@@ -94,10 +94,12 @@ edits that each validate — one person moving a rule above another while somebo
 pass — can produce a set neither of them wrote. The lock is the set's alone and serializes writes to one account's rules
 across every replica; a pass reading the set takes none.
 
-**The whole set is validated as it would stand afterwards.** A write builds the candidate — every rule, in order — and
-judges all of it, so a write is refused for a defect it would leave anywhere in the set rather than only in the rule it
-names. [What a rule set is checked for](#what-a-rule-set-is-checked-for) lists every check, and every defect is reported
-together. **A refused write commits nothing**: no rule row changes, the version stays where it was, and nothing is
+**The set is validated as it would stand afterwards.** A write builds the candidate — every rule, in order — and judges
+the set as a whole for its size and for names and identifiers that repeat. Every other check is made on each rule the
+write adds, changes, or enables; a rule it leaves as stored, or only disables, is not judged again, so a stored rule a
+narrowed permission, an unmapped folder, or a lowered bound broke never blocks a write about another rule, nor the write
+disabling it. [What a rule set is checked for](#what-a-rule-set-is-checked-for) lists every check, and every defect is
+reported together. **A refused write commits nothing**: no rule row changes, the version stays where it was, and nothing is
 archived.
 
 **Every committed write is archived.** It appends one row naming the account, the version it produced, the revision it
@@ -130,7 +132,9 @@ While a set is held:
   with the condition.
 
 A disabled rule never holds a set, because no pass would compile it. A write repairs a held set the way it changes any
-other: replacing or disabling the rules that no longer compile, or removing them.
+other: replacing or disabling the rules that no longer compile, or removing them. The rule holding the set is not judged
+again by a write that leaves it as stored, so a write about another rule commits while the set stays held, and disabling
+the rule that holds it is always a write that commits.
 
 ## Previewing a rule
 
@@ -470,8 +474,9 @@ account's `RuleActions` or to change the rule.
 **Withdrawing a permission takes effect at the next pass, not at the next write to the rules.** The account's settings
 and its rules are written independently, so narrowing what an account permits leaves a rule set nobody edited in force;
 the permission is therefore read again when each change is written down, and an action it now refuses is
-[a failed action](#when-a-change-cannot-be-made) rather than one more deletion. The rule itself stays as stored, and the
-next write to the account's rules is refused until it is changed, which is the message that says what to edit.
+[a failed action](#when-a-change-cannot-be-made) rather than one more deletion. The rule itself stays as stored and
+blocks no write that leaves it so; a write that changes or enables it is refused until the action is permitted again or
+taken out of the rule, which is the message that says what to edit.
 
 ### When a change cannot be made
 
@@ -663,8 +668,10 @@ can follow, and depth alone would admit a flat expression of ten thousand terms.
 
 ## What a rule set is checked for
 
-Every write judges the whole set as it would stand afterwards, and every condition in it is compiled — a disabled
-rule's included, so enabling a rule is never the moment its defects are discovered. Compiling one checks four things:
+Every write judges each rule it adds, changes, or enables, and compiles that rule's condition — a disabled rule's
+included, so a rule written disabled is never first found wanting when it is enabled; enabling one judges it again
+against the account as it now stands. A rule the write leaves as stored, or only disables, is not judged again.
+Compiling a condition checks four things:
 
 - **Syntax.** The condition parses, and a failure reports the position it failed at.
 - **The names.** Every identifier is one of the twenty-six facts and every call is one of the seven functions.
@@ -673,7 +680,7 @@ rule's included, so enabling a rule is never the moment its defects are discover
 - **The result.** The condition produces a boolean. A condition producing text or a number is refused rather than read
   as truthy, so what a rule means never depends on a coercion nobody wrote down.
 
-The set itself is checked beside those four: it keeps at most 200 rules, no two of them share a name without regard to
+The set itself is checked as a whole beside those four, on every write: it keeps at most 200 rules, no two of them share a name without regard to
 case, and no identifier appears twice. So is each rule's own shape: a name of 1 to 128 characters with no control
 character, triggers that each name something and none twice, and a schedule exactly when the rule declares the
 `Schedule` trigger — a rule declaring the trigger carries one, and a rule carrying one declares the trigger.
@@ -686,7 +693,7 @@ So are its changes, against the rule itself and against its account:
 - **The combination.** The changes are ones MailFathom applies together, per [the table above](#which-combinations-a-rule-may-declare).
 - **The permissions.** Every change is one the account's `RuleActions` permits a rule to take.
 
-Every defect in every rule is reported together, so a set with three mistakes is fixed in one write rather than three.
+Every defect in every rule judged is reported together, so a set with three mistakes is fixed in one write rather than three.
 Each names the rule by its identifier and says what is wrong, and none quotes the rule's name, a folder, or a keyword,
 because each of those is text a person typed. A condition that does not compile is reported the way the compiler read
 it — the position it stopped at, and the one fact or function name it could not read — because that is what says what

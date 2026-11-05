@@ -114,7 +114,7 @@ public sealed class MailRulePreview
             return MailRulePreviewResult.Unevaluated(MailRulePreviewOutcome.RuleNotFound, []);
         }
 
-        var errors = this.validator.FindErrors(request.Account, [declaration], this.bounds);
+        var errors = this.validator.FindErrors(request.Account, [], [declaration], this.bounds);
 
         if (errors.Count > 0)
         {

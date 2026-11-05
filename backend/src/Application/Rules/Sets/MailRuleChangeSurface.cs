@@ -9,38 +9,43 @@ namespace MailFathom.Application.Rules.Sets;
 /// <para>
 /// A closed enumeration rather than an enum, because the name is written into an append-only row and read back by every
 /// later build: the stored name is the identity, so renaming a member here never rewrites what an archive already holds.
+/// It is never serialized as JSON, so it carries no converter.
 /// </para>
 /// <para>
 /// The client API adds its own value when it starts writing rules; MCP never will, because no MCP tool reads or changes
-/// a rule. During a rolling upgrade an older replica meets the newer value in rows the newer one wrote, so
-/// <see cref="Restore" /> keeps a name this build does not declare rather than refusing the row: the archive is still the
-/// record of the change and still what a run's revision resolves against.
+/// a rule. During a rolling upgrade an older replica meets the newer value in rows the newer one wrote, and
+/// <see cref="TryParse" /> answers such a name with the unspecified default rather than refusing the row: the archive is
+/// still the record of the change and still what a run's revision resolves against, and a surface nothing here declares
+/// is unknown rather than new. The default is reachable as for every struct; the store refuses to archive it.
 /// </para>
 /// </remarks>
 public readonly record struct MailRuleChangeSurface
 {
-    private MailRuleChangeSurface(string name) => this.Name = name;
+    private readonly string? name;
+
+    private MailRuleChangeSurface(string name) => this.name = name;
 
     /// <summary>Gets the administrative endpoint, which <c>mfctl</c> reaches.</summary>
     public static MailRuleChangeSurface Administration { get; } = new("Administration");
 
-    /// <summary>Gets the name the archive stores.</summary>
-    public string Name { get; }
+    /// <summary>Gets every surface this build declares.</summary>
+    /// <remarks>Declared last so the members it lists are already initialized when this initializer runs.</remarks>
+    public static IReadOnlyList<MailRuleChangeSurface> All { get; } = [Administration];
 
-    /// <summary>Gets whether this build declares the surface, rather than having read it from a row a newer build wrote.</summary>
-    public bool IsDeclared => this == Administration;
+    /// <summary>Gets whether this value names a declared surface rather than the unusable struct default.</summary>
+    public bool IsSpecified => this.name is not null;
 
     /// <summary>Reads a surface back from the name an archive row stores.</summary>
     /// <param name="name">The stored name.</param>
-    /// <returns>The declared surface of that name, or a surface carrying a name this build does not declare.</returns>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="name" /> is blank, which no build writes.</exception>
-    public static MailRuleChangeSurface Restore(string name)
+    /// <param name="surface">The declared surface of that name, or the unspecified default when none is.</param>
+    /// <returns><see langword="true" /> when this build declares a surface of that name.</returns>
+    public static bool TryParse(string? name, out MailRuleChangeSurface surface)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        surface = All.FirstOrDefault(candidate => string.Equals(candidate.name, name, StringComparison.Ordinal));
 
-        return name == Administration.Name ? Administration : new MailRuleChangeSurface(name);
+        return surface.IsSpecified;
     }
 
     /// <inheritdoc />
-    public override string ToString() => this.Name;
+    public override string ToString() => this.name ?? "(unspecified)";
 }

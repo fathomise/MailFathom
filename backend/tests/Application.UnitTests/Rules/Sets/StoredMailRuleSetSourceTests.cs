@@ -137,6 +137,27 @@ public sealed class StoredMailRuleSetSourceTests
         Assert.Equal(compilations + 1, this.compiler.CompileCount);
     }
 
+    /// <summary>
+    /// A version repeats once an account is deleted and created again under the same identifier, so a remembered set of
+    /// the old account is never run against the new one merely because the two reached the same version.
+    /// </summary>
+    [Fact]
+    public async Task ReadAsync_TheSameVersionOfARecreatedAccount_CompilesTheNewSet()
+    {
+        // Arrange
+        this.store.Arrange(new StoredMailRuleSet(Account, 2, [Declared("delete-everything", "isSeen")]));
+        await this.CreateSource().ReadAsync(Account, TestContext.Current.CancellationToken);
+        var recreated = new StoredMailRuleSet(Account, 2, [Declared("file-invoices", "isSeen")]);
+        this.store.Arrange(recreated);
+
+        // Act
+        var ruleSet = await this.CreateSource().ReadAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(recreated.Revision, ruleSet.Revision);
+        Assert.Equal([MailRuleIds.For("file-invoices")], ruleSet.Rules.Select(rule => rule.Id));
+    }
+
     /// <summary>A set compiled under other bounds may hold a condition these bounds refuse, so it is never reused across them.</summary>
     [Fact]
     public async Task ReadAsync_TheSameRevisionUnderOtherBounds_IsCompiledAgain()

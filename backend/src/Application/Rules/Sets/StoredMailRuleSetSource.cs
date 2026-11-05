@@ -8,7 +8,7 @@ using MailFathom.Domain.Accounts;
 
 namespace MailFathom.Application.Rules.Sets;
 
-/// <summary>Reads one account's stored rules and compiles its enabled ones, once per version and bounds.</summary>
+/// <summary>Reads one account's stored rules and compiles its enabled ones, once per version, revision, and bounds.</summary>
 /// <remarks>
 /// A set whose enabled rules do not all compile is returned held rather than run in part: an ordered, stop-when-matched
 /// set with one rule removed is a set nobody wrote, and it can file mail a rule above it was written to stop. Each rule
@@ -50,14 +50,16 @@ public sealed class StoredMailRuleSetSource : IMailRuleSetSource
     {
         var stored = await this.store.ReadAsync(account, cancellationToken);
 
-        if (this.cache.TryFind(account, stored.Version, this.bounds, out var remembered))
+        var revision = stored.Revision;
+
+        if (this.cache.TryFind(account, stored.Version, revision, this.bounds, out var remembered))
         {
             return remembered;
         }
 
-        var compiled = Compile(stored.Declarations, stored.Revision, this.compiler, this.bounds);
+        var compiled = Compile(stored.Declarations, revision, this.compiler, this.bounds);
 
-        this.cache.Remember(account, stored.Version, this.bounds, compiled);
+        this.cache.Remember(account, stored.Version, revision, this.bounds, compiled);
 
         return compiled;
     }
