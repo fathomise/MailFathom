@@ -141,7 +141,10 @@ live document, so it is made unwritable everywhere under `frontend/src/` except 
 `writtenIn` uses, widened as Question 2 widens it. An element outside the set is unwrapped to what it holds; a link
 `followable` refuses keeps its words and loses the link; a picture whose source is a remote address, a `file:` path, or
 a `cid:` reference is dropped and never fetched; a picture whose source is a `data:` URI of an accepted type is decoded
-by hand (`atob`, no request) and becomes a picture the composer holds, under Question 4's bounds; a heading becomes a
+by hand (`atob`, no request) and becomes a picture the composer holds, under Question 4's bounds; a `blob:` source is
+accepted only when it is an object URL in this composer's own map, and then resolves to the picture it names — which is
+what copying or cutting a picture inside the message puts on the clipboard — and any other `blob:`, another tab's
+included, is dropped; a heading becomes a
 paragraph whose runs are bold at the size its level maps to (Question 6). Nothing is re-serialized from the inert
 document and nothing of it survives the walk.
 
@@ -161,6 +164,13 @@ Reading presentation uses the engine's own parsers and nothing hand-written:
 
 Only these properties are read, everything else being ignored: `color`, `background-color` (and the colour in a
 `background` shorthand), `font-weight`, `font-style`, `text-decoration-line`, `text-align`, and `font-size`.
+
+**A paste is not the only way foreign content arrives, so the rule is held on every insertion rather than on one
+event.** A drop — `insertFromDrop` — and any other `beforeinput` whose data transfer carries `text/html` or files has
+its native insertion prevented and goes through the same flavour order (Question 7) and the same `clipboardReading.ts`
+as a paste. Otherwise a selection dragged from a web page or another mail client would be inserted by the engine
+natively, fetching its pictures and applying its style element to the page — the outcome P2 is refused for. An insertion
+carrying neither, such as typing, stays the engine's.
 
 **What has to be proven for *runs nothing and fetches nothing* to hold.** The HTML standard disables scripting for a
 document `DOMParser` creates, and such a document has no browsing context to fetch a resource for; that is the claim,
@@ -294,8 +304,11 @@ existing shape rather than beside it.
 | Pictures in one composition | 16 | Far under the reduction's 64, and a person pasting a seventeenth is told rather than surprised |
 | Types | PNG, JPEG, GIF | The three every mail client draws, as for a footer; SVG stays excluded for the reason `MailInlineImages` gives |
 
-The whole message is still held to `MaxMessageBytes`. A picture beyond one of these is refused when it is pasted, as
-#2848 draws it, and the composition is left as it was. A reopened draft reads a picture back through the reduced
+**The service holds every row, and the client mirrors it.** The draft and send routes refuse a composition past any of
+them — by count before a picture is decoded, then by each picture's octets and by their sum — so no caller of those
+routes reaches the 4 MiB reasoning above by not being the composer. The whole message is still held to
+`MaxMessageBytes`. The composer refuses a picture beyond one of these when it is pasted, as #2848 draws it, so a person
+learns at the paste rather than at the send, and the composition is left as it was. A reopened draft reads a picture back through the reduced
 document, whose `data:` source `draftWords.ts` decodes into a picture the composer holds under a name of its own.
 
 **Keeping (S1).** The session store keeps the tree with each picture's name, and the pictures' octets under a key of
@@ -305,8 +318,10 @@ record it cannot read whole. The write is attempted and its refusal caught: the 
 survives a reload, rather than a number guessed here. **A refused pictures write removes the earlier pictures value**,
 so octets kept for an older tree are never read against a newer one; a reload then reads the tree without the pictures
 it names, which Question 2 drops rather than refuses. Where the store refused, the pictures live in memory only and the
-composer says that a reload would lose them, which is a state #2848 draws. Object URLs are revoked when their picture
-leaves the composition and when the composer closes.
+composer says that a reload would lose them, which is a state #2848 draws. **A picture that leaves the tree keeps its
+octets and its object URL until the composition ends** — it is sent, saved, discarded, or its composer closes — rather
+than being revoked at once, so a picture cut and pasted elsewhere in the message, or brought back by Ctrl+Z, is still
+the composer's to resolve. Only the pictures the tree names are kept in the store, counted against the bounds, or sent.
 
 ### Question 5: `execCommand` stays for what it does inside the set, and structural operations are functions over the tree
 
@@ -349,8 +364,10 @@ A paste is decided in this order, and the first that applies is the paste:
 2. **`text/plain` that is exactly one address `followable` accepts** makes a link, as
    [#2851](https://github.com/fathomise/MailFathom/issues/2851) states — over the selection, or showing the address.
 3. **`text/html`** is read by Question 1's rule, and is the paste when it reads to a tree with anything in it.
-4. **Picture files** on the clipboard, with no `text/html` beside them, are pasted as pictures. Excel and Word put a
-   picture of the copied range beside their HTML, and that picture is the same content drawn again, so the HTML wins.
+4. **Picture files** on the clipboard, where `text/html` is absent or read to an empty tree in step 3, are pasted as
+   pictures. Excel and Word put a picture of the copied range beside their HTML, and that picture is the same content
+   drawn again, so HTML that reads to something wins. A browser's *Copy image* puts the picture beside a `text/html` of
+   one remote `<img>`, which step 3 drops to nothing, so there the picture is the paste.
 5. **`text/plain` whose every non-empty line splits on tabs into the same two or more cells** becomes a table.
 6. **`text/plain`** is pasted as text.
 
@@ -384,8 +401,18 @@ messages by position. `ReplyDraftReading.cs` resolves the number against the lis
 link naming none, keeping its words; an address the model typed is never a target. That makes an address from
 outside the exchange impossible rather than unlikely. What it cannot stop is the model linking words to an address an
 attacker's own message carried, so the drafting block shows each link's host beside its words before the draft is
-accepted, as #2848 draws it. **A heading is not something the agent writes**: a section opens with a short bold lead-in run,
-which is the structure #2856 asks for and the one form both a plain-text reader and a mail client read the same way.
+accepted, as #2848 draws it.
+
+**The model is shown an entry, never the address behind it.** A target is often a credential in its own right — a
+password-reset link, a sign-in link, a signed download, an unsubscribe token — and the turn today carries only guarded
+text. So each entry the turn publishes carries only the target's host and the words it was linked from, both passed
+through the egress guard as fields of `GuardedDraftingTurn`, like every other text the turn hands the model. The full
+address stays in the unguarded list the deployment composed, which is what `ReplyDraftReading.cs` resolves the cited
+number against, so a link the draft carries is the one the correspondence held and its query string never leaves the
+deployment.
+
+**A heading is not something the agent writes**: a section opens with a short bold lead-in run, which is the structure
+#2856 asks for and the one form both a plain-text reader and a mail client read the same way.
 
 `ReplyDraftReading.cs` reads the blocks at the AI boundary into the reduced document's own types, holding them to the
 closed set and to Question 2's bounds and dropping anything outside to its words, and the drafting response carries that
@@ -437,22 +464,27 @@ the subset it would be used for.
 - **The unit suite proves the tree and the reader as attacks rather than as examples.** `clipboardReading.ts` over the
   fixture document of Question 1 returns no script, handler, style sheet, remote address, or `file:` and `cid:` picture;
   every row of the size table maps as stated; a colour with transparency, a body-text foreground, and a page-light
-  background are dropped; a table one row, one column, or one level past a bound is refused; `writtenTextIn` refuses a
+  background are dropped; a table one row or one column past a bound is refused, and a nested table is unwrapped to its
+  cells' contents; a `blob:` source in the composer's own map resolves to its picture and any other is dropped;
+  `writtenTextIn` refuses a
   stored tree holding each value outside the set, and reads a tree whose picture the kept pictures do not hold with that
   picture dropped and its words, recipients, and subject intact; every structural operation is a pure function tested
   without a DOM; and `htmlOf` writes the same tree with a picture as `cid:<name>` for the HTML part and as its object
   URL for the editor, identical in everything else.
 - **The browser suite** reads the fixture clipboard document against the built client on Chromium and asserts no
-  request left the page and no script ran; it pastes a formatted block and a spreadsheet range from recorded clipboard
+  request left the page and no script ran, once pasted and once dropped onto the region; it pastes a copied image whose
+  clipboard carries a remote `<img>` beside the picture, and asserts the picture arrives; it pastes a formatted block and a spreadsheet range from recorded clipboard
   fixtures with made-up data; and it proves each structural operation round-trips — the tree written through
   `insertHTML` and read back by `writtenIn` is the tree that was written.
 - **The desktop suite** repeats the fixture read, a spreadsheet paste, and a pasted picture in WebKitGTK, the shell's own
   WebView.
 - **By hand, once each**: the clipboard flavours WebView2 presents on Windows, before #2855 closes; and a message with a
   table, a picture, a colour, and a size read in Outlook, Gmail, and Apple Mail, before #2846 closes.
-- **On the service**, #2849's refusals and round trip, #2850's mapping, and #2856's reading and evaluation cases are each
+- **On the service**, #2849's refusals — one per row of Question 4's bounds table, each one past it, and the count
+  refused before anything is decoded — and its round trip, #2850's mapping, and #2856's reading and evaluation cases are each
   tested in the change that adds them, against the values recorded here — #2856's including a link citing a position
-  the turn did not publish, and a link written as an address, both read as words.
+  the turn did not publish, and a link written as an address, both read as words, and a published entry that carries
+  the target's guarded host and words and never the address itself.
 
 ## Pros and Cons of the Options
 
