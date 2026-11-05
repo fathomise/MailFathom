@@ -222,14 +222,18 @@ I rate the litigation risk as *low*. An uncapped clause with CPI above 8% could,
       { label: "Open question", value: "None" },
       { label: "Commitment", value: "Complete by 05.09" },
     ],
+    // The sender wrote a headline, a larger lead-in, and small print, so this body is where a sender's text size is drawn.
     body: [
+      { md: "{largest*:Satisfaction survey 2026}" },
       {
         text: "Please fill in the annual satisfaction survey. It takes about seven minutes and is fully anonymous - an external platform collects the answers and we only see aggregate results.",
       },
+      { md: "{large*:Six areas, two open questions}" },
       {
         text: "The survey covers six areas plus two open questions. Last year 78% of the team completed it; that is what the training budget and flexible start hours came from.",
       },
-      { text: "Deadline: 5 September. We will discuss the results at the September all-hands." },
+      { md: "Deadline: {larger:5 September}. We will discuss the results at the September all-hands." },
+      { md: "{small:Answers are collected by an external survey platform and kept for 12 months. Reply to this message to ask what is stored.}" },
     ],
     attachments: [],
   },

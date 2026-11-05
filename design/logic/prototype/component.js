@@ -9,6 +9,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     avatars: AVATARS, contacts: CONTACTS, contactInsights: CONTACT_AI, organization: ORGANIZATION,
     threads: THREADS, earlierMessages, threadMailBodies, conversationTitles: CONV_TITLES, newInThread: NEW_IN_THREAD, sentLast: SENT_LAST, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
     mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO, sendLater: SEND_LATER,
+    composeFormatting: COMPOSE_FMT, composeFormattedDraft: COMPOSE_FORMATTED_DRAFT,
     accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, freshness: FRESHNESS, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
     home: HOME, savedAnswers: SAVED_ANSWERS, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
     calendarBriefing: CALENDAR_BRIEFING, eventFromThread: EVENT_FROM_THREAD, taskCapacity: TASK_CAPACITY,
@@ -21,7 +22,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     notifications: NOTIFS, incomingNotifications: INCOMING, demoBatches: DEMO_BATCHES,
     senderMarks: SENDER_MARKS, receipts: RECEIPTS, receiptRequests: RECEIPT_REQUESTS, trustedLinkDomains: TRUSTED_LINK_DOMAINS, messageSources: MESSAGE_SOURCES,
   } = MailFathomDesign.data;
-  const { mdPlain, mdView, MDTXT } = MailFathomDesign.markdown;
+  const { mdPlain, mdView, MDTXT, MDSIZE } = MailFathomDesign.markdown;
   const { HTML_SHELL, embedHtml, embedLinks, htmlFallback } = MailFathomDesign.mailHtml;
 
   /* CLIENT STATES — INVENTORY (drawn in “client-states.dc.html”).
@@ -756,6 +757,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(this.tbReset);
       document.addEventListener("mousedown", this.onDocDown, true);
       document.addEventListener("keydown", this.onDocKey);
+      document.addEventListener("selectionchange", this.noteEditorCaret);
       window.addEventListener("message", this.onHtmlFrameMessage);
       window.addEventListener("popstate", this.onBackPressed);
       document.addEventListener("click", this.onLinkClick, true);
@@ -2954,6 +2956,243 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (el) el.innerHTML = html;
     };
 
+    /* RICH FORMATTING IN THE EDITOR
+       A menu on the formatting bar takes focus from the editor, so the selection it acts on is kept when it opens and
+       put back before it acts. A table is drawn as it is sent: a header row of bold cells, the one 1 px border every
+       table carries (`#d0d5dd` in the HTML part, the theme's rule here), and 4 px by 8 px of padding. */
+    static cellCss = "border:1px solid var(--border2);padding:4px 8px;min-width:48px;vertical-align:top;text-align:start";
+    static headCss = "font-weight:600";
+    static sizeEm = (key) => { const m = /font-size:([\d.]+em)/.exec(MDSIZE[key] || ""); return m ? m[1] : ""; };
+    escapeHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    /* `rows` holds cells as text, or as { text, align } where the source stated an alignment. */
+    tableHtml = (rows, header) => {
+      const body = rows.map((r, ri) => "<tr>" + r.map(c => {
+        const v = typeof c === "object" ? c.text : c, align = typeof c === "object" ? c.align : "";
+        const head = header && ri === 0;
+        const css = Component.cellCss + (head ? ";" + Component.headCss : "") + (align ? ";text-align:" + align : "");
+        return "<" + (head ? "th" : "td") + " style=\"" + css + "\">" + (String(v).trim() ? this.escapeHtml(v) : "<br>") + "</" + (head ? "th" : "td") + ">";
+      }).join("") + "</tr>").join("");
+      /* A table wider than the editor scrolls sideways inside it rather than widening the composer. */
+      return "<table data-mf-table style=\"border-collapse:collapse;margin:4px 0 12px 0;font-size:14px;display:block;max-width:100%;overflow-x:auto\"><tbody>" + body + "</tbody></table>";
+    };
+    formattedBlockHtml = (b) => b.table ? this.tableHtml(b.table.map((r, ri) => r.map(v => ri > 0 && /^[€$£]?[\d][\d.,]*\s?h?$/.test(v) ? { text: v, align: "end" } : v)), true)
+      : b.list ? "<ul style=\"margin:0;padding-left:22px\">" + b.list.map(i => "<li>" + this.escapeHtml(i) + "</li>").join("") + "</ul>"
+      : b.lead ? "<b>" + this.escapeHtml(b.lead) + "</b>"
+      : this.escapeHtml(b.p).replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (m, words, href) =>
+        /* Until the draft is accepted, each link the agent wrote names its host beside its words. */
+        "<a href=\"" + href + "\">" + words + "</a><span data-mf-link-host contenteditable=\"false\" style=\"margin-left:6px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--text2);font-size:12px;white-space:nowrap\">goes to " + hostOf(href) + "</span>");
+    saveRange = () => {
+      const el = this.bodyRef.current, sel = window.getSelection();
+      if (el && sel && sel.rangeCount && el.contains(sel.anchorNode)) this.savedRange = sel.getRangeAt(0).cloneRange();
+    };
+    restoreRange = () => {
+      const el = this.bodyRef.current;
+      if (!el) return;
+      el.focus();
+      if (this.savedRange) { const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(this.savedRange); }
+    };
+    openFmtMenu = (key, e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      this.saveRange();
+      const t = e && e.currentTarget, wrap = t && t.closest("[data-compose-format]");
+      const width = key === "colour" ? 300 : key === "table" ? 280 : 220;
+      const left = t && wrap ? Math.max(8, Math.min(t.getBoundingClientRect().left - wrap.getBoundingClientRect().left - 8, wrap.offsetWidth - width - 8)) : 12;
+      this.setState(s => ({ fmtMenu: s.fmtMenu === key ? null : key, fmtMenuLeft: left, tableDraft: key === "table" ? { rows: COMPOSE_FMT.table.defaultRows, cols: COMPOSE_FMT.table.defaultColumns, header: true } : s.tableDraft }));
+    };
+    /* A colour or a size is one span around the selection, and whatever colour or size the selection carried inside it
+       gives way to it, so the newest choice is the one that shows. *Automatic* and *Normal* leave no span value. */
+    restyleSelection = (prop, value) => {
+      this.restoreRange();
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount || sel.getRangeAt(0).collapsed) return;
+      const r = sel.getRangeAt(0);
+      const frag = r.extractContents();
+      frag.querySelectorAll("*").forEach(n => { if (n.style) n.style[prop] = ""; });
+      const span = document.createElement("span");
+      if (value) span.style[prop] = value;
+      span.appendChild(frag);
+      r.insertNode(span);
+      const nr = document.createRange();
+      nr.selectNodeContents(span);
+      sel.removeAllRanges();
+      sel.addRange(nr);
+    };
+    pickColour = (c) => { this.restyleSelection("color", c ? "var(--ink-" + c.key + ")" : ""); this.setState({ fmtMenu: null, fmtColour: c ? c.key : null }); };
+    pickSize = (z) => { this.restyleSelection("fontSize", Component.sizeEm(z.key)); this.setState({ fmtMenu: null, fmtSize: z.key }); };
+    pickAlign = (a) => { this.restoreRange(); this.exec(a.command); this.setState({ fmtMenu: null, fmtAlign: a.key }); };
+    insertTable = () => {
+      const d = this.state.tableDraft || { rows: 3, cols: 3, header: true };
+      const rows = Array.from({ length: d.rows }, () => Array.from({ length: d.cols }, () => ""));
+      this.restoreRange();
+      this.exec("insertHTML", this.tableHtml(rows, d.header) + "<p><br></p>");
+      this.setState({ fmtMenu: null });
+    };
+    /* Where the caret stands decides which strip shows under the bar: the table's controls while it is in a cell. */
+    noteEditorCaret = () => {
+      const el = this.bodyRef.current, sel = window.getSelection();
+      const node = sel && sel.rangeCount && el && el.contains(sel.anchorNode) ? sel.anchorNode : null;
+      const cell = node ? (node.nodeType === 1 ? node : node.parentElement).closest("td,th") : null;
+      this.caretCell = cell && el.contains(cell) ? cell : null;
+      if (!!this.caretCell !== !!this.state.tableCaret) this.setState({ tableCaret: !!this.caretCell });
+    };
+    tableAct = (act) => {
+      const cell = this.caretCell;
+      if (!cell) return;
+      const row = cell.parentElement, table = cell.closest("table");
+      const col = Array.prototype.indexOf.call(row.children, cell);
+      const rows = Array.from(table.querySelectorAll("tr"));
+      const blank = (like) => { const c = document.createElement(like.tagName === "TH" && act.indexOf("col") === 0 ? "th" : "td"); c.setAttribute("style", like.tagName === "TH" && act.indexOf("col") === 0 ? like.getAttribute("style") : Component.cellCss); c.innerHTML = "<br>"; return c; };
+      if (act === "rowAbove" || act === "rowBelow") {
+        const tr = document.createElement("tr");
+        Array.from(row.children).forEach(c => tr.appendChild(blank(c)));
+        row.parentElement.insertBefore(tr, act === "rowAbove" ? row : row.nextSibling);
+      } else if (act === "colBefore" || act === "colAfter") {
+        rows.forEach(r => { const ref = r.children[col]; if (ref) r.insertBefore(blank(ref), act === "colBefore" ? ref : ref.nextSibling); });
+      } else if (act === "removeRow") {
+        if (rows.length > 1) row.remove(); else table.remove();
+      } else if (act === "removeCol") {
+        if (row.children.length > 1) rows.forEach(r => r.children[col] && r.children[col].remove()); else table.remove();
+      } else if (act === "deleteTable") {
+        table.remove();
+      }
+      if (this.bodyRef.current) this.bodyRef.current.focus();
+      this.noteEditorCaret();
+    };
+    /* A picture is chosen by a press on it, which outlines it and shows its strip; *Remove picture* or Delete takes it. */
+    editorPress = (e) => {
+      const el = this.bodyRef.current;
+      if (!el) return;
+      el.querySelectorAll("img[data-mf-picture]").forEach(i => { i.style.outline = ""; });
+      const img = e.target && e.target.tagName === "IMG" && e.target.hasAttribute("data-mf-picture") ? e.target : null;
+      this.selectedPicture = img;
+      if (img) img.style.outline = "2px solid var(--accent)";
+      this.setState({ pictureSel: img ? { name: img.getAttribute("data-name"), size: img.getAttribute("data-size") } : null, fmtMenu: null });
+    };
+    removePicture = () => {
+      if (this.selectedPicture) this.selectedPicture.remove();
+      this.selectedPicture = null;
+      this.setState({ pictureSel: null });
+      this.notePictures();
+    };
+    /* The session store keeps a composition's pictures under a key of their own, and the platform's quota decides what it
+       takes. The sample's store takes `sampleStoreBytes`; past it the pictures live in this window only, and the
+       composer says so until they fit again. */
+    picturesHeld = () => Array.from((this.bodyRef.current || document.createElement("div")).querySelectorAll("img[data-mf-picture]"));
+    notePictures = () => {
+      const bytes = this.picturesHeld().reduce((n, i) => n + Number(i.getAttribute("data-bytes") || 0), 0);
+      const memoryOnly = bytes > COMPOSE_FMT.pictures.sampleStoreBytes;
+      if (memoryOnly !== !!this.state.picturesInMemory) this.setState({ picturesInMemory: memoryOnly });
+    };
+    fileSize = (n) => n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1).replace(/\.0$/, "") + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+    unselectPicture = () => {
+      if (!this.selectedPicture) return;
+      this.selectedPicture.style.outline = "";
+      this.selectedPicture = null;
+      this.setState({ pictureSel: null });
+    };
+    /* A paste is read, never taken as it came, in ADR 0047's order: Ctrl+Shift+V carries plain text alone, so it lands as
+       words; one address becomes a link; formatted text is read into the closed set, a spreadsheet's table included; a
+       picture with no formatted text beside it is checked against the bounds; tab-separated lines become a table. A
+       paste past a bound is refused whole, never cut, and says so in a line above the editor. */
+    composePaste = (e) => {
+      const cd = e.clipboardData;
+      if (!cd) return;
+      e.preventDefault();
+      this.unselectPicture();
+      this.saveRange();
+      this.setState({ pasteNotice: null, fmtMenu: null });
+      const P = COMPOSE_FMT.pictures;
+      const html = cd.getData("text/html") || "";
+      const text = cd.getData("text/plain") || "";
+      const plain = text.trim();
+      /* Ctrl+Shift+V lands the words alone. So does any paste into a table cell, which holds words, colour and size only. */
+      if (this.plainPaste || this.caretCell) {
+        this.plainPaste = false;
+        if (!plain && cd.files && cd.files.length) return this.setState({ pasteNotice: { text: "Nothing was pasted - a table cell holds words, colour and size only, so a picture goes outside the table." } });
+        return this.exec("insertText", this.caretCell ? text.replace(/[\t\r\n]+/g, " ").trim() : text);
+      }
+      if (/^https?:\/\/\S+$/i.test(plain)) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount && !sel.getRangeAt(0).collapsed) return this.exec("createLink", plain);
+        return this.exec("insertHTML", "<a href=\"" + this.escapeHtml(plain) + "\">" + this.escapeHtml(plain) + "</a>&nbsp;");
+      }
+      if (html) {
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const table = doc.querySelector("table");
+        if (table) return this.pasteTable(this.readHtmlTable(table), text);
+        const reduced = this.reduceHtml(doc);
+        if (reduced.replace(/<[^>]+>/g, "").trim()) return this.exec("insertHTML", reduced);
+      }
+      const file = Array.from(cd.files || [])[0];
+      if (file) {
+        const held = this.picturesHeld();
+        const name = file.name || "picture";
+        const total = held.reduce((n, i) => n + Number(i.getAttribute("data-bytes") || 0), 0) + file.size;
+        const refuse = (why) => this.setState({ pasteNotice: { text: "“" + name + "” was not added - " + why } });
+        if (P.types.indexOf(file.type) < 0) return refuse("the composer takes " + P.typeNames + " pictures, and this one is " + (file.type.split("/")[1] ? file.type.split("/")[1].toUpperCase() : "another kind") + ".");
+        if (file.size > P.maxBytes) return refuse("it is " + this.fileSize(file.size) + ", and one picture can be at most " + this.fileSize(P.maxBytes) + ".");
+        if (held.length >= P.maxCount) return refuse("this message already holds " + P.maxCount + " pictures, the most one message can.");
+        if (total > P.maxTotalBytes) return refuse("with it the pictures would come to " + this.fileSize(total) + ", and together they can be at most " + this.fileSize(P.maxTotalBytes) + ".");
+        const reader = new FileReader();
+        reader.onload = () => {
+          this.restoreRange();
+          this.exec("insertHTML", "<img data-mf-picture data-name=\"" + this.escapeHtml(name) + "\" data-size=\"" + this.fileSize(file.size) + "\" data-bytes=\"" + file.size + "\" alt=\"\" src=\"" + reader.result + "\" style=\"display:block;max-width:100%;height:auto;margin:8px 0;cursor:pointer\">");
+          this.notePictures();
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+      const lines = text.replace(/\r/g, "").replace(/\n+$/, "").split("\n").filter(l => l.trim());
+      const widths = lines.map(l => l.split("\t").length);
+      if (lines.length > 1 && widths[0] > 1 && widths.every(w => w === widths[0])) return this.pasteTable({ rows: lines.map(l => l.split("\t")), header: false }, text);
+      this.exec("insertText", text);
+    };
+    pasteTable = (t, text) => {
+      const T = COMPOSE_FMT.table;
+      const cols = Math.max.apply(null, t.rows.map(r => r.length));
+      if (t.rows.length > T.maxRows || cols > T.maxColumns) {
+        this.pastePlain = text;
+        return this.setState({ pasteNotice: { text: "Nothing was pasted - the range has " + t.rows.length + " rows and " + cols + " columns, and a table holds at most " + T.maxRows + " rows and " + T.maxColumns + ".", plain: true } });
+      }
+      this.exec("insertHTML", this.tableHtml(t.rows.map(r => r.concat(Array(cols - r.length).fill(""))), t.header) + "<p><br></p>");
+    };
+    /* A spreadsheet's table keeps its grid, a header row where the sheet marks one — a row of `th`, or a bold first row
+       over one that is not — and each cell's stated alignment, which is how a number keeps its right edge. */
+    readHtmlTable = (table) => {
+      const trs = Array.from(table.querySelectorAll("tr"));
+      const bold = (c) => !!c.querySelector("b,strong") || /bold|[6-9]00/.test(c.getAttribute("style") || "");
+      const rows = trs.map(tr => Array.from(tr.children).map(c => {
+        const a = (c.getAttribute("align") || (/text-align:\s*(\w+)/.exec(c.getAttribute("style") || "") || [])[1] || "").toLowerCase();
+        return { text: c.textContent.replace(/\s+/g, " ").trim(), align: a === "right" ? "end" : a === "center" ? "center" : "" };
+      }));
+      const first = trs[0] ? Array.from(trs[0].children) : [];
+      const second = trs[1] ? Array.from(trs[1].children) : [];
+      const header = first.length > 0 && (first.every(c => c.tagName === "TH") || (first.every(bold) && !second.every(bold)));
+      return { rows, header };
+    };
+    pasteAsPlain = () => { this.restoreRange(); this.exec("insertText", this.pastePlain || ""); this.setState({ pasteNotice: null }); };
+    /* Formatted text is parsed into an inert document and read node by node into the closed set; anything else keeps
+       its words and loses its markup. The set has no heading, so a heading becomes bold text on the size scale:
+       level 1 the largest step, 2 the larger, 3 the large, and the rest normal. */
+    reduceHtml = (doc) => {
+      const tag = { B: "b", STRONG: "b", I: "i", EM: "i", U: "u", S: "s", STRIKE: "s", DEL: "s", UL: "ul", OL: "ol", LI: "li", BLOCKQUOTE: "blockquote", P: "p", DIV: "p", BR: "br" };
+      const walk = (n) => {
+        if (n.nodeType === 3) return this.escapeHtml(n.nodeValue);
+        if (n.nodeType !== 1 || /^(SCRIPT|STYLE|IMG|IFRAME|OBJECT|svg)$/i.test(n.tagName)) return "";
+        const inner = Array.from(n.childNodes).map(walk).join("");
+        if (/^H[1-6]$/.test(n.tagName)) { const em = Component.sizeEm(["largest", "larger", "large"][Number(n.tagName[1]) - 1]); return "<p><b" + (em ? " style=\"font-size:" + em + "\"" : "") + ">" + inner + "</b></p>"; }
+        if (n.tagName === "A" && /^https?:/i.test(n.getAttribute("href") || "")) return "<a href=\"" + this.escapeHtml(n.getAttribute("href")) + "\">" + inner + "</a>";
+        /* A colour survives only when it is one of the palette's own; any other is dropped, as a font is. */
+        const swatch = n.style && n.style.color ? COMPOSE_FMT.colours.find(c => rgbOf(c.hex) === n.style.color.replace(/\s+/g, "")) : null;
+        const t = tag[n.tagName];
+        if (t === "br") return "<br>";
+        const wrapped = t ? "<" + t + ">" + inner + "</" + t + ">" : inner;
+        return swatch ? "<span style=\"color:var(--ink-" + swatch.key + ")\">" + wrapped + "</span>" : wrapped;
+      };
+      const rgbOf = (hex) => "rgb(" + [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(",") + ")";
+      return walk(doc.body);
+    };
+
     aiWrite = (kind) => {
       const el = this.bodyRef.current;
       if (!el) return;
@@ -2961,8 +3200,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const full = COMPOSE_DRAFTS.full;
       const shortV = COMPOSE_DRAFTS.short;
       const signed = !this.composeFooter().length;
-      const paras = (kind === "short" ? shortV : full).concat(signed ? [COMPOSE_DRAFTS.signOff] : []);
+      /* Asked for a table or a list in so many words, the draft arrives formatted; asked anything else, it stays plain. */
+      const formatted = kind !== "short" && /\b(table|list|bullet|format)/i.test(this.state.composeAiText || "");
+      const paras = (formatted ? COMPOSE_FORMATTED_DRAFT.map(this.formattedBlockHtml) : kind === "short" ? shortV : full).concat(signed ? [COMPOSE_DRAFTS.signOff] : []);
       el.innerHTML = "";
+      this.notePictures();
       const block = document.createElement("div");
       block.id = "ai-draft-block";
       block.style.borderLeft = "3px solid var(--accent)";
@@ -2975,7 +3217,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         this.timers.push(setTimeout(() => {
           const isLast = i === paras.length - 1;
           const isSignOff = signed && isLast;
-          const node = document.createElement("p");
+          const node = document.createElement(/^<(table|ul)/.test(p) ? "div" : "p");
           node.style.margin = isSignOff ? "12px 0 0 0" : isLast ? "0" : "0 0 12px 0";
           node.innerHTML = p;
           (isSignOff ? el : block).appendChild(node);
@@ -2986,6 +3228,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     aiRevert = () => {
       if (typeof this.aiUndo === "string") this.setBodyHtml(this.aiUndo);
+      this.notePictures();
       this.setState({ aiDraft: false });
     };
 
@@ -2993,6 +3236,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const el = this.bodyRef.current;
       const block = el && el.querySelector("#ai-draft-block");
       if (block) {
+        block.querySelectorAll("[data-mf-link-host]").forEach(h => h.remove());
         block.style.borderLeft = "none";
         block.style.paddingLeft = "0";
         block.style.marginLeft = "0";
@@ -3747,6 +3991,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     componentWillUnmount() {
       document.removeEventListener("mousedown", this.onDocDown, true);
       document.removeEventListener("keydown", this.onDocKey);
+      document.removeEventListener("selectionchange", this.noteEditorCaret);
       window.removeEventListener("message", this.onHtmlFrameMessage);
       window.removeEventListener("popstate", this.onBackPressed);
       document.removeEventListener("click", this.onLinkClick, true);
@@ -4196,7 +4441,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return el ? (el.innerText || "").replace(/\u200b/g, "").trim() : "";
       };
       const finishCompose = () => {
-        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false, composeFooterOpen: false };
+        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false, composeFooterOpen: false, fmtMenu: null, tableCaret: false, pictureSel: null, pasteNotice: null, picturesInMemory: false };
         if ((st.workMode || "classic") === "tabs") this.closeTab("compose");
         this.setState(patch);
       };
@@ -7594,7 +7839,29 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         saveDraftAndClose: () => { const timed = !!st.composeSendAt; finishCompose(); this.notify("The message is waiting in Drafts." + (timed ? " The time you chose is not kept with it - choose it again when you send." : ""), { kind: "success", title: "Draft saved" }); },
         saveDraftNow: this.writeRefused("save") ? this.noop : () => { const timed = !!st.composeSendAt; finishCompose(); this.notify("The message is waiting in Drafts." + (timed ? " The time you chose is not kept with it - choose it again when you send." : ""), { kind: "success", title: "Draft saved" }); },
         closeAskOpen: !!st.closeAsk,
-        composeKeyDown: (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); askSend(); } },
+        composeKeyDown: (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); askSend(); return; }
+          if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "v") this.plainPaste = true;
+          if ((e.key === "Delete" || e.key === "Backspace") && this.selectedPicture) { e.preventDefault(); this.removePicture(); return; }
+          if (this.selectedPicture && e.key.length === 1) this.unselectPicture();
+          /* Tab walks a table's cells, and past the last one adds a row, as a word processor does. */
+          if (e.key === "Tab" && this.caretCell) {
+            e.preventDefault();
+            const cells = Array.from(this.caretCell.closest("table").querySelectorAll("th,td"));
+            let i = cells.indexOf(this.caretCell) + (e.shiftKey ? -1 : 1);
+            if (i >= cells.length) { this.tableAct("rowBelow"); return; }
+            const next = cells[Math.max(0, i)];
+            const r = document.createRange();
+            r.selectNodeContents(next);
+            r.collapse(false);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(r);
+          }
+        },
+        composePaste: this.composePaste,
+        composeEditorPress: this.editorPress,
+        composeEditorInput: this.notePictures,
         askSend: askSend,
         sendAskOpen: !!st.sendAsk,
         sendWarnings: ((st.sendAsk && st.sendAsk.warnings) || []).map(w => ({ text: w })),
@@ -7723,7 +7990,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* In a low window the fields, the AI drafting and the editor scroll together and the foot with *Send* stays
            pinned under them; anywhere else the wrapper is not a box at all. */
         composeScrollStyle: low ? "flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto" : "display:contents",
-        composeWritingStyle: low ? "display:contents" : "flex:1;min-height:170px;overflow:auto;display:flex;flex-direction:column",
+        /* The writing area gives way to 120 px before the foot does, so the formatting bar and a table's or a picture's
+           strip standing over it never push *Send* off a tablet's screen. */
+        composeWritingStyle: low ? "display:contents" : "flex:1;min-height:120px;overflow:auto;display:flex;flex-direction:column",
         threadSheetStyle: "display:flex;flex-direction:column;gap:12px;max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(82dvh, 640px)" : "82dvh") + ";overflow:auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;padding:10px 16px 20px 16px",
         composeBodyStyle: "display:flex;flex-direction:column;min-height:0;flex:1;--compose-label:" + (isMobile ? 58 : 88) + "px",
         ccToggleStyle: "flex:0 0 auto;font-size:12px;white-space:nowrap;border-radius:8px;" + (touch ? "display:flex;align-items:center;min-height:44px;padding:0 10px;" : "padding:2px 8px;") + (st.ccOpen ? "color:var(--accent-d);background:var(--accent-soft)" : "color:var(--muted)"),
@@ -7769,7 +8038,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         fmtToggleIcon: st.fmtBar ? "expand_less" : "expand_more",
         toggleFmtBar: () => this.setState(s2 => ({ fmtBar: !s2.fmtBar })),
         fmtHintShown: !touch,
-        fmtBarStyle: "display:flex;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line2);" + (touch ? "gap:6px;padding:9px 12px" : "gap:2px;padding:6px 12px"),
+        fmtBarStyle: "display:flex;align-items:center;border-bottom:1px solid var(--line2);" + (touch
+          ? "gap:6px;padding:9px 36px 9px 12px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)"
+          : "gap:2px 0;padding:6px 12px;flex-wrap:wrap"),
 
         /* *Show source*: a dialog over a scrim on the desktop, and the whole screen below 1180 — the tablet, the fold, and
            above the bottom navigation on the phone — rising as a sheet with its grabber. It draws a skeleton of
@@ -8211,17 +8482,159 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           activeTab: (s.workMode || "tabs") === "tabs" ? null : "thread:" + s.threadId,
         })),
         bodyRef: this.bodyRef,
-        fmtButtons: [
-          { key: "b", label: "B", title: "Bold", style: "font-weight:700", run: () => this.exec("bold") },
-          { key: "i", label: "I", title: "Italic", style: "font-style:italic;font-family:Georgia,serif", run: () => this.exec("italic") },
-          { key: "u", label: "U", title: "Underline", style: "text-decoration:underline", run: () => this.exec("underline") },
-          { key: "s", label: "S", title: "Strikethrough", style: "text-decoration:line-through", run: () => this.exec("strikeThrough") },
-          { key: "ul", label: "•-", title: "Bulleted list", style: "", run: () => this.exec("insertUnorderedList") },
-          { key: "ol", label: "1.", title: "Numbered list", style: "", run: () => this.exec("insertOrderedList") },
-          { key: "q", label: "format_quote", title: "Quote", style: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;", run: () => this.exec("formatBlock", "blockquote") },
-          { key: "lnk", label: "link", title: "Insert link", style: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;", run: () => this.exec("createLink", "https://") },
-          { key: "clr", label: "format_clear", title: "Clear formatting", style: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;", run: () => this.exec("removeFormat") },
-        ].map(b => ({ key: b.key, label: b.label, title: b.title, style: "display:flex;align-items:center;justify-content:center;border-radius:" + (touch ? "8px;min-width:44px;height:44px;padding:0 9px;font-size:15px;border:1px solid var(--line);" : "8px;min-width:30px;height:30px;padding:0 7px;font-size:13px;") + "color:var(--text2);" + b.style, run: b.run })),
+        ...(() => {
+          /* The formatting bar, in groups that never split: text, then colour and size, alignment, the block kinds, what
+             is inserted, and clearing. A fine pointer wraps a group to the next line when the composer is narrow; a
+             finger gets one row that scrolls sideways, cut at its end so the next control shows there is more. */
+          const glyph = "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 22 : 18) + "px;line-height:1;";
+          const menu = st.fmtMenu || null;
+          const colour = COMPOSE_FMT.colours.find(c => c.key === st.fmtColour) || null;
+          const size = COMPOSE_FMT.sizes.find(z => z.key === (st.fmtSize || "normal"));
+          const align = COMPOSE_FMT.alignments.find(a => a.key === (st.fmtAlign || "start"));
+          /* With the caret in a table cell, the blocks a cell cannot hold stand disabled and say why on a press. */
+          const cellOff = (b) => !!st.tableCaret && ["tbl", "ul", "ol", "q"].indexOf(b.key) >= 0;
+          const btn = (b) => Object.assign({ hasBar: false, barStyle: "", ariaExpanded: null, ariaHaspopup: null }, b, {
+            style: "position:relative;flex:0 0 auto;display:flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:8px;" +
+              (touch ? "min-width:44px;height:44px;padding:0 9px;font-size:15px;border:1px solid var(--line);" : "min-width:30px;height:30px;padding:0 7px;font-size:13px;") +
+              (b.menu && menu === b.menu ? "background:var(--accent-soft);color:var(--accent-d);" : "color:var(--text2);") + (b.style || "") + (cellOff(b) ? "opacity:0.4;cursor:not-allowed;" : ""),
+            title: cellOff(b) ? b.title + " - a table cell holds words, colour and size only" : b.title,
+            ariaDisabled: cellOff(b) ? "true" : null,
+            ariaExpanded: b.menu && !cellOff(b) ? String(menu === b.menu) : null,
+            ariaHaspopup: b.menu && !cellOff(b) ? "menu" : null,
+            run: cellOff(b) ? (e) => e && e.preventDefault && e.preventDefault() : b.menu ? (e) => this.openFmtMenu(b.menu, e) : b.run,
+          });
+          const groups = [
+            [
+              { key: "b", label: "B", title: "Bold", style: "font-weight:700", run: () => this.exec("bold") },
+              { key: "i", label: "I", title: "Italic", style: "font-style:italic;font-family:Georgia,serif", run: () => this.exec("italic") },
+              { key: "u", label: "U", title: "Underline", style: "text-decoration:underline", run: () => this.exec("underline") },
+              { key: "s", label: "S", title: "Strikethrough", style: "text-decoration:line-through", run: () => this.exec("strikeThrough") },
+            ],
+            [
+              { key: "clr-text", label: "format_color_text", title: "Text colour - " + (colour ? colour.name : "Automatic"), style: glyph, menu: "colour", hasBar: true,
+                barStyle: "position:absolute;left:50%;bottom:" + (touch ? 8 : 4) + "px;width:" + (touch ? 18 : 14) + "px;height:3px;margin-left:-" + (touch ? 9 : 7) + "px;border-radius:2px;background:" + (colour ? "var(--ink-" + colour.key + ")" : "var(--text2)") },
+              { key: "size", label: "format_size", title: "Text size - " + size.name, style: glyph, menu: "size" },
+            ],
+            [{ key: "align", label: align.icon, title: "Alignment - " + align.name, style: glyph, menu: "align" }],
+            [
+              { key: "ul", label: "•-", title: "Bulleted list", run: () => this.exec("insertUnorderedList") },
+              { key: "ol", label: "1.", title: "Numbered list", run: () => this.exec("insertOrderedList") },
+              { key: "q", label: "format_quote", title: "Quote", style: glyph, run: () => this.exec("formatBlock", "blockquote") },
+            ],
+            [
+              { key: "lnk", label: "link", title: "Insert link", style: glyph, run: () => this.exec("createLink", "https://") },
+              { key: "tbl", label: "table", title: "Insert table", style: glyph, menu: "table" },
+            ],
+            [{ key: "clr", label: "format_clear", title: "Clear formatting", style: glyph, run: () => this.exec("removeFormat") }],
+          ];
+          const item = (on) => "display:flex;align-items:center;gap:10px;box-sizing:border-box;border-radius:8px;padding:0 10px;font-size:13px;color:var(--text);" +
+            (touch ? "min-height:44px;" : "min-height:32px;") + (on ? "background:var(--accent-soft);" : "");
+          const check = (on) => "margin-left:auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:18px;line-height:1;color:var(--accent-d);" + (on ? "" : "visibility:hidden");
+          const td = st.tableDraft || { rows: 3, cols: 3, header: true };
+          const T = COMPOSE_FMT.table;
+          const stepper = (label, value, min, max, set) => ({
+            label, value,
+            lessTitle: value <= min ? label + " - at least " + min : "One " + label.toLowerCase().replace(/s$/, "") + " fewer",
+            moreTitle: value >= max ? label + " - at most " + max : "One " + label.toLowerCase().replace(/s$/, "") + " more",
+            lessOff: String(value <= min), moreOff: String(value >= max),
+            less: () => value > min && set(value - 1), more: () => value < max && set(value + 1),
+            lessStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;" + glyph + (touch ? "width:44px;height:44px;" : "width:30px;height:30px;") + (value <= min ? "opacity:0.45;cursor:not-allowed;" : "color:var(--text2);"),
+            moreStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;" + glyph + (touch ? "width:44px;height:44px;" : "width:30px;height:30px;") + (value >= max ? "opacity:0.45;cursor:not-allowed;" : "color:var(--text2);"),
+          });
+          const setDraft = (patch) => this.setState(s => ({ tableDraft: Object.assign({}, s.tableDraft || td, patch) }));
+          const stripBtn = (b) => Object.assign({}, b, {
+            style: "flex:0 0 auto;display:flex;align-items:center;gap:6px;box-sizing:border-box;border-radius:8px;white-space:nowrap;font-size:12px;" +
+              (touch ? "min-height:44px;padding:0 12px;border:1px solid var(--line);font-size:13px;" : "min-height:28px;padding:0 9px;") + (b.danger ? "color:var(--err-text);" : "color:var(--text2);"),
+            glyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 20 : 16) + "px;line-height:1",
+          });
+          const stripStyle = "flex:0 0 auto;display:flex;align-items:center;gap:" + (touch ? 6 : 2) + "px;border-bottom:1px solid var(--line2);background:var(--sub);" +
+            (touch ? "padding:8px 36px 8px 12px;overflow-x:auto;scrollbar-width:none;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)" : "padding:5px 12px;flex-wrap:wrap");
+          return {
+            fmtGroups: groups.map((g, gi) => ({ key: "g" + gi, divider: gi > 0, buttons: g.map(btn) })),
+            fmtGroupStyle: "flex:0 0 auto;display:flex;align-items:center;gap:" + (touch ? 6 : 2) + "px",
+            fmtDividerStyle: "flex:0 0 auto;width:1px;height:" + (touch ? 28 : 18) + "px;background:var(--line);margin:0 " + (touch ? 4 : 5) + "px",
+            fmtHintText: "select a passage and use an AI action to rewrite it",
+            fmtWrapStyle: "position:relative;flex:0 0 auto",
+            fmtMenuOpen: !!menu,
+            fmtMenuName: { colour: "Text colour", size: "Text size", align: "Alignment", table: "Insert a table" }[menu] || "",
+            fmtMenuColour: menu === "colour",
+            fmtMenuSize: menu === "size",
+            fmtMenuAlign: menu === "align",
+            fmtMenuTable: menu === "table",
+            closeFmtMenu: () => this.setState({ fmtMenu: null }),
+            fmtMenuStyle: "position:absolute;top:100%;z-index:30;margin-top:4px;display:flex;flex-direction:column;gap:2px;box-sizing:border-box;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,0.18);" +
+              (touch ? "left:12px;right:12px" : "left:" + (st.fmtMenuLeft || 12) + "px;width:" + (menu === "colour" ? 300 : menu === "table" ? 280 : 220) + "px"),
+            fmtMenuHeadStyle: "padding:4px 10px 6px;font-size:12px;font-weight:600;color:var(--muted)",
+            fmtAutoStyle: item(!colour),
+            fmtAutoCheckStyle: check(!colour),
+            fmtAutoChecked: String(!colour),
+            pickAutoColour: () => this.pickColour(null),
+            fmtColourGridStyle: "display:grid;grid-template-columns:" + (isMobile ? "1fr 1fr" : "1fr 1fr") + ";gap:2px",
+            fmtColourItems: COMPOSE_FMT.colours.map(c => ({
+              key: c.key, name: c.name, checked: String(!!colour && colour.key === c.key),
+              style: item(!!colour && colour.key === c.key),
+              swatchStyle: "flex:0 0 auto;width:18px;height:18px;border-radius:50%;background:var(--ink-" + c.key + ");box-shadow:inset 0 0 0 1px rgba(0,0,0,0.12)",
+              checkStyle: check(!!colour && colour.key === c.key),
+              pick: () => this.pickColour(c),
+            })),
+            fmtSizeItems: COMPOSE_FMT.sizes.map(z => ({
+              key: z.key, name: z.name, checked: String(size.key === z.key),
+              style: item(size.key === z.key), nameStyle: "font-size:calc(15px * " + (parseFloat(Component.sizeEm(z.key)) || 1) + ");line-height:1.2",              checkStyle: check(size.key === z.key), pick: () => this.pickSize(z),
+            })),
+            fmtAlignItems: COMPOSE_FMT.alignments.map(a => ({
+              key: a.key, name: a.name, icon: a.icon, checked: String(align.key === a.key),
+              style: item(align.key === a.key), glyphStyle: glyph + "color:var(--text2)",
+              checkStyle: check(align.key === a.key), pick: () => this.pickAlign(a),
+            })),
+            tableSteppers: [
+              stepper("Rows", td.rows, 1, T.maxRows, (v) => setDraft({ rows: v })),
+              stepper("Columns", td.cols, 1, T.maxColumns, (v) => setDraft({ cols: v })),
+            ],
+            tableStepRowStyle: "display:flex;align-items:center;gap:10px;padding:4px 10px;font-size:13px;color:var(--text)",
+            tableStepValueStyle: "min-width:28px;text-align:center;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums",
+            tablePreviewStyle: "display:grid;grid-template-columns:repeat(" + Math.min(td.cols, 10) + ",1fr);gap:2px;margin:6px 10px;padding:6px;border:1px solid var(--line2);border-radius:8px;background:var(--sub)",
+            tablePreviewCells: Array.from({ length: Math.min(td.rows, 6) * Math.min(td.cols, 10) }, (_, i) => ({
+              key: "c" + i,
+              style: "height:" + (touch ? 12 : 10) + "px;border-radius:2px;border:1px solid var(--border2);background:" + (td.header && i < Math.min(td.cols, 10) ? "var(--accent-line)" : "var(--panel)"),
+            })),
+            tablePreviewNote: (td.rows > 6 || td.cols > 10 ? "Showing the first " + Math.min(td.rows, 6) + " rows and " + Math.min(td.cols, 10) + " columns. " : "") + "At most " + T.maxRows + " rows and " + T.maxColumns + " columns.",
+            tableHeaderChecked: String(!!td.header),
+            tableHeaderGlyph: td.header ? "check_box" : "check_box_outline_blank",
+            toggleTableHeader: () => setDraft({ header: !td.header }),
+            tableHeaderStyle: item(false) + "cursor:pointer",
+            tableInsertStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;margin:6px 10px 2px;border-radius:8px;background:var(--accent);color:var(--onaccent);font-size:13px;font-weight:600;" + (touch ? "min-height:44px" : "min-height:32px"),
+            tableInsertLabel: "Insert a " + td.rows + " × " + td.cols + " table",
+            insertTable: this.insertTable,
+            /* The strips under the bar: the table's controls while the caret is in a cell, and the chosen picture's. */
+            tableStripShown: !!st.tableCaret,
+            pictureStripShown: !!st.pictureSel,
+            composeStripStyle: stripStyle,
+            stripLabelStyle: "flex:0 0 auto;padding:0 8px 0 2px;font-size:12px;font-weight:600;color:var(--muted)",
+            tableStripButtons: [
+              { key: "ra", label: "Row above", act: "rowAbove" },
+              { key: "rb", label: "Row below", act: "rowBelow" },
+              { key: "cb", label: "Column before", act: "colBefore" },
+              { key: "ca", label: "Column after", act: "colAfter", groupEnd: true },
+              { key: "rr", label: "Remove row", act: "removeRow" },
+              { key: "rc", label: "Remove column", act: "removeCol" },
+              { key: "dt", icon: "delete", label: "Delete table", act: "deleteTable", danger: true },
+            ].map(b => stripBtn(Object.assign({ icon: "", groupEnd: false }, b, { hasIcon: !!b.icon, run: (e) => { e.preventDefault(); this.tableAct(b.act); } }))),
+            pictureStripText: st.pictureSel ? st.pictureSel.name + " · " + st.pictureSel.size + " · sent at most " + COMPOSE_FMT.pictures.sentMaxWidth + " px wide" : "",
+            picturesInMemory: !!st.picturesInMemory,
+            picturesInMemoryText: "The pictures in this message are kept in this window only - the browser's storage would not take them. Reloading or closing the window loses them; the words, recipients, and subject are kept.",
+            picturesInMemoryStyle: "flex:0 0 auto;display:flex;align-items:flex-start;gap:9px;padding:" + (touch ? "10px 15px" : "8px 15px") + ";font-size:" + (touch ? 13 : 12) + "px;line-height:1.45;color:var(--warn-text);background:var(--warn-soft);border-bottom:1px solid var(--warn)",
+            pictureRemove: stripBtn({ danger: true }),
+            removePicture: this.removePicture,
+            pasteNoticeShown: !!st.pasteNotice,
+            pasteNoticeText: st.pasteNotice ? st.pasteNotice.text : "",
+            pasteNoticePlain: !!(st.pasteNotice && st.pasteNotice.plain),
+            pasteAsPlain: this.pasteAsPlain,
+            dismissPasteNotice: () => this.setState({ pasteNotice: null }),
+            pasteNoticeStyle: "flex:0 0 auto;display:flex;align-items:flex-start;gap:9px;flex-wrap:wrap;padding:" + (touch ? "10px 12px 10px 15px" : "8px 12px 8px 15px") + ";font-size:" + (touch ? 13 : 12) + "px;line-height:1.45;color:var(--warn-text);background:var(--warn-soft);border-bottom:1px solid var(--warn)",
+            pasteActStyle: "flex:0 0 auto;display:flex;align-items:center;box-sizing:border-box;border-radius:8px;font-weight:600;color:var(--warn-text);" + (touch ? "min-height:44px;padding:0 12px;margin:-10px 0" : "padding:0 8px;min-height:24px;margin:-2px 0"),
+            pasteCloseStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--warn-text);" + glyph + (touch ? "width:44px;height:44px;margin:-10px -6px -10px 0" : "width:24px;height:24px;margin:-2px 0"),
+          };
+        })(),
         aiActions: [
           { label: "Write a draft", run: () => this.aiWrite("full") },
           { label: "Shorten", run: () => this.aiWrite("short") },

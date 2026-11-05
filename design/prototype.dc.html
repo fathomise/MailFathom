@@ -1630,13 +1630,62 @@ Project repository: https://github.com/fathomise/MailFathom
                 </sc-if>
               </div>
               <sc-if value="{{ fmtBarShown }}" hint-placeholder-val="{{ true }}">
-                <div style="{{ fmtBarStyle }}">
-                  <sc-for list="{{ fmtButtons }}" as="fb" hint-placeholder-count="9">
-                    <div onMouseDown="{{ fb.run }}" title="{{ fb.title }}" style="{{ fb.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ fb.label }}</div>
+                <div data-compose-format style="{{ fmtWrapStyle }}">
+                <div role="toolbar" aria-label="Formatting" style="{{ fmtBarStyle }}">
+                  <sc-for list="{{ fmtGroups }}" as="fg" hint-placeholder-count="6">
+                    <sc-if value="{{ fg.divider }}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="{{ fmtDividerStyle }}"></span></sc-if>
+                    <div style="{{ fmtGroupStyle }}">
+                      <sc-for list="{{ fg.buttons }}" as="fb" hint-placeholder-count="2">
+                        <div role="button" onMouseDown="{{ fb.run }}" title="{{ fb.title }}" aria-label="{{ fb.title }}" aria-disabled="{{ fb.ariaDisabled }}" aria-haspopup="{{ fb.ariaHaspopup }}" aria-expanded="{{ fb.ariaExpanded }}" style="{{ fb.style }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">{{ fb.label }}<sc-if value="{{ fb.hasBar }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ fb.barStyle }}"></span></sc-if></div>
+                      </sc-for>
+                    </div>
                   </sc-for>
                   <sc-if value="{{ fmtHintShown }}" hint-placeholder-val="{{ true }}">
-                    <div style="margin-left:auto;font-size:11px;color:var(--faint)">select a passage and use an AI action to rewrite it</div>
+                    <div style="margin-left:auto;padding-left:12px;font-size:11px;line-height:30px;color:var(--faint)">{{ fmtHintText }}</div>
                   </sc-if>
+                </div>
+                <sc-if value="{{ fmtMenuOpen }}" hint-placeholder-val="{{ false }}">
+                  <div data-motion="pop" role="menu" aria-label="{{ fmtMenuName }}" style="{{ fmtMenuStyle }}">
+                    <sc-if value="{{ fmtMenuColour }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ fmtMenuHeadStyle }}">Text colour</div>
+                      <div role="menuitemradio" aria-checked="{{ fmtAutoChecked }}" onClick="{{ pickAutoColour }}" style="{{ fmtAutoStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--text2)">format_color_reset</span><span>Automatic</span><span style="font-size:12px;color:var(--muted);white-space:nowrap">no colour of its own</span><span aria-hidden="true" style="{{ fmtAutoCheckStyle }}">check</span></div>
+                      <div style="{{ fmtColourGridStyle }}">
+                        <sc-for list="{{ fmtColourItems }}" as="fc" hint-placeholder-count="8">
+                          <div role="menuitemradio" aria-checked="{{ fc.checked }}" aria-label="{{ fc.name }}" onClick="{{ fc.pick }}" style="{{ fc.style }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ fc.swatchStyle }}"></span><span>{{ fc.name }}</span><span aria-hidden="true" style="{{ fc.checkStyle }}">check</span></div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ fmtMenuSize }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ fmtMenuHeadStyle }}">Text size</div>
+                      <sc-for list="{{ fmtSizeItems }}" as="fz" hint-placeholder-count="4">
+                        <div role="menuitemradio" aria-checked="{{ fz.checked }}" aria-label="{{ fz.name }}" onClick="{{ fz.pick }}" style="{{ fz.style }}" style-hover="cursor:pointer;background:var(--hover)"><span style="{{ fz.nameStyle }}">{{ fz.name }}</span><span aria-hidden="true" style="{{ fz.checkStyle }}">check</span></div>
+                      </sc-for>
+                    </sc-if>
+                    <sc-if value="{{ fmtMenuAlign }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ fmtMenuHeadStyle }}">Alignment</div>
+                      <sc-for list="{{ fmtAlignItems }}" as="fa" hint-placeholder-count="4">
+                        <div role="menuitemradio" aria-checked="{{ fa.checked }}" onClick="{{ fa.pick }}" style="{{ fa.style }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ fa.glyphStyle }}">{{ fa.icon }}</span><span>{{ fa.name }}</span><span aria-hidden="true" style="{{ fa.checkStyle }}">check</span></div>
+                      </sc-for>
+                    </sc-if>
+                    <sc-if value="{{ fmtMenuTable }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ fmtMenuHeadStyle }}">Insert a table</div>
+                      <sc-for list="{{ tableSteppers }}" as="ts" hint-placeholder-count="2">
+                        <div role="group" aria-label="{{ ts.label }}" style="{{ tableStepRowStyle }}">
+                          <span style="flex:1">{{ ts.label }}</span>
+                          <div role="button" onClick="{{ ts.less }}" title="{{ ts.lessTitle }}" aria-label="{{ ts.lessTitle }}" aria-disabled="{{ ts.lessOff }}" style="{{ ts.lessStyle }}" style-hover="cursor:pointer;background:var(--hover)">remove</div>
+                          <span aria-live="polite" style="{{ tableStepValueStyle }}">{{ ts.value }}</span>
+                          <div role="button" onClick="{{ ts.more }}" title="{{ ts.moreTitle }}" aria-label="{{ ts.moreTitle }}" aria-disabled="{{ ts.moreOff }}" style="{{ ts.moreStyle }}" style-hover="cursor:pointer;background:var(--hover)">add</div>
+                        </div>
+                      </sc-for>
+                      <div aria-hidden="true" style="{{ tablePreviewStyle }}">
+                        <sc-for list="{{ tablePreviewCells }}" as="tc" hint-placeholder-count="9"><span style="{{ tc.style }}"></span></sc-for>
+                      </div>
+                      <div role="checkbox" aria-checked="{{ tableHeaderChecked }}" tabindex="0" onClick="{{ toggleTableHeader }}" style="{{ tableHeaderStyle }}" style-hover="background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--accent-d)">{{ tableHeaderGlyph }}</span><span>The first row is a header</span></div>
+                      <div style="padding:2px 10px;font-size:12px;line-height:1.45;color:var(--muted)">{{ tablePreviewNote }}</div>
+                      <div role="button" onClick="{{ insertTable }}" style="{{ tableInsertStyle }}" style-hover="cursor:pointer;opacity:0.9">{{ tableInsertLabel }}</div>
+                    </sc-if>
+                  </div>
+                </sc-if>
                 </div>
               </sc-if>
               <sc-if value="{{ fmtToggleShown }}" hint-placeholder-val="{{ false }}">
@@ -1645,6 +1694,33 @@ Project repository: https://github.com/fathomise/MailFathom
                   <span style="flex:1;min-width:0">{{ fmtToggleLabel }}</span>
                   <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:20px;line-height:1;color:var(--muted)">{{ fmtToggleIcon }}</span>
                 </div>
+              </sc-if>
+              <sc-if value="{{ tableStripShown }}" hint-placeholder-val="{{ false }}">
+                <div data-compose-table-strip role="toolbar" aria-label="Table" style="{{ composeStripStyle }}">
+                  <span style="{{ stripLabelStyle }}">Table</span>
+                  <sc-for list="{{ tableStripButtons }}" as="tb" hint-placeholder-count="7">
+                    <div role="button" onMouseDown="{{ tb.run }}" style="{{ tb.style }}" style-hover="cursor:pointer;background:var(--hover)"><sc-if value="{{ tb.hasIcon }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ tb.glyphStyle }}">{{ tb.icon }}</span></sc-if>{{ tb.label }}</div>
+                    <sc-if value="{{ tb.groupEnd }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="{{ fmtDividerStyle }}"></span></sc-if>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ pictureStripShown }}" hint-placeholder-val="{{ false }}">
+                <div data-compose-picture-strip role="toolbar" aria-label="Picture" style="{{ composeStripStyle }}">
+                  <span style="{{ stripLabelStyle }}">Picture</span>
+                  <span style="flex:1 1 160px;min-width:0;padding-right:8px;font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ pictureStripText }}</span>
+                  <div role="button" onMouseDown="{{ removePicture }}" style="{{ pictureRemove.style }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ pictureRemove.glyphStyle }}">delete</span>Remove picture</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ pasteNoticeShown }}" hint-placeholder-val="{{ false }}">
+                <div data-motion="disclose" role="alert" style="{{ pasteNoticeStyle }}">
+                  <span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:18px;line-height:1.1">block</span>
+                  <span style="flex:1 1 220px;min-width:0;text-wrap:pretty">{{ pasteNoticeText }}</span>
+                  <sc-if value="{{ pasteNoticePlain }}" hint-placeholder-val="{{ false }}"><div role="button" onMouseDown="{{ pasteAsPlain }}" style="{{ pasteActStyle }}" style-hover="cursor:pointer;background:var(--hover)">Paste as plain text</div></sc-if>
+                  <div role="button" onClick="{{ dismissPasteNotice }}" title="Dismiss" aria-label="Dismiss" style="{{ pasteCloseStyle }}" style-hover="cursor:pointer;background:var(--hover)">close</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ picturesInMemory }}" hint-placeholder-val="{{ false }}">
+                <div data-compose-pictures-memory data-motion="disclose" role="status" style="{{ picturesInMemoryStyle }}"><span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:18px;line-height:1.1">memory</span><span style="flex:1;min-width:0;text-wrap:pretty">{{ picturesInMemoryText }}</span></div>
               </sc-if>
               <sc-if value="{{ aiBusy }}" hint-placeholder-val="{{ false }}">
                 <div role="status" style="display:flex;align-items:center;gap:10px;padding:10px 15px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);font-size:13px;color:var(--accent-d)">
@@ -1661,7 +1737,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 </div>
               </sc-if>
               <div data-compose-writing style="{{ composeWritingStyle }}">
-              <div contentEditable="true" suppressContentEditableWarning="{{ true }}" ref="{{ bodyRef }}" onKeyDown="{{ composeKeyDown }}" style="{{ composeEditorStyle }}"></div>
+              <div contentEditable="true" suppressContentEditableWarning="{{ true }}" ref="{{ bodyRef }}" onKeyDown="{{ composeKeyDown }}" onPaste="{{ composePaste }}" onInput="{{ composeEditorInput }}" onClick="{{ composeEditorPress }}" style="{{ composeEditorStyle }}"></div>
               <sc-if value="{{ composeFooterShown }}" hint-placeholder-val="{{ true }}">
                 <div data-compose-footer role="group" aria-label="Footer added when you send" style="{{ composeFooterStyle }}">
                   <div role="button" tabindex="0" aria-expanded="{{ composeFooterOpen }}" onClick="{{ toggleComposeFooter }}" style="{{ composeFooterToggleStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text2)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">{{ composeFooterGlyph }}</span><span>{{ composeFooterLabel }}</span></div>
@@ -1687,7 +1763,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 <div data-compose-send onClick="{{ askSendNow }}" title="{{ composeSendTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSendStyle }}" style-hover="cursor:pointer;opacity:0.9"><sc-if value="{{ composeSendGlyphShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;vertical-align:-4px;margin-right:6px">schedule_send</span></sc-if>{{ composeSendLabel }}</div>
                 <div title="Attach" style="{{ composeAttachStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span style="{{ composeAttachIconStyle }}">attach_file</span><sc-if value="{{ composeAttachLabel }}" hint-placeholder-val="{{ true }}">Attach</sc-if></div>
                 <div onClick="{{ saveDraftNow }}" title="{{ composeSaveTitle }}" aria-disabled="{{ composeSendRefused }}" style="{{ composeSaveStyle }}" style-hover="cursor:pointer;color:var(--text)">Save draft</div>
-                <sc-if value="{{ notTouch }}" hint-placeholder-val="{{ true }}"><div style="margin-left:auto;font-size:11px;color:var(--faint)">{{ composeCtrlHint }}</div></sc-if>
+                <sc-if value="{{ notTouch }}" hint-placeholder-val="{{ true }}"><div style="margin-left:auto;font-size:11px;color:var(--faint)">{{ composeCtrlHint }} · Ctrl+Shift+V pastes as plain text</div></sc-if>
                 <div data-compose-more role="button" tabindex="0" title="{{ composeMoreTitle }}" aria-label="{{ composeMoreTitle }}" aria-haspopup="menu" onClick="{{ openComposeMore }}" onKeyDown="{{ openComposeMore }}" style="{{ composeMoreStyle }}" style-hover="cursor:pointer;background:var(--hover)">more_vert</div>
               </div>
             </div>
