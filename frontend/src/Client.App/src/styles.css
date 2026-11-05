@@ -1284,9 +1284,11 @@
 
 /* A strip of controls under a finger, as the design draws the composer's formatting bar: one row that scrolls sideways
    rather than wrapping, with no scrollbar, its end faded over 28 px so the control cut there says the row goes on, and
-   36 px of room after the last control so it clears the fade once scrolled to. Under a mouse it does nothing, and the
-   strip wraps as its own utilities say. */
+   36 px of room after the last control so it clears the fade once scrolled to. Under a mouse the strip wraps, and both
+   halves are stated here so no wrapping utility beside this one can outrank the finger's. */
 @utility touch-strip {
+    flex-wrap: wrap;
+
     @media (pointer: coarse) {
         flex-wrap: nowrap;
         overflow-x: auto;

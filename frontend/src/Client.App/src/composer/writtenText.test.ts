@@ -4,12 +4,14 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+    colourOfRgb,
     followable,
     htmlOf,
     pastedAddress,
     plainTextOf,
     writtenIn,
     writtenTextIn,
+    type RunDrawing,
     type WrittenNode,
 } from './writtenText';
 
@@ -152,12 +154,35 @@ describe('writtenIn', () => {
         expect(writtenIn(region(font))).toEqual([{ text: 'words' }]);
     });
 
-    it('reads no colour or size off a span an engine left behind, which is its bookkeeping rather than a choice', () => {
+    it('reads no colour or size off a span when nothing says how the region draws one', () => {
         const span = element('span', 'merged');
 
         span.setAttribute('style', 'color: rgb(180, 35, 24); font-size: 24px');
 
         expect(writtenIn(region(span))).toEqual([{ text: 'merged' }]);
+    });
+
+    it('reads the colour and the size an engine resolved onto a span back through how the region draws them', () => {
+        const span = element('span', 'moved');
+        const drawing: RunDrawing = {
+            colourDrawnAs: (drawn) => (drawn === 'rgb(249, 112, 102)' ? '#b42318' : null),
+            sizeDrawnAs: (drawn) => (drawn === '18px' ? 'large' : null),
+        };
+
+        span.setAttribute('style', 'color: rgb(249, 112, 102); font-size: 18px');
+
+        expect(writtenIn(region(span), drawing)).toEqual([
+            { element: 'span', address: null, colour: '#b42318', size: 'large', holds: [{ text: 'moved' }] },
+        ]);
+    });
+
+    it('drops a span whose colour and size the region draws no choice in, keeping the words', () => {
+        const span = element('span', 'inherited');
+        const drawing: RunDrawing = { colourDrawnAs: () => null, sizeDrawnAs: () => null };
+
+        span.setAttribute('style', 'color: rgb(1, 2, 3); font-size: 15px');
+
+        expect(writtenIn(region(span), drawing)).toEqual([{ text: 'inherited' }]);
     });
 
     it.each([
@@ -207,6 +232,23 @@ describe('writtenIn', () => {
         expect(plainTextOf(written)).toContain('Still here');
         expect(writtenTextIn(JSON.parse(JSON.stringify(written)) as unknown)).not.toBeNull();
     });
+});
+
+describe('colourOfRgb', () => {
+    it.each([
+        ['rgb(180, 35, 24)', '#b42318'],
+        [' #B42318 ', '#b42318'],
+        ['rgb(0, 0, 0)', '#000000'],
+    ])('reads %s as %s', (drawn, colour) => {
+        expect(colourOfRgb(drawn)).toBe(colour);
+    });
+
+    it.each([['oklch(0.44 0.02 262)'], ['rgba(180, 35, 24, 0.5)'], ['rgb(300, 35, 24)'], ['red'], ['']])(
+        'reads no colour out of %s',
+        (drawn) => {
+            expect(colourOfRgb(drawn)).toBeNull();
+        },
+    );
 });
 
 describe('htmlOf', () => {

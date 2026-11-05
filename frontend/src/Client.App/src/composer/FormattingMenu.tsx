@@ -44,8 +44,9 @@ export function FormattingMenu({
     const panel = useRef<HTMLDivElement>(null);
     const [start, setStart] = useState<number | null>(null);
 
-    // Under a mouse it stands under its control and is kept inside the composer; under a finger it spans the composer,
-    // which the stylesheet says and nothing here measures.
+    // Under a mouse it stands under its control and is kept inside the composer, drawn back by its own padding so its
+    // choices start where the control does; under a finger it spans the composer, which the stylesheet says and
+    // nothing here measures.
     useLayoutEffect(() => {
         const menu = panel.current;
         const box = menu?.offsetParent;
@@ -56,7 +57,7 @@ export function FormattingMenu({
 
         setStart(
             placedWithin(
-                { x: under, y: 0 },
+                { x: under - parseFloat(getComputedStyle(menu).paddingInlineStart), y: 0 },
                 { width: menu.offsetWidth, height: 0 },
                 { width: box.clientWidth, height: 0 },
             ).x,

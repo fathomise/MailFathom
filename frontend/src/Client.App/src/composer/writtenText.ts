@@ -87,9 +87,10 @@ const writableElements: readonly string[] = [
     'ul',
 ];
 
-// A `span` an engine leaves in the region is its own bookkeeping — the computed style it carries a merged line over
-// with — rather than a colour or a size anybody chose, so the region's spans are unwrapped. A run's colour and size are
-// read off the `font` element the editing commands write instead, and the tree's `span` is that reading.
+// A `span` an engine leaves in the region is its own bookkeeping — the rendering it carries a moved line over with —
+// rather than an element anybody chose, so it is read only through the region's drawing (`RunDrawing`) and otherwise
+// unwrapped. A run's colour and size are read off the `font` element the editing commands write, and the tree's
+// `span` is that reading.
 const readableElements: readonly string[] = writableElements.filter((element) => element !== 'span');
 
 const writtenSizes: readonly string[] = ['small', 'large', 'larger', 'largest'];
@@ -196,9 +197,45 @@ export function pastedAddress(pasted: string): string | null {
  * It holds to every bound `writtenTextIn` reads by, so what this composes is always what that accepts. A region past
  * one of them is cut here rather than kept whole, because the alternative is not a longer message: it is a message
  * kept, refused on the next reload, and taken down with the recipients and the subject it was written beside.
+ *
+ * @param drawing How the region draws a run, where the region is one that does — without it, every `span` an engine
+ *   left is unwrapped.
  */
-export function writtenIn(parent: Node): readonly WrittenNode[] {
-    return readWritten(parent, 0, { nodes: mostWrittenNodes });
+export function writtenIn(parent: Node, drawing: RunDrawing | null = null): readonly WrittenNode[] {
+    return readWritten(parent, 0, { nodes: mostWrittenNodes }, drawing);
+}
+
+/**
+ * How a region draws a run's colour and size, read backwards.
+ *
+ * An engine moving a line into a block of its own — aligning, listing, or quoting a line that stood in the region
+ * outside any — writes the `<font>` it moved as a `span` carrying the colour and the size the run was *drawn* at: the
+ * dark theme's lighter twin of a swatch, and a length the step resolved to. Those are the region's own rendering of a
+ * closed value rather than a value of their own, so the region says which closed value each one draws, and anything it
+ * does not recognise — the colour of the text around a run, a length off the scale — is dropped as before.
+ */
+export interface RunDrawing {
+    /** The colour a run drawn in this CSS colour was written in, or `null` where no run was written in it. */
+    readonly colourDrawnAs: (drawn: string) => string | null;
+
+    /** The step of the size scale a run drawn at this CSS length is, or `null` for normal and for no step at all. */
+    readonly sizeDrawnAs: (drawn: string) => WrittenSize | null;
+}
+
+/** A colour as the CSS object model serializes an opaque one, `rgb(r, g, b)`, in the tree's own spelling. */
+export function colourOfRgb(drawn: string): string | null {
+    const channels = /^rgb\(\s*(\d{1,3}),\s*(\d{1,3}),\s*(\d{1,3})\s*\)$/u.exec(drawn.trim());
+
+    if (channels === null) {
+        return writtenColour(drawn.trim());
+    }
+
+    const hex = channels
+        .slice(1)
+        .map((channel) => Number(channel))
+        .map((channel) => (channel > 255 ? null : channel.toString(16).padStart(2, '0')));
+
+    return hex.includes(null) ? null : `#${hex.join('')}`;
 }
 
 // What is left of the one bound that is spent across a whole reading rather than measured node by node.
@@ -206,7 +243,12 @@ interface WritingBudget {
     nodes: number;
 }
 
-function readWritten(parent: Node, depth: number, budget: WritingBudget): readonly WrittenNode[] {
+function readWritten(
+    parent: Node,
+    depth: number,
+    budget: WritingBudget,
+    drawing: RunDrawing | null,
+): readonly WrittenNode[] {
     // Past the depth a kept message may be read back at, an element is unwrapped rather than kept.
     if (depth >= deepestWriting) {
         if (budget.nodes <= 0) {
@@ -243,7 +285,7 @@ function readWritten(parent: Node, depth: number, budget: WritingBudget): readon
         }
 
         const named = node.tagName.toLowerCase();
-        const run = named === 'font' ? runStyleOf(node) : null;
+        const run = runOf(node, named, drawing);
         const writable = readableElements.includes(named) || run !== null;
 
         // An element that is kept is one of the nodes the budget counts, and it is counted before what it holds is
@@ -252,7 +294,7 @@ function readWritten(parent: Node, depth: number, budget: WritingBudget): readon
             budget.nodes -= 1;
         }
 
-        const holds = readWritten(node, depth + 1, budget);
+        const holds = readWritten(node, depth + 1, budget, drawing);
 
         if (!writable) {
             written.push(...holds);
@@ -285,12 +327,25 @@ function readWritten(parent: Node, depth: number, budget: WritingBudget): readon
     return written;
 }
 
-// The colour and the size a `font` element states, each only where it is on the closed set: a colour an engine wrote
-// in some other notation and a size off the scale are dropped rather than approximated, and a `font` left with neither
-// is unwrapped like any other element this client has no name for.
-function runStyleOf(font: Element): { readonly colour?: string; readonly size?: WrittenSize } | null {
-    const colour = writtenColour(font.getAttribute('color') ?? '');
-    const size = fontSizeSteps[font.getAttribute('size') ?? ''] ?? null;
+// The colour and the size an element states as a run, each only where it is on the closed set: a `font` by the
+// attributes the editing commands write, and a `span` by the rendering an engine copied onto it, read through the
+// region's own drawing. A colour in some other notation and a size off the scale are dropped rather than approximated,
+// and an element left with neither is unwrapped like any other this client has no name for.
+function runOf(
+    element: Element,
+    named: string,
+    drawing: RunDrawing | null,
+): { readonly colour?: string; readonly size?: WrittenSize } | null {
+    let colour: string | null = null;
+    let size: WrittenSize | null = null;
+
+    if (named === 'font') {
+        colour = writtenColour(element.getAttribute('color') ?? '');
+        size = fontSizeSteps[element.getAttribute('size') ?? ''] ?? null;
+    } else if (named === 'span' && drawing !== null && element instanceof HTMLElement) {
+        colour = element.style.color === '' ? null : drawing.colourDrawnAs(element.style.color);
+        size = element.style.fontSize === '' ? null : drawing.sizeDrawnAs(element.style.fontSize);
+    }
 
     if (colour === null && size === null) {
         return null;

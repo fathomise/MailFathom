@@ -12,11 +12,13 @@ import { useCoarsePointer } from '../shell/useWideWorkspace';
 import { edit, insertWritten } from './editing';
 import { FormattingChoice, FormattingMenu } from './FormattingMenu';
 import {
+    colourOfRgb,
     drawnAlignment,
     followable,
     fontSizeOf,
     pastedAddress,
     writtenIn,
+    type RunDrawing,
     type WrittenAlignment,
     type WrittenNode,
     type WrittenSize,
@@ -106,19 +108,22 @@ const formattingGroups: readonly (readonly FormattingControl[])[] = [
 interface PaletteColour {
     readonly value: string;
     readonly named: MessageKey;
+
+    /** The utility a swatch is filled with, and the token behind it that the region draws the colour in. */
     readonly ink: string;
+    readonly token: string;
 }
 
 const palette: readonly PaletteColour[] = [
-    { value: '#b42318', named: 'compose.colourRed', ink: 'bg-ink-red' },
-    { value: '#b54708', named: 'compose.colourOrange', ink: 'bg-ink-orange' },
-    { value: '#8a6100', named: 'compose.colourAmber', ink: 'bg-ink-amber' },
-    { value: '#067647', named: 'compose.colourGreen', ink: 'bg-ink-green' },
-    { value: '#0e7490', named: 'compose.colourTeal', ink: 'bg-ink-teal' },
-    { value: '#175cd3', named: 'compose.colourBlue', ink: 'bg-ink-blue' },
-    { value: '#6941c6', named: 'compose.colourPurple', ink: 'bg-ink-purple' },
-    { value: '#c11574', named: 'compose.colourPink', ink: 'bg-ink-pink' },
-    { value: '#667085', named: 'compose.colourGrey', ink: 'bg-ink-grey' },
+    { value: '#b42318', named: 'compose.colourRed', ink: 'bg-ink-red', token: '--color-ink-red' },
+    { value: '#b54708', named: 'compose.colourOrange', ink: 'bg-ink-orange', token: '--color-ink-orange' },
+    { value: '#8a6100', named: 'compose.colourAmber', ink: 'bg-ink-amber', token: '--color-ink-amber' },
+    { value: '#067647', named: 'compose.colourGreen', ink: 'bg-ink-green', token: '--color-ink-green' },
+    { value: '#0e7490', named: 'compose.colourTeal', ink: 'bg-ink-teal', token: '--color-ink-teal' },
+    { value: '#175cd3', named: 'compose.colourBlue', ink: 'bg-ink-blue', token: '--color-ink-blue' },
+    { value: '#6941c6', named: 'compose.colourPurple', ink: 'bg-ink-purple', token: '--color-ink-purple' },
+    { value: '#c11574', named: 'compose.colourPink', ink: 'bg-ink-pink', token: '--color-ink-pink' },
+    { value: '#667085', named: 'compose.colourGrey', ink: 'bg-ink-grey', token: '--color-ink-grey' },
 ];
 
 /** One step of the size scale as the menu offers it, normal being the absence of a step. */
@@ -126,18 +131,19 @@ interface SizeStep {
     readonly size: WrittenSize | null;
     readonly named: MessageKey;
 
-    /** The step the name is drawn at, so each choice shows the size it gives. */
+    /** The step the name is drawn at, so each choice shows the size it gives, and the token that step is. */
     readonly drawn: string;
+    readonly token: string | null;
 }
 
-const normalStep: SizeStep = { size: null, named: 'compose.sizeNormal', drawn: '' };
+const normalStep: SizeStep = { size: null, named: 'compose.sizeNormal', drawn: '', token: null };
 
 const sizeSteps: readonly SizeStep[] = [
-    { size: 'small', named: 'compose.sizeSmall', drawn: 'text-step-small' },
+    { size: 'small', named: 'compose.sizeSmall', drawn: 'text-step-small', token: '--text-step-small' },
     normalStep,
-    { size: 'large', named: 'compose.sizeLarge', drawn: 'text-step-large' },
-    { size: 'larger', named: 'compose.sizeLarger', drawn: 'text-step-larger' },
-    { size: 'largest', named: 'compose.sizeLargest', drawn: 'text-step-largest' },
+    { size: 'large', named: 'compose.sizeLarge', drawn: 'text-step-large', token: '--text-step-large' },
+    { size: 'larger', named: 'compose.sizeLarger', drawn: 'text-step-larger', token: '--text-step-larger' },
+    { size: 'largest', named: 'compose.sizeLargest', drawn: 'text-step-largest', token: '--text-step-largest' },
 ];
 
 // `fontSize` takes `<font size>`'s own scale, and normal is its 3 — which the tree reads as no size at all.
@@ -221,7 +227,7 @@ export function WrittenMessage({
 
     function written(): void {
         if (words.current !== null) {
-            onWritten(writtenIn(words.current));
+            onWritten(writtenIn(words.current, drawingOf(words.current)));
         }
     }
 
@@ -373,7 +379,7 @@ export function WrittenMessage({
                     <div
                         role="toolbar"
                         aria-label={translate('compose.formattingBar')}
-                        className="flex touch-strip flex-wrap items-center gap-y-0.5 border-b border-line-soft px-3 py-1.5 pointer-coarse:gap-1.5 pointer-coarse:py-2.25"
+                        className="flex touch-strip items-center gap-y-0.5 border-b border-line-soft px-3 py-1.5 pointer-coarse:gap-1.5 pointer-coarse:py-2.25"
                     >
                         {formattingGroups.map((group, position) => (
                             <Fragment key={group[0]?.key ?? position}>
@@ -635,6 +641,40 @@ function WrittenPart({ node }: { readonly node: WrittenNode }): ReactNode {
     );
 }
 
+// How the region draws a run, read off the token layer at the moment the region is read rather than restated here,
+// so a theme switched since the last reading is the theme read: each swatch's token as the theme draws it, and each
+// step's token against the size the region draws its own words at. A colour no swatch is drawn in is its own value,
+// which is how a reopened draft's colour is drawn; a step is matched to the nearest hundredth of an em, which is
+// rounding rather than approximation, since each length was resolved from exactly one of these tokens.
+const stepTolerance = 0.005;
+
+function drawingOf(region: HTMLElement): RunDrawing {
+    const tokens = getComputedStyle(document.documentElement);
+    const regionSize = parseFloat(getComputedStyle(region).fontSize);
+    const swatches = new Map(
+        palette.map((colour) => [colourOfRgb(tokens.getPropertyValue(colour.token)), colour.value] as const),
+    );
+
+    return {
+        colourDrawnAs: (drawn) => {
+            const colour = colourOfRgb(drawn);
+
+            return colour === null ? null : (swatches.get(colour) ?? colour);
+        },
+        sizeDrawnAs: (drawn) => {
+            const ems = drawn.endsWith('em') ? parseFloat(drawn) : parseFloat(drawn) / regionSize;
+
+            return (
+                sizeSteps.find(
+                    (step) =>
+                        step.token !== null &&
+                        Math.abs(parseFloat(tokens.getPropertyValue(step.token)) - ems) < stepTolerance,
+                )?.size ?? null
+            );
+        },
+    };
+}
+
 const menuNames: Readonly<Record<FormattingMenuKind, MessageKey>> = {
     colour: 'compose.colourMenu',
     size: 'compose.sizeMenu',
@@ -721,7 +761,7 @@ function FormattingControl({
                 aria-label={name}
                 aria-expanded={expanded}
                 aria-haspopup={opensAMenu ? 'menu' : undefined}
-                className={`relative flex h-7.5 min-w-7.5 items-center justify-center rounded-md px-1.75 text-base transition hover:bg-hover hover:text-text pointer-coarse:border pointer-coarse:border-line ${
+                className={`relative flex h-7.5 items-center pointer-fine:min-w-7.5 justify-center rounded-md px-1.75 text-base transition hover:bg-hover hover:text-text pointer-coarse:border pointer-coarse:border-line ${
                     opensAMenu && expanded === true ? 'bg-accent-soft text-accent-deep' : 'text-text-soft'
                 } ${marked ?? ''}`}
                 onMouseDown={(event) => {
