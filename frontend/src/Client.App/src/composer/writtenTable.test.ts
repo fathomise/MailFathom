@@ -306,6 +306,21 @@ describe('tableWithinBounds', () => {
         expect(tableWithinBounds(wide)).toBe(false);
     });
 
+    // A pasted span may say a thousand, and laying every one of those columns out before refusing the table is what
+    // would freeze the composer.
+    it('lays a span out no further than one column past the bound, and refuses the table it widens', () => {
+        const pasted = table(
+            ...Array.from({ length: mostTableRows }, () => [cell('a', { columnSpan: 1000, rowSpan: mostTableRows })]),
+        );
+
+        expect(columnsOf(pasted)).toBe(mostTableColumns + 1);
+        expect(tableWithinBounds(pasted)).toBe(false);
+    });
+
+    it('refuses a row holding more cells than the table may have columns', () => {
+        expect(tableWithinBounds(table(Array.from({ length: mostTableColumns + 1 }, () => cell('a'))))).toBe(false);
+    });
+
     it('refuses a span reaching past the last row, and a table with no row', () => {
         expect(tableWithinBounds(table([cell('a', { rowSpan: 2 })]))).toBe(false);
         expect(tableWithinBounds(table())).toBe(false);

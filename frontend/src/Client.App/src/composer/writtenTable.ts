@@ -263,7 +263,13 @@ export function cellBefore(table: WrittenMarkup, at: TableCellPosition): TableCe
 export function tableWithinBounds(table: WrittenMarkup): boolean {
     const rows = rowsOf(table);
 
-    if (rows.length === 0 || rows.length > mostTableRows) {
+    // A row's cells stand in columns of their own, so a row holding more of them than the bound is refused before
+    // anything is laid out.
+    if (
+        rows.length === 0 ||
+        rows.length > mostTableRows ||
+        rows.some((row) => cellsOf(row).length > mostTableColumns)
+    ) {
         return false;
     }
 
@@ -366,6 +372,10 @@ function rowRemoved(table: WrittenMarkup, removed: number): WrittenMarkup {
     );
 }
 
+// A grid is laid out no wider than one column past the bound: that is enough to tell a table past it, and a span a
+// paste wrote as a thousand then costs the walk no more than that.
+const widestLaidOut = mostTableColumns + 1;
+
 function laidOut(rows: readonly WrittenMarkup[]): TableLayout {
     const covering: (PlacedCell | undefined)[][] = rows.map(() => []);
     const placed = rows.map((row, rowIndex) => {
@@ -380,12 +390,13 @@ function laidOut(rows: readonly WrittenMarkup[]): TableLayout {
                 row: rowIndex,
                 cell: cellIndex,
                 column,
-                columnSpan: Math.max(1, cell.columnSpan ?? 1),
+                columnSpan: Math.min(widestLaidOut, Math.max(1, cell.columnSpan ?? 1)),
                 rowSpan: Math.max(1, Math.min(cell.rowSpan ?? 1, rows.length - rowIndex)),
             };
+            const spanEnd = Math.min(column + laid.columnSpan, widestLaidOut);
 
             for (let spannedRow = rowIndex; spannedRow < rowIndex + laid.rowSpan; spannedRow += 1) {
-                for (let spannedColumn = column; spannedColumn < column + laid.columnSpan; spannedColumn += 1) {
+                for (let spannedColumn = column; spannedColumn < spanEnd; spannedColumn += 1) {
                     const slots = covering[spannedRow];
 
                     if (slots !== undefined) {
