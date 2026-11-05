@@ -187,7 +187,7 @@ public sealed class MailRulePreviewTests
 
         // Act
         var result = await this.CreatePreview().PreviewAsync(
-            MailRulePreviewRequest.OfStoredRule(Account, rule.Id),
+            MailRulePreviewRequest.OfStoredRule(Account, MailRuleReference.To(rule.Id)),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -204,7 +204,7 @@ public sealed class MailRulePreviewTests
 
         // Act
         var result = await this.CreatePreview().PreviewAsync(
-            MailRulePreviewRequest.OfStoredRule(Account, MailRuleIds.For("mark-newsletters")),
+            MailRulePreviewRequest.OfStoredRule(Account, MailRuleReference.To(MailRuleIds.For("mark-newsletters"))),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -268,7 +268,7 @@ public sealed class MailRulePreviewTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() => preview.PreviewAsync(
-            MailRulePreviewRequest.OfStoredRule(Account, MailRuleIds.For("file-invoices")),
+            MailRulePreviewRequest.OfStoredRule(Account, MailRuleReference.To(MailRuleIds.For("file-invoices"))),
             TestContext.Current.CancellationToken));
 
         // Assert

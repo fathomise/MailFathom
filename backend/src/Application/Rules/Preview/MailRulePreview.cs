@@ -139,7 +139,7 @@ public sealed class MailRulePreview
 
         var stored = await this.ruleSets.ReadAsync(request.Account, cancellationToken);
 
-        return stored.Find(request.StoredRule!.Value);
+        return request.StoredRule!.Value.FindIn(stored.Declarations);
     }
 
     private async Task<MailRulePreviewResult> EvaluatePageAsync(

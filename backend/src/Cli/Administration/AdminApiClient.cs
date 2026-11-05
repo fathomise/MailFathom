@@ -836,6 +836,55 @@ internal sealed class AdminApiClient
             cancellationToken);
     }
 
+    /// <summary>Asks the deployment to make one change to an account's rules.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="path">The route of the change: <see cref="AdminEndpointRoutes.RulesPath" /> for a create, or one of the rule change paths beside it.</param>
+    /// <param name="change">The account, the version read, and what the change needs.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>What changed, and the version the account's rules are at now.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment refused the change — a stale version, a rule it does not hold, or a candidate it judged defective — or the credential, could not be reached, or answered with something that is not a change.</exception>
+    internal Task<MailRuleChange> ChangeRulesAsync(
+        string token,
+        string path,
+        MailRuleChangeRequest change,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(change);
+
+        return this.RequestAsync(
+            HttpMethod.Post,
+            path,
+            token,
+            CliJsonContext.Default.MailRuleChange,
+            cancellationToken,
+            JsonContent.Create(change, CliJsonContext.Default.MailRuleChangeRequest));
+    }
+
+    /// <summary>Asks the deployment for one page of a rule's preview over an account's stored mail.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="request">The account, the stored rule or the candidate, and where the page continues from.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The messages the rule would match on the page, and what each would be asked for.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment refused the preview or the credential, could not be reached, or answered with something that is not a page.</exception>
+    internal Task<MailRulePreviewPage> PreviewRuleAsync(
+        string token,
+        MailRulePreviewPageRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return this.RequestAsync(
+            HttpMethod.Post,
+            AdminEndpointRoutes.RulePreviewPath,
+            token,
+            CliJsonContext.Default.MailRulePreviewPage,
+            cancellationToken,
+            JsonContent.Create(request, CliJsonContext.Default.MailRulePreviewPageRequest));
+    }
+
     /// <summary>Asks the deployment to classify every message it holds for one account.</summary>
     /// <param name="token">The bearer credential to present.</param>
     /// <param name="request">The account, the folders to walk, and the two switches.</param>

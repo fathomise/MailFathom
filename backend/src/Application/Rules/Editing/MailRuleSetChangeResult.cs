@@ -24,7 +24,11 @@ public enum MailRuleSetChangeOutcome
 /// <param name="Outcome">How the write ended.</param>
 /// <param name="Version">The set's version after the write: the new one when it committed, the current one when it did not.</param>
 /// <param name="Revision">The set's revision after the write, in the same sense.</param>
-/// <param name="Rule">The rule the write was about, which for a create is the identifier it was minted with.</param>
+/// <param name="Rule">
+/// The rule the write was about, which for a create is the identifier it was minted with, and which is unspecified
+/// when the write named a rule the set does not carry.
+/// </param>
+/// <param name="Name">The name the rule carries after the write, or carried before it was removed; empty where <paramref name="Rule" /> is unspecified.</param>
 /// <param name="Errors">Why the candidate was refused, empty unless <paramref name="Outcome" /> is <see cref="MailRuleSetChangeOutcome.Refused" />.</param>
 /// <remarks>
 /// A result rather than an exception, because the immediate caller is a surface that answers each outcome differently —
@@ -36,4 +40,5 @@ public sealed record MailRuleSetChangeResult(
     long Version,
     MailRuleSetRevision Revision,
     MailRuleId Rule,
+    string Name,
     IReadOnlyList<string> Errors);

@@ -50,6 +50,9 @@ internal sealed class RecordingCliConsole : ICliConsole
     /// <summary>Gets the questions the command asked, in order.</summary>
     internal List<string> Questions { get; } = [];
 
+    /// <summary>Gets or sets what is piped to the command, which it reads only when told to read a document from it.</summary>
+    internal string InputToSupply { get; set; } = string.Empty;
+
     /// <inheritdoc />
     public bool CanConfirm => this.AnswersQuestions;
 
@@ -94,6 +97,9 @@ internal sealed class RecordingCliConsole : ICliConsole
 
         return this.AnswerToGive;
     }
+
+    /// <inheritdoc />
+    public Task<string> ReadInputAsync(CancellationToken cancellationToken) => Task.FromResult(this.InputToSupply);
 
     /// <summary>Draws one shape the way a redirected run would see it, and returns what was drawn line by line.</summary>
     /// <remarks>

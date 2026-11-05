@@ -77,11 +77,15 @@ internal sealed record LoadedRule(
 /// <param name="Mutation">The change, named as the mutation it will be requested through.</param>
 /// <param name="Destination">How a relocation or a copy names its folder — an alias, or a role as <c>role:Junk</c> — absent for every other change.</param>
 /// <param name="DesiredSeenState">Which way a <c>\Seen</c> change was asked for, absent for every other change.</param>
+/// <param name="DesiredFlaggedState">Which way a <c>\Flagged</c> change was asked for, absent for every other change.</param>
+/// <param name="Keywords">The keywords a keyword change names, absent for every other change.</param>
 internal sealed record LoadedRuleAction(
     [property: JsonPropertyName("position")] int Position,
     [property: JsonPropertyName("mutation")] string? Mutation,
     [property: JsonPropertyName("destination")] string? Destination,
-    [property: JsonPropertyName("desiredSeenState")] bool? DesiredSeenState)
+    [property: JsonPropertyName("desiredSeenState")] bool? DesiredSeenState,
+    [property: JsonPropertyName("desiredFlaggedState")] bool? DesiredFlaggedState = null,
+    [property: JsonPropertyName("keywords")] IReadOnlyList<string>? Keywords = null)
 {
     /// <summary>Describes the change and the parameter it carries, where it carries one.</summary>
     /// <returns>One phrase, such as <c>Relocate → archive</c>.</returns>
@@ -89,6 +93,9 @@ internal sealed record LoadedRuleAction(
     {
         { Destination: { Length: > 0 } destination } => $"{this.Mutation} → {ConsoleSafeText.Sanitize(destination)}",
         { DesiredSeenState: { } isSeen } => $"{this.Mutation} → {(isSeen ? "read" : "unread")}",
+        { DesiredFlaggedState: { } isFlagged } => $"{this.Mutation} → {(isFlagged ? "flagged" : "not flagged")}",
+        { Keywords: { Count: > 0 } keywords } => $"{this.Mutation} → {string.Join(" ", keywords.Select(keyword => ConsoleSafeText.Sanitize(keyword)))}",
+        { Keywords: not null } => $"{this.Mutation} → none",
         _ => this.Mutation ?? "an unreported change",
     };
 }

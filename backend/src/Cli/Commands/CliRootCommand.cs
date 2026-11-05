@@ -79,12 +79,21 @@ internal static class CliRootCommand
             CancelEmbeddingReindexCommand.Create(context),
         };
 
-        // Reading, running, and reporting. An account's rules are stored per account and written through
-        // MailRuleSetEditor under a version check; no command here calls it yet.
-        Command rulesCommand = new("rules", "Read a mail account's rules, run them, and read what they did.")
+        // Reading, changing, previewing, running, and reporting, each over one account named on the command. A rule names
+        // no account of its own, so nothing a command here sends can reach a second mailbox. The writes are the safe
+        // workflow in the order an operator meets it: create saves a rule disabled, preview shows what it would do over
+        // the account's real mail, and only enable lets it act.
+        Command rulesCommand = new("rules", "Read, change, and preview a mail account's rules, run them, and read what they did.")
         {
             ListRulesCommand.Create(context),
             ShowRuleCommand.Create(context),
+            CreateRuleCommand.Create(context),
+            EditRuleCommand.Create(context),
+            EnableRuleCommand.Create(context),
+            DisableRuleCommand.Create(context),
+            MoveRuleCommand.Create(context),
+            DeleteRuleCommand.Create(context),
+            PreviewRuleCommand.Create(context),
             RunRulesCommand.Create(context),
             RuleRunStatusCommand.Create(context),
             RuleHistoryCommand.Create(context),

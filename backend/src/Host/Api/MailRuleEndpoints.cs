@@ -2,39 +2,46 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.Json;
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Rules;
 using MailFathom.Application.Rules.Editing;
 using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Rules.History;
+using MailFathom.Application.Rules.Preview;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Failures;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MailFathom.Host.Api;
 
-/// <summary>Serves the three things an operator reads or asks of one mail account's rules.</summary>
+/// <summary>Serves what an operator reads, asks, and changes of one mail account's rules.</summary>
 /// <remarks>
 /// <para>
-/// Reading the account's stored rules, asking for them to be run over its whole mailbox, and reading what they did.
-/// Each mail account's rules are kept in PostgreSQL under
+/// Reading the account's stored rules, changing them, previewing one over the account's mail, asking for them to be run
+/// over its whole mailbox, and reading what they did. Each mail account's rules are kept in PostgreSQL under
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0048-keeping-a-mail-accounts-rules-in-postgresql-and-changing-them-at-runtime.md">ADR 0048</see>,
-/// and every write to them goes through <see cref="MailRuleSetEditor" />; no route here writes one yet.
+/// and every change goes through <see cref="MailRuleSetEditor" />: a change states the version it was written against,
+/// a create always commits the rule disabled, and a rule is named by its identifier or by its name, which the editor
+/// resolves against the set it has locked.
 /// </para>
 /// <para>
 /// They are here rather than on the MCP surface because none of them is anything a model reasons over, and because what
-/// bounds administrative access is what should bound the ability to start a pass over a whole mailbox. The three grants
-/// differ accordingly: reading the stored set and a run's progress is <c>mailfathom.admin.read</c>, asking for a pass is
-/// <c>mailfathom.admin.operate</c>, and the history is <c>mailfathom.admin.audit.read</c>, because what a rule concluded
-/// about somebody's mail is derived from that mail rather than a report of this deployment's own state.
+/// bounds administrative access is what should bound the ability to start a pass over a whole mailbox. The grants
+/// differ accordingly: reading the stored set and a run's progress is <c>mailfathom.admin.read</c>, changing the set is
+/// <c>mailfathom.admin.configuration.write</c>, asking for a pass is <c>mailfathom.admin.operate</c>, and the history
+/// and a preview are <c>mailfathom.admin.audit.read</c>, because what a rule concluded or would conclude about somebody's
+/// mail is derived from that mail rather than a report of this deployment's own state.
 /// </para>
 /// <para>
 /// Nothing any of them answers with is mail. Rule names, conditions, folder aliases, mutation names, fact names, counts,
 /// instants, and identifiers are the whole of it. A condition is authored text that can name a correspondent, which is
-/// why reading the set needs the read grant over the account rather than over the deployment.
+/// why reading the set needs the read grant over the account rather than over the deployment, and why a refused change
+/// names each defective rule by its identifier rather than quoting what it declares.
 /// </para>
 /// </remarks>
 internal static class MailRuleEndpoints
@@ -52,6 +59,41 @@ internal static class MailRuleEndpoints
 
     /// <summary>The route the recorded history is read from, relative to the administrative prefix.</summary>
     internal const string HistoryRoute = "/rules/history";
+
+    /// <summary>The route a rule replaces what it declares at, relative to the administrative prefix.</summary>
+    /// <remarks>A create is a post to <see cref="RulesRoute" />, where the set is read; every other change is a path of its own beneath it.</remarks>
+    internal const string ReplacementRoute = "/rules/replacement";
+
+    /// <summary>The route a rule is enabled at, relative to the administrative prefix.</summary>
+    /// <remarks>
+    /// Enabling and disabling are two paths rather than one carrying a switch, because they are opposite decisions and
+    /// one of them lets a rule start deleting mail: a mistyped value in a body would be the difference between the two.
+    /// </remarks>
+    internal const string EnablementRoute = "/rules/enablement";
+
+    /// <summary>The route a rule is disabled at, relative to the administrative prefix.</summary>
+    internal const string DisablementRoute = "/rules/disablement";
+
+    /// <summary>The route a rule is moved to another position at, relative to the administrative prefix.</summary>
+    internal const string PositionRoute = "/rules/position";
+
+    /// <summary>The route a rule is removed at, relative to the administrative prefix.</summary>
+    internal const string RemovalRoute = "/rules/removal";
+
+    /// <summary>The route a rule is previewed at, relative to the administrative prefix.</summary>
+    /// <remarks>A post although it changes nothing, because a candidate rule is a body and a condition in a query string would reach every access log on the way.</remarks>
+    internal const string PreviewRoute = "/rules/preview";
+
+    /// <summary>The greatest request body a change or a preview reads before refusing it.</summary>
+    /// <remarks>
+    /// The bound ADR 0048 sets for every rule write. One rule at its largest is a few kilobytes at the default condition
+    /// length, so the bound is reached only by a body no rule could need, and it is refused before it is read.
+    /// </remarks>
+    internal const int MaxChangeRequestBytes = 1024 * 1024;
+
+    private const string NoRuleNamed = "The change names no rule. Name it by its identifier or by its name within the account.";
+
+    private const string NoSuchRule = "This account has no rule with that identifier or name.";
 
     /// <summary>The greatest request body the run route reads before refusing it.</summary>
     /// <remarks>
@@ -83,7 +125,297 @@ internal static class MailRuleEndpoints
 
         api.MapGet(HistoryRoute, ReadHistoryAsync)
             .RequirePermissionOverTarget(MailFathomPermission.AdminAuditRead);
+
+        MapChange(api.MapPost(RulesRoute, CreateRuleAsync));
+        MapChange(api.MapPost(ReplacementRoute, ReplaceRuleAsync));
+        MapChange(api.MapPost(EnablementRoute, EnableRuleAsync));
+        MapChange(api.MapPost(DisablementRoute, DisableRuleAsync));
+        MapChange(api.MapPost(PositionRoute, MoveRuleAsync));
+        MapChange(api.MapPost(RemovalRoute, RemoveRuleAsync));
+
+        // The audit grant rather than the read grant, because a preview names the messages a rule reaches, which is what
+        // the history beside it is read under.
+        api.MapPost(PreviewRoute, PreviewRuleAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaxChangeRequestBytes))
+            .RequirePermissionOverTarget(MailFathomPermission.AdminAuditRead);
     }
+
+    /// <summary>Creates a rule at the end of an account's set, disabled.</summary>
+    /// <param name="request">The account, the version read, and the rule object.</param>
+    /// <param name="accounts">Reports whether this deployment serves the named account.</param>
+    /// <param name="editor">Writes the account's rules.</param>
+    /// <param name="authorization">Answers whether the caller's scope covers the account.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><c>200</c> with what changed, <c>409</c> for a stale version, or <c>400</c>.</returns>
+    internal static async Task<Results<Ok<MailRuleChangeResponse>, ProblemHttpResult>> CreateRuleAsync(
+        [FromBody] MailRuleChangeRequest? request,
+        [FromServices] IDeploymentMailAccountCatalog accounts,
+        [FromServices] MailRuleSetEditor editor,
+        [FromServices] AccessAuthorization authorization,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(editor);
+
+        if (await ResolveWriteAsync(request, accounts, authorization, cancellationToken) is not { } write)
+        {
+            return RefuseWrite(request);
+        }
+
+        if (MailRuleDeclarationRequest.Read(request!.Declaration, out var refusal) is not { } draft)
+        {
+            return Refused(refusal!);
+        }
+
+        return Answered(write, await editor.CreateAsync(write, draft, cancellationToken));
+    }
+
+    /// <summary>Replaces what one rule declares, keeping its identifier, its position, and whether it runs.</summary>
+    /// <param name="request">The account, the version read, the rule, and the rule object replacing it.</param>
+    /// <param name="accounts">Reports whether this deployment serves the named account.</param>
+    /// <param name="editor">Writes the account's rules.</param>
+    /// <param name="authorization">Answers whether the caller's scope covers the account.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><c>200</c> with what changed, <c>409</c> for a stale version, or <c>400</c>.</returns>
+    internal static async Task<Results<Ok<MailRuleChangeResponse>, ProblemHttpResult>> ReplaceRuleAsync(
+        [FromBody] MailRuleChangeRequest? request,
+        [FromServices] IDeploymentMailAccountCatalog accounts,
+        [FromServices] MailRuleSetEditor editor,
+        [FromServices] AccessAuthorization authorization,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(editor);
+
+        if (await ResolveWriteAsync(request, accounts, authorization, cancellationToken) is not { } write)
+        {
+            return RefuseWrite(request);
+        }
+
+        if (!MailRuleReference.TryCreate(request!.Rule, out var rule))
+        {
+            return Refused(NoRuleNamed);
+        }
+
+        if (MailRuleDeclarationRequest.Read(request.Declaration, out var refusal) is not { } draft)
+        {
+            return Refused(refusal!);
+        }
+
+        return Answered(write, await editor.ReplaceAsync(write, rule, draft, cancellationToken));
+    }
+
+    /// <summary>Enables one rule, so the next pass applies it.</summary>
+    /// <param name="request">The account, the version read, and the rule.</param>
+    /// <param name="accounts">Reports whether this deployment serves the named account.</param>
+    /// <param name="editor">Writes the account's rules.</param>
+    /// <param name="authorization">Answers whether the caller's scope covers the account.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><c>200</c> with what changed, <c>409</c> for a stale version, or <c>400</c>.</returns>
+    internal static Task<Results<Ok<MailRuleChangeResponse>, ProblemHttpResult>> EnableRuleAsync(
+        [FromBody] MailRuleChangeRequest? request,
+        [FromServices] IDeploymentMailAccountCatalog accounts,
+        [FromServices] MailRuleSetEditor editor,
+        [FromServices] AccessAuthorization authorization,
+        CancellationToken cancellationToken) =>
+        ChangeNamedRuleAsync(
+            request,
+            accounts,
+            authorization,
+            (write, rule) => editor.SetEnabledAsync(write, rule, enabled: true, cancellationToken),
+            cancellationToken);
+
+    /// <summary>Disables one rule, so no pass applies it while it is kept.</summary>
+    /// <param name="request">The account, the version read, and the rule.</param>
+    /// <param name="accounts">Reports whether this deployment serves the named account.</param>
+    /// <param name="editor">Writes the account's rules.</param>
+    /// <param name="authorization">Answers whether the caller's scope covers the account.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><c>200</c> with what changed, <c>409</c> for a stale version, or <c>400</c>.</returns>
+    internal static Task<Results<Ok<MailRuleChangeResponse>, ProblemHttpResult>> DisableRuleAsync(
+        [FromBody] MailRuleChangeRequest? request,
+        [FromServices] IDeploymentMailAccountCatalog accounts,
+        [FromServices] MailRuleSetEditor editor,
+        [FromServices] AccessAuthorization authorization,
+        CancellationToken cancellationToken) =>
+        ChangeNamedRuleAsync(
+            request,
+            accounts,
+            authorization,
+            (write, rule) => editor.SetEnabledAsync(write, rule, enabled: false, cancellationToken),
+            cancellationToken);
+
+    /// <summary>Moves one rule to another position in the order its account's set is evaluated in.</summary>
+    /// <param name="request">The account, the version read, the rule, and its new position.</param>
+    /// <param name="accounts">Reports whether this deployment serves the named account.</param>
+    /// <param name="editor">Writes the account's rules.</param>
+    /// <param name="authorization">Answers whether the caller's scope covers the account.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><c>200</c> with what changed, <c>409</c> for a stale version, or <c>400</c>.</returns>
+    internal static Task<Results<Ok<MailRuleChangeResponse>, ProblemHttpResult>> MoveRuleAsync(
+        [FromBody] MailRuleChangeRequest? request,
+        [FromServices] IDeploymentMailAccountCatalog accounts,
+        [FromServices] MailRuleSetEditor editor,
+        [FromServices] AccessAuthorization authorization,
+        CancellationToken cancellationToken) =>
+        request?.Position is not { } position
+            ? Task.FromResult<Results<Ok<MailRuleChangeResponse>, ProblemHttpResult>>(
+                Refused("A move states the position the rule goes to, counted from 0 for the first rule evaluated."))
+            : ChangeNamedRuleAsync(
+                request,
+                accounts,
+                authorization,
+                (write, rule) => editor.MoveAsync(write, rule, position, cancellationToken),
+                cancellationToken);
+
+    /// <summary>Removes one rule from its account's set.</summary>
+    /// <param name="request">The account, the version read, and the rule.</param>
+    /// <param name="accounts">Reports whether this deployment serves the named account.</param>
+    /// <param name="editor">Writes the account's rules.</param>
+    /// <param name="authorization">Answers whether the caller's scope covers the account.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><c>200</c> with what changed, <c>409</c> for a stale version, or <c>400</c>.</returns>
+    internal static Task<Results<Ok<MailRuleChangeResponse>, ProblemHttpResult>> RemoveRuleAsync(
+        [FromBody] MailRuleChangeRequest? request,
+        [FromServices] IDeploymentMailAccountCatalog accounts,
+        [FromServices] MailRuleSetEditor editor,
+        [FromServices] AccessAuthorization authorization,
+        CancellationToken cancellationToken) =>
+        ChangeNamedRuleAsync(
+            request,
+            accounts,
+            authorization,
+            (write, rule) => editor.RemoveAsync(write, rule, cancellationToken),
+            cancellationToken);
+
+    /// <summary>Evaluates one rule over a page of an account's stored mail, changing nothing.</summary>
+    /// <param name="request">The account, the stored rule or the candidate, and where the page continues from.</param>
+    /// <param name="accounts">Reports whether this deployment serves the named account.</param>
+    /// <param name="preview">Evaluates the rule.</param>
+    /// <param name="authorization">Answers whether the caller's scope covers the account.</param>
+    /// <param name="cancellationToken">Cancels the preview.</param>
+    /// <returns><c>200</c> with the page, or <c>400</c>.</returns>
+    internal static async Task<Results<Ok<MailRulePreviewResponse>, ProblemHttpResult>> PreviewRuleAsync(
+        [FromBody] MailRulePreviewPageRequest? request,
+        [FromServices] IDeploymentMailAccountCatalog accounts,
+        [FromServices] MailRulePreview preview,
+        [FromServices] AccessAuthorization authorization,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(preview);
+
+        if (await AdminAccountRequest.ResolveCoveredAsync(request?.Account, MailFathomPermission.AdminAuditRead, accounts, authorization, cancellationToken) is not { } account)
+        {
+            return AdminAccountRequest.Refuse(request?.Account);
+        }
+
+        var after = request!.After is { } continuation && continuation != Guid.Empty ? StoredEmailId.Create(continuation) : (StoredEmailId?)null;
+        var names = MailRuleReference.TryCreate(request.Rule, out var rule);
+        var carries = request.Declaration is { ValueKind: not JsonValueKind.Null and not JsonValueKind.Undefined };
+
+        if (names == carries)
+        {
+            return Refused("A preview names one stored rule, by its identifier or its name, or carries one rule object, and not both.");
+        }
+
+        MailRulePreviewRequest previewed;
+
+        if (names)
+        {
+            previewed = MailRulePreviewRequest.OfStoredRule(account, rule, after);
+        }
+        else if (MailRuleDeclarationRequest.Read(request.Declaration, out var refusal) is { } draft)
+        {
+            previewed = MailRulePreviewRequest.OfCandidate(account, draft, after);
+        }
+        else
+        {
+            return Refused(refusal!);
+        }
+
+        var result = await preview.PreviewAsync(previewed, cancellationToken);
+
+        return result.Outcome switch
+        {
+            MailRulePreviewOutcome.Previewed => TypedResults.Ok(MailRulePreviewResponse.For(account, result)),
+            MailRulePreviewOutcome.RuleNotFound => Refused(NoSuchRule),
+            _ => Refused(DescribeErrors("The rule was refused, so nothing was evaluated:", result.Errors)),
+        };
+    }
+
+    /// <summary>Gives a change route its body bound and its grant, which every change shares.</summary>
+    /// <remarks>
+    /// The attribute is reached for its metadata rather than as an MVC filter: it implements
+    /// <c>IRequestSizeLimitMetadata</c>, which the routing pipeline applies to the request body feature.
+    /// </remarks>
+    private static void MapChange(RouteHandlerBuilder route) => route
+        .WithMetadata(new RequestSizeLimitAttribute(MaxChangeRequestBytes))
+        .RequirePermissionOverTarget(MailFathomPermission.AdminConfigurationWrite);
+
+    private static async Task<Results<Ok<MailRuleChangeResponse>, ProblemHttpResult>> ChangeNamedRuleAsync(
+        MailRuleChangeRequest? request,
+        IDeploymentMailAccountCatalog accounts,
+        AccessAuthorization authorization,
+        Func<MailRuleSetWrite, MailRuleReference, Task<MailRuleSetChangeResult>> change,
+        CancellationToken cancellationToken)
+    {
+        if (await ResolveWriteAsync(request, accounts, authorization, cancellationToken) is not { } write)
+        {
+            return RefuseWrite(request);
+        }
+
+        return MailRuleReference.TryCreate(request!.Rule, out var rule)
+            ? Answered(write, await change(write, rule))
+            : Refused(NoRuleNamed);
+    }
+
+    /// <summary>Reads the account and the version a change states, or nothing where either is missing or the account is not served.</summary>
+    /// <remarks>The account is asked about first, so a request naming an account outside the caller's scope is answered as one this deployment does not serve whatever else it got wrong.</remarks>
+    private static async Task<MailRuleSetWrite?> ResolveWriteAsync(
+        MailRuleChangeRequest? request,
+        IDeploymentMailAccountCatalog accounts,
+        AccessAuthorization authorization,
+        CancellationToken cancellationToken) =>
+        await AdminAccountRequest.ResolveCoveredAsync(
+                request?.Account,
+                MailFathomPermission.AdminConfigurationWrite,
+                accounts,
+                authorization,
+                cancellationToken) is { } account
+            && request!.Version is { } version and >= 0
+                ? new MailRuleSetWrite(account, version)
+                : null;
+
+    private static ProblemHttpResult RefuseWrite(MailRuleChangeRequest? request) =>
+        string.IsNullOrWhiteSpace(request?.Account) || request.Version is >= 0
+            ? AdminAccountRequest.Refuse(request?.Account)
+            : Refused("A change states the version of the account's rules it was written against, which reading the rules reports.");
+
+    private static Results<Ok<MailRuleChangeResponse>, ProblemHttpResult> Answered(MailRuleSetWrite write, MailRuleSetChangeResult result) =>
+        result.Outcome switch
+        {
+            MailRuleSetChangeOutcome.Committed => TypedResults.Ok(new MailRuleChangeResponse(
+                write.Account.Value,
+                result.Rule.Value,
+                result.Name,
+                result.Version,
+                result.Revision.Value)),
+            MailRuleSetChangeOutcome.VersionConflict => TypedResults.Problem(
+                $"This account's rules are at version {result.Version}, and the change was written against version {write.ExpectedVersion}, so nothing changed. Read the rules again and decide again.",
+                statusCode: StatusCodes.Status409Conflict,
+                extensions: new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    [RouteAuthorization.ErrorCodeExtension] = MailFathomErrorCode.MailRuleSetVersionSuperseded.Value,
+                }),
+            MailRuleSetChangeOutcome.RuleNotFound => Refused($"{NoSuchRule} Nothing changed."),
+            _ => Refused(DescribeErrors("The change was refused, and nothing changed:", result.Errors)),
+        };
+
+    /// <summary>States every defect a refusal found, one to a line, under the sentence saying what was refused.</summary>
+    /// <remarks>Each defect names the rule by its identifier and quotes nothing it declares beyond the one token a condition could not be read at, which goes back only to the caller who wrote it.</remarks>
+    private static string DescribeErrors(string heading, IReadOnlyList<string> errors) =>
+        string.Join('\n', errors.Select(error => $"- {error}").Prepend(heading));
+
+    private static ProblemHttpResult Refused(string detail) =>
+        TypedResults.Problem(detail, statusCode: StatusCodes.Status400BadRequest);
 
     /// <summary>Reports one account's stored rules, the set's version, its revision, and whether it is held.</summary>
     /// <param name="account">The identifier the deployment generated for the account whose rules are read.</param>

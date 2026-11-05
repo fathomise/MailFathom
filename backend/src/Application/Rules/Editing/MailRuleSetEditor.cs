@@ -25,6 +25,10 @@ namespace MailFathom.Application.Rules.Editing;
 /// permissions in process and compiles the conditions, and nothing more.
 /// </para>
 /// <para>
+/// A write naming an existing rule resolves its <see cref="MailRuleReference" /> against the locked set, after the
+/// version check, so a name always means the rule the caller saw under it at the version they stated.
+/// </para>
+/// <para>
 /// The administrative surface is the one that writes here, under <see cref="MailFathomPermission.AdminConfigurationWrite" />
 /// over the account — the permission that already writes the account's record and its <c>RuleActions</c>.
 /// </para>
@@ -83,12 +87,11 @@ public sealed class MailRuleSetEditor
     {
         ArgumentNullException.ThrowIfNull(draft);
 
-        var rule = MailRuleId.Mint(this.timeProvider.GetUtcNow());
+        var created = draft.Declare(MailRuleId.Mint(this.timeProvider.GetUtcNow()), enabled: false);
 
         return this.WriteAsync(
             write,
-            rule,
-            stored => Candidate.Of([.. stored.Declarations, draft.Declare(rule, enabled: false)]),
+            stored => new Proposal(created, Candidate.Of([.. stored.Declarations, created])),
             cancellationToken);
     }
 
@@ -101,7 +104,7 @@ public sealed class MailRuleSetEditor
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller may not write the account's configuration.</exception>
     public Task<MailRuleSetChangeResult> ReplaceAsync(
         MailRuleSetWrite write,
-        MailRuleId rule,
+        MailRuleReference rule,
         MailRuleDraft draft,
         CancellationToken cancellationToken)
     {
@@ -110,9 +113,12 @@ public sealed class MailRuleSetEditor
         return this.WriteAsync(
             write,
             rule,
-            stored => stored.Find(rule) is { } current
-                ? Candidate.Of([.. stored.Declarations.Select(declaration => declaration.Id == rule ? draft.Declare(rule, current.Enabled) : declaration)])
-                : Candidate.RuleNotFound,
+            (stored, current) =>
+            {
+                var replaced = draft.Declare(current.Id, current.Enabled);
+
+                return new Proposal(replaced, Candidate.Of([.. stored.Declarations.Select(declaration => declaration.Id == current.Id ? replaced : declaration)]));
+            },
             cancellationToken);
     }
 
@@ -125,15 +131,15 @@ public sealed class MailRuleSetEditor
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller may not write the account's configuration.</exception>
     public Task<MailRuleSetChangeResult> SetEnabledAsync(
         MailRuleSetWrite write,
-        MailRuleId rule,
+        MailRuleReference rule,
         bool enabled,
         CancellationToken cancellationToken) =>
         this.WriteAsync(
             write,
             rule,
-            stored => stored.Find(rule) is null
-                ? Candidate.RuleNotFound
-                : Candidate.Of([.. stored.Declarations.Select(declaration => declaration.Id == rule ? declaration with { Enabled = enabled } : declaration)]),
+            (stored, current) => new Proposal(
+                current,
+                Candidate.Of([.. stored.Declarations.Select(declaration => declaration.Id == current.Id ? declaration with { Enabled = enabled } : declaration)])),
             cancellationToken);
 
     /// <summary>Moves one rule to another position in the order a pass evaluates the set in.</summary>
@@ -145,13 +151,13 @@ public sealed class MailRuleSetEditor
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller may not write the account's configuration.</exception>
     public Task<MailRuleSetChangeResult> MoveAsync(
         MailRuleSetWrite write,
-        MailRuleId rule,
+        MailRuleReference rule,
         int position,
         CancellationToken cancellationToken) =>
         this.WriteAsync(
             write,
             rule,
-            stored => stored.Find(rule) is { } moved ? Move(stored.Declarations, moved, position) : Candidate.RuleNotFound,
+            (stored, current) => new Proposal(current, Move(stored.Declarations, current, position)),
             cancellationToken);
 
     /// <summary>Removes one rule; the rules below it move up one position, and its schedule is withdrawn.</summary>
@@ -166,14 +172,14 @@ public sealed class MailRuleSetEditor
     /// </remarks>
     public Task<MailRuleSetChangeResult> RemoveAsync(
         MailRuleSetWrite write,
-        MailRuleId rule,
+        MailRuleReference rule,
         CancellationToken cancellationToken) =>
         this.WriteAsync(
             write,
             rule,
-            stored => stored.Find(rule) is null
-                ? Candidate.RuleNotFound
-                : Candidate.Of([.. stored.Declarations.Where(declaration => declaration.Id != rule)]),
+            (stored, current) => new Proposal(
+                current,
+                Candidate.Of([.. stored.Declarations.Where(declaration => declaration.Id != current.Id)])),
             cancellationToken);
 
     /// <summary>Builds the order a move produces, refusing a position outside the set.</summary>
@@ -198,14 +204,25 @@ public sealed class MailRuleSetEditor
     private static MailRuleSetChangeResult Unchanged(
         MailRuleSetChangeOutcome outcome,
         StoredMailRuleSet stored,
-        MailRuleId rule,
+        MailRuleDeclaration? rule,
         IReadOnlyList<string> errors) =>
-        new(outcome, stored.Version, stored.Revision, rule, errors);
+        new(outcome, stored.Version, stored.Revision, rule?.Id ?? default, rule?.Name ?? string.Empty, errors);
+
+    private Task<MailRuleSetChangeResult> WriteAsync(
+        MailRuleSetWrite write,
+        MailRuleReference rule,
+        Func<StoredMailRuleSet, MailRuleDeclaration, Proposal> change,
+        CancellationToken cancellationToken) =>
+        this.WriteAsync(
+            write,
+            stored => rule.FindIn(stored.Declarations) is { } current
+                ? change(stored, current)
+                : new Proposal(Subject: null, Candidate.RuleNotFound),
+            cancellationToken);
 
     private async Task<MailRuleSetChangeResult> WriteAsync(
         MailRuleSetWrite write,
-        MailRuleId rule,
-        Func<StoredMailRuleSet, Candidate> change,
+        Func<StoredMailRuleSet, Proposal> change,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(write);
@@ -224,23 +241,23 @@ public sealed class MailRuleSetEditor
 
                 if (stored.Version != write.ExpectedVersion)
                 {
-                    return Unchanged(MailRuleSetChangeOutcome.VersionConflict, stored, rule, []);
+                    return Unchanged(MailRuleSetChangeOutcome.VersionConflict, stored, rule: null, []);
                 }
 
-                var proposed = change(stored);
+                var (subject, proposed) = change(stored);
 
                 if (proposed.Declarations is not { } candidate)
                 {
                     return proposed.Refusal is { } refusal
-                        ? Unchanged(MailRuleSetChangeOutcome.Refused, stored, rule, [refusal])
-                        : Unchanged(MailRuleSetChangeOutcome.RuleNotFound, stored, rule, []);
+                        ? Unchanged(MailRuleSetChangeOutcome.Refused, stored, subject, [refusal])
+                        : Unchanged(MailRuleSetChangeOutcome.RuleNotFound, stored, rule: null, []);
                 }
 
                 var errors = this.validator.FindErrors(write.Account, stored.Declarations, candidate, this.bounds);
 
                 if (errors.Count > 0)
                 {
-                    return Unchanged(MailRuleSetChangeOutcome.Refused, stored, rule, errors);
+                    return Unchanged(MailRuleSetChangeOutcome.Refused, stored, subject, errors);
                 }
 
                 var committed = new MailRuleSetArchiveEntry(
@@ -259,11 +276,15 @@ public sealed class MailRuleSetEditor
                     MailRuleSetChangeOutcome.Committed,
                     committed.Version,
                     committed.Revision,
-                    rule,
+                    subject!.Id,
+                    subject.Name,
                     []);
             },
             cancellationToken);
     }
+
+    /// <summary>The rule a write is about, as it stands after the write, and the whole set the write proposes.</summary>
+    private readonly record struct Proposal(MailRuleDeclaration? Subject, Candidate Candidate);
 
     /// <summary>The whole set a write proposes, or why it proposes none: the rule it names is not there, or a refusal.</summary>
     private readonly record struct Candidate(IReadOnlyList<MailRuleDeclaration>? Declarations, string? Refusal)

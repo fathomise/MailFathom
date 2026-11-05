@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Net;
+using System.Text.Json;
 using MailFathom.Cli.Administration;
 using MailFathom.TestSupport;
 
@@ -16,11 +17,23 @@ namespace MailFathom.Cli.UnitTests;
 /// </remarks>
 internal static class FakeRuleDeployment
 {
+    private static readonly string[] ChangePaths =
+    [
+        AdminEndpointRoutes.RulesPath,
+        AdminEndpointRoutes.RuleReplacementPath,
+        AdminEndpointRoutes.RuleEnablementPath,
+        AdminEndpointRoutes.RuleDisablementPath,
+        AdminEndpointRoutes.RulePositionPath,
+        AdminEndpointRoutes.RuleRemovalPath,
+    ];
+
     /// <summary>Builds a deployment that answers each rule route with a body the caller supplies.</summary>
     /// <param name="rules">The body the rule-set route answers with.</param>
     /// <param name="runStart">The body the run route answers a post with, or a refusal.</param>
     /// <param name="runState">The body the run route answers a get with.</param>
     /// <param name="history">The body the history route answers with, or a refusal.</param>
+    /// <param name="change">The body every route changing a rule answers a post with, or a refusal.</param>
+    /// <param name="preview">The body the preview route answers with, or a refusal.</param>
     /// <returns>The deployment.</returns>
     /// <remarks>
     /// The session route is answered unconditionally, because every command settles the two versions there before its
@@ -31,8 +44,42 @@ internal static class FakeRuleDeployment
         string? rules = null,
         (HttpStatusCode Status, string Body)? runStart = null,
         string? runState = null,
-        (HttpStatusCode Status, string Body)? history = null) =>
-        new((request, _) => Task.FromResult(Answer(request, rules, runStart, runState, history)));
+        (HttpStatusCode Status, string Body)? history = null,
+        (HttpStatusCode Status, string Body)? change = null,
+        (HttpStatusCode Status, string Body)? preview = null) =>
+        new((request, _) => Task.FromResult(Answer(request, rules, runStart, runState, history, change, preview)));
+
+    /// <summary>Reads the body the command last posted to one route.</summary>
+    /// <param name="deployment">The deployment the command was pointed at.</param>
+    /// <param name="path">The route.</param>
+    /// <returns>The body as JSON, or <see langword="null" /> where nothing was posted there.</returns>
+    internal static JsonElement? LastPosted(this FakeHttpMessageHandler deployment, string path)
+    {
+        ArgumentNullException.ThrowIfNull(deployment);
+
+        var posted = deployment.RecordedRequests
+            .LastOrDefault(request => request.Method == HttpMethod.Post && request.RequestUri?.AbsolutePath == path);
+
+        if (posted is null)
+        {
+            return null;
+        }
+
+        using var document = JsonDocument.Parse(posted.ContentAsUtf8String());
+
+        return document.RootElement.Clone();
+    }
+
+    /// <summary>Reports how many posts the command sent to the routes that change a rule.</summary>
+    /// <param name="deployment">The deployment the command was pointed at.</param>
+    /// <returns>The number of changes asked for.</returns>
+    internal static int ChangeRequestCount(this FakeHttpMessageHandler deployment)
+    {
+        ArgumentNullException.ThrowIfNull(deployment);
+
+        return deployment.RecordedRequests.Count(request =>
+            request.Method == HttpMethod.Post && ChangePaths.Contains(request.RequestUri?.AbsolutePath));
+    }
 
     /// <summary>Reports how often the command asked the deployment to start a run.</summary>
     /// <param name="deployment">The deployment the command was pointed at.</param>
@@ -79,9 +126,21 @@ internal static class FakeRuleDeployment
         string? rules,
         (HttpStatusCode Status, string Body)? runStart,
         string? runState,
-        (HttpStatusCode Status, string Body)? history)
+        (HttpStatusCode Status, string Body)? history,
+        (HttpStatusCode Status, string Body)? change,
+        (HttpStatusCode Status, string Body)? preview)
     {
         var path = request.RequestUri?.AbsolutePath;
+
+        if (request.Method == HttpMethod.Post && ChangePaths.Contains(path) && change is { } changed)
+        {
+            return FakeAdminEndpoint.Json(changed.Status, changed.Body);
+        }
+
+        if (path == AdminEndpointRoutes.RulePreviewPath && preview is { } previewed)
+        {
+            return FakeAdminEndpoint.Json(previewed.Status, previewed.Body);
+        }
 
         if (path == AdminEndpointRoutes.RulesPath && rules is { } ruleSetBody)
         {

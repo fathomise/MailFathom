@@ -11,9 +11,15 @@ namespace MailFathom.Cli.Commands.Rules;
 
 /// <summary>Reports one mail account's stored rules, in the order they run, and whether the set is held.</summary>
 /// <remarks>
+/// <para>
 /// A set is held when an enabled rule no longer compiles — a condition bound tightened, a fact withdrawn by a release —
 /// and then no pass runs any of the account's rules. That is the right behavior and a quiet one, so the listing says
 /// so before it lists anything.
+/// </para>
+/// <para>
+/// Each rule is listed with its identifier beside its name, and the heading carries the version every change states,
+/// so the listing is what an operator reads before changing anything.
+/// </para>
 /// </remarks>
 internal static class ListRulesCommand
 {
@@ -82,12 +88,13 @@ internal static class ListRulesCommand
 
         context.Console.WriteLine(string.Empty);
 
-        CliTable listing = new("Rule", "State", "Runs on", "A match");
+        CliTable listing = new("Rule", "Identifier", "State", "Runs on", "A match");
 
         foreach (var rule in rules)
         {
             listing.AddRow(
                 ConsoleSafeText.Sanitize(rule.Name) ?? "an unnamed rule",
+                $"{rule.Id:D}",
                 rule.DescribeState(),
                 rule.DescribeTriggers(),
                 rule.DescribeActions());
