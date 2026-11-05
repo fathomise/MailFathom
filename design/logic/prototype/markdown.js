@@ -11,12 +11,15 @@ MailFathomDesign.markdown = (() => {
 
   const mdInline = (s) => {
     const out = [];
-    const re = /(\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|`[^`]+`|\*[^*\n]+\*|\[[^\]]+\]\([^)]+\))/g;
+    /* `{large:words}` is a sender's text size, one of the four marked steps, and `{large*:words}` the same in bold —
+       a sample's way of carrying what a reduced document's run says about its size. */
+    const re = /(\{(?:small|large|larger|largest)\*?:[^}]+\}|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|`[^`]+`|\*[^*\n]+\*|\[[^\]]+\]\([^)]+\))/g;
     let last = 0, m;
     while ((m = re.exec(s))) {
       if (m.index > last) out.push({ t: s.slice(last, m.index) });
       const tok = m[0];
-      if (tok.indexOf("**") === 0 || tok.indexOf("__") === 0) out.push({ t: tok.slice(2, -2), b: true });
+      if (tok.charAt(0) === "{") { const mm = /^\{(\w+)(\*?):([^}]+)\}$/.exec(tok); out.push({ t: mm[3], size: mm[1], b: !!mm[2] }); }
+      else if (tok.indexOf("**") === 0 || tok.indexOf("__") === 0) out.push({ t: tok.slice(2, -2), b: true });
       else if (tok.indexOf("~~") === 0) out.push({ t: tok.slice(2, -2), s: true });
       else if (tok.charAt(0) === "`") out.push({ t: tok.slice(1, -1), c: true });
       else if (tok.charAt(0) === "[") { const mm = /\[([^\]]+)\]\(([^)]+)\)/.exec(tok); out.push({ t: mm[1], href: mm[2] }); }
@@ -76,7 +79,7 @@ MailFathomDesign.markdown = (() => {
   };
 
   const mdPlain = (src) => String(src).replace(/```[\s\S]*?```/g, " ").replace(/^[#>\s|*-]+/gm, "")
-    .replace(/[*_`~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/\s+/g, " ").trim();
+    .replace(/\{(?:small|large|larger|largest)\*?:([^}]+)\}/g, "$1").replace(/[*_`~]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/\s+/g, " ").trim();
 
   const MDRUN = {
     b: "font-weight:600;color:var(--text)",
@@ -85,6 +88,9 @@ MailFathomDesign.markdown = (() => {
     c: "font-family:'Geist Mono',ui-monospace,monospace;font-size:0.88em;background:var(--hover);border:1px solid var(--line);border-radius:6px;padding:1px 5px",
     a: "color:var(--accent-d);text-decoration:underline",
   };
+  /* A sender's size is drawn as the client's own type step, relative to the pane's body text rather than at the pixels
+     the sender wrote, so nothing reads below `small` and nothing above `largest`. The composer draws a step the same way. */
+  const MDSIZE = { small: "font-size:0.867em", large: "font-size:1.2em;line-height:1.45", larger: "font-size:1.4em;line-height:1.35", largest: "font-size:1.733em;line-height:1.25;letter-spacing:-0.01em" };
   /* A link in an AI answer is drawn the way a link in mail is: where it goes beside it, and a warning wherever the
      service's judgement asks for one. `judged` maps a target to { host, cited, deceptive }; a link it does not name
      was judged by nobody, so it is warned about as appearing in no cited message. Mail bodies pass no map. */
@@ -98,7 +104,7 @@ MailFathomDesign.markdown = (() => {
     const j = r.href && judged ? (judged[r.href] || { host: r.href, cited: false }) : null;
     return {
       text: r.t, plain: !r.href, isLink: !!r.href, href: r.href || "",
-      style: r.href ? MDRUN.a : r.b ? MDRUN.b : r.i ? MDRUN.i : r.s ? MDRUN.s : r.c ? MDRUN.c : "",
+      style: (r.href ? MDRUN.a : r.b ? MDRUN.b : r.i ? MDRUN.i : r.s ? MDRUN.s : r.c ? MDRUN.c : "") + (r.size ? ";" + MDSIZE[r.size] : ""),
       isJudged: !!j, goesTo: j ? " goes to " + j.host : "", noteStyle: LINKNOTE, warnStyle: LINKWARN,
       warnings: j ? linkWarnings(j).map(w => ({ text: " " + w })) : [],
       warnText: j ? linkWarnings(j).join("\n") : "",
@@ -144,5 +150,5 @@ MailFathomDesign.markdown = (() => {
   };
   const mdView = (src, judged) => mdParse(src).map(b => mdBlock(b, judged));
 
-  return { mdInline, mdParse, mdPlain, MDRUN, mdRuns, MDTXT, mdBlock, mdView };
+  return { mdInline, mdParse, mdPlain, MDRUN, MDSIZE, mdRuns, MDTXT, mdBlock, mdView };
 })();
