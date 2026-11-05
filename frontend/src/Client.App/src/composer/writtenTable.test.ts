@@ -33,7 +33,11 @@ function header(text: string): WrittenMarkup {
 }
 
 function table(...rows: readonly (readonly WrittenMarkup[])[]): WrittenMarkup {
-    return { element: 'table', address: null, holds: rows.map((cells) => ({ element: 'tr', address: null, holds: cells })) };
+    return {
+        element: 'table',
+        address: null,
+        holds: rows.map((cells) => ({ element: 'tr', address: null, holds: cells })),
+    };
 }
 
 // A table read back as the words of its cells, a header cell marked `#` and a span as `:c<n>` or `:r<n>`, which is
@@ -78,14 +82,22 @@ describe('withRowInserted', () => {
     it('puts an empty row below the caret, which stays in its cell', () => {
         const edit = withRowInserted(plain, { row: 0, cell: 1 }, 'after');
 
-        expect(grid(edit.table)).toEqual([['a', 'b'], ['', ''], ['c', 'd']]);
+        expect(grid(edit.table)).toEqual([
+            ['a', 'b'],
+            ['', ''],
+            ['c', 'd'],
+        ]);
         expect(edit.caret).toEqual({ row: 0, cell: 1 });
     });
 
     it('puts an empty row above the caret, which moves down with its cell', () => {
         const edit = withRowInserted(plain, { row: 1, cell: 0 }, 'before');
 
-        expect(grid(edit.table)).toEqual([['a', 'b'], ['', ''], ['c', 'd']]);
+        expect(grid(edit.table)).toEqual([
+            ['a', 'b'],
+            ['', ''],
+            ['c', 'd'],
+        ]);
         expect(edit.caret).toEqual({ row: 2, cell: 0 });
     });
 
@@ -135,7 +147,10 @@ describe('withRowAppended', () => {
     it('adds a row after the last and puts the caret in its first cell', () => {
         const edit = withRowAppended(table([cell('a'), cell('b')]));
 
-        expect(grid(edit.table)).toEqual([['a', 'b'], ['', '']]);
+        expect(grid(edit.table)).toEqual([
+            ['a', 'b'],
+            ['', ''],
+        ]);
         expect(edit.caret).toEqual({ row: 1, cell: 0 });
     });
 

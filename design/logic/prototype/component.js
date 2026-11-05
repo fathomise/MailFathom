@@ -8597,7 +8597,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               key: "c" + i,
               style: "height:" + (touch ? 12 : 10) + "px;border-radius:2px;border:1px solid var(--border2);background:" + (td.header && i < Math.min(td.cols, 10) ? "var(--accent-line)" : "var(--panel)"),
             })),
-            tablePreviewNote: (td.rows > 6 || td.cols > 10 ? "Showing the first " + Math.min(td.rows, 6) + " rows and " + Math.min(td.cols, 10) + " columns. " : "") + "At most " + T.maxRows + " rows and " + T.maxColumns + " columns.",
+            tablePreviewNote: (td.rows > 6 || td.cols > 10 ? "The preview shows at most 6 rows and 10 columns. " : "") + "At most " + T.maxRows + " rows and " + T.maxColumns + " columns.",
             tableHeaderChecked: String(!!td.header),
             tableHeaderGlyph: td.header ? "check_box" : "check_box_outline_blank",
             toggleTableHeader: () => setDraft({ header: !td.header }),
