@@ -3228,6 +3228,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
 
     aiRevert = () => {
       if (typeof this.aiUndo === "string") this.setBodyHtml(this.aiUndo);
+      this.notePictures();
       this.setState({ aiDraft: false });
     };
 
