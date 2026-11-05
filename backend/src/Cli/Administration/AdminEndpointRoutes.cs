@@ -110,8 +110,27 @@ internal static class AdminEndpointRoutes
     /// <summary>Where a deployment is asked to stop the reindex it has under way.</summary>
     internal const string EmbeddingReindexCancellationPath = $"{Prefix}/embeddings/reindex/cancellation";
 
-    /// <summary>Where a deployment reports the mail rules it has loaded, and whether its rule file was accepted.</summary>
+    /// <summary>Where one mail account's stored rules are read with <c>GET</c>, and a rule is created with <c>POST</c>.</summary>
     internal const string RulesPath = $"{Prefix}/rules";
+
+    /// <summary>Where one rule's declaration is replaced.</summary>
+    internal const string RuleReplacementPath = $"{Prefix}/rules/replacement";
+
+    /// <summary>Where one rule is enabled.</summary>
+    /// <remarks>A path of its own rather than a switch beside <see cref="RuleDisablementPath" />, because the two are opposite decisions and a mistyped value would be the difference between them.</remarks>
+    internal const string RuleEnablementPath = $"{Prefix}/rules/enablement";
+
+    /// <summary>Where one rule is disabled.</summary>
+    internal const string RuleDisablementPath = $"{Prefix}/rules/disablement";
+
+    /// <summary>Where one rule is moved to another position.</summary>
+    internal const string RulePositionPath = $"{Prefix}/rules/position";
+
+    /// <summary>Where one rule is removed.</summary>
+    internal const string RuleRemovalPath = $"{Prefix}/rules/removal";
+
+    /// <summary>Where one rule is previewed over an account's stored mail, which changes nothing.</summary>
+    internal const string RulePreviewPath = $"{Prefix}/rules/preview";
 
     /// <summary>Where a whole-mailbox rule run is asked for, and where the one an account has is read.</summary>
     /// <remarks>

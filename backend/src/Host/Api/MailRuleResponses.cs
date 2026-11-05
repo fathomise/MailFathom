@@ -2,10 +2,14 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using MailFathom.Application.Rules;
 using MailFathom.Application.Rules.Actions;
 using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Rules.History;
+using MailFathom.Application.Rules.Preview;
+using MailFathom.Domain.Accounts;
 
 namespace MailFathom.Host.Api;
 
@@ -97,11 +101,15 @@ internal sealed record MailRuleResponse(
 /// or a role as <c>role:Junk</c> — rather than the folder it resolves to, because what this serves is the declaration.
 /// </param>
 /// <param name="DesiredSeenState">Which way a <c>\Seen</c> change was asked for, absent for every other change.</param>
+/// <param name="DesiredFlaggedState">Which way a <c>\Flagged</c> change was asked for, absent for every other change.</param>
+/// <param name="Keywords">The keywords a keyword change names, absent for every other change and empty for a replacement clearing them all.</param>
 internal sealed record MailRuleActionResponse(
     int Position,
     string Mutation,
     string? Destination,
-    bool? DesiredSeenState)
+    bool? DesiredSeenState,
+    bool? DesiredFlaggedState,
+    IReadOnlyList<string>? Keywords)
 {
     /// <summary>Describes one declared change for the wire.</summary>
     /// <param name="action">The change the rule declares.</param>
@@ -116,13 +124,93 @@ internal sealed record MailRuleActionResponse(
             position,
             action.Mutation.Name,
             action.Destination?.ToString(),
-            action.DesiredSeenState);
+            action.DesiredSeenState,
+            action.DesiredFlaggedState,
+            action.Keywords is { } keywords ? [.. keywords.Values] : null);
     }
 }
 
 /// <summary>What a caller asks a whole-mailbox rule run for.</summary>
 /// <param name="Account">The account to run the rules over, as this deployment's configuration names it.</param>
 internal sealed record MailRuleRunRequest(string? Account);
+
+/// <summary>What a caller asks of one change to an account's rules.</summary>
+/// <param name="Account">The account whose rules change.</param>
+/// <param name="Version">The version of the account's rules the change was written against, which a reading reports.</param>
+/// <param name="Rule">The rule the change is about, by its identifier or its name within the account; absent for a create.</param>
+/// <param name="Declaration">The rule object a create or a replacement writes; absent for every other change.</param>
+/// <param name="Position">Where a move puts the rule, counted from zero; absent for every other change.</param>
+/// <remarks>One shape for every change, so each route reads the fields it needs and refuses a request missing one rather than five shapes differing by a field.</remarks>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record MailRuleChangeRequest(
+    string? Account = null,
+    long? Version = null,
+    string? Rule = null,
+    JsonElement? Declaration = null,
+    int? Position = null);
+
+/// <summary>What one change to an account's rules did.</summary>
+/// <param name="Account">The account whose rules changed.</param>
+/// <param name="Rule">The rule the change was about, which for a create is the identifier it was given.</param>
+/// <param name="Name">The name the rule carries after the change, or carried before it was removed.</param>
+/// <param name="Version">The version the account's rules are at now, which the next change states.</param>
+/// <param name="Revision">The revision of the account's enabled rules now, which every later execution names.</param>
+internal sealed record MailRuleChangeResponse(
+    string Account,
+    Guid Rule,
+    string Name,
+    long Version,
+    string Revision);
+
+/// <summary>What a caller asks one page of a preview for.</summary>
+/// <param name="Account">The account whose stored mail the rule is evaluated over.</param>
+/// <param name="Rule">A stored rule to preview, by its identifier or its name; absent when a candidate is carried.</param>
+/// <param name="Declaration">A rule object not yet written, to preview instead of a stored rule.</param>
+/// <param name="After">The message a previous page said to continue after, absent for the first page.</param>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record MailRulePreviewPageRequest(
+    string? Account = null,
+    string? Rule = null,
+    JsonElement? Declaration = null,
+    Guid? After = null);
+
+/// <summary>One page of a preview: which messages the rule would match, and what each would be asked for.</summary>
+/// <param name="Account">The account whose mail was read.</param>
+/// <param name="ExaminedEmailCount">How many messages the page evaluated the rule against.</param>
+/// <param name="FailedEmailCount">How many of them the condition produced no answer for.</param>
+/// <param name="Matches">The stored identities of the messages the rule matched, in the order the walk reached them.</param>
+/// <param name="Requested">What a match would ask the mailbox for, which is the same for every message it matches.</param>
+/// <param name="ContinueAfter">The message the next page continues after, absent when the account's mail is exhausted.</param>
+/// <remarks>
+/// Identities and counts, and nothing about what the messages say: a preview reports which mail a rule reaches, and the
+/// mail itself is read where every other read of it is authorized.
+/// </remarks>
+internal sealed record MailRulePreviewResponse(
+    string Account,
+    int ExaminedEmailCount,
+    int FailedEmailCount,
+    IReadOnlyList<Guid> Matches,
+    IReadOnlyList<MailRuleActionResponse> Requested,
+    Guid? ContinueAfter)
+{
+    /// <summary>Describes one page of a preview for the wire.</summary>
+    /// <param name="account">The account whose mail was read.</param>
+    /// <param name="result">The page.</param>
+    /// <returns>The response body.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="result" /> is <see langword="null" />.</exception>
+    internal static MailRulePreviewResponse For(MailAccountId account, MailRulePreviewResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        return new MailRulePreviewResponse(
+            account.Value,
+            result.ExaminedEmailCount,
+            result.FailedEmailCount,
+            [.. result.Matches.Select(email => email.Value)],
+            [.. result.Requested.Select((action, position) => MailRuleActionResponse.For(action, position))],
+            result.ContinueAfter?.Value);
+    }
+}
 
 /// <summary>What asking for a run did, as the administrative endpoint serves it.</summary>
 /// <param name="Started">Whether this request is what put the run in front of the account.</param>

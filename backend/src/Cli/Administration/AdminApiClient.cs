@@ -76,6 +76,9 @@ internal sealed class AdminApiClient
         StampedAssemblyVersion.ReadFrom(typeof(AdminApiClient).Assembly).Version;
 
     private readonly DeploymentTransport transport;
+    /// <summary>What a refused rule change or preview fails with once the deployment's reasons are printed.</summary>
+    internal const string RuleRefused = "The deployment refused the request for the reasons above, and nothing changed.";
+
     private readonly ICliConsole console;
 
     private AdminSession? settledSession;
@@ -834,6 +837,77 @@ internal sealed class AdminApiClient
             token,
             CliJsonContext.Default.MailRuleHistoryPage,
             cancellationToken);
+    }
+
+    /// <summary>Asks the deployment to make one change to an account's rules.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="path">The route of the change: <see cref="AdminEndpointRoutes.RulesPath" /> for a create, or one of the rule change paths beside it.</param>
+    /// <param name="change">The account, the version read, and what the change needs.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>What changed, and the version the account's rules are at now.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment refused the change — a stale version, a rule it does not hold, or a candidate it judged defective — or the credential, could not be reached, or answered with something that is not a change.</exception>
+    internal Task<MailRuleChange> ChangeRulesAsync(
+        string token,
+        string path,
+        MailRuleChangeRequest change,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(change);
+
+        return this.PrintingRuleRefusalAsync(this.RequestAsync(
+            HttpMethod.Post,
+            path,
+            token,
+            CliJsonContext.Default.MailRuleChange,
+            cancellationToken,
+            JsonContent.Create(change, CliJsonContext.Default.MailRuleChangeRequest)));
+    }
+
+    /// <summary>Asks the deployment for one page of a rule's preview over an account's stored mail.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="request">The account, the stored rule or the candidate, and where the page continues from.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The messages the rule would match on the page, and what each would be asked for.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment refused the preview or the credential, could not be reached, or answered with something that is not a page.</exception>
+    internal Task<MailRulePreviewPage> PreviewRuleAsync(
+        string token,
+        MailRulePreviewPageRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return this.PrintingRuleRefusalAsync(this.RequestAsync(
+            HttpMethod.Post,
+            AdminEndpointRoutes.RulePreviewPath,
+            token,
+            CliJsonContext.Default.MailRulePreviewPage,
+            cancellationToken,
+            JsonContent.Create(request, CliJsonContext.Default.MailRulePreviewPageRequest)));
+    }
+
+    /// <summary>Prints why the deployment refused a rule change or preview, and fails with a sentence that carries none of it.</summary>
+    /// <remarks>
+    /// A condition the deployment could not read is refused naming the one identifier or function it stopped at, or with
+    /// the parser's own message, and both are text the author typed. The author needs them at the terminal, so they are
+    /// written as a notice, which the runner's refusal watch does not capture; the invocation record keeps the failure
+    /// sentence of every command, so what it is handed is <see cref="RuleRefused" />. Every <c>400</c> these routes answer
+    /// is treated alike rather than the validator's alone, because telling them apart would mean reading the sentence.
+    /// </remarks>
+    private async Task<T> PrintingRuleRefusalAsync<T>(Task<T> request)
+    {
+        try
+        {
+            return await request;
+        }
+        catch (CliFailure refusal) when (refusal.Status is HttpStatusCode.BadRequest)
+        {
+            this.console.WriteNotice(refusal.Message);
+
+            throw new CliFailure(RuleRefused, HttpStatusCode.BadRequest);
+        }
     }
 
     /// <summary>Asks the deployment to classify every message it holds for one account.</summary>

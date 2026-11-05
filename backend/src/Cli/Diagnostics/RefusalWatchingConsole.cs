@@ -84,4 +84,7 @@ internal sealed class RefusalWatchingConsole : ICliConsole
 
     /// <inheritdoc />
     public bool Confirm(string question) => this.terminal.Confirm(question);
+
+    /// <inheritdoc />
+    public Task<string> ReadInputAsync(CancellationToken cancellationToken) => this.terminal.ReadInputAsync(cancellationToken);
 }

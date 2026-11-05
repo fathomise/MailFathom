@@ -139,6 +139,8 @@ public sealed class AdminApiEndpointsTests
             .Select(endpoint => $"/{endpoint.RoutePattern.RawText?.TrimStart('/')}")
             .Order(StringComparer.Ordinal);
 
+        // The rules path is read with a get and written with a post that creates a rule, and every other change to a
+        // rule is a post at a path naming the change, so the history and a preview of it stay what a grant tells apart.
         // The activation path, the rule-run path, the classification-run path, the rewind path, and the re-derivation
         // path each appear twice, because each is one resource read with a get and asked for with a post, and both
         // verbs are mapped separately.
@@ -269,7 +271,14 @@ public sealed class AdminApiEndpointsTests
                 $"{AdminEndpointOptions.RoutePrefix}{GrantEndpoints.RoleNameRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{GrantEndpoints.RolePermissionsRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{MailRuleEndpoints.RulesRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{MailRuleEndpoints.RulesRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{MailRuleEndpoints.DisablementRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{MailRuleEndpoints.EnablementRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{MailRuleEndpoints.HistoryRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{MailRuleEndpoints.PositionRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{MailRuleEndpoints.PreviewRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{MailRuleEndpoints.RemovalRoute}",
+                $"{AdminEndpointOptions.RoutePrefix}{MailRuleEndpoints.ReplacementRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{MailRuleEndpoints.RunsRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}{MailRuleEndpoints.RunsRoute}",
                 $"{AdminEndpointOptions.RoutePrefix}/session",
@@ -374,6 +383,13 @@ public sealed class AdminApiEndpointsTests
                 $"GET {prefix}{MailRuleEndpoints.RunsRoute} -> {MailFathomPermission.AdminRead.Name} over its target",
                 $"POST {prefix}{MailRuleEndpoints.RunsRoute} -> {MailFathomPermission.AdminOperate.Name} over its target",
                 $"GET {prefix}{MailRuleEndpoints.HistoryRoute} -> {MailFathomPermission.AdminAuditRead.Name} over its target",
+                $"POST {prefix}{MailRuleEndpoints.RulesRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
+                $"POST {prefix}{MailRuleEndpoints.ReplacementRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
+                $"POST {prefix}{MailRuleEndpoints.EnablementRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
+                $"POST {prefix}{MailRuleEndpoints.DisablementRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
+                $"POST {prefix}{MailRuleEndpoints.PositionRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
+                $"POST {prefix}{MailRuleEndpoints.RemovalRoute} -> {MailFathomPermission.AdminConfigurationWrite.Name} over its target",
+                $"POST {prefix}{MailRuleEndpoints.PreviewRoute} -> {MailFathomPermission.AdminAuditRead.Name} over its target",
                 $"GET {prefix}{SpamClassificationEndpoints.RunsRoute} -> {MailFathomPermission.AdminRead.Name} over its target",
                 $"POST {prefix}{SpamClassificationEndpoints.RunsRoute} -> {MailFathomPermission.AdminOperate.Name} over its target",
                 $"GET {prefix}{SpamClassificationEndpoints.ClassificationsRoute} -> {MailFathomPermission.AdminAuditRead.Name} over its target",

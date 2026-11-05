@@ -366,6 +366,10 @@ gave the rule asks on your behalf. That asking is a command, and so is finding o
 | --- | --- |
 | See which rules an account has, in order, and whether they run | `mfctl rules list --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
 | Read one of them in full | `mfctl rules show file-invoices --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
+| Add a rule, disabled | `mfctl rules create --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 --from-file flag-supplier.json` |
+| See what it would match, changing nothing | `mfctl rules preview flag-supplier --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
+| Let it run | `mfctl rules enable flag-supplier --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
+| Change, stop, reorder, or remove one | `mfctl rules edit`, `disable`, `move --to <position>`, `delete` |
 | Apply them to mail that arrived before them | `mfctl rules run --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
 | Watch that run | `mfctl rules run-status --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
 | Find out what a rule did, or why a message is where it is | `mfctl rules history --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
@@ -380,12 +384,24 @@ fires such a rule by itself, and `mfctl rules run` is how it is run. A rule with
 with the occasions it declares beside the trigger. It is also where a rule you meant to run over arriving mail shows
 that it never says `Arrival`.
 
-None of these five writes a rule: they read the rules, run them, and read what the rules concluded.
+**A new rule is written disabled, previewed, and only then enabled.** `create` reads the rule from a JSON file — or
+from standard input with `--from-file -` — in the shape [the rule object](../features/mail-rules.md#the-rule-object)
+gives, and commits it disabled at the end of the account's rules, so it touches no mail yet. `preview` shows which of
+the mail the account already holds it would match and what it would ask for there, and changes nothing; `enable` is
+the step that lets it act. A rule is named by its identifier or its name, and `delete` asks before it removes one
+unless you add `--yes`.
+
+A change is refused when the rules have moved past the version it states. Pass the version `mfctl rules list`
+printed with `--expected-version`, so that a change somebody made after you read the rules is refused rather than
+overwritten; without it, the version is read when the command runs. A refused change names both versions and changes
+nothing until it is decided again over what the rules now are.
+
 [An account's rules](../features/mail-rules.md#an-accounts-rules) is what a rule is and how a change to an account's
-rules is written.
-[Reading the rules, running them, and finding out what they
-did](../operations/admin-endpoint.md#reading-the-rules-running-them-and-finding-out-what-they-did) is the operator's
-reference for all five, including what the history records and what it deliberately does not.
+rules is written. [Changing and previewing the
+rules](../operations/admin-endpoint.md#changing-and-previewing-the-rules) is the operator's reference for the commands
+that change them, and [reading the rules, running them, and finding out what they
+did](../operations/admin-endpoint.md#reading-the-rules-running-them-and-finding-out-what-they-did) for the five that
+read and run them, including what the history records and what it deliberately does not.
 
 ## Classifying the mail you already have
 

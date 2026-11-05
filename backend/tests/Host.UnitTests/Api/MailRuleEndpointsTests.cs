@@ -68,6 +68,12 @@ public sealed class MailRuleEndpointsTests
         Assert.Equal("/rules", MailRuleEndpoints.RulesRoute);
         Assert.Equal("/rules/runs", MailRuleEndpoints.RunsRoute);
         Assert.Equal("/rules/history", MailRuleEndpoints.HistoryRoute);
+        Assert.Equal("/rules/replacement", MailRuleEndpoints.ReplacementRoute);
+        Assert.Equal("/rules/enablement", MailRuleEndpoints.EnablementRoute);
+        Assert.Equal("/rules/disablement", MailRuleEndpoints.DisablementRoute);
+        Assert.Equal("/rules/position", MailRuleEndpoints.PositionRoute);
+        Assert.Equal("/rules/removal", MailRuleEndpoints.RemovalRoute);
+        Assert.Equal("/rules/preview", MailRuleEndpoints.PreviewRoute);
     }
 
     /// <summary>The bound on the body, which the route carries as metadata the routing pipeline reads.</summary>

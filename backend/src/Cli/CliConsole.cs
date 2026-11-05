@@ -69,6 +69,16 @@ internal interface ICliConsole
     /// <returns><see langword="true" /> only when the answer was yes.</returns>
     /// <remarks>Only called where <see cref="CanConfirm" /> reports that somebody is there; the default is no, so an empty line, an interrupted read, and anything unrecognized all decline.</remarks>
     bool Confirm(string question);
+
+    /// <summary>Reads everything piped to the command, which is how a document is handed over without a file.</summary>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The input exactly as it was supplied, empty when nothing was.</returns>
+    /// <remarks>
+    /// Only called where the operator asked for it by naming <c>-</c> as the file, so a command never sits waiting on a
+    /// terminal nobody meant to type a document into. The input is then the document, so a command reading it has no
+    /// answers left to ask for and confirms nothing.
+    /// </remarks>
+    Task<string> ReadInputAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>The terminal the command actually runs against.</summary>
@@ -165,6 +175,9 @@ internal sealed class SystemCliConsole : ICliConsole
         return answer.Equals("y", StringComparison.OrdinalIgnoreCase)
             || answer.Equals("yes", StringComparison.OrdinalIgnoreCase);
     }
+
+    /// <inheritdoc />
+    public Task<string> ReadInputAsync(CancellationToken cancellationToken) => this.answers.ReadToEndAsync(cancellationToken);
 
     /// <inheritdoc />
     /// <remarks>

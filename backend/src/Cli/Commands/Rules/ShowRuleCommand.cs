@@ -29,10 +29,7 @@ internal static class ShowRuleCommand
         var endpointOption = CliOptions.Endpoint();
         var accountOption = CliOptions.MailAccount();
 
-        Argument<string> nameArgument = new("name")
-        {
-            Description = "The name of the rule to show.",
-        };
+        var nameArgument = RuleChanges.Rule();
 
         Command command = new("show", "Report one of a mail account's rules: its condition, what runs it, and what a match does.")
         {
@@ -64,15 +61,17 @@ internal static class ShowRuleCommand
         var ruleSet = await new AdminApiClient(transport, context.Console)
             .ReadRulesAsync(profile.Token, account, cancellationToken);
 
-        // Names are compared without regard to case for the reason a set refuses two of them that way: an account
-        // cannot hold two rules an operator would read as one, so neither can a lookup find two.
-        var rule = ruleSet.Rules?.FirstOrDefault(
-            candidate => string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase));
+        // The identifier first and then the name, as the deployment resolves a rule a change names, and names are compared
+        // without regard to case for the reason a set refuses two of them that way: an account cannot hold two rules an
+        // operator would read as one, so neither can a lookup find two.
+        var written = name.Trim();
+        var rule = (Guid.TryParse(written, out var id) ? ruleSet.Rules?.FirstOrDefault(candidate => candidate.Id == id) : null)
+            ?? ruleSet.Rules?.FirstOrDefault(candidate => string.Equals(candidate.Name?.Trim(), written, StringComparison.OrdinalIgnoreCase));
 
         if (rule is null)
         {
             throw new CliFailure(
-                $"{account} has no rule named '{name}'. Run '{CliRootCommand.CommandName} rules list --account {account}' to see the ones it has.");
+                $"{account} has no rule '{ConsoleSafeText.Sanitize(written)}'. Run '{CliRootCommand.CommandName} rules list --account {account}' to see the ones it has.");
         }
 
         WriteRule(context, ruleSet, rule);

@@ -447,6 +447,7 @@ These routes accept a grant held at any of the three, and check it against the t
 | `GET` and `POST /api/admin/mailbox/rewind`, `GET` and `POST /api/admin/mailbox/rederivation` | The mail account the request names |
 | `GET /api/admin/accounts/custody`, `POST /api/admin/accounts/custody/switch`, `POST /api/admin/accounts/custody/restore/settle` | The mail account the request names |
 | `GET` and `POST /api/admin/rules/runs`, `GET` and `POST /api/admin/spam/runs` | The mail account the request names |
+| `POST /api/admin/rules`, `POST /api/admin/rules/replacement`, `/enablement`, `/disablement`, `/position`, `/removal`, `/preview` | The mail account the body's `account` names |
 | `POST /api/admin/folders/erasure` | The mail account the request names |
 | `GET /api/admin/exports/measurement`, `GET` and `POST /api/admin/exports`, `GET` and `DELETE /api/admin/exports/{id}`, `POST /api/admin/exports/{id}/cancellation`, `GET /api/admin/exports/{id}/archive` | The mail account the request names |
 | `GET /api/admin/users` | — lists the users the caller's scopes for `mailfathom.admin.read` cover |
@@ -614,6 +615,12 @@ and a request with none is refused as any other.
 | `POST /api/admin/rules/runs` | `mailfathom.admin.operate` | Asks for one account's rules to be run over every message already stored for it, and answers with the run already under way where there is one. |
 | `GET /api/admin/rules/runs` | `mailfathom.admin.read` | Reports where that run has got to, or how the last one ended. |
 | `GET /api/admin/rules/history` | `mailfathom.admin.audit.read` | Reads one account's record of what its rules concluded and what those conclusions asked for. |
+| `POST /api/admin/rules` | `mailfathom.admin.configuration.write` | Creates one rule at the end of an account's set, disabled, against the version the body states. |
+| `POST /api/admin/rules/replacement` | `mailfathom.admin.configuration.write` | Replaces what one rule declares, keeping its identifier, its position, and whether it runs. |
+| `POST /api/admin/rules/enablement`, `POST /api/admin/rules/disablement` | `mailfathom.admin.configuration.write` | Enables or disables one rule, and changes nothing else about it. |
+| `POST /api/admin/rules/position` | `mailfathom.admin.configuration.write` | Moves one rule to another position in the order the set runs in. |
+| `POST /api/admin/rules/removal` | `mailfathom.admin.configuration.write` | Removes one rule, and moves the rules below it up. |
+| `POST /api/admin/rules/preview` | `mailfathom.admin.audit.read` | Reports which of an account's stored messages one rule would match and what it would ask for, changing nothing. |
 | `POST /api/admin/spam/runs` | `mailfathom.admin.operate` | Asks for every message already stored for one account to be [classified](../features/spam-classification.md), and answers with the run already under way where there is one. It is a dry run unless the body asks to apply. |
 | `GET /api/admin/spam/runs` | `mailfathom.admin.read` | Reports where that run has got to, or how the last one ended. |
 | `GET /api/admin/spam/classifications` | `mailfathom.admin.audit.read` | Reads one account's classifications, newest first, and the changes each verdict asked the mailbox for. |
@@ -1078,10 +1085,12 @@ identifier are the whole of it.
 
 ### Reading the rules, running them, and finding out what they did
 
-Five commands, and none of them writes a rule: they read an account's rules, run them, and read what they
-concluded, and none of them creates, edits, enables, disables, moves, or deletes one. A mail account's rules are stored
-in the database beside the account rather than declared in configuration, and every change to them is one versioned,
-validated, archived write — [an account's rules](../features/mail-rules.md#an-accounts-rules) and [how a change is
+Five commands that write no rule: they read an account's rules, run them over the mail already stored, and read what
+they concluded. The
+commands that create, edit, enable, disable, move, delete, and preview a rule are [the next
+section](#changing-and-previewing-the-rules). A mail account's rules are stored in the database beside the account
+rather than declared in configuration, and every change to them is one versioned, validated, archived write — [an
+account's rules](../features/mail-rules.md#an-accounts-rules) and [how a change is
 written](../features/mail-rules.md#how-a-change-is-written) hold both. [Mail rules](../features/mail-rules.md) is the
 whole authoring surface, and [`MailRules`](configuration-mail.md#mailrules) holds the limits every account's rules are
 read under.
@@ -1094,10 +1103,10 @@ $ mfctl rules list --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10
 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 — rule set a1b2c3d4e5f6, version 7
 Running: every enabled rule below is applied.
 
-Rule                     State     Runs on                                              A match
-file-invoices            enabled   Arrival                                              relocate → archive; ends the pass
-retire-old-newsletters   enabled   nothing automatically; 'mfctl rules run' applies it  setSeen → read
-archive-old-newsletters  disabled  Schedule (daily:03:00:Europe/Warsaw)                 relocate → archive
+Rule                     Identifier                            State     Runs on                                              A match
+file-invoices            0199c3d0-0000-7000-8000-000000000001  enabled   Arrival                                              relocate → archive; ends the pass
+retire-old-newsletters   0199c3d0-0000-7000-8000-000000000003  enabled   nothing automatically; 'mfctl rules run' applies it  setSeen → read
+archive-old-newsletters  0199c3d0-0000-7000-8000-000000000004  disabled  Schedule (daily:03:00:Europe/Warsaw)                 relocate → archive
 ```
 
 The order is the answer as much as the rules are: which rule reaches a message first is a property of the set, and a
@@ -1118,8 +1127,8 @@ Held: no pass runs these rules, because 0199c3d0-0000-7000-8000-00000000000a no 
 [A held rule set](../features/mail-rules.md#a-held-rule-set) says why the set is held whole rather than run without
 those rules, and what releases it.
 
-**`mfctl rules show <name> --account <id>` reports one rule in full**, including the condition as it was written,
-its identifier, its position, and whether it is enabled:
+**`mfctl rules show <rule> --account <id>` reports one rule in full**, including the condition as it was written,
+its identifier, its position, and whether it is enabled. `<rule>` is the rule's identifier or its name:
 
 ```console
 $ mfctl rules show file-invoices --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10
@@ -1131,9 +1140,9 @@ Runs on    Arrival
 A match    relocate → archive; ends the pass
 ```
 
-The name is matched ignoring case, because a name is unique within an account without regard to it; a name the account
-has no rule under is answered with `<id> has no rule named '<name>'.` and the `mfctl rules list` command that names
-the ones it has. The condition is printed because an administrator reading the account's rules is reading what its
+An identifier is tried first, and a name is matched ignoring case, because a name is unique within an account without
+regard to it; a rule the account does not hold is answered with `<id> has no rule '<rule>'.` and the `mfctl rules
+list` command that names the ones it has. The condition is printed because an administrator reading the account's rules is reading what its
 owner wrote, and the database is the one place that text is kept — every record *naming* a rule names it by its
 identifier and revision instead, so no log line, metric, or execution carries the condition.
 
@@ -1210,6 +1219,80 @@ does this account's rule say*. A **history** entry carries the alias the run res
 answers *what happened to this message*. An action the run never requested — refused, or withheld because another rule
 had already settled the message — carries what the rule wrote instead, since a role that reached no folder has no alias
 to name and the rule's own words are what an operator has to correct.
+
+### Changing and previewing the rules
+
+Seven commands change an account's rules or show what one would do, and each names the account with `--account`:
+
+| Command | What it does |
+| --- | --- |
+| `mfctl rules create --account <id> --from-file <file>` | Adds the rule the file declares at the end of the set, **disabled** |
+| `mfctl rules edit <rule> --account <id> --from-file <file>` | Replaces what the rule declares, keeping its identifier, its position, and whether it runs |
+| `mfctl rules enable <rule> --account <id>` | Lets every pass apply the rule |
+| `mfctl rules disable <rule> --account <id>` | Keeps the rule where it is and stops every pass applying it |
+| `mfctl rules move <rule> --to <position> --account <id>` | Puts the rule at that position, counted from `0` |
+| `mfctl rules delete <rule> --account <id> [--yes]` | Removes the rule, after asking |
+| `mfctl rules preview [<rule>] --account <id> [--from-file <file>] [--cursor <id>]` | Shows what a stored rule or a rule object would match, changing nothing |
+
+`<rule>` is the rule's identifier or its name, and the deployment resolves it against the set the change is written
+against. `--from-file` names a file holding one [rule object](../features/mail-rules.md#the-rule-object) as JSON, or
+`-` to read it from standard input.
+
+**A rule is created disabled, previewed, and only then enabled.** `create` never commits an enabled rule, and says what
+to run next:
+
+```console
+$ mfctl rules create --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 --from-file flag-supplier.json
+Created rule 'flag-supplier' (0199c3d0-0000-7000-8000-000000000009) in 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10: it is disabled at the end of the account's rules, so no pass applies it yet.
+The rules of 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 are now at version 8, revision a1b2c3d4e5f6.
+See what it would do with 'mfctl rules preview 0199c3d0-0000-7000-8000-000000000009 --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10', then enable it with 'mfctl rules enable 0199c3d0-0000-7000-8000-000000000009 --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10'.
+
+$ mfctl rules preview flag-supplier --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10
+Previewing rule 'flag-supplier' over 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10: 1000 messages examined, 2 would match, 0 gave the condition no answer. Nothing was changed.
+A match would ask for: set-flagged → flagged.
+
+Message
+0199c3d0-0000-7000-8000-0000000000a1
+0199c3d0-0000-7000-8000-0000000000a2
+More of the account's mail remains. Continue with --cursor 0199c3d0-0000-7000-8000-0000000003e8
+```
+
+The revision stays where it was after a create, because it names what the enabled rules mean. A preview evaluates the
+rule alone over the mail a whole-mailbox run walks, one bounded page at a time — [previewing a
+rule](../features/mail-rules.md#previewing-a-rule) holds what it reads and what it bounds — and names the messages by
+their stored identity, never by anything they say. A rule object not yet written is previewed with `--from-file` and no
+`<rule>`, judged exactly as a create would judge it first.
+
+**Every change states the version it was decided against.** Each command reads the version the rules stand at and sends
+it with the change, unless `--expected-version <n>` names the one the operator read — the version `mfctl rules list`
+prints. A change that reaches a set somebody else changed meanwhile is refused and changes nothing:
+
+```console
+This account's rules are at version 9, and the change was written against version 8, so nothing changed. Read the rules again and decide again.
+```
+
+**A refused change lists every defect, and quotes no more of the rule than its author needs.** Each line names the
+rule by its identifier. A condition the deployment could not read is refused naming the one identifier or function it
+stopped at, or with the parser's own message and position; the rule's name, folders, keywords, and the rest of its
+condition are never quoted. `mfctl` prints the deployment's reasons for any refused change or preview and records
+only the sentence that the request was refused, so its invocation record keeps none of them, and the deployment logs and
+measures none of them. A rule object carrying `Accounts`
+or `Enabled` is refused by the key, because a rule reaches only the account that holds it and only `enable` enables
+one.
+
+**`delete` asks first**, because nothing restores a removed rule: the archive keeps what it was, and no command writes
+it back. `--yes` states the agreement in the command, and an invocation with nobody at the terminal to answer and no
+`--yes` is refused. The mail the rule already acted on stays where it put it.
+
+Every change is a `POST` whose JSON body names `account` and `version`, and the rule by `rule` — its identifier or name
+— where the change is about one that exists. `POST /api/admin/rules` carries the rule object as `declaration`,
+`/replacement` carries both `rule` and `declaration`, and `/position` carries `position`. Each answers the `account`,
+the `rule`'s identifier and its `name`, and the set's new `version` and `revision`; a stale `version` is a `409`
+carrying `errorCode` `31002`, and every other refusal a `400`, each with a `detail` naming what to change. `POST /api/admin/rules/preview` takes
+`account`, either `rule` or `declaration` and never both, and the `after` a previous page answered as `continueAfter`;
+it answers `examinedEmailCount`, `failedEmailCount`, `matches`, `requested` — the changes a match would ask for, in the
+shape the rules route reports a rule's actions in — and `continueAfter`, `null` once the account's mail is walked. A
+change or preview body is bounded at 1 MiB.
 
 ### Classifying the mail you already have, and reading what was concluded
 

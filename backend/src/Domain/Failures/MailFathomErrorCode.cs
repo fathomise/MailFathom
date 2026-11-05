@@ -474,6 +474,15 @@ public readonly record struct MailFathomErrorCode
     /// <summary>Gets subcategory 1, concurrent writes: a local write did not commit because another writer changed the same durable state.</summary>
     public static MailFathomErrorCode PersistenceConcurrencyConflict { get; } = new(31001);
 
+    /// <summary>Gets subcategory 1, concurrent writes: a change to a mail account's rules was decided against a version another write has since moved on from.</summary>
+    /// <remarks>
+    /// Two people changing one account's rules at once is the case it exists for. The later change is refused rather than
+    /// merged, because two edits that each validate can compose a set neither of them wrote, and the caller reads the rules
+    /// again and decides again. It is a result the editor reports rather than an exception, so the code travels on the
+    /// refusal a surface answers with.
+    /// </remarks>
+    public static MailFathomErrorCode MailRuleSetVersionSuperseded { get; } = new(31002);
+
     /// <summary>Gets subcategory 2, schema state: the database does not carry every migration the running build was compiled against.</summary>
     public static MailFathomErrorCode DatabaseSchemaOutOfDate { get; } = new(32001);
 
@@ -1255,6 +1264,7 @@ public readonly record struct MailFathomErrorCode
         OutgoingEmailFilingOutcomeUnknown,
         OutgoingEmailFilingFailedUnexpectedly,
         PersistenceConcurrencyConflict,
+        MailRuleSetVersionSuperseded,
         DatabaseSchemaOutOfDate,
         DatabaseSchemaStateUnreadable,
         DatabaseSchemaTextSearchConfigurationMismatch,

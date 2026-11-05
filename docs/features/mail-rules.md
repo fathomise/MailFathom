@@ -1,6 +1,6 @@
 # Mail rules
 
-<!-- describes: backend/src/Application/Rules/**, backend/src/Infrastructure/Rules/**, backend/src/Infrastructure/Persistence/Rules/**, backend/src/Host/Configuration/Rules/** -->
+<!-- describes: backend/src/Host/Api/MailRuleDeclarationRequest.cs, backend/src/Application/Rules/**, backend/src/Infrastructure/Rules/**, backend/src/Infrastructure/Persistence/Rules/**, backend/src/Host/Configuration/Rules/** -->
 
 A mail rule selects mail and changes it. It belongs to one mail account, and it is a name, a condition, the occasions
 that run it, what a match leads to, whether a match ends the pass, and whether it runs at all. This page documents both
@@ -57,8 +57,10 @@ revision and the version it stands at, and `mfctl rules show <name> --account <i
 `GET /rules?account=<id>` on the administrative endpoint, under `mailfathom.admin.read` over that account; [reading the
 rules, running them, and finding out what they
 did](../operations/admin-endpoint.md#reading-the-rules-running-them-and-finding-out-what-they-did) is where the commands
-and the response are documented. No command or route writes a rule; [how a change is
-written](#how-a-change-is-written) is what a write does.
+and the response are documented. **Changing them** is `mfctl rules create`, `edit`, `enable`, `disable`, `move`, and
+`delete`, each one of the writes [how a change is written](#how-a-change-is-written) describes, and `create` and `edit`
+read the [rule object](#the-rule-object) below; [changing and previewing the
+rules](../operations/admin-endpoint.md#changing-and-previewing-the-rules) documents the commands and their routes.
 
 **An account's rules go with the account.** Erasing the account erases its rules and every archived version of them,
 because the rows cascade from the account's own. Erasing the person who wrote a rule does not: a rule is a standing
@@ -70,6 +72,37 @@ deployment carrying it still starts, and the start logs one warning with the num
 never what they say — and the command an operator imports them with. [Mail
 configuration](../operations/configuration-mail.md#mailrules) lists the keys the section still holds: the bounds a
 condition is read and run under, and how much a pass evaluates.
+
+## The rule object
+
+`mfctl rules create` and `mfctl rules edit` read one rule as a JSON object, and the routes behind them carry it as
+`declaration`. It is everything a rule declares and nothing the set decides about it:
+
+```json
+{
+  "Name": "supplier-invoices",
+  "Condition": "senderDomain == 'supplier.test' and attachmentCount > 0",
+  "Triggers": [ "Arrival" ],
+  "Actions": { "MoveTo": "invoices", "MarkAsRead": true },
+  "StopWhenMatched": true
+}
+```
+
+| Key | What it holds |
+| --- | --- |
+| `Name` | The rule's name, 1 to 128 characters, unique within the account without regard to case |
+| `Condition` | The [condition](#the-facts-a-condition-can-read), as one expression |
+| `Triggers` | The [triggers](#which-triggers-run-a-rule) that run it, by name — `Arrival`, `Schedule`, both, or none |
+| `Schedule` | The [occasions](#running-a-rule-on-a-schedule) a scheduled walk happens on, where `Triggers` names `Schedule` |
+| `Actions` | What a match asks for: `MoveTo` and `CopyTo` naming a folder alias or a role as `role:Junk`, `Delete`, `MarkAsRead` and `MarkAsFlagged` as `true` or `false`, and `AddKeywords`, `RemoveKeywords`, and `SetKeywords` as lists of [keywords](#what-a-keyword-may-be) |
+| `StopWhenMatched` | Whether a match ends the pass; `false` when left out |
+
+The keys are matched ignoring case, and a key left out declares nothing. **Two keys a rule has are not in it.** The
+identifier is minted by the create and kept by every edit, and whether the rule runs is changed only by `enable` and
+`disable` — so a create always commits a disabled rule and an edit never switches one. `Accounts` is not a key either,
+because [a rule reaches its own account's mail and no other](#an-accounts-rules). An object carrying any key the table
+does not list is refused by that key's path, and so is a trigger, a schedule, a folder, or a keyword the deployment
+cannot read; nothing the object holds is repeated in the refusal.
 
 ## How a change is written
 
@@ -109,8 +142,11 @@ the newest archived version carrying that revision committed at or before the ru
 changed what. It is pruned with the rule history under `MailRules:HistoryRetention`, except that the account's newest
 row is never pruned and neither is one a retained execution or run still names.
 
-These writes are use cases with no surface over them: no `mfctl` command, administrative route, or client route
-calls one, so an account's rules cannot be changed from outside the process.
+The administrative endpoint publishes every write, under `mailfathom.admin.configuration.write` over the account,
+and the `mfctl rules` commands are what call it. A refusal is a list with one line per defect, each naming the rule by
+its identifier, and a stale version is a conflict of its own. A condition refusal quotes the one identifier or
+function the condition could not be read at, or the parser's own message, and goes back only to the caller; neither
+refusal repeats the rule's name, folders, keywords, or the rest of its condition. No client route and no MCP tool writes a rule.
 
 ## A held rule set
 
@@ -149,7 +185,8 @@ evaluates at most 1,000 messages and reports at most 100 matches, and says where
 a rule over a large mailbox is a sequence of bounded requests rather than one walk of all of it.
 
 What a preview reports names messages, so it needs `mailfathom.admin.audit.read` over the account, the same grant the
-history needs. Like the writes, it is a use case no surface publishes.
+history needs. `mfctl rules preview` is what asks for it, of a stored rule by its identifier or name or of a [rule
+object](#the-rule-object) not yet written, and `POST /rules/preview` on the administrative endpoint is the route.
 
 ## Which triggers run a rule
 

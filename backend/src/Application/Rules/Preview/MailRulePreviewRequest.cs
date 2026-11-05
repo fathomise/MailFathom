@@ -12,7 +12,7 @@ namespace MailFathom.Application.Rules.Preview;
 /// <remarks>Exactly one of <see cref="Candidate" /> and <see cref="StoredRule" /> names the rule.</remarks>
 public sealed record MailRulePreviewRequest
 {
-    private MailRulePreviewRequest(MailAccountId account, MailRuleDraft? candidate, MailRuleId? storedRule, StoredEmailId? after)
+    private MailRulePreviewRequest(MailAccountId account, MailRuleDraft? candidate, MailRuleReference? storedRule, StoredEmailId? after)
     {
         this.Account = account;
         this.Candidate = candidate;
@@ -27,7 +27,7 @@ public sealed record MailRulePreviewRequest
     public MailRuleDraft? Candidate { get; }
 
     /// <summary>Gets the stored rule previewed, or <see langword="null" /> when a candidate is.</summary>
-    public MailRuleId? StoredRule { get; }
+    public MailRuleReference? StoredRule { get; }
 
     /// <summary>Gets the stored email the preview continues after, or <see langword="null" /> to start at the first.</summary>
     public StoredEmailId? After { get; }
@@ -46,9 +46,9 @@ public sealed record MailRulePreviewRequest
 
     /// <summary>Previews a rule the account already stores, enabled or not.</summary>
     /// <param name="account">The account.</param>
-    /// <param name="rule">The stored rule.</param>
+    /// <param name="rule">The stored rule, by its identifier or its name.</param>
     /// <param name="after">Where a previous page of the preview stopped, or <see langword="null" />.</param>
     /// <returns>The request.</returns>
-    public static MailRulePreviewRequest OfStoredRule(MailAccountId account, MailRuleId rule, StoredEmailId? after = null) =>
+    public static MailRulePreviewRequest OfStoredRule(MailAccountId account, MailRuleReference rule, StoredEmailId? after = null) =>
         new(account, candidate: null, rule, after);
 }

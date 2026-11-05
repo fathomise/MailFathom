@@ -69,6 +69,7 @@ public sealed class MailRuleSetEditorTests
         // Assert
         Assert.Equal(MailRuleSetChangeOutcome.Committed, result.Outcome);
         Assert.Equal(4, result.Version);
+        Assert.Equal("mark-newsletters", result.Name);
         Assert.Empty(result.Errors);
 
         var stored = await this.store.ReadAsync(Account, TestContext.Current.CancellationToken);
@@ -214,7 +215,7 @@ public sealed class MailRuleSetEditorTests
         // Act
         var result = await this.CreateEditor().ReplaceAsync(
             new MailRuleSetWrite(Account, ExpectedVersion: 2),
-            first.Id,
+            MailRuleReference.To(first.Id),
             Draft("file-supplier-invoices"),
             TestContext.Current.CancellationToken);
 
@@ -237,12 +238,55 @@ public sealed class MailRuleSetEditorTests
         // Act
         var result = await this.CreateEditor().ReplaceAsync(
             new MailRuleSetWrite(Account, ExpectedVersion: 1),
-            MailRuleIds.For("removed-meanwhile"),
+            MailRuleReference.To(MailRuleIds.For("removed-meanwhile")),
             Draft("file-invoices"),
             TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal((MailRuleSetChangeOutcome.RuleNotFound, 1L), (result.Outcome, result.Version));
+        Assert.Empty(this.store.Archive);
+    }
+
+    /// <summary>A person names a rule by what they read, so a name resolves against the locked set without regard to case.</summary>
+    [Fact]
+    public async Task SetEnabledAsync_ARuleNamedByItsName_ResolvesItInTheLockedSetAndReportsItsIdentity()
+    {
+        // Arrange
+        var first = Declared("file-invoices");
+        var second = Declared("mark-newsletters") with { Enabled = false };
+        this.store.Arrange(new StoredMailRuleSet(Account, 3, [first, second]));
+        Assert.True(MailRuleReference.TryCreate("  Mark-Newsletters ", out var reference));
+
+        // Act
+        var result = await this.CreateEditor().SetEnabledAsync(
+            new MailRuleSetWrite(Account, ExpectedVersion: 3),
+            reference,
+            enabled: true,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            (MailRuleSetChangeOutcome.Committed, second.Id, "mark-newsletters"),
+            (result.Outcome, result.Rule, result.Name));
+        Assert.True((await this.store.ReadAsync(Account, TestContext.Current.CancellationToken)).Declarations[1].Enabled);
+    }
+
+    /// <summary>A name that matches no rule is a rule the set does not carry, and nothing about another rule changes.</summary>
+    [Fact]
+    public async Task RemoveAsync_ANameNoRuleCarries_ReportsRuleNotFoundAndCommitsNothing()
+    {
+        // Arrange
+        this.store.Arrange(new StoredMailRuleSet(Account, 1, [Declared("file-invoices")]));
+        Assert.True(MailRuleReference.TryCreate("file-invoice", out var reference));
+
+        // Act
+        var result = await this.CreateEditor().RemoveAsync(
+            new MailRuleSetWrite(Account, ExpectedVersion: 1),
+            reference,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal((MailRuleSetChangeOutcome.RuleNotFound, string.Empty), (result.Outcome, result.Name));
         Assert.Empty(this.store.Archive);
     }
 
@@ -258,7 +302,7 @@ public sealed class MailRuleSetEditorTests
         // Act
         var result = await this.CreateEditor().SetEnabledAsync(
             new MailRuleSetWrite(Account, ExpectedVersion: 1),
-            rule.Id,
+            MailRuleReference.To(rule.Id),
             enabled: true,
             TestContext.Current.CancellationToken);
 
@@ -281,7 +325,7 @@ public sealed class MailRuleSetEditorTests
         // Act
         var result = await this.CreateEditor().MoveAsync(
             new MailRuleSetWrite(Account, ExpectedVersion: 1),
-            third.Id,
+            MailRuleReference.To(third.Id),
             position: 0,
             TestContext.Current.CancellationToken);
 
@@ -304,7 +348,7 @@ public sealed class MailRuleSetEditorTests
         // Act
         var result = await this.CreateEditor().MoveAsync(
             new MailRuleSetWrite(Account, ExpectedVersion: 1),
-            first.Id,
+            MailRuleReference.To(first.Id),
             position,
             TestContext.Current.CancellationToken);
 
@@ -328,7 +372,7 @@ public sealed class MailRuleSetEditorTests
         // Act
         var result = await this.CreateEditor().RemoveAsync(
             new MailRuleSetWrite(Account, ExpectedVersion: 4),
-            second.Id,
+            MailRuleReference.To(second.Id),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -354,7 +398,7 @@ public sealed class MailRuleSetEditorTests
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() => editor.RemoveAsync(
             new MailRuleSetWrite(Account, ExpectedVersion: 1),
-            rule.Id,
+            MailRuleReference.To(rule.Id),
             TestContext.Current.CancellationToken));
 
         // Assert
@@ -376,7 +420,7 @@ public sealed class MailRuleSetEditorTests
         // Act
         var result = await editor.RemoveAsync(
             new MailRuleSetWrite(AccessAuthorizations.ScopedAccount, ExpectedVersion: 1),
-            rule.Id,
+            MailRuleReference.To(rule.Id),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -397,7 +441,7 @@ public sealed class MailRuleSetEditorTests
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() => editor.RemoveAsync(
             new MailRuleSetWrite(AccessAuthorizations.ScopedAccount, ExpectedVersion: 1),
-            rule.Id,
+            MailRuleReference.To(rule.Id),
             TestContext.Current.CancellationToken));
 
         // Assert
