@@ -344,10 +344,10 @@ export function WrittenMessage({
             const picture = held.get(name);
 
             return picture === undefined
-                ? { address: addresses.addressOf(name) ?? '', label: translate('compose.pictureUnnamed') }
+                ? { address: addresses.addressOf(name) ?? '', label: translate('compose.pictureWithoutAName') }
                 : {
                       address: addresses.issue(name, picture),
-                      label: picture.label ?? translate('compose.pictureUnnamed'),
+                      label: picture.label ?? translate('compose.pictureWithoutAName'),
                   };
         };
     }
@@ -441,8 +441,7 @@ export function WrittenMessage({
         } else if (plainOnly) {
             apply('insertText', plain);
         } else if (copiedHere !== null && data.getData(writtenFlavour) === copiedHere.token) {
-            insertWritten(copiedHere.written, pictureSource);
-            written();
+            pasteBack(copiedHere.written);
         } else if (files.length > 0) {
             void pastePictures(files);
         } else {
@@ -459,6 +458,29 @@ export function WrittenMessage({
             insertWritten([{ element: 'a', address, holds: [{ text: address }] }, { text: '\u00a0' }], pictureSource);
             written();
         }
+    }
+
+    // A passage this composer copied, put back with its pictures by name. A picture it names that the words no longer
+    // do is one being added, so the passage meets the bounds a paste of files meets and is refused whole past one.
+    function pasteBack(passage: readonly WrittenNode[]): void {
+        const region = words.current;
+        const named = region === null ? [] : picturesNamedIn(writtenIn(region, addresses.pictureAt));
+        const heldOf = (name: string) => pictures.get(name) ?? [];
+        const refusal = refusalOfAddingAll(
+            picturesNamedIn(passage)
+                .filter((name) => !named.includes(name))
+                .flatMap(heldOf),
+            named.flatMap(heldOf),
+        );
+
+        if (refusal !== null) {
+            setRefused(refusal);
+
+            return;
+        }
+
+        insertWritten(passage, pictureSource);
+        written();
     }
 
     // Each file judged against the bounds in turn, together with the pictures the words already name, and inserted
@@ -482,13 +504,10 @@ export function WrittenMessage({
         const held = picturesNamedIn(writtenIn(region, addresses.pictureAt)).flatMap(
             (name) => pictures.get(name) ?? [],
         );
-        // A paste of several files that would take the message past the count is refused as the paste, since naming the
-        // one file that crossed the bound would read as though the files before it went in.
-        if (files.length > 1 && held.length + files.length > mostPictures) {
-            setRefused({
-                refusal: { reason: 'tooManyInThePaste', carried: files.length, held: held.length },
-                name: null,
-            });
+        const tooMany = refusalOfTheCount(files.length, held.length);
+
+        if (tooMany !== null) {
+            setRefused(tooMany);
 
             return;
         }
@@ -1142,6 +1161,16 @@ export function WrittenMessage({
 
                     draggingHere.current = false;
 
+                    // A picture moved into a table cell would stay drawn there and be read as nothing, a cell holding
+                    // no picture, so the move is refused with the line a paste there gets.
+                    if (!fromElsewhere && cellUnder(words.current, event.target) && pictureSelected()) {
+                        event.preventDefault();
+                        unchoosePicture();
+                        setRefused({ refusal: { reason: 'inACell' }, name: null });
+
+                        return;
+                    }
+
                     if (fromElsewhere && (transfer.files.length > 0 || transfer.types.includes('text/html'))) {
                         event.preventDefault();
                         closeTheMenu();
@@ -1194,6 +1223,54 @@ export function WrittenMessage({
 // picture beside markup that carries no words at all, which is the one case the picture is the paste.
 function picturesWithNothingFormatted(data: DataTransfer, plain: string): readonly File[] {
     return data.types.includes('text/html') && plain.trim() !== '' ? [] : [...data.files];
+}
+
+// Whether what a drop landed on stands in a table cell of the words.
+function cellUnder(region: HTMLElement | null, target: EventTarget): boolean {
+    return target instanceof Element && region?.contains(target) === true && target.closest('td, th') !== null;
+}
+
+// Whether what is selected — which is what a drag within the words carries — holds a picture.
+function pictureSelected(): boolean {
+    const selection = window.getSelection();
+
+    return (
+        selection !== null &&
+        selection.rangeCount > 0 &&
+        selection.getRangeAt(0).cloneContents().querySelector('img') !== null
+    );
+}
+
+// A paste of several pictures that would take the message past the count is refused as the paste, since naming the one
+// that crossed the bound would read as though the ones before it went in.
+function refusalOfTheCount(carried: number, held: number): RefusedPicture | null {
+    return carried > 1 && held + carried > mostPictures
+        ? { refusal: { reason: 'tooManyInThePaste', carried, held }, name: null }
+        : null;
+}
+
+// Pictures the composer already holds, judged in turn against the bounds together with those the words name, as a paste
+// of files is: the first one past a bound names the refusal.
+function refusalOfAddingAll(adding: readonly HeldPicture[], held: readonly HeldPicture[]): RefusedPicture | null {
+    const tooMany = refusalOfTheCount(adding.length, held.length);
+
+    if (tooMany !== null) {
+        return tooMany;
+    }
+
+    const together = [...held];
+
+    for (const picture of adding) {
+        const refusal = refusalOfAdding(picture.octets.length, together);
+
+        if (refusal !== null) {
+            return { refusal, name: picture.label };
+        }
+
+        together.push(picture);
+    }
+
+    return null;
 }
 
 // A file as a picture the composer may hold, or why it may not: its kind read from the octets it opens with, then the

@@ -911,6 +911,117 @@ describe('WrittenMessage, pictures', () => {
         expect(acts()).toEqual([]);
     });
 
+    // What a copy wrote, kept the way a clipboard keeps it, and a paste of exactly that.
+    function copyAndHold(): Map<string, string> {
+        const clipboard = new Map<string, string>();
+
+        fireEvent.copy(words(), {
+            clipboardData: { setData: (flavour: string, value: string) => clipboard.set(flavour, value) },
+        });
+
+        return clipboard;
+    }
+
+    function pasteHeld(clipboard: ReadonlyMap<string, string>): void {
+        fireEvent.paste(words(), {
+            clipboardData: {
+                getData: (flavour: string) => clipboard.get(flavour) ?? '',
+                types: [...clipboard.keys()],
+                files: [],
+            },
+        });
+    }
+
+    function selectAround(node: Node): void {
+        const range = document.createRange();
+
+        range.selectNode(node);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+    }
+
+    it('copies a passage holding a picture with a token, and puts the picture back by name on a paste of it', () => {
+        drawWords([{ element: 'img', picture: pictureName, width: 800, height: 600 }], new Map([[pictureName, held]]));
+
+        selectAround(screen.getByRole('img', { name: 'chart.png' }));
+        const clipboard = copyAndHold();
+
+        expect(clipboard.get('application/x-mailfathom-written')).toMatch(/^[0-9a-f-]{36}$/u);
+
+        pasteHeld(clipboard);
+
+        expect(acts().map((act) => act.command)).toEqual(['insertHTML']);
+        expect(acts()[0]?.argument).toContain('src="blob:composer/1" alt="chart.png"');
+    });
+
+    it('pastes as text a passage whose token is not the one this composer copied with', () => {
+        drawWords([{ element: 'img', picture: pictureName, width: 800, height: 600 }], new Map([[pictureName, held]]));
+
+        selectAround(screen.getByRole('img', { name: 'chart.png' }));
+        copyAndHold();
+        pasteHeld(
+            new Map([
+                ['text/plain', 'Hello'],
+                ['text/html', '<p>Hello</p>'],
+                ['application/x-mailfathom-written', 'another-token'],
+            ]),
+        );
+
+        expect(acts()).toEqual([{ command: 'insertText', argument: 'Hello' }]);
+    });
+
+    it('refuses to put back a cut picture where it would take the message past a bound', async () => {
+        const otherName = '01890a5d-ac96-774b-bcce-b302099a8058';
+        const sized = (octets: number, label: string): HeldPicture => ({
+            ...held,
+            octets: new Uint8Array(octets),
+            label,
+        });
+
+        drawWords(
+            [
+                { element: 'img', picture: pictureName, width: 800, height: 600 },
+                { element: 'img', picture: otherName, width: 800, height: 600 },
+            ],
+            new Map([
+                [pictureName, sized(1_000_000, 'first.png')],
+                [otherName, sized(2_000_000, 'second.png')],
+            ]),
+        );
+
+        const first = screen.getByRole('img', { name: 'first.png' });
+
+        selectAround(first);
+        const clipboard = copyAndHold();
+
+        // What a cut leaves, which the engine's own delete would have done.
+        first.remove();
+        pasteHeld(clipboard);
+
+        expect((await screen.findByRole('alert')).textContent).toMatch(
+            /^“first\.png” was not added - with it the pictures would come to .+, and together they can be at most .+\.$/u,
+        );
+        expect(acts()).toEqual([]);
+    });
+
+    it('refuses a picture dragged into a table cell, which holds none', async () => {
+        drawWords(
+            [{ element: 'img', picture: pictureName, width: 800, height: 600 }, newTable(2, 2, false)],
+            new Map([[pictureName, held]]),
+        );
+
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
+        fireEvent.dragStart(words());
+        const dropped = fireEvent.drop(screen.getAllByRole('cell')[0] ?? words(), {
+            dataTransfer: { getData: () => '', types: ['text/html'], files: [] },
+        });
+
+        expect(dropped).toBe(false);
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            'Nothing was pasted - a table cell holds words, colour and size only, so a picture goes outside the table.',
+        );
+    });
+
     it('puts a refusal away when it is dismissed', async () => {
         drawWords();
 

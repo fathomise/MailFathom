@@ -1045,6 +1045,7 @@ export const pl: Catalogue = {
     'compose.picture': 'Obraz',
     'compose.pictureDescribed': '{name} · {size} · wysyłany w szerokości najwyżej {width} px',
     'compose.pictureUnnamed': 'obraz',
+    'compose.pictureWithoutAName': 'Obraz bez nazwy',
     'compose.removePicture': 'Usuń obraz',
     'compose.pictureTooLarge': 'Nie dodano „{name}” - ma {size}, a jeden obraz może mieć najwyżej {most}.',
     'compose.pictureOneTooMany':

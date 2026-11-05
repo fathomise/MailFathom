@@ -1031,6 +1031,7 @@ export const en = {
     'compose.picture': 'Picture',
     'compose.pictureDescribed': '{name} · {size} · sent at most {width} px wide',
     'compose.pictureUnnamed': 'picture',
+    'compose.pictureWithoutAName': 'Unnamed picture',
     'compose.removePicture': 'Remove picture',
     'compose.pictureTooLarge': '“{name}” was not added - it is {size}, and one picture can be at most {most}.',
     'compose.pictureOneTooMany':

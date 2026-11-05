@@ -221,8 +221,9 @@ jobs:
   # **Why it is gated on a pull request rather than left to a nightly.** The three rules it proves are the ones that
   # could diverge between the heads with nobody noticing: an instant is placed against whatever zone the runtime
   # reports, a first run opens in whatever language the platform states — a WebView reads each from the process that
-  # started it rather than from a profile a test configured — and a picture pasted into the composer reaches it as a
-  # file the engine hands over and draws, which is the engine's own behaviour rather than the client's. A nightly would find such a break the morning after the merge and
+  # started it rather than from a profile a test configured — and a file a paste event carries is passed to the
+  # composer, inserted, and drawn by the engine, which is the engine's own behaviour rather than the client's. How a
+  # real clipboard reaches the WebView is not asked, since WebDriver reaches no system clipboard. A nightly would find such a break the morning after the merge and
   # name a run at 02:00 rather than the change that caused it, which is the argument this workflow already makes for the
   # browser suite above. `frontend/tests/AGENTS.md` § *The desktop suite* holds what it may assert and what it leaves to
   # the other three.

@@ -526,10 +526,11 @@ changing. `pnpm test:desktop` is the whole of how it runs.
 - **What it owns is what the platform answers, and nothing else.** Three rules qualify today. Two are
   [#1462](https://github.com/fathomise/MailFathom/issues/1462)'s: that an instant is placed against the zone the
   runtime reports, and that a first run opens in the language the platform states. The third is
-  [#2854](https://github.com/fathomise/MailFathom/issues/2854)'s: that a picture pasted into the composer reaches it
-  as a file and is drawn from the object URL the composer issued. The shell under test loads its client from the
-  corpus development server, which sends no content security policy, so this case says nothing about the policy a
-  published shell applies. A check belongs here by being unanswerable in the other three — a component, a label, a layout, a journey, a request on the wire, or anything about
+  [#2854](https://github.com/fathomise/MailFathom/issues/2854)'s: that a file a paste event carries reaches the
+  composer, is inserted, and is drawn from the object URL the composer issued. The event is a synthetic one the case
+  builds, because WebDriver reaches no system clipboard, so how a real clipboard hands a picture to the WebView is not
+  asked. The shell under test loads its client from the corpus development server, which sends no content security
+  policy, so neither is the policy a published shell applies. A check belongs here by being unanswerable in the other three — a component, a label, a layout, a journey, a request on the wire, or anything about
   the accessibility tree belongs above, and a copy of one here buys a slower answer and a second thing to keep in step.
 - **It asserts a literal spelling, never a formatter built the same way.** That is the rule § _A localized screen_
   already states, and it is the whole content of the timezone half: an expectation written as the output of a second

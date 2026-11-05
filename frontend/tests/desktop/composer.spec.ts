@@ -8,9 +8,10 @@ import * as deployment from '../fixtures/deployment';
 import { openDesktopHead } from './head';
 
 // A picture pasted into the composer, asked of the real WebView. The browser suite pastes one in Chromium through the
-// real clipboard; what it cannot say is whether WebKitGTK hands a pasted picture over as a file the composer can read,
-// takes the insertion, and draws the picture from the object URL the composer issued — any of which failing leaves an
-// empty box where the picture should be and a message sent without it. The shell loads its client from the corpus
+// real clipboard; what it cannot say is whether WebKitGTK passes a file a paste event carries to the composer, takes the
+// insertion, and draws the picture from the object URL the composer issued — any of which failing leaves an empty box
+// where the picture should be and a message sent without it. How a real clipboard hands a picture to the WebView is not
+// asked here, for the reason the next paragraph gives. The shell loads its client from the corpus
 // development server, which sends no content security policy, so the policy a published shell applies is not asked
 // here.
 //
