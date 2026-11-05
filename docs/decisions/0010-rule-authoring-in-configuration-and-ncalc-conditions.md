@@ -11,6 +11,8 @@ informed:
 
 <!-- describes: none -->
 
+**[ADR 0048](0048-keeping-a-mail-accounts-rules-in-postgresql-and-changing-them-at-runtime.md) supersedes this record's storage decision.** A rule belongs to one mail account, is kept only in PostgreSQL, and is changed at runtime from `mfctl` and from the client API; the sections below on the configuration section, the revision as a digest of the bound set, reload, an invalid reload, and *Nothing authors a rule at runtime* describe the decision that record replaces, and are kept as the reasoning it answers. **The condition-language decision stands unchanged**: one NCalc expression returning a boolean, the closed fact and function surface, the validation, totality, and cost guarantees MailFathom owns, and the dependency and its terms.
+
 ## Context and Problem Statement
 
 Issue 251 wants the user of a mailbox to declare recurring handling of their own mail — file it, copy it, delete it, mark it read — without an agent session and without a prompt. Issue 453 is its gate, and it asks the one question that could not be scoped past: where a rule is kept. A rule is authored state. It is written, edited, disabled, and removed by a person, and it changes far more often than anything else in a deployment, which is what makes its home a contract rather than an implementation detail.
@@ -192,4 +194,5 @@ The rule schema and the expression syntax are two of the surfaces [ADR 0004](000
 - NCalc's documentation is at <https://ncalc.github.io/ncalc/> and its repository at <https://github.com/ncalc/ncalc>; `NCalcException` and its derived evaluation exception are documented at <https://ncalc.github.io/ncalc/api/NCalc.Exceptions.NCalcException.html>. The package, its MIT licence, its `net10.0` target, and its single `NCalc.Core` dependency are at <https://www.nuget.org/packages/NCalc>.
 - The CEL specification is at <https://github.com/google/cel-spec>; the two .NET implementations weighed are <https://www.nuget.org/packages/Cel> and <https://www.nuget.org/packages/Cel.NET>.
 - The `describes:` marker names nothing because none of this code exists yet. It gains its paths when issue 454 lands the rule section and its validation, which is one of the two edits an accepted ADR is permitted.
-- Revisit when a user genuinely needs to change a rule without changing their configuration — a temporary disablement during an incident is the plausible case — or when the fact surface grows past what a single expression reads clearly, or if a rule set ever has to be authored by somebody who is not the operator of the instance.
+- The storage half was revisited on the condition this record named — rules authored by people who are not the instance's operator: [ADR 0048](0048-keeping-a-mail-accounts-rules-in-postgresql-and-changing-them-at-runtime.md) moves rules into PostgreSQL per mail account, because a deployment now serves people who are not its operator and shares a mailbox between them. The condition half of this record is what it keeps.
+- Revisit the condition language when the fact surface grows past what a single expression reads clearly.
