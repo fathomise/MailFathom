@@ -9,7 +9,7 @@ informed:
 
 # Widen the composer's closed tree by typed values rather than by markup, read a formatted paste from an inert document into that tree and nothing else, send a picture as a related part the composer holds by name, and let the drafting agent answer in blocks that mirror the tree
 
-<!-- describes: frontend/src/Client.App/src/composer/**, frontend/eslint.config.ts, backend/src/Application/EmailContent/Rendering/Document/**, backend/src/Infrastructure/Mail/Mime/Composition/**, backend/src/AI/ReplyDrafts/** -->
+<!-- describes: frontend/src/Client.App/src/composer/**, frontend/src/Client.App/src/messageBody/**, frontend/eslint.config.ts, backend/src/Application/EmailContent/Rendering/Document/**, backend/src/Infrastructure/Mail/Mime/Rendering/**, backend/src/Infrastructure/Mail/Mime/Composition/**, backend/src/AI/ReplyDrafts/** -->
 
 ## Context and Problem Statement
 
@@ -243,7 +243,10 @@ JPEG, and GIF only, judged by the octets' signature in the client as well as on 
 refused at send is a refusal arriving late.
 
 `writtenTextIn` refuses a stored tree holding any value outside these: a colour not in `#rrggbb`, a step not on the
-scale, an alignment not in the four, a table past a bound or nested, a picture naming nothing the composition holds.
+scale, an alignment not in the four, a table past a bound or nested, a picture whose name is not one the composer
+mints. **A well-formed name the kept pictures do not hold is not a refusal**: that `img` is dropped from the tree and the
+rest is read, because it is exactly what a store that refused the pictures leaves behind (Question 4), and refusing the
+tree for it would take the words, recipients, and subject down with the picture.
 
 ### Question 3: the HTML part writes inline styles from the closed values alone
 
@@ -255,14 +258,21 @@ composer that one day writes a direction maps them through it.
 
 A table is written as a bordered grid every common client draws:
 `<table style="border-collapse:collapse">`, and each cell
-`style="border:1px solid #d0d5dd;padding:4px 8px;vertical-align:top"` plus its alignment and background, with `th` for
-a header cell and `colspan` and `rowspan` attributes where a span is not one. Per-cell border styling a spreadsheet had
+`style="border:1px solid #d0d5dd;padding:4px 8px;vertical-align:top"` plus its background and always a `text-align`
+— the cell's own alignment, or `left` where it carries none, because most clients centre a `th` by default and the
+composer draws a header cell start-aligned like the cells under it — with `th` for a header cell and `colspan` and
+`rowspan` attributes where a span is not one. Per-cell border styling a spreadsheet had
 is not kept; every table the composer sends has the one border. `plainTextOf` writes a row per line with its cells
 separated, as [#2853](https://github.com/fathomise/MailFathom/issues/2853) states.
 
 A picture is written as `<img src="cid:<name>" width="<w>" height="<h>" style="max-width:100%;height:auto">`, with the
 width the picture is drawn at, at most 600 pixels and the height scaled to it — Outlook honours the attribute and
 ignores `max-width`, and the others honour both. It contributes nothing to the plain-text alternative.
+
+**`htmlOf` therefore takes how a picture's source is written, and nothing else varies with it.** For the HTML part a
+picture's source is `cid:<name>`; for the markup Question 5 hands to `insertHTML`, it is the object URL the composer
+issued for that name, which is the one source `writtenIn` reads back as a picture. It is one serializer with the
+picture source as its only parameter, so the editor's markup and the HTML part cannot differ in anything but that.
 
 ### Question 4: a picture is a related part the composer holds by name, kept in the session store
 
@@ -292,7 +302,9 @@ document, whose `data:` source `draftWords.ts` decodes into a picture the compos
 their own beside it, base64-encoded. Two keys rather than one, because a store that refuses the pictures must not take
 the words, recipients, and subject down with them — the reasoning `keptComposition.ts` already gives for refusing a
 record it cannot read whole. The write is attempted and its refusal caught: the platform's own quota decides what
-survives a reload, rather than a number guessed here. Where the store refused, the pictures live in memory only and the
+survives a reload, rather than a number guessed here. **A refused pictures write removes the earlier pictures value**,
+so octets kept for an older tree are never read against a newer one; a reload then reads the tree without the pictures
+it names, which Question 2 drops rather than refuses. Where the store refused, the pictures live in memory only and the
 composer says that a reload would lose them, which is a state #2848 draws. Object URLs are revoked when their picture
 leaves the composition and when the composer closes.
 
@@ -308,13 +320,14 @@ the closed set — a computed colour a paste context left behind, a size off the
 
 **Inserting a table, editing one, inserting a picture, and every paste** are pure functions over the closed tree: the
 affected part of the region is read into the tree, the function returns the new tree, and the part is replaced through
-`execCommand('insertHTML', false, htmlOf(part))`, with the caret placed afterwards. That keeps each operation one step
+`execCommand('insertHTML', false, htmlOf(part))` — with each picture's source written as the object URL the composer
+issued for it (Question 3) — and the caret placed afterwards. That keeps each operation one step
 on the engine's own undo stack, which is what makes one Ctrl+Z undo a paste or a row added, and it means every
 structural operation is a unit-testable function with no DOM in it. Adding a row selects the table and replaces it
 whole; Tab in the last cell is the same operation.
 
 `insertHTML` is still a parse into the live document, so it is held to the narrowest form: one editing module, an
-argument `htmlOf` produced and nothing else, and a lint restriction everywhere else (§ *How this stands against ADR
+argument `htmlOf` produced with the editor's picture source and nothing else, and a lint restriction everywhere else (§ *How this stands against ADR
 0024*). Whatever the engine does to that markup on the way in is read back by the same strict `writtenIn`, so an engine
 that adds a styled wrapper adds nothing to the tree.
 
@@ -360,7 +373,18 @@ as 200 is a figure silently missing from somebody's message. Ctrl+Shift+V stays 
 `paragraph`, `list` (ordered or not, one level, items of runs), or `table` (a header flag and rows of cells of runs). A
 run is text with bold, italic, a link, and — only where the person named one — a colour given as a **palette swatch
 name** from Question 2, never a value; a block takes an alignment only where the person named one. The agent writes no
-size and no picture. **A heading is not something the agent writes**: a section opens with a short bold lead-in run,
+size and no picture.
+
+**A link names its target by position, never by address.** Model output is text a prompt injection in the mail being
+answered can steer, so a link whose address the model wrote could point words such as *the signed contract* anywhere
+an attacker chose. The turn therefore publishes the addresses it may link to — each followable address in the person's
+instruction and each `MailDocumentLink` target in the correspondence the turn carries — as a numbered list, and a run
+cites one by its number, exactly as `ReplyDraftInstructions` already has the model cite a recipient and a claim's
+messages by position. `ReplyDraftReading.cs` resolves the number against the list this deployment composed and drops a
+link naming none, keeping its words; an address the model typed is never a target. That makes an address from
+outside the exchange impossible rather than unlikely. What it cannot stop is the model linking words to an address an
+attacker's own message carried, so the drafting block shows each link's host beside its words before the draft is
+accepted, as #2848 draws it. **A heading is not something the agent writes**: a section opens with a short bold lead-in run,
 which is the structure #2856 asks for and the one form both a plain-text reader and a mail client read the same way.
 
 `ReplyDraftReading.cs` reads the blocks at the AI boundary into the reduced document's own types, holding them to the
@@ -414,7 +438,10 @@ the subset it would be used for.
   fixture document of Question 1 returns no script, handler, style sheet, remote address, or `file:` and `cid:` picture;
   every row of the size table maps as stated; a colour with transparency, a body-text foreground, and a page-light
   background are dropped; a table one row, one column, or one level past a bound is refused; `writtenTextIn` refuses a
-  stored tree holding each value outside the set; every structural operation is a pure function tested without a DOM.
+  stored tree holding each value outside the set, and reads a tree whose picture the kept pictures do not hold with that
+  picture dropped and its words, recipients, and subject intact; every structural operation is a pure function tested
+  without a DOM; and `htmlOf` writes the same tree with a picture as `cid:<name>` for the HTML part and as its object
+  URL for the editor, identical in everything else.
 - **The browser suite** reads the fixture clipboard document against the built client on Chromium and asserts no
   request left the page and no script ran; it pastes a formatted block and a spreadsheet range from recorded clipboard
   fixtures with made-up data; and it proves each structural operation round-trips — the tree written through
@@ -424,7 +451,8 @@ the subset it would be used for.
 - **By hand, once each**: the clipboard flavours WebView2 presents on Windows, before #2855 closes; and a message with a
   table, a picture, a colour, and a size read in Outlook, Gmail, and Apple Mail, before #2846 closes.
 - **On the service**, #2849's refusals and round trip, #2850's mapping, and #2856's reading and evaluation cases are each
-  tested in the change that adds them, against the values recorded here.
+  tested in the change that adds them, against the values recorded here — #2856's including a link citing a position
+  the turn did not publish, and a link written as an address, both read as words.
 
 ## Pros and Cons of the Options
 
