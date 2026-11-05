@@ -145,6 +145,8 @@ public sealed class MailRuleChangeEndpointsTests
     [Theory]
     [InlineData("""{ "Name": "a", "Condition": "isSeen", "Triggers": [ "OnTuesdays" ] }""", "Triggers")]
     [InlineData("""{ "Name": "a", "Condition": "isSeen", "Triggers": [ "Schedule" ], "Schedule": "OnTuesdays" }""", "Schedule")]
+    [InlineData("""{ "Name": "a", "Condition": "isSeen", "Triggers": [ "Schedule" ], "Schedule": "Daily at 03:00 Nowhere/Zone" }""", "Schedule")]
+    [InlineData("""{ "Name": "a", "Condition": "isSeen", "Triggers": [ "Schedule" ], "Schedule": "Every 00:00:01" }""", "Schedule")]
     [InlineData("""{ "Name": "a", "Condition": "isSeen", "Actions": { "MoveTo": "  " } }""", "MoveTo")]
     [InlineData("""{ "Name": "a", "Condition": "isSeen", "Actions": { "AddKeywords": [] } }""", "AddKeywords")]
     [InlineData("""{ "Name": "a", "Condition": "isSeen", "Actions": { "SetKeywords": [ "two words" ] } }""", "SetKeywords")]
@@ -158,6 +160,8 @@ public sealed class MailRuleChangeEndpointsTests
         Assert.Contains(key, refusal.ProblemDetails.Detail, StringComparison.Ordinal);
         Assert.DoesNotContain("OnTuesdays", refusal.ProblemDetails.Detail, StringComparison.Ordinal);
         Assert.DoesNotContain("two words", refusal.ProblemDetails.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("Nowhere/Zone", refusal.ProblemDetails.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("00:00:01", refusal.ProblemDetails.Detail, StringComparison.Ordinal);
         Assert.Empty(this.committed);
     }
 
@@ -395,6 +399,37 @@ public sealed class MailRuleChangeEndpointsTests
 
         // Assert
         AssertRefused(result.Result);
+    }
+
+    /// <summary>The step between a create and an enable names the rule as a person read it, so a stored rule is found by its name.</summary>
+    [Fact]
+    public async Task PreviewRuleAsync_AStoredRuleNamedByItsName_AnswersItsPage()
+    {
+        // Act
+        var result = await this.PreviewAsync(new MailRulePreviewPageRequest(Account.Value, Rule: "  File-Invoices "));
+
+        // Assert
+        var page = Assert.IsType<Ok<MailRulePreviewResponse>>(result.Result).Value!;
+        Assert.Equal(Account.Value, page.Account);
+        Assert.Empty(this.committed);
+    }
+
+    /// <summary>A keyword change is answered with the keywords it names, and a replacement clearing them with an empty list rather than none.</summary>
+    /// <param name="actions">The rule object's actions.</param>
+    /// <param name="keywords">The keywords the answer reports, space separated.</param>
+    [Theory]
+    [InlineData("""{ "AddKeywords": [ "$Invoice" ] }""", "$Invoice")]
+    [InlineData("""{ "SetKeywords": [] }""", "")]
+    public async Task PreviewRuleAsync_ACandidateChangingKeywords_AnswersTheKeywordsEachChangeNames(string actions, string keywords)
+    {
+        // Act
+        var result = await this.PreviewAsync(new MailRulePreviewPageRequest(
+            Account.Value,
+            Declaration: Json($$"""{ "Name": "label", "Condition": "isSeen", "Actions": {{actions}} }""")));
+
+        // Assert
+        var requested = Assert.Single(Assert.IsType<Ok<MailRulePreviewResponse>>(result.Result).Value!.Requested);
+        Assert.Equal(keywords, string.Join(' ', requested.Keywords!));
     }
 
     [Fact]

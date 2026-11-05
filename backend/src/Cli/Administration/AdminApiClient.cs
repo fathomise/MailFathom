@@ -76,6 +76,9 @@ internal sealed class AdminApiClient
         StampedAssemblyVersion.ReadFrom(typeof(AdminApiClient).Assembly).Version;
 
     private readonly DeploymentTransport transport;
+    /// <summary>What a refused rule fails with once its reasons are printed.</summary>
+    internal const string RuleRefused = "The deployment refused the rule for the reasons above, and nothing changed.";
+
     private readonly ICliConsole console;
 
     private AdminSession? settledSession;
@@ -853,13 +856,13 @@ internal sealed class AdminApiClient
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(change);
 
-        return this.RequestAsync(
+        return this.PrintingRuleRefusalAsync(this.RequestAsync(
             HttpMethod.Post,
             path,
             token,
             CliJsonContext.Default.MailRuleChange,
             cancellationToken,
-            JsonContent.Create(change, CliJsonContext.Default.MailRuleChangeRequest));
+            JsonContent.Create(change, CliJsonContext.Default.MailRuleChangeRequest)));
     }
 
     /// <summary>Asks the deployment for one page of a rule's preview over an account's stored mail.</summary>
@@ -876,13 +879,34 @@ internal sealed class AdminApiClient
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        return this.RequestAsync(
+        return this.PrintingRuleRefusalAsync(this.RequestAsync(
             HttpMethod.Post,
             AdminEndpointRoutes.RulePreviewPath,
             token,
             CliJsonContext.Default.MailRulePreviewPage,
             cancellationToken,
-            JsonContent.Create(request, CliJsonContext.Default.MailRulePreviewPageRequest));
+            JsonContent.Create(request, CliJsonContext.Default.MailRulePreviewPageRequest)));
+    }
+
+    /// <summary>Prints the reasons a rule was refused for, and fails with a sentence that carries none of them.</summary>
+    /// <remarks>
+    /// A condition the deployment could not read is refused naming the one identifier or function it stopped at, or with
+    /// the parser's own message, and both are text the author typed. The author needs them at the terminal; the
+    /// invocation record keeps the failure sentence of every command, so what it is handed here is a sentence without
+    /// them.
+    /// </remarks>
+    private async Task<T> PrintingRuleRefusalAsync<T>(Task<T> request)
+    {
+        try
+        {
+            return await request;
+        }
+        catch (CliFailure refusal) when (refusal.Status is HttpStatusCode.BadRequest)
+        {
+            this.console.WriteError(refusal.Message);
+
+            throw new CliFailure(RuleRefused, HttpStatusCode.BadRequest);
+        }
     }
 
     /// <summary>Asks the deployment to classify every message it holds for one account.</summary>

@@ -144,8 +144,9 @@ row is never pruned and neither is one a retained execution or run still names.
 
 The administrative endpoint publishes every write, under `mailfathom.admin.configuration.write` over the account,
 and the `mfctl rules` commands are what call it. A refusal is a list with one line per defect, each naming the rule by
-its identifier, and a stale version is a conflict of its own; neither repeats the rule's name, condition, folders, or
-keywords. No client route and no MCP tool writes a rule.
+its identifier, and a stale version is a conflict of its own. A condition refusal quotes the one identifier or
+function the condition could not be read at, or the parser's own message, and goes back only to the caller; neither
+refusal repeats the rule's name, folders, keywords, or the rest of its condition. No client route and no MCP tool writes a rule.
 
 ## A held rule set
 

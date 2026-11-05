@@ -199,9 +199,53 @@ public sealed class RuleChangeCommandTests : IDisposable
         // Assert
         Assert.NotEqual(CliExitCode.Success, exitCode);
         Assert.Contains(this.harness.Console.Failures, line => line.Contains("position 12", StringComparison.Ordinal));
+        Assert.Equal(AdminApiClient.RuleRefused, this.harness.Console.Failures[^1]);
         Assert.DoesNotContain(
             this.harness.Console.Lines.Concat(this.harness.Console.Errors),
             line => line.Contains("supplier.example", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A condition refusal can quote the one identifier the deployment stopped at, so the reasons are printed and the
+    /// sentence the invocation record keeps — the last failure a command reports — carries none of them.
+    /// </summary>
+    [Fact]
+    public async Task Preview_ACandidateTheDeploymentRefuses_PrintsTheReasonsAndFailsWithASentenceCarryingNone()
+    {
+        // Arrange
+        this.harness.Console.InputToSupply = RuleObject;
+        using var deployment = FakeRuleDeployment.Answering(preview: (HttpStatusCode.BadRequest, """{"detail":"The rule was refused, so nothing was evaluated:\n- The condition of mail rule 'flag-supplier' names 'alice', which is not a fact a condition can read."}"""));
+
+        // Act
+        var exitCode = await this.RunAsync(deployment, "rules", "preview", "--account", Account, "--from-file", "-", "--endpoint", Endpoint);
+
+        // Assert
+        Assert.NotEqual(CliExitCode.Success, exitCode);
+        Assert.Contains(this.harness.Console.Failures, line => line.Contains("'alice'", StringComparison.Ordinal));
+        Assert.Equal(AdminApiClient.RuleRefused, this.harness.Console.Failures[^1]);
+    }
+
+    /// <summary>A keyword change is shown with the keywords it names, and a replacement clearing them as clearing them.</summary>
+    [Fact]
+    public async Task List_KeywordChanges_PrintTheKeywordsEachNames()
+    {
+        // Arrange
+        using var deployment = FakeRuleDeployment.Answering(rules: $$"""
+            {"account":"work","version":4,"revision":"a1b2c3d4e5f6","held":false,"rules":[
+              {"id":"{{RuleId}}","position":0,"name":"label-invoices","enabled":true,"condition":"isSeen","stopWhenMatched":false,"triggers":["Arrival"],
+               "actions":[{"position":0,"mutation":"add-keywords","destination":null,"desiredSeenState":null,"keywords":["$Invoice"]},
+                          {"position":1,"mutation":"set-keywords","destination":null,"desiredSeenState":null,"keywords":[]}]}
+            ]}
+            """);
+
+        // Act
+        var exitCode = await this.RunAsync(deployment, "rules", "list", "--account", Account, "--endpoint", Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+        Assert.Contains(
+            this.harness.Console.Lines,
+            line => line.Contains("add-keywords → $Invoice, set-keywords → none", StringComparison.Ordinal));
     }
 
     /// <summary>What is not JSON is reported by where it stops being JSON, and never by what it says.</summary>

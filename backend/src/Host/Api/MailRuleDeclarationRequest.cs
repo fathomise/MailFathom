@@ -98,7 +98,7 @@ internal sealed record MailRuleDeclarationRequest(
 
         if (this.Schedule is not null && !JobRecurrence.TryParse(this.Schedule, out schedule, out var scheduleError))
         {
-            refusal = $"The rule's Schedule could not be read: {scheduleError}";
+            refusal = "The rule's Schedule could not be read. A schedule is written as 'Every <interval>' or as 'Daily at <HH:mm>' with an optional IANA time zone such as 'Europe/Warsaw'.";
 
             return null;
         }

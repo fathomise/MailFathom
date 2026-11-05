@@ -368,7 +368,7 @@ internal static class MailRuleEndpoints
     }
 
     /// <summary>Reads the account and the version a change states, or nothing where either is missing or the account is not served.</summary>
-    /// <remarks>The account is asked about first, so a request naming an account outside the caller's scope is answered as one this deployment does not serve whatever else it got wrong.</remarks>
+    /// <remarks>An account outside the caller's scope is answered as one this deployment does not serve. A request missing its version, or a move missing its position, is refused for that alone whatever account it names, so neither refusal depends on the account.</remarks>
     private static async Task<MailRuleSetWrite?> ResolveWriteAsync(
         MailRuleChangeRequest? request,
         IDeploymentMailAccountCatalog accounts,
@@ -410,7 +410,7 @@ internal static class MailRuleEndpoints
         };
 
     /// <summary>States every defect a refusal found, one to a line, under the sentence saying what was refused.</summary>
-    /// <remarks>Each defect names the rule by its identifier and quotes nothing it declares beyond the one token a condition could not be read at, which goes back only to the caller who wrote it.</remarks>
+    /// <remarks>Each defect names the rule by its identifier. A condition refusal quotes the one identifier or function the condition could not be read at, or the parser's own message, and goes back only to the caller who wrote it; nothing else the rule declares is quoted.</remarks>
     private static string DescribeErrors(string heading, IReadOnlyList<string> errors) =>
         string.Join('\n', errors.Select(error => $"- {error}").Prepend(heading));
 

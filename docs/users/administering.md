@@ -391,9 +391,10 @@ the mail the account already holds it would match and what it would ask for ther
 the step that lets it act. A rule is named by its identifier or its name, and `delete` asks before it removes one
 unless you add `--yes`.
 
-Each change is written against the version the rules stood at when it was decided, so two people changing the same
-account's rules at once cannot overwrite each other: the second change is refused with the two versions, and nothing
-changes until it is decided again over what the rules now are.
+A change is refused when the rules have moved past the version it states. Pass the version `mfctl rules list`
+printed with `--expected-version`, so that a change somebody made after you read the rules is refused rather than
+overwritten; without it, the version is read when the command runs. A refused change names both versions and changes
+nothing until it is decided again over what the rules now are.
 
 [An account's rules](../features/mail-rules.md#an-accounts-rules) is what a rule is and how a change to an account's
 rules is written. [Changing and previewing the

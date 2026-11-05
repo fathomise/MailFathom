@@ -1270,9 +1270,11 @@ prints. A change that reaches a set somebody else changed meanwhile is refused a
 This account's rules are at version 9, and the change was written against version 8, so nothing changed. Read the rules again and decide again.
 ```
 
-**A refused change lists every defect and repeats nothing the rule says.** Each line names the rule by its identifier,
-and a condition that does not parse is reported by the parser's position rather than quoted; the rule's name,
-condition, folders, and keywords never appear in a refusal, a log line, or a metric. A rule object carrying `Accounts`
+**A refused change lists every defect, and quotes no more of the rule than its author needs.** Each line names the
+rule by its identifier. A condition the deployment could not read is refused naming the one identifier or function it
+stopped at, or with the parser's own message and position; the rule's name, folders, keywords, and the rest of its
+condition are never quoted. `mfctl` prints those reasons and records only the sentence that the rule was refused, so
+its invocation record keeps none of them, and the deployment logs and measures none of them. A rule object carrying `Accounts`
 or `Enabled` is refused by the key, because a rule reaches only the account that holds it and only `enable` enables
 one.
 
