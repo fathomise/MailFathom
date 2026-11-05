@@ -1030,6 +1030,23 @@ describe('WrittenMessage, pictures', () => {
         press('Dismiss');
 
         expect(screen.queryByRole('alert')).toBeNull();
+        expect(document.activeElement).toBe(words());
+    });
+
+    it('refuses a file that cannot be read, as a dropped folder is, rather than failing in silence', async () => {
+        drawWords();
+
+        const folder = new File([''], 'holiday', { type: '' });
+        const head = new Blob(['']);
+
+        vi.spyOn(head, 'arrayBuffer').mockRejectedValue(new DOMException('gone', 'NotReadableError'));
+        vi.spyOn(folder, 'slice').mockReturnValue(head);
+        pasteFiles([folder]);
+
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            '“holiday” was not added - the composer takes PNG, JPEG, and GIF pictures, and this one is another kind.',
+        );
+        expect(acts()).toEqual([]);
     });
 
     it('chooses a picture pressed in the words, says what it is, and removes it as one step', () => {

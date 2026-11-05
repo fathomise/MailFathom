@@ -1092,6 +1092,8 @@ export function WrittenMessage({
                         className="-my-0.5 flex size-6 shrink-0 items-center justify-center rounded-md transition hover:bg-hover"
                         onClick={() => {
                             setRefused(null);
+                            // The control goes with the line, so focus goes back to the words it was about.
+                            words.current?.focus();
                         }}
                     >
                         <Icon name="close" className="size-icon-lg" />
@@ -1281,20 +1283,26 @@ async function pictureFrom(
 ): Promise<{ readonly picture: Omit<HeldPicture, 'label'> } | { readonly refusal: PictureRefusal }> {
     const notTaken = { refusal: { reason: 'notTaken', kind: kindOf(file.type) } } as const;
 
-    if (pictureTypeOf(new Uint8Array(await file.slice(0, 8).arrayBuffer())) === null) {
+    // A file that cannot be read — a dropped folder, or one moved since it was dropped — is one the composer does not
+    // take, and is refused as one rather than failing in silence.
+    try {
+        if (pictureTypeOf(new Uint8Array(await file.slice(0, 8).arrayBuffer())) === null) {
+            return notTaken;
+        }
+
+        const refusal = refusalOfAdding(file.size, held);
+
+        if (refusal !== null) {
+            return { refusal };
+        }
+
+        const octets = new Uint8Array(await file.arrayBuffer());
+        const read = pictureIn(octets);
+
+        return read === null ? notTaken : { picture: { octets, ...read } };
+    } catch {
         return notTaken;
     }
-
-    const refusal = refusalOfAdding(file.size, held);
-
-    if (refusal !== null) {
-        return { refusal };
-    }
-
-    const octets = new Uint8Array(await file.arrayBuffer());
-    const read = pictureIn(octets);
-
-    return read === null ? notTaken : { picture: { octets, ...read } };
 }
 
 // What a file the composer does not take says it is, from the media type the platform reported: `image/heic` is HEIC.
