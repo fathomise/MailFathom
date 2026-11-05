@@ -56,6 +56,10 @@ const work: MailAccount = {
     behind: false,
     filesJunk: false,
     shared: false,
+    synchronizationStateSince: null,
+    behindSince: null,
+    waitingChangeCount: 0,
+    oldestWaitingChangeCommittedAt: null,
 };
 
 const passage = { fragmentId: 'f-4', ordinal: 3, text: 'Monthly remuneration is EUR 1,200 net' };

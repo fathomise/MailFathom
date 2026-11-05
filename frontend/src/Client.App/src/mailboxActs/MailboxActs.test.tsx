@@ -10,20 +10,18 @@ import type {
     ClientSession,
     MailFathomTransport,
     MailMutationOutcome,
-    MailMutationRecordState,
 } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
-import { PendingChangeLines } from '../pendingChanges/PendingChangeLines';
 import { ReadMarkingContext, nothingMarkedRead, type ReadMarking } from '../readMarking/useReadMarking';
 import { ListedMailContext, nothingListed, type DrawnMail, type ListedMail } from '../messageList/useListedMail';
 import { ConnectionStatusContext, type ConnectionStatus } from '../shell/connectionStatus';
 import { PendingChangesProvider } from '../pendingChanges/PendingChanges';
-import { followedChangeInterval } from '../pendingChanges/usePendingChanges';
+import { unansweredWriteRetryDelay } from '../pendingChanges/usePendingChanges';
 import { TelemetryContext, noTelemetry, type ClientTelemetry } from '../telemetry/clientTelemetry';
 import { recordingTelemetry, recordsOf } from '../telemetry/telemetry.harness';
 import { ToastsProvider } from '../toasts/Toasts';
-import { toastLeaving, toastLifetime } from '../toasts/useToasts';
 import { mostMessagesPerMutation } from '@mailfathom/client-backend';
+import { standsInTheWay } from './drawnActs';
 import { MailboxActsProvider } from './MailboxActs';
 import type { MoveDestination } from './mailboxDestinations';
 import { useMailboxActs, type ActedMessage, type MailboxAct, type MailboxActs } from './useMailboxActs';
@@ -32,9 +30,9 @@ import { useMailboxActs, type ActedMessage, type MailboxAct, type MailboxActs } 
 // deployment was asked for and what the person was told afterwards. Nothing here reaches a mail server: an act writes
 // a record and answers, so every assertion is about the request that carried it and the toast that reported it.
 //
-// The pending-changes queue is mounted above it as the frame mounts it, because what became of an act beyond being
-// written down — a refusal, a submission that never arrived, a change the account stopped retrying — is the queue's
-// to say, and saying it once for every act is what is being proven alongside the act.
+// The pending-changes queue is mounted above it as the frame mounts it, because what an answer said beyond the change
+// being made — a refusal, or a submission nobody answered — is the queue's to say, and saying it once for every act is
+// what is being proven alongside the act.
 
 const session: ClientSession = { baseAddress: 'https://mail.example.invalid', authorization: 'Basic dGVzdA==' };
 
@@ -84,6 +82,10 @@ const folders = JSON.stringify({
                 behind: false,
                 filesJunk: false,
                 shared: false,
+                synchronizationStateSince: null,
+                behindSince: null,
+                waitingChangeCount: 0,
+                oldestWaitingChangeCommittedAt: null,
             },
             folders: [
                 {
@@ -150,14 +152,9 @@ interface Deployment {
  * A deployment answering the folders it has, and every submitted batch with the outcomes it was told to answer.
  *
  * A recorded message is answered with one record named after it, so a release can be read back as the records it
- * named; a release leaves each record pending, the answer the route gives. A record read back by the queue stands at
- * `standing`.
+ * named; a release leaves each record pending, the answer the route gives.
  */
-function deploymentAnswering(
-    outcomes: Readonly<Record<string, MailMutationOutcome>> = {},
-    status = 200,
-    standing: MailMutationRecordState = 'pending',
-): Deployment {
+function deploymentAnswering(outcomes: Readonly<Record<string, MailMutationOutcome>> = {}, status = 200): Deployment {
     const requests: ClientRequest[] = [];
 
     return {
@@ -167,21 +164,6 @@ function deploymentAnswering(
 
             if (request.path.endsWith('/folders')) {
                 return Promise.resolve({ status: 200, body: folders, headers: {} });
-            }
-
-            if (request.path.includes('/mutations?')) {
-                return Promise.resolve({
-                    status: 200,
-                    body: JSON.stringify({
-                        changes: new URL(request.path).searchParams.getAll('record').map((recordId) => ({
-                            recordId,
-                            storedEmailId: recordId.replace('record-', ''),
-                            state: standing,
-                            outcomeUnknown: false,
-                        })),
-                    }),
-                    headers: {},
-                });
             }
 
             if (request.path.endsWith('/releases')) {
@@ -322,8 +304,7 @@ function acting(
                         <ToastsProvider>
                             <ConnectionStatusContext value={statusAt(status)}>
                                 <ListedMailContext value={listed}>
-                                    <PendingChangesProvider session={signedIn} transport={deployment.transport}>
-                                        <PendingChangeLines />
+                                    <PendingChangesProvider session={signedIn}>
                                         <MailboxActsProvider
                                             session={signedIn}
                                             transport={deployment.transport}
@@ -626,6 +607,7 @@ describe('MailboxActsProvider', () => {
                 from: 'work-trash',
                 leaves: true,
                 destroys: true,
+                awaiting: false,
             });
         });
     });
@@ -734,64 +716,44 @@ describe('MailboxActsProvider', () => {
         });
     });
 
-    // A way back nobody answered is settled against the folder it was asked out of, which is the one the archive filed
-    // the message in: the message listed back in the inbox is the way back having landed, and nothing is said.
-    it.each([
-        { listedIn: 'work-inbox', said: false, claim: 'move' },
-        { listedIn: 'work-archive', said: true, claim: 'archive' },
-    ])(
-        'settles a way back nobody answered from a page listing the message in $listedIn',
-        async ({ listedIn, said, claim }) => {
-            const observers: ((emails: readonly DrawnMail[], askedAt: number) => void)[] = [];
-            const listed: ListedMail = {
-                ...nothingListed,
-                observe: (observer) => {
-                    observers.push(observer);
+    // A way back nobody answered most likely landed, so it is sent again rather than asked afresh: under the key it
+    // first went with, which the deployment answers with the first attempt's outcome.
+    it('sends a way back nobody answered again, under the key it first went with', async () => {
+        vi.useFakeTimers();
 
-                    return () => undefined;
-                },
-            };
-            const archived = deploymentAnswering();
-            const unanswered = deploymentAnswering({}, 504);
-            const deployment: Deployment = {
-                requests: archived.requests,
-                transport: (request) =>
-                    (request.body ?? '').includes('work-inbox')
-                        ? unanswered.transport(request)
-                        : archived.transport(request),
-            };
-            const { held } = acting(deployment, { listed });
+        const archived = deploymentAnswering();
+        const unanswered = deploymentAnswering({}, 504);
+        let answering = false;
+        const deployment: Deployment = {
+            requests: archived.requests,
+            transport: (request) =>
+                (request.body ?? '').includes('work-inbox') && !answering
+                    ? unanswered.transport(request)
+                    : archived.transport(request),
+        };
+        const { held } = acting(deployment);
 
-            await waitFor(() => {
-                expect(held().refusalOf('archive', [invoice])).toBeNull();
-            });
+        await pass(0);
+        perform(held, 'archive', [invoice]);
+        await pass(0);
+        fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+        await pass(0);
 
-            perform(held, 'archive', [invoice]);
-            fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
-            await screen.findByText('Not known whether this reached the server');
+        expect(screen.getByText('Not known whether this reached the server')).toBeDefined();
 
-            act(() => {
-                for (const observer of observers) {
-                    observer(
-                        [
-                            {
-                                id: 'message-1',
-                                account: 'work',
-                                folder: listedIn,
-                                unread: false,
-                                flagged: false,
-                                spam: null,
-                            },
-                        ],
-                        Date.now() + 1,
-                    );
-                }
-            });
+        answering = true;
+        await pass(unansweredWriteRetryDelay);
 
-            expect(screen.queryByText('The screen now shows what the server holds') !== null).toBe(said);
-            expect(held().asked.get('message-1')?.act).toBe(claim);
-        },
-    );
+        // The silent attempt was recorded by the deployment that did not answer, the repeat by the one that did.
+        const ways = [...unanswered.requests, ...archived.requests].filter((request) =>
+            (request.body ?? '').includes('work-inbox'),
+        );
+
+        expect(ways).toHaveLength(2);
+        expect(ways[1]?.body).toBe(ways[0]?.body);
+        expect(screen.getByText('Put back where it was')).toBeDefined();
+        expect(held().asked.get('message-1')).toMatchObject({ act: 'move', from: 'work-archive', awaiting: false });
+    });
 
     // The mailbox may have moved on between the act and the press, so the way back is read per message exactly as the
     // act is: a row whose reverse move was not written down is still on its way to where the act put it.
@@ -832,6 +794,7 @@ describe('MailboxActsProvider', () => {
             from: 'work-archive',
             leaves: true,
             destroys: false,
+            awaiting: false,
         });
     });
 
@@ -854,6 +817,7 @@ describe('MailboxActsProvider', () => {
             from: 'work-trash',
             leaves: true,
             destroys: false,
+            awaiting: true,
         });
     });
 
@@ -888,7 +852,8 @@ describe('MailboxActsProvider', () => {
             from: 'work-inbox',
             leaves: false,
             destroys: false,
-            beside: { act: 'markUnread', from: 'work-inbox', leaves: false, destroys: false },
+            awaiting: true,
+            beside: { act: 'markUnread', from: 'work-inbox', leaves: false, destroys: false, awaiting: true },
         });
 
         await waitFor(() => {
@@ -917,6 +882,7 @@ describe('MailboxActsProvider', () => {
                 from: 'work-inbox',
                 leaves: false,
                 destroys: false,
+                awaiting: false,
             });
         });
     });
@@ -947,7 +913,8 @@ describe('MailboxActsProvider', () => {
                 from: 'work-inbox',
                 leaves: false,
                 destroys: false,
-                beside: { act: 'markUnread', from: 'work-inbox', leaves: false, destroys: false },
+                awaiting: false,
+                beside: { act: 'markUnread', from: 'work-inbox', leaves: false, destroys: false, awaiting: false },
             });
         });
     });
@@ -1169,26 +1136,6 @@ describe('MailboxActsProvider', () => {
         expect(recordsOf(recording.recorded, 'act_refused')).toStrictEqual([]);
     });
 
-    it.each<{ named: string; act: MailboxAct; message: ActedMessage; destination?: MoveDestination }>([
-        { named: 'a flag', act: 'flag', message: invoice },
-        { named: 'a flag taken off', act: 'unflag', message: invoice },
-        { named: 'a message marked unread', act: 'markUnread', message: invoice },
-        { named: 'an archive', act: 'archive', message: invoice },
-        { named: 'a delete into the trash', act: 'delete', message: invoice },
-        { named: 'a delete out of the trash', act: 'delete', message: discarded },
-        { named: 'a move', act: 'move', message: invoice, destination: chosen },
-    ])('follows $named it wrote down until the mailbox has taken it', async ({ act, message, destination }) => {
-        const { held } = acting(deploymentAnswering());
-
-        await waitFor(() => {
-            expect(held().refusalOf(act, [message])).toBeNull();
-        });
-
-        perform(held, act, [message], destination);
-
-        expect(await screen.findByText('One change has not reached your mailbox yet.')).toBeDefined();
-    });
-
     // One sentence per outcome whichever surface asked: the reason is the deployment's answer and the same for every
     // act, and what did not happen is the act's own.
     it.each<{ act: MailboxAct; destination?: MoveDestination; said: string }>([
@@ -1211,53 +1158,6 @@ describe('MailboxActsProvider', () => {
         expect(screen.getByText('That mail is no longer in the mailbox this server reads.')).toBeDefined();
     });
 
-    // Asking again is the act performed afresh, so a move names the folder it named the first time rather than
-    // whatever a second reading of the account would pick.
-    it('asks a move the account stopped retrying again, into the folder the move first named', async () => {
-        vi.useFakeTimers();
-
-        const deployment = deploymentAnswering({}, 200, 'dead-lettered');
-        const { held } = acting(deployment);
-
-        await pass(0);
-        perform(held, 'move', [invoice], chosen);
-        await pass(0);
-        await pass(followedChangeInterval);
-        await pass(toastLifetime + toastLeaving);
-
-        expect(screen.getByText('Filed in another folder')).toBeDefined();
-
-        fireEvent.click(screen.getByRole('button', { name: 'Ask again' }));
-        await pass(0);
-
-        const filedInto = { moves: [{ storedEmailId: 'message-1', destinationFolder: 'work-archive' }] };
-
-        expect(submitted(deployment).map(({ body }) => body)).toStrictEqual([filedInto, filedInto]);
-        expect(held().asked.get('message-1')).toStrictEqual({
-            act: 'move',
-            from: 'work-inbox',
-            leaves: true,
-            destroys: false,
-        });
-    });
-
-    it('stops claiming an act the account stopped retrying once the person lets it go', async () => {
-        vi.useFakeTimers();
-
-        const { held } = acting(deploymentAnswering({}, 200, 'dead-lettered'));
-
-        await pass(0);
-        perform(held, 'archive', [invoice]);
-        await pass(0);
-        await pass(followedChangeInterval);
-        await pass(toastLifetime + toastLeaving);
-
-        fireEvent.click(screen.getByRole('button', { name: 'Let it go' }));
-
-        expect(held().asked.has('message-1')).toBe(false);
-        expect(screen.queryByText('Archived')).toBeNull();
-    });
-
     // An act answers after the render that asked has gone, and somebody else may have signed in on the tab by then:
     // what the first person's act came to is neither the next person's to be told about nor their queue's to follow.
     it('tells nobody what an act came to when somebody else signed in before it answered', async () => {
@@ -1268,13 +1168,12 @@ describe('MailboxActsProvider', () => {
 
         await pass(0);
         late.hold();
-        perform(held, 'flag', [invoice]);
+        perform(held, 'archive', [invoice]);
         signIn(someoneElse);
         late.answer();
-        await pass(followedChangeInterval);
+        await pass(0);
 
-        expect(screen.queryByText('Flagged')).toBeNull();
-        expect(screen.queryByText('One change has not reached your mailbox yet.')).toBeNull();
+        expect(screen.queryByText('Archived')).toBeNull();
     });
 
     it('tells nobody a message was put back when somebody else signed in before the way back answered', async () => {
@@ -1290,9 +1189,177 @@ describe('MailboxActsProvider', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
         signIn(someoneElse);
         late.answer();
-        await pass(followedChangeInterval);
+        await pass(0);
 
         expect(screen.queryByText('Put back where it was')).toBeNull();
+    });
+
+    // Until the deployment answers, pressing the act again would send the same request a second time. Once it has, the
+    // change is made or refused, and what the control offers next is a new act.
+    it('refuses the same act on a message while its request is unanswered, and no longer once it is answered', async () => {
+        const late = answeringLate(deploymentAnswering());
+        const { held } = acting(late.deployment);
+
+        late.hold();
+        perform(held, 'flag', [invoice]);
+
+        expect(standsInTheWay(held(), 'flag', [invoice])).toBe('underway');
+
+        late.answer();
+
+        await waitFor(() => {
+            expect(standsInTheWay(held(), 'flag', [invoice])).toBeNull();
+        });
+        expect(held().asked.get('message-1')).toMatchObject({ act: 'flag', awaiting: false });
+    });
+
+    // A write with no answer is held in this tab and sent again once the server answers, under the key it first went
+    // with: the deployment answers a repeat under that key with the first attempt's outcome, so it lands once.
+    it('sends a write nobody answered again under the key it first went with, and says so once', async () => {
+        vi.useFakeTimers();
+
+        const silent = deploymentAnswering({}, 504);
+        const answering = deploymentAnswering();
+        let back = false;
+        const deployment: Deployment = {
+            requests: answering.requests,
+            transport: (request) =>
+                request.path.includes('/mutations/') && !back
+                    ? silent.transport(request)
+                    : answering.transport(request),
+        };
+        const { held } = acting(deployment);
+
+        await pass(0);
+        perform(held, 'flag', [invoice]);
+        await pass(0);
+
+        expect(
+            screen.getByText(
+                'The connection went as this change was made. It stays shown as you made it and is confirmed once the connection is back. Closing this tab before then drops it.',
+            ),
+        ).toBeDefined();
+        expect(standsInTheWay(held(), 'flag', [invoice])).toBe('underway');
+
+        back = true;
+        await pass(unansweredWriteRetryDelay);
+
+        // The silent attempt was recorded by the deployment that did not answer, the repeat by the one that did.
+        const sentAs = [...silent.requests, ...answering.requests]
+            .filter((request) => request.path.includes('/mutations/flags'))
+            .map((request) => (JSON.parse(request.body ?? '{}') as { requestId: string }).requestId);
+
+        expect(sentAs).toHaveLength(2);
+        expect(sentAs[1]).toBe(sentAs[0]);
+        expect(screen.getAllByText('Not known whether this reached the server')).toHaveLength(1);
+        expect(held().asked.get('message-1')).toMatchObject({ act: 'flag', awaiting: false });
+    });
+
+    it('gives every act a key of its own, so a second press is a second change rather than a repeat of the first', async () => {
+        const deployment = deploymentAnswering();
+        const { held } = acting(deployment);
+
+        perform(held, 'flag', [invoice]);
+        await waitFor(() => {
+            expect(held().asked.get('message-1')?.awaiting).toBe(false);
+        });
+        perform(held, 'unflag', [invoice]);
+
+        await waitFor(() => {
+            expect(submitted(deployment)).toHaveLength(2);
+        });
+
+        const keys = deployment.requests
+            .filter((request) => request.path.includes('/mutations/'))
+            .map((request) => (JSON.parse(request.body ?? '{}') as { requestId: string }).requestId);
+
+        expect(new Set(keys).size).toBe(2);
+    });
+
+    // A change the deployment made is in every listing read after it, so that listing is what the server holds — the
+    // change, or the change undone once the mail server refused it. A page asked for before the answer says neither.
+    it('lets a change the deployment made go at the first page read after its answer, so a change undone is drawn undone', async () => {
+        const observers: ((emails: readonly DrawnMail[], askedAt: number) => void)[] = [];
+        const listed: ListedMail = {
+            ...nothingListed,
+            observe: (observer) => {
+                observers.push(observer);
+
+                return () => undefined;
+            },
+        };
+        const { held } = acting(deploymentAnswering({ 'message-1': 'applied' }), { listed });
+        const drawn: DrawnMail = {
+            id: 'message-1',
+            account: 'work',
+            folder: 'work-inbox',
+            unread: false,
+            flagged: false,
+            spam: null,
+        };
+
+        perform(held, 'flag', [invoice]);
+
+        await waitFor(() => {
+            expect(held().asked.get('message-1')?.awaiting).toBe(false);
+        });
+
+        function draw(askedAt: number): void {
+            act(() => {
+                for (const observer of observers) {
+                    observer([drawn], askedAt);
+                }
+            });
+        }
+
+        draw(Date.now() - 60_000);
+
+        expect(held().asked.get('message-1')?.act).toBe('flag');
+
+        draw(Date.now() + 1);
+
+        expect(held().asked.has('message-1')).toBe(false);
+    });
+
+    // A change only recorded reaches no listing until the mailbox converges, so a page read after its answer still
+    // shows the message as it was, and the claim is what keeps the person's own act on the screen.
+    it('keeps claiming a change only recorded whatever a page read after its answer draws', async () => {
+        const observers: ((emails: readonly DrawnMail[], askedAt: number) => void)[] = [];
+        const listed: ListedMail = {
+            ...nothingListed,
+            observe: (observer) => {
+                observers.push(observer);
+
+                return () => undefined;
+            },
+        };
+        const { held } = acting(deploymentAnswering(), { listed });
+
+        perform(held, 'flag', [invoice]);
+
+        await waitFor(() => {
+            expect(held().asked.get('message-1')?.awaiting).toBe(false);
+        });
+
+        act(() => {
+            for (const observer of observers) {
+                observer(
+                    [
+                        {
+                            id: 'message-1',
+                            account: 'work',
+                            folder: 'work-inbox',
+                            unread: false,
+                            flagged: false,
+                            spam: null,
+                        },
+                    ],
+                    Date.now() + 1,
+                );
+            }
+        });
+
+        expect(held().asked.get('message-1')?.act).toBe('flag');
     });
 
     it('asks a deployment for nothing where the credential may not write what the act writes', () => {

@@ -2,8 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
     ClientFailureReason,
     ClientResult,
@@ -12,7 +12,6 @@ import type {
     MailAccountDirectory,
 } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
-import { PendingChangesContext, nothingPending, type PendingChanges } from '../pendingChanges/usePendingChanges';
 import { ConnectionStatusContext, type ConnectionStatus } from './connectionStatus';
 import { ConnectionSummary } from './ConnectionSummary';
 import { mostReconnectionAttempts, type Connection } from './useConnection';
@@ -25,6 +24,10 @@ const workAccount: MailAccount = {
     behind: false,
     filesJunk: false,
     shared: false,
+    synchronizationStateSince: null,
+    behindSince: null,
+    waitingChangeCount: 0,
+    oldestWaitingChangeCommittedAt: null,
 };
 
 const archiveAccount: MailAccount = { ...workAccount, id: 'archive', displayName: 'Archive', behind: true };
@@ -35,8 +38,6 @@ const failingAccount: MailAccount = {
     displayName: 'Newsletters',
     synchronizationState: 'Failing',
 };
-
-const unreachableAccount: MailAccount = { ...failingAccount, synchronizationState: 'Unreachable' };
 
 const reading: ClientResult<DeploymentSession> = {
     outcome: 'read',
@@ -72,11 +73,7 @@ const disconnectedStatus: ConnectionStatus = {
     disconnectedNow: () => false,
 };
 
-function renderSummary(
-    connection: Partial<Connection>,
-    pending: PendingChanges = nothingPending,
-    status: ConnectionStatus | null = null,
-): void {
+function renderSummary(connection: Partial<Connection>, status: ConnectionStatus | null = null): void {
     const summary = (
         <ConnectionSummary
             connection={{
@@ -98,13 +95,7 @@ function renderSummary(
 
     render(
         <LocalizationProvider>
-            <PendingChangesContext value={pending}>
-                {status === null ? (
-                    summary
-                ) : (
-                    <ConnectionStatusContext value={status}>{summary}</ConnectionStatusContext>
-                )}
-            </PendingChangesContext>
+            {status === null ? summary : <ConnectionStatusContext value={status}>{summary}</ConnectionStatusContext>}
         </LocalizationProvider>,
     );
 }
@@ -119,7 +110,7 @@ function showing(accounts: ClientResult<MailAccountDirectory>): Partial<Connecti
  * screen is drawn, so a test asserting on a row opens it exactly as a person would rather than reading through it.
  */
 function reveal(freshness: string): void {
-    fireEvent.click(screen.getByText(freshness));
+    fireEvent.click(screen.getByRole('button', { name: freshness }));
 }
 
 describe('ConnectionSummary', () => {
@@ -138,10 +129,13 @@ describe('ConnectionSummary', () => {
     });
 
     it('says only that the mailboxes are unknown once a session stands and the server is out of reach', () => {
-        renderSummary({ ...showing(directory(true, [workAccount])), online: false }, nothingPending, {
-            ...disconnectedStatus,
-            cause: 'offline',
-        });
+        renderSummary(
+            { ...showing(directory(true, [workAccount])), online: false },
+            {
+                ...disconnectedStatus,
+                cause: 'offline',
+            },
+        );
 
         expect(screen.getByText('Mailbox status unknown: no connection to the MailFathom server.')).toBeDefined();
         expect(screen.queryByText(/offline/u)).toBeNull();
@@ -149,11 +143,7 @@ describe('ConnectionSummary', () => {
     });
 
     it('says the mailboxes are unknown while a session that stands went unanswered on its quiet refresh', () => {
-        renderSummary(
-            { ...showing(directory(true, [workAccount])), unansweredSince: 0 },
-            nothingPending,
-            disconnectedStatus,
-        );
+        renderSummary({ ...showing(directory(true, [workAccount])), unansweredSince: 0 }, disconnectedStatus);
 
         expect(screen.getByText('Mailbox status unknown: no connection to the MailFathom server.')).toBeDefined();
     });
@@ -223,29 +213,16 @@ describe('ConnectionSummary', () => {
         expect(screen.getByText('Every account is up to date.')).toBeDefined();
     });
 
-    it('says some accounts are behind when one of them is', () => {
+    it('names the one account that is not current', () => {
         renderSummary(showing(directory(true, [workAccount, archiveAccount])));
 
-        expect(screen.getByText('Some accounts are behind.')).toBeDefined();
+        expect(screen.getByText('Archive is not up to date.')).toBeDefined();
     });
 
-    it('says an account stopped synchronizing rather than reporting it as merely behind', () => {
-        renderSummary(showing(directory(true, [workAccount, failingAccount])));
-
-        expect(screen.getByText('Some accounts stopped synchronizing.')).toBeDefined();
-        expect(screen.queryByText('Some accounts are behind.')).toBeNull();
-    });
-
-    it('reads an account it cannot reach the same way as one that is failing', () => {
-        renderSummary(showing(directory(true, [workAccount, unreachableAccount])));
-
-        expect(screen.getByText('Some accounts stopped synchronizing.')).toBeDefined();
-    });
-
-    it('says an account stopped synchronizing even where another is only behind', () => {
+    it('says some accounts are not current where more than one is', () => {
         renderSummary(showing(directory(true, [archiveAccount, failingAccount])));
 
-        expect(screen.getByText('Some accounts stopped synchronizing.')).toBeDefined();
+        expect(screen.getByText('Some accounts are not up to date.')).toBeDefined();
     });
 
     it('says the deployment is not refreshing these accounts as its own setting rather than a missing grant', () => {
@@ -256,7 +233,7 @@ describe('ConnectionSummary', () => {
                 'This server is not refreshing the local copy of these accounts, so what you see is as current as its last run left it. That is a setting on the server rather than a permission you are missing.',
             ),
         ).toBeDefined();
-        expect(screen.queryByRole('group')).toBeNull();
+        expect(screen.queryByRole('button')).toBeNull();
     });
 
     it('tells a user holding no account that, and what would fill it, rather than showing a failure', () => {
@@ -270,29 +247,37 @@ describe('ConnectionSummary', () => {
         renderSummary(showing(directory(true, [workAccount])));
 
         expect(screen.getByText('Every account is up to date.')).toBeDefined();
-        expect(screen.queryByRole('group')).toBeNull();
+        expect(screen.queryByRole('button')).toBeNull();
         expect(screen.queryByText('Work')).toBeNull();
     });
 
-    it('keeps the account-by-account reading behind the line that summarizes them until it is asked for', () => {
+    it('keeps the account-by-account reading behind the line until it is asked for', () => {
         renderSummary(showing(directory(true, [workAccount, archiveAccount])));
 
-        expect(screen.getByRole('group')).not.toHaveProperty('open', true);
+        expect(screen.getByRole('button', { name: 'Archive is not up to date.' })).toHaveProperty(
+            'ariaExpanded',
+            'false',
+        );
+        expect(screen.queryByText('Catching up')).toBeNull();
 
-        reveal('Some accounts are behind.');
+        reveal('Archive is not up to date.');
 
-        expect(screen.getByRole('group')).toHaveProperty('open', true);
+        expect(screen.getByRole('button', { name: 'Archive is not up to date.' })).toHaveProperty(
+            'ariaExpanded',
+            'true',
+        );
+        expect(screen.getByText('Catching up')).toBeDefined();
     });
 
-    it('names each account and its state behind the line that summarizes them, and no time', () => {
-        renderSummary(showing(directory(true, [workAccount, unreachableAccount])));
+    it('names each account that is not current and its state, then one line for the rest, and no time', () => {
+        renderSummary(showing(directory(true, [workAccount, failingAccount, archiveAccount])));
 
-        reveal('Some accounts stopped synchronizing.');
+        reveal('Some accounts are not up to date.');
 
-        expect(screen.getByText('Work')).toBeDefined();
-        expect(screen.getByText('Up to date')).toBeDefined();
         expect(screen.getByText('Newsletters')).toBeDefined();
-        expect(screen.getByText('The mail server did not answer')).toBeDefined();
+        expect(screen.getByText('Stopped synchronizing')).toBeDefined();
+        expect(screen.getByText('Archive')).toBeDefined();
+        expect(screen.getByText('Work is up to date.')).toBeDefined();
         expect(screen.queryByText(/refreshed/)).toBeNull();
     });
 
@@ -305,7 +290,7 @@ describe('ConnectionSummary', () => {
 
         renderSummary(showing(directory(true, [fresh])));
 
-        reveal('Some accounts are behind.');
+        reveal('Work is not up to date.');
 
         expect(screen.getByText('Nothing taken in yet')).toBeDefined();
     });
@@ -313,7 +298,7 @@ describe('ConnectionSummary', () => {
     it('reads an account that is merely catching up as that rather than as one that stopped', () => {
         renderSummary(showing(directory(true, [archiveAccount])));
 
-        reveal('Some accounts are behind.');
+        reveal('Archive is not up to date.');
 
         expect(screen.getByText('Catching up')).toBeDefined();
     });
@@ -340,19 +325,92 @@ describe('ConnectionSummary', () => {
 
         expect(screen.queryByText(/503/)).toBeNull();
     });
+});
 
-    // A change the mailbox has not taken yet is at its most worth reading exactly when this line has nothing else to
-    // report, so it stands above every sentence below rather than inside one of their branches.
-    it('says a change is still waiting even while nothing about the deployment has answered', () => {
+// The minute is the deployment's: each cause is measured from the instant the account list reported, and a cause that
+// clears inside it never changes the line. The clock is the test's, so both sides of the minute are reached exactly.
+describe('ConnectionSummary, a minute after a cause began', () => {
+    const committed = '2026-08-15T09:40:00+00:00';
+
+    beforeEach(() => {
+        vi.useFakeTimers({ now: Date.parse(committed) + 30_000 });
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    const waiting: MailAccount = {
+        ...workAccount,
+        synchronizationStateSince: committed,
+        waitingChangeCount: 2,
+        oldestWaitingChangeCommittedAt: committed,
+    };
+
+    it('stays green while changes have waited less than a minute', () => {
+        renderSummary(showing(directory(true, [waiting])));
+
+        expect(screen.getByText('Every account is up to date.')).toBeDefined();
+    });
+
+    it('turns at the minute, without a new answer, and says the changes are kept and shown as made', () => {
+        renderSummary(showing(directory(true, [waiting])));
+
+        act(() => {
+            vi.advanceTimersByTime(30_000);
+        });
+
+        reveal('Work is not up to date.');
+
+        expect(screen.getByText('2 changes waiting')).toBeDefined();
+        expect(
+            screen.getByText(
+                '2 changes have waited more than a minute for its mail server. They are kept in MailFathom, shown as made, and reach the server on their own.',
+            ),
+        ).toBeDefined();
+    });
+
+    it('never turns for changes that reach the mail server inside the minute', () => {
+        renderSummary(showing(directory(true, [waiting])));
+
+        cleanup();
         renderSummary(
-            { session: null },
-            {
-                ...nothingPending,
-                waiting: [{ recordId: 'record', storedEmailId: 'message', act: 'markRead' }],
-            },
+            showing(directory(true, [{ ...waiting, waitingChangeCount: 0, oldestWaitingChangeCommittedAt: null }])),
         );
 
-        expect(screen.getByText('Reaching the server…')).toBeDefined();
-        expect(screen.getByText('One change has not reached your mailbox yet.')).toBeDefined();
+        act(() => {
+            vi.advanceTimersByTime(60_000);
+        });
+
+        expect(screen.getByText('Every account is up to date.')).toBeDefined();
+    });
+
+    it('measures from what the deployment reported, so a client that read the accounts late does not wait again', () => {
+        renderSummary({ ...showing(directory(true, [waiting])), accountsReadAt: Date.parse(committed) + 61_000 });
+
+        expect(screen.getByText('Work is not up to date.')).toBeDefined();
+    });
+
+    it('says since when a mail server has been unreachable and how many changes wait on it', () => {
+        const unreachable: MailAccount = {
+            ...waiting,
+            synchronizationState: 'Unreachable',
+            waitingChangeCount: 3,
+        };
+
+        renderSummary(showing(directory(true, [unreachable])));
+
+        act(() => {
+            vi.advanceTimersByTime(30_000);
+        });
+
+        reveal('Work is not up to date.');
+
+        expect(screen.getByText('Mail server unreachable')).toBeDefined();
+        expect(
+            screen.getByText(
+                /^Its mail server cannot be reached, since .+\. 3 changes are waiting\. They are kept in MailFathom and reach the mail server once it is back\.$/u,
+            ),
+        ).toBeDefined();
     });
 });

@@ -55,8 +55,9 @@ const causeTitles: Readonly<Record<NotificationCause, CauseTitle>> = {
     TaskReminderDue: { naming: 'notifications.said.taskReminderDue.title' },
     MessageArrived: { sender: true },
     SendRefused: { said: 'notifications.said.sendRefused.title' },
-    MailboxChangeAbandoned: { said: 'notifications.said.mailboxChangeAbandoned.title' },
+    MailboxChangeAbandoned: { said: 'notifications.said.mailboxChangeRefused.title' },
     DraftCopyNotKept: { said: 'notifications.said.draftCopyNotKept.title' },
+    MailboxChangeRefused: { said: 'notifications.said.mailboxChangeRefused.title' },
 };
 
 /**
@@ -71,7 +72,7 @@ type CauseBody =
     | { readonly counted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> }
     | { readonly remaining: true }
     | { readonly subject: MessageKey }
-    | { readonly act: true };
+    | { readonly act: Readonly<Record<AbandonedAct, MessageKey>> };
 
 const causeBodies: Readonly<Record<NotificationCause, CauseBody>> = {
     MailArrived: { said: 'notifications.said.mailArrived.body' },
@@ -90,22 +91,28 @@ const causeBodies: Readonly<Record<NotificationCause, CauseBody>> = {
     MessageArrived: { subject: 'list.noSubject' },
     SendRefused: { subject: 'notifications.said.sendRefused.untitled' },
     DraftCopyNotKept: { subject: 'notifications.said.draftCopyNotKept.untitled' },
-    // A given-up change carries no mail at all — it leads to the message, which says what it is — so what it says is
-    // which act did not happen, counted as the statement's number.
-    MailboxChangeAbandoned: { act: true },
+    // A refused change carries no mail at all — it leads to the message, which says what it is — so what it says is
+    // which act was undone and what undoing it did, counted as the statement's number. A refusal for good is said as
+    // one, because it offers nothing to ask again.
+    MailboxChangeAbandoned: { act: actBodies('mailboxChangeAbandoned') },
+    MailboxChangeRefused: { act: actBodies('mailboxChangeRefused') },
 };
 
-/** What a given-up change says it was, one sentence per act, because the act is where the sentence starts. */
-const abandonedActBodies: Readonly<Record<AbandonedAct, MessageKey>> = {
-    markRead: 'notifications.said.mailboxChangeAbandoned.markRead',
-    markUnread: 'notifications.said.mailboxChangeAbandoned.markUnread',
-    flag: 'notifications.said.mailboxChangeAbandoned.flag',
-    unflag: 'notifications.said.mailboxChangeAbandoned.unflag',
-    move: 'notifications.said.mailboxChangeAbandoned.move',
-    delete: 'notifications.said.mailboxChangeAbandoned.delete',
-    copy: 'notifications.said.mailboxChangeAbandoned.copy',
-    changeTags: 'notifications.said.mailboxChangeAbandoned.changeTags',
-};
+/** What a refused change says it was, one sentence per act, because the act is where the sentence starts. */
+function actBodies(
+    cause: 'mailboxChangeAbandoned' | 'mailboxChangeRefused',
+): Readonly<Record<AbandonedAct, MessageKey>> {
+    return {
+        markRead: `notifications.said.${cause}.markRead`,
+        markUnread: `notifications.said.${cause}.markUnread`,
+        flag: `notifications.said.${cause}.flag`,
+        unflag: `notifications.said.${cause}.unflag`,
+        move: `notifications.said.${cause}.move`,
+        delete: `notifications.said.${cause}.delete`,
+        copy: `notifications.said.${cause}.copy`,
+        changeTags: `notifications.said.${cause}.changeTags`,
+    };
+}
 
 /**
  * Where each failure says it came from, with the account it belongs to.
@@ -271,7 +278,7 @@ function wordBody(
     if ('act' in body) {
         const act = abandonedActOf(counted);
 
-        return act === null ? line : translate(abandonedActBodies[act]);
+        return act === null ? line : translate(body.act[act]);
     }
 
     return translate(body.counted[form], holes);

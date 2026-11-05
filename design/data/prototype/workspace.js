@@ -120,7 +120,7 @@ MailFathomDesign.data.localDrafts = {
 // asked.
 MailFathomDesign.data.changeNotices = {
   travel1: { act: "move", fate: "transient", notif: "nf2" },
-  devops1: { act: "flag", fate: "permanent", why: "The mail server cannot keep flags in this folder", notif: "nf8" },
+  devops1: { act: "flag", fate: "permanent", why: "The mail server refused it for good", notif: "nf8" },
   klient3: { act: "move", fate: "both", to: "Personal mail", toFolder: "Clients", from: "Nordwind · work", notif: "nf9" },
 };
 

@@ -141,7 +141,20 @@ export function ReadMarkingProvider({
         keep();
     }
 
-    function submit(asking: ClientSession, askingFor: string, batch: readonly string[]): void {
+    /**
+     * Sends one batch of markings and hands its answer to the queue.
+     *
+     * @param requestId The key the batch goes under, drawn once per batch, so sending it again after nobody answered is
+     * the same request rather than a second one.
+     * @param resent Whether this is that second sending, which says nothing the first silence already said.
+     */
+    function submit(
+        asking: ClientSession,
+        askingFor: string,
+        batch: readonly string[],
+        requestId: string = newIdentifier(),
+        resent = false,
+    ): void {
         // Where each of these was counted as unread, captured before anything can drop it, so that asking again after
         // a refusal restores exactly what letting go took away. It lives as long as some change from this batch is
         // still being followed and no longer, because that is what holds the two callbacks below.
@@ -153,22 +166,20 @@ export function ReadMarkingProvider({
             }),
         );
 
-        void markMailOpened(asking, transport, batch, newIdentifier()).then((answer) => {
+        void markMailOpened(asking, transport, batch, requestId).then((answer) => {
             if (submitted.current.signedInAs !== askingFor) {
                 return;
             }
 
-            // What became of the batch is not this component's to interpret. Which refusals are said out loud, which
-            // records are followed until the mailbox agrees, and which of those turn into a question are one rule
-            // stated in `pendingChanges/`, and what marking read owes it is only what its own two answers mean.
+            // What became of the batch is not this component's to interpret. Which refusals are said out loud and what
+            // becomes of a batch nobody answered are one rule stated in `pendingChanges/`, and what marking read owes
+            // it is only what its own three answers mean.
             pending.follow({
                 act: 'markRead',
                 asked: batch,
                 results: answer.outcome === 'read' ? answer.value : null,
                 failure: answer.outcome === 'failed' && !wentUnanswered(answer.failure) ? answer.failure : null,
-
-                // Marking read writes a flag, which lands wherever the message is; no folder is part of it.
-                askedIn: new Map(),
+                resent,
                 askAgain: (storedEmailIds) => {
                     // The question outlives the answer that raised it — a toast stands on the screen for seconds and
                     // knows nothing about who is signed in — so who is asking is read at the moment somebody answers
@@ -182,6 +193,13 @@ export function ReadMarkingProvider({
 
                     remark(storedEmailIds, markedIn);
                     submit(now.session, askingFor, storedEmailIds);
+                },
+                sendAgain: () => {
+                    const now = signedIn.current;
+
+                    if (now.signedInAs === askingFor && now.session !== null) {
+                        submit(now.session, askingFor, batch, requestId, true);
+                    }
                 },
                 letGo: forget,
             });

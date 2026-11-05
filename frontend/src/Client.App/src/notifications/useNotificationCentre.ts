@@ -109,15 +109,6 @@ export interface NotificationCentre {
     readonly changeDecided: (recordId: string) => void;
 }
 
-/**
- * Whether this tab is already following a change, which is what keeps a failure from being said twice.
- *
- * A change this tab asked for is followed by the pending-changes queue, which puts its own line and toast in front of
- * the person when the mailbox does not take it. The durable row that same failure raises is still listed in the centre,
- * but its toast is not raised: one failure, one voice.
- */
-export type FollowedHere = (recordId: string) => boolean;
-
 /** Which notifications have already been drawn or announced, and whose reading of the centre that was. */
 interface Seen {
     readonly session: ClientSession;
@@ -150,7 +141,6 @@ interface Risen {
  * @param online Whether this machine has a network, which is what stops the interval rather than a failing read.
  * @param onFollow Where a notification leads, which is the frame's answer rather than this hook's.
  * @param accounts The person's mail accounts, which is what a failure's toast names its account by.
- * @param followedHere Whether this tab already follows a change, which is what silences its durable row's toast.
  * @param disconnectedNow Whether the server is out of reach at this moment, which is when a failure is the connection
  * status's to say rather than a toast's. The frame hands it in because it holds this hook above the status it states.
  */
@@ -160,7 +150,6 @@ export function useNotificationCentre(
     online: boolean,
     onFollow: (target: NotificationTarget) => void,
     accounts: readonly MailAccount[] = noAccounts,
-    followedHere: FollowedHere = followsNothing,
     disconnectedNow: () => boolean = connectedAlways,
 ): NotificationCentre {
     const { locale, translate } = useLocalization();
@@ -403,15 +392,9 @@ export function useNotificationCentre(
     // open the notification it is about.
     const announce = useCallback(
         (arrived: readonly ClientNotification[]): void => {
-            const spoken = arrived.filter((notification) => {
-                const failure = failureOf(notification);
+            raiseWithTheSystem(arrived);
 
-                return failure?.kind !== 'change' || !followedHere(failure.recordId);
-            });
-
-            raiseWithTheSystem(spoken);
-
-            for (const notification of spoken.slice(0, mostArrivalsAnnounced).reverse()) {
+            for (const notification of arrived.slice(0, mostArrivalsAnnounced).reverse()) {
                 const said = wordNotificationToast(notification, accounts, locale, translate);
 
                 toasts.raise({
@@ -427,7 +410,7 @@ export function useNotificationCentre(
                 });
             }
         },
-        [toasts, accounts, followedHere, locale, translate, follow, raiseWithTheSystem],
+        [toasts, accounts, locale, translate, follow, raiseWithTheSystem],
     );
 
     // What an arrival is said with is held rather than depended on. The read below must be decided by the credential,
@@ -536,7 +519,7 @@ export function useNotificationCentre(
         toasts.raise({
             kind: 'warning',
             title: translate('pendingChange.outcomeUnknown'),
-            body: translate('pendingChange.outcomeUnknownBody'),
+            body: translate('notifications.outcomeUnknownBody'),
         });
     }
 
@@ -713,10 +696,6 @@ export function useNotificationCentre(
 }
 
 const noAccounts: readonly MailAccount[] = [];
-
-function followsNothing(): boolean {
-    return false;
-}
 
 function connectedAlways(): boolean {
     return false;

@@ -9,7 +9,7 @@ import { failureOf } from './failures';
 const row: ClientNotification = {
     id: 'n-1',
     kind: 'Mail',
-    title: 'A change did not reach your mailbox',
+    title: 'Your mailbox refused a change',
     body: '',
     source: 'work',
     statement: { cause: 'MailboxChangeAbandoned', counted: 4, outOf: null },
@@ -19,8 +19,20 @@ const row: ClientNotification = {
 };
 
 describe('failureOf', () => {
-    it('reads a change the mailbox did not take with the act its statement counts', () => {
-        expect(failureOf(row)).toStrictEqual({ kind: 'change', recordId: 'r-1', storedEmailId: 'e-1', act: 'move' });
+    it('reads a change the mailbox refused with the act its statement counts, as one that may be asked again', () => {
+        expect(failureOf(row)).toStrictEqual({
+            kind: 'change',
+            recordId: 'r-1',
+            storedEmailId: 'e-1',
+            act: 'move',
+            permanent: false,
+        });
+    });
+
+    it('reads a change the mail server refused for good as one asking again would not help', () => {
+        expect(
+            failureOf({ ...row, statement: { cause: 'MailboxChangeRefused', counted: 2, outOf: null } }),
+        ).toStrictEqual({ kind: 'change', recordId: 'r-1', storedEmailId: 'e-1', act: 'flag', permanent: true });
     });
 
     it('reads a refused send and a draft out of step from their own targets', () => {

@@ -203,6 +203,7 @@ export function deploymentFetchOver(
                         ? null
                         : retryDelay(
                               method,
+                              path,
                               answer === null
                                   ? null
                                   : { status: answer.status, headers: Object.fromEntries(answer.headers) },

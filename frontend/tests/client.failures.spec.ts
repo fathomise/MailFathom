@@ -51,18 +51,18 @@ test('takes a refused send back to edit from its notification, as the draft it w
         .toMatchObject([{ body: { read: true } }]);
 });
 
-test('lets go of a change the mailbox did not take on the message it was asked of, which reads its notification', async ({
+test('lets go of a change the mailbox refused on the message it was asked of, which reads its notification', async ({
     page,
     deployment,
 }) => {
     await openSignedIn(page);
     await openCentre(page);
 
-    await row(page, 'A change did not reach your mailbox')
-        .getByRole('button', { name: /A change did not reach your mailbox/u })
+    await row(page, 'Your mailbox refused a change')
+        .getByRole('button', { name: /Your mailbox refused a change/u })
         .click();
 
-    const notice = page.getByRole('status').filter({ hasText: 'Not moved - your mailbox did not take this change' });
+    const notice = page.getByRole('status').filter({ hasText: 'Not moved - your mailbox refused this change' });
 
     await expect(notice).toBeVisible();
     expect(

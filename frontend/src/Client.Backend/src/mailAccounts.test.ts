@@ -23,6 +23,10 @@ const directoryBody = JSON.stringify({
             behind: false,
             filesJunk: false,
             shared: true,
+            synchronizationStateSince: null,
+            behindSince: null,
+            waitingChangeCount: 0,
+            oldestWaitingChangeCommittedAt: null,
         },
     ],
 });
@@ -80,6 +84,10 @@ describe('readMailAccounts', () => {
                         behind: false,
                         filesJunk: false,
                         shared: true,
+                        synchronizationStateSince: null,
+                        behindSince: null,
+                        waitingChangeCount: 0,
+                        oldestWaitingChangeCommittedAt: null,
                     },
                 ],
             },
@@ -97,6 +105,10 @@ describe('readMailAccounts', () => {
                     behind: false,
                     filesJunk: false,
                     shared: false,
+                    synchronizationStateSince: null,
+                    behindSince: null,
+                    waitingChangeCount: 0,
+                    oldestWaitingChangeCommittedAt: null,
                 },
             ],
         });
@@ -116,10 +128,69 @@ describe('readMailAccounts', () => {
                         behind: false,
                         filesJunk: false,
                         shared: false,
+                        synchronizationStateSince: null,
+                        behindSince: null,
+                        waitingChangeCount: 0,
+                        oldestWaitingChangeCommittedAt: null,
                     },
                 ],
             },
         });
+    });
+
+    it('reads since when an account has been unreachable and how many of its changes wait, as the deployment published them', async () => {
+        const body = JSON.stringify({
+            synchronizationEnabled: true,
+            accounts: [
+                {
+                    id: 'board',
+                    displayName: 'Board',
+                    synchronizationState: 'Unreachable',
+                    behind: true,
+                    filesJunk: false,
+                    shared: false,
+                    synchronizationStateSince: '2026-08-14T21:20:00+00:00',
+                    behindSince: '2026-08-14T21:05:00+00:00',
+                    waitingChangeCount: 3,
+                    oldestWaitingChangeCommittedAt: '2026-08-15T07:31:00+00:00',
+                },
+            ],
+        });
+
+        const result = await readMailAccounts(session, answering({ status: 200, body }));
+
+        expect(result.outcome === 'read' ? result.value.accounts[0] : null).toMatchObject({
+            synchronizationStateSince: '2026-08-14T21:20:00+00:00',
+            behindSince: '2026-08-14T21:05:00+00:00',
+            waitingChangeCount: 3,
+            oldestWaitingChangeCommittedAt: '2026-08-15T07:31:00+00:00',
+        });
+    });
+
+    it.each([
+        ['a waiting count that is negative', { waitingChangeCount: -1 }],
+        ['a waiting count that is not a whole number', { waitingChangeCount: 1.5 }],
+        ['an oldest waiting change that is not an instant', { oldestWaitingChangeCommittedAt: 'yesterday' }],
+        ['a state start that is not a string', { synchronizationStateSince: 12 }],
+    ])('refuses an account carrying %s', async (_, field) => {
+        const body = JSON.stringify({
+            synchronizationEnabled: true,
+            accounts: [
+                {
+                    id: 'work',
+                    displayName: 'Work',
+                    synchronizationState: 'Synchronized',
+                    behind: false,
+                    filesJunk: false,
+                    shared: false,
+                    ...field,
+                },
+            ],
+        });
+
+        const result = await readMailAccounts(session, answering({ status: 200, body }));
+
+        expect(result).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
     it.each([
@@ -165,6 +236,10 @@ describe('readMailAccounts', () => {
                         behind: 'maybe',
                         filesJunk: false,
                         shared: false,
+                        synchronizationStateSince: null,
+                        behindSince: null,
+                        waitingChangeCount: 0,
+                        oldestWaitingChangeCommittedAt: null,
                     },
                 ],
             }),
@@ -188,6 +263,10 @@ describe('readMailAccounts', () => {
                         behind: false,
                         filesJunk: 'yes',
                         shared: false,
+                        synchronizationStateSince: null,
+                        behindSince: null,
+                        waitingChangeCount: 0,
+                        oldestWaitingChangeCommittedAt: null,
                     },
                 ],
             }),
@@ -219,6 +298,10 @@ describe('readMailAccounts', () => {
                         behind: false,
                         filesJunk: false,
                         shared: false,
+                        synchronizationStateSince: null,
+                        behindSince: null,
+                        waitingChangeCount: 0,
+                        oldestWaitingChangeCommittedAt: null,
                     },
                 ],
             }),
@@ -236,6 +319,10 @@ describe('readMailAccounts', () => {
                         behind: false,
                         filesJunk: false,
                         shared: false,
+                        synchronizationStateSince: null,
+                        behindSince: null,
+                        waitingChangeCount: 0,
+                        oldestWaitingChangeCommittedAt: null,
                     },
                 ],
             }),
@@ -257,6 +344,10 @@ describe('readMailAccounts', () => {
                 behind: false,
                 filesJunk: false,
                 shared: false,
+                synchronizationStateSince: null,
+                behindSince: null,
+                waitingChangeCount: 0,
+                oldestWaitingChangeCommittedAt: null,
             })),
         });
 
@@ -276,6 +367,10 @@ describe('readMailAccounts', () => {
                 behind: false,
                 filesJunk: false,
                 shared: false,
+                synchronizationStateSince: null,
+                behindSince: null,
+                waitingChangeCount: 0,
+                oldestWaitingChangeCommittedAt: null,
             })),
         });
 

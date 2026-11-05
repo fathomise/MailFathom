@@ -27,6 +27,21 @@ export interface MailAccount {
 
     /** Whether the account is assigned to more than one person, so others read what arrives there. */
     readonly shared: boolean;
+
+    /**
+     * Since when the account has been in its synchronization state, as the deployment watched it, or `null` where the
+     * answering process has not watched it reach that state.
+     */
+    readonly synchronizationStateSince: string | null;
+
+    /** Since when the account has had mail its folders have not taken in yet, without a break, or `null` while it has none. */
+    readonly behindSince: string | null;
+
+    /** How many changes MailFathom holds for the account that its mail server does not have yet. Sends are not counted. */
+    readonly waitingChangeCount: number;
+
+    /** When the oldest of those changes was committed, or `null` where none waits. */
+    readonly oldestWaitingChangeCommittedAt: string | null;
 }
 
 /** The user's accounts, beside the deployment-wide switch that says whether any of them is being refreshed at all. */
@@ -127,6 +142,10 @@ export function parseMailAccount(value: unknown): MailAccount | null {
     const behind = record['behind'];
     const filesJunk = record['filesJunk'];
     const shared = record['shared'];
+    const synchronizationStateSince = record['synchronizationStateSince'] ?? null;
+    const behindSince = record['behindSince'] ?? null;
+    const waitingChangeCount = record['waitingChangeCount'] ?? 0;
+    const oldestWaitingChangeCommittedAt = record['oldestWaitingChangeCommittedAt'] ?? null;
 
     if (typeof id !== 'string' || typeof displayName !== 'string' || typeof behind !== 'boolean') {
         return null;
@@ -144,6 +163,18 @@ export function parseMailAccount(value: unknown): MailAccount | null {
         return null;
     }
 
+    if (!isInstantOrNothing(synchronizationStateSince) || !isInstantOrNothing(behindSince)) {
+        return null;
+    }
+
+    if (!isInstantOrNothing(oldestWaitingChangeCommittedAt)) {
+        return null;
+    }
+
+    if (typeof waitingChangeCount !== 'number' || !Number.isSafeInteger(waitingChangeCount) || waitingChangeCount < 0) {
+        return null;
+    }
+
     return {
         id,
         displayName,
@@ -152,7 +183,16 @@ export function parseMailAccount(value: unknown): MailAccount | null {
         behind,
         filesJunk,
         shared,
+        synchronizationStateSince,
+        behindSince,
+        waitingChangeCount,
+        oldestWaitingChangeCommittedAt,
     };
+}
+
+/** Whether the value is an instant the deployment wrote, or absent; one that does not parse is refused with the rest. */
+function isInstantOrNothing(value: unknown): value is string | null {
+    return value === null || (typeof value === 'string' && !Number.isNaN(Date.parse(value)));
 }
 
 /** Whether the value is one of the four states this surface publishes, which the folders route answers with as well. */

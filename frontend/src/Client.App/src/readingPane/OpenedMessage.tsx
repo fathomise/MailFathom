@@ -169,9 +169,9 @@ export function OpenedMessage({
         }
     }, [folded, storedEmailId, markRead, message.account, message.folder, message.unread]);
 
-    // Whether a change the mailbox did not take stands over this message, which is the only case the notice is mounted in.
+    // Whether a change the mailbox refused stands over this message, which is the only case the notice is mounted in.
     const pending = usePendingChanges();
-    const asked = [...pending.undecided, ...pending.abandoned].some((change) => change.storedEmailId === storedEmailId);
+    const asked = pending.abandoned.some((change) => change.storedEmailId === storedEmailId);
 
     // What a person selected becomes the scope the intent field asks its next question under. It is read from the
     // gesture that produced it rather than from an effect watching the document, and it is bounded, trimmed, and

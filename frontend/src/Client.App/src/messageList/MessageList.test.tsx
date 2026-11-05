@@ -40,6 +40,10 @@ const work: MailAccount = {
     behind: false,
     filesJunk: false,
     shared: false,
+    synchronizationStateSince: null,
+    behindSince: null,
+    waitingChangeCount: 0,
+    oldestWaitingChangeCommittedAt: null,
 };
 
 function message(at: number, carried: Record<string, unknown> = {}): Record<string, unknown> {
@@ -304,7 +308,9 @@ describe('MessageList', () => {
         const transport = answering(wholeFolder);
         const leaving: MailboxActs = {
             ...nothingActed,
-            asked: new Map([['message-2', { act: 'archive', from: 'INBOX', leaves: true, destroys: false }]]),
+            asked: new Map([
+                ['message-2', { act: 'archive', from: 'INBOX', leaves: true, destroys: false, awaiting: true }],
+            ]),
         };
         const drawn = renderList(transport, { acts: leaving });
 
@@ -341,7 +347,10 @@ describe('MessageList', () => {
                         refusalOf: () => null,
                         perform: performed,
                         asked: new Map([
-                            ['message-2', { act: 'archive', from: 'INBOX', leaves: true, destroys: false }],
+                            [
+                                'message-2',
+                                { act: 'archive', from: 'INBOX', leaves: true, destroys: false, awaiting: true },
+                            ],
                         ]),
                     },
                 })}
@@ -372,7 +381,10 @@ describe('MessageList', () => {
                         ...nothingActed,
                         refusalOf: () => null,
                         asked: new Map([
-                            ['message-2', { act: 'archive', from: 'INBOX', leaves: true, destroys: false }],
+                            [
+                                'message-2',
+                                { act: 'archive', from: 'INBOX', leaves: true, destroys: false, awaiting: true },
+                            ],
                         ]),
                     },
                 })}
@@ -402,7 +414,7 @@ describe('MessageList', () => {
     it('takes a whole selection out at the press rather than holding rows no reader could watch go', async () => {
         const filed = Array.from({ length: 30 }, (_, at): [string, AskedAct] => [
             `message-${String(at)}`,
-            { act: 'archive', from: 'INBOX', leaves: true, destroys: false },
+            { act: 'archive', from: 'INBOX', leaves: true, destroys: false, awaiting: true },
         ]);
 
         renderList(answering(wholeFolder), { acts: { ...nothingActed, asked: new Map(filed) } });
@@ -680,8 +692,8 @@ describe('MessageList', () => {
             acts: {
                 ...nothingActed,
                 asked: new Map([
-                    ['message-0', { act: 'archive', from: 'INBOX', leaves: true, destroys: false }],
-                    ['message-1', { act: 'archive', from: 'INBOX', leaves: true, destroys: false }],
+                    ['message-0', { act: 'archive', from: 'INBOX', leaves: true, destroys: false, awaiting: true }],
+                    ['message-1', { act: 'archive', from: 'INBOX', leaves: true, destroys: false, awaiting: true }],
                 ]),
             },
         });

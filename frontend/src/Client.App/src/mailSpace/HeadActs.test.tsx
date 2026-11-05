@@ -116,7 +116,10 @@ describe('HeadActs', () => {
             acts: {
                 ...actsOffering(performed),
                 asked: new Map([
-                    [message.storedEmailId, { act: 'flag', from: message.folder, leaves: false, destroys: false }],
+                    [
+                        message.storedEmailId,
+                        { act: 'flag', from: message.folder, leaves: false, destroys: false, awaiting: true },
+                    ],
                 ]),
             },
         });

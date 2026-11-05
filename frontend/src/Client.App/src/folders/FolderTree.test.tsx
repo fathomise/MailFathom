@@ -45,6 +45,10 @@ const tree = {
                 behind: false,
                 filesJunk: false,
                 shared: false,
+                synchronizationStateSince: null,
+                behindSince: null,
+                waitingChangeCount: 0,
+                oldestWaitingChangeCommittedAt: null,
             },
             folders: [
                 {
@@ -98,6 +102,10 @@ const tree = {
                 behind: false,
                 filesJunk: false,
                 shared: false,
+                synchronizationStateSince: null,
+                behindSince: null,
+                waitingChangeCount: 0,
+                oldestWaitingChangeCommittedAt: null,
             },
             folders: [
                 {

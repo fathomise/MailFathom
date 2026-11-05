@@ -313,7 +313,7 @@ describe('App session', () => {
         expect(screen.getByText(`MailFathom v${__MAILFATHOM_VERSION__}`)).toBeDefined();
     });
 
-    it('names each account and what its last attempt did, behind the line that summarizes them', async () => {
+    it('names the account that is not current and what holds it up, behind the line that summarizes them', async () => {
         const failing = { ...workAccount, id: 'news', displayName: 'Newsletters', synchronizationState: 'Unreachable' };
 
         openingAt('#/mail');
@@ -321,16 +321,15 @@ describe('App session', () => {
 
         // The one gesture the design asks for: the reading is closed when the frame is drawn, and this is what a
         // person does to it.
-        fireEvent.click(await screen.findByText('Some accounts stopped synchronizing.'));
+        const line = await screen.findByRole('button', { name: 'Newsletters is not up to date.' });
 
-        // Scoped to the panel, because the mailbox in scope offers the same names and this is about the freshness
-        // reading rather than about the field beside it.
-        const panel = within(screen.getByRole('group'));
-        expect(screen.getByRole('group')).toHaveProperty('open', true);
-        expect(panel.getByText('Work')).toBeDefined();
-        expect(panel.getByText('Up to date')).toBeDefined();
-        expect(panel.getByText('Newsletters')).toBeDefined();
-        expect(panel.getByText('The mail server did not answer')).toBeDefined();
+        expect(screen.queryByText('Mail server unreachable')).toBeNull();
+
+        fireEvent.click(line);
+
+        expect(line).toHaveProperty('ariaExpanded', 'true');
+        expect(screen.getByText('Mail server unreachable')).toBeDefined();
+        expect(screen.getByText('Work is up to date.')).toBeDefined();
     });
 
     it('tells a user holding no account what would fill it, rather than showing a failure', async () => {

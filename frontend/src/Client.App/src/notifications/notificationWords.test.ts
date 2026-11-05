@@ -42,6 +42,23 @@ function translating(locale: Locale): Translate {
 }
 
 describe('wordNotification', () => {
+    // The count names the act, and the sentence says what undoing it did — with *for good* where asking again cannot
+    // help, which is the one difference between the two causes.
+    it.each([
+        [
+            'MailboxChangeAbandoned',
+            4,
+            'Move - the mail server would not take it, so MailFathom put the message back where the server holds it.',
+        ],
+        [
+            'MailboxChangeRefused',
+            2,
+            'Flag - the mail server refused it for good, so MailFathom took the flag off again.',
+        ],
+    ] as const)('says a %s change under one title, and what undoing its act did', (cause, counted, body) => {
+        expect(said({ cause, counted, outOf: null }, 'en')).toEqual({ title: 'Your mailbox refused a change', body });
+    });
+
     it('says merged arrivals in English, counting every message they stand for', () => {
         expect(said({ cause: 'MailArrived', counted: 8, outOf: null }, 'en')).toEqual({
             title: '8 new messages',
@@ -190,6 +207,10 @@ const work: MailAccount = {
     behind: false,
     filesJunk: false,
     shared: false,
+    synchronizationStateSince: null,
+    behindSince: null,
+    waitingChangeCount: 0,
+    oldestWaitingChangeCommittedAt: null,
 };
 
 const refusal: ClientNotification = {
@@ -223,7 +244,7 @@ describe('wordNotificationToast', () => {
         });
     });
 
-    it('says which act a change the mailbox did not take was, and offers its message', () => {
+    it('says a change the mailbox refused, and offers its message', () => {
         const change: ClientNotification = {
             ...englishArrival,
             statement: { cause: 'MailboxChangeAbandoned', counted: 2, outOf: null },
@@ -231,7 +252,7 @@ describe('wordNotificationToast', () => {
         };
 
         expect(wordNotificationToast(change, [work], 'en', translating('en'))).toMatchObject({
-            title: 'A change did not reach your mailbox',
+            title: 'Your mailbox refused a change',
             action: 'Show message',
         });
     });
