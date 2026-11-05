@@ -642,7 +642,9 @@ describe('WrittenMessage, tables', () => {
         caretAfter('9');
         fireEvent.click(screen.getByRole('button', { name: named }));
 
-        expect(acts()).toEqual([{ command: 'insertHTML', argument: htmlOf(edited === null ? [] : [edited], 'editor') }]);
+        expect(acts()).toEqual([
+            { command: 'insertHTML', argument: htmlOf(edited === null ? [] : [edited], 'editor') },
+        ]);
         expect(selectedWhenCommanded).toEqual(['DayHoursMonday9']);
     });
 

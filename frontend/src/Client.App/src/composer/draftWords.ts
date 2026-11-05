@@ -244,7 +244,10 @@ function cellLine(block: MailDocumentBlock): readonly WrittenNode[] {
         case 'preformatted':
             return block.text
                 .split('\n')
-                .flatMap((line, index) => [...(index === 0 ? [] : [lineBreak]), ...(line === '' ? [] : [{ text: line }])]);
+                .flatMap((line, index) => [
+                    ...(index === 0 ? [] : [lineBreak]),
+                    ...(line === '' ? [] : [{ text: line }]),
+                ]);
         case 'table':
             return cellLines(block.rows.flatMap((row) => row.cells.flatMap((cell) => cell.blocks)));
         case 'image':

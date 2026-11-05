@@ -40,7 +40,9 @@ export function TableInsertion({
                 value={rows}
                 counted={counted(rows)}
                 most={mostTableRows}
-                fewer={translate(rows <= 1 ? 'compose.tableRowsAtLeast' : 'compose.tableRowFewer', { count: counted(1) })}
+                fewer={translate(rows <= 1 ? 'compose.tableRowsAtLeast' : 'compose.tableRowFewer', {
+                    count: counted(1),
+                })}
                 more={translate(rows >= mostTableRows ? 'compose.tableRowsAtMost' : 'compose.tableRowMore', {
                     count: counted(mostTableRows),
                 })}
@@ -193,7 +195,8 @@ function CountStep({
 }
 
 /** What the table's strip can ask for. */
-export type TableAct = 'rowAbove' | 'rowBelow' | 'columnBefore' | 'columnAfter' | 'removeRow' | 'removeColumn' | 'delete';
+export type TableAct =
+    'rowAbove' | 'rowBelow' | 'columnBefore' | 'columnAfter' | 'removeRow' | 'removeColumn' | 'delete';
 
 interface StripControl {
     readonly act: TableAct;
@@ -227,16 +230,23 @@ export function TableStrip({ onAct }: { readonly onAct: (act: TableAct) => void 
                 {translate('compose.tableStrip')}
             </span>
             {adding.map((control) => (
-                <StripButton key={control.act} onPress={() => {
+                <StripButton
+                    key={control.act}
+                    onPress={() => {
                         onAct(control.act);
                     }}
                 >
                     {translate(control.named)}
                 </StripButton>
             ))}
-            <span aria-hidden="true" className="mx-1.25 h-4.5 w-px shrink-0 bg-line pointer-coarse:mx-1 pointer-coarse:h-7" />
+            <span
+                aria-hidden="true"
+                className="mx-1.25 h-4.5 w-px shrink-0 bg-line pointer-coarse:mx-1 pointer-coarse:h-7"
+            />
             {removing.map((control) => (
-                <StripButton key={control.act} onPress={() => {
+                <StripButton
+                    key={control.act}
+                    onPress={() => {
                         onAct(control.act);
                     }}
                 >

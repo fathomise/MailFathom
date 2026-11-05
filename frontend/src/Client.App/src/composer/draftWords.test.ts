@@ -183,7 +183,11 @@ describe('draftWords', () => {
     it('carries a table across as a table, its header row, alignments, fills, and spans kept', () => {
         const table = tableOf([
             row(true, cell([paragraph(run('Day'))]), cell([paragraph(run('Hours'))])),
-            row(false, cell([paragraph(run('Monday'))], { rowSpan: 2, background: '#F0F4FF' }), cell([paragraph(run('9'))], { alignment: 'End' })),
+            row(
+                false,
+                cell([paragraph(run('Monday'))], { rowSpan: 2, background: '#F0F4FF' }),
+                cell([paragraph(run('9'))], { alignment: 'End' }),
+            ),
             row(false, cell([paragraph(run('10'))], { alignment: 'Start' })),
         ]);
 
@@ -214,7 +218,11 @@ describe('draftWords', () => {
                             { element: 'td', address: null, alignment: 'end', holds: [{ text: '9' }] },
                         ],
                     },
-                    { element: 'tr', address: null, holds: [{ element: 'td', address: null, holds: [{ text: '10' }] }] },
+                    {
+                        element: 'tr',
+                        address: null,
+                        holds: [{ element: 'td', address: null, holds: [{ text: '10' }] }],
+                    },
                 ],
             },
         ]);

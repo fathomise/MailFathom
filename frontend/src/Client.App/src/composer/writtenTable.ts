@@ -271,8 +271,7 @@ export function tableWithinBounds(table: WrittenMarkup): boolean {
         laidOut(rows).columns <= mostTableColumns &&
         rows.every(
             (row, rowIndex) =>
-                cellsOf(row).length > 0 &&
-                cellsOf(row).every((cell) => rowIndex + (cell.rowSpan ?? 1) <= rows.length),
+                cellsOf(row).length > 0 && cellsOf(row).every((cell) => rowIndex + (cell.rowSpan ?? 1) <= rows.length),
         )
     );
 }

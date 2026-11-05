@@ -584,7 +584,9 @@ describe('a table', () => {
 
         it('drops the break an engine keeps at the end of a cell to stand on', () => {
             const read = writtenIn(
-                region(element('table', element('tr', element('td', element('br')), element('td', 'a', element('br'))))),
+                region(
+                    element('table', element('tr', element('td', element('br')), element('td', 'a', element('br')))),
+                ),
             );
 
             expect(read).toEqual([table(row(cell(''), cell('a')))]);
@@ -689,7 +691,10 @@ describe('a table', () => {
         it('reads in plain text as a row to a line, its cells side by side', () => {
             const written = table(
                 row(cell('Item', {}, 'th'), cell('Price', {}, 'th')),
-                row({ element: 'td', address: null, holds: [{ text: 'Green' }, lineBreak, { text: 'tea' }] }, cell('3')),
+                row(
+                    { element: 'td', address: null, holds: [{ text: 'Green' }, lineBreak, { text: 'tea' }] },
+                    cell('3'),
+                ),
             );
 
             expect(plainTextOf([{ element: 'p', address: null, holds: [{ text: 'Prices:' }] }, written])).toBe(

@@ -633,7 +633,9 @@ export function writtenTextIn(value: unknown): readonly WrittenNode[] | null {
 
         if (text !== undefined) {
             // Words stand in the flow and in a cell, and never loose in a table or a row, where nothing draws them.
-            return typeof text === 'string' && text.length <= longestWrittenRun && (within === 'flow' || within === 'cell')
+            return typeof text === 'string' &&
+                text.length <= longestWrittenRun &&
+                (within === 'flow' || within === 'cell')
                 ? { text }
                 : null;
         }
