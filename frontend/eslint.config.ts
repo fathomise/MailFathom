@@ -90,6 +90,18 @@ const srcdocSyntax = [
     },
 ];
 
+// The one module that may hand the composer's region markup. `execCommand('insertHTML', …)` parses its argument into
+// the live document, so ADR 0047 makes it writable there alone, where it is given nothing but `htmlOf` output.
+const theOneEditingModule = 'src/Client.App/src/composer/editing.ts';
+
+// Refused as an argument to any call, so passing it through a wrapper such as `edit('insertHTML', …)` is refused too.
+const insertHtmlSyntax = [
+    {
+        selector: 'CallExpression > Literal[value="insertHTML"]',
+        message: `insertHTML parses markup into the live document. ADR 0047 permits it only in ${theOneEditingModule}, which hands it htmlOf output through insertWritten.`,
+    },
+];
+
 // A `title` attribute is a sentence only a mouse can read: no touch browser draws one, so a name, a reason or a fact
 // kept there is missing from every phone and tablet the client runs on. What an element says about itself is
 // `controls/useTip.tsx`'s bubble, which a mouse, a key and a finger all reach. A frame keeps its `title`, because there
@@ -206,6 +218,13 @@ export default defineConfig(
         // screen against an arrangement the application refuses.
         files: ['src/*/**/*.{ts,tsx}'],
         rules: {
+            'no-restricted-syntax': ['error', ...markupWritingSyntax, ...srcdocSyntax, ...insertHtmlSyntax],
+        },
+    },
+    {
+        // ADR 0047's one exception, stated as the block above minus `insertHtmlSyntax`.
+        files: [theOneEditingModule],
+        rules: {
             'no-restricted-syntax': ['error', ...markupWritingSyntax, ...srcdocSyntax],
         },
     },
@@ -220,6 +239,7 @@ export default defineConfig(
                 'error',
                 ...markupWritingSyntax,
                 ...srcdocSyntax,
+                ...insertHtmlSyntax,
                 ...localizationSyntax,
                 ...tipSyntax,
             ],
@@ -232,7 +252,13 @@ export default defineConfig(
         // rule added to either list reaches it without anybody remembering to.
         files: [theOneMarkupSurface],
         rules: {
-            'no-restricted-syntax': ['error', ...markupWritingSyntax, ...localizationSyntax, ...tipSyntax],
+            'no-restricted-syntax': [
+                'error',
+                ...markupWritingSyntax,
+                ...insertHtmlSyntax,
+                ...localizationSyntax,
+                ...tipSyntax,
+            ],
         },
     },
     prettier,

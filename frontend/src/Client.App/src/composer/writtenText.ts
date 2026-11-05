@@ -7,9 +7,10 @@
 //
 // **Nothing here parses a string into nodes.** ADR 0024 states that for a message arriving, and the reasoning holds
 // just as firmly for one going out: the composer reads its own editable region node by node into the closed set below,
-// renders that set back as ordinary elements, and writes the HTML part by escaping every value it puts in one. So no
-// markup is parsed anywhere on this path, no sanitizer is pinned, and what a poisoned session store could put back on
-// the screen is bounded by what this type can express rather than by what a filter remembered to strip.
+// renders that set back as ordinary elements, and writes the HTML part by escaping every value it puts in one. The one
+// markup the editor is ever handed is that same escaped writing of this set, through `editing.ts` under ADR 0047. So
+// no foreign markup is parsed anywhere on this path, no sanitizer is pinned, and what a poisoned session store could
+// put back on the screen is bounded by what this type can express rather than by what a filter remembered to strip.
 //
 // The set is DOM-shaped rather than semantic, and deliberately so. What produces it is a browser editing a
 // `contenteditable` region, and each engine wraps a line, a list, and an emphasis its own way — a semantic block model
@@ -78,6 +79,17 @@ export function followable(address: string): boolean {
         // An address that is not one at all is not one to link to either.
         return false;
     }
+}
+
+/**
+ * The address a paste makes a link to, which is pasted text that is exactly one address `followable` accepts, or
+ * `null` for anything else — words around it, two addresses, or one this client would not link to.
+ */
+export function pastedAddress(pasted: string): string | null {
+    const address = pasted.trim();
+
+    // A URL parser takes a space inside a path as part of it, so an address with words after it would otherwise pass.
+    return /\s/u.test(address) || !followable(address) ? null : address;
 }
 
 /**
