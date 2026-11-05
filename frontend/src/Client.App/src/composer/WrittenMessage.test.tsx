@@ -436,6 +436,31 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
         expect(acts()).toEqual([]);
     });
 
+    it.each([
+        ['ArrowUp', 'Justify'],
+        ['End', 'Justify'],
+        ['Home', 'Align left'],
+    ])('moves to the choice %s reaches from the first: %s', (key, reached) => {
+        drawWords();
+
+        press('Alignment - Align left');
+        fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowDown' });
+        fireEvent.keyDown(screen.getByRole('menu'), { key: 'Home' });
+        fireEvent.keyDown(screen.getByRole('menu'), { key });
+
+        expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: reached }));
+    });
+
+    it('is left by Tab, focus going back to the control it opened from', () => {
+        drawWords();
+
+        press('Text size - Normal');
+        fireEvent.keyDown(screen.getByRole('menu'), { key: 'Tab' });
+
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Text size - Normal' }));
+    });
+
     it('closes when the same control is pressed again, and when somebody presses somewhere else', () => {
         drawWords();
 
@@ -443,6 +468,7 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
         press('Text colour - Automatic');
 
         expect(screen.queryByRole('menu')).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Text colour - Automatic' }));
 
         press('Text colour - Automatic');
         fireEvent.pointerDown(words());

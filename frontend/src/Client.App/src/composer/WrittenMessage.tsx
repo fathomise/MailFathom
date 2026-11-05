@@ -11,8 +11,8 @@ import { useLocalization } from '../localization/useLocalization';
 import { useCoarsePointer } from '../shell/useWideWorkspace';
 import { edit, insertWritten } from './editing';
 import { FormattingChoice, FormattingMenu } from './FormattingMenu';
+import { drawingOf } from './regionDrawing';
 import {
-    colourOfRgb,
     drawnAlignment,
     followable,
     fontSizeOf,
@@ -227,7 +227,7 @@ export function WrittenMessage({
 
     function written(): void {
         if (words.current !== null) {
-            onWritten(writtenIn(words.current, drawingOf(words.current)));
+            onWritten(writtenIn(words.current, drawingOfRegion(words.current)));
         }
     }
 
@@ -302,10 +302,12 @@ export function WrittenMessage({
         words.current?.focus();
     }
 
-    // The same control again closes its menu; any other opens in its place, under the control that asked for it.
+    // The same control again closes its menu, focus going back to it from the choice it stood on; any other opens in
+    // its place, under the control that asked for it.
     function openTheMenu(kind: FormattingMenuKind, control: HTMLElement): void {
         if (menu?.kind === kind) {
             closeTheMenu();
+            control.focus();
 
             return;
         }
@@ -329,8 +331,8 @@ export function WrittenMessage({
     }
 
     // *Automatic* takes the colour off, which no editing command names. Asked for the colour the words around it are
-    // already drawn in, an engine finds nothing to change and removes the `<font color>` it wrote, and one that wrote
-    // a `<font>` anyway wrote a colour `writtenIn` drops, since the region's own is no `#rrggbb`.
+    // already drawn in, an engine finds nothing to change and removes the `<font color>` it wrote — Chromium does — and
+    // one that wrote a `<font>` anyway wrote the region's own colour, which the region's drawing reads as no colour.
     function takeTheColourOff(): void {
         const surrounding = words.current === null ? '' : getComputedStyle(words.current).color;
 
@@ -641,38 +643,16 @@ function WrittenPart({ node }: { readonly node: WrittenNode }): ReactNode {
     );
 }
 
-// How the region draws a run, read off the token layer at the moment the region is read rather than restated here,
-// so a theme switched since the last reading is the theme read: each swatch's token as the theme draws it, and each
-// step's token against the size the region draws its own words at. A colour no swatch is drawn in is its own value,
-// which is how a reopened draft's colour is drawn; a step is matched to the nearest hundredth of an em, which is
-// rounding rather than approximation, since each length was resolved from exactly one of these tokens.
-const stepTolerance = 0.005;
-
-function drawingOf(region: HTMLElement): RunDrawing {
+// The region as it is drawn now, read when the region is read so a theme switched since is the theme read.
+function drawingOfRegion(region: HTMLElement): RunDrawing {
     const tokens = getComputedStyle(document.documentElement);
-    const regionSize = parseFloat(getComputedStyle(region).fontSize);
-    const swatches = new Map(
-        palette.map((colour) => [colourOfRgb(tokens.getPropertyValue(colour.token)), colour.value] as const),
+    const drawn = getComputedStyle(region);
+
+    return drawingOf(
+        { colour: drawn.color, fontSize: drawn.fontSize, token: (name) => tokens.getPropertyValue(name) },
+        palette,
+        sizeSteps,
     );
-
-    return {
-        colourDrawnAs: (drawn) => {
-            const colour = colourOfRgb(drawn);
-
-            return colour === null ? null : (swatches.get(colour) ?? colour);
-        },
-        sizeDrawnAs: (drawn) => {
-            const ems = drawn.endsWith('em') ? parseFloat(drawn) : parseFloat(drawn) / regionSize;
-
-            return (
-                sizeSteps.find(
-                    (step) =>
-                        step.token !== null &&
-                        Math.abs(parseFloat(tokens.getPropertyValue(step.token)) - ems) < stepTolerance,
-                )?.size ?? null
-            );
-        },
-    };
 }
 
 const menuNames: Readonly<Record<FormattingMenuKind, MessageKey>> = {

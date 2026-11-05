@@ -176,6 +176,40 @@ describe('writtenIn', () => {
         ]);
     });
 
+    it('asks the region about a font’s colour too, so one written in the region’s own colour is no colour', () => {
+        const font = element('font', 'plain');
+        const drawing: RunDrawing = {
+            colourDrawnAs: (drawn) => (drawn === '#3d4350' ? null : drawn),
+            sizeDrawnAs: () => null,
+        };
+
+        font.setAttribute('color', '#3D4350');
+
+        expect(writtenIn(region(font), drawing)).toEqual([{ text: 'plain' }]);
+    });
+
+    it.each([['constructor'], ['toString']])(
+        'reads a font of size %s as no size, rather than as an inherited member',
+        (value) => {
+            const font = element('font', 'words');
+
+            font.setAttribute('size', value);
+
+            expect(writtenIn(region(font))).toEqual([{ text: 'words' }]);
+        },
+    );
+
+    it.each([['constructor'], ['__proto__'], ['hasOwnProperty']])(
+        'reads a block aligned %s as not aligned at all',
+        (value) => {
+            const block = element('div', 'Line');
+
+            block.setAttribute('align', value);
+
+            expect(writtenIn(region(block))).toEqual([{ element: 'div', address: null, holds: [{ text: 'Line' }] }]);
+        },
+    );
+
     it('drops a span whose colour and size the region draws no choice in, keeping the words', () => {
         const span = element('span', 'inherited');
         const drawing: RunDrawing = { colourDrawnAs: () => null, sizeDrawnAs: () => null };

@@ -212,7 +212,8 @@ export function writtenIn(parent: Node, drawing: RunDrawing | null = null): read
  * outside any — writes the `<font>` it moved as a `span` carrying the colour and the size the run was *drawn* at: the
  * dark theme's lighter twin of a swatch, and a length the step resolved to. Those are the region's own rendering of a
  * closed value rather than a value of their own, so the region says which closed value each one draws, and anything it
- * does not recognise — the colour of the text around a run, a length off the scale — is dropped as before.
+ * does not recognise — the colour of the text around a run, a length off the scale — is dropped as before. A `<font>`
+ * colour is asked too, so a colour an engine wrote that is only the region's own is no colour of the run's.
  */
 export interface RunDrawing {
     /** The colour a run drawn in this CSS colour was written in, or `null` where no run was written in it. */
@@ -340,8 +341,10 @@ function runOf(
     let size: WrittenSize | null = null;
 
     if (named === 'font') {
-        colour = writtenColour(element.getAttribute('color') ?? '');
-        size = fontSizeSteps[element.getAttribute('size') ?? ''] ?? null;
+        const attributed = writtenColour(element.getAttribute('color') ?? '');
+
+        colour = attributed === null || drawing === null ? attributed : drawing.colourDrawnAs(attributed);
+        size = ownEntry(fontSizeSteps, element.getAttribute('size') ?? '');
     } else if (named === 'span' && drawing !== null && element instanceof HTMLElement) {
         colour = element.style.color === '' ? null : drawing.colourDrawnAs(element.style.color);
         size = element.style.fontSize === '' ? null : drawing.sizeDrawnAs(element.style.fontSize);
@@ -359,7 +362,13 @@ function runOf(
 function alignmentOf(block: Element): WrittenAlignment | null {
     const stated = block instanceof HTMLElement && block.style.textAlign !== '' ? block.style.textAlign : null;
 
-    return readAlignments[(stated ?? block.getAttribute('align') ?? '').toLowerCase()] ?? null;
+    return ownEntry(readAlignments, (stated ?? block.getAttribute('align') ?? '').toLowerCase());
+}
+
+// A table read with a value somebody else wrote answers for its own keys only, so `constructor` reads as nothing
+// rather than as what every object inherits.
+function ownEntry<Value>(table: Readonly<Record<string, Value>>, key: string): Value | null {
+    return Object.hasOwn(table, key) ? (table[key] ?? null) : null;
 }
 
 /** The HTML part of a message going out, with every value in it escaped rather than trusted. */

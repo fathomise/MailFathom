@@ -35,7 +35,10 @@ export function FormattingMenu({
     /** The control it opened from, whose own press is what closes it rather than a press outside it. */
     readonly openedFrom: HTMLElement | null;
 
-    /** Closes the menu without a choice, which is escape, the back gesture, and a press anywhere else. */
+    /**
+     * Closes the menu without a choice, which is escape, Tab, the back gesture, and a press anywhere else. All but the
+     * last put focus back on the control afterwards; a press elsewhere takes focus where it pressed.
+     */
     readonly onClose: () => void;
 
     readonly children: ReactNode;
@@ -71,7 +74,17 @@ export function FormattingMenu({
         (items.find((item) => item.getAttribute('aria-checked') === 'true') ?? items[0])?.focus();
     }, []);
 
-    useScreenLayer(true, onClose);
+    // Leaving it without a choice puts focus back on the control it opened from, except where the whole screen is
+    // being cleared and focus is the next screen's to place.
+    function leave(clearingTheScreen = false): void {
+        onClose();
+
+        if (!clearingTheScreen) {
+            openedFrom?.focus();
+        }
+    }
+
+    useScreenLayer(true, leave);
 
     useEffect(() => {
         function pressedElsewhere(event: Event): void {
@@ -96,8 +109,7 @@ export function FormattingMenu({
         switch (event.key) {
             case 'Escape':
             case 'Tab':
-                onClose();
-                openedFrom?.focus();
+                leave();
                 break;
             case 'ArrowDown':
                 items[(standing + 1) % items.length]?.focus();

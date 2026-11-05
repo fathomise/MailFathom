@@ -655,6 +655,32 @@ test('colours, sizes, and aligns what was written from the bar, keeps it across 
     ]);
 });
 
+test('takes a colour off again with Automatic, so the message goes out with no colour at all', async ({
+    page,
+    deployment,
+}) => {
+    await openMailWriting(page, deployment);
+    await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+    await address(page, 'To', recipient);
+    await page.getByLabel('Subject').fill(subject);
+    await write(page, words);
+    await page.keyboard.press('ControlOrMeta+A');
+
+    const formatting = page.getByRole('toolbar', { name: 'Formatting' });
+
+    await formatting.getByRole('button', { name: 'Text colour - Automatic' }).click();
+    await page.getByRole('menu', { name: 'Text colour' }).getByRole('menuitemradio', { name: 'Red' }).click();
+    await formatting.getByRole('button', { name: 'Text colour - Red' }).click();
+    await page.getByRole('menu', { name: 'Text colour' }).getByRole('menuitemradio', { name: 'Automatic' }).click();
+
+    await expect(formatting.getByRole('button', { name: 'Text colour - Automatic' })).toBeVisible();
+    await send(page);
+
+    expect(deployment.requests('POST', '/drafts').map(({ body }) => body)).toStrictEqual([
+        expect.objectContaining({ plainTextBody: words, htmlBody: words }),
+    ]);
+});
+
 /**
  * Writes a message, has the deployment stop accepting the sign-in at the next read of a folder, and signs in again as
  * the login named — which is where what was written either comes back or does not.
