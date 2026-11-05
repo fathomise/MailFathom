@@ -4,7 +4,7 @@
 
 import { getDefaultNormalizer, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { MailDocumentBlock, MailDocumentLink, MailInlineRun } from '@mailfathom/client-backend';
+import type { MailDocumentBlock, MailDocumentLink, MailInlineRun, MailTextSize } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { MessageBlocks } from './MessageBlocks';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
@@ -22,7 +22,7 @@ const noEmphasis = {
 };
 
 function run(text: string, overrides: Partial<MailInlineRun> = {}): MailInlineRun {
-    return { text, emphasis: noEmphasis, foreground: null, link: null, ...overrides };
+    return { text, emphasis: noEmphasis, foreground: null, size: 'Normal', link: null, ...overrides };
 }
 
 function linkTo(target: string): MailDocumentLink {
@@ -393,6 +393,62 @@ describe('MessageBlocks, a run in a colour the sender chose', () => {
         const { container } = drawing([{ type: 'paragraph', content: [run('Regards')], alignment: 'Inherited' }]);
 
         expect(container.querySelector('.text-muted')).toBeNull();
+        expect(container.querySelector('[style]')).toBeNull();
+    });
+});
+
+describe('MessageBlocks, a run at a size the sender chose', () => {
+    // A size is drawn, unlike a colour, as a step of this client's own scale. What a test can state about that is
+    // structural: the words are drawn, with their emphasis, and no element carries a length the sender wrote. How big
+    // each step looks is the design's, and is held against it as images rather than here.
+    function drawingSized(size: MailTextSize, emphasis = noEmphasis) {
+        return drawing([
+            { type: 'paragraph', content: [run('Sized words', { size, emphasis })], alignment: 'Inherited' },
+        ]);
+    }
+
+    it.each(['Normal', 'Small', 'Large', 'Larger', 'Largest'] as const)(
+        'draws a run sized %s once, with no length of the sender on any element',
+        (size) => {
+            const { container } = drawingSized(size);
+
+            expect(screen.getAllByText('Sized words')).toHaveLength(1);
+            expect(container.querySelector('[style]')).toBeNull();
+        },
+    );
+
+    it('draws a sized monospace run as code holding its words', () => {
+        const { container } = drawingSized('Largest', { ...noEmphasis, monospace: true });
+
+        expect(container.querySelector('code')?.textContent).toBe('Sized words');
+        expect(container.querySelector('[style]')).toBeNull();
+    });
+
+    it('keeps the emphasis of a sized run in the small print', () => {
+        const { container } = drawing([
+            {
+                type: 'paragraph',
+                content: [
+                    run('Deadline', {
+                        size: 'Larger',
+                        foreground: '#999999',
+                        emphasis: { ...noEmphasis, bold: true },
+                    }),
+                ],
+                alignment: 'Inherited',
+            },
+        ]);
+
+        expect(container.querySelector('strong')?.textContent).toBe('Deadline');
+        expect(container.querySelector('[style]')).toBeNull();
+    });
+
+    it('draws a heading at its own level whatever step its words carry', () => {
+        const { container } = drawing([
+            { type: 'heading', level: 1, content: [run('A masthead', { size: 'Largest' })], alignment: 'Start' },
+        ]);
+
+        expect(screen.getByRole('heading', { level: 3, name: 'A masthead' })).toBeDefined();
         expect(container.querySelector('[style]')).toBeNull();
     });
 });

@@ -1997,18 +1997,21 @@ layout reads:
         "version": 1,
         "level": 2,
         "alignment": "Inherited",
-        "content": [ { "text": "Release 0.8.0", "emphasis": "None", "foreground": null, "link": null } ]
+        "content": [
+          { "text": "Release 0.8.0", "emphasis": "None", "foreground": null, "size": "Larger", "link": null }
+        ]
       },
       {
         "type": "paragraph",
         "version": 1,
         "alignment": "Inherited",
         "content": [
-          { "text": "The notes are ", "emphasis": "None", "foreground": null, "link": null },
+          { "text": "The notes are ", "emphasis": "None", "foreground": null, "size": "Normal", "link": null },
           {
             "text": "on the site",
             "emphasis": "Underline",
             "foreground": "#0b57d0",
+            "size": "Normal",
             "link": {
               "target": "https://example.test/notes",
               "host": "example.test",
@@ -2037,6 +2040,19 @@ cannot be steered by what a stranger wrote. `type` names the block and `version`
 shape, so a client keys its renderers by the pair and shows a placeholder for a pair it does not implement rather than
 failing the message. The eight identities are `paragraph`, `heading`, `list`, `table`, `quote`, `image`, `separator`,
 and `preformatted`, each at revision `1`, and `schemaVersion` names the revision of the document itself.
+
+**A run's `size` is a step of a closed scale, never a length.** It is `Normal`, `Small`, `Large`, `Larger`, or
+`Largest`, and the reduction reads it from what mail writes: a `font-size` declaration, the `size` of a `font` element,
+and a heading's level, whose words carry `Largest` for the first level, `Larger` for the second, `Large` for the third,
+and `Normal` below that. A length lands on the step it falls in — under 12.5px is `Small`, up to 17px `Normal`, up to
+21px `Large`, up to 28px `Larger`, and anything larger `Largest` — with a point read as four thirds of a pixel and a
+relative length against 16px, because the reduction resolves no cascade. A size of nothing is `Small`, so text a sender
+shrank to hide is still read. A client draws each step as a type size of its own relative to its body text, so nothing a
+message wrote is drawn below `Small` or above `Largest`, and a heading is drawn at the client's own measure for its
+level whatever its words carry. The member is an addition rather than a change of shape, which is why neither
+`schemaVersion` nor any block's revision moved for it: a client that does not read it draws every run at body size.
+[ADR 0047](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0047-what-the-composer-may-write-beyond-its-closed-set-and-how-it-reads-a-formatted-paste.md)
+holds the scale.
 
 **`footer` names the reader's own footer, and only theirs.** On the copy MailFathom filed of a message it sent from
 one of the reader's accounts — a shared mailbox they are assigned to included — it reads

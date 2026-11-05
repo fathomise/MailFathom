@@ -14,6 +14,7 @@ import type {
     MailPreformattedBlock,
     MailQuoteBlock,
     MailTableBlock,
+    MailTextSize,
 } from '@mailfathom/client-backend';
 import { useLocalization } from '../localization/useLocalization';
 import { MessageLink } from './MessageLink';
@@ -32,13 +33,14 @@ import {
     tableRegionShape,
     tableRowShape,
     tableShape,
+    textSizeShapes,
     unorderedListShape,
 } from './writtenBlockShapes';
 
 // The whole of what a message may draw, which is the closed catalogue the service reduces every body to. Each block is
 // an ordinary element of the application's own document: nothing here is handed markup, nothing here writes any, and
-// the only presentation a message contributes is an opaque colour, an alignment, and an emphasis flag — each applied
-// by the component below rather than by anything the sender wrote.
+// the only presentation a message contributes is an opaque colour, an alignment, an emphasis flag, and a step of the
+// size scale — each applied by the component below rather than by anything the sender wrote.
 //
 // The catalogue is closed, so this switch is exhaustive by its own type: a block added to the contract fails to
 // compile here until this file says how it is drawn.
@@ -109,9 +111,16 @@ function MessageHeading({ block }: { readonly block: MailHeadingBlock }) {
 
     return (
         <Heading className={`${measure} ${alignments[block.alignment]}`}>
-            <MessageRuns content={block.content} />
+            <MessageRuns content={block.content.map(atTheHeadingsMeasure)} />
         </Heading>
     );
+}
+
+// A heading's runs carry the step its level maps to, which is what they become in a composer that writes no headings.
+// Drawn here they would stack a second size on the measure above, so the heading's own measure decides, and a sender
+// cannot decide how large a heading is in somebody else's pane.
+function atTheHeadingsMeasure(run: MailInlineRun): MailInlineRun {
+    return run.size === 'Normal' ? run : { ...run, size: 'Normal' };
 }
 
 function MessageList({ block }: { readonly block: MailListBlock }) {
@@ -296,14 +305,23 @@ function MessageRunGroup({ runs }: { readonly runs: readonly MailInlineRun[] }) 
 function MessageRun({ run }: { readonly run: MailInlineRun }) {
     // A `<br>` the sender wrote survives as a newline inside the run rather than as a block of its own, which is what
     // `MailInlineRun` states — so a signature, a postal address, and a poem are all line breaks this has to keep.
-    const emphasized = emphasize(run, <span className="whitespace-pre-line">{run.text}</span>);
+    //
+    // A size, unlike a colour, is drawn: it says which words are a headline and which are small print, which is meaning
+    // in the way emphasis is. It is drawn as a step of this client's own scale relative to the text around the words,
+    // never at a length the sender wrote, and on the words themselves rather than around their emphasis — inline code
+    // sets a size of its own, so a step outside it would be overridden rather than applied.
+    const words = <span className={wordsShape(run.size)}>{run.text}</span>;
+    const emphasized = emphasize(run, words);
 
     // The sender's colour decides which of this client's own two it is drawn in rather than what it is drawn in, for the
     // reason `messageBody/senderColour.ts` holds: a reading surface is drawn in the reader's theme, and what survives
     // of the sender's own presentation is the emphasis above, which means something a colour does not.
     const receding = run.foreground !== null && senderColourRole(run.foreground) === 'receding';
-
     return receding ? <span className="text-muted">{emphasized}</span> : emphasized;
+}
+
+function wordsShape(size: MailTextSize): string {
+    return size === 'Normal' ? 'whitespace-pre-line' : `whitespace-pre-line ${textSizeShapes[size]}`;
 }
 
 // Emphasis is drawn with the elements that mean it rather than with a class, so the meaning survives a stylesheet and

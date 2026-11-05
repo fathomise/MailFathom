@@ -2805,6 +2805,7 @@ function footerOf(name: string, line: string): MailDocument {
                 text,
                 emphasis: { bold, italic: false, underline: false, strikethrough: false, monospace: false },
                 foreground: null,
+                size: 'Normal' as const,
                 link: null,
             },
         ],

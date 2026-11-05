@@ -29,4 +29,13 @@ public sealed record MailInlineRun(
     string Text,
     MailTextEmphasis Emphasis,
     MailDocumentColour? Foreground,
-    MailDocumentLink? Link);
+    MailDocumentLink? Link)
+{
+    /// <summary>Gets the step of the size scale the message asked the words to be drawn at.</summary>
+    /// <remarks>
+    /// An addition to the run rather than a change to its shape, so neither <see cref="MailDocument.CurrentSchemaVersion" />
+    /// nor any block's version moves for it: a reader that does not know it draws every run at body size, which is the
+    /// message with its sizes left out rather than a message drawn wrongly.
+    /// </remarks>
+    public MailTextSize Size { get; init; }
+}

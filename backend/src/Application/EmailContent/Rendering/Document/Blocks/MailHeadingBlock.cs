@@ -6,9 +6,16 @@ namespace MailFathom.Application.EmailContent.Rendering.Document.Blocks;
 
 /// <summary>A heading the message wrote, at the level it wrote it.</summary>
 /// <remarks>
+/// <para>
 /// The level is kept rather than flattened into an emphasis, because it is what a screen reader announces the structure
 /// of a message from. A pane draws it with the typography its own design system gives that level, so a sender cannot
 /// decide how large a heading is in somebody else's reading pane.
+/// </para>
+/// <para>
+/// Its runs still carry the step of the size scale the level maps to, unless the message sized them itself. That is what
+/// the words are once they stop being a heading — in a composer reopening a draft, which writes no headings — and a pane
+/// drawing the heading draws its own measure rather than those steps.
+/// </para>
 /// </remarks>
 public sealed record MailHeadingBlock : MailDocumentBlock
 {

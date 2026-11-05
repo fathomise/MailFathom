@@ -18,9 +18,9 @@ namespace MailFathom.Infrastructure.Mail.Mime.Rendering;
 /// an absolute position, a stacking order — would then be a list of what to ignore rather than an absence.
 /// </para>
 /// <para>
-/// Nothing here can place a node. What survives colours it, emphasizes it, distributes it across a width its parent
-/// already decided, or hides it, and a width survives only as a share. That is what confines message style to the pane
-/// it is drawn in, whatever the pane's own layout does about clipping.
+/// Nothing here can place a node. What survives colours it, emphasizes it, puts it on a step of the size scale,
+/// distributes it across a width its parent already decided, or hides it, and a width survives only as a share. That is
+/// what confines message style to the pane it is drawn in, whatever the pane's own layout does about clipping.
 /// </para>
 /// <para>
 /// The attribute is bounded before it is split, so a declaration block written to cost a parse costs the bound instead.
@@ -49,6 +49,7 @@ internal static class MailStyleReader
         {
             Hidden = style.Hidden || element.HasAttribute("hidden"),
             Foreground = style.Foreground ?? ColourAttribute(element, "color"),
+            Size = style.Size ?? FontElementSize(element),
             Background = style.Background ?? ColourAttribute(element, "bgcolor"),
             Alignment = style.Alignment is MailBlockAlignment.Inherited
                 ? AlignmentOf(element.GetAttribute("align"))
@@ -197,6 +198,7 @@ internal static class MailStyleReader
                     : style with { RemovedEmphasis = style.RemovedEmphasis | MailTextEmphasis.Italic },
             "text-decoration" or "text-decoration-line" => Decorated(style, value),
             "font-family" => style with { AddedEmphasis = style.AddedEmphasis | FaceEmphasis(value) },
+            "font-size" => style with { Size = MailTextSizeReader.FromDeclaration(value) ?? style.Size },
             "display" or "visibility" => style with { Hidden = style.Hidden || Hides(property, value) },
             "width" => style with { WidthShare = ShareOf(value), PixelWidth = PixelsOf(value) },
             _ => style,
@@ -258,6 +260,10 @@ internal static class MailStyleReader
             || face.Contains("menlo", StringComparison.OrdinalIgnoreCase))
             ? MailTextEmphasis.Monospace
             : MailTextEmphasis.None;
+
+    /// <summary>Reads the legacy size a <c>font</c> element states, which is the one element whose <c>size</c> is a text size.</summary>
+    private static MailTextSize? FontElementSize(IElement element) =>
+        element.LocalName == "font" ? MailTextSizeReader.FromFontAttribute(element.GetAttribute("size")) : null;
 
     private static MailDocumentColour? ColourAttribute(IElement element, string name) =>
         MailCssColour.Resolve(element.GetAttribute(name));

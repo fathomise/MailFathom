@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+import type { MailTextSize } from '@mailfathom/client-backend';
+
 // How a written block is drawn, whoever wrote it. The design draws a message body and the prose of an agent's
 // answer with the same helpers, so a quotation, a table, or a code block looks the same in both, and it is stated once
 // here rather than twice.
@@ -37,6 +39,15 @@ export const tableShape = 'w-full border-collapse text-start text-md';
 export const tableRowShape = 'border-b border-line last:border-b-0';
 export const tableCellShape = 'border-e border-line px-3 py-2.25 align-top last:border-e-0';
 export const tableHeaderCellShape = 'bg-sunken font-semibold text-text';
+
+/** The step of the size scale a run is drawn at, an unmarked run taking the size of the text around it. */
+export const textSizeShapes: Readonly<Record<MailTextSize, string>> = {
+    Normal: '',
+    Small: 'text-step-small',
+    Large: 'text-step-large',
+    Larger: 'text-step-larger',
+    Largest: 'text-step-largest tracking-tight',
+};
 
 export const inlineCodeShape = 'rounded-sm border border-line bg-hover px-1.25 py-px font-mono text-base';
 export const strikethroughShape = 'text-muted';

@@ -20,6 +20,7 @@ function run(text: string, emphasis: Partial<MailTextEmphasis> = {}, target: str
         text,
         emphasis: { ...nothingEmphasised, ...emphasis },
         foreground: null,
+        size: 'Normal',
         link:
             target === null
                 ? null

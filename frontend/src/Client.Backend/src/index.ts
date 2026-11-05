@@ -280,6 +280,7 @@ export {
     type MailTableColumn,
     type MailTableRow,
     type MailTextEmphasis,
+    type MailTextSize,
     type MailUnimplementedBlock,
 } from './mailBody';
 export {

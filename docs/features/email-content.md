@@ -539,6 +539,15 @@ Each block names its own revision beside its identity, and `MailDocument.SchemaV
 document itself. A client keys its renderers by the pair and draws a placeholder for a pair it does not implement, so a
 deployment ahead of the client on the other end of the connection costs that client one block rather than the message.
 
+**A size is a step, never a length.** A run carries one of `Normal`, `Small`, `Large`, `Larger`, and `Largest`, read
+from a `font-size` declaration, the `size` of a `font` element, or the level of the heading it sits in, on the scale
+[ADR 0047](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0047-what-the-composer-may-write-beyond-its-closed-set-and-how-it-reads-a-formatted-paste.md)
+states and [the client endpoint](../operations/client-endpoint.md#the-message-body-route) spells out. A length the
+reduction cannot read — a `calc()`, a negative size, a keyword relative to the parent — leaves the size the run
+inherited, and a size of nothing is `Small` rather than nothing, so what a sender shrank to hide is still read. The
+scale being closed is what makes a size safe to draw: a pane draws each step as a type size of its own, so no message
+can be drawn below small print or above a headline.
+
 **A message that displays no markup reduces to a document too, and it is its plain text.** Mail is mostly
 machine-written — a notification, a receipt, a dispatch note — and such a message carries a `text/plain` part and
 nothing else. It becomes a paragraph per blank-line-separated block, with the message's own line breaks kept inside the
@@ -562,8 +571,8 @@ around a bound a drawn table answers to.
 
 An alignment such a table declared goes with it. It described where the box it positioned sat rather than how the words
 inside that box read, so carrying it into the unwrapped content is what centred a whole message that was only ever
-centred as a column. Colour and emphasis are kept, being what the sender said about the words themselves, and a block
-that declared its own alignment keeps that.
+centred as a column. Colour, size, and emphasis are kept, being what the sender said about the words themselves, and a
+block that declared its own alignment keeps that.
 
 ### Nothing in a body reaches another server unless the reader asked
 
