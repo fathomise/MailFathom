@@ -765,7 +765,10 @@ test('deletes a table from its strip and takes the deletion back with one Ctrl+Z
     await page.getByRole('button', { name: 'New message', exact: true }).first().click();
     await page.getByRole('textbox', { name: 'Message' }).click();
     await page.getByRole('toolbar', { name: 'Formatting' }).getByRole('button', { name: 'Insert table' }).click();
-    await page.getByRole('menu', { name: 'Insert a table' }).getByRole('menuitem', { name: /^Insert a / }).click();
+    await page
+        .getByRole('menu', { name: 'Insert a table' })
+        .getByRole('menuitem', { name: /^Insert a / })
+        .click();
     await page.keyboard.type('Day');
 
     const message = page.getByRole('textbox', { name: 'Message' });
