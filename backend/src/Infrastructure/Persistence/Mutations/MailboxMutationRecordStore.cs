@@ -12,6 +12,7 @@ using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
+using MailFathom.Domain.Mutations.Filing;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
 using MailFathom.Infrastructure.Persistence.Synchronization;
@@ -424,6 +425,7 @@ internal sealed class MailboxMutationRecordStore(
             var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
 
             await RestoreObservedStateAsync(writeContext, entity, cancellationToken);
+            await EraseLocalCopyAsync(session, writeContext, entity, cancellationToken);
         }
 
         if (placement is not null)
@@ -459,6 +461,103 @@ internal sealed class MailboxMutationRecordStore(
         CancellationToken cancellationToken) =>
         this.ReadOutstandingOfAsync(account, localErasuresOnly: true, limit, cancellationToken);
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// The moves followed are the message's completed ones that named a placement nothing has carried the stored message
+    /// onto yet; one whose placement was carried already shows in the stored message's own occurrence, which is where
+    /// the walk starts. Each step names the destination by the newest binding of the path the move filed into, which is
+    /// the binding the forward pass meets the placement under. A move that named no placement leaves the walk where it
+    /// stood, because the server did not say where the message went and nothing here guesses.
+    /// </remarks>
+    public async Task<OutstandingMailboxMutation> ResolveIssuedOccurrenceAsync(
+        IPersistenceSession session,
+        OutstandingMailboxMutation outstanding,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(outstanding);
+
+        var entity = await RequireEntityAsync(session, outstanding.Record.Id, cancellationToken);
+
+        if (entity.Stage != MailboxMutationStage.Recorded
+            || await ReadUnissuedOccurrenceAsync(session, entity, cancellationToken) is not { } resolved
+            || (resolved.Binding.Id == entity.MailFolderBindingId && resolved.UidValidity == entity.UidValidity && resolved.Uid == entity.Uid))
+        {
+            return outstanding;
+        }
+
+        entity.MailFolderBindingId = resolved.Binding.Id;
+        entity.MailFolderBinding = resolved.Binding;
+        entity.UidValidity = resolved.UidValidity;
+        entity.Uid = resolved.Uid;
+
+        return new OutstandingMailboxMutation(
+            MailboxMutationRecordMapping.ToRecord(entity, resolved.Binding),
+            MailFolderBindingResolver.ToResolution(resolved.Binding));
+    }
+
+    private static async Task<ResolvedOccurrence?> ReadUnissuedOccurrenceAsync(
+        IPersistenceSession session,
+        MailboxMutationEntity entity,
+        CancellationToken cancellationToken)
+    {
+        var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        var relocate = MailboxMutation.Relocate.Name;
+
+        var email = await writeContext.StoredEmails
+            .Include(static row => row.MailFolderBinding)
+            .SingleOrDefaultAsync(row => row.Id == entity.StoredEmailId, cancellationToken);
+
+        if (email is null)
+        {
+            return null;
+        }
+
+        var moves = await writeContext.MailboxMutations
+            .AsNoTracking()
+            .Where(move => move.StoredEmailId == entity.StoredEmailId
+                && move.Id != entity.Id
+                && move.Mutation == relocate
+                && move.Stage == MailboxMutationStage.Completed
+                && move.PlacementUidValidity != null
+                && move.PlacementUid != null
+                && move.PlacementObservedAt == null)
+            .ToArrayAsync(cancellationToken);
+
+        var current = email is { UidValidity: { } uidValidity, Uid: { } uid }
+            ? new ResolvedOccurrence(email.MailFolderBinding, uidValidity, uid)
+            : new ResolvedOccurrence(entity.MailFolderBinding, entity.UidValidity, entity.Uid);
+
+        // Each move is followed once at most, so a cycle of moves the server reported back and forth ends with the walk.
+        for (var step = 0; step < moves.Length; step++)
+        {
+            var move = moves.FirstOrDefault(candidate => candidate.MailFolderBindingId == current.Binding.Id
+                && candidate.UidValidity == current.UidValidity
+                && candidate.Uid == current.Uid);
+
+            if (move?.DestinationFolderPath is not { } path
+                || await ReadNewestBindingAsync(writeContext, move.MailboxAccountId, path, cancellationToken) is not { } destination)
+            {
+                break;
+            }
+
+            current = new ResolvedOccurrence(destination, move.PlacementUidValidity!.Value, move.PlacementUid!.Value);
+        }
+
+        return current;
+    }
+
+    private static Task<MailFolderBindingEntity?> ReadNewestBindingAsync(
+        MailFathomDbContext writeContext,
+        string account,
+        string remotePath,
+        CancellationToken cancellationToken) =>
+        writeContext.MailFolderBindings
+            .Where(binding => binding.MailboxAccountId == account && binding.RemotePath == remotePath)
+            .OrderByDescending(binding => binding.ResolutionGeneration)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    private sealed record ResolvedOccurrence(MailFolderBindingEntity Binding, uint UidValidity, uint Uid);
+
     private async Task<IReadOnlyList<OutstandingMailboxMutation>> ReadOutstandingOfAsync(
         MailAccountId account,
         bool localErasuresOnly,
@@ -491,6 +590,12 @@ internal sealed class MailboxMutationRecordStore(
                 // page rather than read and skipped — a page spent on records nothing may touch is a page the account's
                 // real backlog does not get.
                 (mutation.HeldUntil == null || mutation.HeldUntil <= now) &&
+
+                // The removal half of a message filed into another account waits for that account's append, so the
+                // message is in two mailboxes for a while and never in none.
+                !readContext.CrossAccountFilings.Any(filing =>
+                    filing.RemovalMutationId == mutation.Id &&
+                    filing.Stage != CrossAccountFilingStage.Appended) &&
 
                 // Changes to one message reach the server in the order they were made: a move or a delete changes the
                 // occurrence every later command names, and two changes to one field must not overtake each other, so
@@ -800,6 +905,20 @@ internal sealed class MailboxMutationRecordStore(
                 && entity.LocalDisposition is not AuthoredDeleteEmailDisposition.RetainLocalCopy))
         {
             email.LocalDeleteCommittedAt = null;
+        }
+    }
+
+    /// <summary>Erases the second stored message a copy committed locally first wrote, once the copy is given up.</summary>
+    /// <remarks>The copy is a message the server was about to be told to make, so a copy it never made leaves a row showing mail the mailbox does not hold.</remarks>
+    private static async Task EraseLocalCopyAsync(
+        IPersistenceSession session,
+        MailFathomDbContext writeContext,
+        MailboxMutationEntity ended,
+        CancellationToken cancellationToken)
+    {
+        if (ended.Mutation == MailboxMutation.Copy.Name && ended.LocalCopyStoredEmailId is { } copyId)
+        {
+            await LocalCopyErasure.EraseAsync(session, writeContext, copyId, cancellationToken);
         }
     }
 

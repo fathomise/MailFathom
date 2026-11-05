@@ -42,4 +42,7 @@ public enum NotificationCause
 
     /// <summary>The mail server refused a change somebody asked of their mailbox in a way asking again cannot alter, so the change was undone.</summary>
     MailboxChangeRefused = 9,
+
+    /// <summary>A message filed into another account landed there while its own account's mail server would not let it go, so both accounts hold it.</summary>
+    MailInBothAccounts = 10,
 }

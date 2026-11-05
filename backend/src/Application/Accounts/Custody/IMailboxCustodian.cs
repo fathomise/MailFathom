@@ -7,6 +7,7 @@ using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
@@ -134,6 +135,18 @@ public interface IMailboxCustodian
         IPersistenceSession session,
         MailboxChange change,
         CancellationToken cancellationToken);
+
+    /// <summary>Answers how the account takes its half of a message a person files into, or out of, another account they hold.</summary>
+    /// <param name="account">The account.</param>
+    /// <param name="cancellationToken">Cancels the reading.</param>
+    /// <returns>Whether the half commits locally, is carried to the server by a record, or is refused and why.</returns>
+    /// <remarks>
+    /// Asked of both accounts before anything is recorded, so a refusal reaches the person as a sentence rather than as a
+    /// change undone later. Which half each phase takes is
+    /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>
+    /// axis H.
+    /// </remarks>
+    Task<CrossAccountFilingHalf> TakesCrossAccountFilingAsync(MailAccountId account, CancellationToken cancellationToken);
 
     /// <summary>Prepares the local copy of a draft revision, before the transaction that writes the revision and files it.</summary>
     /// <param name="account">The account the draft belongs to.</param>

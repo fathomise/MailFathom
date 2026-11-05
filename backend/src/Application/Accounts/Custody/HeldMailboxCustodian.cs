@@ -8,6 +8,7 @@ using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
@@ -138,6 +139,11 @@ public sealed class HeldMailboxCustodian : IMailboxCustodian
         MailboxChange change,
         CancellationToken cancellationToken) =>
         this.changes.CommitAsync(session, change, carriesToSource: false, cancellationToken);
+
+    /// <inheritdoc />
+    /// <remarks>A held account's half is its local commit: the new message is written, or the filed one erased, and nothing converges for it.</remarks>
+    public Task<CrossAccountFilingHalf> TakesCrossAccountFilingAsync(MailAccountId account, CancellationToken cancellationToken) =>
+        Task.FromResult(CrossAccountFilingHalf.CommittedLocally);
 
     /// <inheritdoc />
     public Task<LocalMailCopy?> PrepareDraftCopyAsync(

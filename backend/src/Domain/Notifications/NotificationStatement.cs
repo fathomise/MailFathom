@@ -167,6 +167,11 @@ public sealed record NotificationStatement
     public static NotificationStatement DraftCopyNotKept(bool carriesSubject) =>
         new(NotificationCause.DraftCopyNotKept, carriesSubject ? 1 : 0, outOf: null);
 
+    /// <summary>States that a message filed into another account is now held by both accounts.</summary>
+    /// <returns>The statement, which counts nothing: the two accounts it names are the notification's own source and target.</returns>
+    public static NotificationStatement MailInBothAccounts() =>
+        new(NotificationCause.MailInBothAccounts, counted: null, outOf: null);
+
     /// <summary>Restores the statement a stored row holds, or nothing where the row names no cause.</summary>
     /// <param name="cause">The condition the row names, or <see langword="null" /> for a row written before a cause was kept.</param>
     /// <param name="counted">How many the cause counts.</param>

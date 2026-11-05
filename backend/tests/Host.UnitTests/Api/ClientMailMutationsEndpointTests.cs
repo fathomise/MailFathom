@@ -16,6 +16,7 @@ using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Preferences;
@@ -1092,6 +1093,29 @@ public sealed class ClientMailMutationsEndpointTests
         Assert.Equal(MailboxMutationLifecycle.Pending.Name, response.Change?.State);
     }
 
+    /// <summary>A move into another account that was refused names why under a published name and says it in a sentence, each distinct per reason.</summary>
+    [Fact]
+    public void MoveResult_EveryRefusalAcrossAccounts_PublishesItsOwnNameAndASentence()
+    {
+        // Act
+        var responses = Enum
+            .GetValues<CrossAccountFilingRefusal>()
+            .Select(refusal => ClientMailMoveResultResponse.For(Message, ArchiveId, AuthoredMailRelocationResult.RefusedAcrossAccounts(refusal)))
+            .ToArray();
+
+        // Assert
+        Assert.All(responses, response =>
+        {
+            Assert.Equal(ClientMailChangeOutcomes.MoveAcrossAccountsRefused, response.Outcome);
+            Assert.Null(response.DestinationFolder);
+            Assert.Null(response.Change);
+            Assert.False(string.IsNullOrWhiteSpace(response.Refusal));
+            Assert.False(string.IsNullOrWhiteSpace(response.Detail));
+        });
+        Assert.Equal(responses.Length, responses.Select(response => response.Refusal).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(responses.Length, responses.Select(response => response.Detail).Distinct(StringComparer.Ordinal).Count());
+    }
+
     /// <summary>The person's move into the junk folder also wrote their verdict's keywords, and those records reach the client beside the move's own.</summary>
     [Fact]
     public void MoveResult_APersonsMoveIntoJunk_CarriesTheSpamMarksRecords()
@@ -1543,7 +1567,8 @@ public sealed class ClientMailMutationsEndpointTests
             new MailAccountRunSignal(),
             StubJunkMailFolderCatalog.None,
             this.SpamMarks(),
-            Idempotency());
+            Idempotency(),
+            new MailboxCustodianComposition(new FakeTimeProvider(RecordedAt)).CrossAccountFiler);
     }
 
     /// <summary>Builds the use case the spam route is given, under the grant that route carries.</summary>

@@ -220,6 +220,7 @@ public sealed class MailboxSynchronizer
         var persistedCheckpoint =
             await this.checkpointStore.GetCheckpointAsync(account, folder.Id, cancellationToken);
 
+        var openedAt = this.timeProvider.GetUtcNow();
         var opened = await this.OpenSessionAsync(
             account,
             folder,
@@ -463,6 +464,20 @@ public sealed class MailboxSynchronizer
             }
 
             discovery.Completed();
+        }
+
+        // A copy the server took without naming where it put it is among this pass's discoveries once the pass has read
+        // the folder through, so the row its local commit wrote gives way to the one discovered.
+        if (!hasMore && await this.mutationStore.HasUnboundLocalCopiesAsync(account, folder.RemotePath, openedAt, cancellationToken))
+        {
+            await this.concurrencyRetryPolicy.CommitAsync(
+                (persistenceSession, attemptCancellationToken) => this.mutationStore.RetireUnboundLocalCopiesAsync(
+                    persistenceSession,
+                    account,
+                    folder.RemotePath,
+                    openedAt,
+                    attemptCancellationToken),
+                cancellationToken);
         }
 
         // The backward pass runs over the same open session, so it costs no second connection and inspects only what the

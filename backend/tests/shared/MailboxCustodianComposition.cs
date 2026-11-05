@@ -19,6 +19,7 @@ using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.Persistence;
@@ -68,7 +69,20 @@ internal sealed class MailboxCustodianComposition
     internal MailFailureNotifications Failures => field ??= new(
         new NotificationRaiser(this.Notifications, ClientSignalPublishers.ReachingNobody),
         this.Assignments,
-        this.Clock);
+        this.Clock,
+        this.CrossAccountFilings);
+
+    /// <summary>Gets where the append half of a message filed into another account is kept, which holds nothing unless a test hands it a store.</summary>
+    internal ICrossAccountFilingStore CrossAccountFilings { get; init; } = Substitute.For<ICrossAccountFilingStore>();
+
+    /// <summary>Gets what files a message into a folder of another account, composed over the same resolver and stores as everything else here.</summary>
+    internal CrossAccountFiler CrossAccountFiler => field ??= new(
+        this.Custodians,
+        this.CrossAccountFilings,
+        this.FolderResolutions,
+        this.Copier,
+        this.States,
+        this.Records);
 
     /// <summary>Gets the store the resolver reads each account's custody phase from.</summary>
     internal IMailAccountCustodyStore Custody { get; init; } = Substitute.For<IMailAccountCustodyStore>();

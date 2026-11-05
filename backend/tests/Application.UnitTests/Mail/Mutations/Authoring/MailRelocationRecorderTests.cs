@@ -16,6 +16,7 @@ using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
 using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Gating;
@@ -66,6 +67,12 @@ public sealed class MailRelocationRecorderTests
     private static readonly MailFolderAlias Projects = MailFolderAlias.Create("Projects");
 
     private static readonly MailFolderAlias Junk = MailFolderAlias.Create("Junk");
+
+    private static readonly MailAccountId Elsewhere = MailAccountId.Create("work");
+
+    private static readonly MailFolderAlias ElsewhereClients = MailFolderAlias.Create("WorkClients");
+
+    private static readonly MailFolderAlias ElsewhereSent = MailFolderAlias.Create("WorkSent");
 
     private static readonly StoredEmailId LocalEmail = StoredEmailId.Create(Guid.CreateVersion7());
 
@@ -808,6 +815,82 @@ public sealed class MailRelocationRecorderTests
         Assert.Equal(1, this.records.OpenedRecordCount);
     }
 
+    /// <summary>An agent files only within the account a message is in, so another account's folder is one it cannot name.</summary>
+    [Fact]
+    public async Task RecordAsync_AnAgentNamingAFolderOfAnotherAccount_FindsNoSuchDestinationAndRecordsNothing()
+    {
+        // Arrange
+        this.MapMirroredElsewhere(ElsewhereClients, "Clients");
+        var recorder = this.Recorder(TargetIn(Inbox));
+
+        // Act
+        var result = await recorder.RecordAsync(
+            LocalEmail,
+            IdOf(ElsewhereClients),
+            Requester,
+            MailboxReaderKind.Agent,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.DestinationNotFound, result.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>Another account's sent folder holds what that account sent, so nothing from elsewhere is filed into it.</summary>
+    [Fact]
+    public async Task RecordAsync_APersonFilingIntoTheSentFolderOfAnotherAccount_IsRefusedBeforeAnythingIsRecorded()
+    {
+        // Arrange
+        this.MapMirroredElsewhere(ElsewhereSent, "Sent", MailFolderSpecialUse.Sent);
+        var recorder = this.Recorder(TargetIn(Inbox));
+
+        // Act
+        var result = await recorder.RecordAsync(
+            LocalEmail,
+            IdOf(ElsewhereSent),
+            Requester,
+            MailboxReaderKind.Person,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.RefusedAcrossAccounts, result.Outcome);
+        Assert.Equal(CrossAccountFilingRefusal.DestinationKeepsOutgoingMail, result.CrossAccountRefusal);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+        Assert.Equal(0, this.commits);
+    }
+
+    /// <summary>What either account's custody refuses reaches the person as the refusal it is, with nothing written.</summary>
+    [Fact]
+    public async Task RecordAsync_APersonFilingIntoAnotherAccountWhileAReplicaPredatesTheOverlay_IsRefusedBeforeAnythingIsRecorded()
+    {
+        // Arrange
+        this.MapMirroredElsewhere(ElsewhereClients, "Clients");
+        var recorder = this.Recorder(TargetIn(Inbox));
+
+        // Act
+        var result = await recorder.RecordAsync(
+            LocalEmail,
+            IdOf(ElsewhereClients),
+            Requester,
+            MailboxReaderKind.Person,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailRelocationOutcome.RefusedAcrossAccounts, result.Outcome);
+        Assert.Equal(CrossAccountFilingRefusal.UpgradeInProgress, result.CrossAccountRefusal);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+        Assert.Equal(0, this.commits);
+    }
+
+    private MailFolderResolution MapMirroredElsewhere(MailFolderAlias alias, string remotePath, MailFolderSpecialUse? role = null)
+    {
+        this.mappings.With(
+            Elsewhere,
+            MailFolderMapping.ToRemotePath(alias, RemoteFolderPath.Create(remotePath), specialUse: role));
+
+        return this.bindings.Bind(Elsewhere, alias, remotePath, hierarchyDelimiter: '/');
+    }
+
     private MailRelocationRecorder Recorder(
         AuthoredMailboxTarget? target,
         AccessAuthorization? authorization = null,
@@ -818,7 +901,10 @@ public sealed class MailRelocationRecorderTests
     {
         var callerAuthorization =
             authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailMove);
-        var accountCatalog = AssignedMailAccountCatalogs.For(callerAuthorization, SyntheticServedAccount.Of(Account));
+        var accountCatalog = AssignedMailAccountCatalogs.For(
+            callerAuthorization,
+            SyntheticServedAccount.Of(Account),
+            SyntheticServedAccount.Of(Elsewhere));
 
         var targets = Substitute.For<IAuthoredMailboxTargetReader>();
         targets.FindAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(target));
@@ -836,7 +922,9 @@ public sealed class MailRelocationRecorderTests
                 new MailFolderIdentity(Account, SentClients),
                 new MailFolderIdentity(Account, Trash),
                 new MailFolderIdentity(Account, Projects),
-                new MailFolderIdentity(Account, Junk))
+                new MailFolderIdentity(Account, Junk),
+                new MailFolderIdentity(Elsewhere, ElsewhereClients),
+                new MailFolderIdentity(Elsewhere, ElsewhereSent))
             .Hiding(new MailFolderIdentity(Account, Withheld));
 
         var submission = phase is { } custody
@@ -870,7 +958,8 @@ public sealed class MailRelocationRecorderTests
                 Substitute.For<IDerivedWorkGateTelemetry>(),
                 submission,
                 clock),
-            new MailActIdempotency(callerAuthorization, keys ?? Substitute.For<IMailActKeyStore>(), clock));
+            new MailActIdempotency(callerAuthorization, keys ?? Substitute.For<IMailActKeyStore>(), clock),
+            new MailboxCustodianComposition(clock).CrossAccountFiler);
     }
 
     /// <summary>Gives every folder these tests name a row, which is what a destination is named by.</summary>
@@ -890,6 +979,18 @@ public sealed class MailRelocationRecorderTests
 
         var folders = Substitute.For<ILocalMailFolderStore>();
         folders.ReadFoldersAsync(Account, Arg.Any<CancellationToken>()).Returns(rows);
+
+        MailFolderAlias[] namedElsewhere = [ElsewhereClients, ElsewhereSent];
+        IReadOnlyList<LocalMailFolder> rowsElsewhere =
+        [
+            .. namedElsewhere.Select(static alias => new LocalMailFolder(
+                IdOf(alias),
+                ParentId: null,
+                LocalMailFolderName.Create(alias.Value),
+                Role: null,
+                alias)),
+        ];
+        folders.ReadFoldersAsync(Elsewhere, Arg.Any<CancellationToken>()).Returns(rowsElsewhere);
 
         return folders;
     }

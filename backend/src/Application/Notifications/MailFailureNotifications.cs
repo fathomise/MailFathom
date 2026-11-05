@@ -3,12 +3,14 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Mutations;
+using MailFathom.Domain.Mutations.Filing;
 using MailFathom.Domain.Notifications;
 
 namespace MailFathom.Application.Notifications;
@@ -43,24 +45,29 @@ public sealed class MailFailureNotifications
     private readonly NotificationRaiser raiser;
     private readonly IMailAccountAssignments assignments;
     private readonly TimeProvider timeProvider;
+    private readonly ICrossAccountFilingStore filings;
 
     /// <summary>Initializes the producer from the record it raises into.</summary>
     /// <param name="raiser">Keeps what is raised and announces it to whatever the person has open.</param>
     /// <param name="assignments">Answers who a failure about one account's mail is about.</param>
     /// <param name="timeProvider">Stamps a notification with when the failure was decided.</param>
+    /// <param name="filings">Answers whether a given-up delete was the removal half of a message filed into another account.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
     public MailFailureNotifications(
         NotificationRaiser raiser,
         IMailAccountAssignments assignments,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ICrossAccountFilingStore filings)
     {
         ArgumentNullException.ThrowIfNull(raiser);
         ArgumentNullException.ThrowIfNull(assignments);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(filings);
 
         this.raiser = raiser;
         this.assignments = assignments;
         this.timeProvider = timeProvider;
+        this.filings = filings;
     }
 
     /// <summary>Reports a send the mail server refused, to everybody assigned the account it was sent from.</summary>
@@ -97,7 +104,8 @@ public sealed class MailFailureNotifications
     /// A change committed locally first was shown as made, so its body says it was undone; one that never moved what
     /// MailFathom shows — carried server-first, or a restoring account's, whose local state is the truth — says the
     /// message is still where it was. The two causes differ in what a client offers: a transient refusal the act again,
-    /// a permanent one nothing but the explanation.
+    /// a permanent one nothing but the explanation. A delete that was the removal half of a message filed into another
+    /// account is neither: the other account already holds the message, so the person is told it is now in both.
     /// </remarks>
     public async Task<bool> ReportAbandonedChangeAsync(
         MailboxMutationRecord change,
@@ -118,6 +126,22 @@ public sealed class MailFailureNotifications
         var outcome = change.Overlay is null
             ? "the message is still where the server holds it"
             : "MailFathom undid it";
+
+        // The removal half of a message filed into another account is given up after that account already took it, so
+        // what the person is owed is where the message now is rather than that a delete failed, however it was refused.
+        if (request.Mutation == MailboxMutation.Delete
+            && await this.filings.FindByRemovalAsync(change.Id, cancellationToken) is not null)
+        {
+            return await this.RecordAsync(
+                users,
+                request.Account,
+                title: "A message is now in both accounts",
+                body: "Move - the other account took it, but this account's mail server would not let it go, so it is in both.",
+                NotificationStatement.MailInBothAccounts(),
+                NotificationTarget.ToMailboxChange(change.Id, request.StoredEmailId),
+                NotificationDeduplicationKey.For("mail-in-both-accounts", change.Id.ToString()),
+                cancellationToken);
+        }
 
         return refusalClass is MailboxMutationRefusalClass.Permanent
             ? await this.RecordAsync(
@@ -166,6 +190,29 @@ public sealed class MailFailureNotifications
             NotificationStatement.DraftCopyNotKept(carriesSubject: subject is not null),
             NotificationTarget.ToMailDraft(draft.Id),
             NotificationDeduplicationKey.For("draft-copy-not-kept", draft.Id.ToString()),
+            cancellationToken);
+    }
+
+    /// <summary>Tells the person that a message they filed into another account was not moved, because that account's server never took it.</summary>
+    /// <param name="filing">The filing that was given up, whose whole act was reverted with it.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><see langword="true" /> where at least one person was told.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="filing" /> is <see langword="null" />.</exception>
+    /// <remarks>Raised on the source account, because that is where the message shows again and where opening the row leads.</remarks>
+    public async Task<bool> ReportAbandonedFilingAsync(CrossAccountFilingRecord filing, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(filing);
+
+        var users = await this.assignments.ReadUsersAssignedToAsync(filing.SourceAccountId, cancellationToken);
+
+        return await this.RecordAsync(
+            users,
+            filing.SourceAccountId,
+            title: "A change did not reach your mailbox",
+            body: $"{ActSaid(MailboxChangeAct.Move)} - the other account's mail server would not take it, so the message is still where it was.",
+            NotificationStatement.MailboxChangeAbandoned(MailboxChangeAct.Move),
+            NotificationTarget.ToMessage(filing.SourceEmailId),
+            NotificationDeduplicationKey.For("cross-account-filing-abandoned", filing.Id.ToString()),
             cancellationToken);
     }
 

@@ -100,6 +100,7 @@ using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
 using MailFathom.Application.Mail.Mutations.Convergence;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.Observability;
@@ -1495,6 +1496,12 @@ public static class ServiceCollectionExtensions
         // The relocation half of what a caller may author, beside the flag half and registered the same way: it writes
         // a record and holds nothing that could reach a mail server, so the account's own pass carries the move.
         services.AddScoped<MailRelocationRecorder>();
+
+        // A move into another account the person holds: the append half kept beside the records, the commit that writes
+        // both halves, and the destination's pass that carries the append over that account's own write connection.
+        services.AddScoped<ICrossAccountFilingStore, CrossAccountFilingStore>();
+        services.AddScoped<CrossAccountFiler>();
+        services.AddScoped<CrossAccountFilingPass>();
 
         // The person's own spam verdict, beside the moves because a move into the junk folder is one: the writer is
         // what both acts record the verdict and its keywords through, and the recorder is the act of marking itself.

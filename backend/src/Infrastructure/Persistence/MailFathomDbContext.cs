@@ -208,6 +208,8 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<MailboxMutationEntity> MailboxMutations => this.Set<MailboxMutationEntity>();
 
+    internal DbSet<CrossAccountFilingEntity> CrossAccountFilings => this.Set<CrossAccountFilingEntity>();
+
     internal DbSet<MailboxSourceRemovalEntity> MailboxSourceRemovals => this.Set<MailboxSourceRemovalEntity>();
 
     internal DbSet<MailboxRestoreAppendEntity> MailboxRestoreAppends => this.Set<MailboxRestoreAppendEntity>();
@@ -376,6 +378,7 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new SynchronizationCheckpointConfiguration());
         modelBuilder.ApplyConfiguration(new MailboxRefreshTokenConfiguration());
         modelBuilder.ApplyConfiguration(new MailboxMutationConfiguration());
+        modelBuilder.ApplyConfiguration(new CrossAccountFilingConfiguration());
         modelBuilder.ApplyConfiguration(new MailboxSourceRemovalConfiguration());
         modelBuilder.ApplyConfiguration(new MailboxRestoreAppendConfiguration());
         modelBuilder.ApplyConfiguration(new MailboxFlaggedDeleteConfiguration());

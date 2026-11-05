@@ -33,6 +33,7 @@ using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Convergence;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.Observability;
@@ -247,6 +248,10 @@ internal static class SynchronizationTestHost
             provider.GetRequiredService<MailSynchronizationTelemetry>());
         services.AddScoped<IMailboxMutationPerformer, MailboxMutationPerformer>();
         services.AddScoped<MailboxMutationConverger>();
+        // The appends owed for mail filed into an account from another one run in the same stage; nothing here files across
+        // accounts, so the store answers that none is outstanding.
+        services.AddSingleton(Substitute.For<ICrossAccountFilingStore>());
+        services.AddScoped<CrossAccountFilingPass>();
 
         // A change given up is told to the account's users, and nothing here keeps what they are told: a supervisor's
         // tests are about when changes converge, and the notice has tests of its own.

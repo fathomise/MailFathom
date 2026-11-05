@@ -8,6 +8,7 @@ using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
@@ -144,6 +145,11 @@ public sealed class RestoringMailboxCustodian : IMailboxCustodian
         MailboxChange change,
         CancellationToken cancellationToken) =>
         this.changes.CommitAsync(session, change, carriesToSource: true, cancellationToken);
+
+    /// <inheritdoc />
+    /// <remarks>Refused, for the reason a restoring account's folder acts are: its local state is still the truth its source is being filled from.</remarks>
+    public Task<CrossAccountFilingHalf> TakesCrossAccountFilingAsync(MailAccountId account, CancellationToken cancellationToken) =>
+        Task.FromResult(CrossAccountFilingHalf.RefusedWhileRestoring);
 
     /// <inheritdoc />
     public Task<LocalMailCopy?> PrepareDraftCopyAsync(

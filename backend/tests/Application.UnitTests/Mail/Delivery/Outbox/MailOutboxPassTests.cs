@@ -647,7 +647,8 @@ public sealed class MailOutboxPassTests
                     new MailFailureNotifications(
                         new NotificationRaiser(this.Notifications, ClientSignalPublishers.ReachingNobody),
                         new StubMailAccountAssignments().Assigning(SyntheticUser.Deployment, Account),
-                        this.clock))
+                        this.clock,
+                        new InMemoryCrossAccountFilingStore()))
                 .RunAsync(Account, stoppingToken ?? TestContext.Current.CancellationToken);
 
         /// <summary>Writes one draft of this account, which the pass is then expected to reach on its own.</summary>

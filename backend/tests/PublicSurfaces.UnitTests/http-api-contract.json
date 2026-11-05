@@ -3377,8 +3377,20 @@
               "string"
             ]
           },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "outcome": {
             "type": "string"
+          },
+          "refusal": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "spamMarkChanges": {
             "items": {

@@ -311,6 +311,34 @@ public interface IMailboxMutationRecordStore
         int limit,
         CancellationToken cancellationToken);
 
+    /// <summary>Points a change nothing has issued yet at the occurrence its message holds now, which an earlier move may have changed.</summary>
+    /// <param name="session">The session the write joins, which is the one committed before the change is issued.</param>
+    /// <param name="outstanding">The change about to be issued, as the outstanding read returned it.</param>
+    /// <param name="cancellationToken">Cancels the read and the write.</param>
+    /// <returns>The change against the occurrence it is to be issued at, which is <paramref name="outstanding" /> itself where nothing moved it.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> or <paramref name="outstanding" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// <para>
+    /// A change waits while an earlier move of the same message is outstanding, and the move, once the server takes it,
+    /// leaves the message at an occurrence the change was not recorded against: the source is gone, and the destination
+    /// is named by the move's own placement until the destination's forward pass carries the stored message onto it.
+    /// So the occurrence is resolved here, at issue time, rather than read off the change — from the stored message
+    /// where it already holds the new one, and otherwise from each completed move whose placement nothing has carried
+    /// yet, followed from the occurrence the message last held. See
+    /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>
+    /// axis F.
+    /// </para>
+    /// <para>
+    /// The record itself is rewritten, because a change is resumed by finding its record again, and the identity it is
+    /// found by includes the occurrence. A change already issued is never repointed: its command named the occurrence it
+    /// was recorded against, and what that command left is settled from there.
+    /// </para>
+    /// </remarks>
+    Task<OutstandingMailboxMutation> ResolveIssuedOccurrenceAsync(
+        IPersistenceSession session,
+        OutstandingMailboxMutation outstanding,
+        CancellationToken cancellationToken);
+
     /// <summary>Counts one account's uncompleted mutations by kind and by where in its lifecycle each one stands.</summary>
     /// <param name="account">The account whose mutations are counted.</param>
     /// <param name="cancellationToken">Cancels the read.</param>

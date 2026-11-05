@@ -6,6 +6,7 @@ using System.Reflection;
 using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Mutations;
+using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Synchronization.Drain;
 using MailFathom.Application.Synchronization.Restore;
 using Xunit;
@@ -52,10 +53,17 @@ namespace MailFathom.Application.UnitTests.Mail.Mutations;
 /// occurrence on the server to mutate — and it is not the filing tier because what it appends is the user's own mail
 /// coming home rather than a copy MailFathom composed.
 /// </para>
+/// <para>
+/// It has grown once more inside an existing tier, because
+/// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>
+/// widens ADR 0007's append to carry a message the person filed into another account they hold. That append is the
+/// person's own act on their own mail, issued once, and it is carried by a pass of its own only because the message has
+/// no occurrence on the destination for a mutation record to name until the server's answer gives it one.
+/// </para>
 /// </remarks>
 public sealed class MailboxWriteCapabilityBoundaryTests
 {
-    /// <summary>Six application types can obtain a session that writes, and each acts within a tier a decision record names.</summary>
+    /// <summary>Seven application types can obtain a session that writes, and each acts within a tier a decision record names.</summary>
     /// <remarks>
     /// Failing here is not a reason to extend the expected set. A read path that needs to write is a read path that has
     /// acquired something
@@ -88,6 +96,7 @@ public sealed class MailboxWriteCapabilityBoundaryTests
         // Assert
         Assert.Equal(
             [
+                nameof(CrossAccountFilingPass),
                 nameof(MailDraftFiler),
                 nameof(MailboxCopyAppender),
                 nameof(MailboxDrainPass),
