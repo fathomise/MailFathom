@@ -3840,6 +3840,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         letterStyle: "display:flex;flex-direction:column;gap:10px;background:var(--sub);border:1px solid var(--line2);border-radius:10px;padding:" + (isMobile ? "12px 13px" : "14px 16px"),
         textareaStyle: "width:100%;box-sizing:border-box;min-height:" + (isMobile ? 150 : 130) + "px;resize:vertical;font-family:inherit;font-size:14px;line-height:1.6;color:var(--text);background:var(--sub);border:1px solid var(--accent-line);border-radius:10px;padding:" + (isMobile ? "12px 13px" : "14px 16px"),
         paras: (b.paras || []).map(p => ({ t: p, style: "font-size:14px;line-height:1.6;color:var(--text);text-wrap:pretty" })),
+        /* Above the letter, what became of it and the verdict on it: *cited*, since the reply is the Agent's own prose
+           and nothing held it against the message it answers. That message's citation sits under the letter. */
+        hasDraftStanding: b.type === "draft" && !!b.disposition,
+        /* Once sent, the result line says what became of it, so the line saying nothing was sent goes. */
+        hasDraftDisposition: !accepted || failed,
+        draftDisposition: b.disposition || "",
+        draftDispositionStyle: "font-size:11px;background:var(--rail);color:var(--muted);border-radius:12px;padding:2px 9px",
+        hasDraftCites: b.type === "draft" && (b.cites || []).length > 0,
         hasFooter: footer.length > 0 && ready && !declined,
         footerOpen,
         footerToggle: toggleFooter,

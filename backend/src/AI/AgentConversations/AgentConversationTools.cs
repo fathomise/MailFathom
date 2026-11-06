@@ -604,8 +604,10 @@ internal sealed class AgentConversationTools
         }
 
         var citation = await this.CiteAsync(answeredId, email.Subject, cancellationToken);
+
+        // Cited rather than supported: the reply is the model's own prose, and nothing held it against the message it answers.
         var block = new DraftBlock(
-            new PresentationEvidence(PresentationSupport.Supported, [citation.Id], PresentationFreshness.Unknown),
+            new PresentationEvidence(PresentationSupport.Cited, [citation.Id], PresentationFreshness.Unknown),
             addressed,
             titled,
             written,

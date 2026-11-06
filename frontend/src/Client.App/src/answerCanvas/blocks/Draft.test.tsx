@@ -300,6 +300,19 @@ describe('Draft', () => {
             ).toBe('');
         });
 
+        it('stops saying nothing was sent once it was, the result line saying what became of it', () => {
+            renderDraft(drafted(), inConversation('accepted'));
+
+            expect(screen.getByText('Sent')).toBeDefined();
+            expect(screen.queryByText('Local draft - nothing was sent')).toBeNull();
+        });
+
+        it('still says nothing was sent where sending it failed', () => {
+            renderDraft(drafted(), inConversation('failed'));
+
+            expect(screen.getByText('Local draft - nothing was sent')).toBeDefined();
+        });
+
         it('offers no editing once the draft was sent', () => {
             renderDraft(drafted(), inConversation('accepted'));
 

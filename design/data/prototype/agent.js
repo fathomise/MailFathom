@@ -32,6 +32,11 @@
     ],
     done: "Sent into “Contract addendum - signatures”",
     nav: [{ label: "Open the thread", icon: "forum", kind: "thread", tid: "contoso" }],
+    /* What the draft stands on: the message it answers, cited and not checked against the reply written to it. */
+    disposition: "Local draft - nothing was sent",
+    cites: [
+      { n: "1", source: "Contract addendum - signatures", badge: "mail", snippet: "“…we accept the 2 h response time and the new fee. Please send your proposal on the indexation cap by 28 August.”", freshness: "yesterday · Anna Kowalska" },
+    ],
   };
 
   /* The same reply, asked to leave later. The time is the Agent's proposal as it stands: the block shows it and sends
