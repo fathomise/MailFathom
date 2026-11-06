@@ -1111,10 +1111,14 @@ test('pastes a range copied from a spreadsheet as a bordered table with its head
     await expect(message.getByRole('columnheader')).toHaveText(['Region', 'Units', 'Change']);
     await expect(message.getByRole('cell', { name: '-35' })).toBeVisible();
 
+    // Typed straight after the paste, so the line after the table holding them is where the caret was left.
     await page.keyboard.type('Totals follow.');
-    await expect(message.locator('table + p')).toHaveText('Totals follow.');
 
     await send(page);
+
+    expect(sentBody(deployment)).toMatchObject({
+        htmlBody: expect.stringMatching(/<\/table><p>Totals follow\.<\/p>/u),
+    });
 
     expect(sentBody(deployment)).toMatchObject({
         htmlBody: expect.stringMatching(

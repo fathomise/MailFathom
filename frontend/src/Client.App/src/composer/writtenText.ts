@@ -447,11 +447,16 @@ function readWritten(
 
         const run = runOf(node, named, drawing);
         const writable = readableElements.includes(named) || run !== null;
+        // An engine merging a pasted line into the one at the caret carries that line's rendering over onto the
+        // emphasis it keeps rather than onto a `span`, so what it carried is read as the run around that emphasis.
+        const carried =
+            run === null && emphasisElements.includes(named as WrittenElement) ? drawnRunOf(node, drawing) : null;
 
         // An element that is kept is one of the nodes the budget counts, and it is counted before what it holds is
-        // read, so a wide tree cannot spend the whole budget on children and then add a parent past the bound.
+        // read, so a wide tree cannot spend the whole budget on children and then add a parent past the bound. The
+        // run carried around an emphasis is one more.
         if (writable) {
-            budget.nodes -= 1;
+            budget.nodes -= carried === null ? 1 : 2;
         }
 
         const holds = readWritten(node, depth + 1, budget, within, drawing);
@@ -482,13 +487,6 @@ function readWritten(
         const alignment = alignedElements.includes(element) ? alignmentOf(node) : null;
         const read: WrittenMarkup =
             alignment === null ? { element, address, holds } : { element, address, alignment, holds };
-        const carried = emphasisElements.includes(element) ? drawnRunOf(node, drawing) : null;
-
-        // An engine merging a pasted line into the one at the caret carries that line's rendering over onto the
-        // emphasis it keeps rather than onto a `span`, so what it carried is read as the run around that emphasis.
-        if (carried !== null) {
-            budget.nodes -= 1;
-        }
 
         written.push(carried === null ? read : { element: 'span', address: null, ...carried, holds: [read] });
     }

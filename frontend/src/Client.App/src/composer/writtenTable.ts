@@ -282,6 +282,13 @@ export function tableWithinBounds(table: WrittenMarkup): boolean {
     );
 }
 
+/** Where each cell of each row stands on the table's grid: the column it starts in and how many it spans there. */
+export function placementsOf(
+    table: WrittenMarkup,
+): readonly (readonly { readonly column: number; readonly columnSpan: number }[])[] {
+    return laidOut(rowsOf(table)).placed;
+}
+
 /**
  * The table with each cell's column span narrowed to the grid its cells start in: columns past the last one any cell
  * begins at hold nothing, so a span written into them — a whole-row `colspan="100%"`, say — reaches that last column.

@@ -245,7 +245,7 @@ export default defineConfig(
         },
     },
     {
-        // ADR 0047's other exception, stated as the block above it minus `inertParseSyntax`.
+        // ADR 0047's other exception, stated as the `src/*/**` block minus `inertParseSyntax`.
         files: [theOneClipboardReader],
         rules: {
             'no-restricted-syntax': [

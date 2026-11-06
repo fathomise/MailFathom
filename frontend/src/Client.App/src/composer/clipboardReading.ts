@@ -9,6 +9,7 @@ import {
     columnsOf,
     mostTableColumns,
     mostTableRows,
+    placementsOf,
     spanned,
     tableWithinBounds,
     withSpansWithinTheGrid,
@@ -360,6 +361,42 @@ function runsOn(sibling: ChildNode | null, onward: 'previousSibling' | 'nextSibl
     );
 }
 
+// Whether a text node stands where its line breaks are drawn: inside a `pre`, or under a declared `white-space` that
+// keeps them, the nearest declaration deciding.
+function keepsItsLines(text: Node): boolean {
+    for (let holder = text.parentElement; holder !== null; holder = holder.parentElement) {
+        if (holder.tagName.toLowerCase() === 'pre') {
+            return true;
+        }
+
+        const declared = holder instanceof HTMLElement ? holder.style.whiteSpace : '';
+
+        if (declared !== '') {
+            return /^(?:pre|pre-wrap|pre-line|break-spaces)$/u.test(declared);
+        }
+    }
+
+    return false;
+}
+
+// An element's words as one run, for an element too deep to read as a tree: its text, leaving out whole what `unread`
+// leaves out on the shallow path, and stopping once the run is as long as one may be.
+function wordsOf(element: Element): string {
+    const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) =>
+            node instanceof Element && unread.has(node.tagName.toLowerCase())
+                ? NodeFilter.FILTER_REJECT
+                : NodeFilter.FILTER_ACCEPT,
+    });
+    let words = '';
+
+    for (let node = walker.nextNode(); node !== null && words.length < longestWrittenRun; node = walker.nextNode()) {
+        words += node.nodeType === Node.TEXT_NODE ? (node.nodeValue ?? '') : '';
+    }
+
+    return words.slice(0, longestWrittenRun);
+}
+
 function readPasted(parent: Node, depth: number, reading: Reading, within: Placement): WrittenNode[] {
     const written: WrittenNode[] = [];
 
@@ -370,6 +407,23 @@ function readPasted(parent: Node, depth: number, reading: Reading, within: Place
 
         if (node.nodeType === Node.TEXT_NODE) {
             const raw = node.nodeValue ?? '';
+
+            // Preformatted text draws the lines it was written in, so each of its line breaks is one the reader saw.
+            if (keepsItsLines(node)) {
+                for (const [index, line] of raw.split(/\r\n?|\n/u).entries()) {
+                    if (index > 0) {
+                        reading.nodes -= 1;
+                        written.push(lineBreak);
+                    }
+
+                    if (line !== '') {
+                        reading.nodes -= 1;
+                        written.push({ text: line.slice(0, longestWrittenRun) });
+                    }
+                }
+
+                continue;
+            }
 
             // The line breaks and indentation a page's source was laid out in between its blocks, which no reader of it
             // ever saw. Between two runs the same break is the space the source drew between their words.
@@ -395,7 +449,7 @@ function readPasted(parent: Node, depth: number, reading: Reading, within: Place
 
         if (depth >= deepestWriting) {
             reading.nodes -= 1;
-            written.push({ text: node.textContent.slice(0, longestWrittenRun) });
+            written.push({ text: wordsOf(node) });
 
             continue;
         }
@@ -718,7 +772,7 @@ function tableOf(table: HTMLTableElement, depth: number, reading: Reading): read
     if (depth + 3 > deepestWriting) {
         reading.nodes -= 1;
 
-        return [{ text: table.textContent.slice(0, longestWrittenRun) }];
+        return [{ text: wordsOf(table) }];
     }
 
     const headRows = new Set(table.tHead === null ? [] : [...table.tHead.rows]);
@@ -733,9 +787,38 @@ function tableOf(table: HTMLTableElement, depth: number, reading: Reading): read
         read.pop();
     }
 
-    const width = Math.max(0, ...read.map((row) => row.cells.findLastIndex((cell) => cell.filled) + 1));
+    // The empty columns at the range's end are found on its grid rather than by counting cells, since a merged cell
+    // stands for several columns: what is dropped from a row's end is the empty cells that start past the last column
+    // any cell with something in it reaches.
+    const placements = placementsOf({
+        element: 'table',
+        address: null,
+        holds: read.map((row) => ({ element: 'tr', address: null, holds: row.cells.map(({ cell }) => cell) })),
+    });
+    const width = Math.max(
+        0,
+        ...read.flatMap((row, rowIndex) =>
+            row.cells.map((cell, cellIndex) => {
+                const placed = placements[rowIndex]?.[cellIndex];
+
+                return cell.filled && placed !== undefined ? placed.column + placed.columnSpan : 0;
+            }),
+        ),
+    );
     const rows = read
-        .map((row) => ({ ...row, cells: row.cells.slice(0, width) }))
+        .map((row, rowIndex) => {
+            let kept = row.cells.length;
+
+            while (
+                kept > 0 &&
+                row.cells[kept - 1]?.filled === false &&
+                (placements[rowIndex]?.[kept - 1]?.column ?? 0) >= width
+            ) {
+                kept -= 1;
+            }
+
+            return { ...row, cells: row.cells.slice(0, kept) };
+        })
         .filter((row) => row.cells.length > 0);
     const [first, second] = rows;
 

@@ -200,6 +200,19 @@ describe('readClipboardHtml', () => {
         expect(atTheBounds !== undefined && 'holds' in atTheBounds ? atTheBounds.holds : []).toHaveLength(200);
     });
 
+    it('trims the empty columns at the end of a range by where they stand on its grid, a merged title row included', () => {
+        expect(
+            writtenOf(
+                '<table><tr><td colspan="3">Title</td><td></td><td></td></tr><tr><td>a</td><td>b</td><td>c</td><td></td><td></td></tr></table>',
+            ),
+        ).toStrictEqual([
+            markup('table', [
+                rowOf(cellOf([text('Title')], { columnSpan: 3 })),
+                rowOf(cellOf([text('a')]), cellOf([text('b')]), cellOf([text('c')])),
+            ]),
+        ]);
+    });
+
     it.each([['100%'], ['99']])('reads a cell spanning %s columns as spanning the columns the table has', (span) => {
         expect(
             writtenOf(
@@ -295,6 +308,25 @@ describe('readClipboardHtml', () => {
             markup('div', [text('Bay '), text('4')]),
             markup('div', [text('Bay 5')]),
         ]);
+    });
+
+    it('keeps the lines a preformatted block draws, inside a pre and under a declared white-space alike', () => {
+        expect(
+            writtenOf(
+                '<pre><code>line one\nline two</code></pre><div style="white-space: pre-line"><span>a</span>\n<span>b</span></div>',
+            ),
+        ).toStrictEqual([
+            markup('div', [text('line one'), lineBreak, text('line two')]),
+            markup('div', [text('a'), lineBreak, text('b')]),
+        ]);
+    });
+
+    it('leaves out a script nested past the depth it reads as a tree, keeping the words around it', () => {
+        const deep = `<p>${'<span>'.repeat(70)}<script>secretFunction()</script>Deep words${'</span>'.repeat(70)}</p>`;
+        const flattened = JSON.stringify(writtenOf(deep));
+
+        expect(flattened).toContain('Deep words');
+        expect(flattened).not.toContain('secretFunction');
     });
 
     it('keeps the space a line break in the source draws between two runs, and drops it between blocks', () => {
