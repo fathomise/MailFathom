@@ -1345,7 +1345,7 @@ supplier-invoices  assigned on import                    added    disabled
 flag-supplier      0199c3d0-0000-7000-8000-000000000009  changed  enabled
 old-newsletters    0199c3d0-0000-7000-8000-00000000000c  removed  removed; it was enabled
 Make the import with 'mfctl rules import --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 --from-file <file> --mode replace --expected-version 7'.
-Rules the file states enabled that would arrive disabled: 1. Preview and enable each once the import is made.
+Rules the file states enabled that would be disabled after the import: 1. Preview and enable each once the import is made.
 ```
 
 Each rule of the file is reported as `added`, `changed`, `moved` — declaring what it declared, at another place among
@@ -1354,7 +1354,9 @@ rules the file states enabled that are disabled, and the `rules preview` and `ru
 
 **The whole import is one write.** The deployment builds the set it would produce and judges it as every change is
 judged, so one defective rule refuses the whole import and nothing of it is written; a refusal names each rule by its
-place in the file, from `#1`, and quotes nothing it declares. A file naming one rule twice is refused, and so is an
+place in the file, from `#1`, and quotes no name, folder, or keyword of it — a condition refusal quotes only the one
+identifier or function the condition could not be read at, or the parser's own message, exactly as for a single
+change above, and goes back only to the caller who sent the file. A file naming one rule twice is refused, and so is an
 import decided against a version the rules have moved past, with the same `409` every change answers.
 
 `GET /api/admin/rules/export?account=<id>` answers `{ "Rules": [ … ] }`. `POST /api/admin/rules/import` and

@@ -159,7 +159,7 @@ internal static class ImportRulesCommand
         {
             context.Console.WriteNotice(import.Committed
                 ? $"The file states these rules enabled, and they are disabled: {string.Join(", ", waiting.Select(rule => $"{rule.Rule:D}"))}. Preview each with '{CliRootCommand.CommandName} rules preview <rule> --account {invocation.Account}', then enable it with '{CliRootCommand.CommandName} rules enable <rule> --account {invocation.Account}'."
-                : $"Rules the file states enabled that would arrive disabled: {waiting.Length}. Preview and enable each once the import is made.");
+                : $"Rules the file states enabled that would be disabled after the import: {waiting.Length}. Preview and enable each once the import is made.");
         }
     }
 

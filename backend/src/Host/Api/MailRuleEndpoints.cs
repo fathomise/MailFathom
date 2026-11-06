@@ -560,7 +560,7 @@ internal static class MailRuleEndpoints
     };
 
     /// <summary>States every defect a refusal found, one to a line, under the sentence saying what was refused.</summary>
-    /// <remarks>Each defect names the rule by its identifier. A condition refusal quotes the one identifier or function the condition could not be read at, or the parser's own message, and goes back only to the caller who wrote it; nothing else the rule declares is quoted.</remarks>
+    /// <remarks>Each defect names the rule by its identifier, or an import's rule by its place in the file. A condition refusal quotes the one identifier or function the condition could not be read at, or the parser's own message, and goes back only to the caller who wrote it; nothing else the rule declares is quoted.</remarks>
     private static string DescribeErrors(string heading, IReadOnlyList<string> errors) =>
         string.Join('\n', errors.Select(error => $"- {error}").Prepend(heading));
 
