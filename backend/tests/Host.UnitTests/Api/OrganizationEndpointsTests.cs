@@ -256,6 +256,39 @@ public sealed class OrganizationEndpointsTests
         var problem = Assert.IsType<ProblemHttpResult>(result.Result);
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
         Assert.Contains("Language is not stated.", problem.ProblemDetails.Detail, StringComparison.Ordinal);
+        Assert.Contains("they were not moved", problem.ProblemDetails.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("mail accounts", problem.ProblemDetails.Detail, StringComparison.Ordinal);
+    }
+
+    /// <summary>A move carrying accounts that the target's policy refuses says so of the accounts too, since a correction may be one of theirs.</summary>
+    [Fact]
+    public async Task SetUserOrganizationAsync_WithMailAccountsTheTargetsPolicyWouldLeaveUnservable_IsAConflictNamingTheAccountsToo()
+    {
+        // Arrange
+        var harness = new EndpointHarness(MailFathomPermission.AdminCredentialsWrite, MailFathomPermission.AdminConfigurationWrite);
+        harness.Organizations.SetUserOrganizationAsync(
+                SyntheticUser.Deployment,
+                null,
+                withMailAccounts: true,
+                underANarrowerGrant: false,
+                Arg.Any<CancellationToken>())
+            .Returns(new OrganizationWriteResult(OrganizationWriteOutcome.RecordLeftInvalid)
+            {
+                Corrections = ["The server is not stated."],
+            });
+
+        // Act
+        var result = await OrganizationEndpoints.SetUserOrganizationAsync(
+            SyntheticUser.Deployment.Value,
+            new UserOrganizationRequest(null, None: true, WithMailAccounts: true),
+            harness.Administration,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var problem = Assert.IsType<ProblemHttpResult>(result.Result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Contains("The server is not stated.", problem.ProblemDetails.Detail, StringComparison.Ordinal);
+        Assert.Contains("the mail accounts moving with them", problem.ProblemDetails.Detail, StringComparison.Ordinal);
         Assert.Contains("nothing was moved", problem.ProblemDetails.Detail, StringComparison.Ordinal);
     }
 

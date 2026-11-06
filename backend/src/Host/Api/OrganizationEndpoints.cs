@@ -282,10 +282,16 @@ internal static class OrganizationEndpoints
                 + "and nobody was unassigned. Ask for the move with their mail accounts to move the accounts assigned "
                 + "to them alone with them.",
                 statusCode: StatusCodes.Status409Conflict),
-            OrganizationWriteOutcome.RecordLeftInvalid => TypedResults.Problem(
+            OrganizationWriteOutcome.RecordLeftInvalid when withMailAccounts => TypedResults.Problem(
                 "The move would change which settings policy governs this user and the mail accounts moving with them, "
                 + "and under the one they would move to a record of theirs is not one this deployment could serve, so "
                 + "nothing was moved: "
+                + $"{string.Join(' ', result.Corrections)} Correct the record first, or have the policy they would move "
+                + "under supply what it is missing.",
+                statusCode: StatusCodes.Status409Conflict),
+            OrganizationWriteOutcome.RecordLeftInvalid => TypedResults.Problem(
+                "The move would change which settings policy governs this user, and under the one they would move to "
+                + "their record is not one this deployment could serve, so they were not moved: "
                 + $"{string.Join(' ', result.Corrections)} Correct the record first, or have the policy they would move "
                 + "under supply what it is missing.",
                 statusCode: StatusCodes.Status409Conflict),

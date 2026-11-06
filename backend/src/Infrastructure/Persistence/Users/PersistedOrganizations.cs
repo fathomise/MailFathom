@@ -316,10 +316,12 @@ internal sealed class PersistedOrganizations(
     /// </para>
     /// <para>
     /// Moving the user's accounts with them locks every account they are assigned before the user's own row, which is
-    /// the order an assignment and a move of an account take them in, so none of the three waits on another in a
-    /// circle. The accounts are locked again once the user's row is held, which reaches an account assigned to them in
-    /// between: that assignment had to commit before the user's lock was granted. Each account that moves is judged as
-    /// a move of it alone would judge it, and is moved in the same commit as the user.
+    /// the order an assignment and a move of an account take them in. The accounts are locked again once the user's row
+    /// is held, which reaches an account assigned to them in between: that assignment had to commit before the user's
+    /// lock was granted. That second pass is the one place the order is reversed, so a move of such an account landing
+    /// in the same instant can wait on this move while this move waits on it; PostgreSQL then aborts one of the two,
+    /// which writes nothing, and its caller is answered with a server error and may ask again. Each account that moves
+    /// is judged as a move of it alone would judge it, and is moved in the same commit as the user.
     /// </para>
     /// </remarks>
     public async Task<OrganizationWriteResult> SetUserOrganizationAsync(

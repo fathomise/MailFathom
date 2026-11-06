@@ -552,6 +552,45 @@ public sealed class OrganizationAdministrationTests
         Assert.Empty(harness.Organizations.ReceivedCalls());
     }
 
+    /// <summary>Leaving every organization with the accounts is the deployment's under both grants, so the credentials grant over the deployment alone does not reach it.</summary>
+    [Fact]
+    public async Task SetUserOrganizationAsync_OutOfEveryOrganizationWithMailAccountsByACallerHoldingOnlyTheCredentialsWrite_IsRefusedWithoutTouchingTheStore()
+    {
+        // Arrange
+        var harness = new AdministrationHarness(MailFathomPermission.AdminCredentialsWrite);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
+            harness.Administration.SetUserOrganizationAsync(User, organizationId: null, withMailAccounts: true, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomPermission.AdminConfigurationWrite, refusal.RequiredPermission);
+        Assert.Empty(harness.Organizations.ReceivedCalls());
+    }
+
+    /// <summary>Both grants over the deployment reach the store moving the accounts out of every organization, under no narrower grant.</summary>
+    [Fact]
+    public async Task SetUserOrganizationAsync_OutOfEveryOrganizationWithMailAccountsByACallerHoldingBothOverTheDeployment_ReachesTheStore()
+    {
+        // Arrange
+        var harness = new AdministrationHarness(AccessAuthorizations.ForAdministratorGranted(
+            MailFathomPermission.AdminCredentialsWrite,
+            MailFathomPermission.AdminConfigurationWrite));
+        harness.Organizations.SetUserOrganizationAsync(
+                User,
+                Arg.Is((Guid?)null),
+                withMailAccounts: true,
+                underANarrowerGrant: false,
+                Arg.Any<CancellationToken>())
+            .Returns(OrganizationWriteResult.Of(OrganizationWriteOutcome.Written));
+
+        // Act
+        var result = await harness.Administration.SetUserOrganizationAsync(User, organizationId: null, withMailAccounts: true, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OrganizationWriteOutcome.Written, result.Outcome);
+    }
+
     /// <summary>The leading 48 bits of a version 7 value, which are the millisecond it was minted at.</summary>
     private static string TimestampOf(Guid identifier) => identifier.ToString("D")[..13];
 
