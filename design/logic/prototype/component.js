@@ -2997,9 +2997,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (e && e.preventDefault) e.preventDefault();
       this.saveRange();
       const t = e && e.currentTarget, wrap = t && t.closest("[data-compose-format]");
-      const width = key === "colour" ? 300 : key === "table" ? 280 : 220;
+      const width = Component.fmtMenuWidth(key);
       const left = t && wrap ? Math.max(8, Math.min(t.getBoundingClientRect().left - wrap.getBoundingClientRect().left - 8, wrap.offsetWidth - width - 8)) : 12;
-      this.setState(s => ({ fmtMenu: s.fmtMenu === key ? null : key, fmtMenuLeft: left, tableDraft: key === "table" ? { rows: COMPOSE_FMT.table.defaultRows, cols: COMPOSE_FMT.table.defaultColumns, header: true } : s.tableDraft }));
+      this.setState(s => ({ fmtMenu: s.fmtMenu === key ? null : key, fmtPicking: false, fmtMenuLeft: left, tableDraft: key === "table" ? { rows: COMPOSE_FMT.table.defaultRows, cols: COMPOSE_FMT.table.defaultColumns, header: true } : s.tableDraft }));
     };
     /* A colour or a size is one span around the selection, and whatever colour or size the selection carried inside it
        gives way to it, so the newest choice is the one that shows. *Automatic* and *Normal* leave no span value. */
@@ -3019,7 +3019,47 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       sel.removeAllRanges();
       sel.addRange(nr);
     };
-    pickColour = (c) => { this.restyleSelection("color", c ? "var(--ink-" + c.key + ")" : ""); this.setState({ fmtMenu: null, fmtColour: c ? c.key : null }); };
+    /* The menus' widths under a mouse: the colour and emoji menus are as wide as their grids, the rest hold words. */
+    static fmtMenuWidth = (key) => ({ colour: 274, emoji: 306, table: 280 })[key] || 220;
+    /* What a colour is called: its hue and shade where the palette offers it, and its value as a colour of somebody's
+       own where it does not. */
+    static colourName = (value) => {
+      for (const h of COMPOSE_FMT.colourHues) {
+        const i = h.shades.indexOf(value);
+        if (i >= 0) return COMPOSE_FMT.colourShades[i].name(h.name);
+      }
+      return "Custom colour " + value;
+    };
+    /* A colour of somebody's own: a hue and a saturation from the field, and a shade from 0 to 1 across the band, turned
+       into the HSL lightness that lands at that relative luminance. */
+    static colourAt = (h, sat, shade) => {
+      const B = COMPOSE_FMT.band, target = B.darkest + (B.lightest - B.darkest) * Math.min(1, Math.max(0, shade));
+      const rgb = (l) => { const a = sat * Math.min(l, 1 - l); return [0, 8, 4].map(n => { const k = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); }); };
+      const lum = (c) => c.map(v => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)).reduce((t, v, i) => t + v * [0.2126, 0.7152, 0.0722][i], 0);
+      let lo = 0, hi = 1;
+      for (let i = 0; i < 20; i++) { const m = (lo + hi) / 2; if (lum(rgb(m)) < target) lo = m; else hi = m; }
+      return "#" + rgb((lo + hi) / 2).map(v => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, "0")).join("");
+    };
+    /* Where a typed `#rrggbb` stands: its hue and saturation, and its shade pinned to the band. */
+    static colourPlace = (hex) => {
+      const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec((hex || "").trim());
+      if (!m) return null;
+      const [r, g, b] = [m[1], m[2], m[3]].map(x => parseInt(x, 16) / 255), max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min, l = (max + min) / 2;
+      const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+      const h = d === 0 ? 0 : (max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60;
+      const lum = [r, g, b].map(v => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)).reduce((t, v, i) => t + v * [0.2126, 0.7152, 0.0722][i], 0);
+      const B = COMPOSE_FMT.band;
+      return { h, s: Math.min(1, sat), shade: Math.min(1, Math.max(0, (lum - B.darkest) / (B.lightest - B.darkest))), inBand: lum >= B.darkest && lum <= B.lightest };
+    };
+    pickEmoji = (em) => { this.restoreRange(); this.exec("insertText", em.char); this.saveRange(); this.setState({ fmtMenu: null }); };
+    /* A colour is drawn as the value it is sent with in both themes; a colour of somebody's own joins the ones kept
+       beside the palette, newest first, for as long as the composer is open. */
+    pickColour = (value) => {
+      this.restyleSelection("color", value || "");
+      const own = value && !COMPOSE_FMT.colourHues.some(h => h.shades.includes(value));
+      this.setState(s => ({ fmtMenu: null, fmtPicking: false, fmtColour: value || null,
+        fmtOwnColours: own ? [value].concat((s.fmtOwnColours || []).filter(v => v !== value)).slice(0, COMPOSE_FMT.ownKept) : s.fmtOwnColours }));
+    };
     pickSize = (z) => { this.restyleSelection("fontSize", Component.sizeEm(z.key)); this.setState({ fmtMenu: null, fmtSize: z.key }); };
     pickAlign = (a) => { this.restoreRange(); this.exec(a.command); this.setState({ fmtMenu: null, fmtAlign: a.key }); };
     insertTable = () => {
@@ -3289,20 +3329,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const inner = Array.from(n.childNodes).map(walk).join("");
         if (/^H[1-6]$/.test(n.tagName)) { const em = Component.sizeEm(["largest", "larger", "large"][Number(n.tagName[1]) - 1]); return "<p><b" + (em ? " style=\"font-size:" + em + "\"" : "") + ">" + inner + "</b></p>"; }
         if (n.tagName === "A" && /^https?:/i.test(n.getAttribute("href") || "")) return "<a href=\"" + this.escapeHtml(n.getAttribute("href")) + "\">" + inner + "</a>";
-        /* A colour survives: a palette one as its swatch, any other opaque one as itself. The near-grey dark colour a
-           page writes its body text in is the page's default rather than a choice, and is dropped. */
+        /* A colour survives as itself, drawn as the value it is sent with. The near-grey dark colour a page writes its
+           body text in is the page's default rather than a choice, and is dropped. */
         const probe = document.createElement("i");
         probe.style.color = (n.style && n.style.color) || (n.tagName === "FONT" && n.getAttribute("color")) || "";
         const drawn = probe.style.color.replace(/\s+/g, "");
-        const swatch = drawn ? COMPOSE_FMT.colours.find(c => rgbOf(c.hex) === drawn) : null;
-        const own = !swatch && /^rgb\(\d+,\d+,\d+\)$/.test(drawn) && !bodyText(drawn) ? drawn : null;
+        const own = /^rgb\(\d+,\d+,\d+\)$/.test(drawn) && !bodyText(drawn) ? drawn : null;
         const t = tag[n.tagName];
         if (t === "br") return "<br>";
         const aligned = n.style && /^(center|right|end)$/.test(n.style.textAlign) && /^(p|div|li)$/.test(t || "") ? " style=\"text-align:" + (n.style.textAlign === "center" ? "center" : "right") + "\"" : "";
         /* `<font size>` 1 and 2 are small, 4 large, 5 larger, 6 and 7 the largest. */
         const fontStep = n.tagName === "FONT" ? ({ 1: "small", 2: "small", 4: "large", 5: "larger", 6: "largest", 7: "largest" })[n.getAttribute("size")] : null;
         const step = fontStep || (n.style ? stepOf(n.style.fontSize) : null);
-        const colour = swatch ? "var(--ink-" + swatch.key + ")" : own;
+        const colour = own;
         const run = (html) => {
           const sized = step ? "<span style=\"font-size:" + Component.sizeEm(step) + "\">" + html + "</span>" : html;
           return colour ? "<span style=\"color:" + colour + "\">" + sized + "</span>" : sized;
@@ -4576,7 +4615,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return el ? (el.innerText || "").replace(/\u200b/g, "").trim() : "";
       };
       const finishCompose = () => {
-        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false, composeFooterOpen: false, fmtMenu: null, tableCaret: false, pictureSel: null, pasteNotice: null, picturesInMemory: false };
+        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false, composeFooterOpen: false, fmtMenu: null, fmtPicking: false, fmtOwnColours: [], fmtColour: null, tableCaret: false, pictureSel: null, pasteNotice: null, picturesInMemory: false };
         if ((st.workMode || "classic") === "tabs") this.closeTab("compose");
         this.setState(patch);
       };
@@ -8623,7 +8662,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
              finger gets one row that scrolls sideways, cut at its end so the next control shows there is more. */
           const glyph = "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:" + (touch ? 22 : 18) + "px;line-height:1;";
           const menu = st.fmtMenu || null;
-          const colour = COMPOSE_FMT.colours.find(c => c.key === st.fmtColour) || null;
+          const colour = st.fmtColour || null;
           const size = COMPOSE_FMT.sizes.find(z => z.key === (st.fmtSize || "normal"));
           const align = COMPOSE_FMT.alignments.find(a => a.key === (st.fmtAlign || "start"));
           /* With the caret in a table cell, the blocks a cell cannot hold stand disabled and say why on a press. */
@@ -8646,8 +8685,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               { key: "s", label: "S", title: "Strikethrough", style: "text-decoration:line-through", run: () => this.exec("strikeThrough") },
             ],
             [
-              { key: "clr-text", label: "format_color_text", title: "Text colour - " + (colour ? colour.name : "Automatic"), style: glyph, menu: "colour", hasBar: true,
-                barStyle: "position:absolute;left:50%;bottom:" + (touch ? 8 : 4) + "px;width:" + (touch ? 18 : 14) + "px;height:3px;margin-left:-" + (touch ? 9 : 7) + "px;border-radius:2px;background:" + (colour ? "var(--ink-" + colour.key + ")" : "var(--text2)") },
+              { key: "clr-text", label: "format_color_text", title: "Text colour - " + (colour ? Component.colourName(colour) : "Automatic"), style: glyph, menu: "colour", hasBar: true,
+                barStyle: "position:absolute;left:50%;bottom:" + (touch ? 8 : 4) + "px;width:" + (touch ? 18 : 14) + "px;height:3px;margin-left:-" + (touch ? 9 : 7) + "px;border-radius:2px;background:" + (colour || "var(--text2)") },
               { key: "size", label: "format_size", title: "Text size - " + size.name, style: glyph, menu: "size" },
             ],
             [{ key: "align", label: align.icon, title: "Alignment - " + align.name, style: glyph, menu: "align" }],
@@ -8659,9 +8698,16 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             [
               { key: "lnk", label: "link", title: "Insert link", style: glyph, run: () => this.exec("createLink", "https://") },
               { key: "tbl", label: "table", title: "Insert table", style: glyph, menu: "table" },
+              { key: "emo", label: "mood", title: "Emoji", style: glyph, menu: "emoji" },
             ],
             [{ key: "clr", label: "format_clear", title: "Clear formatting", style: glyph, run: () => this.exec("removeFormat") }],
           ];
+          const swatch = (v) => {
+            const on = colour === v;
+            return { key: v, value: v, name: Component.colourName(v), checked: String(on), pick: () => this.pickColour(v),
+              style: "box-sizing:border-box;border-radius:50%;background:" + v + ";" + (touch ? "width:28px;height:28px;" : "width:18px;height:18px;") +
+                (on ? "box-shadow:0 0 0 1px var(--panel),0 0 0 3px var(--accent)" : "") };
+          };
           const item = (on) => "display:flex;align-items:center;gap:10px;box-sizing:border-box;border-radius:8px;padding:0 10px;font-size:13px;color:var(--text);" +
             (touch ? "min-height:44px;" : "min-height:32px;") + (on ? "background:var(--accent-soft);" : "");
           const check = (on) => "margin-left:auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:18px;line-height:1;color:var(--accent-d);" + (on ? "" : "visibility:hidden");
@@ -8691,26 +8737,72 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             fmtHintText: "select a passage and use an AI action to rewrite it",
             fmtWrapStyle: "position:relative;flex:0 0 auto",
             fmtMenuOpen: !!menu,
-            fmtMenuName: { colour: "Text colour", size: "Text size", align: "Alignment", table: "Insert a table" }[menu] || "",
+            fmtMenuName: { colour: "Text colour", size: "Text size", align: "Alignment", table: "Insert a table", emoji: "Emoji" }[menu] || "",
             fmtMenuColour: menu === "colour",
             fmtMenuSize: menu === "size",
             fmtMenuAlign: menu === "align",
             fmtMenuTable: menu === "table",
+            fmtMenuEmoji: menu === "emoji",
             closeFmtMenu: () => this.setState({ fmtMenu: null }),
             fmtMenuStyle: "position:absolute;top:100%;z-index:30;margin-top:4px;display:flex;flex-direction:column;gap:2px;box-sizing:border-box;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,0.18);" +
-              (touch ? "left:12px;right:12px" : "left:" + (st.fmtMenuLeft || 12) + "px;width:" + (menu === "colour" ? 300 : menu === "table" ? 280 : 220) + "px"),
+              (touch ? "left:12px;right:12px" : "left:" + (st.fmtMenuLeft || 12) + "px;width:" + Component.fmtMenuWidth(menu) + "px"),
             fmtMenuHeadStyle: "padding:4px 10px 6px;font-size:12px;font-weight:600;color:var(--muted)",
+            /* The colour menu: *Automatic* as a row, then the palette as a grid of small discs — a column per hue, a row
+               per shade, no names written, each named by its `title` and `aria-label` — then the colours of somebody's own
+               and a dashed disc that opens the picker in the menu's place. The chosen disc stands in an accent ring. */
             fmtAutoStyle: item(!colour),
             fmtAutoCheckStyle: check(!colour),
             fmtAutoChecked: String(!colour),
             pickAutoColour: () => this.pickColour(null),
-            fmtColourGridStyle: "display:grid;grid-template-columns:" + (isMobile ? "1fr 1fr" : "1fr 1fr") + ";gap:2px",
-            fmtColourItems: COMPOSE_FMT.colours.map(c => ({
-              key: c.key, name: c.name, checked: String(!!colour && colour.key === c.key),
-              style: item(!!colour && colour.key === c.key),
-              swatchStyle: "flex:0 0 auto;width:18px;height:18px;border-radius:50%;background:var(--ink-" + c.key + ");box-shadow:inset 0 0 0 1px rgba(0,0,0,0.12)",
-              checkStyle: check(!!colour && colour.key === c.key),
-              pick: () => this.pickColour(c),
+            fmtPicking: !!st.fmtPicking,
+            fmtNotPicking: !st.fmtPicking,
+            fmtSwatchGridStyle: "display:grid;grid-template-columns:repeat(11," + (touch ? 28 : 18) + "px);gap:" + (touch ? 2 : 4) + "px;padding:4px 10px 6px",
+            fmtOwnRowStyle: "display:flex;flex-wrap:wrap;gap:" + (touch ? 2 : 4) + "px;padding:4px 10px 6px",
+            fmtOwnHeadStyle: "padding:4px 10px 0;font-size:12px;color:var(--muted)",
+            fmtColourItems: COMPOSE_FMT.colourShades.flatMap((_, i) => COMPOSE_FMT.colourHues.map(h => h.shades[i])).concat([]).map(v => swatch(v)),
+            fmtOwnItems: (st.fmtOwnColours || []).map(v => swatch(v)),
+            fmtAddStyle: "box-sizing:border-box;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border2);color:var(--text2);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:" + (touch ? 18 : 12) + "px;line-height:1;" + (touch ? "width:28px;height:28px" : "width:18px;height:18px"),
+            openColourPicker: () => { const at = (colour && Component.colourPlace(colour)) || { h: 215, s: 0.7, shade: 0.5 }; this.setState({ fmtPicking: true, fmtPick: at, fmtHex: Component.colourAt(at.h, at.s, at.shade) }); },
+            ...(() => {
+              /* The picker: a field of hue across and saturation down, a lightness slider that runs across the band only,
+                 the value as hex, and what it will write. A typed value outside the band is moved to its nearer edge. */
+              const pk = st.fmtPick || { h: 215, s: 0.7, shade: 0.5 };
+              const typed = st.fmtHex || "";
+              const place = Component.colourPlace(typed);
+              const written = place ? (place.inBand ? typed.trim().toLowerCase() : Component.colourAt(place.h, place.s, place.shade)) : Component.colourAt(pk.h, pk.s, pk.shade);
+              const move = (next) => { const p = Object.assign({}, pk, next); this.setState({ fmtPick: p, fmtHex: Component.colourAt(p.h, p.s, p.shade) }); };
+              const fromPointer = (e) => { const r = e.currentTarget.getBoundingClientRect(); move({ h: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * 360, s: 1 - Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) }); };
+              return {
+                pickFieldStyle: "position:relative;height:" + (touch ? 140 : 112) + "px;border-radius:8px;cursor:crosshair;touch-action:none;background:linear-gradient(to bottom,transparent,#9e9e9e),linear-gradient(to right,hsl(0 90% 50%),hsl(60 90% 50%),hsl(120 90% 50%),hsl(180 90% 50%),hsl(240 90% 50%),hsl(300 90% 50%),hsl(360 90% 50%))",
+                pickMarkStyle: "position:absolute;left:" + (pk.h / 360 * 100) + "%;top:" + ((1 - pk.s) * 100) + "%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.4);pointer-events:none",
+                pickFieldDown: (e) => { e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId); fromPointer(e); },
+                pickFieldMove: (e) => { if (e.buttons === 1) fromPointer(e); },
+                pickFieldText: "Hue " + Math.round(pk.h) + " degrees, saturation " + Math.round(pk.s * 100) + " percent",
+                pickShade: String(Math.round(pk.shade * 100)),
+                pickShadeChange: (e) => move({ shade: Number(e.target.value) / 100 }),
+                pickShadeStyle: "width:100%;height:" + (touch ? 12 : 8) + "px;border-radius:999px;appearance:none;-webkit-appearance:none;cursor:pointer;background:linear-gradient(to right," + Component.colourAt(pk.h, pk.s, 0) + "," + Component.colourAt(pk.h, pk.s, 1) + ")",
+                pickHex: typed,
+                pickHexChange: (e) => { const v = e.target.value, p = Component.colourPlace(v); this.setState(p ? { fmtHex: v, fmtPick: { h: p.h, s: p.s, shade: p.shade } } : { fmtHex: v }); },
+                pickHexStyle: "box-sizing:border-box;width:96px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);font-family:'Geist Mono',monospace;font-size:13px;padding:0 8px;" + (touch ? "height:44px" : "height:32px"),
+                pickPreviewStyle: "flex:0 0 auto;width:32px;height:32px;border-radius:50%;background:" + written,
+                pickInvalid: !place,
+                pickMoved: !!place && !place.inBand,
+                pickMovedText: "Moved to " + written + ", so it reads on the light and the dark theme alike.",
+                pickApply: () => { if (place) this.pickColour(written); },
+                pickBack: () => this.setState({ fmtPicking: false }),
+                pickApplyStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:0 12px;border-radius:8px;background:var(--accent);color:var(--onaccent);font-size:13px;font-weight:600;" + (touch ? "min-height:44px;" : "min-height:32px;") + (place ? "" : "opacity:0.4;cursor:not-allowed;"),
+                pickBackStyle: "display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:0 12px;border-radius:8px;color:var(--text2);font-size:13px;" + (touch ? "min-height:44px" : "min-height:32px"),
+              };
+            })(),
+            /* The emoji menu: the set in `composeFormatting.emoji`, eight to a row under a mouse and as many as fit under a
+               finger, each a 32 px (44 px) square named by what it shows. A choice puts it at the caret. */
+            fmtEmojiGridStyle: "display:grid;grid-template-columns:repeat(" + (touch ? "auto-fill,44px" : "8,32px") + ");gap:2px;padding:2px 10px 6px",
+            fmtEmojiItems: COMPOSE_FMT.emoji.map(em => ({
+              key: em.name, char: em.char, name: em.name,
+              src: COMPOSE_FMT.emojiPictures + "emoji_u" + Array.from(em.char).map(c => c.codePointAt(0)).filter(c => c !== 0xfe0f).map(c => c.toString(16).padStart(4, "0")).join("_") + ".svg",
+              imgStyle: "display:block;" + (touch ? "width:24px;height:24px" : "width:20px;height:20px"),
+              style: "display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:" + (touch ? 24 : 20) + "px;line-height:1;" + (touch ? "width:44px;height:44px" : "width:32px;height:32px"),
+              pick: () => this.pickEmoji(em),
             })),
             fmtSizeItems: COMPOSE_FMT.sizes.map(z => ({
               key: z.key, name: z.name, checked: String(size.key === z.key),

@@ -1648,12 +1648,37 @@ Project repository: https://github.com/fathomise/MailFathom
                   <div data-motion="pop" role="menu" aria-label="{{ fmtMenuName }}" style="{{ fmtMenuStyle }}">
                     <sc-if value="{{ fmtMenuColour }}" hint-placeholder-val="{{ false }}">
                       <div style="{{ fmtMenuHeadStyle }}">Text colour</div>
-                      <div role="menuitemradio" aria-checked="{{ fmtAutoChecked }}" onClick="{{ pickAutoColour }}" style="{{ fmtAutoStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--text2)">format_color_reset</span><span>Automatic</span><span style="font-size:12px;color:var(--muted);white-space:nowrap">no colour of its own</span><span aria-hidden="true" style="{{ fmtAutoCheckStyle }}">check</span></div>
-                      <div style="{{ fmtColourGridStyle }}">
-                        <sc-for list="{{ fmtColourItems }}" as="fc" hint-placeholder-count="8">
-                          <div role="menuitemradio" aria-checked="{{ fc.checked }}" aria-label="{{ fc.name }}" onClick="{{ fc.pick }}" style="{{ fc.style }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ fc.swatchStyle }}"></span><span>{{ fc.name }}</span><span aria-hidden="true" style="{{ fc.checkStyle }}">check</span></div>
-                        </sc-for>
-                      </div>
+                      <sc-if value="{{ fmtNotPicking }}" hint-placeholder-val="{{ true }}">
+                        <div role="menuitemradio" aria-checked="{{ fmtAutoChecked }}" onClick="{{ pickAutoColour }}" style="{{ fmtAutoStyle }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--text2)">format_color_reset</span><span>Automatic</span><span aria-hidden="true" style="{{ fmtAutoCheckStyle }}">check</span></div>
+                        <div style="{{ fmtSwatchGridStyle }}">
+                          <sc-for list="{{ fmtColourItems }}" as="fc" hint-placeholder-count="55">
+                            <div role="menuitemradio" aria-checked="{{ fc.checked }}" aria-label="{{ fc.name }}" title="{{ fc.name }}" onClick="{{ fc.pick }}" style="{{ fc.style }}" style-hover="cursor:pointer;transform:scale(1.15)"></div>
+                          </sc-for>
+                        </div>
+                        <div style="{{ fmtOwnHeadStyle }}">Your colours</div>
+                        <div style="{{ fmtOwnRowStyle }}">
+                          <sc-for list="{{ fmtOwnItems }}" as="fo" hint-placeholder-count="0">
+                            <div role="menuitemradio" aria-checked="{{ fo.checked }}" aria-label="{{ fo.name }}" title="{{ fo.name }}" onClick="{{ fo.pick }}" style="{{ fo.style }}" style-hover="cursor:pointer;transform:scale(1.15)"></div>
+                          </sc-for>
+                          <div role="menuitem" aria-label="Choose a colour of your own" title="Choose a colour of your own" onClick="{{ openColourPicker }}" style="{{ fmtAddStyle }}" style-hover="cursor:pointer;background:var(--hover)">add</div>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{ fmtPicking }}" hint-placeholder-val="{{ false }}">
+                        <div role="group" aria-label="A colour of your own" style="display:flex;flex-direction:column;gap:8px;padding:0 10px 6px">
+                          <div role="slider" tabindex="0" aria-label="Hue and saturation" aria-valuetext="{{ pickFieldText }}" onPointerDown="{{ pickFieldDown }}" onPointerMove="{{ pickFieldMove }}" style="{{ pickFieldStyle }}"><span aria-hidden="true" style="{{ pickMarkStyle }}"></span></div>
+                          <label style="font-size:12px;color:var(--muted)">Lightness<input type="range" min="0" max="100" value="{{ pickShade }}" onChange="{{ pickShadeChange }}" style="{{ pickShadeStyle }}"></label>
+                          <div style="display:flex;align-items:center;gap:10px">
+                            <span aria-hidden="true" style="{{ pickPreviewStyle }}"></span>
+                            <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">Hex<input value="{{ pickHex }}" onChange="{{ pickHexChange }}" maxlength="7" spellcheck="false" style="{{ pickHexStyle }}"></label>
+                          </div>
+                          <sc-if value="{{ pickInvalid }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:12px;color:var(--err-text)">Type a colour as # and six hexadecimal digits.</div></sc-if>
+                          <sc-if value="{{ pickMoved }}" hint-placeholder-val="{{ false }}"><div role="status" style="font-size:12px;line-height:1.45;color:var(--muted)">{{ pickMovedText }}</div></sc-if>
+                          <div style="display:flex;justify-content:flex-end;gap:8px">
+                            <div role="button" onClick="{{ pickBack }}" style="{{ pickBackStyle }}" style-hover="cursor:pointer;background:var(--hover)">Back to the palette</div>
+                            <div role="button" onClick="{{ pickApply }}" style="{{ pickApplyStyle }}" style-hover="cursor:pointer;opacity:0.9">Apply</div>
+                          </div>
+                        </div>
+                      </sc-if>
                     </sc-if>
                     <sc-if value="{{ fmtMenuSize }}" hint-placeholder-val="{{ false }}">
                       <div style="{{ fmtMenuHeadStyle }}">Text size</div>
@@ -1666,6 +1691,14 @@ Project repository: https://github.com/fathomise/MailFathom
                       <sc-for list="{{ fmtAlignItems }}" as="fa" hint-placeholder-count="4">
                         <div role="menuitemradio" aria-checked="{{ fa.checked }}" onClick="{{ fa.pick }}" style="{{ fa.style }}" style-hover="cursor:pointer;background:var(--hover)"><span aria-hidden="true" style="{{ fa.glyphStyle }}">{{ fa.icon }}</span><span>{{ fa.name }}</span><span aria-hidden="true" style="{{ fa.checkStyle }}">check</span></div>
                       </sc-for>
+                    </sc-if>
+                    <sc-if value="{{ fmtMenuEmoji }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ fmtMenuHeadStyle }}">Emoji</div>
+                      <div style="{{ fmtEmojiGridStyle }}">
+                        <sc-for list="{{ fmtEmojiItems }}" as="fe" hint-placeholder-count="32">
+                          <div role="menuitem" aria-label="{{ fe.name }}" title="{{ fe.name }}" onClick="{{ fe.pick }}" style="{{ fe.style }}" style-hover="cursor:pointer;background:var(--hover)"><img src="{{ fe.src }}" alt="" draggable="false" style="{{ fe.imgStyle }}"></div>
+                        </sc-for>
+                      </div>
                     </sc-if>
                     <sc-if value="{{ fmtMenuTable }}" hint-placeholder-val="{{ false }}">
                       <div style="{{ fmtMenuHeadStyle }}">Insert a table</div>

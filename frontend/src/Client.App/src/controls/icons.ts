@@ -122,6 +122,7 @@ export const iconNames = [
     'menu',
     'search',
     'more_horiz',
+    'mood',
     'more_vert',
     'move_to_inbox',
     'notifications',

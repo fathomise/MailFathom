@@ -54,7 +54,7 @@ The model answers the body as blocks of a closed set, and the service reads them
 - **a table**, rows of cells with the first row optionally a header — and a table wider or longer than the bounds is
   read as one paragraph of words per row instead.
 
-A run carries a **colour only where the person named one**, and only one of a fixed palette of swatch names; an
+A run carries a **colour only where the person named one**, and only one of nine hue names, each written as that hue's vivid shade in the composer's palette; an
 **alignment** likewise only where the person asked for it. There is no size, no picture, and no heading — a section
 opens with a bold lead-in instead. Anything outside the set is kept as its words rather than refused, so a model that
 answers a plain string or a shape nobody published still yields the reply it wrote.

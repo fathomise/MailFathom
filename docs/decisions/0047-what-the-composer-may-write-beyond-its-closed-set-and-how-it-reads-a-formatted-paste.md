@@ -79,8 +79,8 @@ one of the client's own two tokens rather than as the value.
 
 **Question 2 — colour**
 
-- **K1** — The tree carries any opaque colour, as `MailDocumentColour` does; the picker offers a fixed palette.
-- **K2** — The tree carries only palette colours; a paste snaps to the nearest one.
+- **K1** — The tree carries any opaque colour, as `MailDocumentColour` does; the picker writes only colours that read on both themes.
+- **K2** — The tree carries only colours the picker could write; a paste snaps to the nearest one.
 - **K3** — A paste carries no colour at all.
 
 **Question 5 — the editing model**
@@ -112,7 +112,7 @@ one of the client's own two tokens rather than as the value.
 
 ## Decision Outcome
 
-Chosen: **P1, K1, E1, Z1, S1, and A1**, with the bounds, the scale, the palette, and the flavour order below. How the
+Chosen: **P1, K1, E1, Z1, S1, and A1**, with the bounds, the scale, the colour band, and the flavour order below. How the
 record relates to ADR 0024 is stated first, because every other answer rests on it.
 
 ### How this stands against ADR 0024: an extension, with one recorded exception and one new restriction
@@ -193,7 +193,7 @@ The tree stays DOM-shaped, as `writtenText.ts` argues it must, and gains:
 
 | Addition | Carried as | Who writes it |
 |---|---|---|
-| A run's colour | `span` with an opaque `#rrggbb` colour | The picker writes a palette colour; a paste or a reopened draft may carry any opaque colour |
+| A run's colour | `span` with an opaque `#rrggbb` colour | The picker writes a colour that reads on both themes; a paste or a reopened draft may carry any opaque colour |
 | A run's size | `span` with a step of the size scale below | The size control, a paste, a reopened draft |
 | A block's alignment | `start`, `center`, `end`, or `justify` on `p`, `div`, `li`, `th`, and `td` — `MailBlockAlignment` without `Inherited`, which is the absence of a value | The alignment controls, a paste, a reopened draft |
 | A table | `table`, `tr`, `th`, `td`; a header row is a row of `th`; a cell carries alignment, an opaque background, and a column span and a row span | The table controls, a paste, a reopened draft |
@@ -201,27 +201,26 @@ The tree stays DOM-shaped, as `writtenText.ts` argues it must, and gains:
 
 **Colour (K1).** The tree carries any opaque colour, as `MailDocumentColour` does, so a reopened draft written in
 another client and a pasted range keep the colours they had rather than being snapped to something nobody chose. The
-picker offers a palette, each swatch named so the colour is never conveyed by colour alone, and *Automatic*, which
-removes the colour. Every swatch reaches 4.5:1 against the white page a message is overwhelmingly read on:
+picker offers *Automatic*, which removes the colour, a palette, and a colour of the person's own, and **everything it
+writes is neither too dark nor too light**: at least 3:1 against the light theme's panel and against the dark theme's
+alike, which bounds its relative luminance between the two values that contrast gives. A colour that reads on both
+panels is drawn in the editor as the value it is sent with, in either theme, so no second spelling of a colour exists
+for the dark one to read back. The bound is a rule rather than a list: the palette is that band sampled across hues
+and shades, and its values are the design's and the client's to choose inside it. A colour of the person's own is
+picked anywhere in hue and saturation and only inside the band in lightness, and one typed as a value outside it is
+moved to the band's nearer edge with the same hue, and said to have been. Every colour the picker offers is named, so
+none is conveyed by colour alone, and a grid that writes no names says them to a screen reader and in the name a
+pointer or a held finger reads.
 
-| Swatch | Value | Contrast on white |
-|---|---|---|
-| Red | `#b42318` | 6.6:1 |
-| Orange | `#b54708` | 5.4:1 |
-| Amber | `#8a6100` | 5.5:1 |
-| Green | `#067647` | 5.7:1 |
-| Teal | `#0e7490` | 5.4:1 |
-| Blue | `#175cd3` | 6.0:1 |
-| Purple | `#6941c6` | 6.6:1 |
-| Pink | `#c11574` | 5.8:1 |
-| Grey | `#667085` | 5.0:1 |
-
-Grey is chosen so that `senderColourRole` reads it as `receding`, which is what somebody greying a line means and what
-the reading pane already draws for one. A paste drops two colours that are the source's defaults rather than a choice:
+3:1 rather than the 4.5:1 body text is held to is what a band readable on both themes can reach: no luminance is 4.5:1
+against a white page and a dark panel at once. A sent message is overwhelmingly read on a white page, where every
+colour the picker writes is 3:1 or more, which is the bar for the emphasis a coloured run is. A grey in the band is
+light enough that `senderColourRole` reads it as `receding`, which is what somebody greying a line means and what the
+reading pane already draws for one. A paste drops two colours that are the source's defaults rather than a choice:
 a foreground in the range `senderColour.ts` describes senders writing body text in — near-grey and dark, at or under
 its saturation bound of 0.25 and under its lightness bound of 0.35, which Excel's `color: black` and `windowtext` on
-every cell both are — and a background as light as the page (every channel at `#f8` or above). How the editor shows a coloured run on the dark
-panel is the design's, under [#2848](https://github.com/fathomise/MailFathom/issues/2848); what is sent is the value.
+every cell both are — and a background as light as the page (every channel at `#f8` or above). A pasted or reopened
+colour outside the band is the source's choice and is kept and drawn as it is; what is sent is the value.
 
 **Size.** A closed scale of four marked steps and an unmarked normal, named for what they are rather than in pixels:
 
@@ -326,7 +325,7 @@ the composer's to resolve. Only the pictures the tree names are kept in the stor
 ### Question 5: `execCommand` stays for what it does inside the set, and structural operations are functions over the tree
 
 **E1.** `execCommand` keeps every operation it performs inside the closed set: the four emphases, the lists, the quote,
-the link, clearing, and now colour (`foreColor` with a palette value), size (`fontSize` with 2, 4, 5, or 6), and
+the link, clearing, and now colour (`foreColor` with a value the picker wrote), size (`fontSize` with 2, 4, 5, or 6), and
 alignment (`justifyLeft`, `justifyCenter`, `justifyRight`, `justifyFull`). It still composes with elements
 (`styleWithCSS` off), so it writes `<font color>`, `<font size>`, and `text-align` on a block, and **that is the
 engine's spelling, not the tree's**: `writtenIn` reads each into the typed value, the tree never holds a `font` element,
@@ -388,8 +387,8 @@ as 200 is a figure silently missing from somebody's message. Ctrl+Shift+V stays 
 
 **A1.** The drafting agent's JSON answer gains a list of blocks in place of a plain `body` string, each block one of
 `paragraph`, `list` (ordered or not, one level, items of runs), or `table` (a header flag and rows of cells of runs). A
-run is text with bold, italic, a link, and — only where the person named one — a colour given as a **palette swatch
-name** from Question 2, never a value; a block takes an alignment only where the person named one. The agent writes no
+run is text with bold, italic, a link, and — only where the person named one — a colour given as the **name of one
+of the palette's hues** from Question 2, never a value, read as that hue's vivid shade; a block takes an alignment only where the person named one. The agent writes no
 size and no picture.
 
 **A link names its target by position, never by address.** Model output is text a prompt injection in the mail being
@@ -525,14 +524,14 @@ the subset it would be used for.
 - Good, because nothing moves.
 - Bad, because formatted and spreadsheet paste are what #2846 exists to give.
 
-### K1 — any opaque colour, a palette in the picker
+### K1 — any opaque colour, the picker held to a band readable on both themes
 
 - Good, because a reopened draft and a pasted range keep the colours they had, and the tree matches the document's own
   `MailDocumentColour`.
 - Bad, because a paste can carry a colour illegible on the page — narrowed by the two dropped defaults, and left as the
   source's choice beyond them.
 
-### K2 — palette colours only, a paste snapped to the nearest
+### K2 — picker colours only, a paste snapped to the nearest
 
 - Good, because every colour sent passes the contrast bar.
 - Bad, because a corporate colour becomes the nearest swatch, which is a colour nobody chose, and a reopened draft from

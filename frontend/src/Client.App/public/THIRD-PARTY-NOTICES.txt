@@ -277,7 +277,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 Material Symbols Rounded, at commit 84ccef280841abfac506afc4ad4a2782f6d0a1d0
 https://github.com/google/material-design-icons
 
-The client's iconography, committed under src/Client.App/src/assets/icons/ as one hundred and fifty-three outlines
+The client's iconography, committed under src/Client.App/src/assets/icons/ as one hundred and fifty-four outlines
 at weight 300 with FILL 0 and GRAD 0. Each file is the upstream one, unmodified; the build reads
 the single path out of each and inlines it, so what the bundle carries is the outline rather than
 a font fetched from a CDN.
@@ -296,8 +296,31 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
+--------------------------------------------------------------------------------
+
+Noto Emoji, at commit 99701e07d3d1fe1bdbcdb14964547f0fd592966f
+https://github.com/googlefonts/noto-emoji
+
+The pictures the composer's emoji menu draws, committed under src/Client.App/src/assets/emoji/ as
+thirty-two files taken unmodified from the upstream 2D/svg/ directory.
+
+Copyright 2013 Google, Inc. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
 The complete text of that licence follows, and is the copy section 4(a) requires. It answers for
-this entry and for the OpenTelemetry one above, which are the two components here offered under it.
+this entry, the Material Symbols one above it, and the OpenTelemetry one above that, which are the
+three components here offered under it.
 
 ================================================================================
                                  Apache License

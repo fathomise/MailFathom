@@ -8,6 +8,7 @@ import { excelRange, rangeText } from '../../../../tests/fixtures/clipboard';
 import { focusByKey } from '../controls/useTip.harness';
 import { LocalizationProvider } from '../localization/Localization';
 import { pictureAddresses } from './pictureAddresses';
+import { readsOnBothThemes } from './textColours';
 import { base64Of, type HeldPicture } from './pictures';
 import { WrittenMessage } from './WrittenMessage';
 import {
@@ -377,6 +378,7 @@ describe('WrittenMessage, the formatting bar', () => {
             'Quote',
             'Insert a link',
             'Insert table',
+            'Emoji',
             'Clear formatting',
         ]);
     });
@@ -475,23 +477,18 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
         expect(menu).toBeDefined();
     });
 
-    it('offers Automatic and the nine named swatches, so no colour is told by colour alone', () => {
+    it('offers Automatic and a grid of named colours, a row per shade, so no colour is told by colour alone', () => {
         drawWords();
 
         press('Text colour - Automatic');
 
-        expect(screen.getAllByRole('menuitemradio').map((choice) => choice.getAttribute('aria-label'))).toEqual([
-            'Automatic',
-            'Red',
-            'Orange',
-            'Amber',
-            'Green',
-            'Teal',
-            'Blue',
-            'Purple',
-            'Pink',
-            'Grey',
-        ]);
+        const named = screen.getAllByRole('menuitemradio').map((choice) => choice.getAttribute('aria-label'));
+
+        expect(named).toHaveLength(1 + 11 * 5);
+        expect(named.slice(0, 4)).toEqual(['Automatic', 'Grey, dark', 'Red, dark', 'Orange, dark']);
+        expect(named.slice(12, 15)).toEqual(['Grey', 'Red', 'Orange']);
+        expect(named.at(-1)).toBe('Pink, soft');
+        expect(screen.getByRole('menuitem', { name: 'Choose a colour of your own' })).toBeDefined();
     });
 
     it('colours the selection with the swatch’s own value, and the control then names that swatch', () => {
@@ -499,12 +496,12 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
 
         select('urgent');
         press('Text colour - Automatic');
-        choose('Blue');
+        choose('Blue, dark');
 
-        expect(acts()).toEqual([{ command: 'foreColor', argument: '#175cd3' }]);
+        expect(acts()).toEqual([{ command: 'foreColor', argument: '#035dff' }]);
         expect(selectedWhenCommanded).toEqual(['urgent']);
         expect(screen.queryByRole('menu')).toBeNull();
-        expect(screen.getByRole('button', { name: 'Text colour - Blue' })).toBeDefined();
+        expect(screen.getByRole('button', { name: 'Text colour - Blue, dark' })).toBeDefined();
     });
 
     it('takes the colour off by asking for the colour the words are already drawn in', () => {
@@ -516,10 +513,59 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
         choose('Automatic');
 
         expect(acts()).toEqual([
-            { command: 'foreColor', argument: '#b42318' },
+            { command: 'foreColor', argument: '#f73030' },
             { command: 'foreColor', argument: getComputedStyle(words()).color },
         ]);
         expect(screen.getByRole('button', { name: 'Text colour - Automatic' })).toBeDefined();
+    });
+
+    it('writes a colour of somebody’s own, moved into the readable band, and keeps it beside the grid', () => {
+        drawWords();
+
+        press('Text colour - Automatic');
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Choose a colour of your own' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'Hex' }), { target: { value: '#000000' } });
+
+        const note = screen.getByRole('status').textContent ?? '';
+        const moved = /#[0-9a-f]{6}/u.exec(note)?.[0] ?? '';
+
+        expect(moved).not.toBe('');
+        expect(readsOnBothThemes(moved)).toBe(true);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+        expect(acts()).toEqual([{ command: 'foreColor', argument: moved }]);
+        expect(screen.getByRole('button', { name: `Text colour - Custom colour ${moved}` })).toBeDefined();
+
+        press(`Text colour - Custom colour ${moved}`);
+
+        expect(
+            screen.getByRole('menuitemradio', { name: `Custom colour ${moved}` }).getAttribute('aria-checked'),
+        ).toBe('true');
+    });
+
+    it('applies nothing while what is typed is not a colour, and says how to write one', () => {
+        drawWords();
+
+        press('Text colour - Automatic');
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Choose a colour of your own' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'Hex' }), { target: { value: '#12' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+        expect(screen.getByRole('alert').textContent).toBe('Type a colour as # and six hexadecimal digits.');
+        expect(acts()).toEqual([]);
+    });
+
+    it('puts a chosen emoji at the held selection as text, and closes its menu', () => {
+        drawWords([{ element: 'p', address: null, holds: [{ text: 'thanks' }] }]);
+
+        select('thanks');
+        press('Emoji');
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Thumbs up' }));
+
+        expect(acts()).toEqual([{ command: 'insertText', argument: '👍' }]);
+        expect(selectedWhenCommanded).toEqual(['thanks']);
+        expect(screen.queryByRole('menu')).toBeNull();
     });
 
     it.each([
@@ -623,7 +669,7 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
                 element: 'p',
                 address: null,
                 alignment: 'center',
-                holds: [{ element: 'span', address: null, colour: '#b42318', size: 'large', holds: [{ text: 'Due' }] }],
+                holds: [{ element: 'span', address: null, colour: '#f73030', size: 'large', holds: [{ text: 'Due' }] }],
             },
         ]);
 
@@ -631,7 +677,7 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
         const run = words().querySelector<HTMLElement>('font');
 
         expect(line?.style.textAlign).toBe('center');
-        expect(run?.getAttribute('color')).toBe('#b42318');
+        expect(run?.getAttribute('color')).toBe('#f73030');
         expect(run?.getAttribute('size')).toBe('4');
     });
 });

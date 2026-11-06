@@ -100,8 +100,8 @@ public sealed class ReplyDraftBlockReadingTests
     }
 
     [Theory]
-    [InlineData("Red", "#b42318")]
-    [InlineData("grey", "#667085")]
+    [InlineData("Red", "#f73030")]
+    [InlineData("grey", "#818181")]
     [InlineData("#ff0000", null)]
     [InlineData("crimson", null)]
     public void Read_AColour_KeepsOnlyAPaletteSwatchByName(string written, string? expected)
