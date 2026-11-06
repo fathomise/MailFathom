@@ -231,7 +231,7 @@ public sealed class OrchestratedUserEndpointSwitchStampTests(MailFathomOrchestra
             OrganizationWriteOutcome.Written,
             (await services.InScopeAsync(
                 (scope, token) => scope.GetRequiredService<IOrganizationStore>()
-                    .SetUserOrganizationAsync(UserId.Create(user), organization, token),
+                    .SetUserOrganizationAsync(UserId.Create(user), organization, withMailAccounts: false, underANarrowerGrant: false, token),
                 cancellationToken)).Outcome);
 
     private static async Task CommitPolicyAsync(

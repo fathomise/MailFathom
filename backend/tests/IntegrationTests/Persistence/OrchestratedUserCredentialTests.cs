@@ -587,7 +587,7 @@ public sealed class OrchestratedUserCredentialTests(MailFathomOrchestrationFixtu
             Assert.Equal(OrganizationWriteOutcome.Written, created.Outcome);
 
             var moved = await services.InScopeAsync(
-                (scope, token) => Organizations(scope).SetUserOrganizationAsync(UserId.Create(user), organization, token),
+                (scope, token) => Organizations(scope).SetUserOrganizationAsync(UserId.Create(user), organization, withMailAccounts: false, underANarrowerGrant: false, token),
                 cancellationToken);
 
             Assert.Equal(OrganizationWriteOutcome.Written, moved.Outcome);

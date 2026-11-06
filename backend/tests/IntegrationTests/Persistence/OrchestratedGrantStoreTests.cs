@@ -697,7 +697,7 @@ public sealed class OrchestratedGrantStoreTests(MailFathomOrchestrationFixture o
             Assert.Equal(
                 OrganizationWriteOutcome.Written,
                 (await services.InScopeAsync(
-                    (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(UserId.Create(colleague), organization, token),
+                    (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(UserId.Create(colleague), organization, withMailAccounts: false, underANarrowerGrant: false, token),
                     cancellationToken)).Outcome);
             Assert.Equal(
                 GrantWriteOutcome.Written,
@@ -949,7 +949,7 @@ public sealed class OrchestratedGrantStoreTests(MailFathomOrchestrationFixture o
                     token),
                 cancellationToken);
             await services.InScopeAsync(
-                (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(UserId.Create(user), organization, token),
+                (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(UserId.Create(user), organization, withMailAccounts: false, underANarrowerGrant: false, token),
                 cancellationToken);
             await services.InScopeAsync(
                 (scope, token) => Store(scope).CreateGroupAsync(group, $"group-{group:N}", organization, RecordedAt, token),
@@ -962,7 +962,7 @@ public sealed class OrchestratedGrantStoreTests(MailFathomOrchestrationFixture o
 
             // Act
             var moved = await services.InScopeAsync(
-                (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(UserId.Create(user), null, token),
+                (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(UserId.Create(user), null, withMailAccounts: false, underANarrowerGrant: false, token),
                 cancellationToken);
             var after = await ResolveAsync(services, user, cancellationToken);
 
@@ -1014,7 +1014,7 @@ public sealed class OrchestratedGrantStoreTests(MailFathomOrchestrationFixture o
                     token),
                 cancellationToken);
             await services.InScopeAsync(
-                (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(UserId.Create(member), organization, token),
+                (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(UserId.Create(member), organization, withMailAccounts: false, underANarrowerGrant: false, token),
                 cancellationToken);
             await services.InScopeAsync(
                 (scope, token) => Store(scope).CreateGroupAsync(organizationGroup, $"group-{organizationGroup:N}", organization, RecordedAt, token),

@@ -134,7 +134,7 @@ public sealed class OrchestratedAdministrativeTargetsTests(MailFathomOrchestrati
         {
             await CreateOrganizationAsync(services, organization, cancellationToken);
             await services.InScopeAsync(
-                (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(UserId.Create(user), organization, token),
+                (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(UserId.Create(user), organization, withMailAccounts: false, underANarrowerGrant: false, token),
                 cancellationToken);
 
             // Act

@@ -86,6 +86,41 @@ public sealed class PersistedOrganizationsTests
         Assert.Matches(@"\w+\.""OrganizationId"" <> @\w+ OR \w+\.""OrganizationId"" IS NULL", sql);
     }
 
+    /// <summary>
+    /// An account moves with its user only while nobody else is assigned it and it sits where they stand, so the read of
+    /// what holds a move back asks both — and asks only of the accounts the move would otherwise leave outside.
+    /// </summary>
+    [Fact]
+    public void AccountsHeldBackFromMove_AUserInAnOrganization_HoldsBackASharedAccountAndOneElsewhere()
+    {
+        // Arrange
+        using var context = DesignTimeContext();
+
+        // Act
+        var sql = PersistedOrganizations.AccountsHeldBackFromMove(context, User, Organization, organizationId: null).ToQueryString();
+
+        // Assert
+        Assert.Matches(@"\w+\.""OrganizationId"" IS NOT NULL", sql);
+        Assert.Matches(@"\w+\.""OrganizationId"" <> @\w+", sql);
+        Assert.Contains("\"UserId\" = @", sql, StringComparison.Ordinal);
+        Assert.Contains("\"UserId\" <> @", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>A user in no organization takes along only accounts in none, so an account in an organization is held back; a plain inequality against a null would hold back nothing.</summary>
+    [Fact]
+    public void AccountsHeldBackFromMove_AUserInNoOrganization_HoldsBackAnAccountInOne()
+    {
+        // Arrange
+        using var context = DesignTimeContext();
+
+        // Act
+        var sql = PersistedOrganizations.AccountsHeldBackFromMove(context, User, standingOrganizationId: null, Organization).ToQueryString();
+
+        // Assert
+        Assert.Matches(@"\w+\.""OrganizationId"" IS NOT NULL", sql);
+        Assert.Contains("\"UserId\" <> @", sql, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void UsersAssignedOutside_AMoveOutOfEveryOrganization_CountsOnlyTheUsersInOne()
     {

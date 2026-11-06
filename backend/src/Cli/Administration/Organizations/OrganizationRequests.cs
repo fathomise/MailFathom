@@ -33,7 +33,9 @@ internal sealed record OrganizationShortNameRequest(
 /// <summary>The organization one user belongs to from now on.</summary>
 /// <param name="OrganizationId">The organization to move the user into, or <see langword="null" /> when <paramref name="None" /> says they belong to none.</param>
 /// <param name="None">Whether the user is taken out of every organization.</param>
+/// <param name="WithMailAccounts">Whether the mail accounts assigned to the user alone move with them.</param>
 /// <remarks>Leaving every organization is sent as a stated decision rather than as a missing identifier, because the deployment refuses a body that states neither.</remarks>
 internal sealed record UserOrganizationRequest(
     [property: JsonPropertyName("organizationId")] Guid? OrganizationId,
-    [property: JsonPropertyName("none")] bool None);
+    [property: JsonPropertyName("none")] bool None,
+    [property: JsonPropertyName("withMailAccounts")] bool WithMailAccounts);

@@ -94,18 +94,27 @@ public interface IOrganizationStore
     /// <summary>Moves a user into an organization or out of every organization, re-scoping their password credentials with them.</summary>
     /// <param name="user">The user being moved.</param>
     /// <param name="organizationId">The organization to move them into, or <see langword="null" /> to leave them in none.</param>
+    /// <param name="withMailAccounts">Whether the mail accounts assigned to the user alone move with them, which is the one way an account a single person holds reaches another organization without its last assignment ending and its mail being erased.</param>
+    /// <param name="underANarrowerGrant">Whether the accounts that move are moved under a grant held below the deployment, which may not move the effective settings of an account naming a secret that was not provisioned for one of its users; read only where <paramref name="withMailAccounts" /> is set.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
-    /// <returns><see cref="OrganizationWriteOutcome.Written" />, <see cref="OrganizationWriteOutcome.UnknownUser" />, <see cref="OrganizationWriteOutcome.UnknownOrganization" />, <see cref="OrganizationWriteOutcome.AssignmentsOutsideOrganization" /> carrying how many of their accounts stand outside the target, <see cref="OrganizationWriteOutcome.UsernameTaken" /> carrying the colliding username where it could be read, or <see cref="OrganizationWriteOutcome.RecordLeftInvalid" /> carrying what the target's settings policy would leave their record without.</returns>
+    /// <returns><see cref="OrganizationWriteOutcome.Written" />, <see cref="OrganizationWriteOutcome.UnknownUser" />, <see cref="OrganizationWriteOutcome.UnknownOrganization" />, <see cref="OrganizationWriteOutcome.AssignmentsOutsideOrganization" /> carrying how many of their accounts stand outside the target and cannot move with them, <see cref="OrganizationWriteOutcome.UsernameTaken" /> carrying the colliding username where it could be read, or <see cref="OrganizationWriteOutcome.RecordLeftInvalid" /> carrying what the target's settings policy would leave their record, or an account moving with them, without.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> names nobody.</exception>
     /// <remarks>
-    /// Nothing is unassigned on the administrator's behalf: a user assigned an account the target would not admit stays
-    /// where they are. A move changes which settings policy governs the user, so the same commit writes the endpoint
-    /// switches their record resolves to under the target's policy and moves their record's version, which is what
-    /// has every replica compose them again; and nothing is rewritten on the record itself to make a move pass.
+    /// Nothing is unassigned on the administrator's behalf. Without <paramref name="withMailAccounts" />, a user assigned
+    /// an account the target would not admit stays where they are. With it, every such account moves with them when it
+    /// is assigned to them alone and sits in the organization they are leaving; one shared with somebody who is not
+    /// moving, or left in another organization by an assignment older than that rule, refuses the move whole, so no
+    /// assignment straddles two organizations and no account in none is left assigned to more than one user. A move
+    /// changes which settings policy governs the user and every account moving with them, so the same commit writes the
+    /// endpoint switches their record resolves to and the queryable settings each account resolves to under the
+    /// target's policy, and moves their record's version, which is what has every replica compose them again; and
+    /// nothing is rewritten on the record or an account itself to make a move pass.
     /// </remarks>
     Task<OrganizationWriteResult> SetUserOrganizationAsync(
         UserId user,
         Guid? organizationId,
+        bool withMailAccounts,
+        bool underANarrowerGrant,
         CancellationToken cancellationToken);
 
     /// <summary>Moves a mail account into an organization or out of every organization.</summary>

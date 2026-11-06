@@ -464,7 +464,7 @@ These routes accept a grant held at any of the three, and check it against the t
 | `PUT /api/admin/users/{userId}/credentials/{credentialId}/material` | The user, each scope the user holds each of their administrative names at, and every user-facing name the user holds, held at any scope; where a role the user holds lists a pattern, the whole deployment under `mailfathom.admin.roles.write` as well |
 | `PUT /api/admin/users/{userId}/credentials/{credentialId}/enablement` | The user, and — to enable — each scope the user holds each of their administrative names at, and every user-facing name the user holds, held at any scope; where a role the user holds lists a pattern, the whole deployment under `mailfathom.admin.roles.write` as well |
 | `DELETE /api/admin/users/{userId}/credentials/{credentialId}` | The user |
-| `PUT /api/admin/users/{userId}/organization` | The user where they stand, and the organization the body moves them into; a move out of every organization is the deployment's alone |
+| `PUT /api/admin/users/{userId}/organization` | The user where they stand, and the organization the body moves them into; a move out of every organization is the deployment's alone. A body moving their mail accounts with them asks the same two of `mailfathom.admin.configuration.write` as well |
 | `GET /api/admin/mail-accounts` | — lists the mail accounts the caller's scopes for `mailfathom.admin.read` cover |
 | `POST /api/admin/mail-accounts` | The user the account is recorded for; recording one for a user in no organization is the deployment's alone |
 | `GET`, `POST`, and `DELETE /api/admin/mail-accounts/{id}` | The mail account the path names |
@@ -729,7 +729,7 @@ and a request with none is refused as any other.
 | `DELETE /api/admin/role-assignments/{assignmentId}` | `mailfathom.admin.roles.write` | Revokes one assignment. It answers `204`, `404`, and `409` when it is the last one giving the deployment's root. |
 | `GET /api/admin/users/{userId}/permissions` | `mailfathom.admin.read` | Explains why the user holds each permission they hold within the caller's own scope — the role, the pattern on its list that reaches the permission where the role does not list it by name, directly or through which group, and the scope — and what each of their credentials keeps of what it listed. It answers at most 1000 rows, and `sourcesTruncated` says when the user holds more there. |
 | `GET /api/admin/records/held-back` | `mailfathom.admin.read` | Reads [the records this deployment will not read](#records-this-deployment-will-not-read), as three lists — `users`, `mailAccounts`, and `organizations` — each entry naming the record's identifier, the label it carries, the version refused where its kind has one, and one sentence per setting to correct. A deployment holding nothing back answers three empty lists. |
-| `PUT /api/admin/users/{userId}/organization` | `mailfathom.admin.credentials.write` | Moves the user into the organization the body's `organizationId` names, or out of every organization where the body says `"none": true`, re-scoping their passwords in the same transaction. A body stating neither, or both, is refused with `400` rather than read as a move out. This is what `mfctl user set-organization` sends. It answers `204`, `404` for a user this deployment does not hold, `400` for an organization it does not hold, and `409` naming the username the target already holds for another user, or how many of the user's mail accounts the target would not admit. |
+| `PUT /api/admin/users/{userId}/organization` | `mailfathom.admin.credentials.write` | Moves the user into the organization the body's `organizationId` names, or out of every organization where the body says `"none": true`, re-scoping their passwords in the same transaction. A body stating neither, or both, is refused with `400` rather than read as a move out. `"withMailAccounts": true` moves the mail accounts assigned to the user alone with them, in the same transaction, which then needs `mailfathom.admin.configuration.write` as well; left out, the user moves alone. This is what `mfctl user set-organization` sends, with `--with-accounts` for the second. It answers `204`, `404` for a user this deployment does not hold, `400` for an organization it does not hold, and `409` naming the username the target already holds for another user, how many of the user's mail accounts the target would not admit — or, moving them with the user, how many cannot move with them — or what the settings policy of the target would leave their record or one of those accounts without. |
 | `GET /api/admin/users/{userId}/credentials` | `mailfathom.admin.read` | Reads one user's [credentials](#user-credentials), each with its method, what it grants, the endpoints it may be presented on and the networks it is accepted from, whether it still authenticates, and when its material was last replaced. It publishes what each is resolved by, except where that value is derived from the secret, and for a password the `login` a person types to sign in with it. A credential whose method this build does not know, and one scoped to an organization whose short name it [will not read](#records-this-deployment-will-not-read), are left out rather than published without the login they would be typed as; the user's other credentials are listed as before. |
 | `POST /api/admin/users/{userId}/credentials` | `mailfathom.admin.credentials.write` | Provisions one of the four methods, from what that method needs, with the endpoints it may be presented on and the networks it is accepted from where the request names them. **This is one of the two routes that mint a way into somebody's mail**, and into this endpoint for a credential listing `admin`, and the one that answers with a minted key where the method mints one. It answers `409` where the value the credential resolves by is already taken — for a password within the user's organization, or among users in none, and for every other method across the deployment — and where the user already holds the hundred credentials one user may. |
 | `PUT /api/admin/users/{userId}/credentials/{credentialId}/material` | `mailfathom.admin.credentials.write` | Replaces what one credential's client presents, in a single statement, which stops the previous material working at that instant. **This is the other.** It is refused for a method holding no material to replace. |
@@ -2058,7 +2058,7 @@ such user exists rather than editing somebody else's mailboxes.
 | `mfctl user edit [--format json\|yaml]` | Opens that record in your `$VISUAL` or `$EDITOR`, as JSON or as YAML, and commits what you saved as one change |
 | `mfctl user rename --display-name <name>` | Replaces the label that user is told apart by |
 | `mfctl user endpoints [--mcp true\|false] [--client true\|false]` | Keeps that user off the MCP endpoint, the client endpoint, or both, or lets them back on |
-| `mfctl user set-organization (--organization <id> \| --none)` | Moves that user into an [organization](#organizations), or out of every one, which changes the login their passwords are typed as |
+| `mfctl user set-organization (--organization <id> \| --none) [--with-accounts]` | Moves that user into an [organization](#organizations), or out of every one, which changes the login their passwords are typed as; `--with-accounts` moves the mail accounts assigned to them alone with them |
 | `mfctl user set-job-title (--job-title <title> \| --none)` | Writes the title that user's colleagues read them by in the member directory, or takes it off |
 | `mfctl user set-manager (--manager <id> \| --none)` | Names the member of the same organization that user reports to, or nobody |
 | `mfctl user set-type --type User\|ServiceAccount` | Marks that user a person or a technical account; a technical account is never shown in the member directory |
@@ -2309,7 +2309,7 @@ method's](mcp-endpoint.md#passwords) to state.
 | `mfctl organization footer-template set --organization <id> --html-file <path> [--image <name>=<path> ...]` | Sets the [footer template](#the-organization-footer-template-routes) every member's message from the organization's accounts carries, from a markup file and the images it shows |
 | `mfctl organization footer-template show --organization <id>` | Prints the template's markup as saved, and each image's name, type, and size |
 | `mfctl organization footer-template clear --organization <id>` | Clears the template, so each member sends with their own footer again |
-| `mfctl user set-organization (--organization <id> \| --none)` | Moves one user into an organization, or out of every organization; it takes `--user` as every other user command does |
+| `mfctl user set-organization (--organization <id> \| --none) [--with-accounts]` | Moves one user into an organization, or out of every organization, with the mail accounts assigned to them alone under `--with-accounts`; it takes `--user` as every other user command does |
 | `mfctl account set-organization --account <id> (--organization <id> \| --none)` | Moves one mail account into an organization, or out of every organization |
 
 **An organization is minted with an identifier that says nothing about who it is.** It is a version 7 UUID for the
@@ -2360,7 +2360,7 @@ user, so two people who merely share a deployment are never handed the same mail
 with that one assignment, and a second one is refused:
 
 ```
-The mail account belongs to no organization and is already assigned to a user. An account in no organization is assigned to one person, so nothing was written. To share it, move the account and the users it is shared between into an organization first.
+The mail account belongs to no organization and is already assigned to a user. An account in no organization is assigned to one person, so nothing was written. To share it, move the user it is assigned to into an organization with their mail accounts, and the people it is to be shared with into the same one, first.
 ```
 
 The account's users are counted in the transaction that writes the assignment, under the lock an assignment takes on
@@ -2378,9 +2378,33 @@ deployment whatever organization holds it, which this changes nothing about.
 
 **A move never leaves an assignment straddling two organizations, and never unassigns anything.** Moving a mail account
 is refused with `409` while it is assigned to any user the target would not admit, naming how many; moving a user is
-refused the same way while they are assigned any account the target would not admit. To move a company's people with its
-mailboxes, unassign them, move both sides, and assign them again. The check and the write share one transaction, under
-the locks an assignment takes, so an assignment and a move landing at once cannot both go through.
+refused the same way while they are assigned any account the target would not admit. The check and the write share one
+transaction, under the locks an assignment takes, so an assignment and a move landing at once cannot both go through.
+
+**A person and the mailboxes only they hold move together.** Neither move above can take them on its own — the user's
+move is refused over the account and the account's over the user — and unassigning is no way round it, because ending
+an account's last assignment [erases it and every message held for it](#mail-accounts-and-who-they-are-assigned-to). Ask for the
+user's move with their accounts instead:
+
+```sh
+mfctl user set-organization --user 7c02... --organization 0197c0de-0000-7000-8000-0000000000a1 --with-accounts
+```
+
+Every account the user is assigned that the target would not admit moves with them in the same transaction, keeping its
+assignment and its mail, provided it is assigned to them alone and sits in the organization they are leaving. Each is
+judged under the settings policy it would move under exactly as a move of the account alone would be, and a
+refusal of one moves nothing. An account they share with somebody who is not moving — or one an older assignment left in
+another organization than theirs — holds the whole move back with `409`, naming how many, and unassigns nobody:
+
+```
+The user is assigned 1 mail account(s) outside the organization they would move into that cannot move with them: each is shared with somebody who is not moving, or sits in another organization than theirs. An account moves with its user only when it is assigned to them alone and sits in their organization. Nothing was changed and nobody was unassigned. Unassign the others from it first, or move the account into their organization.
+```
+
+Unassigning one of several users keeps the account and its mail, erasing only what that user authored there, so a shared
+mailbox moves once the people staying behind are unassigned from it. An account that moves with its user is still assigned to that one person, so leaving every
+organization this way never leaves an account in none shared. The move takes `mailfathom.admin.configuration.write`
+over the user and the target beside the `mailfathom.admin.credentials.write` a move of a user takes, because it is a
+move of each account too.
 
 **Changing a short name moves every member's login with it and rewrites no credential.** A credential refers to its
 organization by identifier rather than by short name, so the new login works and the old one stops at the instant the

@@ -164,23 +164,31 @@ public sealed class OrganizationAdministration
         return this.organizations.DeleteAsync(organizationId, cancellationToken);
     }
 
-    /// <summary>Moves a user into an organization, or out of every organization.</summary>
+    /// <summary>Moves a user into an organization, or out of every organization, with the mail accounts assigned to them alone where asked.</summary>
     /// <param name="user">The user being moved.</param>
     /// <param name="organizationId">The organization to move them into, or <see langword="null" /> to leave them in none.</param>
+    /// <param name="withMailAccounts">Whether the mail accounts assigned to the user alone move with them.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>What the act did, carrying the colliding username where the target already holds one of theirs.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> names nobody, or <paramref name="organizationId" /> is empty.</exception>
-    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller holds <see cref="MailFathomPermission.AdminCredentialsWrite" /> at no scope, or moves a user out of every organization without holding it over the whole deployment.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller holds <see cref="MailFathomPermission.AdminCredentialsWrite" /> at no scope — or, moving accounts with them, <see cref="MailFathomPermission.AdminConfigurationWrite" /> at no scope — or moves a user out of every organization without holding each over the whole deployment.</exception>
     /// <remarks>
     /// Both sides have to be covered: the user where they stand now, and the organization they are moved into. Leaving
     /// every organization is a move into what only the deployment's scope covers, so only the deployment's scope writes
     /// it, and it is refused by name because it names no organization whose existence a refusal could disclose. A user
     /// outside the caller's scope is answered as unknown and an organization outside it as unknown, each the way the
     /// write answers one that does not exist.
+    /// <para>
+    /// Moving the user's accounts with them is also a move of each account, which takes the grant
+    /// <see cref="SetMailAccountOrganizationAsync" /> takes over the same two sides. The accounts that move are the ones in
+    /// the user's own organization, so covering the user covers where they sit now, and the store is told whether the
+    /// mover holds that grant below the deployment for the reason <see cref="SetMailAccountOrganizationAsync" /> gives.
+    /// </para>
     /// </remarks>
     public async Task<OrganizationWriteResult> SetUserOrganizationAsync(
         UserId user,
         Guid? organizationId,
+        bool withMailAccounts,
         CancellationToken cancellationToken)
     {
         if (!user.IsSpecified)
@@ -188,26 +196,49 @@ public sealed class OrganizationAdministration
             throw new ArgumentException("A user is moved between organizations by name.", nameof(user));
         }
 
+        MailFathomPermission[] permissions = withMailAccounts
+            ? [MailFathomPermission.AdminCredentialsWrite, MailFathomPermission.AdminConfigurationWrite]
+            : [MailFathomPermission.AdminCredentialsWrite];
+
         if (organizationId is not { } destination)
         {
-            this.authorization.RequirePermissionOverTheDeployment(MailFathomPermission.AdminCredentialsWrite);
+            foreach (var permission in permissions)
+            {
+                this.authorization.RequirePermissionOverTheDeployment(permission);
+            }
 
-            return await this.organizations.SetUserOrganizationAsync(user, organizationId, cancellationToken);
+            return await this.organizations.SetUserOrganizationAsync(
+                user,
+                organizationId,
+                withMailAccounts,
+                underANarrowerGrant: false,
+                cancellationToken);
         }
 
-        this.authorization.RequirePermissionAtAnyScope(MailFathomPermission.AdminCredentialsWrite);
-
-        if (!await this.authorization.PermitsOverAsync(MailFathomPermission.AdminCredentialsWrite, user, cancellationToken))
+        foreach (var permission in permissions)
         {
-            return OrganizationWriteResult.Of(OrganizationWriteOutcome.UnknownUser);
+            this.authorization.RequirePermissionAtAnyScope(permission);
         }
 
-        if (!await this.CoversOrganizationAsync(MailFathomPermission.AdminCredentialsWrite, destination, cancellationToken))
+        foreach (var permission in permissions)
         {
-            return OrganizationWriteResult.Of(OrganizationWriteOutcome.UnknownOrganization);
+            if (!await this.authorization.PermitsOverAsync(permission, user, cancellationToken))
+            {
+                return OrganizationWriteResult.Of(OrganizationWriteOutcome.UnknownUser);
+            }
+
+            if (!await this.CoversOrganizationAsync(permission, destination, cancellationToken))
+            {
+                return OrganizationWriteResult.Of(OrganizationWriteOutcome.UnknownOrganization);
+            }
         }
 
-        return await this.organizations.SetUserOrganizationAsync(user, organizationId, cancellationToken);
+        return await this.organizations.SetUserOrganizationAsync(
+            user,
+            organizationId,
+            withMailAccounts,
+            underANarrowerGrant: withMailAccounts && !this.authorization.Permits(MailFathomPermission.AdminConfigurationWrite),
+            cancellationToken);
     }
 
     /// <summary>Asks whether the caller holds a permission at a scope covering one organization itself.</summary>

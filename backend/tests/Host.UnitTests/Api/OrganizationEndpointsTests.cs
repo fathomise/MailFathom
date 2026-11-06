@@ -39,6 +39,8 @@ public sealed class OrganizationEndpointsTests
         harness.Organizations.SetUserOrganizationAsync(
                 SyntheticUser.Deployment,
                 OrganizationId,
+                withMailAccounts: false,
+                underANarrowerGrant: false,
                 Arg.Any<CancellationToken>())
             .Returns(new OrganizationWriteResult(OrganizationWriteOutcome.UsernameTaken, CollidingUsername: "jan"));
 
@@ -86,7 +88,7 @@ public sealed class OrganizationEndpointsTests
     {
         // Arrange
         var harness = new EndpointHarness(MailFathomPermission.AdminCredentialsWrite);
-        harness.Organizations.SetUserOrganizationAsync(Arg.Any<UserId>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+        harness.Organizations.SetUserOrganizationAsync(Arg.Any<UserId>(), Arg.Any<Guid?>(), withMailAccounts: false, underANarrowerGrant: false, Arg.Any<CancellationToken>())
             .Returns(OrganizationWriteResult.Of(OrganizationWriteOutcome.Written));
 
         // Act
@@ -102,6 +104,8 @@ public sealed class OrganizationEndpointsTests
         await harness.Organizations.Received(1).SetUserOrganizationAsync(
             SyntheticUser.Deployment,
             null,
+            withMailAccounts: false,
+            underANarrowerGrant: false,
             Arg.Any<CancellationToken>());
     }
 
@@ -155,7 +159,7 @@ public sealed class OrganizationEndpointsTests
     {
         // Arrange
         var harness = new EndpointHarness(MailFathomPermission.AdminCredentialsWrite);
-        harness.Organizations.SetUserOrganizationAsync(SyntheticUser.Deployment, OrganizationId, Arg.Any<CancellationToken>())
+        harness.Organizations.SetUserOrganizationAsync(SyntheticUser.Deployment, OrganizationId, withMailAccounts: false, underANarrowerGrant: false, Arg.Any<CancellationToken>())
             .Returns(new OrganizationWriteResult(OrganizationWriteOutcome.AssignmentsOutsideOrganization, StandingAssignments: 4));
 
         // Act
@@ -169,6 +173,61 @@ public sealed class OrganizationEndpointsTests
         var problem = Assert.IsType<ProblemHttpResult>(result.Result);
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
         Assert.Contains("4 mail account", problem.ProblemDetails.Detail, StringComparison.Ordinal);
+        Assert.Contains("with their mail accounts", problem.ProblemDetails.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unassign", problem.ProblemDetails.Detail, StringComparison.Ordinal);
+    }
+
+    /// <summary>A body asking for the user's accounts as well reaches the store as that move, which is the one that keeps the mailbox a single person holds.</summary>
+    [Fact]
+    public async Task SetUserOrganizationAsync_ABodyAskingForTheMailAccountsToo_MovesThemWithTheUser()
+    {
+        // Arrange
+        var harness = new EndpointHarness(MailFathomPermission.AdminCredentialsWrite, MailFathomPermission.AdminConfigurationWrite);
+        harness.Organizations.SetUserOrganizationAsync(
+                SyntheticUser.Deployment,
+                OrganizationId,
+                withMailAccounts: true,
+                underANarrowerGrant: false,
+                Arg.Any<CancellationToken>())
+            .Returns(OrganizationWriteResult.Of(OrganizationWriteOutcome.Written));
+
+        // Act
+        var result = await OrganizationEndpoints.SetUserOrganizationAsync(
+            SyntheticUser.Deployment.Value,
+            new UserOrganizationRequest(OrganizationId, None: null, WithMailAccounts: true),
+            harness.Administration,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.IsType<NoContent>(result.Result);
+    }
+
+    /// <summary>An account that cannot move with the user is named as such, and the refusal does not send the administrator back to the move it was asked instead of.</summary>
+    [Fact]
+    public async Task SetUserOrganizationAsync_AccountsThatCannotMoveWithTheUser_IsAConflictSayingWhy()
+    {
+        // Arrange
+        var harness = new EndpointHarness(MailFathomPermission.AdminCredentialsWrite, MailFathomPermission.AdminConfigurationWrite);
+        harness.Organizations.SetUserOrganizationAsync(
+                SyntheticUser.Deployment,
+                OrganizationId,
+                withMailAccounts: true,
+                underANarrowerGrant: false,
+                Arg.Any<CancellationToken>())
+            .Returns(new OrganizationWriteResult(OrganizationWriteOutcome.AssignmentsOutsideOrganization, StandingAssignments: 1));
+
+        // Act
+        var result = await OrganizationEndpoints.SetUserOrganizationAsync(
+            SyntheticUser.Deployment.Value,
+            new UserOrganizationRequest(OrganizationId, None: null, WithMailAccounts: true),
+            harness.Administration,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var problem = Assert.IsType<ProblemHttpResult>(result.Result);
+        Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
+        Assert.Contains("1 mail account(s)", problem.ProblemDetails.Detail, StringComparison.Ordinal);
+        Assert.Contains("cannot move with them", problem.ProblemDetails.Detail, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -180,7 +239,7 @@ public sealed class OrganizationEndpointsTests
     {
         // Arrange
         var harness = new EndpointHarness(MailFathomPermission.AdminCredentialsWrite);
-        harness.Organizations.SetUserOrganizationAsync(SyntheticUser.Deployment, null, Arg.Any<CancellationToken>())
+        harness.Organizations.SetUserOrganizationAsync(SyntheticUser.Deployment, null, withMailAccounts: false, underANarrowerGrant: false, Arg.Any<CancellationToken>())
             .Returns(new OrganizationWriteResult(OrganizationWriteOutcome.RecordLeftInvalid)
             {
                 Corrections = ["Language is not stated."],
@@ -197,7 +256,7 @@ public sealed class OrganizationEndpointsTests
         var problem = Assert.IsType<ProblemHttpResult>(result.Result);
         Assert.Equal(StatusCodes.Status409Conflict, problem.StatusCode);
         Assert.Contains("Language is not stated.", problem.ProblemDetails.Detail, StringComparison.Ordinal);
-        Assert.Contains("they were not moved", problem.ProblemDetails.Detail, StringComparison.Ordinal);
+        Assert.Contains("nothing was moved", problem.ProblemDetails.Detail, StringComparison.Ordinal);
     }
 
     /// <summary>An account is not moved away from the users it is assigned to, and the refusal says how many stand in the way rather than unassigning them.</summary>
@@ -474,10 +533,10 @@ public sealed class OrganizationEndpointsTests
 
     private sealed class EndpointHarness
     {
-        internal EndpointHarness(MailFathomPermission granted)
+        internal EndpointHarness(params MailFathomPermission[] granted)
         {
             var principals = Substitute.For<IAuthorizedPrincipalSource>();
-            principals.Current.Returns(AuthorizedPrincipal.Caller("operations", [granted]));
+            principals.Current.Returns(AuthorizedPrincipal.Caller("operations", [.. granted]));
 
             this.Organizations = Substitute.For<IOrganizationStore>();
 

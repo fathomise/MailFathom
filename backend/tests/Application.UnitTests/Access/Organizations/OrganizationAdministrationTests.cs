@@ -70,7 +70,7 @@ public sealed class OrganizationAdministrationTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            harness.Administration.SetUserOrganizationAsync(User, OrganizationId, TestContext.Current.CancellationToken));
+            harness.Administration.SetUserOrganizationAsync(User, OrganizationId, withMailAccounts: false, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.AdminCredentialsWrite, refusal.RequiredPermission);
@@ -409,11 +409,11 @@ public sealed class OrganizationAdministrationTests
         // Arrange
         var harness = new AdministrationHarness(
             AccessAuthorizations.ForAdministratorScopedAt(scope, MailFathomPermission.AdminCredentialsWrite));
-        harness.Organizations.SetUserOrganizationAsync(User, OrganizationId, Arg.Any<CancellationToken>())
+        harness.Organizations.SetUserOrganizationAsync(User, OrganizationId, withMailAccounts: false, underANarrowerGrant: false, Arg.Any<CancellationToken>())
             .Returns(OrganizationWriteResult.Of(OrganizationWriteOutcome.Written));
 
         // Act
-        var result = await harness.Administration.SetUserOrganizationAsync(User, OrganizationId, TestContext.Current.CancellationToken);
+        var result = await harness.Administration.SetUserOrganizationAsync(User, OrganizationId, withMailAccounts: false, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(OrganizationWriteOutcome.Written, result.Outcome);
@@ -428,7 +428,7 @@ public sealed class OrganizationAdministrationTests
             AccessAuthorizations.ForAdministratorScopedAt(scope, MailFathomPermission.AdminCredentialsWrite));
 
         // Act
-        var result = await harness.Administration.SetUserOrganizationAsync(User, OrganizationId, TestContext.Current.CancellationToken);
+        var result = await harness.Administration.SetUserOrganizationAsync(User, OrganizationId, withMailAccounts: false, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(OrganizationWriteOutcome.UnknownUser, result.Outcome);
@@ -445,7 +445,7 @@ public sealed class OrganizationAdministrationTests
             AccessAuthorizations.ForAdministratorScopedAt(scope, MailFathomPermission.AdminCredentialsWrite));
 
         // Act
-        var result = await harness.Administration.SetUserOrganizationAsync(User, OtherOrganizationId, TestContext.Current.CancellationToken);
+        var result = await harness.Administration.SetUserOrganizationAsync(User, OtherOrganizationId, withMailAccounts: false, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(OrganizationWriteOutcome.UnknownOrganization, result.Outcome);
@@ -457,11 +457,11 @@ public sealed class OrganizationAdministrationTests
     {
         // Arrange
         var harness = new AdministrationHarness(MailFathomPermission.AdminCredentialsWrite);
-        harness.Organizations.SetUserOrganizationAsync(User, Arg.Is((Guid?)null), Arg.Any<CancellationToken>())
+        harness.Organizations.SetUserOrganizationAsync(User, Arg.Is((Guid?)null), withMailAccounts: false, underANarrowerGrant: false, Arg.Any<CancellationToken>())
             .Returns(OrganizationWriteResult.Of(OrganizationWriteOutcome.Written));
 
         // Act
-        var result = await harness.Administration.SetUserOrganizationAsync(User, organizationId: null, TestContext.Current.CancellationToken);
+        var result = await harness.Administration.SetUserOrganizationAsync(User, organizationId: null, withMailAccounts: false, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(OrganizationWriteOutcome.Written, result.Outcome);
@@ -479,11 +479,76 @@ public sealed class OrganizationAdministrationTests
 
         // Act
         var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
-            harness.Administration.SetUserOrganizationAsync(User, organizationId: null, TestContext.Current.CancellationToken));
+            harness.Administration.SetUserOrganizationAsync(User, organizationId: null, withMailAccounts: false, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Equal(MailFathomPermission.AdminCredentialsWrite, refusal.RequiredPermission);
         Assert.True(refusal.RefusedForTheDeploymentAlone);
+        Assert.Empty(harness.Organizations.ReceivedCalls());
+    }
+
+    /// <summary>Moving a user's accounts with them is a move of each account too, so the grant a user's move takes does not reach it alone.</summary>
+    [Fact]
+    public async Task SetUserOrganizationAsync_WithMailAccountsByACallerGrantedOnlyTheCredentialsWrite_IsRefusedWithoutTouchingTheStore()
+    {
+        // Arrange
+        var harness = new AdministrationHarness(MailFathomPermission.AdminCredentialsWrite);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
+            harness.Administration.SetUserOrganizationAsync(User, OrganizationId, withMailAccounts: true, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailFathomPermission.AdminConfigurationWrite, refusal.RequiredPermission);
+        Assert.Empty(harness.Organizations.ReceivedCalls());
+    }
+
+    /// <summary>A caller holding both grants where the user and the destination are reaches the store moving the accounts, and a grant below the deployment is passed on as one.</summary>
+    [Theory]
+    [MemberData(nameof(ScopesCoveringTheOrganization))]
+    public async Task SetUserOrganizationAsync_WithMailAccountsByACallerCoveringBothSidesUnderBothGrants_ReachesTheStoreMovingThem(AssignmentScope scope)
+    {
+        // Arrange
+        var harness = new AdministrationHarness(AccessAuthorizations.ForAdministratorScopedAt(
+            scope,
+            MailFathomPermission.AdminCredentialsWrite,
+            MailFathomPermission.AdminConfigurationWrite));
+        var narrower = scope != AssignmentScope.Deployment;
+        harness.Organizations.SetUserOrganizationAsync(
+                User,
+                OrganizationId,
+                withMailAccounts: true,
+                underANarrowerGrant: narrower,
+                Arg.Any<CancellationToken>())
+            .Returns(OrganizationWriteResult.Of(OrganizationWriteOutcome.Written));
+
+        // Act
+        var result = await harness.Administration.SetUserOrganizationAsync(User, OrganizationId, withMailAccounts: true, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OrganizationWriteOutcome.Written, result.Outcome);
+    }
+
+    /// <summary>A caller whose configuration grant reaches neither the user nor the destination moves nothing, answered the way a target outside their scope is.</summary>
+    [Fact]
+    public async Task SetUserOrganizationAsync_WithMailAccountsWhereTheConfigurationGrantCoversAnotherOrganization_IsAnsweredAsUnknownWithoutTouchingTheStore()
+    {
+        // Arrange
+        var targets = Substitute.For<IAdministrativeTargets>();
+        targets.PlaceUserAsync(User, Arg.Any<CancellationToken>()).Returns(AdministrativeTarget.User(User, OrganizationId));
+        var harness = new AdministrationHarness(AccessAuthorizations.ForAdministratorScoped(
+            ScopedGrant.Of(
+            [
+                (MailFathomPermission.AdminCredentialsWrite, AssignmentScope.Organization(OrganizationId)),
+                (MailFathomPermission.AdminConfigurationWrite, AssignmentScope.Organization(OtherOrganizationId)),
+            ]),
+            targets));
+
+        // Act
+        var result = await harness.Administration.SetUserOrganizationAsync(User, OrganizationId, withMailAccounts: true, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(OrganizationWriteOutcome.UnknownUser, result.Outcome);
         Assert.Empty(harness.Organizations.ReceivedCalls());
     }
 

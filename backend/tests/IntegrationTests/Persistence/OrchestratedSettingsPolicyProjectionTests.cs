@@ -303,7 +303,7 @@ public sealed class OrchestratedSettingsPolicyProjectionTests(MailFathomOrchestr
         Guid? organization,
         CancellationToken cancellationToken) => services.InScopeAsync(
             (scope, token) => scope.GetRequiredService<IOrganizationStore>()
-                .SetUserOrganizationAsync(UserId.Create(user), organization, token),
+                .SetUserOrganizationAsync(UserId.Create(user), organization, withMailAccounts: false, underANarrowerGrant: false, token),
             cancellationToken);
 
     private static Task<SettingsPolicyCommit> CommitPolicyAsync(

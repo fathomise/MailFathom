@@ -14483,6 +14483,12 @@
               "null",
               "string"
             ]
+          },
+          "withMailAccounts": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         },
         "required": [

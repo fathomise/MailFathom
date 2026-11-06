@@ -314,10 +314,19 @@ internal sealed class PersistedOrganizations(
     /// the target's policy are written with the organization, so a request authenticates against the policy the user
     /// now stands under from the commit onwards.
     /// </para>
+    /// <para>
+    /// Moving the user's accounts with them locks every account they are assigned before the user's own row, which is
+    /// the order an assignment and a move of an account take them in, so none of the three waits on another in a
+    /// circle. The accounts are locked again once the user's row is held, which reaches an account assigned to them in
+    /// between: that assignment had to commit before the user's lock was granted. Each account that moves is judged as
+    /// a move of it alone would judge it, and is moved in the same commit as the user.
+    /// </para>
     /// </remarks>
     public async Task<OrganizationWriteResult> SetUserOrganizationAsync(
         UserId user,
         Guid? organizationId,
+        bool withMailAccounts,
+        bool underANarrowerGrant,
         CancellationToken cancellationToken)
     {
         if (!user.IsSpecified)
@@ -335,6 +344,11 @@ internal sealed class PersistedOrganizations(
             GoverningSettingsPolicyStatements.HoldBesideRecordWrites,
             cancellationToken);
 
+        if (withMailAccounts)
+        {
+            await LockAssignedMailAccountsAsync(dbContext, userId, cancellationToken);
+        }
+
         await dbContext.Database.ExecuteSqlAsync(
             $"""SELECT 1 FROM settings_accounts WHERE "Id" = {userId} FOR UPDATE""",
             cancellationToken);
@@ -350,13 +364,39 @@ internal sealed class PersistedOrganizations(
             return OrganizationWriteResult.Of(OrganizationWriteOutcome.UnknownOrganization);
         }
 
-        var straddling = await AccountsAssignedOutside(dbContext, userId, organizationId).CountAsync(cancellationToken);
+        Guid[] moving = [];
 
-        if (straddling > 0)
+        if (withMailAccounts)
         {
-            return new OrganizationWriteResult(
-                OrganizationWriteOutcome.AssignmentsOutsideOrganization,
-                StandingAssignments: straddling);
+            await LockAssignedMailAccountsAsync(dbContext, userId, cancellationToken);
+
+            var standingOrganization = await dbContext.UserAccounts
+                .Where(record => record.Id == userId)
+                .Select(record => record.OrganizationId)
+                .SingleAsync(cancellationToken);
+
+            var heldBack = await AccountsHeldBackFromMove(dbContext, userId, standingOrganization, organizationId)
+                .CountAsync(cancellationToken);
+
+            if (heldBack > 0)
+            {
+                return new OrganizationWriteResult(
+                    OrganizationWriteOutcome.AssignmentsOutsideOrganization,
+                    StandingAssignments: heldBack);
+            }
+
+            moving = await AccountsAssignedOutside(dbContext, userId, organizationId).ToArrayAsync(cancellationToken);
+        }
+        else
+        {
+            var straddling = await AccountsAssignedOutside(dbContext, userId, organizationId).CountAsync(cancellationToken);
+
+            if (straddling > 0)
+            {
+                return new OrganizationWriteResult(
+                    OrganizationWriteOutcome.AssignmentsOutsideOrganization,
+                    StandingAssignments: straddling);
+            }
         }
 
         if (await CollidingUsernames(dbContext, userId, organizationId).FirstOrDefaultAsync(cancellationToken) is { } colliding)
@@ -377,9 +417,18 @@ internal sealed class PersistedOrganizations(
                 await PersistedSettingsPolicies.ReadGoverningAsync(dbContext, organizationId, cancellationToken)),
         ])[0];
 
-        if (judgement.Refusals.Count > 0)
+        var movingAccounts = await this.JudgeMovingMailAccountsAsync(
+            moving,
+            held.OrganizationId,
+            organizationId,
+            underANarrowerGrant,
+            cancellationToken);
+
+        IReadOnlyList<string> corrections = [.. judgement.Refusals, .. movingAccounts.SelectMany(account => account.Judgement.Refusals)];
+
+        if (corrections.Count > 0)
         {
-            return new OrganizationWriteResult(OrganizationWriteOutcome.RecordLeftInvalid) { Corrections = judgement.Refusals };
+            return new OrganizationWriteResult(OrganizationWriteOutcome.RecordLeftInvalid) { Corrections = corrections };
         }
 
         var derived = judgement.EndpointAccess is not null;
@@ -434,6 +483,9 @@ internal sealed class PersistedOrganizations(
                         .SetProperty(credential => credential.Version, credential => credential.Version + 1),
                     cancellationToken);
 
+            // The user's version already moved above, and they are the one user each of these accounts is assigned to.
+            await MoveMailAccountsAsync(dbContext, movingAccounts, organizationId, cancellationToken);
+
             await move.CommitAsync(cancellationToken);
         }
         catch (PostgresException violation) when (violation.SqlState == PostgresErrorCodes.UniqueViolation)
@@ -448,6 +500,87 @@ internal sealed class PersistedOrganizations(
         await grantChanges.AnnounceAsync();
 
         return new OrganizationWriteResult(OrganizationWriteOutcome.Written, organizationId ?? Guid.Empty);
+    }
+
+    /// <summary>Locks the row of every mail account one user is assigned, in identifier order, for the rest of the transaction.</summary>
+    /// <remarks>Exclusive against an assignment of any of them and against a move of any of them, as the lock a move of one account takes is.</remarks>
+    private static Task<int> LockAssignedMailAccountsAsync(
+        MailFathomDbContext dbContext,
+        Guid userId,
+        CancellationToken cancellationToken) =>
+        dbContext.Database.ExecuteSqlAsync(
+            $"""
+             SELECT 1 FROM settings_mail_accounts
+             WHERE "Id" IN (SELECT "MailAccountId" FROM mail_account_assignments WHERE "UserId" = {userId})
+             ORDER BY "Id"
+             FOR UPDATE
+             """,
+            cancellationToken);
+
+    /// <summary>Judges every mail account moving with a user under the policies of where it sits and of where it is going.</summary>
+    /// <returns>Each account's row with its judgement; an account whose settings were not sent is one this build binds nothing from, so it is moved unjudged and its columns are left as they stand.</returns>
+    private async Task<IReadOnlyList<MovingMailAccount>> JudgeMovingMailAccountsAsync(
+        Guid[] moving,
+        Guid? standingOrganizationId,
+        Guid? organizationId,
+        bool underANarrowerGrant,
+        CancellationToken cancellationToken)
+    {
+        if (moving.Length == 0)
+        {
+            return [];
+        }
+
+        var rows = await GovernedMailAccountRows.Of(dbContext)
+            .Where(row => moving.Contains(row.Id))
+            .ToListAsync(cancellationToken);
+        var judged = rows.Where(row => row.Document is not null).ToArray();
+
+        var standing = await PersistedSettingsPolicies.ReadGoverningAsync(dbContext, standingOrganizationId, cancellationToken);
+        var candidate = await PersistedSettingsPolicies.ReadGoverningAsync(dbContext, organizationId, cancellationToken);
+
+        var judgements = judged.Length == 0
+            ? []
+            : accountJudge.Judge(
+                [.. judged.Select(row => GovernedMailAccountJudgements.GovernedOf(row, standing, candidate))],
+                underANarrowerGrant);
+
+        return
+        [
+            .. judged.Zip(judgements, (row, judgement) => new MovingMailAccount(row, judgement)),
+            .. rows.Where(row => row.Document is null).Select(row => new MovingMailAccount(row, new MailAccountPolicyJudgement(null, []))),
+        ];
+    }
+
+    /// <summary>Writes the organization, and the queryable settings judged under it, of every mail account moving with a user.</summary>
+    private static async Task MoveMailAccountsAsync(
+        MailFathomDbContext dbContext,
+        IReadOnlyList<MovingMailAccount> movingAccounts,
+        Guid? organizationId,
+        CancellationToken cancellationToken)
+    {
+        if (movingAccounts.Count == 0)
+        {
+            return;
+        }
+
+        Guid[] moving = [.. movingAccounts.Select(account => account.Row.Id)];
+
+        await dbContext.MailAccountRecords
+            .Where(account => moving.Contains(account.Id))
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(account => account.OrganizationId, organizationId),
+                cancellationToken);
+
+        foreach (var account in movingAccounts.Where(account => account.Judgement.Settings is not null))
+        {
+            await PersistedMailAccountRecordStore.WriteQueryableSettingsAsync(
+                dbContext,
+                account.Row.Id,
+                account.Row.Version,
+                account.Judgement.Settings!,
+                cancellationToken);
+        }
     }
 
     /// <summary>Composes the usernames of one user's passwords that another user already holds in the target scope.</summary>
@@ -622,6 +755,33 @@ internal sealed class PersistedOrganizations(
                     && assignment.UserId == userId))
             .Select(account => account.Id);
 
+    /// <summary>Composes the accounts outside the target organization that cannot move with one user into it.</summary>
+    /// <param name="dbContext">The context the query is composed over.</param>
+    /// <param name="userId">The user being moved.</param>
+    /// <param name="standingOrganizationId">The organization the user stands in now, or <see langword="null" /> for none.</param>
+    /// <param name="organizationId">The organization they are moving into, or <see langword="null" /> for none.</param>
+    /// <returns>The identifiers of those accounts.</returns>
+    /// <remarks>
+    /// An account moves with its user only when it is assigned to nobody else, so moving it leaves no assignment
+    /// straddling two organizations and no account in none shared, and only when it sits in the user's own
+    /// organization, which is the scope the mover was checked against. An account an assignment older than that rule
+    /// left in another organization is held back rather than moved out of a scope nobody covered. Composed apart for the
+    /// reason <see cref="AccountsAssignedOutside" /> is.
+    /// </remarks>
+    internal static IQueryable<Guid> AccountsHeldBackFromMove(
+        MailFathomDbContext dbContext,
+        Guid userId,
+        Guid? standingOrganizationId,
+        Guid? organizationId) =>
+        dbContext.MailAccountRecords
+            .Where(account => account.OrganizationId != organizationId
+                && dbContext.MailAccountAssignments.Any(assignment => assignment.MailAccountId == account.Id
+                    && assignment.UserId == userId)
+                && (account.OrganizationId != standingOrganizationId
+                    || dbContext.MailAccountAssignments.Any(assignment => assignment.MailAccountId == account.Id
+                        && assignment.UserId != userId)))
+            .Select(account => account.Id);
+
     /// <summary>Composes the users one account is assigned to that a move into the target organization would leave outside it.</summary>
     /// <param name="dbContext">The context the query is composed over.</param>
     /// <param name="mailAccountId">The account being moved.</param>
@@ -648,6 +808,9 @@ internal sealed class PersistedOrganizations(
             .AsNoTracking()
             .Where(organization => organization.Id == organizationId)
             .Select(organization => (string?)organization.DisplayName);
+
+    /// <summary>One mail account moving with a user, as it was read and judged under the target's policy.</summary>
+    private sealed record MovingMailAccount(StoredGovernedMailAccountRow Row, MailAccountPolicyJudgement Judgement);
 
     private static OrganizationWriteResult WrittenOrUnknown(int written) => OrganizationWriteResult.Of(
         written == 1 ? OrganizationWriteOutcome.Written : OrganizationWriteOutcome.UnknownOrganization);
