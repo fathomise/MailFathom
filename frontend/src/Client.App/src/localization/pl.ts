@@ -1060,6 +1060,9 @@ export const pl: Catalogue = {
         'Nic nie wklejono - liczba wklejanych obrazów: {carried}, w wiadomości jest już: {held}, a jedna wiadomość może mieć najwyżej {most}.',
     'compose.pictureInACell':
         'Nic nie wklejono - komórka tabeli mieści tylko słowa, kolor i rozmiar, więc obraz trzeba wstawić poza tabelą.',
+    'compose.pasteTableTooLarge':
+        'Nic nie wklejono - zakres ma wierszy: {rows}, kolumn: {columns}, a tabela może mieć najwyżej {mostRows} wierszy i {mostColumns} kolumn.',
+    'compose.pasteAsPlainText': 'Wklej jako zwykły tekst',
     'compose.dismissPictureRefusal': 'Zamknij',
     'compose.picturesInThisWindowOnly':
         'Obrazy w tej wiadomości są przechowywane tylko w tym oknie - pamięć przeglądarki ich nie przyjęła. Odświeżenie lub zamknięcie okna je usunie; tekst, odbiorcy i temat pozostaną.',

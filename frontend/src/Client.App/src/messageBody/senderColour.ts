@@ -67,6 +67,22 @@ export function senderColourRole(foreground: string): SenderColourRole {
     return saturation <= greyestSaturation && lightness >= recedingLightness ? 'receding' : 'ordinary';
 }
 
+/**
+ * Whether a colour is one senders write their body text in — near-grey and dark — which is the source's default rather
+ * than a choice, so the composer's paste drops it under ADR 0047 rather than carrying it into a message.
+ *
+ * @param foreground The colour as `#rrggbb`; any other notation is answered as no body-text colour.
+ */
+export function writesBodyText(foreground: string): boolean {
+    if (!sixDigitHex.test(foreground)) {
+        return false;
+    }
+
+    const [saturation, lightness] = greyness(Number.parseInt(foreground.slice(1), 16));
+
+    return saturation <= greyestSaturation && lightness < recedingLightness;
+}
+
 /** How far from grey the colour is and how light it is, which is the HSL pair the two bounds above are read against. */
 function greyness(colour: number): [number, number] {
     const red = ((colour >> 16) & 0xff) / 255;

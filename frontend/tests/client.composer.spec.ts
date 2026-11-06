@@ -6,6 +6,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { holdTheClock, messageRegion, openSignedIn, test } from './client.harness';
 import type { FakeDeployment } from './fakeDeployment';
+import * as clipboard from './fixtures/clipboard';
 import * as deploymentCorpus from './fixtures/deployment';
 import * as drafts from './fixtures/drafts';
 import * as messages from './fixtures/messages';
@@ -1003,4 +1004,148 @@ test('pastes a picture from an address of its own, takes its removal back with o
         htmlBody: expect.stringContaining(`src="cid:${pictures[0]?.name ?? ''}" width="1" height="1"`),
     });
     expect(hostsAsked).not.toContain('pictures.example.invalid');
+});
+
+// A recorded clipboard document reaches the composer through an event the page's own script raises, carrying exactly
+// the recording. The asynchronous clipboard sanitizes what is written to it on the way in, which would take out the
+// very constructs the hostile document exists to put in front of the reader, and would make each recording whatever
+// Chromium's sanitizer left of it rather than what the source wrote.
+async function deliver(page: Page, kind: 'paste' | 'drop', flavours: Readonly<Record<string, string>>): Promise<void> {
+    const region = page.getByRole('textbox', { name: 'Message' });
+    const box = await region.boundingBox();
+
+    await region.focus();
+    // Written as the page's own script, as `copy` above is, because this suite is compiled without the DOM's types.
+    await page.evaluate(`(() => {
+        const carried = new DataTransfer();
+
+        for (const [flavour, value] of Object.entries(${JSON.stringify(flavours)})) {
+            carried.setData(flavour, value);
+        }
+
+        document.activeElement.dispatchEvent(
+            ${JSON.stringify(kind)} === 'paste'
+                ? new ClipboardEvent('paste', { clipboardData: carried, bubbles: true, cancelable: true })
+                : new DragEvent('drop', {
+                      dataTransfer: carried,
+                      clientX: ${String((box?.x ?? 0) + (box?.width ?? 0) / 2)},
+                      clientY: ${String((box?.y ?? 0) + (box?.height ?? 0) - 4)},
+                      bubbles: true,
+                      cancelable: true,
+                  }),
+        );
+    })()`);
+}
+
+/** The one message a check sent, as the deployment received it. */
+function sentBody(deployment: FakeDeployment): Record<string, unknown> {
+    const [body] = deployment.requests('POST', '/drafts').map((request) => request.body as Record<string, unknown>);
+
+    return body ?? {};
+}
+
+test('reads a hostile document pasted and dropped to its words, with no request leaving the page and no script run', async ({
+    page,
+    deployment,
+}) => {
+    const hostsAsked = new Set<string>();
+
+    page.on('request', (request) => hostsAsked.add(new URL(request.url()).host));
+
+    const message = await writeToPasteInto(page, deployment, 'Notes');
+
+    await deliver(page, 'paste', { 'text/html': clipboard.hostileDocument });
+    await deliver(page, 'drop', { 'text/html': clipboard.hostileDocument });
+
+    await expect(message.getByRole('cell', { name: 'Kept' })).toHaveCount(2);
+    await expect(message.getByText('Quarterly notes')).toHaveCount(2);
+    await expect(message.getByRole('link')).toHaveCount(0);
+    await expect(message.getByRole('img')).toHaveCount(0);
+
+    await send(page);
+
+    expect(sentBody(deployment)['htmlBody']).not.toMatch(/invalid|javascript|script|onload|onerror|onclick/u);
+    expect(await page.evaluate(`globalThis.${clipboard.ranMarker} ?? null`)).toBeNull();
+    expect([...hostsAsked].filter((host) => host !== new URL(page.url()).host)).toEqual([]);
+});
+
+test('pastes a formatted passage keeping what the closed set holds, takes it back with one Ctrl+Z, and sends it as inline styles', async ({
+    page,
+    deployment,
+}) => {
+    const message = await writeToPasteInto(page, deployment, 'Yard notes');
+
+    await deliver(page, 'paste', { 'text/html': clipboard.formattedBlock, 'text/plain': clipboard.formattedBlockText });
+
+    await expect(message.getByRole('link', { name: 'the plan' })).toHaveAttribute(
+        'href',
+        'https://yard.example.invalid/plan',
+    );
+    await expect(message.getByRole('listitem')).toHaveCount(3);
+    await expect(message.getByRole('img')).toHaveCount(0);
+
+    await page.keyboard.press('Control+Z');
+
+    await expect(message).toHaveText('Yard notes');
+
+    await deliver(page, 'paste', { 'text/html': clipboard.formattedBlock, 'text/plain': clipboard.formattedBlockText });
+    await expect(message.getByRole('listitem')).toHaveCount(3);
+    await send(page);
+
+    expect(sentBody(deployment)).toMatchObject({
+        htmlBody: expect.stringMatching(
+            /<span style="font-size:32px"><b>Yard handover<\/b><\/span>[\s\S]*<span style="color:#b42318">Gate code changes Friday\.<\/span>[\s\S]*<a href="https:\/\/yard\.example\.invalid\/plan">the plan<\/a> or nothing\./u,
+        ),
+        plainTextBody: expect.stringContaining('- Bay 4\n- Bay 5'),
+    });
+});
+
+test('pastes a range copied from a spreadsheet as a bordered table with its header row, and sends it as a grid', async ({
+    page,
+    deployment,
+}) => {
+    const message = await writeToPasteInto(page, deployment, 'Figures');
+
+    await deliver(page, 'paste', { 'text/html': clipboard.excelRange, 'text/plain': clipboard.rangeText });
+
+    await expect(message.getByRole('columnheader')).toHaveText(['Region', 'Units', 'Change']);
+    await expect(message.getByRole('cell', { name: '-35' })).toBeVisible();
+
+    await send(page);
+
+    expect(sentBody(deployment)).toMatchObject({
+        htmlBody: expect.stringMatching(
+            /<th style="border:1px solid #d0d5dd;padding:4px 8px;vertical-align:top;background-color:#d9e1f2;text-align:left"><b>Region<\/b><\/th>[\s\S]*<td style="[^"]*text-align:right"><span style="color:#c00000">-35<\/span><\/td>/u,
+        ),
+        plainTextBody: expect.stringContaining('Region | Units | Change\nNorth yard | 1,240 | -35'),
+    });
+});
+
+test('pastes the words alone under Ctrl+Shift+V, and reads the formatting the real clipboard carries under Ctrl+V', async ({
+    page,
+    deployment,
+}) => {
+    const message = await writeToPasteInto(page, deployment, 'Plan');
+
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.evaluate(`navigator.clipboard.write([
+        new ClipboardItem({
+            'text/html': new Blob([${JSON.stringify('<p>See <a href="https://yard.example.invalid/plan">the plan</a></p>')}], { type: 'text/html' }),
+            'text/plain': new Blob(['See the plan'], { type: 'text/plain' }),
+        }),
+    ])`);
+
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Control+Shift+V');
+
+    await expect(message).toContainText('See the plan');
+    await expect(message.getByRole('link')).toHaveCount(0);
+
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Control+V');
+
+    await expect(message.getByRole('link', { name: 'the plan' })).toHaveAttribute(
+        'href',
+        'https://yard.example.invalid/plan',
+    );
 });

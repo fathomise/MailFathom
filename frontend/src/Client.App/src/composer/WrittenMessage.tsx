@@ -24,6 +24,7 @@ import type { Locale } from '../localization/locale';
 import { sizeOf } from '../localization/octets';
 import { useLocalization, type Translate } from '../localization/useLocalization';
 import { useCoarsePointer } from '../shell/useWideWorkspace';
+import { readClipboardHtml, readTabbedText, type ClipboardReading } from './clipboardReading';
 import { edit, insertWritten } from './editing';
 import { FormattingChoice, FormattingMenu } from './FormattingMenu';
 import type { PictureAddresses } from './pictureAddresses';
@@ -43,6 +44,8 @@ import { TableInsertion, TableStrip, type TableAct } from './TableControls';
 import {
     cellAfter,
     cellBefore,
+    mostTableColumns,
+    mostTableRows,
     newTable,
     withColumnInserted,
     withColumnRemoved,
@@ -98,20 +101,41 @@ import {
 // **A picture is pasted, dropped, chosen, and removed here**, and held by the composer above: this component reads it,
 // judges it against ADR 0047's bounds, asks the composer to hold it, and inserts it through `insertWritten` drawn from
 // the object URL `PictureAddresses` issued for it — the one source `writtenIn` reads back as a picture.
+//
+// **Nothing pasted or dropped reaches the region as it came.** Every insertion carrying markup or files from
+// somewhere else — a paste, a drop, and any other input that brings a data transfer — has its own insertion refused
+// and goes through ADR 0047's order: the markup is read into the closed tree by `clipboardReading.ts`, and that tree
+// is what `insertWritten` puts in, as one step on the engine's undo stack.
 
 // The flavour a copy inside the message carries beside its HTML and its text: a token naming what this composer copied,
 // so a paste back into it resolves the pictures it holds by name. Only the composer that copied knows the token, so a
 // paste in another tab, or of anything else, matches nothing and is read as any other paste.
 const writtenFlavour = 'application/x-mailfathom-written';
 
-/** A picture refused at the paste, and what it was called, which is what the line saying so names. */
-interface RefusedPicture {
+/** A paste refused, and what the picture it refused was called, which is what the line saying so names. */
+interface RefusedPaste {
     readonly refusal:
         | PictureRefusal
         | { readonly reason: 'inACell' }
-        | { readonly reason: 'tooManyInThePaste'; readonly carried: number; readonly held: number };
+        | { readonly reason: 'tooManyInThePaste'; readonly carried: number; readonly held: number }
+        | { readonly reason: 'tableTooLarge'; readonly rows: number; readonly columns: number };
     readonly name: string | null;
 }
+
+/** A refused paste's words and where they were to go, which *Paste as plain text* puts there instead. */
+interface WordsOfARefusedPaste {
+    readonly plain: string;
+    readonly at: Range | null;
+}
+
+const nothingRead: ClipboardReading = { kind: 'nothing' };
+
+// The line after a table that is put in, so there is somewhere to carry on writing.
+const emptyParagraph: WrittenMarkup = {
+    element: 'p',
+    address: null,
+    holds: [{ element: 'br', address: null, holds: [] }],
+};
 
 type FormattingMenuKind = 'colour' | 'size' | 'alignment' | 'table';
 
@@ -333,7 +357,7 @@ export function WrittenMessage({
     const [menu, setMenu] = useState<OpenMenu | null>(null);
     const [chosen, setChosen] = useState<Chosen>({ colour: null, size: normalStep, alignment: startAlignment });
     const [inACell, setInACell] = useState(false);
-    const [refused, setRefused] = useState<RefusedPicture | null>(null);
+    const [refused, setRefused] = useState<RefusedPaste | null>(null);
     const [pictureChosen, setPictureChosen] = useState<string | null>(null);
     const words = useRef<HTMLDivElement>(null);
     const bar = useRef<HTMLDivElement>(null);
@@ -342,6 +366,7 @@ export function WrittenMessage({
     const draggingHere = useRef(false);
     const chosenPicture = useRef<HTMLImageElement | null>(null);
     const copied = useRef<{ readonly token: string; readonly written: readonly WrittenNode[] } | null>(null);
+    const refusedWords = useRef<WordsOfARefusedPaste | null>(null);
     const addressId = useId();
 
     // What the design decides about the bar: drawn outright where a pointer is fine, and behind a toggle where a
@@ -450,36 +475,76 @@ export function WrittenMessage({
         written();
     }
 
-    // ADR 0047's paste order as far as the closed set reaches today: Ctrl+Shift+V lands the words alone, one address
-    // makes a link, what this composer copied comes back as it was, picture files with nothing formatted beside them
-    // are pictures, and anything else is pasted as text. A table cell holds no block a second line would start and no
-    // picture, so a paste there lands as its words on one line, and a picture with no words beside it is refused.
+    // ADR 0047's paste order: Ctrl+Shift+V lands the words alone, one address makes a link, what this composer copied
+    // comes back as it was, markup that reads to anything is the paste, picture files are pictures where it reads to
+    // nothing, tab-separated lines are a table, and anything else is pasted as text. A table past a bound is refused
+    // whole, with its words offered instead. A table cell holds no block a second line would start and no picture, so
+    // a paste there lands as its words on one line, and a picture with no words beside it is refused.
     function paste(data: DataTransfer): void {
         const plain = data.getData('text/plain');
         const plainOnly = pastingPlain.current;
         const address = plainOnly ? null : pastedAddress(plain);
         const copiedHere = copied.current;
-        const files = picturesWithNothingFormatted(data, plain);
         const intoACell = cellAtTheCaret(words.current) !== null;
+        const ownCopy = copiedHere !== null && data.getData(writtenFlavour) === copiedHere.token;
+        const markup =
+            plainOnly || intoACell || ownCopy || !data.types.includes('text/html') ? '' : data.getData('text/html');
+        const read = markup === '' ? nothingRead : readClipboardHtml(markup, addresses.pictureAt);
+        const tabbed = read.kind === 'nothing' && data.files.length === 0 ? readTabbedText(plain) : nothingRead;
 
         pastingPlain.current = false;
+        refusedWords.current = null;
         unchoosePicture();
         setRefused(null);
 
         if (address !== null) {
             pasteTheLink(address);
-        } else if (intoACell && plain.trim() === '' && files.length > 0) {
-            void pastePictures(files);
+        } else if (intoACell && plain.trim() === '' && data.files.length > 0) {
+            void pastePictures([...data.files]);
         } else if (intoACell) {
             apply('insertText', plain.replace(/\s*[\r\n\t]+\s*/gu, ' '));
         } else if (plainOnly) {
             apply('insertText', plain);
-        } else if (copiedHere !== null && data.getData(writtenFlavour) === copiedHere.token) {
-            pasteBack(copiedHere.written);
-        } else if (files.length > 0) {
-            void pastePictures(files);
+        } else if (ownCopy) {
+            pasteTheWritten(copiedHere.written, []);
+        } else if (read.kind !== 'nothing') {
+            pasteTheReading(read, plain);
+        } else if (data.files.length > 0) {
+            void pastePictures([...data.files]);
+        } else if (tabbed.kind !== 'nothing') {
+            pasteTheReading(tabbed, plain);
         } else {
             apply('insertText', plain);
+        }
+    }
+
+    // What the markup or the tab-separated lines read as: put in, or refused whole where a table is past a bound — the
+    // words kept beside the refusal, with the place they were to go, for *Paste as plain text*.
+    function pasteTheReading(read: Exclude<ClipboardReading, { readonly kind: 'nothing' }>, plain: string): void {
+        if (read.kind === 'written') {
+            pasteTheWritten(read.written, read.pictures);
+
+            return;
+        }
+
+        const selection = window.getSelection();
+
+        refusedWords.current = {
+            plain,
+            at: selection !== null && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null,
+        };
+        setRefused({ refusal: { reason: 'tableTooLarge', rows: read.rows, columns: read.columns }, name: null });
+    }
+
+    function pasteThePlainWords(): void {
+        const refusedPaste = refusedWords.current;
+
+        refusedWords.current = null;
+        setRefused(null);
+
+        if (refusedPaste !== null) {
+            holding.current = refusedPaste.at;
+            apply('insertText', refusedPaste.plain);
         }
     }
 
@@ -494,17 +559,23 @@ export function WrittenMessage({
         }
     }
 
-    // A passage this composer copied, put back with its pictures by name. A picture it names that the words no longer
-    // do is one being added, so the passage meets the bounds a paste of files meets and is refused whole past one.
-    function pasteBack(passage: readonly WrittenNode[]): void {
+    // A passage put in with its pictures: ones the composer holds by name — what it copied itself — and ones the
+    // clipboard carried, which it is asked to hold first. A picture the passage names that the words do not is one
+    // being added, so the passage meets the bounds a paste of files meets and is refused whole past one. A passage
+    // ending on a table is followed by an empty paragraph, so there is a line to carry on writing on.
+    function pasteTheWritten(
+        passage: readonly WrittenNode[],
+        carried: readonly { readonly name: string; readonly picture: HeldPicture }[],
+    ): void {
         const region = words.current;
         const named = region === null ? [] : picturesNamedIn(writtenIn(region, addresses.pictureAt));
-        const heldOf = (name: string) => pictures.get(name) ?? [];
+        const arriving = new Map(carried.map(({ name, picture }) => [name, picture]));
+        const heldOf = (name: string) => arriving.get(name) ?? pictures.get(name) ?? [];
         const refusal = refusalOfAddingAll(
             picturesNamedIn(passage)
                 .filter((name) => !named.includes(name))
                 .flatMap(heldOf),
-            named.flatMap(heldOf),
+            named.flatMap((name) => pictures.get(name) ?? []),
         );
 
         if (refusal !== null) {
@@ -513,7 +584,19 @@ export function WrittenMessage({
             return;
         }
 
-        insertWritten(passage, pictureSource);
+        for (const { name, picture } of carried) {
+            onPictureHeld(name, picture);
+            addresses.issue(name, picture);
+        }
+
+        const last = passage[passage.length - 1];
+        const endsOnATable = last !== undefined && !('text' in last) && last.element === 'table';
+
+        insertWritten(
+            endsOnATable ? [...passage, emptyParagraph] : passage,
+            // The pictures the clipboard carried are only now asked to be held, so the composer's map does not name them yet.
+            sourceAmong(new Map([...pictures, ...arriving])),
+        );
         written();
     }
 
@@ -826,12 +909,7 @@ export function WrittenMessage({
         takeBackTheSelection();
 
         if (words.current !== null) {
-            putTheTable(
-                words.current,
-                newTable(rows, columns, headed),
-                [{ element: 'p', address: null, holds: [{ element: 'br', address: null, holds: [] }] }],
-                { row: 0, cell: 0 },
-            );
+            putTheTable(words.current, newTable(rows, columns, headed), [emptyParagraph], { row: 0, cell: 0 });
         }
     }
 
@@ -894,6 +972,40 @@ export function WrittenMessage({
             giveUpTheAddress();
         }
     }
+
+    // An insertion bringing markup or files by any way other than a paste or a drop — a platform's paste as a
+    // quotation, say — is read like a paste as well, so the engine never inserts what somebody else wrote itself. A
+    // paste and a drop from elsewhere are refused by their own events before this one is raised, and a passage dragged
+    // within the words is the engine's own move.
+    const insertionArrived = useEffectEvent((event: InputEvent) => {
+        const transfer = event.dataTransfer;
+
+        if (
+            transfer === null ||
+            event.inputType === 'insertFromPaste' ||
+            event.inputType === 'insertFromDrop' ||
+            (transfer.files.length === 0 && !transfer.types.includes('text/html'))
+        ) {
+            return;
+        }
+
+        event.preventDefault();
+        closeTheMenu();
+        paste(transfer);
+    });
+
+    useEffect(() => {
+        const region = words.current;
+        const listener = (event: InputEvent) => {
+            insertionArrived(event);
+        };
+
+        region?.addEventListener('beforeinput', listener);
+
+        return () => {
+            region?.removeEventListener('beforeinput', listener);
+        };
+    }, []);
 
     return (
         <>
@@ -1116,15 +1228,31 @@ export function WrittenMessage({
             {refused === null ? null : (
                 <div
                     role="alert"
-                    className="flex shrink-0 animate-disclose-in items-start gap-2.25 border-b border-warning bg-warning-soft py-2 ps-3.75 pe-3 text-sm text-warning-text pointer-coarse:py-2.5 pointer-coarse:text-base"
+                    className="flex shrink-0 animate-disclose-in flex-wrap items-start gap-2.25 border-b border-warning bg-warning-soft py-2 ps-3.75 pe-3 text-sm text-warning-text pointer-coarse:py-2.5 pointer-coarse:text-base"
                 >
-                    <Icon name="block" className="size-icon-lg shrink-0" />
-                    <span className="min-w-0 flex-1 text-pretty">{refusalSentence(refused, locale, translate)}</span>
+                    <Icon name="block" className="size-icon-md shrink-0" />
+                    <span className="min-w-0 flex-1 basis-55 text-pretty">
+                        {refusalSentence(refused, locale, translate)}
+                    </span>
+                    {refused.refusal.reason === 'tableTooLarge' ? (
+                        <button
+                            type="button"
+                            className="-my-0.5 flex h-6 shrink-0 items-center rounded-lg px-2 font-semibold transition hover:bg-hover pointer-coarse:-my-2.5 pointer-coarse:px-3"
+                            onMouseDown={(event) => {
+                                // The words go where the paste was asked for, so the place is kept while this is pressed.
+                                event.preventDefault();
+                            }}
+                            onClick={pasteThePlainWords}
+                        >
+                            {translate('compose.pasteAsPlainText')}
+                        </button>
+                    ) : null}
                     <button
                         type="button"
                         aria-label={translate('compose.dismissPictureRefusal')}
-                        className="-my-0.5 flex size-6 shrink-0 items-center justify-center rounded-md transition hover:bg-hover"
+                        className="-my-0.5 flex size-6 shrink-0 items-center justify-center rounded-lg transition hover:bg-hover pointer-coarse:-my-2.5 pointer-coarse:-me-1.5"
                         onClick={() => {
+                            refusedWords.current = null;
                             setRefused(null);
                             // The control goes with the line, so focus goes back to the words it was about.
                             words.current?.focus();
@@ -1169,9 +1297,8 @@ export function WrittenMessage({
                     choosePicture(event.target);
                 }}
                 onPaste={(event) => {
-                    // What arrives from somewhere else arrives as text, as a link, or as a picture this client writes
-                    // itself. A message carries the formatting its author gave it, and nothing this client did not
-                    // write reaches the tree at all.
+                    // What arrives from somewhere else is read into the closed tree, and only that tree is put in:
+                    // nothing this client did not write reaches the region.
                     event.preventDefault();
                     closeTheMenu();
                     paste(event.clipboardData);
@@ -1253,14 +1380,6 @@ export function WrittenMessage({
     );
 }
 
-// The picture files a paste or a drop carries, where nothing formatted stands beside them — ADR 0047's step 4. Until the
-// HTML flavour is read into the tree, a formatted flavour is taken to read to something wherever words come with it:
-// what Excel and Word put beside their HTML is the same content drawn again, and a browser's *Copy image* puts a
-// picture beside markup that carries no words at all, which is the one case the picture is the paste.
-function picturesWithNothingFormatted(data: DataTransfer, plain: string): readonly File[] {
-    return data.types.includes('text/html') && plain.trim() !== '' ? [] : [...data.files];
-}
-
 // Whether what a drop landed on stands in a table cell of the words.
 function cellUnder(region: HTMLElement | null, target: EventTarget): boolean {
     return target instanceof Element && region?.contains(target) === true && target.closest('td, th') !== null;
@@ -1279,7 +1398,7 @@ function pictureSelected(): boolean {
 
 // A paste of several pictures that would take the message past the count is refused as the paste, since naming the one
 // that crossed the bound would read as though the ones before it went in.
-function refusalOfTheCount(carried: number, held: number): RefusedPicture | null {
+function refusalOfTheCount(carried: number, held: number): RefusedPaste | null {
     return carried > 1 && held + carried > mostPictures
         ? { refusal: { reason: 'tooManyInThePaste', carried, held }, name: null }
         : null;
@@ -1287,7 +1406,7 @@ function refusalOfTheCount(carried: number, held: number): RefusedPicture | null
 
 // Pictures the composer already holds, judged in turn against the bounds together with those the words name, as a paste
 // of files is: the first one past a bound names the refusal.
-function refusalOfAddingAll(adding: readonly HeldPicture[], held: readonly HeldPicture[]): RefusedPicture | null {
+function refusalOfAddingAll(adding: readonly HeldPicture[], held: readonly HeldPicture[]): RefusedPaste | null {
     const tooMany = refusalOfTheCount(adding.length, held.length);
 
     if (tooMany !== null) {
@@ -1346,13 +1465,23 @@ function kindOf(type: string): string | null {
     return kind === undefined ? null : kind.toUpperCase();
 }
 
-function refusalSentence(refused: RefusedPicture, locale: Locale, translate: Translate): string {
+function refusalSentence(refused: RefusedPaste, locale: Locale, translate: Translate): string {
     const name = refused.name ?? translate('compose.pictureUnnamed');
     const { refusal } = refused;
 
     switch (refusal.reason) {
         case 'inACell':
             return translate('compose.pictureInACell');
+        case 'tableTooLarge': {
+            const counted = new Intl.NumberFormat(locale);
+
+            return translate('compose.pasteTableTooLarge', {
+                rows: counted.format(refusal.rows),
+                columns: counted.format(refusal.columns),
+                mostRows: counted.format(mostTableRows),
+                mostColumns: counted.format(mostTableColumns),
+            });
+        }
         case 'tooManyInThePaste': {
             const counted = new Intl.NumberFormat(locale);
 

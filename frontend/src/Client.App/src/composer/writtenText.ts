@@ -10,9 +10,10 @@ import { cellsOf, mostTableColumns, mostTableRows, rowsOf, spanned, tableWithinB
 // **Nothing here parses a string into nodes.** ADR 0024 states that for a message arriving, and the reasoning holds
 // just as firmly for one going out: the composer reads its own editable region node by node into the closed set below,
 // renders that set back as ordinary elements, and writes the HTML part by escaping every value it puts in one. The one
-// markup the editor is ever handed is that same escaped writing of this set, through `editing.ts` under ADR 0047. So
-// no foreign markup is parsed anywhere on this path, no sanitizer is pinned, and what a poisoned session store could
-// put back on the screen is bounded by what this type can express rather than by what a filter remembered to strip.
+// markup the editor is ever handed is that same escaped writing of this set, through `editing.ts` under ADR 0047, and
+// the one foreign markup ever parsed is a paste's, into an inert document `clipboardReading.ts` reads into this set and
+// lets go of. So no sanitizer is pinned, and what a paste or a poisoned session store could put on the screen is
+// bounded by what this type can express rather than by what a filter remembered to strip.
 //
 // **A picture is a name, never an address.** The tree refers to a picture the composer holds by the name it minted for
 // it, under ADR 0047 Question 2, and how that picture is written is what a reading of the tree is handed: an object
@@ -174,6 +175,11 @@ const fontSizeSteps: Readonly<Record<string, WrittenSize | null>> = {
     '7': 'largest',
 };
 
+/** The step of the size scale a `<font size>` reads as, or `null` for normal and for a size that is none of the seven. */
+export function stepOfFontSize(size: string): WrittenSize | null {
+    return ownEntry(fontSizeSteps, size.trim());
+}
+
 /** The `<font size>` the size control asks `fontSize` for, and the one the region is drawn back with. */
 export const fontSizeOf: Readonly<Record<WrittenSize, string>> = {
     small: '2',
@@ -203,6 +209,11 @@ const readAlignments: Readonly<Record<string, WrittenAlignment>> = {
 /** A colour the tree may carry, in the one spelling it carries it in, or `null` for anything that is not one. */
 export function writtenColour(value: string): string | null {
     return /^#[0-9a-f]{6}$/iu.test(value) ? value.toLowerCase() : null;
+}
+
+/** The alignment a `text-align` value or an `align` attribute states, or `null` for one that is none of the four. */
+export function writtenAlignmentOf(stated: string): WrittenAlignment | null {
+    return ownEntry(readAlignments, stated.trim().toLowerCase());
 }
 
 /** How an alignment is drawn, which is the same `text-align` the HTML part writes. */
@@ -241,9 +252,9 @@ const followableSchemes: readonly string[] = ['http:', 'https:', 'mailto:'];
 // `keptComposition.ts` answers nothing for a record it cannot read whole — so the recipients, the subject, and the
 // account would go down with the words. `writtenIn` therefore holds to each of them as it reads, and each is set far
 // above anything typing produces, so what a person actually meets is a paste of a whole document being cut.
-const mostWrittenNodes = 100_000;
-const longestWrittenRun = 100_000;
-const deepestWriting = 64;
+export const mostWrittenNodes = 100_000;
+export const longestWrittenRun = 100_000;
+export const deepestWriting = 64;
 
 /** Whether a link written here is one this client would make, which is a scheme question rather than a spelling one. */
 export function followable(address: string): boolean {
@@ -492,7 +503,7 @@ function runOf(
         const attributed = writtenColour(element.getAttribute('color') ?? '');
 
         colour = attributed === null || drawing === null ? attributed : drawing.colourDrawnAs(attributed);
-        size = ownEntry(fontSizeSteps, element.getAttribute('size') ?? '');
+        size = stepOfFontSize(element.getAttribute('size') ?? '');
     } else if (named === 'span' && drawing !== null && element instanceof HTMLElement) {
         colour = element.style.color === '' ? null : drawing.colourDrawnAs(element.style.color);
         size = element.style.fontSize === '' ? null : drawing.sizeDrawnAs(element.style.fontSize);
@@ -510,7 +521,7 @@ function runOf(
 function alignmentOf(block: Element): WrittenAlignment | null {
     const stated = block instanceof HTMLElement && block.style.textAlign !== '' ? block.style.textAlign : null;
 
-    return ownEntry(readAlignments, (stated ?? block.getAttribute('align') ?? '').toLowerCase());
+    return writtenAlignmentOf(stated ?? block.getAttribute('align') ?? '');
 }
 
 // A table read with a value somebody else wrote answers for its own keys only, so `constructor` reads as nothing

@@ -3203,14 +3203,23 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const inner = Array.from(n.childNodes).map(walk).join("");
         if (/^H[1-6]$/.test(n.tagName)) { const em = Component.sizeEm(["largest", "larger", "large"][Number(n.tagName[1]) - 1]); return "<p><b" + (em ? " style=\"font-size:" + em + "\"" : "") + ">" + inner + "</b></p>"; }
         if (n.tagName === "A" && /^https?:/i.test(n.getAttribute("href") || "")) return "<a href=\"" + this.escapeHtml(n.getAttribute("href")) + "\">" + inner + "</a>";
-        /* A colour survives only when it is one of the palette's own; any other is dropped, as a font is. */
-        const swatch = n.style && n.style.color ? COMPOSE_FMT.colours.find(c => rgbOf(c.hex) === n.style.color.replace(/\s+/g, "")) : null;
+        /* A colour survives: a palette one as its swatch, any other opaque one as itself. The near-grey dark colour a
+           page writes its body text in is the page's default rather than a choice, and is dropped. */
+        const drawn = n.style && n.style.color ? n.style.color.replace(/\s+/g, "") : "";
+        const swatch = drawn ? COMPOSE_FMT.colours.find(c => rgbOf(c.hex) === drawn) : null;
+        const own = !swatch && /^rgb\(\d+,\d+,\d+\)$/.test(drawn) && !bodyText(drawn) ? drawn : null;
         const t = tag[n.tagName];
         if (t === "br") return "<br>";
         const wrapped = t ? "<" + t + ">" + inner + "</" + t + ">" : inner;
-        return swatch ? "<span style=\"color:var(--ink-" + swatch.key + ")\">" + wrapped + "</span>" : wrapped;
+        return swatch ? "<span style=\"color:var(--ink-" + swatch.key + ")\">" + wrapped + "</span>" : own ? "<span style=\"color:" + own + "\">" + wrapped + "</span>" : wrapped;
       };
       const rgbOf = (hex) => "rgb(" + [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(",") + ")";
+      const bodyText = (rgb) => {
+        const [r, g, b] = rgb.match(/\d+/g).map(v => Number(v) / 255);
+        const high = Math.max(r, g, b), low = Math.min(r, g, b), light = (high + low) / 2;
+        const saturation = high === low ? 0 : (high - low) / (1 - Math.abs(2 * light - 1));
+        return saturation <= 0.25 && light < 0.35;
+      };
       return walk(doc.body);
     };
 
