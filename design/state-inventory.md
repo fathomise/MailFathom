@@ -1398,6 +1398,9 @@ a failure banner. Worth carrying out of it:
   the reason for the match.
 - An empty result never stands alone: the scope that produced it stands beside it, with one press
   that widens it.
+- A filter names a mailbox by its display name and a folder as the folder tree does — *Folder: Inbox*
+  for a role, the last level of its path otherwise — never by an identity. Where the client has not
+  read that mailbox or that folder, the chip says *One mailbox* or *One folder* instead.
 - *This server does not search by meaning* and *you may not see this* are different sentences and are
   never merged.
 - Earlier searches live only in client state and go with the credential; no typed phrase reaches a log

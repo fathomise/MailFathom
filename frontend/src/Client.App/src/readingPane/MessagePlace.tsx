@@ -7,7 +7,7 @@ import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
 import { useMailboxActs } from '../mailboxActs/useMailboxActs';
 import { useAccountName } from '../shell/accountNames';
-import { folderRoleLabels } from '../workspace/mailScope';
+import { folderNameOf } from '../workspace/mailScope';
 
 // Where an open message is kept, said at its foot: the folder and the name of the account that hold it. Read by
 // conversation a thread gathers its messages from every folder of an account, and read by message a conversation does
@@ -20,20 +20,8 @@ export function MessagePlace({ message }: { readonly message: MailMessage }) {
     const { translate } = useLocalization();
     const acts = useMailboxActs();
     const accountName = useAccountName(message.account);
-    const folder = acts.folderOf({
-        storedEmailId: message.storedEmailId,
-        account: message.account,
-        folder: message.folder,
-        unread: message.unread,
-        flagged: message.flagged,
-        spam: message.spam,
-    });
-    const folderName =
-        folder === null
-            ? null
-            : folder.role === null
-              ? (folder.path.at(-1) ?? null)
-              : translate(folderRoleLabels[folder.role]);
+    const folder = acts.folderOf({ account: message.account, folder: message.folder });
+    const folderName = folder === null ? null : folderNameOf(folder, translate);
 
     const said =
         folderName === null
