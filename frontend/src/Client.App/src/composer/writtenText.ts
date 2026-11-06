@@ -25,7 +25,7 @@ import { cellsOf, mostTableColumns, mostTableRows, rowsOf, spanned, tableWithinB
 // would have to guess which of those it was looking at, and would lose whatever it guessed wrong. Reading the shape
 // that is actually there loses nothing, and closing the *set* is what makes it safe.
 
-import { isPictureName, isPictureSide, widestSentPicture } from './pictures';
+import { drawnSizeOf, isPictureName, isPictureSide, widestSentPicture } from './pictures';
 
 /** The elements a written message may be made of, which is what the formatting controls produce and nothing else. */
 export type WrittenElement =
@@ -90,7 +90,10 @@ export interface WrittenMarkup {
 /** Who a written tree is spelled for: the HTML part of a message going out, or the composer's own editable region. */
 export type WrittenDestination = 'mail' | 'editor';
 
-/** A picture the composer holds, by the name it minted for it, at the pixel size its octets state. */
+/**
+ * A picture the composer holds, by the name it minted for it, at the pixel size it is drawn at — the size its octets
+ * state, or a smaller one its grip gave it, never a larger one.
+ */
 export interface WrittenPicture {
     readonly element: 'img';
     readonly picture: string;
@@ -100,7 +103,10 @@ export interface WrittenPicture {
 
 export type WrittenNode = WrittenText | WrittenMarkup | WrittenPicture;
 
-/** The picture an address in the editor names, which only an object URL the composer issued does. */
+/**
+ * The picture an address in the editor names, at the size its octets state, which only an object URL the composer
+ * issued does.
+ */
 export type PictureAt = (source: string) => Omit<WrittenPicture, 'element'> | null;
 
 /**
@@ -408,7 +414,7 @@ function readWritten(
 
             if (picture !== null) {
                 budget.nodes -= 1;
-                written.push({ element: 'img', ...picture });
+                written.push({ element: 'img', picture: picture.picture, ...drawnIn(node, picture) });
             }
 
             continue;
@@ -1001,6 +1007,17 @@ export function sentSizeOf(node: WrittenPicture): { readonly width: number; read
     const width = Math.min(node.width, widestSentPicture);
 
     return { width, height: Math.max(1, Math.round((node.height * width) / node.width)) };
+}
+
+/**
+ * The size a picture element is drawn at, read from its `width` attribute — which is how the editor, and the HTML a
+ * copy carries, write the size its grip gave it — against the size the picture's octets state.
+ */
+export function drawnIn(
+    image: Element,
+    own: { readonly width: number; readonly height: number },
+): { readonly width: number; readonly height: number } {
+    return drawnSizeOf(own, Number(image.getAttribute('width') ?? Number.NaN));
 }
 
 function pictureMarkupOf(node: WrittenPicture, pictureSource: PictureSource): string {

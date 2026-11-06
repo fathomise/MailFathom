@@ -1029,10 +1029,13 @@ export const en = {
     'compose.linkAddressPlaceholder': 'Where the link goes',
     'compose.insertLink': 'Insert',
     'compose.picture': 'Picture',
-    'compose.pictureDescribed': '{name} · {size} · sent at most {width} px wide',
+    'compose.pictureDescribed': '{name} · {size} · sent {width} px wide',
     'compose.pictureUnnamed': 'picture',
     'compose.pictureWithoutAName': 'Unnamed picture',
     'compose.removePicture': 'Remove picture',
+    'compose.resizePicture': 'Resize picture',
+    'compose.resizePictureHint':
+        'Drag to make the picture smaller or larger, or double-click to return it to its full width.',
     'compose.pictureTooLarge': '“{name}” was not added - it is {size}, and one picture can be at most {most}.',
     'compose.pictureOneTooMany':
         '“{name}” was not added - this message already holds {count} pictures, the most one message can.',

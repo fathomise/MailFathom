@@ -14,7 +14,7 @@ import type {
     MailTextSize,
 } from '@mailfathom/client-backend';
 import { newIdentifier } from '../agent/newIdentifier';
-import { isPictureSide, octetsOf, pictureIn, refusalOfAdding, type HeldPicture } from './pictures';
+import { drawnSizeOf, octetsOf, pictureIn, refusalOfAdding, type HeldPicture } from './pictures';
 import { spanned, tableWithinBounds } from './writtenTable';
 import {
     followable,
@@ -148,16 +148,12 @@ function pictureHeld(image: MailInlineImage, pictures: Map<string, HeldPicture>)
         return null;
     }
 
-    // The size it was drawn at where the draft states one, which is what the composer wrote it at.
-    const drawn =
-        isPictureSide(image.width) && isPictureSide(image.height)
-            ? { width: image.width, height: image.height }
-            : { width: read.width, height: read.height };
+    // Held at its own size and drawn at the width the draft states, which is what the composer wrote it at.
     const picture = newIdentifier();
 
-    pictures.set(picture, { octets, type: read.type, ...drawn, label: image.alternativeText });
+    pictures.set(picture, { octets, ...read, label: image.alternativeText });
 
-    return { element: 'img', picture, ...drawn };
+    return { element: 'img', picture, ...drawnSizeOf(read, image.width) };
 }
 
 // The runs of one paragraph, each wrapped in whatever it carries. A run is wrapped from the inside out, so a bold

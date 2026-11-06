@@ -1247,12 +1247,68 @@ describe('WrittenMessage, pictures', () => {
         const strip = screen.getByRole('toolbar', { name: 'Picture' });
 
         expect(strip.textContent).toContain('chart.png');
-        expect(strip.textContent).toContain('sent at most 600 px wide');
+        expect(strip.textContent).toContain('sent 600 px wide');
 
         press('Remove picture');
 
         expect(acts()).toEqual([{ command: 'delete', argument: undefined }]);
         expect(screen.queryByRole('toolbar', { name: 'Picture' })).toBeNull();
+    });
+
+    it('resizes a chosen picture by its grip, keeping its proportions, and writes the size it was let go at', () => {
+        const { written } = drawWords(
+            [{ element: 'img', picture: pictureName, width: 800, height: 600 }],
+            new Map([[pictureName, held]]),
+        );
+
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
+
+        const grip = screen.getByRole('separator', { name: 'Resize picture' });
+        const readBefore = written.mock.calls.length;
+
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerMove(grip, { pointerId: 1, clientX: 700 });
+
+        // While the corner moves the picture follows it, and the words are read once it is let go rather than at
+        // every pixel of the drag.
+        expect(screen.getByRole('img', { name: 'chart.png' }).getAttribute('width')).toBe('400');
+        expect(screen.getByRole('toolbar', { name: 'Picture' }).textContent).toContain('sent 400 px wide');
+        expect(written).toHaveBeenCalledTimes(readBefore);
+
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 700 });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 400, height: 300 }]);
+    });
+
+    it('stops the grip at the narrowest a picture is drawn and at the widest it is sent, and moves it by key', () => {
+        const { written } = drawWords(
+            [{ element: 'img', picture: pictureName, width: 800, height: 600 }],
+            new Map([[pictureName, held]]),
+        );
+
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
+
+        const grip = screen.getByRole('separator', { name: 'Resize picture' });
+
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 0 });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 24, height: 18 }]);
+
+        fireEvent.keyDown(grip, { key: 'ArrowRight' });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 34, height: 26 }]);
+
+        // Never past the widest a message carries, however far the pointer goes.
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 0 });
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 2000 });
+
+        expect(grip.getAttribute('aria-valuenow')).toBe('600');
+
+        fireEvent.keyDown(grip, { key: 'ArrowLeft' });
+        fireEvent.keyDown(grip, { key: 'Home' });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 600, height: 450 }]);
     });
 
     it('says the pictures are kept in this window only where the store would not take them', () => {

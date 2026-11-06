@@ -17,6 +17,7 @@ import {
 import {
     colourOfRgb,
     deepestWriting,
+    drawnIn,
     followable,
     longestWrittenRun,
     mostWrittenNodes,
@@ -743,7 +744,7 @@ function pictureOf(image: Element, reading: Reading): WrittenPicture | null {
     if (held !== null) {
         reading.named.add(held.picture);
 
-        return { element: 'img', ...held };
+        return { element: 'img', picture: held.picture, ...drawnIn(image, held) };
     }
 
     // Decoded whatever its size, because one past a bound refuses the paste whole rather than going missing from it,
@@ -761,7 +762,7 @@ function pictureOf(image: Element, reading: Reading): WrittenPicture | null {
     reading.named.add(name);
     reading.pictures.push({ name, picture: { octets, ...read, label: null } });
 
-    return { element: 'img', picture: name, width: read.width, height: read.height };
+    return { element: 'img', picture: name, ...drawnIn(image, read) };
 }
 
 /** One cell as it was read, and whether all of its words were bold, which is how a sheet marks a header row. */

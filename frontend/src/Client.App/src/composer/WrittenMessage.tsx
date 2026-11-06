@@ -28,10 +28,13 @@ import { readClipboardHtml, readTabbedText, type ClipboardReading } from './clip
 import { commandRunning, edit, insertWritten } from './editing';
 import { FormattingChoice, FormattingMenu } from './FormattingMenu';
 import type { PictureAddresses } from './pictureAddresses';
+import { PictureGrip } from './PictureGrip';
 import {
+    drawnSizeOf,
     mostPictureOctets,
     mostPictures,
     mostPicturesOctets,
+    narrowestResizedPicture,
     pictureIn,
     pictureTypeOf,
     refusalOfAdding,
@@ -58,6 +61,7 @@ import {
 import {
     cellDeclarationsOf,
     drawnAlignment,
+    drawnIn,
     followable,
     fontSizeOf,
     htmlOf,
@@ -359,6 +363,11 @@ export function WrittenMessage({
     const [inACell, setInACell] = useState(false);
     const [refused, setRefused] = useState<RefusedPaste | null>(null);
     const [pictureChosen, setPictureChosen] = useState<string | null>(null);
+    // The chosen picture as the editor draws it and the width it is sent at, which its grip moves.
+    const [chosenDrawing, setChosenDrawing] = useState<{
+        readonly image: HTMLImageElement;
+        readonly width: number;
+    } | null>(null);
     const words = useRef<HTMLDivElement>(null);
     const bar = useRef<HTMLDivElement>(null);
     const holding = useRef<Range | null>(null);
@@ -723,12 +732,35 @@ export function WrittenMessage({
         pressed.setAttribute('data-chosen', '');
         chosenPicture.current = pressed;
         setPictureChosen(picture.picture);
+        setChosenDrawing({ image: pressed, width: Math.min(drawnIn(pressed, picture).width, widestSentPicture) });
     }
 
     function unchoosePicture(): void {
         chosenPicture.current?.removeAttribute('data-chosen');
         chosenPicture.current = null;
         setPictureChosen(null);
+        setChosenDrawing(null);
+    }
+
+    // The chosen picture drawn at the width its grip reached, and read into the words once the width is settled rather
+    // than at every pixel of a drag. Only the width and height attributes move, which `writtenIn` reads the size from;
+    // the editor draws the height from the width, so the picture keeps its proportions in the region as in the mail.
+    function resizeTheChosenPicture(width: number, settled: boolean): void {
+        const image = chosenPicture.current;
+
+        if (image === null || chosenHeld === undefined) {
+            return;
+        }
+
+        const drawn = drawnSizeOf(chosenHeld, width);
+
+        image.setAttribute('width', drawn.width.toFixed(0));
+        image.setAttribute('height', drawn.height.toFixed(0));
+        setChosenDrawing({ image, width: drawn.width });
+
+        if (settled) {
+            written();
+        }
     }
 
     function removeTheChosenPicture(): void {
@@ -1228,7 +1260,7 @@ export function WrittenMessage({
                         {translate('compose.pictureDescribed', {
                             name: chosenHeld.label ?? translate('compose.pictureUnnamed'),
                             size: sizeOf(chosenHeld.octets.length, locale),
-                            width: new Intl.NumberFormat(locale).format(widestSentPicture),
+                            width: new Intl.NumberFormat(locale).format(chosenDrawing?.width ?? widestSentPicture),
                         })}
                     </span>
                     <button
@@ -1297,106 +1329,123 @@ export function WrittenMessage({
 
             {beforeTheWords}
 
-            <div
-                ref={words}
-                role="textbox"
-                aria-multiline="true"
-                aria-label={translate('compose.words')}
-                data-placeholder={translate('compose.wordsPlaceholder')}
-                contentEditable
-                suppressContentEditableWarning
-                tabIndex={0}
-                // A low window lowers the floor so the foot carrying *Send* stays on the screen above a keyboard.
-                // A picture is drawn on a line of its own at its own size, fitted to the editor's width with its height
-                // scaled — the width it is written at is the message's, not the editor's — and outlined while it is the
-                // one chosen, the outline rather than the engine's selection tint saying so.
-                className="min-h-42.5 flex-1 written-region overflow-auto border-s-2 border-transparent px-4.25 py-4 text-lg text-text-soft outline-none focus-visible:border-accent low:min-h-18 [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:w-auto [&_img]:max-w-full [&_img]:selection:bg-transparent [&_img]:cursor-pointer [&_img[data-chosen]]:outline-2 [&_img[data-chosen]]:outline-accent"
-                onInput={() => {
-                    unchoosePicture();
-                    written();
-                }}
-                onClick={(event) => {
-                    choosePicture(event.target);
-                }}
-                onPaste={(event) => {
-                    // What arrives from somewhere else is read into the closed tree, and only that tree is put in:
-                    // nothing this client did not write reaches the region.
-                    event.preventDefault();
-                    closeTheMenu();
-                    paste(event.clipboardData);
-                }}
-                onCopy={(event) => {
-                    copy(event, false);
-                }}
-                onCut={(event) => {
-                    copy(event, true);
-                }}
-                onDragStart={() => {
-                    draggingHere.current = true;
-                }}
-                onDragEnd={() => {
-                    draggingHere.current = false;
-                }}
-                onDrop={(event) => {
-                    // A drop carrying files or markup from somewhere else goes through the same order a paste does, so
-                    // nothing another page wrote reaches the region. A passage dragged within the words is the
-                    // engine's own move, read back by `writtenIn` like everything else written here.
-                    const transfer = event.dataTransfer;
-                    const fromElsewhere = !draggingHere.current;
-
-                    draggingHere.current = false;
-
-                    // A picture moved into a table cell would stay drawn there and be read as nothing, a cell holding
-                    // no picture, so the move is refused with the line a paste there gets.
-                    if (!fromElsewhere && cellUnder(words.current, event.target) && pictureSelected()) {
-                        event.preventDefault();
+            {/* The region and the chosen picture's grip, which is placed over the region rather than written into it. */}
+            <div className="relative flex flex-1 flex-col">
+                <div
+                    ref={words}
+                    role="textbox"
+                    aria-multiline="true"
+                    aria-label={translate('compose.words')}
+                    data-placeholder={translate('compose.wordsPlaceholder')}
+                    contentEditable
+                    suppressContentEditableWarning
+                    tabIndex={0}
+                    // A low window lowers the floor so the foot carrying *Send* stays on the screen above a keyboard.
+                    // A picture is drawn on a line of its own at the width it is written at — the message's, which its grip
+                    // sets — fitted to the editor's width with its height scaled, and outlined while it is the one chosen,
+                    // the outline rather than the engine's selection tint saying so.
+                    className="min-h-42.5 flex-1 written-region overflow-auto border-s-2 border-transparent px-4.25 py-4 text-lg text-text-soft outline-none focus-visible:border-accent low:min-h-18 [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_img]:selection:bg-transparent [&_img]:cursor-pointer [&_img[data-chosen]]:outline-2 [&_img[data-chosen]]:outline-accent"
+                    onInput={() => {
                         unchoosePicture();
-                        setRefused({ refusal: { reason: 'inACell' }, name: null });
-
-                        return;
-                    }
-
-                    if (fromElsewhere && (transfer.files.length > 0 || transfer.types.includes('text/html'))) {
+                        written();
+                    }}
+                    onClick={(event) => {
+                        choosePicture(event.target);
+                    }}
+                    onPaste={(event) => {
+                        // What arrives from somewhere else is read into the closed tree, and only that tree is put in:
+                        // nothing this client did not write reaches the region.
                         event.preventDefault();
                         closeTheMenu();
-                        dropAt(event.clientX, event.clientY);
-                        pastingPlain.current = false;
-                        paste(transfer);
-                    }
-                }}
-                onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-                    // The paste event cannot tell Ctrl+Shift+V from Ctrl+V, so the key that raises it says which.
-                    pastingPlain.current =
-                        (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'v';
+                        paste(event.clipboardData);
+                    }}
+                    onCopy={(event) => {
+                        copy(event, false);
+                    }}
+                    onCut={(event) => {
+                        copy(event, true);
+                    }}
+                    onDragStart={() => {
+                        draggingHere.current = true;
+                    }}
+                    onDragEnd={() => {
+                        draggingHere.current = false;
+                    }}
+                    onDrop={(event) => {
+                        // A drop carrying files or markup from somewhere else goes through the same order a paste does, so
+                        // nothing another page wrote reaches the region. A passage dragged within the words is the
+                        // engine's own move, read back by `writtenIn` like everything else written here.
+                        const transfer = event.dataTransfer;
+                        const fromElsewhere = !draggingHere.current;
 
-                    // The design's own shortcut, and it opens the confirmation rather than sending: what a keyboard
-                    // saves is reaching for the control, never the reading of who the message is for.
-                    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-                        event.preventDefault();
-                        onSendAsked();
+                        draggingHere.current = false;
 
-                        return;
-                    }
+                        // A picture moved into a table cell would stay drawn there and be read as nothing, a cell holding
+                        // no picture, so the move is refused with the line a paste there gets.
+                        if (!fromElsewhere && cellUnder(words.current, event.target) && pictureSelected()) {
+                            event.preventDefault();
+                            unchoosePicture();
+                            setRefused({ refusal: { reason: 'inACell' }, name: null });
 
-                    const plainKey = !event.ctrlKey && !event.metaKey && !event.altKey;
+                            return;
+                        }
 
-                    if (event.key === 'Tab' && plainKey && moveAcrossTheTable(event.shiftKey)) {
-                        event.preventDefault();
-                    }
+                        if (fromElsewhere && (transfer.files.length > 0 || transfer.types.includes('text/html'))) {
+                            event.preventDefault();
+                            closeTheMenu();
+                            dropAt(event.clientX, event.clientY);
+                            pastingPlain.current = false;
+                            paste(transfer);
+                        }
+                    }}
+                    onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                        // The paste event cannot tell Ctrl+Shift+V from Ctrl+V, so the key that raises it says which.
+                        pastingPlain.current =
+                            (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'v';
 
-                    // Enter in a cell is a line in that cell, since a paragraph is a block no cell holds.
-                    if (
-                        event.key === 'Enter' &&
-                        plainKey &&
-                        !event.shiftKey &&
-                        cellAtTheCaret(words.current) !== null
-                    ) {
-                        event.preventDefault();
-                        apply('insertLineBreak');
-                    }
-                }}
-            >
-                <WrittenTree written={opening} pictureSource={pictureSource} />
+                        // The design's own shortcut, and it opens the confirmation rather than sending: what a keyboard
+                        // saves is reaching for the control, never the reading of who the message is for.
+                        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                            event.preventDefault();
+                            onSendAsked();
+
+                            return;
+                        }
+
+                        const plainKey = !event.ctrlKey && !event.metaKey && !event.altKey;
+
+                        if (event.key === 'Tab' && plainKey && moveAcrossTheTable(event.shiftKey)) {
+                            event.preventDefault();
+                        }
+
+                        // Enter in a cell is a line in that cell, since a paragraph is a block no cell holds.
+                        if (
+                            event.key === 'Enter' &&
+                            plainKey &&
+                            !event.shiftKey &&
+                            cellAtTheCaret(words.current) !== null
+                        ) {
+                            event.preventDefault();
+                            apply('insertLineBreak');
+                        }
+                    }}
+                >
+                    <WrittenTree written={opening} pictureSource={pictureSource} />
+                </div>
+                {chosenDrawing === null || chosenHeld === undefined ? null : (
+                    <PictureGrip
+                        picture={chosenDrawing.image}
+                        width={chosenDrawing.width}
+                        narrowest={Math.min(narrowestResizedPicture, chosenHeld.width)}
+                        widest={Math.min(chosenHeld.width, widestSentPicture)}
+                        onWidth={(width) => {
+                            resizeTheChosenPicture(width, false);
+                        }}
+                        onChosen={(width) => {
+                            resizeTheChosenPicture(width, true);
+                        }}
+                    />
+                )}
             </div>
         </>
     );

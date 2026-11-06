@@ -323,11 +323,11 @@ describe('draftWords', () => {
         expect(plainTextOf(wordsOf(bodyOf([], 'Sent from a phone\n\nsorry')))).toBe('Sent from a phone\n\nsorry');
     });
 
-    it('holds a picture the draft carried inline again, under a name of its own, at the size it was drawn', () => {
+    it('holds a picture the draft carried inline again, under a name of its own, drawn at the width it wrote', () => {
         const { words, pictures } = draftWords(
             bodyOf([
                 paragraph(run('See')),
-                imageBlock(`data:image/png;base64,${btoa(String.fromCharCode(...tinyPng))}`, 300, 200),
+                imageBlock(`data:image/png;base64,${btoa(String.fromCharCode(...tinyPng))}`, 2, 2),
             ]),
         );
         const [name] = [...pictures.keys()];
@@ -337,13 +337,28 @@ describe('draftWords', () => {
         expect(pictures.get(name ?? '')).toEqual({
             octets: tinyPng,
             type: 'image/png',
-            width: 300,
-            height: 200,
+            width: 3,
+            height: 2,
             label: 'chart.png',
         });
+        // The height follows the picture's own proportions rather than the one the draft stated.
         expect(words).toEqual([
             { element: 'p', address: null, holds: [{ text: 'See' }] },
-            { element: 'div', address: null, holds: [{ element: 'img', picture: name, width: 300, height: 200 }] },
+            { element: 'div', address: null, holds: [{ element: 'img', picture: name, width: 2, height: 1 }] },
+        ]);
+    });
+
+    it('never draws a picture wider than its own pixels, whatever width the draft states', () => {
+        const { words } = draftWords(
+            bodyOf([imageBlock(`data:image/png;base64,${btoa(String.fromCharCode(...tinyPng))}`, 300, 200)]),
+        );
+
+        expect(words).toEqual([
+            {
+                element: 'div',
+                address: null,
+                holds: [expect.objectContaining({ element: 'img', width: 3, height: 2 })],
+            },
         ]);
     });
 

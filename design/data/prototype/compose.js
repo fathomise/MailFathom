@@ -65,9 +65,9 @@ MailFathomDesign.data.composeFormatting = {
   ],
   // Every table is sent with one border, `1px solid #d0d5dd`, and `4px 8px` of padding; the editor draws the same.
   table: { defaultRows: 3, defaultColumns: 3, maxRows: 200, maxColumns: 20 },
-  // A picture is fitted to the editor's width and sent at most `sentMaxWidth` pixels wide. `sampleStoreBytes` stands in
-  // for the platform's quota on the session store, which decides what survives a reload: past it, the pictures are kept
-  // in memory only.
+  // A picture is drawn at the width it is sent at, its own and at most `sentMaxWidth` pixels until its grip sizes it, and
+  // fitted to the editor's width. `sampleStoreBytes` stands in for the platform's quota on the session store, which
+  // decides what survives a reload: past it, the pictures are kept in memory only.
   pictures: {
     maxBytes: 2 * 1024 * 1024, maxTotalBytes: 2.5 * 1024 * 1024, maxCount: 16, sentMaxWidth: 600, sampleStoreBytes: 1024 * 1024,
     types: ["image/png", "image/jpeg", "image/gif"], typeNames: "PNG, JPEG, and GIF",

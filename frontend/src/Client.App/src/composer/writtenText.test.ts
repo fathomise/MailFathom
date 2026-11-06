@@ -317,6 +317,22 @@ describe('writtenIn', () => {
             { text: 'after' },
         ]);
     });
+
+    it.each([
+        ['the width its grip gave it, the height from its own proportions', '200', { width: 200, height: 100 }],
+        ['its own size where the stated width is larger', '1600', { width: 800, height: 400 }],
+        ['its own size where the stated width is no side of a picture', '12.5', { width: 800, height: 400 }],
+    ])('reads a picture at %s', (_, statedWidth, size) => {
+        const issued = element('img');
+        const pictureAt: PictureAt = (source) =>
+            source === 'blob:composer/one' ? { picture: pictureName, width: 800, height: 400 } : null;
+
+        issued.setAttribute('src', 'blob:composer/one');
+        issued.setAttribute('width', statedWidth);
+        issued.setAttribute('height', '1');
+
+        expect(writtenIn(region(issued), pictureAt)).toEqual([{ element: 'img', picture: pictureName, ...size }]);
+    });
 });
 
 describe('picturesNamedIn', () => {

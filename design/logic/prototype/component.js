@@ -3082,7 +3082,51 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const img = e.target && e.target.tagName === "IMG" && e.target.hasAttribute("data-mf-picture") ? e.target : null;
       this.selectedPicture = img;
       if (img) img.style.outline = "2px solid var(--accent)";
-      this.setState({ pictureSel: img ? { name: img.getAttribute("data-name"), size: img.getAttribute("data-size") } : null, fmtMenu: null });
+      this.setState({ pictureSel: img ? this.pictureSelOf(img) : null, fmtMenu: null });
+    };
+    /* A chosen picture carries a grip on its bottom inline-end corner, dragged like a window's corner: the width follows
+       the pointer, the height keeps the proportions, and the width stops at 24 px and at the widest the picture is sent
+       at, its own width and at most `sentMaxWidth`. The arrows move it 10 px, Home and a double-click take it back to
+       its widest. The grip stands in the editor's own scroll, so it travels with the picture. */
+    pictureSelOf = (img) => {
+      const editor = this.bodyRef.current;
+      const base = editor && editor.offsetParent;
+      const box = img.getBoundingClientRect();
+      const from = base ? base.getBoundingClientRect() : { left: 0, top: 0 };
+      return {
+        name: img.getAttribute("data-name"), size: img.getAttribute("data-size"),
+        width: Math.round(Math.min(box.width, this.widestPicture(img))),
+        gripLeft: box.right - from.left + (base ? base.scrollLeft : 0), gripTop: box.bottom - from.top + (base ? base.scrollTop : 0),
+      };
+    };
+    widestPicture = (img) => Math.min(img.naturalWidth || COMPOSE_FMT.pictures.sentMaxWidth, COMPOSE_FMT.pictures.sentMaxWidth);
+    sizePicture = (width) => {
+      const img = this.selectedPicture;
+      if (!img) return;
+      img.style.width = Math.round(Math.max(24, Math.min(width, this.widestPicture(img)))) + "px";
+      this.setState({ pictureSel: this.pictureSelOf(img) });
+    };
+    pictureGripDown = (e) => {
+      if (!this.selectedPicture) return;
+      e.preventDefault();
+      this.pictureDrag = { pointer: e.pointerId, from: e.clientX, width: this.selectedPicture.getBoundingClientRect().width };
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) { /* a synthesised pointer */ }
+    };
+    pictureGripMove = (e) => {
+      const drag = this.pictureDrag;
+      if (drag && drag.pointer === e.pointerId) this.sizePicture(drag.width + e.clientX - drag.from);
+    };
+    pictureGripUp = (e) => {
+      if (this.pictureDrag && this.pictureDrag.pointer === e.pointerId) this.pictureDrag = null;
+    };
+    pictureGripKey = (e) => {
+      const img = this.selectedPicture;
+      if (!img) return;
+      const width = img.getBoundingClientRect().width;
+      const to = { ArrowLeft: width - 10, ArrowRight: width + 10, Home: this.widestPicture(img) }[e.key];
+      if (to === undefined) return;
+      e.preventDefault();
+      this.sizePicture(to);
     };
     removePicture = () => {
       if (this.selectedPicture) this.selectedPicture.remove();
@@ -3162,7 +3206,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         Promise.all(files.map(read)).then((sources) => {
           this.restoreRange();
           /* The picture is named for a screen reader by what it was called, as the strip names it. */
-          this.exec("insertHTML", files.map((file, i) => { const name = this.escapeHtml(file.name || "picture"); return "<img data-mf-picture data-name=\"" + name + "\" data-size=\"" + this.fileSize(file.size) + "\" data-bytes=\"" + file.size + "\" alt=\"" + name + "\" src=\"" + sources[i] + "\" style=\"display:block;max-width:100%;height:auto;margin:8px 0;cursor:pointer\">"; }).join(""));
+          this.exec("insertHTML", files.map((file, i) => { const name = this.escapeHtml(file.name || "picture"); return "<img data-mf-picture data-name=\"" + name + "\" data-size=\"" + this.fileSize(file.size) + "\" data-bytes=\"" + file.size + "\" alt=\"" + name + "\" src=\"" + sources[i] + "\" style=\"display:block;max-width:min(100%, 600px);height:auto;margin:8px 0;cursor:pointer\">"; }).join(""));
           this.notePictures();
         });
         return;
@@ -3236,7 +3280,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* A picture the passage carries inside itself is kept; one it would fetch from elsewhere is not. */
         if (n.tagName === "IMG") {
           const src = n.getAttribute("src") || "";
-          return /^data:image\/(png|jpeg|gif);base64,/i.test(src) ? "<img data-mf-picture alt=\"" + this.escapeHtml(n.getAttribute("alt") || "picture") + "\" src=\"" + src + "\" style=\"display:block;max-width:100%;height:auto;margin:8px 0\">" : "";
+          return /^data:image\/(png|jpeg|gif);base64,/i.test(src) ? "<img data-mf-picture alt=\"" + this.escapeHtml(n.getAttribute("alt") || "picture") + "\" src=\"" + src + "\" style=\"display:block;max-width:min(100%, 600px);height:auto;margin:8px 0\">" : "";
         }
         if (n.tagName === "TABLE") {
           const t = this.readHtmlTable(n);
@@ -8075,7 +8119,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         composeScrollStyle: low ? "flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto" : "display:contents",
         /* The writing area gives way to 120 px before the foot does, so the formatting bar and a table's or a picture's
            strip standing over it never push *Send* off a tablet's screen. */
-        composeWritingStyle: low ? "display:contents" : "flex:1;min-height:120px;overflow:auto;display:flex;flex-direction:column",
+        composeWritingStyle: low ? "display:contents" : "position:relative;flex:1;min-height:120px;overflow:auto;display:flex;flex-direction:column",
         threadSheetStyle: "display:flex;flex-direction:column;gap:12px;max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(82dvh, 640px)" : "82dvh") + ";overflow:auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;padding:10px 16px 20px 16px",
         composeBodyStyle: "display:flex;flex-direction:column;min-height:0;flex:1;--compose-label:" + (isMobile ? 58 : 88) + "px",
         ccToggleStyle: "flex:0 0 auto;font-size:12px;white-space:nowrap;border-radius:8px;" + (touch ? "display:flex;align-items:center;min-height:44px;padding:0 10px;" : "padding:2px 8px;") + (st.ccOpen ? "color:var(--accent-d);background:var(--accent-soft)" : "color:var(--muted)"),
@@ -8702,7 +8746,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               { key: "rc", label: "Remove column", act: "removeCol" },
               { key: "dt", icon: "delete", label: "Delete table", act: "deleteTable", danger: true },
             ].map(b => stripBtn(Object.assign({ icon: "", groupEnd: false }, b, { hasIcon: !!b.icon, run: (e) => { e.preventDefault(); this.tableAct(b.act); } }))),
-            pictureStripText: st.pictureSel ? st.pictureSel.name + " · " + st.pictureSel.size + " · sent at most " + COMPOSE_FMT.pictures.sentMaxWidth + " px wide" : "",
+            pictureStripText: st.pictureSel ? st.pictureSel.name + " · " + st.pictureSel.size + " · sent " + st.pictureSel.width + " px wide" : "",
+            /* A 12 px accent square ringed in the panel's colour and centred on the corner, in a 20 px target reaching
+               inward over the picture; under a finger an 18 px square in a 44 px target. */
+            pictureGripStyle: st.pictureSel ? "position:absolute;z-index:2;display:flex;align-items:flex-end;justify-content:flex-end;touch-action:none;cursor:nwse-resize;" +
+              (touch ? "width:44px;height:44px;" : "width:20px;height:20px;") + "left:" + st.pictureSel.gripLeft + "px;top:" + st.pictureSel.gripTop + "px;transform:translate(-100%,-100%)" : "",
+            pictureGripDotStyle: "box-sizing:border-box;border-radius:4px;background:var(--accent);border:2px solid var(--panel);box-shadow:var(--sh-1);transform:translate(50%,50%);" + (touch ? "width:18px;height:18px" : "width:12px;height:12px"),
+            pictureGripWidth: st.pictureSel ? String(st.pictureSel.width) : "",
+            pictureGripDown: this.pictureGripDown,
+            pictureGripMove: this.pictureGripMove,
+            pictureGripUp: this.pictureGripUp,
+            pictureGripKey: this.pictureGripKey,
+            pictureGripWidest: () => this.selectedPicture && this.sizePicture(this.widestPicture(this.selectedPicture)),
             picturesInMemory: !!st.picturesInMemory,
             picturesInMemoryText: "The pictures in this message are kept in this window only - the browser's storage would not take them. Reloading or closing the window loses them; the words, recipients, and subject are kept.",
             picturesInMemoryStyle: "flex:0 0 auto;display:flex;align-items:flex-start;gap:9px;padding:" + (touch ? "10px 15px" : "8px 15px") + ";font-size:" + (touch ? 13 : 12) + "px;line-height:1.45;color:var(--warn-text);background:var(--warn-soft);border-bottom:1px solid var(--warn)",
