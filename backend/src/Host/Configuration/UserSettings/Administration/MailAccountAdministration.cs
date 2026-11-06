@@ -836,8 +836,9 @@ internal sealed class MailAccountAdministration(
             version,
             [
                 "The mail account belongs to no organization and is already assigned to a user. An account in no "
-                + "organization is assigned to one person, so nothing was written. To share it, move the account and "
-                + "the users it is shared between into an organization first.",
+                + "organization is assigned to one person, so nothing was written. To share it, move the user it is "
+                + "assigned to into an organization with their mail accounts, and the people it is to be shared with "
+                + "into the same one, first.",
             ]);
 
     private static string OrganizationNamed(Guid? organizationId) =>

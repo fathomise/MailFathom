@@ -23,7 +23,8 @@ namespace MailFathom.IntegrationTests.Idempotency;
 /// that each read the account as unassigned and then both insert is the defect, and neither a substitute nor a
 /// sequential repeat can produce it. The move out of every organization is the other write that could leave such an
 /// account shared, and it is here for the same reason — its refusal is a count taken under the lock an assignment
-/// waits on.
+/// waits on. A move of a user with the accounts they hold alone is the third, and is here beside them: what it moves
+/// and what it refuses over is decided under the same locks, against the same rows.
 /// </para>
 /// <para>
 /// This class shares a database with every other in the collection, so every row it writes names a user, an account,
@@ -166,6 +167,124 @@ public sealed class OrchestratedSoleAssignmentOutsideOrganizationTests(MailFatho
                 (scope, token) => scope.GetRequiredService<IOrganizationStore>().DeleteAsync(organization, token),
                 CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// A user moving with their accounts is refused, moving nothing, while one of them is shared with somebody staying
+    /// behind, and once it is theirs alone the user and both accounts arrive together with every assignment and no
+    /// mail erased — and can leave again the same way.
+    /// </summary>
+    [Fact]
+    public async Task SetUserOrganizationAsync_WithMailAccounts_MovesTheAccountsTheyHoldAloneAndIsRefusedWhileOneIsShared()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var holder = Guid.CreateVersion7();
+        var colleague = Guid.CreateVersion7();
+        var organization = Guid.CreateVersion7();
+        var soleAccount = Guid.CreateVersion7();
+        var sharedAccount = Guid.CreateVersion7();
+
+        try
+        {
+            Assert.Equal(
+                PersistenceCommitResult.Committed,
+                await OrchestratedForeignUser.ProvisionAsync(services, holder, cancellationToken));
+            Assert.Equal(
+                PersistenceCommitResult.Committed,
+                await OrchestratedForeignUser.ProvisionAsync(services, colleague, cancellationToken));
+            Assert.Equal(
+                OrganizationWriteOutcome.Written,
+                (await services.InScopeAsync(
+                    (scope, token) => scope.GetRequiredService<IOrganizationStore>().CreateAsync(
+                        organization,
+                        $"Organization {organization:N}",
+                        OrganizationShortName.Create($"{organization:N}"),
+                        RecordedAt,
+                        token),
+                    cancellationToken)).Outcome);
+
+            // An account in none shared by two people is what a deployment older than that rule may still hold.
+            await SeedAsync(
+                services,
+                [Record(soleAccount, organizationId: null), Record(sharedAccount, organizationId: null)],
+                [Assignment(soleAccount, holder), Assignment(sharedAccount, holder), Assignment(sharedAccount, colleague)],
+                cancellationToken);
+
+            // Act
+            var withoutAccounts = await MoveUserAsync(services, holder, organization, withMailAccounts: false, cancellationToken);
+            var whileShared = await MoveUserAsync(services, holder, organization, withMailAccounts: true, cancellationToken);
+            var heldBack = await ReadOrganizationsAsync(services, holder, [soleAccount, sharedAccount], cancellationToken);
+            await services.InScopeAsync(
+                (scope, token) => scope.GetRequiredService<MailFathomDbContext>()
+                    .MailAccountAssignments
+                    .Where(assignment => assignment.MailAccountId == sharedAccount && assignment.UserId == colleague)
+                    .ExecuteDeleteAsync(token),
+                cancellationToken);
+            var moved = await MoveUserAsync(services, holder, organization, withMailAccounts: true, cancellationToken);
+            var arrived = await ReadOrganizationsAsync(services, holder, [soleAccount, sharedAccount], cancellationToken);
+            var movedBack = await MoveUserAsync(services, holder, organizationId: null, withMailAccounts: true, cancellationToken);
+            var returned = await ReadOrganizationsAsync(services, holder, [soleAccount, sharedAccount], cancellationToken);
+
+            // Assert
+            Assert.Equal(OrganizationWriteOutcome.AssignmentsOutsideOrganization, withoutAccounts.Outcome);
+            Assert.Equal(2, withoutAccounts.StandingAssignments);
+            Assert.Equal(OrganizationWriteOutcome.AssignmentsOutsideOrganization, whileShared.Outcome);
+            Assert.Equal(1, whileShared.StandingAssignments);
+            Assert.Equal([null, null, null], heldBack);
+            Assert.Equal(OrganizationWriteOutcome.Written, moved.Outcome);
+            Assert.Equal([organization, organization, organization], arrived);
+            Assert.Equal(OrganizationWriteOutcome.Written, movedBack.Outcome);
+            Assert.Equal([null, null, null], returned);
+            Assert.Equal([holder], await ReadAssignedUsersAsync(services, soleAccount, cancellationToken));
+            Assert.Equal([holder], await ReadAssignedUsersAsync(services, sharedAccount, cancellationToken));
+        }
+        finally
+        {
+            await RemoveAccountAsync(services, soleAccount);
+            await RemoveAccountAsync(services, sharedAccount);
+            await OrchestratedForeignUser.EraseAsync(services, holder);
+            await OrchestratedForeignUser.EraseAsync(services, colleague);
+            await services.InScopeAsync(
+                (scope, token) => scope.GetRequiredService<IOrganizationStore>().DeleteAsync(organization, token),
+                CancellationToken.None);
+        }
+    }
+
+    private static Task<OrganizationWriteResult> MoveUserAsync(
+        OrchestratedMailFathomServices services,
+        Guid user,
+        Guid? organizationId,
+        bool withMailAccounts,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(
+                UserId.Create(user),
+                organizationId,
+                withMailAccounts,
+                underANarrowerGrant: false,
+                token),
+            cancellationToken);
+
+    /// <summary>Reads where one user stands and where each of the accounts named sits, the user first.</summary>
+    private static async Task<Guid?[]> ReadOrganizationsAsync(
+        OrchestratedMailFathomServices services,
+        Guid user,
+        Guid[] accounts,
+        CancellationToken cancellationToken)
+    {
+        var userOrganization = await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>()
+                .UserAccounts
+                .AsNoTracking()
+                .Where(record => record.Id == user)
+                .Select(record => record.OrganizationId)
+                .SingleAsync(token),
+            cancellationToken);
+
+        Guid?[] accountOrganizations = [.. await Task.WhenAll(accounts.Select(account => ReadOrganizationAsync(services, account, cancellationToken)))];
+
+        return [userOrganization, .. accountOrganizations];
     }
 
     private static Task<OrganizationWriteResult> MoveOutOfEveryOrganizationAsync(

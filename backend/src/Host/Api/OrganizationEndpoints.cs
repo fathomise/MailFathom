@@ -227,12 +227,12 @@ internal static class OrganizationEndpoints
         };
     }
 
-    /// <summary>Moves a user into an organization, or out of every organization, re-scoping their passwords with them.</summary>
+    /// <summary>Moves a user into an organization, or out of every organization, re-scoping their passwords with them and moving the mail accounts assigned to them alone where asked.</summary>
     /// <param name="userId">The user being moved.</param>
-    /// <param name="request">The organization to move them into, or none.</param>
+    /// <param name="request">The organization to move them into, or none, and whether their accounts move with them.</param>
     /// <param name="organizations">The organization administration.</param>
     /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
-    /// <returns><c>204</c> once the move stands, <c>404</c> when no such user exists, <c>409</c> naming the username the target already holds, how many of the user's mail accounts it would leave outside, or what the settings policy of the target would leave their record without, or <c>400</c> naming what was wrong with the request.</returns>
+    /// <returns><c>204</c> once the move stands, <c>404</c> when no such user exists, <c>409</c> naming the username the target already holds, how many of the user's mail accounts it would leave outside — or, moving them with the user, how many cannot move with them — or what the settings policy of the target would leave their record or an account without, or <c>400</c> naming what was wrong with the request.</returns>
     internal static async Task<Results<NoContent, NotFound<ProblemDetails>, ProblemHttpResult>> SetUserOrganizationAsync(
         Guid userId,
         [FromBody] UserOrganizationRequest? request,
@@ -252,10 +252,12 @@ internal static class OrganizationEndpoints
         }
 
         var target = request!.None == true ? null : request.OrganizationId;
+        var withMailAccounts = request.WithMailAccounts == true;
 
         var result = await organizations.SetUserOrganizationAsync(
             UserId.Create(userId),
             target,
+            withMailAccounts,
             cancellationToken);
 
         return result.Outcome switch
@@ -267,10 +269,25 @@ internal static class OrganizationEndpoints
                 Detail = "This deployment holds no such user.",
             }),
             OrganizationWriteOutcome.UnknownOrganization => UnknownTarget(target),
+            OrganizationWriteOutcome.AssignmentsOutsideOrganization when withMailAccounts => TypedResults.Problem(
+                $"The user is assigned {result.StandingAssignments} mail account(s) outside the organization they would "
+                + "move into that cannot move with them: each is shared with somebody who is not moving, or sits in "
+                + "another organization than theirs. An account moves with its user only when it is assigned to them "
+                + "alone and sits in their organization. Nothing was changed and nobody was unassigned. Unassign the "
+                + "others from it first, or move the account into their organization.",
+                statusCode: StatusCodes.Status409Conflict),
             OrganizationWriteOutcome.AssignmentsOutsideOrganization => TypedResults.Problem(
                 $"The user is assigned {result.StandingAssignments} mail account(s) outside the organization they would "
-                + "move into, and an account is assigned only to a user of its own organization. Unassign them, or move "
-                + "each account to where the user is going first.",
+                + "move into, and an account is assigned only to a user of its own organization. Nothing was changed "
+                + "and nobody was unassigned. Ask for the move with their mail accounts to move the accounts assigned "
+                + "to them alone with them.",
+                statusCode: StatusCodes.Status409Conflict),
+            OrganizationWriteOutcome.RecordLeftInvalid when withMailAccounts => TypedResults.Problem(
+                "The move would change which settings policy governs this user and the mail accounts moving with them, "
+                + "and under the one they would move to a record of theirs is not one this deployment could serve, so "
+                + "nothing was moved: "
+                + $"{string.Join(' ', result.Corrections)} Correct the record first, or have the policy they would move "
+                + "under supply what it is missing.",
                 statusCode: StatusCodes.Status409Conflict),
             OrganizationWriteOutcome.RecordLeftInvalid => TypedResults.Problem(
                 "The move would change which settings policy governs this user, and under the one they would move to "

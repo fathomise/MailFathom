@@ -305,7 +305,7 @@ public sealed class OrchestratedOrganizationMemberDirectoryTests(MailFathomOrche
 
             // Act
             var moved = await services.InScopeAsync(
-                (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(anna, otherOrganization, token),
+                (scope, token) => scope.GetRequiredService<IOrganizationStore>().SetUserOrganizationAsync(anna, otherOrganization, withMailAccounts: false, underANarrowerGrant: false, token),
                 cancellationToken);
             var annasAfterTheMove = await ManagerOfAsync(services, people.Anna, cancellationToken);
             var robotsAfterTheMove = await ManagerOfAsync(services, people.Robot, cancellationToken);

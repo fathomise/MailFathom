@@ -965,7 +965,10 @@ acts take a scope and which stay with an administrator over the whole deployment
 --account <id> --organization <id>` moves a mail account into an organization, and `--none` takes it out. An account in
 an organization is assigned only to that organization's members, and one in none only to people in none, so an
 assignment across the two is refused naming both, and a move of a person or an account is refused while it would leave
-an assignment straddling two. Nothing is unassigned for you: unassign first, move both sides, then assign again. An
+an assignment straddling two. To bring somebody in with the mailboxes only they hold, add `--with-accounts` to
+`mfctl user set-organization`: the person and those accounts move together and keep every message. Do not unassign an
+account to get it moving — ending its last assignment erases it and its mail. A mailbox shared with somebody who is not
+moving holds the move back, and nothing is unassigned for you. An
 account you create with `mfctl account add` lands in the organization of the person it is created for, and
 `mfctl account list` and `mfctl organization list` show where each account and how many accounts each company holds.
 [Organizations](../operations/admin-endpoint.md#organizations) holds the rules — what a short name may contain, what a

@@ -19,6 +19,11 @@ namespace MailFathom.Cli.Commands.Users;
 /// unset script variable would otherwise read as the decision to take somebody out of their organization. Both and
 /// neither are refused before a request is made.
 /// </para>
+/// <para>
+/// <c>--with-accounts</c> moves the mail accounts assigned to the user alone with them, in the same transaction. It is
+/// the way a person and the mailbox only they hold reach another organization: without it the move is refused while
+/// they hold an account the target would not admit, and unassigning that account first would erase its mail.
+/// </para>
 /// </remarks>
 internal static class SetUserOrganizationCommand
 {
@@ -43,18 +48,27 @@ internal static class SetUserOrganizationCommand
             Description = "Take the user out of every organization, so they sign in under their username alone. Refused beside '--organization'.",
         };
 
+        Option<bool> withAccountsOption = new("--with-accounts")
+        {
+            Description = "Move the mail accounts assigned to this user alone with them, keeping their mail. Refused, moving nothing, while they share an account with somebody who is not moving.",
+        };
+
         Command command = new("set-organization", "Move one user into an organization, or out of every organization.")
         {
             userOption,
             organizationOption,
             noneOption,
+            withAccountsOption,
             endpointOption,
         };
 
         command.SetAction((result, cancellationToken) => RunAsync(
             context,
             result.GetValue(userOption),
-            ResolveOrganization(result.GetValue(organizationOption), result.GetValue(noneOption)),
+            ResolveOrganization(
+                result.GetValue(organizationOption),
+                result.GetValue(noneOption),
+                result.GetValue(withAccountsOption)),
             CliOptions.RequestedDeployment(result.GetValue(endpointOption), context.Variable(CliOptions.EndpointVariable)),
             cancellationToken));
 
@@ -62,7 +76,7 @@ internal static class SetUserOrganizationCommand
     }
 
     /// <summary>Settles on the organization a move names, refusing an invocation that named both or neither.</summary>
-    private static UserOrganizationRequest ResolveOrganization(Guid? organization, bool none) => (organization, none) switch
+    private static UserOrganizationRequest ResolveOrganization(Guid? organization, bool none, bool withMailAccounts) => (organization, none) switch
     {
         ({ }, true) => throw new CliFailure(
             "The invocation both names an organization and says the user belongs to none. Drop '--none' to move them "
@@ -70,7 +84,7 @@ internal static class SetUserOrganizationCommand
         (null, false) => throw new CliFailure(
             "The invocation names no organization. Pass '--organization' to move the user into one, or '--none' to take "
             + "them out of every organization."),
-        _ => new UserOrganizationRequest(organization, none),
+        _ => new UserOrganizationRequest(organization, none, withMailAccounts),
     };
 
     private static async Task<int> RunAsync(
@@ -94,9 +108,13 @@ internal static class SetUserOrganizationCommand
         await deployment.SetUserOrganizationAsync(profile.Token, user, request, cancellationToken);
 
         context.Console.WriteLine(
-            request.OrganizationId is { } organization
-                ? $"User {user:D} now belongs to organization {organization:D}."
-                : $"User {user:D} now belongs to no organization.");
+            (request.OrganizationId, request.WithMailAccounts) switch
+            {
+                ({ } organization, false) => $"User {user:D} now belongs to organization {organization:D}.",
+                ({ } organization, true) => $"User {user:D} and the mail accounts assigned to them alone now belong to organization {organization:D}.",
+                (null, false) => $"User {user:D} now belongs to no organization.",
+                (null, true) => $"User {user:D} and the mail accounts assigned to them alone now belong to no organization.",
+            });
         context.Console.WriteNotice(
             "Their password credentials sign in under the new login from now on, and under the previous one no longer. "
             + "Read it with 'mfctl credential list'.");

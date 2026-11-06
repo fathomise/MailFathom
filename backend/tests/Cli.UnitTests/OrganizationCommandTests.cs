@@ -190,6 +190,38 @@ public sealed class OrganizationCommandTests : IDisposable
 
         Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("organizationId").ValueKind);
         Assert.True(body.RootElement.GetProperty("none").GetBoolean());
+        Assert.False(body.RootElement.GetProperty("withMailAccounts").GetBoolean());
+    }
+
+    /// <summary>Moving a person with the mailboxes only they hold is asked for by name, and the confirmation says the accounts moved too.</summary>
+    [Fact]
+    public async Task SetOrganization_WithAccounts_AsksForTheAccountsAssignedToTheUserAloneToMoveWithThem()
+    {
+        // Arrange
+        using var deployment = FakeOrganizationDeployment.Holding([User]);
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "user",
+            "set-organization",
+            "--organization",
+            $"{Organization:D}",
+            "--with-accounts",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+
+        var move = Assert.Single(deployment.RequestsTo(HttpMethod.Put, AdminEndpointRoutes.UserOrganizationPath(User)));
+        using var body = JsonDocument.Parse(move.ContentAsUtf8String());
+
+        Assert.Equal(Organization, body.RootElement.GetProperty("organizationId").GetGuid());
+        Assert.True(body.RootElement.GetProperty("withMailAccounts").GetBoolean());
+        Assert.Contains(
+            this.harness.Console.Lines,
+            line => line.Contains("mail accounts assigned to them alone", StringComparison.Ordinal));
     }
 
     /// <summary>An organization named beside the decision to belong to none contradicts itself, so it is answered rather than resolved to either.</summary>
