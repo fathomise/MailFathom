@@ -105,7 +105,11 @@ public sealed class MailRuleSetValidator
         || (rule.Enabled && !stored.Enabled)
         || !HasSameContent(rule, stored);
 
-    private static bool HasSameContent(MailRuleDeclaration rule, MailRuleDeclaration stored) =>
+    /// <summary>Reports whether two declarations declare the same rule, whatever their identity, position, or state.</summary>
+    /// <param name="rule">One declaration.</param>
+    /// <param name="stored">The other.</param>
+    /// <returns><see langword="true" /> when the name, the condition, the actions, the triggers, and the schedule all agree.</returns>
+    internal static bool HasSameContent(MailRuleDeclaration rule, MailRuleDeclaration stored) =>
         string.Equals(rule.Name, stored.Name, StringComparison.Ordinal)
         && string.Equals(rule.ConditionText, stored.ConditionText, StringComparison.Ordinal)
         && rule.Actions.Select(action => action.CanonicalForm).SequenceEqual(stored.Actions.Select(action => action.CanonicalForm))

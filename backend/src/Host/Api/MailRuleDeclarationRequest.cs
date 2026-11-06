@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MailFathom.Application.Jobs.Scheduling;
@@ -121,18 +122,43 @@ internal sealed record MailRuleDeclarationRequest(
 /// <param name="AddKeywords">The keywords put on a match.</param>
 /// <param name="RemoveKeywords">The keywords taken off a match.</param>
 /// <param name="SetKeywords">The keywords a match ends up carrying and no others; empty clears every keyword.</param>
-/// <remarks>Which of these may be declared together is the validator's to judge, so a pair it refuses is read here and refused there, naming the rule.</remarks>
+/// <remarks>
+/// <para>
+/// Which of these may be declared together is the validator's to judge, so a pair it refuses is read here and refused
+/// there, naming the rule.
+/// </para>
+/// <para>
+/// It is also what an export writes, through <see cref="For" />, so a rule written out and a rule read back are one shape
+/// rather than two that have to be kept in step. A key the rule does not declare is left out of the file.
+/// </para>
+/// </remarks>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record MailRuleActionsRequest(
-    string? MoveTo = null,
-    string? CopyTo = null,
-    bool? Delete = null,
-    bool? MarkAsRead = null,
-    bool? MarkAsFlagged = null,
-    IReadOnlyList<string>? AddKeywords = null,
-    IReadOnlyList<string>? RemoveKeywords = null,
-    IReadOnlyList<string>? SetKeywords = null)
+    [property: JsonPropertyName("MoveTo"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MoveTo = null,
+    [property: JsonPropertyName("CopyTo"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CopyTo = null,
+    [property: JsonPropertyName("Delete"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Delete = null,
+    [property: JsonPropertyName("MarkAsRead"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? MarkAsRead = null,
+    [property: JsonPropertyName("MarkAsFlagged"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? MarkAsFlagged = null,
+    [property: JsonPropertyName("AddKeywords"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? AddKeywords = null,
+    [property: JsonPropertyName("RemoveKeywords"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? RemoveKeywords = null,
+    [property: JsonPropertyName("SetKeywords"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? SetKeywords = null)
 {
+    /// <summary>Writes a rule's changes as the keys they are read from.</summary>
+    /// <param name="actions">The changes the rule declares.</param>
+    /// <returns>The keys, with every change the rule does not declare left out.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="actions" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// A rule declares each kind of change at most once, which the validator holds every stored rule to, so each change has
+    /// a key of its own; reading the keys back yields the same changes in the same order, because <see cref="ToActions" />
+    /// reads them in the one order a stored rule could have been written in.
+    /// </remarks>
+    internal static MailRuleActionsRequest For(IReadOnlyList<MailRuleAction> actions)
+    {
+        ArgumentNullException.ThrowIfNull(actions);
+
+        return actions.Aggregate(new MailRuleActionsRequest(), Write);
+    }
+
     /// <summary>Reads the declared keys as the changes they name, in the order the keys are listed above.</summary>
     /// <param name="refusal">Which key held something that is not a value it takes, when the answer is <see langword="null" />.</param>
     /// <returns>The changes, empty for a rule that selects mail and changes nothing.</returns>
@@ -164,6 +190,19 @@ internal sealed record MailRuleActionsRequest(
 
         return refusal is null ? actions : null;
     }
+
+    private static MailRuleActionsRequest Write(MailRuleActionsRequest written, MailRuleAction action) => action.Mutation switch
+    {
+        var mutation when mutation == MailboxMutation.Relocate => written with { MoveTo = action.Destination?.ToString() },
+        var mutation when mutation == MailboxMutation.Copy => written with { CopyTo = action.Destination?.ToString() },
+        var mutation when mutation == MailboxMutation.Delete => written with { Delete = true },
+        var mutation when mutation == MailboxMutation.SetSeen => written with { MarkAsRead = action.DesiredSeenState },
+        var mutation when mutation == MailboxMutation.SetFlagged => written with { MarkAsFlagged = action.DesiredFlaggedState },
+        var mutation when mutation == MailboxMutation.AddKeywords => written with { AddKeywords = [.. action.Keywords?.Values ?? []] },
+        var mutation when mutation == MailboxMutation.RemoveKeywords => written with { RemoveKeywords = [.. action.Keywords?.Values ?? []] },
+        var mutation when mutation == MailboxMutation.SetKeywords => written with { SetKeywords = [.. action.Keywords?.Values ?? []] },
+        _ => throw new UnreachableException($"A rule declares the change '{action.Mutation.Name}', which no key of a rule object names."),
+    };
 
     private static string? AddDestination(
         List<MailRuleAction> actions,

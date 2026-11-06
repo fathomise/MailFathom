@@ -621,6 +621,9 @@ and a request with none is refused as any other.
 | `POST /api/admin/rules/position` | `mailfathom.admin.configuration.write` | Moves one rule to another position in the order the set runs in. |
 | `POST /api/admin/rules/removal` | `mailfathom.admin.configuration.write` | Removes one rule, and moves the rules below it up. |
 | `POST /api/admin/rules/preview` | `mailfathom.admin.audit.read` | Reports which of an account's stored messages one rule would match and what it would ask for, changing nothing. |
+| `GET /api/admin/rules/export` | `mailfathom.admin.read` | Reports one account's rules as the file an import reads: every rule in order, with whether it is enabled, and nothing else. |
+| `POST /api/admin/rules/import` | `mailfathom.admin.configuration.write` | Replaces an account's rules with a whole set, or merges a set into them, as one write against the version the body states; a rule it adds arrives disabled. |
+| `POST /api/admin/rules/import/preview` | `mailfathom.admin.read` | Reports what that import would add, change, move, and remove, judging it exactly as the import would, and writes nothing. |
 | `POST /api/admin/spam/runs` | `mailfathom.admin.operate` | Asks for every message already stored for one account to be [classified](../features/spam-classification.md), and answers with the run already under way where there is one. It is a dry run unless the body asks to apply. |
 | `GET /api/admin/spam/runs` | `mailfathom.admin.read` | Reports where that run has got to, or how the last one ended. |
 | `GET /api/admin/spam/classifications` | `mailfathom.admin.audit.read` | Reads one account's classifications, newest first, and the changes each verdict asked the mailbox for. |
@@ -1293,6 +1296,75 @@ carrying `errorCode` `31002`, and every other refusal a `400`, each with a `deta
 it answers `examinedEmailCount`, `failedEmailCount`, `matches`, `requested` — the changes a match would ask for, in the
 shape the rules route reports a rule's actions in — and `continueAfter`, `null` once the account's mail is walked. A
 change or preview body is bounded at 1 MiB.
+
+### Exporting and importing the rules
+
+Two commands carry an account's rules out as a file and bring a file of rules in:
+
+| Command | What it does |
+| --- | --- |
+| `mfctl rules export --account <id>` | Writes the account's rules to standard output as the [file an import reads](../features/mail-rules.md#exporting-and-importing-an-accounts-rules) |
+| `mfctl rules import --account <id> --from-file <file> --mode replace\|merge [--preview] [--expected-version <n>]` | Brings the file's rules into the account as one write, or with `--preview` reports what that would do and writes nothing |
+
+**Export writes the rules and nothing else**: every rule in the order it runs, as the rule object with `Enabled` beside
+it, and no account, identifier, version, or secret. Redirect it into a file to keep the rules, review them as a diff, or
+bring them into another account or another deployment:
+
+```console
+$ mfctl rules export --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 > work-rules.json
+```
+
+**Import reads two files.** One is a file `export` wrote. The other is a configuration file still carrying the
+`MailRules:Rules` section an earlier release read: `import` reads its `MailRules` section, takes the rules whose
+`Accounts` names the account being imported into and the rules that named no account, and leaves every other key of the
+file alone. Both may carry comments and trailing commas, and keys are matched ignoring case. **This is the step an
+upgrade from a release that read rules from configuration asks for**: run it once per account, review what arrived, and
+enable the rules — no configured rule runs until then — and then remove the section from the configuration.
+
+**`--mode` is required**, because the two do opposite things to the rules the file does not name:
+
+- `replace` makes the account's rules exactly the file's, in the file's order, and removes every rule the file does not
+  name.
+- `merge` keeps every rule the file does not name, replaces each rule it does where it stands, and adds the rest at the
+  end in the file's order.
+
+Both match a rule of the file to a rule of the account by its name, without regard to case. A matched rule keeps its
+identifier, its history, and whether it runs, exactly as `edit` keeps them. **A rule the account does not have yet
+arrives disabled whatever the file says**, as every created rule does, so a rule able to delete mail never acts on it
+before somebody has looked; the file's `Enabled` is read only to say which rules are waiting to be enabled.
+
+**Preview it first.** `--preview` judges the import exactly as the import would judge it and writes nothing, and names
+the version to state when the import is then made:
+
+```console
+$ mfctl rules import --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 --from-file appsettings.json --mode replace --preview
+Previewed importing 2 rules into 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 (replace) against version 7. Nothing was written.
+
+Rule               Identifier                            Import   State afterwards
+supplier-invoices  assigned on import                    added    disabled
+flag-supplier      0199c3d0-0000-7000-8000-000000000009  changed  enabled
+old-newsletters    0199c3d0-0000-7000-8000-00000000000c  removed  removed; it was enabled
+Make the import with 'mfctl rules import --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 --from-file <file> --mode replace --expected-version 7'.
+Rules the file states enabled that would be disabled after the import: 1. Preview and enable each once the import is made.
+```
+
+Each rule of the file is reported as `added`, `changed`, `moved` — declaring what it declared, at another place among
+the rules both sets keep — `unchanged`, or, for a replacement, `removed`. After a committed import the command names the
+rules the file states enabled that are disabled, and the `rules preview` and `rules enable` commands that come next.
+
+**The whole import is one write.** The deployment builds the set it would produce and judges it as every change is
+judged, so one defective rule refuses the whole import and nothing of it is written; a refusal names each rule by its
+place in the file, from `#1`, and quotes no name, folder, or keyword of it — a condition refusal quotes only the one
+identifier or function the condition could not be read at, or the parser's own message, exactly as for a single
+change above, and goes back only to the caller who sent the file. A file naming one rule twice is refused, and so is an
+import decided against a version the rules have moved past, with the same `409` every change answers.
+
+`GET /api/admin/rules/export?account=<id>` answers `{ "Rules": [ … ] }`. `POST /api/admin/rules/import` and
+`/import/preview` take `account`, `version`, `mode` — `Replace` or `Merge`, ignoring case — and `rules`, a list of
+rule objects without `Enabled` or `Accounts`, which `mfctl` strips; the body is bounded at 1 MiB. Each answers the
+`account`, the `version` and `revision` the rules stand at, whether the import was `committed`, and `rules`: each
+rule's `rule` identifier — `null` for one a preview would add — `name`, `effect`, and whether it is `enabled`
+afterwards, the file's rules in their order and then the ones a replacement removes.
 
 ### Classifying the mail you already have, and reading what was concluded
 

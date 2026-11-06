@@ -1040,6 +1040,23 @@ logs one warning naming how many rules the section declares — the count and no
 name are what the person who wrote them typed — and the command that brings them into an account,
 `mfctl rules import --account`. The rules are imported per account, reviewed, and enabled; the section is then removed.
 
+**Bringing the section's rules over is one command per account**, given the configuration file that still carries the
+section:
+
+```console
+$ mfctl rules import --account <id> --from-file appsettings.json --mode merge --preview
+$ mfctl rules import --account <id> --from-file appsettings.json --mode merge --expected-version <n>
+```
+
+The import reads the file's `MailRules` section and nothing else of it, and takes the rules whose `Accounts` names the
+account and the rules that named no account; `Accounts` and `Enabled` are read and never sent, so the rest of each rule
+is the [rule object](../features/mail-rules.md#the-rule-object) as it stands today. Every rule the import adds arrives
+**disabled**, so none of them runs until it is enabled with `mfctl rules enable`, and the command names the rules the
+section had enabled. `--preview` reports what the import would do and writes nothing; [exporting and importing the
+rules](admin-endpoint.md#exporting-and-importing-the-rules) holds the two modes and what each reports. A section
+supplied through environment variables or another source rather than a JSON file is written out as one first, in the
+same `MailRules:Rules` shape.
+
 **Tightening a condition limit can hold an account's rules.** A stored condition is judged against the limits in force
 when a pass compiles it, so a lower `MaxConditionLength` or `MaxConditionNestingDepth` can leave an enabled rule that no
 longer compiles. That account's set is then held rather than run in part, as

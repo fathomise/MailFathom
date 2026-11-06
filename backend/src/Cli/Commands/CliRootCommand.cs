@@ -94,6 +94,8 @@ internal static class CliRootCommand
             MoveRuleCommand.Create(context),
             DeleteRuleCommand.Create(context),
             PreviewRuleCommand.Create(context),
+            ExportRulesCommand.Create(context),
+            ImportRulesCommand.Create(context),
             RunRulesCommand.Create(context),
             RuleRunStatusCommand.Create(context),
             RuleHistoryCommand.Create(context),

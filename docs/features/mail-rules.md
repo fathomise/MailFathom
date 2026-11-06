@@ -59,7 +59,8 @@ rules, running them, and finding out what they
 did](../operations/admin-endpoint.md#reading-the-rules-running-them-and-finding-out-what-they-did) is where the commands
 and the response are documented. **Changing them** is `mfctl rules create`, `edit`, `enable`, `disable`, `move`, and
 `delete`, each one of the writes [how a change is written](#how-a-change-is-written) describes, and `create` and `edit`
-read the [rule object](#the-rule-object) below; [changing and previewing the
+read the [rule object](#the-rule-object) below; `export` and `import` carry [the whole set as a
+file](#exporting-and-importing-an-accounts-rules); [changing and previewing the
 rules](../operations/admin-endpoint.md#changing-and-previewing-the-rules) documents the commands and their routes.
 
 **An account's rules go with the account.** Erasing the account erases its rules and every archived version of them,
@@ -69,7 +70,7 @@ mailbox, and the archive stops saying who wrote it.
 
 **A configuration still declaring `MailRules:Rules` binds and applies none of them.** The key stays recognized so a
 deployment carrying it still starts, and the start logs one warning with the number of rules the section declares —
-never what they say — and the command an operator imports them with. [Mail
+never what they say — and the command an operator [imports them](#exporting-and-importing-an-accounts-rules) with. [Mail
 configuration](../operations/configuration-mail.md#mailrules) lists the keys the section still holds: the bounds a
 condition is read and run under, and how much a pass evaluates.
 
@@ -104,9 +105,55 @@ because [a rule reaches its own account's mail and no other](#an-accounts-rules)
 does not list is refused by that key's path, and so is a trigger, a schedule, a folder, or a keyword the deployment
 cannot read; nothing the object holds is repeated in the refusal.
 
+## Exporting and importing an account's rules
+
+`mfctl rules export` writes an account's rules as one JSON file, and `mfctl rules import` brings such a file into an
+account. The file is the account's rules in the order they run, each as the [rule object](#the-rule-object) with
+`Enabled` beside it:
+
+```json
+{
+  "Rules": [
+    {
+      "Name": "supplier-invoices",
+      "Enabled": true,
+      "Condition": "senderDomain == 'supplier.test' and attachmentCount > 0",
+      "Triggers": [ "Arrival" ],
+      "Actions": { "MoveTo": "invoices", "MarkAsRead": true },
+      "StopWhenMatched": true
+    }
+  ]
+}
+```
+
+**It carries the rules and nothing else**: no account, no identifier, no version, no revision, and no secret. A key a
+rule does not declare is left out, and a schedule is written the way it is declared, as `Every …` or `Daily at …`. So
+the same file brought into another account or another deployment is matched there by name, and a set exported and
+imported into an empty account declares exactly what it declared, in the same order.
+
+**Import also reads the `MailRules` section an earlier release read from configuration**, as a configuration file
+declared it. That section's rules are the same objects with two more keys: `Accounts`, the accounts a rule applied to,
+and `Enabled`. Import takes the rules whose `Accounts` names the account being imported into, and the rules that named
+no account, and reads nothing else of the file. Both files may carry the comments and trailing commas a configuration
+file may, and their keys are matched ignoring case.
+
+**An import is one write, of one of two kinds.** A *replacement* makes the account's rules exactly the file's, in its
+order, and removes every rule the file does not name. A *merge* keeps every rule the file does not name, replaces each
+one it does where it stands, and adds the rest at the end. Either way a rule of the file is matched to the account's
+rule of the same name, without regard to case, and the matched rule keeps its identifier, its history, and whether it
+runs, as an [edit](#how-a-change-is-written) keeps them. The whole set the import produces is judged as every write's
+candidate is, so one defective rule refuses the whole import; a refusal names each rule by its place in the file, from
+`#1`. A file naming one rule twice is refused.
+
+**A rule the account does not have yet arrives disabled, whatever the file says.** An imported rule is a create like any
+other, so it is previewed and enabled before it acts on anybody's mail — which is why the file's `Enabled` is read only
+to report the rules waiting for it. A preview of the import reports what it would add, change, move, and remove, and
+which rules would run afterwards, and writes nothing. [Exporting and importing the
+rules](../operations/admin-endpoint.md#exporting-and-importing-the-rules) documents the commands and their routes.
+
 ## How a change is written
 
-A change to an account's rules is one of five writes, and each is a whole transaction over the account's set:
+A change to an account's rules is one of six writes, and each is a whole transaction over the account's set:
 
 | Write | What it does |
 | --- | --- |
@@ -115,6 +162,7 @@ A change to an account's rules is one of five writes, and each is a whole transa
 | Enable or disable | Switches one rule on or off, and nothing else about it |
 | Move | Puts one rule at another position; a position outside the set is refused |
 | Remove | Deletes one rule, moves the rules below it up, and withdraws its schedule |
+| Import | Replaces the whole set with a file's rules, or merges them into it, matching each by name; a rule it adds arrives **disabled** — [exporting and importing](#exporting-and-importing-an-accounts-rules) |
 
 **Every rule starts disabled.** A rule acting on real mail is worth seeing before it runs, so a create never commits an
 enabled rule and enabling it is a write of its own — [previewing a rule](#previewing-a-rule) is

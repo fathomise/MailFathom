@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using MailFathom.Application.Rules;
 using MailFathom.Application.Rules.Actions;
+using MailFathom.Application.Rules.Editing;
 using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Rules.History;
 using MailFathom.Application.Rules.Preview;
@@ -161,6 +162,77 @@ internal sealed record MailRuleChangeResponse(
     string Name,
     long Version,
     string Revision);
+
+/// <summary>What a caller asks an import into one account's rules, or a preview of one, for.</summary>
+/// <param name="Account">The account whose rules the import changes.</param>
+/// <param name="Version">The version of the account's rules the import was decided against.</param>
+/// <param name="Mode"><c>Replace</c> or <c>Merge</c>, matched ignoring case; nothing is assumed when it is absent.</param>
+/// <param name="Rules">The rules, as rule objects, in the order they are imported in.</param>
+/// <remarks>
+/// The mode is required rather than defaulted, because one of the two removes every rule the import does not name, and an
+/// import that left it out would have that decided for it.
+/// </remarks>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record MailRuleImportRequest(
+    string? Account = null,
+    long? Version = null,
+    string? Mode = null,
+    IReadOnlyList<JsonElement>? Rules = null);
+
+/// <summary>What an import into one account's rules did, or what it would do when it was a preview.</summary>
+/// <param name="Account">The account whose rules the import changes.</param>
+/// <param name="Version">The version the rules are at now: the new one after a committed import, the one a preview read otherwise.</param>
+/// <param name="Revision">The revision of the account's enabled rules, in the same sense.</param>
+/// <param name="Committed">Whether the import was written, which a preview never is.</param>
+/// <param name="Rules">What the import does to each rule: the imported rules in their order, then the rules a replacement removes.</param>
+internal sealed record MailRuleImportResponse(
+    string Account,
+    long Version,
+    string Revision,
+    bool Committed,
+    IReadOnlyList<MailRuleImportedRuleResponse> Rules)
+{
+    /// <summary>Describes what an import did, or would do, for the wire.</summary>
+    /// <param name="account">The account the import is into.</param>
+    /// <param name="result">What the editor reported.</param>
+    /// <returns>The response body.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="result" /> is <see langword="null" />.</exception>
+    internal static MailRuleImportResponse For(MailAccountId account, MailRuleSetImportResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        var committed = result.Outcome == MailRuleSetChangeOutcome.Committed;
+
+        return new MailRuleImportResponse(
+            account.Value,
+            result.Version,
+            result.Revision.Value,
+            committed,
+            [.. result.Rules.Select(rule => MailRuleImportedRuleResponse.For(rule, committed))]);
+    }
+}
+
+/// <summary>What an import does to one rule.</summary>
+/// <param name="Rule">The rule's identifier, absent for a rule a preview would add, which has none until it is written.</param>
+/// <param name="Name">The rule's name.</param>
+/// <param name="Effect"><c>Added</c>, <c>Changed</c>, <c>Moved</c>, <c>Unchanged</c>, or <c>Removed</c>.</param>
+/// <param name="Enabled">Whether a pass applies the rule after the import, or applied it before it was removed; an added rule is always disabled.</param>
+internal sealed record MailRuleImportedRuleResponse(
+    Guid? Rule,
+    string Name,
+    string Effect,
+    bool Enabled)
+{
+    /// <summary>Describes what an import does to one rule for the wire.</summary>
+    /// <param name="rule">What the editor reported for the rule.</param>
+    /// <param name="committed">Whether the import was written, without which an added rule's identifier names nothing.</param>
+    /// <returns>The response body.</returns>
+    internal static MailRuleImportedRuleResponse For(MailRuleImportDifference rule, bool committed) => new(
+        committed || rule.Effect != MailRuleImportEffect.Added ? rule.Rule.Value : null,
+        rule.Name,
+        rule.Effect.ToString(),
+        rule.Enabled);
+}
 
 /// <summary>What a caller asks one page of a preview for.</summary>
 /// <param name="Account">The account whose stored mail the rule is evaluated over.</param>
