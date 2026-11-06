@@ -120,6 +120,11 @@ test('reads a hostile document pasted and dropped, and a spreadsheet range, runn
             `${JSON.stringify(clipboard.hostileDocument)}.replace(/https:\\/\\/([a-z-]+)\\.example\\.invalid/gu, location.origin + '/clipboard-fixture-$1')`,
         );
 
+        // The development server answers every module as a request of its own, more than the timing buffer holds by
+        // default, so the buffer is emptied and widened before the paste or a fetch it started could go unrecorded.
+        await head.evaluate(
+            '(performance.clearResourceTimings(), performance.setResourceTimingBufferSize(10000), true)',
+        );
         await head.evaluate(deliver('paste', { 'text/html': hostile }));
         await head.evaluate(deliver('drop', { 'text/html': hostile }));
         await head.settled(`document.querySelectorAll('${words} td').length >= 4 ? true : null`);
@@ -130,13 +135,15 @@ test('reads a hostile document pasted and dropped, and a spreadsheet range, runn
             await fetch(location.origin + '/clipboard-fixture-settled').catch(() => undefined);
 
             const region = document.querySelector('${words}');
+            const recorded = performance
+                .getEntriesByType('resource')
+                .map((entry) => entry.name)
+                .filter((name) => name.includes('/clipboard-fixture-'));
 
             return {
                 ran: globalThis['${clipboard.ranMarker}'] ?? null,
-                fetched: performance
-                    .getEntriesByType('resource')
-                    .map((entry) => entry.name)
-                    .filter((name) => name.includes('/clipboard-fixture-') && !name.endsWith('-settled')),
+                recording: recorded.some((name) => name.endsWith('-settled')),
+                fetched: recorded.filter((name) => !name.endsWith('-settled')),
                 foreign: region.querySelectorAll('script, style, link, base, meta, iframe, object, embed, svg, video, picture, source, img').length,
                 handlers: [...region.querySelectorAll('*')].some((element) =>
                     [...element.attributes].some((attribute) => attribute.name.startsWith('on')),
@@ -145,7 +152,7 @@ test('reads a hostile document pasted and dropped, and a spreadsheet range, runn
             };
         })()`);
 
-        expect(read).toEqual({ ran: null, fetched: [], foreign: 0, handlers: false, words: true });
+        expect(read).toEqual({ ran: null, recording: true, fetched: [], foreign: 0, handlers: false, words: true });
 
         await head.evaluate(deliver('paste', { 'text/html': clipboard.excelRange, 'text/plain': clipboard.rangeText }));
 

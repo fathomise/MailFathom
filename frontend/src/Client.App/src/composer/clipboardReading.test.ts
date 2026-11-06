@@ -56,6 +56,7 @@ interface Carried {
     readonly size?: WrittenSize;
     readonly alignment?: WrittenAlignment;
     readonly background?: string;
+    readonly columnSpan?: number;
 }
 
 function markup(element: WrittenElement, holds: readonly WrittenNode[], carried: Carried = {}): WrittenMarkup {
@@ -199,6 +200,19 @@ describe('readClipboardHtml', () => {
         expect(atTheBounds !== undefined && 'holds' in atTheBounds ? atTheBounds.holds : []).toHaveLength(200);
     });
 
+    it.each([['100%'], ['99']])('reads a cell spanning %s columns as spanning the columns the table has', (span) => {
+        expect(
+            writtenOf(
+                `<table><tr><td colspan="${span}">Totals</td></tr><tr><td>A</td><td>B</td><td>C</td></tr></table>`,
+            ),
+        ).toStrictEqual([
+            markup('table', [
+                rowOf(cellOf([text('Totals')], { columnSpan: 3 })),
+                rowOf(cellOf([text('A')]), cellOf([text('B')]), cellOf([text('C')])),
+            ]),
+        ]);
+    });
+
     // Each row of ADR 0047's size table, read through an inline declaration as a pasted page states it.
     it.each([
         ['9px', 'small'],
@@ -280,6 +294,13 @@ describe('readClipboardHtml', () => {
         expect(writtenOf('<section>Bay <mark>4</mark></section><article><code>Bay 5</code></article>')).toStrictEqual([
             markup('div', [text('Bay '), text('4')]),
             markup('div', [text('Bay 5')]),
+        ]);
+    });
+
+    it('keeps the space a line break in the source draws between two runs, and drops it between blocks', () => {
+        expect(writtenOf('<p><b>Ann</b>\r\n<i>today</i></p>\n<p>Next</p>')).toStrictEqual([
+            markup('p', [markup('b', [text('Ann')]), text(' '), markup('i', [text('today')])]),
+            markup('p', [text('Next')]),
         ]);
     });
 

@@ -1485,10 +1485,13 @@ function refusalSentence(refused: RefusedPaste, locale: Locale, translate: Trans
             return translate('compose.pictureInACell');
         case 'tableTooLarge': {
             const counted = new Intl.NumberFormat(locale);
+            const forms = new Intl.PluralRules(locale);
 
             return translate('compose.pasteTableTooLarge', {
-                rows: counted.format(refusal.rows),
-                columns: counted.format(refusal.columns),
+                rows: translate(rowsCounted[forms.select(refusal.rows)], { count: counted.format(refusal.rows) }),
+                columns: translate(columnsCounted[forms.select(refusal.columns)], {
+                    count: counted.format(refusal.columns),
+                }),
                 mostRows: counted.format(mostTableRows),
                 mostColumns: counted.format(mostTableColumns),
             });
@@ -1643,6 +1646,25 @@ function drawingOfRegion(region: HTMLElement): RunDrawing {
         sizeSteps,
     );
 }
+
+// How many rows and columns a refused range has, in the form the count takes in the reader's language.
+const rowsCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
+    zero: 'compose.pasteTableRows.other',
+    one: 'compose.pasteTableRows.one',
+    two: 'compose.pasteTableRows.other',
+    few: 'compose.pasteTableRows.few',
+    many: 'compose.pasteTableRows.many',
+    other: 'compose.pasteTableRows.other',
+};
+
+const columnsCounted: Readonly<Record<Intl.LDMLPluralRule, MessageKey>> = {
+    zero: 'compose.pasteTableColumns.other',
+    one: 'compose.pasteTableColumns.one',
+    two: 'compose.pasteTableColumns.other',
+    few: 'compose.pasteTableColumns.few',
+    many: 'compose.pasteTableColumns.many',
+    other: 'compose.pasteTableColumns.other',
+};
 
 const menuNames: Readonly<Record<FormattingMenuKind, MessageKey>> = {
     colour: 'compose.colourMenu',

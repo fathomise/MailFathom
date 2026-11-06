@@ -1047,7 +1047,15 @@ export const en = {
     'compose.pictureInACell':
         'Nothing was pasted - a table cell holds words, colour and size only, so a picture goes outside the table.',
     'compose.pasteTableTooLarge':
-        'Nothing was pasted - the range has {rows} rows and {columns} columns, and a table holds at most {mostRows} rows and {mostColumns}.',
+        'Nothing was pasted - the range has {rows} and {columns}, and a table holds at most {mostRows} rows and {mostColumns}.',
+    'compose.pasteTableRows.one': '{count} row',
+    'compose.pasteTableRows.few': '{count} rows',
+    'compose.pasteTableRows.many': '{count} rows',
+    'compose.pasteTableRows.other': '{count} rows',
+    'compose.pasteTableColumns.one': '{count} column',
+    'compose.pasteTableColumns.few': '{count} columns',
+    'compose.pasteTableColumns.many': '{count} columns',
+    'compose.pasteTableColumns.other': '{count} columns',
     'compose.pasteAsPlainText': 'Paste as plain text',
     'compose.dismissPictureRefusal': 'Dismiss',
     'compose.picturesInThisWindowOnly':

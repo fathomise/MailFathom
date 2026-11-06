@@ -536,7 +536,8 @@ changing. `pnpm test:desktop` is the whole of how it runs.
   carries is read by this engine's parser without running a script or fetching an address, and that a spreadsheet's
   range arrives as a table with its header row — ADR 0047 rests both on each engine a head runs on, and every address
   the document names is pointed at the development server so that a request for one would be one the engine's resource
-  timing records. Each event is a synthetic one the case builds, because WebDriver reaches no system clipboard, so how
+  timing records — in a buffer the case empties and widens first, since the server's modules alone overflow the
+  default, and beside a request of the case's own that shows the buffer was still recording. Each event is a synthetic one the case builds, because WebDriver reaches no system clipboard, so how
   a real clipboard hands a picture or a document to the WebView is not asked. The shell under test loads its client from the corpus development server, which sends no content security
   policy, so neither is the policy a published shell applies. A check belongs here by being unanswerable in the other three — a component, a label, a layout, a journey, a request on the wire, or anything about
   the accessibility tree belongs above, and a copy of one here buys a slower answer and a second thing to keep in step.

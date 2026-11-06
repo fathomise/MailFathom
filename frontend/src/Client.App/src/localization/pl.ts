@@ -1061,7 +1061,15 @@ export const pl: Catalogue = {
     'compose.pictureInACell':
         'Nic nie wklejono - komórka tabeli mieści tylko słowa, kolor i rozmiar, więc obraz trzeba wstawić poza tabelą.',
     'compose.pasteTableTooLarge':
-        'Nic nie wklejono - zakres ma wierszy: {rows}, kolumn: {columns}, a tabela może mieć najwyżej {mostRows} wierszy i {mostColumns} kolumn.',
+        'Nic nie wklejono - zakres ma {rows} i {columns}, a tabela może mieć najwyżej {mostRows} wierszy i {mostColumns} kolumn.',
+    'compose.pasteTableRows.one': '{count} wiersz',
+    'compose.pasteTableRows.few': '{count} wiersze',
+    'compose.pasteTableRows.many': '{count} wierszy',
+    'compose.pasteTableRows.other': '{count} wiersza',
+    'compose.pasteTableColumns.one': '{count} kolumnę',
+    'compose.pasteTableColumns.few': '{count} kolumny',
+    'compose.pasteTableColumns.many': '{count} kolumn',
+    'compose.pasteTableColumns.other': '{count} kolumny',
     'compose.pasteAsPlainText': 'Wklej jako zwykły tekst',
     'compose.dismissPictureRefusal': 'Zamknij',
     'compose.picturesInThisWindowOnly':

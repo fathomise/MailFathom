@@ -5,7 +5,14 @@
 import { newIdentifier } from '../agent/newIdentifier';
 import { writesBodyText } from '../messageBody/senderColour';
 import { octetsOf, pictureIn, type HeldPicture } from './pictures';
-import { columnsOf, mostTableColumns, mostTableRows, spanned, tableWithinBounds } from './writtenTable';
+import {
+    columnsOf,
+    mostTableColumns,
+    mostTableRows,
+    spanned,
+    tableWithinBounds,
+    withSpansWithinTheGrid,
+} from './writtenTable';
 import {
     colourOfRgb,
     deepestWriting,
@@ -306,6 +313,53 @@ function sheetOf(parsed: Document): readonly SheetRule[] {
     );
 }
 
+// What breaks a line or stands in a grid of its own, beside which a break in the source is never a space between words.
+const breaksTheRun: ReadonlySet<string> = new Set([
+    'br',
+    'caption',
+    'col',
+    'colgroup',
+    'table',
+    'tbody',
+    'td',
+    'tfoot',
+    'th',
+    'thead',
+    'tr',
+]);
+
+// Whether a text node stands between two runs of words, rather than at the edge of what holds it, beside a block, or
+// beside an element that draws no words of its own.
+function betweenRuns(text: Node): boolean {
+    return runsOn(text.previousSibling, 'previousSibling') && runsOn(text.nextSibling, 'nextSibling');
+}
+
+function runsOn(sibling: ChildNode | null, onward: 'previousSibling' | 'nextSibling'): boolean {
+    let node = sibling;
+
+    while (node !== null && node.nodeType === Node.COMMENT_NODE) {
+        node = node[onward];
+    }
+
+    if (node === null) {
+        return false;
+    }
+
+    if (node.nodeType === Node.TEXT_NODE) {
+        return (node.nodeValue ?? '').trim() !== '';
+    }
+
+    const named = node instanceof Element ? node.tagName.toLowerCase() : null;
+
+    return (
+        named !== null &&
+        !Object.hasOwn(blockElements, named) &&
+        !unread.has(named) &&
+        !breaksTheRun.has(named) &&
+        (node.textContent ?? '').trim() !== ''
+    );
+}
+
 function readPasted(parent: Node, depth: number, reading: Reading, within: Placement): WrittenNode[] {
     const written: WrittenNode[] = [];
 
@@ -317,8 +371,9 @@ function readPasted(parent: Node, depth: number, reading: Reading, within: Place
         if (node.nodeType === Node.TEXT_NODE) {
             const raw = node.nodeValue ?? '';
 
-            // The line breaks and indentation a page's source was laid out in, which no reader of it ever saw.
-            if (raw.trim() === '' && /[\n\r]/u.test(raw)) {
+            // The line breaks and indentation a page's source was laid out in between its blocks, which no reader of it
+            // ever saw. Between two runs the same break is the space the source drew between their words.
+            if (raw.trim() === '' && /[\n\r]/u.test(raw) && !betweenRuns(node)) {
                 continue;
             }
 
@@ -698,7 +753,7 @@ function tableOf(table: HTMLTableElement, depth: number, reading: Reading): read
         first.cells.every(({ cell }) => cell.element === 'th') ||
         (second !== undefined && boldRow(first) && !boldRow(second));
 
-    const markup: WrittenMarkup = {
+    const markup = withSpansWithinTheGrid({
         element: 'table',
         address: null,
         holds: rows.map((row, index) => ({
@@ -722,7 +777,7 @@ function tableOf(table: HTMLTableElement, depth: number, reading: Reading): read
                     : []),
             ],
         })),
-    };
+    });
     const columns = columnsOf(markup);
 
     if (rows.length > mostTableRows || columns > mostTableColumns) {

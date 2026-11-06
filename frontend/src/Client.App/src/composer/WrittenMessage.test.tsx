@@ -260,6 +260,14 @@ describe('WrittenMessage, a formatted paste', () => {
         expect(screen.queryByRole('alert')).toBeNull();
     });
 
+    it('counts a refused range of one column in the form one column takes', async () => {
+        drawWords();
+
+        pasteFlavours({ 'text/plain': 'Bay', 'text/html': `<table>${'<tr><td>1</td></tr>'.repeat(201)}</table>` });
+
+        expect((await screen.findByRole('alert')).textContent).toContain('the range has 201 rows and 1 column,');
+    });
+
     it('pastes the words alone under Ctrl+Shift+V, whatever formatting the clipboard carries', () => {
         drawWords();
 
