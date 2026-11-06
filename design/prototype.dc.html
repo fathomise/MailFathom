@@ -2177,6 +2177,12 @@ Project repository: https://github.com/fathomise/MailFathom
                               </div>
                             </sc-if>
                             <sc-if value="{{ bk.isDraft }}" hint-placeholder-val="{{ false }}">
+                              <sc-if value="{{ bk.hasDraftStanding }}" hint-placeholder-val="{{ false }}">
+                                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                                  <span style="{{ bk.draftDispositionStyle }}">{{ bk.draftDisposition }}</span>
+                                  <div role="button" tabIndex="0" data-tip="1" style="{{ bk.citedChipStyle }}"><span style="{{ bk.citedIconStyle }}">format_quote</span>{{ bk.citedLabel }}<span role="tooltip">{{ bk.citedTip }}</span></div>
+                                </div>
+                              </sc-if>
                               <sc-if value="{{ bk.editing }}" hint-placeholder-val="{{ false }}">
                                 <textarea value="{{ bk.editText }}" onChange="{{ bk.onEdit }}" aria-label="Edit the draft text before sending" style="{{ bk.textareaStyle }}"></textarea>
                               </sc-if>
@@ -2184,6 +2190,9 @@ Project repository: https://github.com/fathomise/MailFathom
                                 <div style="{{ bk.letterStyle }}">
                                   <sc-for list="{{ bk.paras }}" as="p" hint-placeholder-count="3"><div style="{{ p.style }}">{{ p.t }}</div></sc-for>
                                 </div>
+                              </sc-if>
+                              <sc-if value="{{ bk.hasDraftCites }}" hint-placeholder-val="{{ false }}">
+                                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><sc-for list="{{ bk.answerCites }}" as="c" hint-placeholder-count="1"><span role="button" tabIndex="0" aria-label="{{ c.openAria }}" onClick="{{ c.open }}" onKeyDown="{{ c.openKey }}" style="{{ bk.citeChipStyle }}" style-hover="background:var(--accent-2);color:var(--onaccent)" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ c.n }}</span></sc-for></div>
                               </sc-if>
                               <sc-if value="{{ bk.hasFooter }}" hint-placeholder-val="{{ false }}">
                                 <div data-draft-footer style="display:flex;flex-direction:column;gap:6px">

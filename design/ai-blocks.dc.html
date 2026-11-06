@@ -227,7 +227,10 @@ Project repository: https://github.com/fathomise/MailFathom
             <sc-for list="{{ skelRows }}" as="s" hint-placeholder-count="3"><div style="{{ s.style }}"></div></sc-for>
           </sc-if>
           <sc-if value="{{ bodyReady }}" hint-placeholder-val="{{ true }}">
-            <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;background:var(--sub);color:var(--muted);border-radius:999px;padding:3px 10px;align-self:flex-start">{{ draftStatusLabel }}</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div style="font-family:'Geist',system-ui,sans-serif;font-size:11px;font-weight:600;background:var(--sub);color:var(--muted);border-radius:999px;padding:3px 10px">{{ draftStatusLabel }}</div>
+              <div role="button" tabIndex="0" data-tip="1" style="{{ draftVerdict.chipStyle }}"><span style="{{ draftVerdict.iconStyle }}">{{ draftVerdict.icon }}</span>{{ draftVerdict.label }}<span role="tooltip">{{ draftVerdict.tip }}</span></div>
+            </div>
             <div style="display:flex;flex-direction:column;gap:8px;background:var(--sub);border:1px solid var(--line2);border-radius:10px;padding:14px 16px">
               <div style="display:flex;gap:8px;font-size:13px"><span style="color:var(--muted);flex:0 0 56px">To:</span><span>{{ draftTo }}</span></div>
               <div style="display:flex;gap:8px;font-size:13px"><span style="color:var(--muted);flex:0 0 56px">Subject:</span><span style="font-weight:600">{{ draftSubject }}</span></div>

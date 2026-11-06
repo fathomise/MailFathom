@@ -420,6 +420,12 @@ MailFathomDesign.artboards.aiBlocks = (DCLogic, React) => {
 
         draftMeta: "local draft",
         draftStatusLabel: "Local draft - nothing sent",
+        /* A reply the Agent writes is its own prose: it cites the message it answers, and nothing checked the reply
+           against it. A new message the Agent writes answers nothing and is *unsupported*. */
+        draftVerdict: ((vi) => ({
+          label: vi.label, icon: vi.icon, tip: vi.tip, chipStyle: verdictChipStyle("cited"),
+          iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:12px;line-height:1",
+        }))(verdictInfo("cited")),
         /* The sending account's footer, folded to one line under the letter as the Agent draws it; a press unfolds it there. */
         draftFooterStyle: "display:inline-flex;align-self:flex-start;align-items:center;gap:4px;box-sizing:border-box;min-height:" + (isMobile ? 44 : 28) + "px;padding:0 10px 0 4px;margin-left:-4px;border-radius:8px;font-size:13px;line-height:1.3;color:var(--muted);cursor:pointer",
         draftTo: DRAFT.to,

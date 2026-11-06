@@ -218,7 +218,7 @@ const answeredEntries = [
             messageId: answeredQuestionId,
             block: {
                 type: 'draft',
-                evidence: { support: 'Supported', citations: ['c-1'], freshness: current },
+                evidence: { support: 'Cited', citations: ['c-1'], freshness: current },
                 recipients: ['bays@example.invalid'],
                 subject: 'Re: four bays to the end of the week',
                 body: 'Thank you — four bays until Friday suits us. We will confirm the times by Wednesday.',

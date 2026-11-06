@@ -13,6 +13,7 @@ using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Calendar;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
+using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Mailboxes;
@@ -521,6 +522,44 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         // Assert
         var proposal = Assert.Single(this.written.OfType<AgentActionProposed>());
         Assert.Equal("travel", Assert.IsType<DraftBlock>(proposal.Block).Account?.Value);
+    }
+
+    /// <summary>A reply is the model's own prose, so it cites the message it answers and claims nothing checked it.</summary>
+    [Fact]
+    public async Task ProposeReply_AMessageItAnswers_CitesThatMessageWithoutClaimingSupport()
+    {
+        // Arrange
+        var answered = StoredEmailId.Create(Guid.CreateVersion7());
+        var authorization = AccessAuthorizations.ForCallerGranted(
+            MailFathomPermission.MailRead,
+            MailFathomPermission.MailDraftsWrite,
+            MailFathomPermission.MailSend);
+        this.tools = this.Tools(
+            authorization,
+            SensitiveContentEgressGuards.Inactive(),
+            responseAuthoring: ResponseAuthorings.Answering(answered, MailAccountId.Create("work"), "bays@example.org", authorization));
+        var tool = Assert.IsType<AIFunction>(
+            Assert.Single(this.tools.Create(), static tool => tool.Name == "propose_reply"),
+            exactMatch: false);
+
+        // Act
+        await tool.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?>
+            {
+                ["messageId"] = answered.Value.ToString(),
+                ["act"] = "reply",
+                ["body"] = "Thank you, four bays suit us.",
+                ["recipients"] = null,
+                ["sendAt"] = null,
+            }),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var evidence = Assert.Single(this.written.OfType<AgentActionProposed>()).Block.Evidence;
+        var citation = Assert.Single(this.tools.Cited);
+        Assert.Equal(
+            (PresentationSupport.Cited, citation.Id, answered),
+            (evidence.Support, Assert.Single(evidence.Citations), Assert.IsType<EmailCitationTarget>(citation.Target).Email));
     }
 
     /// <summary>An account the person does not read is refused back to the model and nothing is proposed.</summary>
