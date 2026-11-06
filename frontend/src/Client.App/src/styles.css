@@ -1074,7 +1074,6 @@
     --color-provider-nextcloud: #4aa8e0;
     --color-provider-okta: #e8e8e8;
 
-
     --color-inset: rgb(255 255 255 / 0.045);
     --color-shadow-soft: oklch(0.1 0.03 262 / 0.5);
     --color-shadow-strong: oklch(0.09 0.035 262 / 0.64);
@@ -1169,15 +1168,16 @@
     }
 }
 
-/* The colour menu's discs under a finger: 28 rather than the 44 floor, the one place a target is drawn below it, since
-   eleven hues by five shades at 44 do not fit a phone and the grid is what was asked for. 28 with the grid's own gap
-   still clears the 24 the platform's minimum target size asks for. A utility, so it outranks the floor. */
+/* The colour menu's discs under a finger: 24 rather than the 44 floor, the one place a target is drawn below it, since
+   eleven hues by five shades at 44 do not fit a phone and the grid is what was asked for, with room between the discs
+   so neighbouring colours do not run together. 24 is the platform's minimum target size. A utility, so it outranks the
+   floor. */
 @utility dense-target {
     @media (pointer: coarse) {
-        min-width: --spacing(7);
-        min-height: --spacing(7);
-        width: --spacing(7);
-        height: --spacing(7);
+        min-width: --spacing(6);
+        min-height: --spacing(6);
+        width: --spacing(6);
+        height: --spacing(6);
     }
 }
 

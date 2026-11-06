@@ -41,7 +41,7 @@ function EmojiSquare({ emoji, onChoose }: { readonly emoji: OfferedEmoji; readon
                 className="flex size-8 items-center justify-center rounded-md transition hover:bg-hover"
                 onMouseDown={keepTheSelection}
             >
-                <img src={pictureOf(emoji.text)} alt="" draggable={false} className="size-5 pointer-coarse:size-6" />
+                <img src={pictureOf(emoji.text)} alt={''} draggable={false} className="size-5 pointer-coarse:size-6" />
             </button>
             {tip}
         </>

@@ -881,7 +881,12 @@ export function WrittenMessage({
         }
 
         const holds: Readonly<Record<FormattingMenuKind, Readonly<Record<string, string>>>> = {
-            colour: { colour: chosen.colour === null ? translate('compose.colourAutomatic') : nameOfColour(chosen.colour, translate) },
+            colour: {
+                colour:
+                    chosen.colour === null
+                        ? translate('compose.colourAutomatic')
+                        : nameOfColour(chosen.colour, translate),
+            },
             size: { size: translate(chosen.size.named) },
             alignment: { alignment: translate(chosen.alignment.named) },
             table: {},

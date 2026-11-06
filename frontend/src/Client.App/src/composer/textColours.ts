@@ -148,7 +148,11 @@ export function readableColourNear(value: string): string | null {
 
 function hueOf(red: number, green: number, blue: number, highest: number, range: number): number {
     const sextant =
-        highest === red ? ((green - blue) / range + 6) % 6 : highest === green ? (blue - red) / range + 2 : (red - green) / range + 4;
+        highest === red
+            ? ((green - blue) / range + 6) % 6
+            : highest === green
+              ? (blue - red) / range + 2
+              : (red - green) / range + 4;
 
     return sextant * 60;
 }
@@ -182,7 +186,13 @@ function byte(hexadecimal: string | undefined): number {
 }
 
 function hexOf(channels: readonly [number, number, number]): string {
-    return `#${channels.map((channel) => Math.round(clamped(channel) * 255).toString(16).padStart(2, '0')).join('')}`;
+    return `#${channels
+        .map((channel) =>
+            Math.round(clamped(channel) * 255)
+                .toString(16)
+                .padStart(2, '0'),
+        )
+        .join('')}`;
 }
 
 function clamped(value: number): number {

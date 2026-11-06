@@ -3020,7 +3020,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       sel.addRange(nr);
     };
     /* The menus' widths under a mouse: the colour and emoji menus are as wide as their grids, the rest hold words. */
-    static fmtMenuWidth = (key) => ({ colour: 274, emoji: 306, table: 280 })[key] || 220;
+    static fmtMenuWidth = (key) => ({ colour: 294, emoji: 306, table: 280 })[key] || 220;
     /* What a colour is called: its hue and shade where the palette offers it, and its value as a colour of somebody's
        own where it does not. */
     static colourName = (value) => {
@@ -8705,7 +8705,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           const swatch = (v) => {
             const on = colour === v;
             return { key: v, value: v, name: Component.colourName(v), checked: String(on), pick: () => this.pickColour(v),
-              style: "box-sizing:border-box;border-radius:50%;background:" + v + ";" + (touch ? "width:28px;height:28px;" : "width:18px;height:18px;") +
+              style: "box-sizing:border-box;border-radius:50%;background:" + v + ";" + (touch ? "width:24px;height:24px;" : "width:18px;height:18px;") +
                 (on ? "box-shadow:0 0 0 1px var(--panel),0 0 0 3px var(--accent)" : "") };
           };
           const item = (on) => "display:flex;align-items:center;gap:10px;box-sizing:border-box;border-radius:8px;padding:0 10px;font-size:13px;color:var(--text);" +
@@ -8756,12 +8756,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             pickAutoColour: () => this.pickColour(null),
             fmtPicking: !!st.fmtPicking,
             fmtNotPicking: !st.fmtPicking,
-            fmtSwatchGridStyle: "display:grid;grid-template-columns:repeat(11," + (touch ? 28 : 18) + "px);gap:" + (touch ? 2 : 4) + "px;padding:4px 10px 6px",
-            fmtOwnRowStyle: "display:flex;flex-wrap:wrap;gap:" + (touch ? 2 : 4) + "px;padding:4px 10px 6px",
+            fmtSwatchGridStyle: "display:grid;grid-template-columns:repeat(11," + (touch ? 24 : 18) + "px);gap:6px;padding:4px 10px 6px",
+            fmtOwnRowStyle: "display:flex;flex-wrap:wrap;gap:6px;padding:4px 10px 6px",
             fmtOwnHeadStyle: "padding:4px 10px 0;font-size:12px;color:var(--muted)",
             fmtColourItems: COMPOSE_FMT.colourShades.flatMap((_, i) => COMPOSE_FMT.colourHues.map(h => h.shades[i])).concat([]).map(v => swatch(v)),
             fmtOwnItems: (st.fmtOwnColours || []).map(v => swatch(v)),
-            fmtAddStyle: "box-sizing:border-box;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border2);color:var(--text2);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:" + (touch ? 18 : 12) + "px;line-height:1;" + (touch ? "width:28px;height:28px" : "width:18px;height:18px"),
+            fmtAddStyle: "box-sizing:border-box;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border2);color:var(--text2);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:" + (touch ? 16 : 12) + "px;line-height:1;" + (touch ? "width:24px;height:24px" : "width:18px;height:18px"),
             openColourPicker: () => { const at = (colour && Component.colourPlace(colour)) || { h: 215, s: 0.7, shade: 0.5 }; this.setState({ fmtPicking: true, fmtPick: at, fmtHex: Component.colourAt(at.h, at.s, at.shade) }); },
             ...(() => {
               /* The picker: a field of hue across and saturation down, a lightness slider that runs across the band only,

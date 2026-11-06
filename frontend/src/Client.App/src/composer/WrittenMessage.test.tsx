@@ -526,7 +526,7 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
         fireEvent.click(screen.getByRole('menuitem', { name: 'Choose a colour of your own' }));
         fireEvent.change(screen.getByRole('textbox', { name: 'Hex' }), { target: { value: '#000000' } });
 
-        const note = screen.getByRole('status').textContent ?? '';
+        const note = screen.getByRole('status').textContent;
         const moved = /#[0-9a-f]{6}/u.exec(note)?.[0] ?? '';
 
         expect(moved).not.toBe('');
@@ -539,9 +539,9 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
 
         press(`Text colour - Custom colour ${moved}`);
 
-        expect(
-            screen.getByRole('menuitemradio', { name: `Custom colour ${moved}` }).getAttribute('aria-checked'),
-        ).toBe('true');
+        expect(screen.getByRole('menuitemradio', { name: `Custom colour ${moved}` }).getAttribute('aria-checked')).toBe(
+            'true',
+        );
     });
 
     it('applies nothing while what is typed is not a colour, and says how to write one', () => {

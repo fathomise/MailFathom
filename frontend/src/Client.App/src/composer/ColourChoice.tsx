@@ -66,7 +66,7 @@ export function ColourChoice({
                 <span>{translate('compose.colourAutomatic')}</span>
             </FormattingChoice>
 
-            <div className="grid w-fit grid-cols-11 gap-1 px-2.5 pt-1 pb-1.5 pointer-coarse:gap-0.5">
+            <div className="grid w-fit grid-cols-11 gap-1.5 px-2.5 pt-1 pb-1.5">
                 {textColourShades.flatMap((_, shade) =>
                     textColourHues.map((hue) => {
                         const value = hue.shades[shade] ?? '';
@@ -89,7 +89,7 @@ export function ColourChoice({
             <p aria-hidden="true" className="px-2.5 pt-1 text-sm text-muted">
                 {translate('compose.colourOwnHeading')}
             </p>
-            <div className="flex flex-wrap gap-1 px-2.5 pt-1 pb-1.5 pointer-coarse:gap-0.5">
+            <div className="flex flex-wrap gap-1.5 px-2.5 pt-1 pb-1.5">
                 {own.map((value) => (
                     <Swatch
                         key={value}
@@ -255,7 +255,7 @@ function OwnColourPicker({
             >
                 <span
                     aria-hidden="true"
-                    style={{ left: `${(own.hue / 360) * 100}%`, top: `${(1 - own.saturation) * 100}%` }}
+                    style={{ left: `${String((own.hue / 360) * 100)}%`, top: `${String((1 - own.saturation) * 100)}%` }}
                     className="absolute size-3.5 -translate-1/2 rounded-full border-2 border-on-accent shadow-overlay"
                 />
             </div>

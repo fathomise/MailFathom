@@ -2,14 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import {
-    useEffect,
-    useLayoutEffect,
-    useRef,
-    useState,
-    type KeyboardEvent,
-    type ReactNode,
-} from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { placedWithin } from '../contextMenu/menuPlacement';
 import { Icon } from '../controls/Icon';
 import { useScreenLayer } from '../shell/screenLayers';
@@ -211,7 +204,7 @@ export function FormattingChoice({
 export type FormattingMenuWidth = 'colour' | 'emoji' | 'table' | 'narrow';
 
 const menuWidths: Readonly<Record<FormattingMenuWidth, string>> = {
-    colour: 'w-74',
+    colour: 'w-73.5',
     emoji: 'w-76.5',
     table: 'w-70',
     narrow: 'w-55',

@@ -61,8 +61,8 @@ const pictures: Readonly<Record<string, string | undefined>> = Object.fromEntrie
 
 /** The file an emoji is drawn from, named as upstream names it: its code points, the presentation selector left out. */
 export function pictureFileOf(text: string): string {
-    const codePoints = [...text]
-        .map((character) => character.codePointAt(0) ?? 0)
+    // By code point rather than by grapheme, because the file name spells every code point a sequence is made of.
+    const codePoints = Array.from(text, (character) => character.codePointAt(0) ?? 0)
         .filter((codePoint) => codePoint !== 0xfe0f)
         .map((codePoint) => codePoint.toString(16).padStart(4, '0'));
 
