@@ -437,7 +437,7 @@ export function WrittenMessage({
     }
 
     // The selection a control took the focus away from, put back before a command reads it. Only the link and the
-    // four menus ask for anything, so this is null for the rest and they act on what the region still holds.
+    // formatting menus ask for anything, so this is null for the rest and they act on what the region still holds.
     function takeBackTheSelection(): void {
         words.current?.focus();
 

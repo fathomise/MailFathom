@@ -42,6 +42,16 @@ export function ColourChoice({
 }) {
     const { translate } = useLocalization();
     const [picking, setPicking] = useState(false);
+    const [leftThePicker, setLeftThePicker] = useState(false);
+    const ownRow = useRef<HTMLDivElement>(null);
+
+    // Leaving the picker unmounts the control focus stood on, so focus goes back to the disc that opened it rather than
+    // falling to the page, where the menu's keys no longer reach.
+    useEffect(() => {
+        if (leftThePicker) {
+            Array.from(ownRow.current?.querySelectorAll('button') ?? []).at(-1)?.focus();
+        }
+    }, [leftThePicker]);
 
     if (picking) {
         return (
@@ -50,6 +60,7 @@ export function ColourChoice({
                 onApply={onChoose}
                 onBack={() => {
                     setPicking(false);
+                    setLeftThePicker(true);
                 }}
             />
         );
@@ -89,7 +100,7 @@ export function ColourChoice({
             <p aria-hidden="true" className="px-2.5 pt-1 text-sm text-muted">
                 {translate('compose.colourOwnHeading')}
             </p>
-            <div className="flex flex-wrap gap-1.5 px-2.5 pt-1 pb-1.5">
+            <div ref={ownRow} className="flex flex-wrap gap-1.5 px-2.5 pt-1 pb-1.5">
                 {own.map((value) => (
                     <Swatch
                         key={value}
@@ -105,6 +116,7 @@ export function ColourChoice({
                     named={translate('compose.colourOwnAdd')}
                     onPress={() => {
                         setPicking(true);
+                        setLeftThePicker(false);
                     }}
                 />
             </div>
@@ -211,6 +223,20 @@ function OwnColourPicker({
         });
     }
 
+    // The picker is a form inside the menu, so Tab walks its controls as it would anywhere; only past its first or last
+    // control does Tab reach the menu, which leaves as it does from any other item.
+    function walkTheForm(event: KeyboardEvent<HTMLDivElement>): void {
+        const controls = Array.from(
+            event.currentTarget.querySelectorAll<HTMLElement>('[tabindex="0"], input, button'),
+        );
+        const standing = controls.indexOf(event.target as HTMLElement);
+        const pastTheEdge = event.shiftKey ? standing === 0 : standing === controls.length - 1;
+
+        if (event.key === 'Tab' && !pastTheEdge) {
+            event.stopPropagation();
+        }
+    }
+
     function stepField(event: KeyboardEvent<HTMLDivElement>): void {
         const steps: Readonly<Record<string, Partial<OwnColour>>> = {
             ArrowLeft: { hue: (own.hue + 355) % 360 },
@@ -228,7 +254,12 @@ function OwnColourPicker({
     }
 
     return (
-        <div role="group" aria-label={translate('compose.colourPicker')} className="flex flex-col gap-2 px-2.5 pb-1.5">
+        <div
+            role="group"
+            aria-label={translate('compose.colourPicker')}
+            className="flex flex-col gap-2 px-2.5 pb-1.5"
+            onKeyDown={walkTheForm}
+        >
             <div
                 ref={field}
                 role="slider"

@@ -544,6 +544,32 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
         );
     });
 
+    it('lets Tab walk the picker for a colour of one’s own, and leaves the menu only past its last control', () => {
+        drawWords();
+
+        press('Text colour - Automatic');
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Choose a colour of your own' }));
+        fireEvent.keyDown(screen.getByRole('slider', { name: 'Hue and saturation' }), { key: 'Tab' });
+        fireEvent.keyDown(screen.getByRole('button', { name: 'Back' }), { key: 'Tab' });
+
+        expect(screen.getByRole('menu')).toBeDefined();
+
+        fireEvent.keyDown(screen.getByRole('button', { name: 'Apply' }), { key: 'Tab' });
+
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Text colour - Automatic' }));
+    });
+
+    it('puts focus back on the disc that opened the picker when Back leaves it', () => {
+        drawWords();
+
+        press('Text colour - Automatic');
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Choose a colour of your own' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+        expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Choose a colour of your own' }));
+    });
+
     it('applies nothing while what is typed is not a colour, and says how to write one', () => {
         drawWords();
 
