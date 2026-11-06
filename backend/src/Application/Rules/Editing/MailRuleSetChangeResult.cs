@@ -18,6 +18,9 @@ public enum MailRuleSetChangeOutcome
 
     /// <summary>The write named a rule the account's set does not carry; nothing changed.</summary>
     RuleNotFound = 3,
+
+    /// <summary>The write was a preview: its candidate was judged and would commit, and nothing was written.</summary>
+    Previewed = 4,
 }
 
 /// <summary>What a write to an account's rules did, and the set's version and revision afterwards.</summary>

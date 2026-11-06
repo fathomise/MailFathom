@@ -34,6 +34,8 @@ internal static class FakeRuleDeployment
     /// <param name="history">The body the history route answers with, or a refusal.</param>
     /// <param name="change">The body every route changing a rule answers a post with, or a refusal.</param>
     /// <param name="preview">The body the preview route answers with, or a refusal.</param>
+    /// <param name="export">The body the export route answers with.</param>
+    /// <param name="import">The body the import route and its preview answer a post with, or a refusal.</param>
     /// <returns>The deployment.</returns>
     /// <remarks>
     /// The session route is answered unconditionally, because every command settles the two versions there before its
@@ -46,8 +48,12 @@ internal static class FakeRuleDeployment
         string? runState = null,
         (HttpStatusCode Status, string Body)? history = null,
         (HttpStatusCode Status, string Body)? change = null,
-        (HttpStatusCode Status, string Body)? preview = null) =>
-        new((request, _) => Task.FromResult(Answer(request, rules, runStart, runState, history, change, preview)));
+        (HttpStatusCode Status, string Body)? preview = null,
+        string? export = null,
+        (HttpStatusCode Status, string Body)? import = null) =>
+        new((request, _) => Task.FromResult(
+            AnswerImport(request, export, import)
+            ?? Answer(request, rules, runStart, runState, history, change, preview)));
 
     /// <summary>Reads the body the command last posted to one route.</summary>
     /// <param name="deployment">The deployment the command was pointed at.</param>
@@ -120,6 +126,25 @@ internal static class FakeRuleDeployment
             .RequestUri?
             .Query
             .TrimStart('?');
+
+    private static HttpResponseMessage? AnswerImport(
+        HttpRequestMessage request,
+        string? export,
+        (HttpStatusCode Status, string Body)? import)
+    {
+        var path = request.RequestUri?.AbsolutePath;
+
+        if (path == AdminEndpointRoutes.RuleExportPath && export is { } exported)
+        {
+            return FakeAdminEndpoint.Json(HttpStatusCode.OK, exported);
+        }
+
+        return request.Method == HttpMethod.Post
+            && path is AdminEndpointRoutes.RuleImportPath or AdminEndpointRoutes.RuleImportPreviewPath
+            && import is { } imported
+                ? FakeAdminEndpoint.Json(imported.Status, imported.Body)
+                : null;
+    }
 
     private static HttpResponseMessage Answer(
         HttpRequestMessage request,

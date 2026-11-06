@@ -132,6 +132,16 @@ internal static class AdminEndpointRoutes
     /// <summary>Where one rule is previewed over an account's stored mail, which changes nothing.</summary>
     internal const string RulePreviewPath = $"{Prefix}/rules/preview";
 
+    /// <summary>Where one mail account's rules are read as the file an import reads.</summary>
+    internal const string RuleExportPath = $"{Prefix}/rules/export";
+
+    /// <summary>Where a whole set of rules is imported into one mail account.</summary>
+    internal const string RuleImportPath = $"{Prefix}/rules/import";
+
+    /// <summary>Where an import is judged and reported without being written.</summary>
+    /// <remarks>A path of its own rather than a switch beside <see cref="RuleImportPath" />, because one of the two writes and a mistyped value would be the difference between them.</remarks>
+    internal const string RuleImportPreviewPath = $"{Prefix}/rules/import/preview";
+
     /// <summary>Where a whole-mailbox rule run is asked for, and where the one an account has is read.</summary>
     /// <remarks>
     /// One path read with <c>GET</c> and asked for with <c>POST</c>, which is what keeps the run an operator started and

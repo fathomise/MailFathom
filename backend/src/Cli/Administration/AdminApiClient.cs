@@ -865,6 +865,54 @@ internal sealed class AdminApiClient
             JsonContent.Create(change, CliJsonContext.Default.MailRuleChangeRequest)));
     }
 
+    /// <summary>Reads one account's rules as the file an import reads.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="account">The account whose rules are exported.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The rules, each as the deployment wrote it.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment refused the request or the credential, could not be reached, or answered with something that is not a rule set.</exception>
+    internal Task<ExportedRuleSet> ExportRulesAsync(
+        string token,
+        string account,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+
+        return this.RequestAsync(
+            HttpMethod.Get,
+            $"{AdminEndpointRoutes.RuleExportPath}?account={Uri.EscapeDataString(account)}",
+            token,
+            CliJsonContext.Default.ExportedRuleSet,
+            cancellationToken);
+    }
+
+    /// <summary>Asks the deployment to import a whole set of rules into one account, or to report what that would do.</summary>
+    /// <param name="token">The bearer credential to present.</param>
+    /// <param name="path">The import route, or the route previewing one.</param>
+    /// <param name="import">The account, the version read, the mode, and the rules.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>What the import did, or would do, to each rule.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <exception cref="CliFailure">Thrown when the deployment refused the import or the credential, could not be reached, or answered with something that is not an import.</exception>
+    internal Task<MailRuleImport> ImportRulesAsync(
+        string token,
+        string path,
+        MailRuleImportRequest import,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(import);
+
+        return this.PrintingRuleRefusalAsync(this.RequestAsync(
+            HttpMethod.Post,
+            path,
+            token,
+            CliJsonContext.Default.MailRuleImport,
+            cancellationToken,
+            JsonContent.Create(import, CliJsonContext.Default.MailRuleImportRequest)));
+    }
+
     /// <summary>Asks the deployment for one page of a rule's preview over an account's stored mail.</summary>
     /// <param name="token">The bearer credential to present.</param>
     /// <param name="request">The account, the stored rule or the candidate, and where the page continues from.</param>

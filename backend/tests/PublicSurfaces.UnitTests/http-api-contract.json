@@ -10167,6 +10167,69 @@
         ],
         "type": "object"
       },
+      "MailRuleActionsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "AddKeywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "CopyTo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "Delete": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "MarkAsFlagged": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "MarkAsRead": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "MoveTo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "RemoveKeywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "SetKeywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "MailRuleChangeRequest": {
         "additionalProperties": false,
         "properties": {
@@ -10234,6 +10297,47 @@
           "name",
           "version",
           "revision"
+        ],
+        "type": "object"
+      },
+      "MailRuleDocumentEntry": {
+        "properties": {
+          "Actions": {
+            "$ref": "#/components/schemas/MailRuleActionsRequest"
+          },
+          "Condition": {
+            "type": "string"
+          },
+          "Enabled": {
+            "type": "boolean"
+          },
+          "Name": {
+            "type": "string"
+          },
+          "Schedule": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "StopWhenMatched": {
+            "type": "boolean"
+          },
+          "Triggers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "Name",
+          "Enabled",
+          "Condition",
+          "Triggers",
+          "Schedule",
+          "Actions",
+          "StopWhenMatched"
         ],
         "type": "object"
       },
@@ -10373,6 +10477,101 @@
         "required": [
           "executions",
           "nextCursor"
+        ],
+        "type": "object"
+      },
+      "MailRuleImportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "mode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rules": {
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "version": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "MailRuleImportResponse": {
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "committed": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/MailRuleImportedRuleResponse"
+            },
+            "type": "array"
+          },
+          "version": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "account",
+          "version",
+          "revision",
+          "committed",
+          "rules"
+        ],
+        "type": "object"
+      },
+      "MailRuleImportedRuleResponse": {
+        "properties": {
+          "effect": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rule": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "rule",
+          "name",
+          "effect",
+          "enabled"
         ],
         "type": "object"
       },
@@ -10625,6 +10824,20 @@
         "required": [
           "account",
           "run"
+        ],
+        "type": "object"
+      },
+      "MailRuleSetDocument": {
+        "properties": {
+          "Rules": {
+            "items": {
+              "$ref": "#/components/schemas/MailRuleDocumentEntry"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "Rules"
         ],
         "type": "object"
       },
@@ -18917,6 +19130,39 @@
         ]
       }
     },
+    "/api/admin/rules/export": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "account",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailRuleSetDocument"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
     "/api/admin/rules/history": {
       "get": {
         "parameters": [
@@ -18984,6 +19230,86 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MailRuleHistoryPageResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
+    "/api/admin/rules/import": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/MailRuleImportRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailRuleImportResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
+    "/api/admin/rules/import/preview": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/MailRuleImportRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailRuleImportResponse"
                 }
               }
             },

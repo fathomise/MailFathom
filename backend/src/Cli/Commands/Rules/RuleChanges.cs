@@ -62,9 +62,29 @@ internal static class RuleChanges
     /// <remarks>Nothing it reads is echoed in a refusal: the file is named by its path, and a document that is not JSON is reported by where it stops being JSON.</remarks>
     internal static async Task<JsonElement> ReadDeclarationAsync(CliContext context, string? source, CancellationToken cancellationToken)
     {
+        var (origin, written) = await ReadSourceAsync(context, source, "the rule object", cancellationToken);
+
+        return Parse(written, origin);
+    }
+
+    /// <summary>Reads the text an invocation named with <c>--from-file</c>: a file, or standard input.</summary>
+    /// <param name="context">What the command needs from its surroundings, which is where standard input is read.</param>
+    /// <param name="source">A path, or <see cref="StandardInput" />.</param>
+    /// <param name="what">What the text holds, as a phrase such as <c>the rule object</c>, which a refusal names.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>Where the text came from, as a refusal names it, and the text.</returns>
+    /// <exception cref="CliFailure">Thrown when nothing was named, the file cannot be read, or it is empty.</exception>
+    internal static async Task<(string Origin, string Text)> ReadSourceAsync(
+        CliContext context,
+        string? source,
+        string what,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
         if (string.IsNullOrWhiteSpace(source))
         {
-            throw new CliFailure("Name the rule object with --from-file, or with --from-file - to read it from standard input.");
+            throw new CliFailure($"Name {what} with --from-file, or with --from-file - to read it from standard input.");
         }
 
         var origin = source == StandardInput ? "Standard input" : Path.GetFullPath(source);
@@ -72,12 +92,9 @@ internal static class RuleChanges
             ? await context.Console.ReadInputAsync(cancellationToken)
             : await ReadFileAsync(origin, cancellationToken);
 
-        if (string.IsNullOrWhiteSpace(written))
-        {
-            throw new CliFailure($"{origin} is empty, so it declares no rule.");
-        }
-
-        return Parse(written, origin);
+        return string.IsNullOrWhiteSpace(written)
+            ? throw new CliFailure($"{origin} is empty, so it holds no rule.")
+            : (origin, written);
     }
 
     /// <summary>Reports the version a change states: the one the operator gave, or the one the rules stand at now.</summary>
@@ -152,7 +169,7 @@ internal static class RuleChanges
     {
         if (!File.Exists(path))
         {
-            throw new CliFailure($"There is no file at {path} to read the rule from.");
+            throw new CliFailure($"There is no file at {path} to read the rules from.");
         }
 
         try

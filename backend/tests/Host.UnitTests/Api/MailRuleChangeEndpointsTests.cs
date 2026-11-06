@@ -76,6 +76,8 @@ public sealed class MailRuleChangeEndpointsTests
     [InlineData(MailRuleEndpoints.PositionRoute)]
     [InlineData(MailRuleEndpoints.RemovalRoute)]
     [InlineData(MailRuleEndpoints.PreviewRoute)]
+    [InlineData(MailRuleEndpoints.ImportRoute)]
+    [InlineData(MailRuleEndpoints.ImportPreviewRoute)]
     public void MapMailRules_AChangeOrPreviewRoute_CarriesTheRequestBodyBound(string route)
     {
         // Arrange

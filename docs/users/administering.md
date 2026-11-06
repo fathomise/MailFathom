@@ -370,6 +370,8 @@ gave the rule asks on your behalf. That asking is a command, and so is finding o
 | See what it would match, changing nothing | `mfctl rules preview flag-supplier --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
 | Let it run | `mfctl rules enable flag-supplier --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
 | Change, stop, reorder, or remove one | `mfctl rules edit`, `disable`, `move --to <position>`, `delete` |
+| Keep them in a file, or carry them to another account or deployment | `mfctl rules export --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 > work-rules.json` |
+| Bring a file of rules in, seeing first what it would change | `mfctl rules import --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 --from-file work-rules.json --mode merge --preview` |
 | Apply them to mail that arrived before them | `mfctl rules run --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
 | Watch that run | `mfctl rules run-status --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
 | Find out what a rule did, or why a message is where it is | `mfctl rules history --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
@@ -395,6 +397,15 @@ A change is refused when the rules have moved past the version it states. Pass t
 printed with `--expected-version`, so that a change somebody made after you read the rules is refused rather than
 overwritten; without it, the version is read when the command runs. A refused change names both versions and changes
 nothing until it is decided again over what the rules now are.
+
+**A whole set travels as a file.** `export` writes an account's rules, in order and with whether each runs, and nothing
+else; `import` brings such a file into an account as one write. `--mode merge` keeps the rules the file does not name,
+and `--mode replace` removes them, so run it with `--preview` first: that reports every rule the import would add,
+change, move, and remove, and writes nothing. A rule the file shares a name with keeps its place in your history and
+whether it runs; **a rule the import adds arrives disabled**, like every new rule, and the command names the ones the
+file had enabled so you can preview and enable them. If you are upgrading from a release that read rules from the
+configuration file, this is how they come back: `import` reads that file's `MailRules` section directly, one account at
+a time — [mail configuration](../operations/configuration-mail.md#mailrules) has the two commands.
 
 [An account's rules](../features/mail-rules.md#an-accounts-rules) is what a rule is and how a change to an account's
 rules is written. [Changing and previewing the

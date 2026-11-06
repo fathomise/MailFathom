@@ -22,7 +22,7 @@ namespace MailFathom.Host.Api;
 /// <summary>Serves what an operator reads, asks, and changes of one mail account's rules.</summary>
 /// <remarks>
 /// <para>
-/// Reading the account's stored rules, changing them, previewing one over the account's mail, asking for them to be run
+/// Reading the account's stored rules, exporting and importing them as a file, changing them, previewing one over the account's mail, asking for them to be run
 /// over its whole mailbox, and reading what they did. Each mail account's rules are kept in PostgreSQL under
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0048-keeping-a-mail-accounts-rules-in-postgresql-and-changing-them-at-runtime.md">ADR 0048</see>,
 /// and every change goes through <see cref="MailRuleSetEditor" />: a change states the version it was written against,
@@ -32,8 +32,8 @@ namespace MailFathom.Host.Api;
 /// <para>
 /// They are here rather than on the MCP surface because none of them is anything a model reasons over, and because what
 /// bounds administrative access is what should bound the ability to start a pass over a whole mailbox. The grants
-/// differ accordingly: reading the stored set and a run's progress is <c>mailfathom.admin.read</c>, changing the set is
-/// <c>mailfathom.admin.configuration.write</c>, asking for a pass is <c>mailfathom.admin.operate</c>, and the history
+/// differ accordingly: reading the stored set, exporting it, previewing an import, and reading a run's progress is
+/// <c>mailfathom.admin.read</c>, changing the set — an import included — is <c>mailfathom.admin.configuration.write</c>, asking for a pass is <c>mailfathom.admin.operate</c>, and the history
 /// and a preview are <c>mailfathom.admin.audit.read</c>, because what a rule concluded or would conclude about somebody's
 /// mail is derived from that mail rather than a report of this deployment's own state.
 /// </para>
@@ -84,6 +84,16 @@ internal static class MailRuleEndpoints
     /// <remarks>A post although it changes nothing, because a candidate rule is a body and a condition in a query string would reach every access log on the way.</remarks>
     internal const string PreviewRoute = "/rules/preview";
 
+    /// <summary>The route one account's rules are read from as a file, relative to the administrative prefix.</summary>
+    internal const string ExportRoute = "/rules/export";
+
+    /// <summary>The route a whole set of rules is imported into one account at, relative to the administrative prefix.</summary>
+    internal const string ImportRoute = "/rules/import";
+
+    /// <summary>The route an import is previewed at, relative to the administrative prefix.</summary>
+    /// <remarks>A path of its own rather than a switch on the import, because one of the two writes and a mistyped value would be the difference between them.</remarks>
+    internal const string ImportPreviewRoute = "/rules/import/preview";
+
     /// <summary>The greatest request body a change or a preview reads before refusing it.</summary>
     /// <remarks>
     /// The bound ADR 0048 sets for every rule write. One rule at its largest is a few kilobytes at the default condition
@@ -94,6 +104,8 @@ internal static class MailRuleEndpoints
     private const string NoRuleNamed = "The change names no rule. Name it by its identifier or by its name within the account.";
 
     private const string NoSuchRule = "This account has no rule with that identifier or name.";
+
+    private const string NoVersionStated = "A change states the version of the account's rules it was written against, which reading the rules reports.";
 
     /// <summary>The greatest request body the run route reads before refusing it.</summary>
     /// <remarks>
@@ -132,6 +144,16 @@ internal static class MailRuleEndpoints
         MapChange(api.MapPost(DisablementRoute, DisableRuleAsync));
         MapChange(api.MapPost(PositionRoute, MoveRuleAsync));
         MapChange(api.MapPost(RemovalRoute, RemoveRuleAsync));
+        MapChange(api.MapPost(ImportRoute, ImportRulesAsync));
+
+        api.MapGet(ExportRoute, ExportRulesAsync)
+            .RequirePermissionOverTarget(MailFathomPermission.AdminRead);
+
+        // The read grant, because a preview of an import reports the account's stored rules and the verdict on a
+        // candidate the caller wrote, and reads no mail.
+        api.MapPost(ImportPreviewRoute, PreviewImportAsync)
+            .WithMetadata(new RequestSizeLimitAttribute(MaxChangeRequestBytes))
+            .RequirePermissionOverTarget(MailFathomPermission.AdminRead);
 
         // The audit grant rather than the read grant, because a preview names the messages a rule reaches, which is what
         // the history beside it is read under.
@@ -387,7 +409,7 @@ internal static class MailRuleEndpoints
     private static ProblemHttpResult RefuseWrite(MailRuleChangeRequest? request) =>
         string.IsNullOrWhiteSpace(request?.Account) || request.Version is >= 0
             ? AdminAccountRequest.Refuse(request?.Account)
-            : Refused("A change states the version of the account's rules it was written against, which reading the rules reports.");
+            : Refused(NoVersionStated);
 
     private static Results<Ok<MailRuleChangeResponse>, ProblemHttpResult> Answered(MailRuleSetWrite write, MailRuleSetChangeResult result) =>
         result.Outcome switch
@@ -398,16 +420,144 @@ internal static class MailRuleEndpoints
                 result.Name,
                 result.Version,
                 result.Revision.Value)),
-            MailRuleSetChangeOutcome.VersionConflict => TypedResults.Problem(
-                $"This account's rules are at version {result.Version}, and the change was written against version {write.ExpectedVersion}, so nothing changed. Read the rules again and decide again.",
-                statusCode: StatusCodes.Status409Conflict,
-                extensions: new Dictionary<string, object?>(StringComparer.Ordinal)
-                {
-                    [RouteAuthorization.ErrorCodeExtension] = MailFathomErrorCode.MailRuleSetVersionSuperseded.Value,
-                }),
+            MailRuleSetChangeOutcome.VersionConflict => Superseded(write, result.Version),
             MailRuleSetChangeOutcome.RuleNotFound => Refused($"{NoSuchRule} Nothing changed."),
             _ => Refused(DescribeErrors("The change was refused, and nothing changed:", result.Errors)),
         };
+
+    private static ProblemHttpResult Superseded(MailRuleSetWrite write, long currentVersion) => TypedResults.Problem(
+        $"This account's rules are at version {currentVersion}, and the change was written against version {write.ExpectedVersion}, so nothing changed. Read the rules again and decide again.",
+        statusCode: StatusCodes.Status409Conflict,
+        extensions: new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            [RouteAuthorization.ErrorCodeExtension] = MailFathomErrorCode.MailRuleSetVersionSuperseded.Value,
+        });
+
+    /// <summary>Reports one account's rules as the file an import reads.</summary>
+    /// <param name="account">The identifier the deployment generated for the account whose rules are exported.</param>
+    /// <param name="accounts">Reports whether this deployment serves the named account.</param>
+    /// <param name="ruleSets">Reads the account's stored set.</param>
+    /// <param name="authorization">Answers whether the caller's scope covers the account the request names.</param>
+    /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
+    /// <returns><c>200</c> with the file, including one with no rules, or <c>400</c>.</returns>
+    /// <remarks>Under the read grant the stored set is read under, because the file says nothing the set does not.</remarks>
+    internal static async Task<Results<Ok<MailRuleSetDocument>, ProblemHttpResult>> ExportRulesAsync(
+        [FromQuery] string? account,
+        [FromServices] IDeploymentMailAccountCatalog accounts,
+        [FromServices] MailRuleSetReader ruleSets,
+        [FromServices] AccessAuthorization authorization,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(ruleSets);
+
+        if (await AdminAccountRequest.ResolveCoveredAsync(account, MailFathomPermission.AdminRead, accounts, authorization, cancellationToken) is not { } servedAccount)
+        {
+            return AdminAccountRequest.Refuse(account);
+        }
+
+        var reading = await ruleSets.ReadAsync(servedAccount, cancellationToken);
+
+        return TypedResults.Ok(MailRuleSetDocument.For(reading.Stored.Declarations));
+    }
+
+    /// <summary>Brings a whole set of rules into one account, replacing its rules or merging into them.</summary>
+    /// <param name="request">The account, the version read, the mode, and the rules.</param>
+    /// <param name="accounts">Reports whether this deployment serves the named account.</param>
+    /// <param name="editor">Writes the account's rules.</param>
+    /// <param name="authorization">Answers whether the caller's scope covers the account.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><c>200</c> with what the import did to each rule, <c>409</c> for a stale version, or <c>400</c>.</returns>
+    internal static Task<Results<Ok<MailRuleImportResponse>, ProblemHttpResult>> ImportRulesAsync(
+        [FromBody] MailRuleImportRequest? request,
+        [FromServices] IDeploymentMailAccountCatalog accounts,
+        [FromServices] MailRuleSetEditor editor,
+        [FromServices] AccessAuthorization authorization,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(editor);
+
+        return ImportAsync(request, accounts, authorization, MailFathomPermission.AdminConfigurationWrite, editor.ImportAsync, cancellationToken);
+    }
+
+    /// <summary>Reports what an import would do to one account's rules, judging it as the import would, and writes nothing.</summary>
+    /// <param name="request">The account, the version read, the mode, and the rules.</param>
+    /// <param name="accounts">Reports whether this deployment serves the named account.</param>
+    /// <param name="editor">Judges the import.</param>
+    /// <param name="authorization">Answers whether the caller's scope covers the account.</param>
+    /// <param name="cancellationToken">Cancels the preview.</param>
+    /// <returns><c>200</c> with what the import would do to each rule, <c>409</c> for a stale version, or <c>400</c>.</returns>
+    internal static Task<Results<Ok<MailRuleImportResponse>, ProblemHttpResult>> PreviewImportAsync(
+        [FromBody] MailRuleImportRequest? request,
+        [FromServices] IDeploymentMailAccountCatalog accounts,
+        [FromServices] MailRuleSetEditor editor,
+        [FromServices] AccessAuthorization authorization,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(editor);
+
+        return ImportAsync(request, accounts, authorization, MailFathomPermission.AdminRead, editor.PreviewImportAsync, cancellationToken);
+    }
+
+    private static async Task<Results<Ok<MailRuleImportResponse>, ProblemHttpResult>> ImportAsync(
+        MailRuleImportRequest? request,
+        IDeploymentMailAccountCatalog accounts,
+        AccessAuthorization authorization,
+        MailFathomPermission permission,
+        Func<MailRuleSetWrite, MailRuleSetImport, CancellationToken, Task<MailRuleSetImportResult>> import,
+        CancellationToken cancellationToken)
+    {
+        if (await AdminAccountRequest.ResolveCoveredAsync(request?.Account, permission, accounts, authorization, cancellationToken) is not { } account)
+        {
+            return AdminAccountRequest.Refuse(request?.Account);
+        }
+
+        if (request!.Version is not { } version || version < 0)
+        {
+            return Refused(NoVersionStated);
+        }
+
+        if (ReadImportMode(request.Mode) is not { } mode)
+        {
+            return Refused("An import states its Mode: Replace, which makes the account's rules exactly the imported ones and removes every other, or Merge, which keeps every rule the import does not name.");
+        }
+
+        if (request.Rules is not { } rules)
+        {
+            return Refused("An import carries its Rules, a list of rule objects, which may be empty.");
+        }
+
+        var read = rules
+            .Select((rule, index) => (Draft: MailRuleDeclarationRequest.Read(rule, out var refusal), Refusal: refusal, Label: $"#{index + 1}"))
+            .ToArray();
+
+        if (read.Any(rule => rule.Draft is null))
+        {
+            return Refused(DescribeErrors(
+                "The import was refused, and nothing changed:",
+                [.. read.Where(rule => rule.Draft is null).Select(rule => $"Rule {rule.Label} of the import: {rule.Refusal}")]));
+        }
+
+        var result = await import(
+            new MailRuleSetWrite(account, version),
+            new MailRuleSetImport(mode, [.. read.Select(rule => rule.Draft!)]),
+            cancellationToken);
+
+        return result.Outcome switch
+        {
+            MailRuleSetChangeOutcome.Committed or MailRuleSetChangeOutcome.Previewed => TypedResults.Ok(MailRuleImportResponse.For(account, result)),
+            MailRuleSetChangeOutcome.VersionConflict => Superseded(new MailRuleSetWrite(account, version), result.Version),
+            _ => Refused(DescribeErrors(
+                "The import was refused, and nothing changed. A rule of the import is named by its place in it, from #1:",
+                result.Errors)),
+        };
+    }
+
+    private static MailRuleSetImportMode? ReadImportMode(string? mode) => mode?.Trim() switch
+    {
+        { } written when string.Equals(written, nameof(MailRuleSetImportMode.Replace), StringComparison.OrdinalIgnoreCase) => MailRuleSetImportMode.Replace,
+        { } written when string.Equals(written, nameof(MailRuleSetImportMode.Merge), StringComparison.OrdinalIgnoreCase) => MailRuleSetImportMode.Merge,
+        _ => null,
+    };
 
     /// <summary>States every defect a refusal found, one to a line, under the sentence saying what was refused.</summary>
     /// <remarks>Each defect names the rule by its identifier. A condition refusal quotes the one identifier or function the condition could not be read at, or the parser's own message, and goes back only to the caller who wrote it; nothing else the rule declares is quoted.</remarks>
