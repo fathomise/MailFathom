@@ -601,11 +601,21 @@ export function WrittenMessage({
 
         // Where an engine leaves the caret after inserting a table is its own choice, so it is put on the line after
         // the table, where the next words or the next paste belong rather than in the table's last cell.
-        const placed = [...(region?.querySelectorAll('table') ?? [])].findLast((table) => !standing.has(table));
-        const lineAfter = endsOnATable ? placed?.nextElementSibling : null;
+        const placed = endsOnATable
+            ? [...(region?.querySelectorAll('table') ?? [])].findLast((table) => !standing.has(table))
+            : undefined;
+        const lineAfter = placed?.nextElementSibling;
 
         if (lineAfter instanceof HTMLElement) {
             placeTheCaretIn(lineAfter);
+        } else if (placed !== undefined) {
+            // An engine that kept no line of its own after the table still takes the caret right after it.
+            const range = document.createRange();
+
+            range.setStartAfter(placed);
+            range.collapse(true);
+            window.getSelection()?.removeAllRanges();
+            window.getSelection()?.addRange(range);
         }
 
         written();

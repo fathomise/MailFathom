@@ -47,6 +47,28 @@ async function openTheComposer(head: DesktopHead): Promise<void> {
     await head.click(words);
 }
 
+/** Where the caret stands in the words, and what the words hold, for a failure to say where a delivery went. */
+interface Caret {
+    readonly inACell: boolean;
+    readonly cells: number;
+    readonly around: string;
+}
+
+const whereTheCaretIs = `(() => {
+    const region = document.querySelector('${words}');
+    const anchor = getSelection()?.anchorNode ?? null;
+    const holder = anchor === null ? null : anchor.nodeType === Node.ELEMENT_NODE ? anchor : anchor.parentElement;
+    const at = holder?.closest('td, th, p, div, li, [role="textbox"]') ?? null;
+
+    return {
+        inACell: at?.matches('td, th') ?? false,
+        cells: region.querySelectorAll('td').length,
+        around: 'the words hold ' + [...region.children].map((child) => child.tagName.toLowerCase()).join(' ') +
+            ', and the caret stands in ' + (at === null ? 'nothing' : at.tagName.toLowerCase()) +
+            (region.contains(anchor) ? ' inside them' : ' outside them'),
+    };
+})()`;
+
 /** Raises a paste or a drop on the words carrying exactly the flavours named, as a script builds one. */
 function deliver(kind: 'paste' | 'drop', flavours: Readonly<Record<string, string>>): string {
     return `(() => {
@@ -125,9 +147,20 @@ test('reads a hostile document pasted and dropped, and a spreadsheet range, runn
         await head.evaluate(
             '(performance.clearResourceTimings(), performance.setResourceTimingBufferSize(10000), true)',
         );
+        // Each delivery ends on a table, so each is followed by where the caret stands: on the line after the table,
+        // where the next delivery lands, rather than in its last cell, where markup would be read as words alone.
         await head.evaluate(deliver('paste', { 'text/html': hostile }));
+
+        const afterThePaste = await head.evaluate<Caret>(whereTheCaretIs);
+
+        expect(afterThePaste.inACell, afterThePaste.around).toBe(false);
+
         await head.evaluate(deliver('drop', { 'text/html': hostile }));
-        await head.settled(`document.querySelectorAll('${words} td').length >= 4 ? true : null`);
+
+        const afterTheDrop = await head.evaluate<Caret>(whereTheCaretIs);
+
+        expect(afterTheDrop.inACell, afterTheDrop.around).toBe(false);
+        expect(afterTheDrop.cells, afterTheDrop.around).toBe(4);
 
         // A request the paste started has had a whole round trip to the same server to finish in by the time this one
         // has, so its entry is recorded before it is read.
