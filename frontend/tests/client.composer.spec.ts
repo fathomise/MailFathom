@@ -625,7 +625,10 @@ test('colours, sizes, and aligns what was written from the bar, keeps it across 
     const formatting = page.getByRole('toolbar', { name: 'Formatting' });
 
     await formatting.getByRole('button', { name: 'Text colour - Automatic' }).click();
-    await page.getByRole('menu', { name: 'Text colour' }).getByRole('menuitemradio', { name: 'Red' }).click();
+    await page
+        .getByRole('menu', { name: 'Text colour' })
+        .getByRole('menuitemradio', { name: 'Red', exact: true })
+        .click();
     await formatting.getByRole('button', { name: 'Text size - Normal' }).click();
     await page
         .getByRole('menu', { name: 'Text size' })
@@ -654,7 +657,7 @@ test('colours, sizes, and aligns what was written from the bar, keeps it across 
     expect(deployment.requests('POST', '/drafts').map(({ body }) => body)).toStrictEqual([
         expect.objectContaining({
             plainTextBody: words,
-            htmlBody: `<div style="text-align:center"><span style="color:#b42318;font-size:18px">${words}</span></div>`,
+            htmlBody: `<div style="text-align:center"><span style="color:#f73030;font-size:18px">${words}</span></div>`,
         }),
     ]);
 });
@@ -673,7 +676,10 @@ test('takes a colour off again with Automatic, so the message goes out with no c
     const formatting = page.getByRole('toolbar', { name: 'Formatting' });
 
     await formatting.getByRole('button', { name: 'Text colour - Automatic' }).click();
-    await page.getByRole('menu', { name: 'Text colour' }).getByRole('menuitemradio', { name: 'Red' }).click();
+    await page
+        .getByRole('menu', { name: 'Text colour' })
+        .getByRole('menuitemradio', { name: 'Red', exact: true })
+        .click();
     await formatting.getByRole('button', { name: 'Text colour - Red' }).click();
     await page.getByRole('menu', { name: 'Text colour' }).getByRole('menuitemradio', { name: 'Automatic' }).click();
 
