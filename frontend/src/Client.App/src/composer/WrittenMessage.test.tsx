@@ -524,7 +524,7 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
 
         press('Text colour - Automatic');
         fireEvent.click(screen.getByRole('menuitem', { name: 'Choose a colour of your own' }));
-        fireEvent.change(screen.getByRole('textbox', { name: 'Hex' }), { target: { value: '#000000' } });
+        fireEvent.change(screen.getByRole('textbox', { name: 'Hex' }), { target: { value: '#1a237e' } });
 
         const note = screen.getByRole('status').textContent;
         const moved = /#[0-9a-f]{6}/u.exec(note)?.[0] ?? '';
