@@ -161,7 +161,7 @@ function AddOwnColour({ named, onPress }: { readonly named: string; readonly onP
                 className="dense-target flex size-4.5 items-center justify-center rounded-full border border-dashed border-line-strong text-text-soft transition hover:bg-hover"
                 onMouseDown={keepTheSelection}
             >
-                <Icon name="add" className="size-icon-3xs" />
+                <Icon name="add" className="size-icon-3xs pointer-coarse:size-icon-sm" />
             </button>
             {tip}
         </>

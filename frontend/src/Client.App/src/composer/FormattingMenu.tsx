@@ -205,7 +205,7 @@ export type FormattingMenuWidth = 'colour' | 'emoji' | 'table' | 'narrow';
 
 const menuWidths: Readonly<Record<FormattingMenuWidth, string>> = {
     colour: 'w-73.5',
-    emoji: 'w-76.5',
+    emoji: 'w-77',
     table: 'w-70',
     narrow: 'w-55',
 };

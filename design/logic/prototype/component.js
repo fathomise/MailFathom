@@ -3020,7 +3020,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       sel.addRange(nr);
     };
     /* The menus' widths under a mouse: the colour and emoji menus are as wide as their grids, the rest hold words. */
-    static fmtMenuWidth = (key) => ({ colour: 294, emoji: 306, table: 280 })[key] || 220;
+    static fmtMenuWidth = (key) => ({ colour: 294, emoji: 308, table: 280 })[key] || 220;
     /* What a colour is called: its hue and shade where the palette offers it, and its value as a colour of somebody's
        own where it does not. */
     static colourName = (value) => {
