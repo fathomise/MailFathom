@@ -58,19 +58,22 @@ internal static class ReplyDraftBlockReading
     private static readonly int ListItemSeparatorsLength =
         MaximumListItems.ToString(CultureInfo.InvariantCulture).Length + ". ".Length + ReplyDraft.LineBreak.Length;
 
-    /// <summary>The palette a person picks a colour from, by the name each swatch is offered under.</summary>
-    /// <remarks>ADR 0047 Question 2 states the values; each reaches 4.5:1 against the white page a message is read on.</remarks>
+    /// <summary>The colours a draft may write, by the name of the hue each is offered under.</summary>
+    /// <remarks>
+    /// Each is the vivid shade of its hue in the composer's palette, so a coloured run the agent writes is one a person
+    /// could have picked, and reads on the light and the dark theme alike as ADR 0047 Question 2 requires.
+    /// </remarks>
     private static readonly FrozenDictionary<string, MailDocumentColour> Swatches = new Dictionary<string, MailDocumentColour>(StringComparer.OrdinalIgnoreCase)
     {
-        ["Red"] = new(0xb4, 0x23, 0x18),
-        ["Orange"] = new(0xb5, 0x47, 0x08),
-        ["Amber"] = new(0x8a, 0x61, 0x00),
-        ["Green"] = new(0x06, 0x76, 0x47),
-        ["Teal"] = new(0x0e, 0x74, 0x90),
-        ["Blue"] = new(0x17, 0x5c, 0xd3),
-        ["Purple"] = new(0x69, 0x41, 0xc6),
-        ["Pink"] = new(0xc1, 0x15, 0x74),
-        ["Grey"] = new(0x66, 0x70, 0x85),
+        ["Red"] = new(0xf7, 0x30, 0x30),
+        ["Orange"] = new(0xca, 0x65, 0x20),
+        ["Amber"] = new(0xa6, 0x7a, 0x21),
+        ["Green"] = new(0x21, 0x94, 0x49),
+        ["Teal"] = new(0x22, 0x90, 0x85),
+        ["Blue"] = new(0x3e, 0x7c, 0xf5),
+        ["Purple"] = new(0x9f, 0x5e, 0xf5),
+        ["Pink"] = new(0xec, 0x2a, 0x9f),
+        ["Grey"] = new(0x81, 0x81, 0x81),
     }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
     private static readonly FrozenDictionary<string, MailBlockAlignment> Alignments = new Dictionary<string, MailBlockAlignment>(StringComparer.OrdinalIgnoreCase)

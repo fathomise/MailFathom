@@ -323,7 +323,7 @@ export function writtenTableIn(table: Element, drawing: RunDrawing | null = null
  *
  * An engine moving a line into a block of its own — aligning, listing, or quoting a line that stood in the region
  * outside any — writes the `<font>` it moved as a `span` carrying the colour and the size the run was *drawn* at: the
- * dark theme's lighter twin of a swatch, and a length the step resolved to. Those are the region's own rendering of a
+ * colour as `rgb()`, and a length the step resolved to. Those are the region's own rendering of a
  * closed value rather than a value of their own, so the region says which closed value each one draws, and anything it
  * does not recognise — the colour of the text around a run, a length off the scale — is dropped as before. A `<font>`
  * colour is asked too, so a colour an engine wrote that is only the region's own is no colour of the run's.

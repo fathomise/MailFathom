@@ -26,8 +26,8 @@ export function FormattingMenu({
     /** The menu's name, drawn as its head and carried as its accessible name. */
     readonly named: string;
 
-    /** How wide it is drawn: the colour menu's width, the table's, or the narrower one the others take. */
-    readonly width: 'broad' | 'table' | 'narrow';
+    /** How wide it is drawn: as wide as the colour or the emoji grid, the table's width, or the one the rest take. */
+    readonly width: FormattingMenuWidth;
 
     /** Where the control it opened from starts, measured from the start of the box the menu stands in. */
     readonly under: number;
@@ -108,6 +108,12 @@ export function FormattingMenu({
     }, [onClose, openedFrom]);
 
     function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+        // A field inside a menu — the hex value a colour of somebody's own is typed as, the lightness slider — keeps
+        // its own keys, and only Escape still leaves the menu from it.
+        if (event.target instanceof HTMLInputElement && event.key !== 'Escape') {
+            return;
+        }
+
         const items = walkable(panel.current);
         const standing = items.indexOf(document.activeElement as HTMLElement);
 
@@ -117,9 +123,11 @@ export function FormattingMenu({
                 leave();
                 break;
             case 'ArrowDown':
+            case 'ArrowRight':
                 items[(standing + 1) % items.length]?.focus();
                 break;
             case 'ArrowUp':
+            case 'ArrowLeft':
                 items[(standing - 1 + items.length) % items.length]?.focus();
                 break;
             case 'Home':
@@ -192,8 +200,12 @@ export function FormattingChoice({
     );
 }
 
-const menuWidths: Readonly<Record<'broad' | 'table' | 'narrow', string>> = {
-    broad: 'w-75',
+/** The widths a formatting menu is drawn at under a mouse; under a finger every one of them spans the composer. */
+export type FormattingMenuWidth = 'colour' | 'emoji' | 'table' | 'narrow';
+
+const menuWidths: Readonly<Record<FormattingMenuWidth, string>> = {
+    colour: 'w-73.5',
+    emoji: 'w-77',
     table: 'w-70',
     narrow: 'w-55',
 };

@@ -35,21 +35,34 @@ MailFathomDesign.data.sendLater = {
 };
 
 // What the formatting bar writes beyond bold, italic, lists, a quote, and a link, as ADR 0047 settles it. Every swatch and
-// step has a name, so a colour or a size is never told by itself alone. A colour is the value sent, each at 4.5:1 or more
-// on white; a size is a step, which the HTML part writes in `sentPx` and every surface here draws as the client's own
+// step has a name, so a colour or a size is never told by itself alone. A colour is the value sent; a size is a step, which the HTML part writes in `sentPx` and every surface here draws as the client's own
 // type step (`MailFathomDesign.markdown.MDSIZE`), relative to the 15 px body.
 MailFathomDesign.data.composeFormatting = {
-  colours: [
-    { key: "red", name: "Red", hex: "#b42318" },
-    { key: "orange", name: "Orange", hex: "#b54708" },
-    { key: "amber", name: "Amber", hex: "#8a6100" },
-    { key: "green", name: "Green", hex: "#067647" },
-    { key: "teal", name: "Teal", hex: "#0e7490" },
-    { key: "blue", name: "Blue", hex: "#175cd3" },
-    { key: "purple", name: "Purple", hex: "#6941c6" },
-    { key: "pink", name: "Pink", hex: "#c11574" },
-    { key: "grey", name: "Grey", hex: "#667085" },
+  // The palette: a column per hue and a row per shade, each value inside the band ADR 0047 holds the picker to — at
+  // least 3:1 against the light panel and the dark one alike — so a coloured run is drawn as the value it is sent with
+  // in both themes. `band` is that bound as relative luminance; a colour of somebody's own is picked inside it.
+  colourHues: [
+    { key: "grey", name: "Grey", shades: ["#6c6c6c", "#818181", "#939393", "#797979", "#8c8c8c"] },
+    { key: "red", name: "Red", shades: ["#db0118", "#f73030", "#f86056", "#b95e55", "#ce7369"] },
+    { key: "orange", name: "Orange", shades: ["#b05100", "#ca6520", "#e47325", "#9f6d51", "#b97f5f"] },
+    { key: "amber", name: "Amber", shades: ["#8e6503", "#a67a21", "#bc8a26", "#8c7651", "#a2895e"] },
+    { key: "lime", name: "Lime", shades: ["#597604", "#6c8c20", "#7b9f25", "#6e7f50", "#7f935d"] },
+    { key: "green", name: "Green", shades: ["#017d38", "#219449", "#29a855", "#54835e", "#62986e"] },
+    { key: "teal", name: "Teal", shades: ["#097a70", "#229085", "#28a397", "#54817b", "#63958e"] },
+    { key: "cyan", name: "Cyan", shades: ["#077690", "#238ca8", "#299fbe", "#557f8d", "#6393a3"] },
+    { key: "blue", name: "Blue", shades: ["#035dff", "#3e7cf5", "#5b91f6", "#5378bd", "#6d8dc7"] },
+    { key: "purple", name: "Purple", shades: ["#9625ff", "#9f5ef5", "#ab79f6", "#8968bf", "#9a7fc8"] },
+    { key: "pink", name: "Pink", shades: ["#cf0388", "#ec2a9f", "#f852ae", "#b35c88", "#ce6c9d"] },
   ],
+  colourShades: [
+    { key: "deep", name: (hue) => hue + ", dark" },
+    { key: "vivid", name: (hue) => hue },
+    { key: "light", name: (hue) => hue + ", light" },
+    { key: "muted", name: (hue) => hue + ", muted" },
+    { key: "soft", name: (hue) => hue + ", soft" },
+  ],
+  band: { darkest: 0.1447, lightest: 0.296 },
+  ownKept: 11,
   sizes: [
     { key: "small", name: "Small", sentPx: 12 },
     { key: "normal", name: "Normal", sentPx: null },
@@ -63,6 +76,23 @@ MailFathomDesign.data.composeFormatting = {
     { key: "end", name: "Align right", icon: "format_align_right", command: "justifyRight" },
     { key: "justify", name: "Justify", icon: "format_align_justify", command: "justifyFull" },
   ],
+  // The emoji the *Emoji* menu offers: a fixed set of the common ones, in the order the grid draws them, each named by
+  // what it shows so a screen reader and the name bubble say it. A choice is text, so it goes wherever words go. The
+  // menu draws each from Noto Emoji's Apache-2.0 pictures at `emojiPictures`, which the client commits beside itself.
+  emoji: [
+    { char: "😀", name: "Grinning face" }, { char: "😂", name: "Face with tears of joy" }, { char: "🙂", name: "Slightly smiling face" },
+    { char: "😉", name: "Winking face" }, { char: "😊", name: "Smiling face with smiling eyes" }, { char: "😍", name: "Smiling face with heart-eyes" },
+    { char: "🤔", name: "Thinking face" }, { char: "😮", name: "Face with open mouth" }, { char: "😢", name: "Crying face" },
+    { char: "😅", name: "Grinning face with sweat" }, { char: "🙏", name: "Folded hands" }, { char: "👍", name: "Thumbs up" },
+    { char: "👎", name: "Thumbs down" }, { char: "👏", name: "Clapping hands" }, { char: "🙌", name: "Raising hands" },
+    { char: "👋", name: "Waving hand" }, { char: "💪", name: "Flexed biceps" }, { char: "🤝", name: "Handshake" },
+    { char: "❤️", name: "Red heart" }, { char: "🔥", name: "Fire" }, { char: "🎉", name: "Party popper" },
+    { char: "✅", name: "Check mark button" }, { char: "❌", name: "Cross mark" }, { char: "⚠️", name: "Warning" },
+    { char: "⭐", name: "Star" }, { char: "💡", name: "Light bulb" }, { char: "📌", name: "Pushpin" },
+    { char: "📎", name: "Paperclip" }, { char: "📅", name: "Calendar" }, { char: "⏰", name: "Alarm clock" },
+    { char: "☕", name: "Hot beverage" }, { char: "🚀", name: "Rocket" },
+  ],
+  emojiPictures: "https://cdn.jsdelivr.net/gh/googlefonts/noto-emoji@99701e07d3d1fe1bdbcdb14964547f0fd592966f/2D/svg/",
   // Every table is sent with one border, `1px solid #d0d5dd`, and `4px 8px` of padding; the editor draws the same.
   table: { defaultRows: 3, defaultColumns: 3, maxRows: 200, maxColumns: 20 },
   // A picture is drawn at the width it is sent at, its own and at most `sentMaxWidth` pixels until its grip sizes it, and

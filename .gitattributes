@@ -16,6 +16,10 @@
 *.zip binary
 *.der binary
 
+# Noto Emoji's pictures are committed byte for byte as upstream publishes them, trailing whitespace included: an
+# Apache-2.0 file this repository changed would have to carry a notice saying so.
+frontend/src/Client.App/src/assets/emoji/*.svg -whitespace
+
 .agents/skills/brandkit/** linguist-vendored
 .agents/skills/design-taste-frontend/** linguist-vendored
 .agents/skills/full-output-enforcement/** linguist-vendored

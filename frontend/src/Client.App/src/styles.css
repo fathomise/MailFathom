@@ -1023,26 +1023,6 @@
     --color-provider-okta: #000000;
 }
 
-/* The nine colours the composer's palette offers, which ADR 0047 states as the values a message is sent with — each
-   4.5:1 or more on the white page it is overwhelmingly read on. They are written as hexadecimal for the reason the
-   provider marks are: they are given rather than chosen here, and `writtenText.ts` sends exactly these spellings. The
-   dark theme redeclares each as the lighter twin the design draws it in on a dark panel, where the sent value would not
-   read; what is sent is always the light value.
-
-   `static`, because the editor reaches them through the value a `font` element carries rather than through a utility
-   Tailwind could scan. */
-@theme static {
-    --color-ink-red: #b42318;
-    --color-ink-orange: #b54708;
-    --color-ink-amber: #8a6100;
-    --color-ink-green: #067647;
-    --color-ink-teal: #0e7490;
-    --color-ink-blue: #175cd3;
-    --color-ink-purple: #6941c6;
-    --color-ink-pink: #c11574;
-    --color-ink-grey: #667085;
-}
-
 /* The same names, dark. `data-theme` is written by `theme/Theme.tsx`, which resolves the follow-the-system choice
    before the first paint, so nothing on a screen ever asks which theme is in force. */
 :root[data-theme='dark'] {
@@ -1093,16 +1073,6 @@
     --color-provider-keycloak: #8fb8ff;
     --color-provider-nextcloud: #4aa8e0;
     --color-provider-okta: #e8e8e8;
-
-    --color-ink-red: #f97066;
-    --color-ink-orange: #fd853a;
-    --color-ink-amber: #fdb022;
-    --color-ink-green: #47cd89;
-    --color-ink-teal: #22ccee;
-    --color-ink-blue: #84adff;
-    --color-ink-purple: #b692f6;
-    --color-ink-pink: #f670c7;
-    --color-ink-grey: #98a2b3;
 
     --color-inset: rgb(255 255 255 / 0.045);
     --color-shadow-soft: oklch(0.1 0.03 262 / 0.5);
@@ -1198,6 +1168,37 @@
     }
 }
 
+/* The colour menu's discs under a finger: 24 rather than the 44 floor, the one place a target is drawn below it, since
+   eleven hues by five shades at 44 do not fit a phone and the grid is what was asked for, with room between the discs
+   so neighbouring colours do not run together. 24 is the platform's minimum target size. A utility, so it outranks the
+   floor. */
+@utility dense-target {
+    @media (pointer: coarse) {
+        min-width: --spacing(6);
+        min-height: --spacing(6);
+        width: --spacing(6);
+        height: --spacing(6);
+    }
+}
+
+/* The field a colour of somebody's own is picked from, as a paint program draws one: every hue across, and saturation
+   falling away downwards to the grey every hue meets at none. The hues are the spectrum itself rather than tokens,
+   because they are what the field is a picture of. */
+@utility colour-field {
+    background:
+        linear-gradient(to bottom, transparent, oklch(0.62 0 0)),
+        linear-gradient(
+            to right,
+            hsl(0 90% 50%),
+            hsl(60 90% 50%),
+            hsl(120 90% 50%),
+            hsl(180 90% 50%),
+            hsl(240 90% 50%),
+            hsl(300 90% 50%),
+            hsl(360 90% 50%)
+        );
+}
+
 /* A chip in a wrapping group or a segment in its track, under a finger: drawn at 36 rather than lifted to the 44 floor,
    so a row of them keeps the weight of the text beside it, and still a 44 target, which reaches past its own edge into
    the gap the group leaves around it. The design's touch table states the pair. A utility, so it outranks the floor the
@@ -1216,48 +1217,11 @@
 }
 
 /* The composer's editable region, which holds a run's colour and size in the spelling the editing commands write them
-   in — `<font color>` and `<font size>` — and draws them by the design's rules rather than the browser's: a palette
-   colour as its `ink` token, so the dark theme draws its lighter twin, and a size as the step of the scale relative to
-   the words around it rather than at the absolute size `<font size>` names. `3` is normal, which the tree does not
-   keep, and is drawn as the text around it until the next reading drops it. A colour off the palette — kept from a
-   reopened draft — is drawn as the value it is. */
+   in — `<font color>` and `<font size>` — and draws a size by the design's rules rather than the browser's: as the
+   step of the scale relative to the words around it rather than at the absolute size `<font size>` names. `3` is
+   normal, which the tree does not keep, and is drawn as the text around it until the next reading drops it. A colour
+   is drawn as the value it is sent with, in either theme: every colour the picker writes reads on both panels. */
 @utility written-region {
-    & font[color='#b42318' i] {
-        color: var(--color-ink-red);
-    }
-
-    & font[color='#b54708' i] {
-        color: var(--color-ink-orange);
-    }
-
-    & font[color='#8a6100' i] {
-        color: var(--color-ink-amber);
-    }
-
-    & font[color='#067647' i] {
-        color: var(--color-ink-green);
-    }
-
-    & font[color='#0e7490' i] {
-        color: var(--color-ink-teal);
-    }
-
-    & font[color='#175cd3' i] {
-        color: var(--color-ink-blue);
-    }
-
-    & font[color='#6941c6' i] {
-        color: var(--color-ink-purple);
-    }
-
-    & font[color='#c11574' i] {
-        color: var(--color-ink-pink);
-    }
-
-    & font[color='#667085' i] {
-        color: var(--color-ink-grey);
-    }
-
     & font:is([size='1'], [size='2']) {
         font-size: var(--text-step-small);
     }

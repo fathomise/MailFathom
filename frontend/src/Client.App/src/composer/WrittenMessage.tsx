@@ -26,7 +26,9 @@ import { useLocalization, type Translate } from '../localization/useLocalization
 import { useCoarsePointer } from '../shell/useWideWorkspace';
 import { readClipboardHtml, readTabbedText, type ClipboardReading } from './clipboardReading';
 import { commandRunning, edit, insertWritten } from './editing';
-import { FormattingChoice, FormattingMenu } from './FormattingMenu';
+import { ColourChoice } from './ColourChoice';
+import { EmojiChoice } from './EmojiChoice';
+import { FormattingChoice, FormattingMenu, type FormattingMenuWidth } from './FormattingMenu';
 import type { PictureAddresses } from './pictureAddresses';
 import { PictureGrip } from './PictureGrip';
 import {
@@ -44,6 +46,7 @@ import {
 } from './pictures';
 import { drawingOf } from './regionDrawing';
 import { TableInsertion, TableStrip, type TableAct } from './TableControls';
+import { nameOfColour, ownColoursKept, textColourHues } from './textColours';
 import {
     cellAfter,
     cellBefore,
@@ -141,7 +144,7 @@ const emptyParagraph: WrittenMarkup = {
     holds: [{ element: 'br', address: null, holds: [] }],
 };
 
-type FormattingMenuKind = 'colour' | 'size' | 'alignment' | 'table';
+type FormattingMenuKind = 'colour' | 'size' | 'alignment' | 'table' | 'emoji';
 
 // What the stylesheet draws a link's host from, as the words it says.
 const linkHostAttribute = 'data-link-host';
@@ -221,30 +224,9 @@ const formattingGroups: readonly (readonly FormattingControl[])[] = [
     [
         { key: 'link', command: 'createLink', named: 'compose.formatLink', icon: 'link', asksForAnAddress: true },
         { key: 'table', named: 'compose.formatTable', icon: 'table', opens: 'table', notInACell: true },
+        { key: 'emoji', named: 'compose.formatEmoji', icon: 'mood', opens: 'emoji' },
     ],
     [{ key: 'clear', command: 'removeFormat', named: 'compose.formatClear', icon: 'format_clear' }],
-];
-
-/** One swatch of the palette ADR 0047 states: the value a message is sent with, and the token it is drawn in here. */
-interface PaletteColour {
-    readonly value: string;
-    readonly named: MessageKey;
-
-    /** The utility a swatch is filled with, and the token behind it that the region draws the colour in. */
-    readonly ink: string;
-    readonly token: string;
-}
-
-const palette: readonly PaletteColour[] = [
-    { value: '#b42318', named: 'compose.colourRed', ink: 'bg-ink-red', token: '--color-ink-red' },
-    { value: '#b54708', named: 'compose.colourOrange', ink: 'bg-ink-orange', token: '--color-ink-orange' },
-    { value: '#8a6100', named: 'compose.colourAmber', ink: 'bg-ink-amber', token: '--color-ink-amber' },
-    { value: '#067647', named: 'compose.colourGreen', ink: 'bg-ink-green', token: '--color-ink-green' },
-    { value: '#0e7490', named: 'compose.colourTeal', ink: 'bg-ink-teal', token: '--color-ink-teal' },
-    { value: '#175cd3', named: 'compose.colourBlue', ink: 'bg-ink-blue', token: '--color-ink-blue' },
-    { value: '#6941c6', named: 'compose.colourPurple', ink: 'bg-ink-purple', token: '--color-ink-purple' },
-    { value: '#c11574', named: 'compose.colourPink', ink: 'bg-ink-pink', token: '--color-ink-pink' },
-    { value: '#667085', named: 'compose.colourGrey', ink: 'bg-ink-grey', token: '--color-ink-grey' },
 ];
 
 /** One step of the size scale as the menu offers it, normal being the absence of a step. */
@@ -294,7 +276,8 @@ const alignmentChoices: readonly AlignmentChoice[] = [
 
 /** The choice each of the three controls holds, which is the one last chosen — what the design names it by. */
 interface Chosen {
-    readonly colour: PaletteColour | null;
+    /** The colour as the value it writes, null being *Automatic*. */
+    readonly colour: string | null;
     readonly size: SizeStep;
     readonly alignment: AlignmentChoice;
 }
@@ -360,6 +343,7 @@ export function WrittenMessage({
     const [address, setAddress] = useState<string | null>(null);
     const [menu, setMenu] = useState<OpenMenu | null>(null);
     const [chosen, setChosen] = useState<Chosen>({ colour: null, size: normalStep, alignment: startAlignment });
+    const [ownColours, setOwnColours] = useState<readonly string[]>([]);
     const [inACell, setInACell] = useState(false);
     const [refused, setRefused] = useState<RefusedPaste | null>(null);
     const [pictureChosen, setPictureChosen] = useState<string | null>(null);
@@ -453,7 +437,7 @@ export function WrittenMessage({
     }
 
     // The selection a control took the focus away from, put back before a command reads it. Only the link and the
-    // four menus ask for anything, so this is null for the rest and they act on what the region still holds.
+    // formatting menus ask for anything, so this is null for the rest and they act on what the region still holds.
     function takeBackTheSelection(): void {
         words.current?.focus();
 
@@ -870,6 +854,21 @@ export function WrittenMessage({
         choose({ colour: null }, 'foreColor', surrounding);
     }
 
+    // A colour of somebody's own joins the ones kept beside the grid, newest first, for as long as the composer is open.
+    function chooseAColour(colour: string): void {
+        if (!textColourHues.some((hue) => hue.shades.includes(colour))) {
+            setOwnColours([colour, ...ownColours.filter((kept) => kept !== colour)].slice(0, ownColoursKept));
+        }
+
+        choose({ colour }, 'foreColor', colour);
+    }
+
+    // An emoji is words, so it lands at the held selection as text and goes wherever text goes, a table cell included.
+    function insertAnEmoji(text: string): void {
+        setMenu(null);
+        apply('insertText', text);
+    }
+
     function controlName(control: FormattingControl): string {
         const named = ownName(control);
 
@@ -882,10 +881,16 @@ export function WrittenMessage({
         }
 
         const holds: Readonly<Record<FormattingMenuKind, Readonly<Record<string, string>>>> = {
-            colour: { colour: translate(chosen.colour?.named ?? 'compose.colourAutomatic') },
+            colour: {
+                colour:
+                    chosen.colour === null
+                        ? translate('compose.colourAutomatic')
+                        : nameOfColour(chosen.colour, translate),
+            },
             size: { size: translate(chosen.size.named) },
             alignment: { alignment: translate(chosen.alignment.named) },
             table: {},
+            emoji: {},
         };
 
         return translate(control.named, holds[control.opens]);
@@ -1113,38 +1118,15 @@ export function WrittenMessage({
                             onClose={closeTheMenu}
                         >
                             {menu.kind === 'colour' ? (
-                                <>
-                                    <FormattingChoice
-                                        named={translate('compose.colourAutomatic')}
-                                        chosen={chosen.colour === null}
-                                        onChoose={takeTheColourOff}
-                                    >
-                                        <Icon name="format_color_reset" className="size-icon-lg text-text-soft" />
-                                        <span>{translate('compose.colourAutomatic')}</span>
-                                        <span className="text-sm whitespace-nowrap text-muted">
-                                            {translate('compose.colourAutomaticNote')}
-                                        </span>
-                                    </FormattingChoice>
-                                    <div className="grid grid-cols-2 gap-0.5">
-                                        {palette.map((colour) => (
-                                            <FormattingChoice
-                                                key={colour.value}
-                                                named={translate(colour.named)}
-                                                chosen={chosen.colour === colour}
-                                                onChoose={() => {
-                                                    choose({ colour }, 'foreColor', colour.value);
-                                                }}
-                                            >
-                                                <span
-                                                    aria-hidden="true"
-                                                    className={`size-4.5 shrink-0 rounded-full ring-1 ring-line ring-inset ${colour.ink}`}
-                                                />
-                                                <span>{translate(colour.named)}</span>
-                                            </FormattingChoice>
-                                        ))}
-                                    </div>
-                                </>
+                                <ColourChoice
+                                    chosen={chosen.colour}
+                                    own={ownColours}
+                                    onAutomatic={takeTheColourOff}
+                                    onChoose={chooseAColour}
+                                />
                             ) : null}
+
+                            {menu.kind === 'emoji' ? <EmojiChoice onChoose={insertAnEmoji} /> : null}
 
                             {menu.kind === 'size'
                                 ? sizeSteps.map((step) => (
@@ -1702,7 +1684,6 @@ function drawingOfRegion(region: HTMLElement): RunDrawing {
 
     return drawingOf(
         { colour: drawn.color, fontSize: drawn.fontSize, token: (name) => tokens.getPropertyValue(name) },
-        palette,
         sizeSteps,
     );
 }
@@ -1731,10 +1712,12 @@ const menuNames: Readonly<Record<FormattingMenuKind, MessageKey>> = {
     size: 'compose.sizeMenu',
     alignment: 'compose.alignmentMenu',
     table: 'compose.tableMenu',
+    emoji: 'compose.emojiMenu',
 };
 
-const menuWidths: Readonly<Record<FormattingMenuKind, 'broad' | 'table' | 'narrow'>> = {
-    colour: 'broad',
+const menuWidths: Readonly<Record<FormattingMenuKind, FormattingMenuWidth>> = {
+    colour: 'colour',
+    emoji: 'emoji',
     size: 'narrow',
     alignment: 'narrow',
     table: 'table',
@@ -1856,8 +1839,9 @@ function ControlFace({ control, chosen }: { readonly control: FormattingControl;
             {control.opens === 'colour' ? (
                 <span
                     aria-hidden="true"
+                    style={chosen.colour === null ? undefined : { backgroundColor: chosen.colour }}
                     className={`absolute bottom-1 left-1/2 h-0.75 w-3.5 -translate-x-1/2 rounded-xs pointer-coarse:bottom-2 pointer-coarse:w-4.5 ${
-                        chosen.colour?.ink ?? 'bg-text-soft'
+                        chosen.colour === null ? 'bg-text-soft' : ''
                     }`}
                 />
             ) : null}
