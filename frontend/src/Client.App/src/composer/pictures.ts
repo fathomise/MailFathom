@@ -37,6 +37,9 @@ export const mostPictures = 16;
 /** The widest a picture is written in the message that goes out, which Outlook honours where it ignores a style. */
 export const widestSentPicture = 600;
 
+/** The narrowest a picture's grip makes it, which still leaves a picture to press and a grip to take hold of. */
+export const narrowestResizedPicture = 24;
+
 // The largest side a picture may state, which is the most a JPEG or a GIF header can and far beyond any screen. A PNG
 // may claim more, and one that does is refused rather than kept in a tree a reload would then refuse whole.
 const largestPictureSide = 65_535;
@@ -44,6 +47,25 @@ const largestPictureSide = 65_535;
 /** Whether a number is a side a picture may be drawn at: a whole number of pixels, at least one and at most the bound. */
 export function isPictureSide(side: unknown): side is number {
     return typeof side === 'number' && Number.isInteger(side) && side > 0 && side <= largestPictureSide;
+}
+
+/**
+ * The size a picture is drawn at for a width somebody stated — a grip, a draft, an attribute in the editor — at most the
+ * picture's own width, so a picture is never stretched past its pixels, and its height scaled to its own proportions,
+ * so a stated height can never distort it.
+ *
+ * @param own The size the picture's octets state.
+ * @param width The width asked for, which a stated width that is no side of a picture does not reach: that is `own`.
+ */
+export function drawnSizeOf(
+    own: { readonly width: number; readonly height: number },
+    width: unknown,
+): { readonly width: number; readonly height: number } {
+    if (!isPictureSide(width) || width >= own.width) {
+        return { width: own.width, height: own.height };
+    }
+
+    return { width, height: Math.max(1, Math.round((own.height * width) / own.width)) };
 }
 
 /** Why a picture was not added, with what the sentence saying so needs. */

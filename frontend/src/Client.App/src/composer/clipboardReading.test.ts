@@ -30,6 +30,9 @@ const heldPicture = '01890a5d-ac96-774b-bcce-b302099a8057';
 const mintedPicture = '01890a5d-ac96-774b-bcce-b302099a8058';
 const onePixelPng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
+// The signature and header of a PNG stating 800 by 600 pixels, which is all of a picture the reader reads.
+const eightHundredBySixHundredPng = 'iVBORw0KGgoAAAANSUhEUgAAAyAAAAJY';
+
 function read(html: string): ClipboardReading {
     return readClipboardHtml(
         html,
@@ -383,6 +386,37 @@ describe('readClipboardHtml', () => {
         ).toStrictEqual([
             { element: 'img', picture: heldPicture, width: 4, height: 3 },
             markup('table', [rowOf(cellOf([text('Bay')]))]),
+        ]);
+    });
+
+    it('keeps the width a held picture was copied at, its height from its own proportions', () => {
+        expect(writtenOf('<img src="blob:held" width="2" height="99">')).toStrictEqual([
+            { element: 'img', picture: heldPicture, width: 2, height: 2 },
+        ]);
+    });
+
+    it('keeps the width a picture the clipboard carries is drawn at, its height from its own proportions', () => {
+        expect(read(`<img src="data:image/png;base64,${eightHundredBySixHundredPng}" width="200">`)).toMatchObject({
+            kind: 'written',
+            written: [{ element: 'img', picture: mintedPicture, width: 200, height: 150 }],
+            pictures: [{ name: mintedPicture, picture: { width: 800, height: 600 } }],
+        });
+    });
+
+    it.each([
+        ['wider than its own', '1600'],
+        ['of nothing', '0'],
+        ['below nothing', '-5'],
+        ['that is no number', 'abc'],
+        ['that is no whole number', '12.5'],
+    ])('reads a picture stating a width %s at its own size', (_, width) => {
+        expect(
+            writtenOf(
+                `<img src="blob:held" width="${width}"><img src="data:image/png;base64,${eightHundredBySixHundredPng}" width="${width}">`,
+            ),
+        ).toStrictEqual([
+            { element: 'img', picture: heldPicture, width: 4, height: 3 },
+            { element: 'img', picture: mintedPicture, width: 800, height: 600 },
         ]);
     });
 

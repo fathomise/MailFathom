@@ -1738,6 +1738,9 @@ Project repository: https://github.com/fathomise/MailFathom
               </sc-if>
               <div data-compose-writing style="{{ composeWritingStyle }}">
               <div contentEditable="true" suppressContentEditableWarning="{{ true }}" ref="{{ bodyRef }}" onKeyDown="{{ composeKeyDown }}" onPaste="{{ composePaste }}" onInput="{{ composeEditorInput }}" onClick="{{ composeEditorPress }}" style="{{ composeEditorStyle }}"></div>
+              <sc-if value="{{ pictureStripShown }}" hint-placeholder-val="{{ false }}">
+                <div data-compose-picture-grip role="separator" tabindex="0" aria-label="Resize picture" title="Resize picture" aria-valuenow="{{ pictureGripWidth }}" onPointerDown="{{ pictureGripDown }}" onPointerMove="{{ pictureGripMove }}" onPointerUp="{{ pictureGripUp }}" onPointerCancel="{{ pictureGripUp }}" onKeyDown="{{ pictureGripKey }}" onDoubleClick="{{ pictureGripWidest }}" style="{{ pictureGripStyle }}"><span aria-hidden="true" style="{{ pictureGripDotStyle }}"></span></div>
+              </sc-if>
               <sc-if value="{{ composeFooterShown }}" hint-placeholder-val="{{ true }}">
                 <div data-compose-footer role="group" aria-label="Footer added when you send" style="{{ composeFooterStyle }}">
                   <div role="button" tabindex="0" aria-expanded="{{ composeFooterOpen }}" onClick="{{ toggleComposeFooter }}" style="{{ composeFooterToggleStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text2)"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1">{{ composeFooterGlyph }}</span><span>{{ composeFooterLabel }}</span></div>

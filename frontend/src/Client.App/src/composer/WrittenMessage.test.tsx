@@ -5,6 +5,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { excelRange, rangeText } from '../../../../tests/fixtures/clipboard';
+import { focusByKey } from '../controls/useTip.harness';
 import { LocalizationProvider } from '../localization/Localization';
 import { pictureAddresses } from './pictureAddresses';
 import { base64Of, type HeldPicture } from './pictures';
@@ -1247,12 +1248,168 @@ describe('WrittenMessage, pictures', () => {
         const strip = screen.getByRole('toolbar', { name: 'Picture' });
 
         expect(strip.textContent).toContain('chart.png');
-        expect(strip.textContent).toContain('sent at most 600 px wide');
+        expect(strip.textContent).toContain('sent 600 px wide');
 
         press('Remove picture');
 
         expect(acts()).toEqual([{ command: 'delete', argument: undefined }]);
         expect(screen.queryByRole('toolbar', { name: 'Picture' })).toBeNull();
+    });
+
+    it('resizes a chosen picture by its grip, keeping its proportions, and writes the size it was let go at', () => {
+        const { written } = drawWords(
+            [{ element: 'img', picture: pictureName, width: 800, height: 600 }],
+            new Map([[pictureName, held]]),
+        );
+
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
+
+        const grip = screen.getByRole('separator', { name: 'Resize picture' });
+        const readBefore = written.mock.calls.length;
+
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerMove(grip, { pointerId: 1, clientX: 700 });
+
+        // While the corner moves the picture follows it, and the words are read once it is let go rather than at
+        // every pixel of the drag.
+        expect(screen.getByRole('img', { name: 'chart.png' }).getAttribute('width')).toBe('400');
+        expect(screen.getByRole('toolbar', { name: 'Picture' }).textContent).toContain('sent 400 px wide');
+        expect(written).toHaveBeenCalledTimes(readBefore);
+
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 700 });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 400, height: 300 }]);
+    });
+
+    it('stops the grip at the narrowest a picture is drawn and at the widest it is sent, and moves it by key', () => {
+        const { written } = drawWords(
+            [{ element: 'img', picture: pictureName, width: 800, height: 600 }],
+            new Map([[pictureName, held]]),
+        );
+
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
+
+        const grip = screen.getByRole('separator', { name: 'Resize picture' });
+
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 0 });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 24, height: 18 }]);
+
+        fireEvent.keyDown(grip, { key: 'ArrowRight' });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 34, height: 26 }]);
+
+        // Never past the widest a message carries, however far the pointer goes.
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 0 });
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 2000 });
+
+        expect(grip.getAttribute('aria-valuenow')).toBe('600');
+
+        fireEvent.keyDown(grip, { key: 'ArrowLeft' });
+        fireEvent.keyDown(grip, { key: 'Home' });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 600, height: 450 }]);
+    });
+
+    it('returns a picture to its widest on a double-click of its grip', () => {
+        const { written } = drawWords(
+            [{ element: 'img', picture: pictureName, width: 800, height: 600 }],
+            new Map([[pictureName, held]]),
+        );
+
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
+
+        const grip = screen.getByRole('separator', { name: 'Resize picture' });
+
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 700 });
+        fireEvent.doubleClick(grip);
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 600, height: 450 }]);
+    });
+
+    it('settles a cancelled drag where it last reached rather than where the cancelled pointer is said to be', () => {
+        const { written } = drawWords(
+            [{ element: 'img', picture: pictureName, width: 800, height: 600 }],
+            new Map([[pictureName, held]]),
+        );
+
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
+
+        const grip = screen.getByRole('separator', { name: 'Resize picture' });
+
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerMove(grip, { pointerId: 1, clientX: 800 });
+        fireEvent.pointerCancel(grip, { pointerId: 1, clientX: 0 });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 500, height: 375 }]);
+    });
+
+    it('ignores a second pointer arriving mid-drag, so two fingers cannot fight over one picture', () => {
+        const { written } = drawWords(
+            [{ element: 'img', picture: pictureName, width: 800, height: 600 }],
+            new Map([[pictureName, held]]),
+        );
+
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
+
+        const grip = screen.getByRole('separator', { name: 'Resize picture' });
+
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerDown(grip, { pointerId: 2, clientX: 100 });
+        fireEvent.pointerMove(grip, { pointerId: 2, clientX: 0 });
+
+        expect(screen.getByRole('img', { name: 'chart.png' }).getAttribute('width')).toBe('600');
+
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 850 });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 550, height: 413 }]);
+    });
+
+    it('keeps the width written where a narrow region draws the picture narrower, on a tap and on a step to the right', () => {
+        const { written } = drawWords(
+            [{ element: 'img', picture: pictureName, width: 800, height: 600 }],
+            new Map([[pictureName, held]]),
+        );
+        const picture = screen.getByRole('img', { name: 'chart.png' });
+
+        vi.spyOn(picture, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 300, 225));
+        fireEvent.click(picture);
+
+        const grip = screen.getByRole('separator', { name: 'Resize picture' });
+        const readBefore = written.mock.calls.length;
+
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 900 });
+
+        expect(written).toHaveBeenCalledTimes(readBefore);
+        expect(picture.getAttribute('width')).toBe('600');
+
+        fireEvent.keyDown(grip, { key: 'ArrowLeft' });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 590, height: 443 }]);
+
+        fireEvent.keyDown(grip, { key: 'ArrowRight' });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 600, height: 450 }]);
+
+        // A drag still starts from where the picture is drawn, so the first move does not jump it past the pointer.
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 800 });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 200, height: 150 }]);
+    });
+
+    it('says how the grip is used to a key that reaches it', () => {
+        drawWords([{ element: 'img', picture: pictureName, width: 800, height: 600 }], new Map([[pictureName, held]]));
+
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
+        focusByKey(screen.getByRole('separator', { name: 'Resize picture' }));
+
+        expect(screen.getByRole('tooltip').textContent).toBe(
+            'Drag to make the picture smaller or larger, or double-click to return it to its full width.',
+        );
     });
 
     it('says the pictures are kept in this window only where the store would not take them', () => {

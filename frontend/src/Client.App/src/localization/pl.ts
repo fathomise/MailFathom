@@ -1043,10 +1043,13 @@ export const pl: Catalogue = {
     'compose.linkAddressPlaceholder': 'Dokąd prowadzi link',
     'compose.insertLink': 'Wstaw',
     'compose.picture': 'Obraz',
-    'compose.pictureDescribed': '{name} · {size} · wysyłany w szerokości najwyżej {width} px',
+    'compose.pictureDescribed': '{name} · {size} · wysyłany w szerokości {width} px',
     'compose.pictureUnnamed': 'obraz',
     'compose.pictureWithoutAName': 'Obraz bez nazwy',
     'compose.removePicture': 'Usuń obraz',
+    'compose.resizePicture': 'Zmień rozmiar obrazu',
+    'compose.resizePictureHint':
+        'Przeciągnij, aby zmniejszyć lub powiększyć obraz, albo kliknij dwukrotnie, aby przywrócić mu pełną szerokość.',
     'compose.pictureTooLarge': 'Nie dodano „{name}” - ma {size}, a jeden obraz może mieć najwyżej {most}.',
     'compose.pictureOneTooMany':
         'Nie dodano „{name}” - ta wiadomość ma już {count} obrazów, czyli najwięcej, ile może mieć jedna wiadomość.',

@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     base64Of,
+    drawnSizeOf,
     isPictureName,
     mostPictureOctets,
     mostPictures,
@@ -99,6 +100,23 @@ describe('refusalOfAdding', () => {
         ).toMatchObject({
             reason: 'tooLarge',
         });
+    });
+});
+
+describe('drawnSizeOf', () => {
+    const own = { width: 800, height: 600 };
+
+    it('draws a picture at a narrower width it was given, its height scaled to its own proportions', () => {
+        expect(drawnSizeOf(own, 400)).toEqual({ width: 400, height: 300 });
+        expect(drawnSizeOf(own, 1)).toEqual({ width: 1, height: 1 });
+    });
+
+    it.each([
+        ['a width past its own', 1200],
+        ['a width that is no side of a picture', 12.5],
+        ['no width at all', null],
+    ])('draws a picture at its own size for %s', (_, width) => {
+        expect(drawnSizeOf(own, width)).toEqual(own);
     });
 });
 
