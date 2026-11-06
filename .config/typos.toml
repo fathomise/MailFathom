@@ -116,6 +116,12 @@
 # base64 or armored key material, and a single changed byte is a signature that no longer verifies, so no spelling in
 # them is a decision anybody made or could correct. The directory rather than the files, because a fixture added for a
 # new case is the same kind of data and would otherwise fail a check nobody expected.
+#
+# `frontend/src/Client.App/src/assets/emoji/` holds the Noto Emoji pictures the composer's emoji menu draws, taken
+# byte for byte from upstream and kept that way, since an edited file would be a modified one under its licence. Each
+# is one long run of SVG path data whose commands and fractions a dictionary reads as two- and three-letter words, so no
+# spelling in them is a decision anybody made. The directory rather than the files, for the reason the fixtures above
+# are: a picture added beside them is the same kind of data.
 extend-exclude = [
   'backend/src/Application/Localization/ApplicationTexts.pl.resx',
   'backend/tests/Infrastructure.UnitTests/Mail/Signatures/Fixtures/',
@@ -123,6 +129,7 @@ extend-exclude = [
   'backend/tools/SyntheticMail/corpora/',
   '/design/',
   'frontend/pnpm-lock.yaml',
+  'frontend/src/Client.App/src/assets/emoji/',
   'frontend/src/Client.App/src/localization/pl.ts',
   'frontend/src-tauri/gen/android/gradle/wrapper/gradle-wrapper.jar',
 ]
