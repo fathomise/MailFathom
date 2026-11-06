@@ -107,8 +107,9 @@ them if that access were ever removed.
    maintainer approves its current head, passes a maintainer's own on authorship, and does nothing
    more. Reaching one is never a reason to stop, to split the change out, or to raise an
    issue instead of implementing it — make the change in the same pull request. A rule a path
-   carries on its own grounds still holds: an ADR needs the owner's explicit approval, and
-   `CHANGELOG.md` is written only by the release pull request.
+   carries on its own grounds still holds: `CHANGELOG.md` is written only by the release pull
+   request. An ADR under `docs/decisions/` carries no such rule until `1.0.0` — every one is
+   `proposed` and is edited in this change without asking, as `docs/AGENTS.md` says.
 8. Identify the GitHub issue that governs the task, reading
    `docs/operations/issue-tracking.md` first. Create it when none exists; its body draws on what
    step 6 read and ends with the `## Baseline` section that page § *Issue content* asks for, naming

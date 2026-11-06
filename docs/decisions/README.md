@@ -6,18 +6,18 @@ For background on ADRs, see <https://adr.github.io/>.
 
 ## How MailFathom uses ADRs
 
-1. Create or modify an ADR only after explicit owner approval for that documentation change. The `Protected paths` check is the mechanical half of this rule rather than all of it: `docs/decisions/` is a protected directory, so a pull request touching this directory fails that check unless a maintainer authored it or approved its current head, and the owner's approval is what a reviewer then looks for. Propose a decision in an issue and let the approving change carry the record.
+1. Create or modify an ADR in the change that needs it, without asking first: until `1.0.0` every ADR is `proposed` and is a working record, and `docs/AGENTS.md` holds that rule. `docs/decisions/` is a protected directory, so a pull request touching it from an author who is not a maintainer waits on the `Protected paths` check until a maintainer approves its current head.
 2. Copy `docs/decisions/adr-template.md` to `docs/decisions/NNNN-title-with-dashes.md`, where `NNNN` is the next sequence number. The next one is `0049`. `0018`, `0019`, and `0020` were withdrawn with the Uno Platform client they decided about, and a number that has been used once is never reused, so the sequence continued past that gap rather than filling it.
    1. Check existing branches and pull requests when possible so the sequence number does not collide.
    2. Use `docs/decisions/adr-short-template.md` only for small decisions whose trade-offs are already clear.
 3. Edit the new ADR.
-   1. Initial status is normally `proposed`.
+   1. Initial status is `proposed`.
    2. `deciders` lists the people who approve the decision.
    3. `consulted` lists people whose input was sought.
    4. `informed` lists people who must know about the decision but do not approve it.
 4. For each option, record meaningful good, neutral, and bad consequences.
-5. Update the status to `accepted` only after the decision is approved. That status closes the record: from then on the text is never corrected, extended, or brought up to date with what the code does. Every change made since was written against that text, so rewriting it replaces the reasoning retroactively and leaves nothing saying it ever changed.
-6. Supersede a decision with a new ADR rather than rewriting the old one. Mark the replaced ADR `superseded` and point it at its replacement; that transition and the `describes:` marker are the only edits an accepted ADR takes, and the marker says where the code lives rather than anything about the decision. An ADR still at `proposed` is editable, which is what that status is for.
+5. Leave the status at `proposed`. It moves to `accepted` at `1.0.0`, by the owner's decision, and not before; until then the record is corrected, extended, and brought up to date with what the code does, in the change that moves the code.
+6. Supersede a decision with a new ADR when the decision is replaced rather than refined: mark the replaced ADR `superseded` and point it at its replacement.
 
 ## Records
 
