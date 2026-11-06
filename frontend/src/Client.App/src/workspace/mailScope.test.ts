@@ -7,6 +7,7 @@ import type { MailFolderDirectory, MailFolderRole } from '@mailfathom/client-bac
 import {
     accountInScope,
     everything,
+    folderNameOf,
     isMailFolderRole,
     roleRank,
     sameScope,
@@ -52,6 +53,22 @@ const offered: MailFolderDirectory = {
         },
     ],
 };
+
+describe('folderNameOf', () => {
+    const translate = (key: string): string => `<${key}>`;
+
+    it('names a folder playing a role by the role, whatever its server calls it', () => {
+        expect(folderNameOf({ role: 'Archive', path: ['INBOX', 'Archiwum'] }, translate)).toBe('<folder.archive>');
+    });
+
+    it('names any other folder by the last level of its path', () => {
+        expect(folderNameOf({ role: null, path: ['INBOX', 'Invoices 2026'] }, translate)).toBe('Invoices 2026');
+    });
+
+    it('names a folder with no path by nothing rather than by anything else it carries', () => {
+        expect(folderNameOf({ role: null, path: [] }, translate)).toBeNull();
+    });
+});
 
 describe('scopeKey', () => {
     it.each<{ scope: MailScope; key: string }>([

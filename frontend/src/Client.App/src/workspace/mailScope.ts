@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { MailFolderDirectory, MailFolderRole } from '@mailfathom/client-backend';
+import type { MailFolder, MailFolderDirectory, MailFolderRole } from '@mailfathom/client-backend';
 import type { IconName } from '../controls/icons';
 import type { MessageKey } from '../localization/en';
 
@@ -83,6 +83,18 @@ export const folderRoleIcons: Readonly<Record<MailFolderRole, IconName>> = {
     Important: 'label_important',
     All: 'all_inbox',
 };
+
+/**
+ * What a reader calls a folder: the role it plays where it plays one, and otherwise the last level of where it sits in
+ * its account, as the folder tree names it. The identity is never a name a reader is shown, so a folder with no path
+ * is `null` rather than its identity.
+ */
+export function folderNameOf(
+    folder: Pick<MailFolder, 'role' | 'path'>,
+    translate: (key: MessageKey) => string,
+): string | null {
+    return folder.role === null ? (folder.path.at(-1) ?? null) : translate(folderRoleLabels[folder.role]);
+}
 
 /** Whether the value is one of the roles this surface publishes. */
 export function isMailFolderRole(value: unknown): value is MailFolderRole {

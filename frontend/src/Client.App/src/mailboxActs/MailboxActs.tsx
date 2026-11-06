@@ -985,7 +985,7 @@ export function MailboxActsProvider({
     }
 
     // Which role a message's own folder plays, read out of the same tree the destinations are read from.
-    function folderOf(message: ActedMessage): MailFolder | null {
+    function folderOf(message: Pick<ActedMessage, 'account' | 'folder'>): MailFolder | null {
         return (
             held.directory?.accounts
                 .find((entry) => entry.account.id === message.account)

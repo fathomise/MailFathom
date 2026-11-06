@@ -1467,6 +1467,7 @@ export const pl: Catalogue = {
     'search.narrowing.account': 'Skrzynka: {value}',
     'search.narrowing.accountUnnamed': 'Jedna skrzynka',
     'search.narrowing.folder': 'Folder: {value}',
+    'search.narrowing.folderUnnamed': 'Jeden folder',
     'search.narrowing.sender': 'Od {value}',
     'search.narrowing.recipient': 'Do {value}',
     'search.narrowing.receivedFrom': 'Przyszło {value} lub później',

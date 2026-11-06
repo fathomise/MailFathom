@@ -4,8 +4,9 @@
 
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { MailAccount } from '@mailfathom/client-backend';
+import type { MailAccount, MailFolder } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { MailboxActsContext, nothingActed } from '../mailboxActs/useMailboxActs';
 import { everything } from '../workspace/mailScope';
 import { SearchFilters } from './SearchFilters';
 import { askIn, type MailSearchAsk } from './searchAsk';
@@ -24,16 +25,38 @@ const work: MailAccount = {
     oldestWaitingChangeCommittedAt: null,
 };
 
+const filed: MailFolder = {
+    id: '0b6f9c1e-folder',
+    role: null,
+    path: ['INBOX', 'Invoices 2026'],
+    storedEmailCount: 12,
+    unreadEmailCount: 0,
+    synchronizationState: 'Synchronized',
+    lastSynchronizedAt: '2026-08-31T09:41:00+00:00',
+    behind: false,
+};
+
 const anywhere = askIn(everything, 'invoice');
 
 function renderFilters(
     ask: MailSearchAsk,
     onNarrow: (ask: MailSearchAsk) => void = () => undefined,
     onRemoveCriterion: (criterion: string) => void = () => undefined,
+    folders: readonly MailFolder[] = [],
 ): void {
     render(
         <LocalizationProvider>
-            <SearchFilters ask={ask} accounts={[work]} onNarrow={onNarrow} onRemoveCriterion={onRemoveCriterion} />
+            <MailboxActsContext
+                value={{
+                    ...nothingActed,
+                    folderOf: (named) =>
+                        named.account === 'work'
+                            ? (folders.find((folder) => folder.id === named.folder) ?? null)
+                            : null,
+                }}
+            >
+                <SearchFilters ask={ask} accounts={[work]} onNarrow={onNarrow} onRemoveCriterion={onRemoveCriterion} />
+            </MailboxActsContext>
         </LocalizationProvider>,
     );
 }
@@ -68,6 +91,51 @@ describe('SearchFilters', () => {
 
         expect(filtersInForce()[0]?.textContent).toContain('One mailbox');
         expect(filtersInForce()[0]?.textContent).not.toContain('elsewhere');
+    });
+
+    it('draws a role the search was started in by the name the folder tree gives it', () => {
+        renderFilters(askIn({ kind: 'role', role: 'Inbox' }, 'invoice'));
+
+        expect(filtersInForce()[0]?.textContent).toContain('Folder: Inbox');
+        expect(filtersInForce()[0]?.textContent).not.toContain('role:');
+    });
+
+    it('draws a folder the search was started in by the last level of its path, here and among the folders offered', () => {
+        renderFilters(
+            askIn({ kind: 'folder', accountId: 'work', folderId: filed.id }, 'invoice'),
+            undefined,
+            undefined,
+            [filed],
+        );
+
+        expect(filtersInForce()[1]?.textContent).toContain('Folder: Invoices 2026');
+        narrowing();
+        expect(screen.getByRole('option', { name: 'Invoices 2026' })).toBeTruthy();
+        expect(screen.queryByText(filed.id, { exact: false })).toBeNull();
+    });
+
+    it('draws a folder playing a role by that role rather than by its path', () => {
+        const archive: MailFolder = { ...filed, role: 'Archive', path: ['INBOX', 'Archiwum'] };
+
+        renderFilters(
+            askIn({ kind: 'folder', accountId: 'work', folderId: archive.id }, 'invoice'),
+            undefined,
+            undefined,
+            [archive],
+        );
+
+        expect(filtersInForce()[1]?.textContent).toContain('Folder: Archive');
+    });
+
+    // The folders are read for the acts on a message, and a credential that may not file mail reads none — so the folder
+    // is then known only by its identity, which is never something a reader is shown.
+    it('names no folder at all rather than its identity where the folders have not been read', () => {
+        renderFilters(askIn({ kind: 'folder', accountId: 'work', folderId: filed.id }, 'invoice'));
+
+        expect(filtersInForce()[1]?.textContent).toContain('One folder');
+        narrowing();
+        expect(screen.getByRole('option', { name: 'One folder' })).toBeTruthy();
+        expect(screen.queryByText(filed.id, { exact: false })).toBeNull();
     });
 
     it('draws every filter in force as an object of its own', () => {

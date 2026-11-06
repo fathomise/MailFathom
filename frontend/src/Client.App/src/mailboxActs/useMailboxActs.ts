@@ -206,7 +206,7 @@ export interface MailboxActs {
      * The folder that message is in, or `null` where this client has not read the user's folders or holds none by that
      * identity — read out of the same tree, so a message's foot names the folder the tree names.
      */
-    readonly folderOf: (message: ActedMessage) => MailFolder | null;
+    readonly folderOf: (message: Pick<ActedMessage, 'account' | 'folder'>) => MailFolder | null;
 
     /** The folders those messages could be filed into, under the one account they are all in. */
     readonly destinationsOf: (messages: readonly ActedMessage[]) => readonly MoveDestinationGroup[];

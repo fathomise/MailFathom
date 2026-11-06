@@ -1444,6 +1444,7 @@ export const en = {
     'search.narrowing.account': 'Mailbox: {value}',
     'search.narrowing.accountUnnamed': 'One mailbox',
     'search.narrowing.folder': 'Folder: {value}',
+    'search.narrowing.folderUnnamed': 'One folder',
     'search.narrowing.sender': 'From {value}',
     'search.narrowing.recipient': 'To {value}',
     'search.narrowing.receivedFrom': 'Arrived on or after {value}',

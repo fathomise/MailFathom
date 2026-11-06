@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useState } from 'react';
-import type { MailAccount } from '@mailfathom/client-backend';
+import type { MailAccount, MailFolderRole } from '@mailfathom/client-backend';
 import { borderedControl } from '../controls/chrome';
 import { CheckControl } from '../controls/CheckControl';
 import { Icon } from '../controls/Icon';
@@ -12,8 +12,9 @@ import type { MessageKey } from '../localization/en';
 import { wordCalendarDay } from '../localization/instants';
 import type { Locale } from '../localization/locale';
 import { useLocalization } from '../localization/useLocalization';
+import { useMailboxActs, type MailboxActs } from '../mailboxActs/useMailboxActs';
 import { accountNameIn } from '../shell/accountNames';
-import { folderRoleLabels, folderRoles, isMailFolderRole } from '../workspace/mailScope';
+import { folderNameOf, folderRoleLabels, folderRoles, isMailFolderRole } from '../workspace/mailScope';
 import {
     addressFilter,
     narrowings,
@@ -78,6 +79,11 @@ export function SearchFilters({
 
     const inForce = narrowings(ask);
 
+    // What the reader calls the folder searched, read out of the folders the acts on a message already read — so the
+    // filter names a folder the way the tree does rather than by the identity the search is asked with.
+    const acts = useMailboxActs();
+    const folderName = folderNamed(ask, acts.folderOf, translate);
+
     // What the search covers when nothing narrows it to a mailbox. A chip cannot say it — there is no filter there to
     // take off — and leaving it unsaid is what makes an empty result read as an absence rather than as a search over
     // everything that found nothing.
@@ -111,7 +117,7 @@ export function SearchFilters({
                             key={narrowing}
                             label={labelOf(
                                 narrowing,
-                                valueOf(ask, narrowing),
+                                narrowing === 'folder' ? folderName : valueOf(ask, narrowing),
                                 accounts,
                                 locale,
                                 translate,
@@ -199,7 +205,7 @@ export function SearchFilters({
                                     itself rather than silently dropped by the control that would otherwise not hold
                                     it. */}
                                 {ask.folder !== null && roleIn(ask.folder) === null ? (
-                                    <option value={ask.folder}>{ask.folder}</option>
+                                    <option value={ask.folder}>{folderName}</option>
                                 ) : null}
 
                                 {folderRoles.map((role) => (
@@ -431,9 +437,31 @@ function labelOf(
     return translate(narrowingLabels[narrowing], { value });
 }
 
+// The folder searched, as the reader calls it: a role by the role, a folder of one account by `folderNameOf`, and
+// *One folder* where this client has not read that folder — never by its identity.
+function folderNamed(
+    ask: MailSearchAsk,
+    folderOf: MailboxActs['folderOf'],
+    translate: (key: MessageKey) => string,
+): string | null {
+    if (ask.folder === null) {
+        return null;
+    }
+
+    const role = roleIn(ask.folder);
+
+    if (role !== null) {
+        return translate(folderRoleLabels[role]);
+    }
+
+    const folder = ask.account === null ? null : folderOf({ account: ask.account, folder: ask.folder });
+
+    return (folder === null ? null : folderNameOf(folder, translate)) ?? translate('search.narrowing.folderUnnamed');
+}
+
 // The role a folder filter stands for, or `null` where it names a folder of one account instead.
-function roleIn(folder: string | null): string | null {
+function roleIn(folder: string | null): MailFolderRole | null {
     const named = folder?.startsWith('role:') === true ? folder.slice('role:'.length) : null;
 
-    return named !== null && isMailFolderRole(named) ? `role:${named}` : null;
+    return named !== null && isMailFolderRole(named) ? named : null;
 }

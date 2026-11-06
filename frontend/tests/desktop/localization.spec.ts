@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test';
 
 import * as deployment from '../fixtures/deployment';
 import * as messages from '../fixtures/messages';
-import { freshProfile, openDesktopHead, type DesktopHead } from './head';
+import { everyShellGone, freshProfile, openDesktopHead, type DesktopHead } from './head';
 
 // The two rules that could diverge on the desktop head without anybody noticing, asked of the real WebView. Both are
 // answered by the platform rather than by the client: the zone every instant is placed against is whatever the runtime
@@ -177,6 +177,8 @@ test('lets a choice outrank the machine preference, and keeps it across a restar
     } finally {
         await chosen.close();
     }
+
+    await everyShellGone(profile);
 
     // A second shell, started afresh under the same preference and over the same profile. This is the assertion only
     // the desktop head can make: the choice was written into the WebView's own storage and read back by a new process,
