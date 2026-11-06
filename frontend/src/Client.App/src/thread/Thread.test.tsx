@@ -1502,10 +1502,12 @@ describe('Thread opened from the list read by conversation', () => {
     it('lands the reader on the first new message rather than on the newest one it was opened at', async () => {
         openedFromTheList(deploymentAnswering(pageOf(['one', 'two', 'three'], {}, { two: unread, three: unread })));
 
+        // The thread takes the focus as it opens and then hands it to the message, so both halves wait together: the
+        // thread's own focus holds both messages' words and would pass the first half alone.
         await waitFor(() => {
             expect(document.activeElement?.textContent).toContain('The whole of what two says.');
+            expect(document.activeElement?.textContent).not.toContain('The whole of what three says.');
         });
-        expect(document.activeElement?.textContent).not.toContain('The whole of what three says.');
     });
 
     it('marks none of the reader’s own replies new, although they stand among the news', async () => {
