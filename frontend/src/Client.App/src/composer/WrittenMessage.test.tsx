@@ -1045,6 +1045,39 @@ describe('WrittenMessage, pictures', () => {
         expect(acts()).toEqual([{ command: 'insertHTML', argument: '<p>Quoted <b>words</b></p>' }]);
     });
 
+    it('inserts a paste once where the engine raises an input event for its own insertion, as WebKit does', () => {
+        drawWords();
+
+        Object.defineProperty(document, 'execCommand', {
+            configurable: true,
+            value: (command: string, _showUserInterface: boolean, argument?: string) => {
+                commanded.push({ command, argument });
+
+                if (command === 'insertHTML') {
+                    const raised = new Event('beforeinput', { bubbles: true, cancelable: true });
+
+                    Object.assign(raised, {
+                        inputType: 'insertHTML',
+                        dataTransfer: { getData: () => argument ?? '', types: ['text/html'], files: [] },
+                    });
+                    words().dispatchEvent(raised);
+                }
+
+                return true;
+            },
+        });
+
+        fireEvent.paste(words(), {
+            clipboardData: {
+                getData: (flavour: string) => (flavour === 'text/html' ? '<p>Once <b>only</b></p>' : ''),
+                types: ['text/html'],
+                files: [],
+            },
+        });
+
+        expect(acts()).toEqual([{ command: 'insertHTML', argument: '<p>Once <b>only</b></p>' }]);
+    });
+
     it('leaves a passage dragged within the words to the engine’s own move', () => {
         drawWords([{ element: 'p', address: null, holds: [{ text: 'move me' }] }]);
 

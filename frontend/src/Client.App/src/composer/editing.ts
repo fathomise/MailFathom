@@ -13,11 +13,28 @@ import { htmlOf, type PictureSource, type WrittenNode } from './writtenText';
 // **This is the one module that may hand the region markup**, under ADR 0047: `insertHTML` parses its argument into the
 // live document, so the lint rule refuses it everywhere else, and here it is given nothing but `htmlOf`'s escaped
 // serialization of the closed set. Whatever the engine makes of that is read back by the same strict `writtenIn`.
+//
+// **WebKit raises `beforeinput` for a command as it runs**, carrying the markup `insertHTML` was handed as a data
+// transfer. So a listener reading what an input brings in asks `commandRunning` first, or it would read the composer's
+// own insertion as somebody else's and insert it again, without end.
+
+let running = false;
+
+/** Whether the input event being handled was raised by one of the commands below rather than by somebody's input. */
+export function commandRunning(): boolean {
+    return running;
+}
 
 /** One editing command on whatever the region has selected. */
-export function edit(command: string, argument?: string): void {
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- The reason is the comment at the top of this file.
-    document.execCommand(command, false, argument);
+export function edit(name: string, argument?: string): void {
+    running = true;
+
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- The reason is the comment at the top of this file.
+        document.execCommand(name, false, argument);
+    } finally {
+        running = false;
+    }
 }
 
 /**
@@ -28,6 +45,5 @@ export function edit(command: string, argument?: string): void {
  *   back as a picture.
  */
 export function insertWritten(written: readonly WrittenNode[], pictureSource: PictureSource): void {
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- The reason is the comment at the top of this file.
-    document.execCommand('insertHTML', false, htmlOf(written, pictureSource, 'editor'));
+    edit('insertHTML', htmlOf(written, pictureSource, 'editor'));
 }

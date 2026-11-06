@@ -25,7 +25,7 @@ import { sizeOf } from '../localization/octets';
 import { useLocalization, type Translate } from '../localization/useLocalization';
 import { useCoarsePointer } from '../shell/useWideWorkspace';
 import { readClipboardHtml, readTabbedText, type ClipboardReading } from './clipboardReading';
-import { edit, insertWritten } from './editing';
+import { commandRunning, edit, insertWritten } from './editing';
 import { FormattingChoice, FormattingMenu } from './FormattingMenu';
 import type { PictureAddresses } from './pictureAddresses';
 import {
@@ -1003,6 +1003,7 @@ export function WrittenMessage({
 
         if (
             transfer === null ||
+            commandRunning() ||
             event.inputType === 'insertFromPaste' ||
             event.inputType === 'insertFromDrop' ||
             (transfer.files.length === 0 && !transfer.types.includes('text/html'))
