@@ -1111,6 +1111,9 @@ test('pastes a range copied from a spreadsheet as a bordered table with its head
     await expect(message.getByRole('columnheader')).toHaveText(['Region', 'Units', 'Change']);
     await expect(message.getByRole('cell', { name: '-35' })).toBeVisible();
 
+    await page.keyboard.type('Totals follow.');
+    await expect(message.locator('table + p')).toHaveText('Totals follow.');
+
     await send(page);
 
     expect(sentBody(deployment)).toMatchObject({

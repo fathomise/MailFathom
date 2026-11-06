@@ -149,13 +149,21 @@ test('reads a hostile document pasted and dropped, and a spreadsheet range, runn
 
         await head.evaluate(deliver('paste', { 'text/html': clipboard.excelRange, 'text/plain': clipboard.rangeText }));
 
-        const headers = await head.settled<readonly string[]>(`(() => {
-            const cells = [...document.querySelectorAll('${words} th')].map((cell) => cell.textContent.trim());
+        // Settled once the range's words are anywhere in the region, so a range that went in as something other than a
+        // table says where it went rather than timing out.
+        const range = await head.settled<{ readonly headers: readonly string[]; readonly within: string }>(`(() => {
+            const region = document.querySelector('${words}');
+            const word = [...region.querySelectorAll('*')].findLast((element) => element.textContent.includes('North yard') && element.children.length === 0);
 
-            return cells.length < 3 ? null : cells;
+            return word === undefined
+                ? null
+                : {
+                      headers: [...region.querySelectorAll('th')].map((cell) => cell.textContent.trim()),
+                      within: [...region.children].map((child) => child.tagName.toLowerCase()).join(' ') + ' / ' + word.closest('td, th, p, div')?.tagName.toLowerCase(),
+                  };
         })()`);
 
-        expect(headers).toEqual(['Region', 'Units', 'Change']);
+        expect(range.headers, `the region holds ${range.within}`).toEqual(['Region', 'Units', 'Change']);
     } finally {
         await head.close();
     }

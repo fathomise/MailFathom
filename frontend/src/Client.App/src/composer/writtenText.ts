@@ -480,11 +480,40 @@ function readWritten(
         }
 
         const alignment = alignedElements.includes(element) ? alignmentOf(node) : null;
+        const read: WrittenMarkup =
+            alignment === null ? { element, address, holds } : { element, address, alignment, holds };
+        const carried = emphasisElements.includes(element) ? drawnRunOf(node, drawing) : null;
 
-        written.push(alignment === null ? { element, address, holds } : { element, address, alignment, holds });
+        // An engine merging a pasted line into the one at the caret carries that line's rendering over onto the
+        // emphasis it keeps rather than onto a `span`, so what it carried is read as the run around that emphasis.
+        if (carried !== null) {
+            budget.nodes -= 1;
+        }
+
+        written.push(carried === null ? read : { element: 'span', address: null, ...carried, holds: [read] });
     }
 
     return written;
+}
+
+// The emphasis an engine may carry a run's rendering over onto, as it does a `span`.
+const emphasisElements: readonly WrittenElement[] = ['b', 'em', 'i', 's', 'strike', 'strong', 'u'];
+
+// The colour and the size an element's own style draws it in, read back through the region's drawing.
+function drawnRunOf(
+    element: Element,
+    drawing: RunDrawing | null,
+): { readonly colour?: string; readonly size?: WrittenSize } | null {
+    if (drawing === null || !(element instanceof HTMLElement)) {
+        return null;
+    }
+
+    const colour = element.style.color === '' ? null : drawing.colourDrawnAs(element.style.color);
+    const size = element.style.fontSize === '' ? null : drawing.sizeDrawnAs(element.style.fontSize);
+
+    return colour === null && size === null
+        ? null
+        : { ...(colour === null ? {} : { colour }), ...(size === null ? {} : { size }) };
 }
 
 // The colour and the size an element states as a run, each only where it is on the closed set: a `font` by the
@@ -496,24 +525,21 @@ function runOf(
     named: string,
     drawing: RunDrawing | null,
 ): { readonly colour?: string; readonly size?: WrittenSize } | null {
-    let colour: string | null = null;
-    let size: WrittenSize | null = null;
-
-    if (named === 'font') {
-        const attributed = writtenColour(element.getAttribute('color') ?? '');
-
-        colour = attributed === null || drawing === null ? attributed : drawing.colourDrawnAs(attributed);
-        size = stepOfFontSize(element.getAttribute('size') ?? '');
-    } else if (named === 'span' && drawing !== null && element instanceof HTMLElement) {
-        colour = element.style.color === '' ? null : drawing.colourDrawnAs(element.style.color);
-        size = element.style.fontSize === '' ? null : drawing.sizeDrawnAs(element.style.fontSize);
+    if (named === 'span') {
+        return drawnRunOf(element, drawing);
     }
 
-    if (colour === null && size === null) {
+    if (named !== 'font') {
         return null;
     }
 
-    return { ...(colour === null ? {} : { colour }), ...(size === null ? {} : { size }) };
+    const attributed = writtenColour(element.getAttribute('color') ?? '');
+    const colour = attributed === null || drawing === null ? attributed : drawing.colourDrawnAs(attributed);
+    const size = stepOfFontSize(element.getAttribute('size') ?? '');
+
+    return colour === null && size === null
+        ? null
+        : { ...(colour === null ? {} : { colour }), ...(size === null ? {} : { size }) };
 }
 
 // The alignment a block states, written by the engine as `text-align` or, in an engine that still spells it the old

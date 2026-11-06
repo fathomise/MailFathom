@@ -190,6 +190,25 @@ describe('writtenIn', () => {
         ]);
     });
 
+    it('reads the size an engine carried onto an emphasis it merged into a line as the run around that emphasis', () => {
+        const bold = element('b', 'Yard handover');
+        const drawing: RunDrawing = {
+            colourDrawnAs: () => null,
+            sizeDrawnAs: (drawn) => (drawn === '25.995px' ? 'largest' : null),
+        };
+
+        bold.setAttribute('style', 'font-size: 25.995px; text-wrap-mode: initial;');
+
+        expect(writtenIn(region(bold), noPicture, drawing)).toEqual([
+            {
+                element: 'span',
+                address: null,
+                size: 'largest',
+                holds: [{ element: 'b', address: null, holds: [{ text: 'Yard handover' }] }],
+            },
+        ]);
+    });
+
     it('asks the region about a font’s colour too, so one written in the region’s own colour is no colour', () => {
         const font = element('font', 'plain');
         const drawing: RunDrawing = {

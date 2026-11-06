@@ -591,12 +591,23 @@ export function WrittenMessage({
 
         const last = passage[passage.length - 1];
         const endsOnATable = last !== undefined && !('text' in last) && last.element === 'table';
+        const standing = new Set(region?.querySelectorAll('table'));
 
         insertWritten(
             endsOnATable ? [...passage, emptyParagraph] : passage,
             // The pictures the clipboard carried are only now asked to be held, so the composer's map does not name them yet.
             sourceAmong(new Map([...pictures, ...arriving])),
         );
+
+        // Where an engine leaves the caret after inserting a table is its own choice, so it is put on the line after
+        // the table, where the next words or the next paste belong rather than in the table's last cell.
+        const placed = [...(region?.querySelectorAll('table') ?? [])].findLast((table) => !standing.has(table));
+        const lineAfter = endsOnATable ? placed?.nextElementSibling : null;
+
+        if (lineAfter instanceof HTMLElement) {
+            placeTheCaretIn(lineAfter);
+        }
+
         written();
     }
 
@@ -1703,7 +1714,7 @@ function cellAt(table: HTMLTableElement, at: TableCellPosition): HTMLTableCellEl
 }
 
 // The caret at the end of what a cell holds, ahead of the break an engine keeps there for a line to stand on.
-function placeTheCaretIn(cell: HTMLTableCellElement): void {
+function placeTheCaretIn(cell: HTMLElement): void {
     const range = document.createRange();
     const selection = window.getSelection();
     const last = cell.lastChild;
