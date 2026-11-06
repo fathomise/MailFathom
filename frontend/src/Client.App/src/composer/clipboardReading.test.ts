@@ -303,6 +303,21 @@ describe('readClipboardHtml', () => {
         ).toStrictEqual([markup('b', [markup('i', [markup('u', [markup('s', [text('Bay')])])])])]);
     });
 
+    it('drops an underline or a strike a declaration takes away from the element naming it', () => {
+        expect(
+            writtenOf('<u style="text-decoration: none">Bay</u> <del style="text-decoration-line: none">4</del>'),
+        ).toStrictEqual([text('Bay'), text(' '), text('4')]);
+    });
+
+    it('keeps a table’s caption as the line before the table', () => {
+        expect(
+            writtenOf('<table><caption>Quarter <b>3</b></caption><tr><td>a</td><td>b</td></tr></table>'),
+        ).toStrictEqual([
+            markup('div', [text('Quarter '), markup('b', [text('3')])]),
+            markup('table', [rowOf(cellOf([text('a')]), cellOf([text('b')]))]),
+        ]);
+    });
+
     it('reads a block it has no name for as a line, and an inline element it has no name for as its words', () => {
         expect(writtenOf('<section>Bay <mark>4</mark></section><article><code>Bay 5</code></article>')).toStrictEqual([
             markup('div', [text('Bay '), text('4')]),
@@ -393,6 +408,25 @@ describe('readTabbedText', () => {
             ],
             pictures: [],
         });
+    });
+
+    it('trims the empty columns at the end of lines that end on a tab', () => {
+        expect(readTabbedText('Region\tUnits\t\nNorth\t1,240\t')).toStrictEqual({
+            kind: 'written',
+            written: [
+                markup('table', [
+                    rowOf(cellOf([text('Region')]), cellOf([text('Units')])),
+                    rowOf(cellOf([text('North')]), cellOf([text('1,240')])),
+                ]),
+            ],
+            pictures: [],
+        });
+    });
+
+    it('judges a range against the bound on its trimmed width', () => {
+        const reading = readTabbedText(`${Array.from({ length: 20 }, () => '1').join('\t')}\t`);
+
+        expect(reading.kind).toBe('written');
     });
 
     it.each([

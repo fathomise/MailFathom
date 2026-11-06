@@ -112,6 +112,7 @@ const blockElements: Readonly<Record<string, BlockElement>> = {
     address: 'div',
     article: 'div',
     aside: 'div',
+    caption: 'div',
     center: 'div',
     dd: 'div',
     details: 'div',
@@ -251,9 +252,10 @@ export function readTabbedText(plain: string): ClipboardReading {
         .split('\n')
         .filter((line) => line.trim() !== '')
         .map((line) => line.split('\t'));
-    const columns = rows[0]?.length ?? 0;
+    const split = rows[0]?.length ?? 0;
+    const columns = Math.max(0, ...rows.map((row) => row.findLastIndex((text) => text !== '') + 1));
 
-    if (columns < 2 || rows.some((row) => row.length !== columns)) {
+    if (columns < 2 || rows.some((row) => row.length !== split)) {
         return nothing;
     }
 
@@ -267,7 +269,7 @@ export function readTabbedText(plain: string): ClipboardReading {
         holds: rows.map((cells) => ({
             element: 'tr',
             address: null,
-            holds: cells.map((text) => ({
+            holds: cells.slice(0, columns).map((text) => ({
                 element: 'td',
                 address: null,
                 holds: text === '' ? [] : [{ text: text.slice(0, longestWrittenRun) }],
@@ -473,7 +475,11 @@ function readPasted(parent: Node, depth: number, reading: Reading, within: Place
         }
 
         if (named === 'table' && node instanceof HTMLTableElement) {
-            written.push(...(within === 'cell' ? cellLinesOf(node, depth, reading) : tableOf(node, depth, reading)));
+            written.push(
+                // A table's title has no place in the table the composer holds, so it is the line standing before it.
+                ...(node.caption === null ? [] : elementOf(node.caption, 'caption', depth, reading, within)),
+                ...(within === 'cell' ? cellLinesOf(node, depth, reading) : tableOf(node, depth, reading)),
+            );
 
             continue;
         }
@@ -615,8 +621,8 @@ function presentationOf(element: Element, named: string, sheet: readonly SheetRu
     return {
         bold: weightIsBold(declared('font-weight')) ?? emphasis === 'bold',
         italic: styleIsItalic(declared('font-style')) ?? emphasis === 'italic',
-        underline: decoration.includes('underline') || emphasis === 'underline',
-        strike: decoration.includes('line-through') || emphasis === 'strike',
+        underline: decoration.trim() === '' ? emphasis === 'underline' : decoration.includes('underline'),
+        strike: decoration.trim() === '' ? emphasis === 'strike' : decoration.includes('line-through'),
         colour: foregroundOf(declared('color') || (named === 'font' ? attribute('color') : '')),
         size: fontSize === '' && named === 'font' ? stepOfFontSize(attribute('size')) : stepOfLength(fontSize),
         // Excel's `text-align: general` is no alignment an engine draws, so the `align` its figures carry still holds.
