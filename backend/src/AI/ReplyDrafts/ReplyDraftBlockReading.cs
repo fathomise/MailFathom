@@ -306,13 +306,13 @@ internal static class ReplyDraftBlockReading
             [
                 new MailTableBlock(
                     [.. Enumerable.Repeat(new MailTableColumn(WidthShare: null), columns)],
-                    [.. rows.Select((row, index) => this.RowOf(row, header && index is 0, columns))]),
+                    [.. rows.TakeWhile(_ => !this.IsExhausted).Select((row, index) => this.RowOf(row, header && index is 0, columns))]),
             ];
         }
 
         private MailTableRow RowOf(JsonElement[] row, bool isHeader, int columns)
         {
-            this.Charge(ReplyDraft.LineBreak.Length);
+            this.Charge(ReplyDraft.LineBreak.Length + (ReplyDraft.CellBreak.Length * (columns - row.Length)));
 
             return new MailTableRow(
                 isHeader,

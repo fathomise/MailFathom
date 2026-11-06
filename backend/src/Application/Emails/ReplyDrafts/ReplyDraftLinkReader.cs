@@ -37,6 +37,8 @@ public sealed class ReplyDraftLinkReader
     /// <remarks>The figure a reading pane renders a body to by default, so the links are those a person reading the message is shown.</remarks>
     private const int CharactersReadForLinks = 100_000;
 
+    private static readonly char[] LeadingPunctuation = ['(', '[', '{', '<', '"', '\''];
+
     private static readonly char[] TrailingPunctuation = ['.', ',', ';', ':', '!', '?', ')', ']', '}', '>', '"', '\''];
 
     private readonly IEmailContentStore contentStore;
@@ -83,12 +85,31 @@ public sealed class ReplyDraftLinkReader
     private static IEnumerable<(MailDocumentLink Link, string? Words)> TypedIn(string? instruction) =>
         (instruction ?? string.Empty)
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
-            .Select(static word => word.TrimEnd(TrailingPunctuation))
+            .Select(static word => WithoutTrailingPunctuation(word.TrimStart(LeadingPunctuation)))
             .Where(static word => word.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
                 || word.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             .Select(static word => MailLinkReader.Read(word, word))
             .OfType<MailDocumentLink>()
             .Select(static link => (link, (string?)null));
+
+    /// <summary>Takes the punctuation of the sentence off the end of an address, and a closing bracket only where the address does not open it.</summary>
+    private static string WithoutTrailingPunctuation(string word)
+    {
+        while (word.Length > 0 && Array.IndexOf(TrailingPunctuation, word[^1]) >= 0 && !ClosesABracketItOpens(word))
+        {
+            word = word[..^1];
+        }
+
+        return word;
+    }
+
+    private static bool ClosesABracketItOpens(string word) => word[^1] switch
+    {
+        ')' => word.Count(static character => character is '(') >= word.Count(static character => character is ')'),
+        ']' => word.Count(static character => character is '[') >= word.Count(static character => character is ']'),
+        '}' => word.Count(static character => character is '{') >= word.Count(static character => character is '}'),
+        _ => false,
+    };
 
     /// <summary>Numbers what may be cited, leaving out what a host cannot honestly describe.</summary>
     private static IReadOnlyList<ReplyDraftLink> Numbered(IEnumerable<(MailDocumentLink Link, string? Words)> found) =>
@@ -126,6 +147,7 @@ public sealed class ReplyDraftLinkReader
                 RemainingCharactersForRead: int.MaxValue)
             {
                 IncludeMailDocument = true,
+                RemainingInlineImageOctetsForRead = 0,
             },
             cancellationToken);
 

@@ -80,6 +80,45 @@ public sealed class ReplyDraftLinkReaderTests
         Assert.Equal([0, 1], links.Select(static link => link.Position));
     }
 
+    [Theory]
+    [InlineData("Link https://wiki.example.test/Mercury_(planet) please", "https://wiki.example.test/Mercury_(planet)")]
+    [InlineData("Link it (https://wiki.example.test/Mercury_(planet)).", "https://wiki.example.test/Mercury_(planet)")]
+    [InlineData("Link it (https://wiki.example.test/planet).", "https://wiki.example.test/planet")]
+    public async Task ReadAsync_AnAddressEndingInABracket_KeepsTheBracketOnlyWhereTheAddressOpensIt(string instruction, string expected)
+    {
+        // Arrange
+        var reader = ReaderOver();
+
+        // Act
+        var links = await reader.ReadAsync(instruction, [MessageOf(Message)], TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(expected, Assert.Single(links).Link.Target);
+    }
+
+    [Fact]
+    public async Task ReadAsync_AnyMessage_RendersItWithoutInliningItsPictures()
+    {
+        // Arrange
+        var store = Substitute.For<IEmailContentStore>();
+        store.FindStoredContentAsync(Message, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<StoredEmailContent?>(new StoredEmailContent(new byte[] { 1 }, 1, new byte[32])));
+        var renderer = Substitute.For<IEmailContentRenderer>();
+        renderer
+            .RenderAsync(Arg.Any<StoredEmailContent>(), Arg.Any<EmailContentRenderingBounds>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(EmailContentRenderingResult.Rendered(RenderingOf(MailDocument.Reduced([], 0, 0, 0, 0, truncated: false)))));
+        var reader = new ReplyDraftLinkReader(store, renderer);
+
+        // Act
+        await reader.ReadAsync(instruction: null, [MessageOf(Message)], TestContext.Current.CancellationToken);
+
+        // Assert
+        await renderer.Received(1).RenderAsync(
+            Arg.Any<StoredEmailContent>(),
+            Arg.Is<EmailContentRenderingBounds>(static bounds => bounds.IncludeMailDocument && bounds.RemainingInlineImageOctetsForRead == 0),
+            Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task ReadAsync_OneTargetLinkedTwice_IsPublishedOnce()
     {

@@ -142,13 +142,13 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
         var turn = await ComposeTurnAsync(brief, this.egressGuard, this.plan, cancellationToken);
 
         ChatRequestBounds.Require(
-            [new ChatMessage(ChatRole.User, turn)],
+            [new ChatMessage(ChatRole.User, turn.Text)],
             this.plan.MaximumMessagesPerRequest,
             this.plan.MaximumRequestCharacters,
             this.plan.MaximumRequestImageOctets);
 
-        var answer = await this.AskAsync(turn, brief.Language, cancellationToken);
-        var draft = ReplyDraftReading.Read(answer?.Text, sources.Messages, sources.Participants, brief.Links);
+        var answer = await this.AskAsync(turn.Text, brief.Language, cancellationToken);
+        var draft = ReplyDraftReading.Read(answer?.Text, sources.Messages, sources.Participants, turn.Links);
 
         // The model that answered where one did, and the model the brief was put to where none could.
         var answeringAlias = answer?.Alias ?? this.plan.Endpoint.Alias;
@@ -178,19 +178,24 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
     /// <param name="egressGuard">Scans every text somebody wrote before it is composed.</param>
     /// <param name="plan">The model the turn is sent to, whose request bound the turn is cut to.</param>
     /// <param name="cancellationToken">Withdraws the scan.</param>
-    /// <returns>The turn.</returns>
+    /// <returns>The turn, and the links it numbered, which are the only ones a draft may cite.</returns>
     /// <remarks>
     /// A bound rather than a refusal, applied by the document as it is written, so a bounded turn is still one whose
     /// every element is closed.
     /// </remarks>
-    internal static async Task<string> ComposeTurnAsync(
+    internal static async Task<ReplyDraftTurn> ComposeTurnAsync(
         ReplyDraftBrief brief,
         SensitiveContentEgressGuard egressGuard,
         ChatGenerationPlan plan,
-        CancellationToken cancellationToken) =>
-        ReplyDraftInstructions.ComposeDraftingTurn(
+        CancellationToken cancellationToken)
+    {
+        var text = ReplyDraftInstructions.ComposeDraftingTurn(
             await GuardedTurnAsync(brief, egressGuard, cancellationToken),
-            plan.MaximumRequestCharacters);
+            plan.MaximumRequestCharacters,
+            out var linksWritten);
+
+        return new ReplyDraftTurn(text, [.. brief.Links.Take(linksWritten)]);
+    }
 
     /// <summary>Puts every text of the drafting through the egress guard before any of it is composed into a turn.</summary>
     /// <remarks>

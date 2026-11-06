@@ -93,10 +93,12 @@ export function rememberComposition(composition: Composition): void {
  * for an older tree are never read back against a newer one: a reload then reads the words without the pictures, which
  * `writtenTextIn` drops rather than refuses.
  *
+ * @param alsoNamedIn Words beside the composition whose pictures are kept too: what a draft nobody has accepted replaced,
+ * so the way back a reload keeps brings the person's own pictures back with their words.
  * @returns Whether the pictures survive a reload, which `picturesKeptHereOnly` then answers the other way round.
  */
-export function rememberPictures(composition: Composition): boolean {
-    const kept = keepPictures(composition);
+export function rememberPictures(composition: Composition, alsoNamedIn: readonly WrittenNode[] = []): boolean {
+    const kept = keepPictures(composition, alsoNamedIn);
 
     noteRefusedPictures(!kept);
 
@@ -132,8 +134,9 @@ export function subscribeToPictureKeeping(listener: () => void): () => void {
     };
 }
 
-function keepPictures(composition: Composition): boolean {
-    const kept = picturesNamedIn(composition.words).flatMap((name) => {
+function keepPictures(composition: Composition, alsoNamedIn: readonly WrittenNode[]): boolean {
+    const names = new Set([...picturesNamedIn(composition.words), ...picturesNamedIn(alsoNamedIn)]);
+    const kept = [...names].flatMap((name) => {
         const picture = composition.pictures.get(name);
 
         return picture === undefined
@@ -172,8 +175,8 @@ function keepPictures(composition: Composition): boolean {
 /**
  * What a draft nobody has accepted yet replaced in what this tab was writing, or `null` where no such draft stands.
  *
- * Only the pictures kept beside the draft are kept, those being the ones its words name, so a picture only the replaced
- * words held is dropped from them after a reload rather than read back as a name nothing holds.
+ * The pictures they name are kept beside the draft's own, so they come back with them; one the store could not keep is
+ * dropped from them rather than read back as a name nothing holds.
  */
 export function rememberedReplacedByDraft(): readonly WrittenNode[] | null {
     try {

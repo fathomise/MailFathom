@@ -4,7 +4,7 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useState, type ReactNode } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type {
     ClientRequest,
     ClientSession,
@@ -28,13 +28,14 @@ import { ToastsProvider } from '../toasts/Toasts';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
 import { Composer } from './Composer';
-import type { ComposerOpening } from './composition';
+import { nothingWrittenYet, type Composition, type ComposerOpening } from './composition';
 import {
     rememberComposition,
     rememberedComposition,
-    rememberedReplacedByDraft,
+    rememberPictures,
     rememberReplacedByDraft,
 } from './keptComposition';
+import type { WrittenNode } from './writtenText';
 
 const session: ClientSession = {
     baseAddress: 'https://mail.example.invalid',
@@ -2472,8 +2473,45 @@ describe('Composer drafting', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
 
         await waitFor(() => {
-            expect(rememberedReplacedByDraft()).toBeNull();
+            expect(screen.queryByText('AI draft - check the facts and tone before sending')).toBeNull();
         });
+        expect(screen.getByText('the signed offer').closest('a')?.hasAttribute('data-link-host')).toBe(false);
+    });
+
+    it('brings the person’s own picture back when the words a draft replaced are restored after a reload', async () => {
+        const created = vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:composer/1');
+        const revoked = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+        onTestFinished(() => {
+            created.mockRestore();
+            revoked.mockRestore();
+        });
+        const pictureName = '01890a5d-ac96-774b-bcce-b302099a8057';
+        const octets = new Uint8Array([
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 3, 0, 0, 0, 2,
+        ]);
+        const replaced: readonly WrittenNode[] = [
+            { element: 'p', address: null, holds: [{ text: 'What I had written' }] },
+            { element: 'img', picture: pictureName, width: 300, height: 200 },
+        ];
+        const drafted = {
+            ...nothingWrittenYet('work'),
+            words: [{ element: 'p', address: null, holds: [{ text: 'The drafted reply.' }] }],
+            pictures: new Map([[pictureName, { octets, type: 'image/png', width: 300, height: 200, label: null }]]),
+        } satisfies Composition;
+
+        rememberComposition(drafted);
+        rememberReplacedByDraft(replaced);
+        rememberPictures(drafted, replaced);
+
+        drawComposer({ kind: 'new' }, {}, [work], true, uploadsOneFile, true);
+        fireEvent.click(await screen.findByRole('button', { name: 'Restore my version' }));
+
+        const words = await screen.findByRole('textbox', { name: 'Message' });
+
+        await waitFor(() => {
+            expect(words.textContent).toContain('What I had written');
+        });
+        expect(words.querySelector('img')).not.toBeNull();
     });
 
     it('says a deployment that wrote nothing wrote nothing, and leaves the message as it was', async () => {

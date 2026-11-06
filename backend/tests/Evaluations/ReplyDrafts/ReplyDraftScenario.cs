@@ -618,7 +618,7 @@ internal sealed partial record ReplyDraftScenario(
 
         var links = await new ReplyDraftLinkReader(CorpusReaders.Content, new MimeKitEmailContentRenderer(new EmailMimeExtractionOptions()))
             .ReadAsync(instruction, sources.Messages, cancellationToken);
-        var turn = await ReplyDraftAgent.ComposeTurnAsync(
+        var composed = await ReplyDraftAgent.ComposeTurnAsync(
             MailReplyDrafting.BriefOf(
                 sources,
                 new ReplyDraftRequest { Instruction = instruction },
@@ -630,6 +630,8 @@ internal sealed partial record ReplyDraftScenario(
             SensitiveContentEgressGuards.Inactive(),
             plan,
             cancellationToken);
+        var turn = composed.Text;
+        var published = composed.Links;
 
         // Refused rather than sent, as the deployment's drafting refuses it: a turn past the model's bound fails the run.
         ModelsUnderTest.RequireOneTurn(turn, plan);
@@ -643,7 +645,7 @@ internal sealed partial record ReplyDraftScenario(
             NullLoggerFactory.Instance);
 
         var answer = await agent.RunAsync(turn, session: null, options: null, cancellationToken);
-        var draft = ReplyDraftReading.Read(answer.Text, sources.Messages, sources.Participants, links);
+        var draft = ReplyDraftReading.Read(answer.Text, sources.Messages, sources.Participants, published);
 
         // The answer goes to the judge as the model wrote it, because the instruction asks for one JSON object and a
         // judge shown anything else grades the reply against a format it was never asked for.
@@ -653,7 +655,7 @@ internal sealed partial record ReplyDraftScenario(
             cancellationToken: cancellationToken);
 
         EvaluationMetrics.HoldToThreshold(verdict, TaskAdherenceEvaluator.TaskAdherenceMetricName, this.MinimumTaskAdherence);
-        this.Check(verdict, answer.Text, sources, links, draft);
+        this.Check(verdict, answer.Text, sources, published, draft);
         EvaluationCost.Record(verdict, modelName, modelSpend.Take(), judgeSpend.Take());
 
         return verdict;

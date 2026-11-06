@@ -506,10 +506,11 @@ export function Composer({
     // The pictures the words name are kept beside them, and written again only when which pictures those are changes:
     // a few megabytes encoded on every keystroke would be what typing costs. What the store answered is said above the
     // words while it would not take them.
-    const namedPictures = composition === null ? '' : picturesNamedIn(composition.words).join(' ');
+    const namedPictures =
+        composition === null ? '' : picturesNamedIn([...composition.words, ...(beforeDrafting ?? [])]).join(' ');
     const keepThePictures = useEffectEvent(() => {
         if (composition !== null) {
-            rememberPictures(composition);
+            rememberPictures(composition, beforeDrafting ?? []);
         }
     });
 

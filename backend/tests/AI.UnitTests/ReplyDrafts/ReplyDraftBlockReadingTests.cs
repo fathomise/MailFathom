@@ -195,6 +195,29 @@ public sealed class ReplyDraftBlockReadingTests
     }
 
     [Fact]
+    public void Read_ARaggedTablePastTheDraftsBound_KeepsItsPlainReadingWithinTheBoundAndStopsAtTheBound()
+    {
+        // Arrange
+        var header = string.Join(", ", Enumerable.Range(0, ReplyDraftBlockReading.MaximumTableColumns).Select(static column => $"\"h{column}\""));
+        var rows = string.Join(", ", Enumerable.Range(0, ReplyDraftBlockReading.MaximumTableRows - 1).Select(static row => $"[\"{new string('w', 49)}{row % 10}\"]"));
+
+        // Act
+        var document = Read($$"""[{ "type": "table", "header": true, "rows": [[{{header}}], {{rows}}] }]""");
+
+        // Assert
+        var table = Assert.IsType<MailTableBlock>(Assert.Single(document.Blocks));
+        var lastWords = table.Rows
+            .Select(static row => row.Cells[0].Blocks.OfType<MailParagraphBlock>().SelectMany(static paragraph => paragraph.Content).Select(static run => run.Text).FirstOrDefault())
+            .Last(static words => words is not null)!;
+        var body = ReplyDraft.Written(document, [], []).Body;
+
+        Assert.True(document.Truncated);
+        Assert.True(table.Rows.Count < ReplyDraftBlockReading.MaximumTableRows);
+        Assert.True(body.Length <= ReplyDraft.MaximumBodyLength);
+        Assert.Contains(lastWords, body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Read_ARunOfSpacesBetweenTwoRuns_KeepsTheWordsApart()
     {
         // Act

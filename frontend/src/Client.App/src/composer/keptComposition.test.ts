@@ -9,8 +9,11 @@ import {
     picturesKeptHereOnly,
     rememberComposition,
     rememberedComposition,
+    rememberedReplacedByDraft,
     rememberPictures,
+    rememberReplacedByDraft,
 } from './keptComposition';
+import type { WrittenNode } from './writtenText';
 
 const storageKey = 'mailfathom.composition';
 const picturesKey = 'mailfathom.composition.pictures';
@@ -227,5 +230,68 @@ describe('rememberPictures', () => {
         window.sessionStorage.setItem(picturesKey, JSON.stringify(kept));
 
         expect(rememberedComposition()?.pictures).toEqual(new Map());
+    });
+});
+
+describe('rememberedReplacedByDraft', () => {
+    const replacedKey = 'mailfathom.composition.replacedByDraft';
+    const pictureName = '01890a5d-ac96-774b-bcce-b302099a8057';
+    const octets = new Uint8Array([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 3, 0, 0, 0, 2,
+    ]);
+    const replaced: readonly WrittenNode[] = [
+        { text: 'What I had written' },
+        { element: 'img', picture: pictureName, width: 300, height: 200 },
+    ];
+
+    it('reads back what a standing draft replaced, so a reload keeps the way back', () => {
+        rememberReplacedByDraft([{ text: 'What I had written' }]);
+
+        expect(rememberedReplacedByDraft()).toEqual([{ text: 'What I had written' }]);
+    });
+
+    it.each([
+        ['a value that is not JSON', '{'],
+        ['a value that is not a written tree', JSON.stringify({ words: 7 })],
+    ])('answers no standing draft where the store holds %s', (_, stored) => {
+        window.sessionStorage.setItem(replacedKey, stored);
+
+        expect(rememberedReplacedByDraft()).toBeNull();
+    });
+
+    it('drops what it kept once the draft is accepted or given up', () => {
+        rememberReplacedByDraft([{ text: 'What I had written' }]);
+
+        rememberReplacedByDraft(null);
+
+        expect(window.sessionStorage.getItem(replacedKey)).toBeNull();
+    });
+
+    it('is forgotten with the composition, so a later message is not read as a draft nobody accepted', () => {
+        rememberComposition(written);
+        rememberReplacedByDraft([{ text: 'What I had written' }]);
+
+        forgetComposition();
+
+        expect(rememberedReplacedByDraft()).toBeNull();
+    });
+
+    it('keeps the pictures the replaced words name beside the draft, so they come back with them', () => {
+        const drafted: Composition = {
+            ...written,
+            words: [{ text: 'The drafted reply.' }],
+            pictures: new Map([[pictureName, { octets, type: 'image/png', width: 300, height: 200, label: null }]]),
+        };
+
+        rememberReplacedByDraft(replaced);
+        rememberPictures(drafted, replaced);
+
+        expect(rememberedReplacedByDraft()).toEqual(replaced);
+    });
+
+    it('drops a picture from the replaced words where nothing kept it, rather than naming one nothing holds', () => {
+        rememberReplacedByDraft(replaced);
+
+        expect(rememberedReplacedByDraft()).toEqual([{ text: 'What I had written' }]);
     });
 });

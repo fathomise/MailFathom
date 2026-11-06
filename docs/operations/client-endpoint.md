@@ -3708,7 +3708,7 @@ Content-Type: application/json
         "version": 1,
         "alignment": "Inherited",
         "content": [
-          { "text": "Yes — 4 200 net still stands, and Tuesday at ten works for us.", "emphasis": "None", "foreground": null, "link": null }
+          { "text": "Yes — 4 200 net still stands, and Tuesday at ten works for us.", "emphasis": "None", "foreground": null, "size": "Normal", "link": null }
         ]
       }
     ],
