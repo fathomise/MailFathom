@@ -5,6 +5,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { excelRange, rangeText } from '../../../../tests/fixtures/clipboard';
+import { focusByKey } from '../controls/useTip.harness';
 import { LocalizationProvider } from '../localization/Localization';
 import { pictureAddresses } from './pictureAddresses';
 import { base64Of, type HeldPicture } from './pictures';
@@ -1309,6 +1310,72 @@ describe('WrittenMessage, pictures', () => {
         fireEvent.keyDown(grip, { key: 'Home' });
 
         expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 600, height: 450 }]);
+    });
+
+    it('returns a picture to its widest on a double-click of its grip', () => {
+        const { written } = drawWords(
+            [{ element: 'img', picture: pictureName, width: 800, height: 600 }],
+            new Map([[pictureName, held]]),
+        );
+
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
+
+        const grip = screen.getByRole('separator', { name: 'Resize picture' });
+
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 700 });
+        fireEvent.doubleClick(grip);
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 600, height: 450 }]);
+    });
+
+    it('settles a cancelled drag where it last reached rather than where the cancelled pointer is said to be', () => {
+        const { written } = drawWords(
+            [{ element: 'img', picture: pictureName, width: 800, height: 600 }],
+            new Map([[pictureName, held]]),
+        );
+
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
+
+        const grip = screen.getByRole('separator', { name: 'Resize picture' });
+
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerMove(grip, { pointerId: 1, clientX: 800 });
+        fireEvent.pointerCancel(grip, { pointerId: 1, clientX: 0 });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 500, height: 375 }]);
+    });
+
+    it('ignores a second pointer arriving mid-drag, so two fingers cannot fight over one picture', () => {
+        const { written } = drawWords(
+            [{ element: 'img', picture: pictureName, width: 800, height: 600 }],
+            new Map([[pictureName, held]]),
+        );
+
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
+
+        const grip = screen.getByRole('separator', { name: 'Resize picture' });
+
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerDown(grip, { pointerId: 2, clientX: 100 });
+        fireEvent.pointerMove(grip, { pointerId: 2, clientX: 0 });
+
+        expect(screen.getByRole('img', { name: 'chart.png' }).getAttribute('width')).toBe('600');
+
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 850 });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 550, height: 413 }]);
+    });
+
+    it('says how the grip is used to a key that reaches it', () => {
+        drawWords([{ element: 'img', picture: pictureName, width: 800, height: 600 }], new Map([[pictureName, held]]));
+
+        fireEvent.click(screen.getByRole('img', { name: 'chart.png' }));
+        focusByKey(screen.getByRole('separator', { name: 'Resize picture' }));
+
+        expect(screen.getByRole('tooltip').textContent).toBe(
+            'Drag to make the picture smaller or larger, or double-click to return it to its full width.',
+        );
     });
 
     it('says the pictures are kept in this window only where the store would not take them', () => {

@@ -178,7 +178,11 @@ export function PictureGrip({
         <>
             <div
                 {...anchor}
-                ref={grip}
+                // One element for both refs: the tip has to find the grip to place its bubble beside it.
+                ref={(element) => {
+                    grip.current = element;
+                    anchor.ref(element);
+                }}
                 role="separator"
                 aria-orientation="vertical"
                 aria-label={translate('compose.resizePicture')}
