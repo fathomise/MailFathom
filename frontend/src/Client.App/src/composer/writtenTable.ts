@@ -282,6 +282,35 @@ export function tableWithinBounds(table: WrittenMarkup): boolean {
     );
 }
 
+/** Where each cell of each row stands on the table's grid: the column it starts in and how many it spans there. */
+export function placementsOf(
+    table: WrittenMarkup,
+): readonly (readonly { readonly column: number; readonly columnSpan: number }[])[] {
+    return laidOut(rowsOf(table)).placed;
+}
+
+/**
+ * The table with each cell's column span narrowed to the grid its cells start in: columns past the last one any cell
+ * begins at hold nothing, so a span written into them — a whole-row `colspan="100%"`, say — reaches that last column.
+ */
+export function withSpansWithinTheGrid(table: WrittenMarkup): WrittenMarkup {
+    const rows = rowsOf(table);
+    const { placed } = laidOut(rows);
+    const width = Math.max(0, ...placed.flat().map((laid) => laid.column + 1));
+
+    return withRows(
+        table,
+        rows,
+        rows.map((row, rowIndex) =>
+            cellsOf(row).map((cell, cellIndex) => {
+                const column = placed[rowIndex]?.[cellIndex]?.column ?? 0;
+
+                return spanned(cell, Math.min(cell.columnSpan ?? 1, width - column), cell.rowSpan ?? 1);
+            }),
+        ),
+    );
+}
+
 /** A cell with the spans given, each written only where it is more than one. */
 export function spanned(cell: WrittenMarkup, columnSpan: number, rowSpan: number): WrittenMarkup {
     const unspanned: { -readonly [Key in keyof WrittenMarkup]: WrittenMarkup[Key] } = { ...cell };

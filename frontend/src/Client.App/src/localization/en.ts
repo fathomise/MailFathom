@@ -1046,6 +1046,17 @@ export const en = {
         'Nothing was pasted - this paste carries {carried} pictures and the message already holds {held}, but one message can hold at most {most}.',
     'compose.pictureInACell':
         'Nothing was pasted - a table cell holds words, colour and size only, so a picture goes outside the table.',
+    'compose.pasteTableTooLarge':
+        'Nothing was pasted - the range has {rows} and {columns}, and a table holds at most {mostRows} rows and {mostColumns}.',
+    'compose.pasteTableRows.one': '{count} row',
+    'compose.pasteTableRows.few': '{count} rows',
+    'compose.pasteTableRows.many': '{count} rows',
+    'compose.pasteTableRows.other': '{count} rows',
+    'compose.pasteTableColumns.one': '{count} column',
+    'compose.pasteTableColumns.few': '{count} columns',
+    'compose.pasteTableColumns.many': '{count} columns',
+    'compose.pasteTableColumns.other': '{count} columns',
+    'compose.pasteAsPlainText': 'Paste as plain text',
     'compose.dismissPictureRefusal': 'Dismiss',
     'compose.picturesInThisWindowOnly':
         "The pictures in this message are kept in this window only - the browser's storage would not take them. Reloading or closing the window loses them; the words, recipients, and subject are kept.",

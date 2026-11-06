@@ -2968,9 +2968,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     tableHtml = (rows, header) => {
       const body = rows.map((r, ri) => "<tr>" + r.map(c => {
         const v = typeof c === "object" ? c.text : c, align = typeof c === "object" ? c.align : "";
+        const fill = typeof c === "object" && c.fill ? c.fill : "";
         const head = header && ri === 0;
-        const css = Component.cellCss + (head ? ";" + Component.headCss : "") + (align ? ";text-align:" + align : "");
-        return "<" + (head ? "th" : "td") + " style=\"" + css + "\">" + (String(v).trim() ? this.escapeHtml(v) : "<br>") + "</" + (head ? "th" : "td") + ">";
+        const css = Component.cellCss + (head ? ";" + Component.headCss : "") + (align ? ";text-align:" + align : "") + (fill ? ";background-color:" + fill : "");
+        const inner = typeof c === "object" && c.html !== undefined ? c.html : this.escapeHtml(v);
+        return "<" + (head ? "th" : "td") + " style=\"" + css + "\">" + (String(v).trim() ? inner : "<br>") + "</" + (head ? "th" : "td") + ">";
       }).join("") + "</tr>").join("");
       /* A table wider than the editor scrolls sideways inside it rather than widening the composer. */
       return "<table data-mf-table style=\"border-collapse:collapse;margin:4px 0 12px 0;font-size:14px;display:block;max-width:100%;overflow-x:auto\"><tbody>" + body + "</tbody></table>";
@@ -3133,10 +3135,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }
       if (html) {
         const doc = new DOMParser().parseFromString(html, "text/html");
-        const table = doc.querySelector("table");
-        if (table) return this.pasteTable(this.readHtmlTable(table), text);
+        /* A table past a bound refuses the paste whole; any other is read in its place among the passage's words. */
+        const T = COMPOSE_FMT.table;
+        const tooLarge = Array.from(doc.querySelectorAll("table")).map(this.readHtmlTable).find(t => t.rows.length > T.maxRows || Math.max(0, ...t.rows.map(r => r.length)) > T.maxColumns);
+        if (tooLarge) return this.pasteTable(tooLarge, text);
         const reduced = this.reduceHtml(doc);
-        if (reduced.replace(/<[^>]+>/g, "").trim()) return this.exec("insertHTML", reduced);
+        if (reduced.replace(/<(?!img\b)[^>]+>/g, "").trim()) return this.exec("insertHTML", /<\/table>\s*$/.test(reduced) ? reduced + "<p><br></p>" : reduced);
       }
       /* Every file of a paste is judged in turn and the paste is refused whole on the first one past a bound. A paste of
          several files that would take the message past the count is refused as the paste, never as one of its files. */
@@ -3173,22 +3177,44 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const cols = Math.max.apply(null, t.rows.map(r => r.length));
       if (t.rows.length > T.maxRows || cols > T.maxColumns) {
         this.pastePlain = text;
-        return this.setState({ pasteNotice: { text: "Nothing was pasted - the range has " + t.rows.length + " rows and " + cols + " columns, and a table holds at most " + T.maxRows + " rows and " + T.maxColumns + ".", plain: true } });
+        return this.setState({ pasteNotice: { text: "Nothing was pasted - the range has " + t.rows.length + (t.rows.length === 1 ? " row" : " rows") + " and " + cols + (cols === 1 ? " column" : " columns") + ", and a table holds at most " + T.maxRows + " rows and " + T.maxColumns + ".", plain: true } });
       }
       this.exec("insertHTML", this.tableHtml(t.rows.map(r => r.concat(Array(cols - r.length).fill(""))), t.header) + "<p><br></p>");
     };
     /* A spreadsheet's table keeps its grid, a header row where the sheet marks one — a row of `th`, or a bold first row
        over one that is not — and each cell's stated alignment, which is how a number keeps its right edge. */
     readHtmlTable = (table) => {
-      const trs = Array.from(table.querySelectorAll("tr"));
+      const trs = Array.from(table.querySelectorAll("tr")).filter(tr => tr.closest("table") === table);
       const bold = (c) => !!c.querySelector("b,strong") || /bold|[6-9]00/.test(c.getAttribute("style") || "");
-      const rows = trs.map(tr => Array.from(tr.children).map(c => {
-        const a = (c.getAttribute("align") || (/text-align:\s*(\w+)/.exec(c.getAttribute("style") || "") || [])[1] || "").toLowerCase();
-        return { text: c.textContent.replace(/\s+/g, " ").trim(), align: a === "right" ? "end" : a === "center" ? "center" : "" };
+      /* Each cell keeps its emphasis and colour as the passage reader keeps them, and its fill unless it is as light as
+         the page, which is the sheet's default rather than a choice. */
+      /* A sheet states a cell's look through its own style sheet's classes as often as inline, so both are read. */
+      const sheet = Array.from(table.ownerDocument.querySelectorAll("style")).map(s => s.textContent).join("\n");
+      const rules = Array.from(sheet.matchAll(/([^{}]+)\{([^}]*)\}/g)).flatMap(m => m[1].split(",").map(sel => [sel.trim().toLowerCase(), m[2]]));
+      const declared = (c) => rules.filter(([sel]) => sel === "td" || sel === "th" || Array.from(c.classList).some(k => sel === "." + k.toLowerCase() || sel === c.tagName.toLowerCase() + "." + k.toLowerCase())).map(([, d]) => d).join(";") + ";" + (c.getAttribute("style") || "");
+      const valueOf = (decl, name) => { const all = Array.from(decl.matchAll(new RegExp("(?:^|;)\\s*" + name + "\\s*:\\s*([^;]+)", "gi"))); return all.length ? all[all.length - 1][1].trim() : ""; };
+      const rgbOf = (stated) => { const probe = document.createElement("i"); probe.style.color = stated; return probe.style.color; };
+      const fillOf = (c, decl) => {
+        const drawn = rgbOf(valueOf(decl, "background(?:-color)?") || c.getAttribute("bgcolor") || "");
+        const rgb = drawn.match(/\d+/g);
+        return rgb && rgb.length === 3 && !rgb.every(v => Number(v) >= 0xf8) ? drawn : "";
+      };
+      let rows = trs.map(tr => Array.from(tr.children).map(c => {
+        const decl = declared(c);
+        const a = (c.getAttribute("align") || valueOf(decl, "text-align")).toLowerCase();
+        const weighty = bold(c) || /^(bold|[6-9]00)$/.test(valueOf(decl, "font-weight"));
+        const colour = rgbOf(valueOf(decl, "color")).replace(/\s+/g, "");
+        let html = this.reduceHtml({ body: c });
+        if (/italic/.test(valueOf(decl, "font-style"))) html = "<i>" + html + "</i>";
+        if (weighty && !c.querySelector("b,strong")) html = "<b>" + html + "</b>";
+        if (/^rgb\(\d+,\d+,\d+\)$/.test(colour) && colour !== "rgb(0,0,0)") html = "<span style=\"color:" + colour + "\">" + html + "</span>";
+        return { text: c.textContent.replace(/\s+/g, " ").trim(), align: a === "right" ? "end" : a === "center" ? "center" : "", html, fill: fillOf(c, decl), bold: weighty };
       }));
-      const first = trs[0] ? Array.from(trs[0].children) : [];
-      const second = trs[1] ? Array.from(trs[1].children) : [];
-      const header = first.length > 0 && (first.every(c => c.tagName === "TH") || (first.every(bold) && !second.every(bold)));
+      /* The empty rows and columns at the range's end are left out. */
+      while (rows.length && rows[rows.length - 1].every(c => !c.text)) rows.pop();
+      const width = Math.max(0, ...rows.map(r => r.map(c => !!c.text).lastIndexOf(true) + 1));
+      rows = rows.map(r => r.slice(0, width));
+      const header = rows.length > 0 && (Array.from(trs[0] ? trs[0].children : []).every(c => c.tagName === "TH") || (rows[0].every(c => c.bold) && !(rows[1] || []).every(c => c.bold)));
       return { rows, header };
     };
     pasteAsPlain = () => { this.restoreRange(); this.exec("insertText", this.pastePlain || ""); this.setState({ pasteNotice: null }); };
@@ -3196,21 +3222,57 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        its words and loses its markup. The set has no heading, so a heading becomes bold text on the size scale:
        level 1 the largest step, 2 the larger, 3 the large, and the rest normal. */
     reduceHtml = (doc) => {
-      const tag = { B: "b", STRONG: "b", I: "i", EM: "i", U: "u", S: "s", STRIKE: "s", DEL: "s", UL: "ul", OL: "ol", LI: "li", BLOCKQUOTE: "blockquote", P: "p", DIV: "p", BR: "br" };
+      const tag = { B: "b", STRONG: "b", I: "i", EM: "i", U: "u", S: "s", STRIKE: "s", DEL: "s", UL: "ul", OL: "ol", LI: "li", BLOCKQUOTE: "blockquote", P: "p", DIV: "div", BR: "br" };
+      /* A length on the size scale's steps: under 12.5px small, to 17px normal, to 21px large, to 28px larger, past it the largest. */
+      const stepOf = (size) => {
+        const px = /^([\d.]+)(px|pt)$/.exec(size || "");
+        if (!px) return null;
+        const v = Number(px[1]) * (px[2] === "pt" ? 4 / 3 : 1);
+        return v < 12.5 ? "small" : v <= 17 ? null : v <= 21 ? "large" : v <= 28 ? "larger" : "largest";
+      };
       const walk = (n) => {
         if (n.nodeType === 3) return this.escapeHtml(n.nodeValue);
-        if (n.nodeType !== 1 || /^(SCRIPT|STYLE|IMG|IFRAME|OBJECT|svg)$/i.test(n.tagName)) return "";
+        if (n.nodeType !== 1 || /^(SCRIPT|STYLE|IFRAME|OBJECT|svg)$/i.test(n.tagName)) return "";
+        /* A picture the passage carries inside itself is kept; one it would fetch from elsewhere is not. */
+        if (n.tagName === "IMG") {
+          const src = n.getAttribute("src") || "";
+          return /^data:image\/(png|jpeg|gif);base64,/i.test(src) ? "<img data-mf-picture alt=\"" + this.escapeHtml(n.getAttribute("alt") || "picture") + "\" src=\"" + src + "\" style=\"display:block;max-width:100%;height:auto;margin:8px 0\">" : "";
+        }
+        if (n.tagName === "TABLE") {
+          const t = this.readHtmlTable(n);
+          return t.rows.length ? this.tableHtml(t.rows, t.header) : "";
+        }
         const inner = Array.from(n.childNodes).map(walk).join("");
         if (/^H[1-6]$/.test(n.tagName)) { const em = Component.sizeEm(["largest", "larger", "large"][Number(n.tagName[1]) - 1]); return "<p><b" + (em ? " style=\"font-size:" + em + "\"" : "") + ">" + inner + "</b></p>"; }
         if (n.tagName === "A" && /^https?:/i.test(n.getAttribute("href") || "")) return "<a href=\"" + this.escapeHtml(n.getAttribute("href")) + "\">" + inner + "</a>";
-        /* A colour survives only when it is one of the palette's own; any other is dropped, as a font is. */
-        const swatch = n.style && n.style.color ? COMPOSE_FMT.colours.find(c => rgbOf(c.hex) === n.style.color.replace(/\s+/g, "")) : null;
+        /* A colour survives: a palette one as its swatch, any other opaque one as itself. The near-grey dark colour a
+           page writes its body text in is the page's default rather than a choice, and is dropped. */
+        const probe = document.createElement("i");
+        probe.style.color = (n.style && n.style.color) || (n.tagName === "FONT" && n.getAttribute("color")) || "";
+        const drawn = probe.style.color.replace(/\s+/g, "");
+        const swatch = drawn ? COMPOSE_FMT.colours.find(c => rgbOf(c.hex) === drawn) : null;
+        const own = !swatch && /^rgb\(\d+,\d+,\d+\)$/.test(drawn) && !bodyText(drawn) ? drawn : null;
         const t = tag[n.tagName];
         if (t === "br") return "<br>";
-        const wrapped = t ? "<" + t + ">" + inner + "</" + t + ">" : inner;
-        return swatch ? "<span style=\"color:var(--ink-" + swatch.key + ")\">" + wrapped + "</span>" : wrapped;
+        const aligned = n.style && /^(center|right|end)$/.test(n.style.textAlign) && /^(p|div|li)$/.test(t || "") ? " style=\"text-align:" + (n.style.textAlign === "center" ? "center" : "right") + "\"" : "";
+        /* `<font size>` 1 and 2 are small, 4 large, 5 larger, 6 and 7 the largest. */
+        const fontStep = n.tagName === "FONT" ? ({ 1: "small", 2: "small", 4: "large", 5: "larger", 6: "largest", 7: "largest" })[n.getAttribute("size")] : null;
+        const step = fontStep || (n.style ? stepOf(n.style.fontSize) : null);
+        const colour = swatch ? "var(--ink-" + swatch.key + ")" : own;
+        const run = (html) => {
+          const sized = step ? "<span style=\"font-size:" + Component.sizeEm(step) + "\">" + html + "</span>" : html;
+          return colour ? "<span style=\"color:" + colour + "\">" + sized + "</span>" : sized;
+        };
+        /* A block keeps its size and colour on the run inside it, never as a span around the block. */
+        return t && /^(p|div|li|blockquote|ul|ol)$/.test(t) ? "<" + t + aligned + ">" + run(inner) + "</" + t + ">" : run(t ? "<" + t + ">" + inner + "</" + t + ">" : inner);
       };
       const rgbOf = (hex) => "rgb(" + [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(",") + ")";
+      const bodyText = (rgb) => {
+        const [r, g, b] = rgb.match(/\d+/g).map(v => Number(v) / 255);
+        const high = Math.max(r, g, b), low = Math.min(r, g, b), light = (high + low) / 2;
+        const saturation = high === low ? 0 : (high - low) / (1 - Math.abs(2 * light - 1));
+        return saturation <= 0.25 && light < 0.35;
+      };
       return walk(doc.body);
     };
 

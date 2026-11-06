@@ -4,48 +4,104 @@
 
 import { expect, test } from '@playwright/test';
 
+import * as clipboard from '../fixtures/clipboard';
 import * as deployment from '../fixtures/deployment';
-import { openDesktopHead } from './head';
+import { openDesktopHead, type DesktopHead } from './head';
 
-// A picture pasted into the composer, asked of the real WebView. The browser suite pastes one in Chromium through the
-// real clipboard; what it cannot say is whether WebKitGTK passes a file a paste event carries to the composer, takes the
-// insertion, and draws the picture from the object URL the composer issued — any of which failing leaves an empty box
-// where the picture should be and a message sent without it. How a real clipboard hands a picture to the WebView is not
-// asked here, for the reason the next paragraph gives. The shell loads its client from the corpus
-// development server, which sends no content security policy, so the policy a published shell applies is not asked
-// here.
+// What is pasted into the composer, asked of the real WebView. The browser suite pastes in Chromium; what it cannot say
+// is whether WebKitGTK passes a file a paste event carries to the composer, takes the insertion, and draws the picture
+// from the object URL the composer issued — any of which failing leaves an empty box where the picture should be and a
+// message sent without it — nor whether a markup document parsed by this engine runs nothing and fetches nothing,
+// which ADR 0047 rests on each engine a head runs on. How a real clipboard hands either to the WebView is not asked
+// here, for the reason the next paragraph gives. The shell loads its client from the corpus development server, which
+// sends no content security policy, so the policy a published shell applies is not asked here.
 //
 // The paste is a synthetic one carrying a `DataTransfer` the script built, because WebDriver reaches no system
-// clipboard. That is the event the composer reads either way: what is under test is the engine's file, its editing
-// command, and its drawing of a `blob:` address, never how the operating system's clipboard got there.
+// clipboard. That is the event the composer reads either way: what is under test is the engine's file, its parser,
+// its editing command, and its drawing of a `blob:` address, never how the operating system's clipboard got there.
 
 test.describe.configure({ timeout: 180_000 });
 
 // A picture of one pixel, whole, so the engine has something to decode and a width to report once it has drawn it.
 const onePixelPng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
+const words = '[role="textbox"][aria-label="Message"]';
+
+/** Signs in, opens a new message, and puts the caret in its words. */
+async function openTheComposer(head: DesktopHead): Promise<void> {
+    await head.fill('#sign-in-user-name', deployment.userName);
+    await head.fill('#sign-in-password', deployment.password);
+    await head.click('button[type="submit"]');
+
+    await head.evaluate('(document.location.hash = "#/mail", true)');
+    await head.settled(`(() => {
+        const opening = [...document.querySelectorAll('button:not([inert] *)')].find(
+            (button) => button.textContent.trim() === 'New message' || button.getAttribute('aria-label') === 'New message',
+        );
+
+        opening?.click();
+
+        return opening === undefined ? null : true;
+    })()`);
+
+    await head.click(words);
+}
+
+/** Where the caret stands in the words, and what the words hold, for a failure to say where a delivery went. */
+interface Caret {
+    readonly inACell: boolean;
+    readonly cells: number;
+    readonly around: string;
+}
+
+const whereTheCaretIs = `(() => {
+    const region = document.querySelector('${words}');
+    const anchor = getSelection()?.anchorNode ?? null;
+    const holder = anchor === null ? null : anchor.nodeType === Node.ELEMENT_NODE ? anchor : anchor.parentElement;
+    const at = holder?.closest('td, th, p, div, li, [role="textbox"]') ?? null;
+
+    return {
+        inACell: at?.matches('td, th') ?? false,
+        cells: region.querySelectorAll('td').length,
+        around: 'the words hold ' + [...region.children].map((child) => child.tagName.toLowerCase()).join(' ') +
+            ', and the caret stands in ' + (at === null ? 'nothing' : at.tagName.toLowerCase()) +
+            (region.contains(anchor) ? ' inside them' : ' outside them'),
+    };
+})()`;
+
+/** Raises a paste or a drop on the words carrying exactly the flavours named, as a script builds one. */
+function deliver(kind: 'paste' | 'drop', flavours: Readonly<Record<string, string>>): string {
+    return `(() => {
+        const region = document.querySelector('${words}');
+        const carried = new DataTransfer();
+        const box = region.getBoundingClientRect();
+
+        for (const [flavour, value] of Object.entries(${JSON.stringify(flavours)})) {
+            carried.setData(flavour, value);
+        }
+
+        region.focus();
+        region.dispatchEvent(
+            '${kind}' === 'paste'
+                ? new ClipboardEvent('paste', { clipboardData: carried, bubbles: true, cancelable: true })
+                : new DragEvent('drop', {
+                      dataTransfer: carried,
+                      clientX: box.left + box.width / 2,
+                      clientY: box.bottom - 4,
+                      bubbles: true,
+                      cancelable: true,
+                  }),
+        );
+
+        return true;
+    })()`;
+}
+
 test('takes a pasted picture into the composer and draws it from the address the composer issued', async () => {
     const head = await openDesktopHead({});
 
     try {
-        await head.fill('#sign-in-user-name', deployment.userName);
-        await head.fill('#sign-in-password', deployment.password);
-        await head.click('button[type="submit"]');
-
-        await head.evaluate('(document.location.hash = "#/mail", true)');
-        await head.settled(`(() => {
-            const opening = [...document.querySelectorAll('button:not([inert] *)')].find(
-                (button) => button.textContent.trim() === 'New message' || button.getAttribute('aria-label') === 'New message',
-            );
-
-            opening?.click();
-
-            return opening === undefined ? null : true;
-        })()`);
-
-        const words = '[role="textbox"][aria-label="Message"]';
-
-        await head.click(words);
+        await openTheComposer(head);
         await head.evaluate(`(() => {
             const region = document.querySelector('${words}');
             const octets = Uint8Array.from(atob('${onePixelPng}'), (character) => character.charCodeAt(0));
@@ -68,6 +124,101 @@ test('takes a pasted picture into the composer and draws it from the address the
 
         expect(drawn.source).toMatch(/^blob:/u);
         expect(drawn.width).toBe(1);
+    } finally {
+        await head.close();
+    }
+});
+
+// Every address the hostile document names is pointed at the development server the shell loaded its client from, so a
+// request for one — answered or refused there — is one the engine's own resource timing records. A request to a name
+// that does not resolve would leave no entry at all, and the check would pass whatever the engine did.
+test('reads a hostile document pasted and dropped, and a spreadsheet range, running nothing and fetching nothing', async () => {
+    const head = await openDesktopHead({});
+
+    try {
+        await openTheComposer(head);
+
+        const hostile = await head.evaluate<string>(
+            `${JSON.stringify(clipboard.hostileDocument)}.replace(/https:\\/\\/([a-z-]+)\\.example\\.invalid/gu, location.origin + '/clipboard-fixture-$1')`,
+        );
+
+        // The development server answers every module as a request of its own, more than the timing buffer holds by
+        // default, so the buffer is emptied and widened before the paste or a fetch it started could go unrecorded.
+        await head.evaluate(
+            '(performance.clearResourceTimings(), performance.setResourceTimingBufferSize(10000), true)',
+        );
+        // Each delivery ends on a table, so each is followed by where the caret stands: on the line after the table,
+        // where the next delivery lands, rather than in its last cell, where markup would be read as words alone.
+        await head.evaluate(deliver('paste', { 'text/html': hostile }));
+
+        const afterThePaste = await head.evaluate<Caret>(whereTheCaretIs);
+
+        expect(afterThePaste.inACell, afterThePaste.around).toBe(false);
+
+        await head.evaluate(deliver('drop', { 'text/html': hostile }));
+
+        const afterTheDrop = await head.evaluate<Caret>(whereTheCaretIs);
+
+        expect(afterTheDrop.inACell, afterTheDrop.around).toBe(false);
+        expect(afterTheDrop.cells, afterTheDrop.around).toBe(4);
+
+        // A request the paste started has had a whole round trip to the same server to finish in by the time this one
+        // has, so its entry is recorded before it is read. WebKit records an entry once the response has loaded, after
+        // `fetch` has already resolved, so the case waits for this request's own entry rather than for the promise.
+        const read = await head.evaluate(`(async () => {
+            const settledAt = location.origin + '/clipboard-fixture-settled';
+            const recorded = new Promise((settle) => {
+                const observer = new PerformanceObserver((entries) => {
+                    if (entries.getEntriesByName(settledAt).length > 0) {
+                        observer.disconnect();
+                        settle(true);
+                    }
+                });
+
+                observer.observe({ type: 'resource' });
+                setTimeout(() => settle(false), 10000);
+            });
+
+            await fetch(settledAt).catch(() => undefined);
+
+            const recording = await recorded;
+            const region = document.querySelector('${words}');
+            const fetched = performance
+                .getEntriesByType('resource')
+                .map((entry) => entry.name)
+                .filter((name) => name.includes('/clipboard-fixture-') && name !== settledAt);
+
+            return {
+                ran: globalThis['${clipboard.ranMarker}'] ?? null,
+                recording,
+                fetched,
+                foreign: region.querySelectorAll('script, style, link, base, meta, iframe, object, embed, svg, video, picture, source, img').length,
+                handlers: [...region.querySelectorAll('*')].some((element) =>
+                    [...element.attributes].some((attribute) => attribute.name.startsWith('on')),
+                ),
+                words: region.textContent.includes('Quarterly notes'),
+            };
+        })()`);
+
+        expect(read).toEqual({ ran: null, recording: true, fetched: [], foreign: 0, handlers: false, words: true });
+
+        await head.evaluate(deliver('paste', { 'text/html': clipboard.excelRange, 'text/plain': clipboard.rangeText }));
+
+        // Settled once the range's words are anywhere in the region, so a range that went in as something other than a
+        // table says where it went rather than timing out.
+        const range = await head.settled<{ readonly headers: readonly string[]; readonly within: string }>(`(() => {
+            const region = document.querySelector('${words}');
+            const word = [...region.querySelectorAll('*')].findLast((element) => element.textContent.includes('North yard') && element.children.length === 0);
+
+            return word === undefined
+                ? null
+                : {
+                      headers: [...region.querySelectorAll('th')].map((cell) => cell.textContent.trim()),
+                      within: [...region.children].map((child) => child.tagName.toLowerCase()).join(' ') + ' / ' + word.closest('td, th, p, div')?.tagName.toLowerCase(),
+                  };
+        })()`);
+
+        expect(range.headers, `the region holds ${range.within}`).toEqual(['Region', 'Units', 'Change']);
     } finally {
         await head.close();
     }

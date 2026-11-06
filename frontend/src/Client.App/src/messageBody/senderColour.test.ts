@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import { senderColourRole } from './senderColour';
+import { senderColourRole, writesBodyText } from './senderColour';
 
 // What is asserted here is the one distinction the reading surfaces keep — small print stays small print — and that
 // everything else is the body colour. No assertion names a hue or a contrast figure: the two answers are tokens the
@@ -39,4 +39,17 @@ describe('senderColourRole', () => {
             expect(senderColourRole(written)).toBe('ordinary');
         },
     );
+});
+
+describe('writesBodyText', () => {
+    it.each([['#000000'], ['#222222'], ['#333333'], ['#1a1d21']])(
+        'reads %s as the colour a sender writes body text in',
+        (written) => {
+            expect(writesBodyText(written)).toBe(true);
+        },
+    );
+
+    it.each([['#666666'], ['#c00000'], ['#1f4e79'], ['black'], ['']])('reads %s as no body-text colour', (written) => {
+        expect(writesBodyText(written)).toBe(false);
+    });
 });

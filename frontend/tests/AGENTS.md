@@ -206,6 +206,10 @@ owns. Reaching a populated screen is most of the work in a client task, and it i
 - **Nothing in it is anybody's.** Every address, name, subject, and sentence is invented, and the hosts are reserved
   names — `.invalid` and `.example` — so no fixture can reach a machine that exists. That is the same rule
   `frontend/AGENTS.md` states about a capture of a signed-in client, read from the other end.
+- **Beside the mail it holds what a clipboard carries**, in `clipboard.ts`: a page's passage, three spreadsheets'
+  ranges, and a document written to attack the composer's paste, which the unit, browser, and desktop suites all read.
+  None of it is an answer of the deployment's, so it is written a line to an entry, which keeps the contract below from
+  reading a style sheet as fields.
 - **The browser suite is the proof that it is sufficient.** No browser spec declares a fixture of its own and neither
   does the fake deployment they sign in to, so a shape the corpus states wrongly fails a committed suite rather than one
   session's scratch file.
@@ -523,13 +527,18 @@ changing. `pnpm test:desktop` is the whole of how it runs.
   sits under one the run owns, and the run's teardown removes it: a shell outlives the session that ended it and its
   graphics stack writes a cache under the profile afterwards, so a removal as each case closes either races that write
   or waits out a duration nobody measured.
-- **What it owns is what the platform answers, and nothing else.** Three rules qualify today. Two are
+- **What it owns is what the platform answers, and nothing else.** Four rules qualify today. Two are
   [#1462](https://github.com/fathomise/MailFathom/issues/1462)'s: that an instant is placed against the zone the
   runtime reports, and that a first run opens in the language the platform states. The third is
   [#2854](https://github.com/fathomise/MailFathom/issues/2854)'s: that a file a paste event carries reaches the
-  composer, is inserted, and is drawn from the object URL the composer issued. The event is a synthetic one the case
-  builds, because WebDriver reaches no system clipboard, so how a real clipboard hands a picture to the WebView is not
-  asked. The shell under test loads its client from the corpus development server, which sends no content security
+  composer, is inserted, and is drawn from the object URL the composer issued. The fourth is
+  [#2855](https://github.com/fathomise/MailFathom/issues/2855)'s: that a hostile markup document a paste or a drop
+  carries is read by this engine's parser without running a script or fetching an address, and that a spreadsheet's
+  range arrives as a table with its header row — ADR 0047 rests both on each engine a head runs on, and every address
+  the document names is pointed at the development server so that a request for one would be one the engine's resource
+  timing records — in a buffer the case empties and widens first, since the server's modules alone overflow the
+  default, and beside a request of the case's own that shows the buffer was still recording. Each event is a synthetic one the case builds, because WebDriver reaches no system clipboard, so how
+  a real clipboard hands a picture or a document to the WebView is not asked. The shell under test loads its client from the corpus development server, which sends no content security
   policy, so neither is the policy a published shell applies. A check belongs here by being unanswerable in the other three — a component, a label, a layout, a journey, a request on the wire, or anything about
   the accessibility tree belongs above, and a copy of one here buys a slower answer and a second thing to keep in step.
 - **It asserts a literal spelling, never a formatter built the same way.** That is the rule § _A localized screen_
@@ -537,8 +546,8 @@ changing. `pnpm test:desktop` is the whole of how it runs.
   `Intl.DateTimeFormat` passes for a head that named a zone of its own as happily as for one that did not.
 - **A selector here is a CSS one, and that is a protocol limit rather than an exemption.** WebDriver has no locator for
   a role and a name, so the elements this suite reaches are the ids the labels point at, the one control that states
-  the resolved language during a render, and in the composer case the region by its role and label attributes, the
-  button that opens a new message by its words, and the picture element inside the region. That each of them carries
+  the resolved language during a render, and in the composer cases the region by its role and label attributes, the
+  button that opens a new message by its words, and the picture, table cells, and header cells inside the region. That each of them carries
   the right accessible name is asserted by the unit suite and by the browser suite, which is why it is not asserted
   twice.
 - **Three facts about the Linux head were measured rather than assumed**, and each is recorded in the spec because

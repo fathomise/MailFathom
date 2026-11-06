@@ -31,7 +31,7 @@ const readOutAttributeMessage =
 //
 // They are declared here because `no-restricted-syntax` is replaced rather than merged when a later configuration
 // object sets it again, so the block that states the localization rule has to carry these as well.
-const markupWritingSyntax = [
+const markupWritingSyntaxBesideTheInertParse = [
     {
         selector: 'JSXAttribute[name.name="dangerouslySetInnerHTML"]',
         message:
@@ -58,11 +58,26 @@ const markupWritingSyntax = [
             'setHTMLUnsafe parses its argument as markup on an element or a shadow root, which is the parser ADR 0024 exists not to have. Render elements instead.',
     },
     {
-        selector: 'MemberExpression[property.name=/^(parseFromString|createContextualFragment)$/]',
+        selector: 'MemberExpression[property.name="createContextualFragment"]',
         message:
             'This parses a string into nodes, which is the parser ADR 0024 exists not to have: a message reaches a screen as a closed tree of typed values and nothing here builds one from markup.',
     },
 ];
+
+// The one module that may parse markup: the composer's reading of a paste, which ADR 0047 admits because the document
+// `DOMParser` makes there has no browsing context, is never adopted or inserted, and is read into the closed tree alone.
+const theOneClipboardReader = 'src/Client.App/src/composer/clipboardReading.ts';
+
+// `parseFromString` is separated from the calls above so its exception is stated as *the rule minus this selector* on
+// one named file, the shape the `srcdoc` exception takes.
+const inertParseSyntax = [
+    {
+        selector: 'MemberExpression[property.name="parseFromString"]',
+        message: `This parses a string into nodes, which is the parser ADR 0024 exists not to have. ADR 0047 permits it only in ${theOneClipboardReader}, which reads a paste into the composer's closed tree.`,
+    },
+];
+
+const markupWritingSyntax = [...markupWritingSyntaxBesideTheInertParse, ...inertParseSyntax];
 
 // The path the exception below is written against: the one component a message's own markup is drawn as markup in.
 // ADR 0024 names it as the single exception rather than leaving it to a suppression at the call site, so moving or
@@ -227,6 +242,18 @@ export default defineConfig(
         files: [theOneEditingModule],
         rules: {
             'no-restricted-syntax': ['error', ...markupWritingSyntax, ...srcdocSyntax],
+        },
+    },
+    {
+        // ADR 0047's other exception, stated as the `src/*/**` block minus `inertParseSyntax`.
+        files: [theOneClipboardReader],
+        rules: {
+            'no-restricted-syntax': [
+                'error',
+                ...markupWritingSyntaxBesideTheInertParse,
+                ...srcdocSyntax,
+                ...insertHtmlSyntax,
+            ],
         },
     },
     {

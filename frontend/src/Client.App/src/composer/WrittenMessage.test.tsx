@@ -4,9 +4,10 @@
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { excelRange, rangeText } from '../../../../tests/fixtures/clipboard';
 import { LocalizationProvider } from '../localization/Localization';
 import { pictureAddresses } from './pictureAddresses';
-import type { HeldPicture } from './pictures';
+import { base64Of, type HeldPicture } from './pictures';
 import { WrittenMessage } from './WrittenMessage';
 import {
     newTable,
@@ -174,6 +175,106 @@ describe('WrittenMessage', () => {
         });
 
         expect(acts()).toEqual([{ command: 'insertText', argument: 'Pasted from somewhere else' }]);
+    });
+});
+
+describe('WrittenMessage, a formatted paste', () => {
+    function pasteFlavours(flavours: Readonly<Record<string, string>>): void {
+        words().focus();
+        window.getSelection()?.collapse(words(), 0);
+        fireEvent.paste(words(), {
+            clipboardData: {
+                getData: (flavour: string) => flavours[flavour] ?? '',
+                types: Object.keys(flavours),
+                files: [],
+            },
+        });
+    }
+
+    function tableRows(rows: number): string {
+        return `<table>${'<tr><td>1</td><td>2</td></tr>'.repeat(rows)}</table>`;
+    }
+
+    it('puts a spreadsheet range in as a table read from its markup, with a line after it to carry on writing on', () => {
+        drawWords();
+
+        pasteFlavours({ 'text/plain': rangeText, 'text/html': excelRange });
+
+        const [inserted] = acts();
+
+        expect(acts().map((act) => act.command)).toEqual(['insertHTML']);
+        expect(inserted?.argument).toMatch(
+            /^<table style="border-collapse:collapse"><tr><th [^>]*><b>Region<\/b><\/th>/u,
+        );
+        expect(inserted?.argument).toMatch(/<\/table><p><br \/><\/p>$/u);
+    });
+
+    it('puts tab-separated lines in as a table where nothing formatted comes with them', () => {
+        drawWords();
+
+        pasteFlavours({ 'text/plain': 'Bay\tUnits\n4\t12\n' });
+
+        expect(acts()).toEqual([
+            {
+                command: 'insertHTML',
+                argument: htmlOf(
+                    [
+                        {
+                            element: 'table',
+                            address: null,
+                            holds: [
+                                ['Bay', 'Units'],
+                                ['4', '12'],
+                            ].map((cells) => ({
+                                element: 'tr' as const,
+                                address: null,
+                                holds: cells.map((text) => ({
+                                    element: 'td' as const,
+                                    address: null,
+                                    holds: [{ text }],
+                                })),
+                            })),
+                        },
+                        { element: 'p', address: null, holds: [{ element: 'br', address: null, holds: [] }] },
+                    ],
+                    noPicture,
+                    'editor',
+                ),
+            },
+        ]);
+    });
+
+    it('refuses a range past a bound whole, says how large it was, and pastes its words when asked', async () => {
+        drawWords();
+
+        pasteFlavours({ 'text/plain': 'Bay\tUnits', 'text/html': tableRows(201) });
+
+        expect((await screen.findByRole('alert')).textContent).toContain(
+            'Nothing was pasted - the range has 201 rows and 2 columns, and a table holds at most 200 rows and 20.',
+        );
+        expect(acts()).toEqual([]);
+
+        press('Paste as plain text');
+
+        expect(acts()).toEqual([{ command: 'insertText', argument: 'Bay\tUnits' }]);
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('counts a refused range of one column in the form one column takes', async () => {
+        drawWords();
+
+        pasteFlavours({ 'text/plain': 'Bay', 'text/html': `<table>${'<tr><td>1</td></tr>'.repeat(201)}</table>` });
+
+        expect((await screen.findByRole('alert')).textContent).toContain('the range has 201 rows and 1 column,');
+    });
+
+    it('pastes the words alone under Ctrl+Shift+V, whatever formatting the clipboard carries', () => {
+        drawWords();
+
+        fireEvent.keyDown(words(), { key: 'V', ctrlKey: true, shiftKey: true });
+        pasteFlavours({ 'text/plain': 'Bay\tUnits', 'text/html': '<p><b>Bay</b></p>' });
+
+        expect(acts()).toEqual([{ command: 'insertText', argument: 'Bay\tUnits' }]);
     });
 });
 
@@ -796,10 +897,12 @@ describe('WrittenMessage, pictures', () => {
         vi.restoreAllMocks();
     });
 
-    function pasteFiles(files: readonly File[], types: readonly string[] = ['Files'], plain = ''): void {
+    function pasteFiles(files: readonly File[], types: readonly string[] = ['Files'], markup = ''): void {
         words().focus();
         window.getSelection()?.collapse(words(), 0);
-        fireEvent.paste(words(), { clipboardData: { getData: () => plain, types, files } });
+        fireEvent.paste(words(), {
+            clipboardData: { getData: (flavour: string) => (flavour === 'text/html' ? markup : ''), types, files },
+        });
     }
 
     function pngFile(name = 'chart.png', octets: Uint8Array = png): File {
@@ -829,22 +932,56 @@ describe('WrittenMessage, pictures', () => {
         });
     });
 
-    it('pastes the words rather than the picture where formatted words come with it', () => {
-        drawWords();
+    it('pastes the formatted words rather than the picture of them a spreadsheet puts beside them', () => {
+        const { pictureHeld } = drawWords();
 
-        pasteFiles([pngFile()], ['text/plain', 'text/html', 'Files'], 'Revenue 2026');
+        pasteFiles([pngFile()], ['text/plain', 'text/html', 'Files'], '<p>Revenue <b>2026</b></p>');
 
-        expect(acts()).toEqual([{ command: 'insertText', argument: 'Revenue 2026' }]);
+        expect(acts()).toEqual([{ command: 'insertHTML', argument: '<p>Revenue <b>2026</b></p>' }]);
+        expect(pictureHeld).not.toHaveBeenCalled();
     });
 
-    it('takes the picture where the formatted flavour carries no words, as a browser’s copied image does', async () => {
+    it('takes the picture where the formatted flavour reads to nothing, as a browser’s copied image does', async () => {
         drawWords();
 
-        pasteFiles([pngFile()], ['text/html', 'Files']);
+        pasteFiles([pngFile()], ['text/html', 'Files'], '<img src="https://pictures.example.invalid/chart.png">');
 
         await waitFor(() => {
             expect(acts().map((act) => act.command)).toEqual(['insertHTML']);
         });
+    });
+
+    it('holds a picture the markup itself carries, unnamed, and draws it from an address of its own', () => {
+        const { pictureHeld } = drawWords();
+
+        pasteFiles([], ['text/html'], `<p>Chart</p><img src="data:image/png;base64,${base64Of(png)}">`);
+
+        expect(pictureHeld).toHaveBeenCalledWith(expect.stringMatching(/^[0-9a-f-]{36}$/u), {
+            octets: png,
+            type: 'image/png',
+            width: 800,
+            height: 600,
+            label: null,
+        });
+        expect(acts()).toEqual([
+            {
+                command: 'insertHTML',
+                argument:
+                    '<p>Chart</p><img src="blob:composer/1" alt="Unnamed picture" width="600" height="450" style="max-width:100%;height:auto" />',
+            },
+        ]);
+    });
+
+    it('refuses markup carrying more pictures than a message holds, putting none of it in', async () => {
+        const { pictureHeld } = drawWords();
+
+        pasteFiles([], ['text/html'], `<img src="data:image/png;base64,${base64Of(png)}">`.repeat(17));
+
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            'Nothing was pasted - this paste carries 17 pictures and the message already holds 0, but one message can hold at most 16.',
+        );
+        expect(acts()).toEqual([]);
+        expect(pictureHeld).not.toHaveBeenCalled();
     });
 
     it('refuses a file that is not one of the three kinds by what it opens with, whatever it is named', async () => {
@@ -878,14 +1015,67 @@ describe('WrittenMessage, pictures', () => {
         const dropped = fireEvent.drop(words(), {
             dataTransfer: {
                 getData: (flavour: string) =>
-                    flavour === 'text/plain' ? 'Revenue 2026' : '<img src="https://x.invalid/a.png">',
+                    flavour === 'text/plain'
+                        ? 'Revenue 2026'
+                        : '<p style="color: #b42318">Revenue <img src="https://x.invalid/a.png"></p>',
                 types: ['text/plain', 'text/html', 'Files'],
                 files: [pngFile()],
             },
         });
 
         expect(dropped).toBe(false);
-        expect(acts()).toEqual([{ command: 'insertText', argument: 'Revenue 2026' }]);
+        expect(acts()).toEqual([{ command: 'insertHTML', argument: '<p><font color="#b42318">Revenue </font></p>' }]);
+    });
+
+    it('reads markup another input brings in, as a paste is read, rather than letting the engine insert it', () => {
+        drawWords();
+
+        const brought = new Event('beforeinput', { bubbles: true, cancelable: true });
+
+        Object.assign(brought, {
+            inputType: 'insertFromPasteAsQuotation',
+            dataTransfer: {
+                getData: (flavour: string) => (flavour === 'text/html' ? '<p>Quoted <b>words</b></p>' : ''),
+                types: ['text/html'],
+                files: [],
+            },
+        });
+
+        expect(words().dispatchEvent(brought)).toBe(false);
+        expect(acts()).toEqual([{ command: 'insertHTML', argument: '<p>Quoted <b>words</b></p>' }]);
+    });
+
+    it('inserts a paste once where the engine raises an input event for its own insertion, as WebKit does', () => {
+        drawWords();
+
+        Object.defineProperty(document, 'execCommand', {
+            configurable: true,
+            value: (command: string, _showUserInterface: boolean, argument?: string) => {
+                commanded.push({ command, argument });
+
+                if (command === 'insertHTML') {
+                    const raised = new Event('beforeinput', { bubbles: true, cancelable: true });
+
+                    Object.assign(raised, {
+                        inputType: 'insertHTML',
+                        dataTransfer: { getData: () => argument ?? '', types: ['text/html'], files: [] },
+                    });
+                    words().dispatchEvent(raised);
+                }
+
+                return true;
+            },
+        });
+
+        fireEvent.paste(words(), {
+            clipboardData: {
+                getData: (flavour: string) => (flavour === 'text/html' ? '<p>Once <b>only</b></p>' : ''),
+                types: ['text/html'],
+                files: [],
+            },
+        });
+
+        expect(acts()).toEqual([{ command: 'insertHTML', argument: '<p>Once <b>only</b></p>' }]);
     });
 
     it('leaves a passage dragged within the words to the engine’s own move', () => {
@@ -954,7 +1144,7 @@ describe('WrittenMessage, pictures', () => {
         expect(acts()[0]?.argument).toContain('src="blob:composer/1" alt="chart.png"');
     });
 
-    it('pastes as text a passage whose token is not the one this composer copied with', () => {
+    it('reads a passage whose token is not the one this composer copied with as any other paste', () => {
         drawWords([{ element: 'img', picture: pictureName, width: 800, height: 600 }], new Map([[pictureName, held]]));
 
         selectAround(screen.getByRole('img', { name: 'chart.png' }));
@@ -962,12 +1152,12 @@ describe('WrittenMessage, pictures', () => {
         pasteHeld(
             new Map([
                 ['text/plain', 'Hello'],
-                ['text/html', '<p>Hello</p>'],
+                ['text/html', '<p>Hello <img src="blob:another-tab/1"></p>'],
                 ['application/x-mailfathom-written', 'another-token'],
             ]),
         );
 
-        expect(acts()).toEqual([{ command: 'insertText', argument: 'Hello' }]);
+        expect(acts()).toEqual([{ command: 'insertHTML', argument: '<p>Hello </p>' }]);
     });
 
     it('refuses to put back a cut picture where it would take the message past a bound', async () => {
