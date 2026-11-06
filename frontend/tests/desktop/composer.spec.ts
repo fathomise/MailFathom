@@ -163,20 +163,35 @@ test('reads a hostile document pasted and dropped, and a spreadsheet range, runn
         expect(afterTheDrop.cells, afterTheDrop.around).toBe(4);
 
         // A request the paste started has had a whole round trip to the same server to finish in by the time this one
-        // has, so its entry is recorded before it is read.
+        // has, so its entry is recorded before it is read. WebKit records an entry once the response has loaded, after
+        // `fetch` has already resolved, so the case waits for this request's own entry rather than for the promise.
         const read = await head.evaluate(`(async () => {
-            await fetch(location.origin + '/clipboard-fixture-settled').catch(() => undefined);
+            const settledAt = location.origin + '/clipboard-fixture-settled';
+            const recorded = new Promise((settle) => {
+                const observer = new PerformanceObserver((entries) => {
+                    if (entries.getEntriesByName(settledAt).length > 0) {
+                        observer.disconnect();
+                        settle(true);
+                    }
+                });
 
+                observer.observe({ type: 'resource' });
+                setTimeout(() => settle(false), 10000);
+            });
+
+            await fetch(settledAt).catch(() => undefined);
+
+            const recording = await recorded;
             const region = document.querySelector('${words}');
-            const recorded = performance
+            const fetched = performance
                 .getEntriesByType('resource')
                 .map((entry) => entry.name)
-                .filter((name) => name.includes('/clipboard-fixture-'));
+                .filter((name) => name.includes('/clipboard-fixture-') && name !== settledAt);
 
             return {
                 ran: globalThis['${clipboard.ranMarker}'] ?? null,
-                recording: recorded.some((name) => name.endsWith('-settled')),
-                fetched: recorded.filter((name) => !name.endsWith('-settled')),
+                recording,
+                fetched,
                 foreign: region.querySelectorAll('script, style, link, base, meta, iframe, object, embed, svg, video, picture, source, img').length,
                 handlers: [...region.querySelectorAll('*')].some((element) =>
                     [...element.attributes].some((attribute) => attribute.name.startsWith('on')),
