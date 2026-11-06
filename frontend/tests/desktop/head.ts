@@ -4,7 +4,7 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -88,6 +88,34 @@ export interface DesktopHead {
  */
 export function freshProfile(): string {
     return mkdtempSync(resolve(process.env['MAILFATHOM_DESKTOP_PROFILES'] ?? tmpdir(), 'profile-'));
+}
+
+/**
+ * Waits until no process started over that profile is left: the shell, its WebView's own processes, and the driver.
+ *
+ * Ending a session does not wait for the shell to exit, and the WebView commits what it stores to the profile on its
+ * own schedule — so a second shell started over the same profile straight away can read the storage before the first
+ * one has written it, and open as though nothing had been chosen. Every one of those processes inherited the profile's
+ * `XDG_DATA_HOME`, which is what tells them apart from every other shell on the machine; the shell gone is the moment
+ * its storage is final.
+ */
+export async function everyShellGone(profile: string): Promise<void> {
+    const keeping = `XDG_DATA_HOME=${resolve(profile, 'data')}`;
+
+    await until(`every process over ${profile} exiting`, () =>
+        Promise.resolve(
+            readdirSync('/proc').some((entry) => /^\d+$/.test(entry) && startedOver(entry, keeping)) ? null : true,
+        ),
+    );
+}
+
+// A process that has exited between the listing and the read, or that this user may not read, is not one over it.
+function startedOver(processId: string, keeping: string): boolean {
+    try {
+        return readFileSync(`/proc/${processId}/environ`, 'latin1').split('\0').includes(keeping);
+    } catch {
+        return false;
+    }
 }
 
 /**
