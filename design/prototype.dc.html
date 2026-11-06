@@ -2179,7 +2179,7 @@ Project repository: https://github.com/fathomise/MailFathom
                             <sc-if value="{{ bk.isDraft }}" hint-placeholder-val="{{ false }}">
                               <sc-if value="{{ bk.hasDraftStanding }}" hint-placeholder-val="{{ false }}">
                                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                                  <span style="{{ bk.draftDispositionStyle }}">{{ bk.draftDisposition }}</span>
+                                  <sc-if value="{{ bk.hasDraftDisposition }}" hint-placeholder-val="{{ true }}"><span style="{{ bk.draftDispositionStyle }}">{{ bk.draftDisposition }}</span></sc-if>
                                   <div role="button" tabIndex="0" data-tip="1" style="{{ bk.citedChipStyle }}"><span style="{{ bk.citedIconStyle }}">format_quote</span>{{ bk.citedLabel }}<span role="tooltip">{{ bk.citedTip }}</span></div>
                                 </div>
                               </sc-if>

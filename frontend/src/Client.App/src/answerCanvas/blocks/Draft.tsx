@@ -164,9 +164,13 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
             }
         >
             <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-rail px-2.25 py-0.5 text-xs text-muted">
-                    {translate(draftDispositions[draft.disposition])}
-                </span>
+                {/* Once sent, the result line says what became of it, and a disposition saying nothing left would
+                    contradict it. */}
+                {answering?.phase === 'accepted' ? null : (
+                    <span className="rounded-full bg-rail px-2.25 py-0.5 text-xs text-muted">
+                        {translate(draftDispositions[draft.disposition])}
+                    </span>
+                )}
 
                 <SupportVerdictChip support={evidence.support} />
             </div>

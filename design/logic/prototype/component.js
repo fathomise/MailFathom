@@ -3843,6 +3843,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* Above the letter, what became of it and the verdict on it: *cited*, since the reply is the Agent's own prose
            and nothing held it against the message it answers. That message's citation sits under the letter. */
         hasDraftStanding: b.type === "draft" && !!b.disposition,
+        /* Once sent, the result line says what became of it, so the line saying nothing was sent goes. */
+        hasDraftDisposition: !accepted || failed,
         draftDisposition: b.disposition || "",
         draftDispositionStyle: "font-size:11px;background:var(--rail);color:var(--muted);border-radius:12px;padding:2px 9px",
         hasDraftCites: b.type === "draft" && (b.cites || []).length > 0,
