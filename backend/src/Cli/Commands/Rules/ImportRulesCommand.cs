@@ -135,7 +135,7 @@ internal static class ImportRulesCommand
                 listing.AddRow(
                     ConsoleSafeText.Sanitize(rule.Name) ?? "an unnamed rule",
                     rule.Rule is { } identifier ? $"{identifier:D}" : "assigned on import",
-                    rule.Effect?.ToLowerInvariant() ?? "unreported",
+                    DescribeEffect(rule.Effect),
                     DescribeState(rule));
             }
 
@@ -162,6 +162,16 @@ internal static class ImportRulesCommand
                 : $"Rules the file states enabled that would be disabled after the import: {waiting.Length}. Preview and enable each once the import is made.");
         }
     }
+
+    private static string DescribeEffect(string? effect) => effect switch
+    {
+        "Added" => "added",
+        "Changed" => "changed",
+        "Moved" => "moved",
+        "Unchanged" => "unchanged",
+        "Removed" => "removed",
+        _ => "unreported",
+    };
 
     private static string DescribeState(MailRuleImportedRule rule) => rule switch
     {

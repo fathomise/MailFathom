@@ -108,7 +108,8 @@ public sealed class RuleImportCommandTests : IDisposable
 
     /// <summary>
     /// A configuration file is read at its <c>MailRules</c> section, matched ignoring case and with its comments and
-    /// trailing commas, and of its rules only the ones naming this account or no account are sent, without <c>Accounts</c>.
+    /// trailing commas, and of its rules only the ones naming this account or no account are sent, without <c>Accounts</c>,
+    /// against the version the operator stated rather than the one the rules stand at.
     /// </summary>
     [Fact]
     public async Task Import_AConfigurationFile_SendsTheRulesNamingTheAccountOrNoAccount()
@@ -120,11 +121,13 @@ public sealed class RuleImportCommandTests : IDisposable
         // Act
         var exitCode = await this.RunAsync(
             deployment,
-            "rules", "import", "--account", Account, "--from-file", "-", "--mode", "merge", "--endpoint", Endpoint);
+            "rules", "import", "--account", Account, "--from-file", "-", "--mode", "merge", "--expected-version", "9", "--endpoint", Endpoint);
 
         // Assert
         Assert.Equal(CliExitCode.Success, exitCode);
-        var rules = deployment.LastPosted(AdminEndpointRoutes.RuleImportPath)!.Value.GetProperty("rules").EnumerateArray().ToArray();
+        var sent = deployment.LastPosted(AdminEndpointRoutes.RuleImportPath)!.Value;
+        Assert.Equal(9L, sent.GetProperty("version").GetInt64());
+        var rules = sent.GetProperty("rules").EnumerateArray().ToArray();
         Assert.Equal(["for-everybody", "for-work"], rules.Select(rule => rule.GetProperty("Name").GetString()));
         Assert.All(rules, rule => Assert.Equal(["Name", "Condition"], rule.EnumerateObject().Select(property => property.Name)));
     }
@@ -149,6 +152,34 @@ public sealed class RuleImportCommandTests : IDisposable
         Assert.Contains(this.harness.Console.Lines, line => line.EndsWith("against version 4. Nothing was written.", StringComparison.Ordinal));
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("assigned on import", StringComparison.Ordinal) && line.Contains("added", StringComparison.Ordinal));
         Assert.Contains(this.harness.Console.Errors, line => line.Contains("--mode replace --expected-version 4", StringComparison.Ordinal));
+        Assert.Contains(
+            this.harness.Console.Errors,
+            line => line.Contains("Rules the file states enabled that would be disabled after the import: 1.", StringComparison.Ordinal));
+    }
+
+    /// <summary>An effect the command does not know is printed as unreported, so nothing the deployment answered reaches the terminal as written.</summary>
+    [Fact]
+    public async Task Import_AnEffectTheCommandDoesNotKnow_IsReportedAsUnreported()
+    {
+        // Arrange
+        this.harness.Console.InputToSupply = ExportedFile;
+        using var deployment = FakeRuleDeployment.Answering(
+            rules: StoredRules,
+            import: (HttpStatusCode.OK, """
+                {"account":"work","version":5,"revision":"0a1b2c3d4e5f","committed":true,"rules":[
+                  {"rule":"0199a0c0-0000-7000-8000-00000000000b","name":"file-invoices","effect":"\u001b[31mAdded","enabled":false}
+                ]}
+                """));
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "rules", "import", "--account", Account, "--from-file", "-", "--mode", "merge", "--endpoint", Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains(KeptRule, StringComparison.Ordinal) && line.Contains("unreported", StringComparison.Ordinal));
+        Assert.DoesNotContain(this.harness.Console.Lines, line => line.Contains('\u001b', StringComparison.Ordinal));
     }
 
     /// <summary>A refused import prints the deployment's reasons and fails with a sentence carrying none of them.</summary>
