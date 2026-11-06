@@ -6027,6 +6027,16 @@
             },
             "type": "array"
           },
+          "document": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailDocument"
+              }
+            ]
+          },
           "drafted": {
             "type": "boolean"
           },
@@ -6041,7 +6051,8 @@
           "drafted",
           "body",
           "claims",
-          "proposedRecipients"
+          "proposedRecipients",
+          "document"
         ],
         "type": "object"
       },

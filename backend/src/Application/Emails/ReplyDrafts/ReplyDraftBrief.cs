@@ -37,4 +37,8 @@ public sealed record ReplyDraftBrief(
     string? Selection,
     string? Instruction,
     UserLanguage Language,
-    bool ClosesWithFooter);
+    bool ClosesWithFooter)
+{
+    /// <summary>Gets the addresses the draft may link to, each cited by its position, which is empty where nothing may be linked.</summary>
+    public IReadOnlyList<ReplyDraftLink> Links { get; init; } = [];
+}

@@ -16,10 +16,10 @@ namespace MailFathom.AI.ReplyDrafts;
 /// something only a live endpoint reaches.
 /// </para>
 /// <para>
-/// It drops a citation and a recipient it cannot resolve, and keeps the claim. A number outside the list the turn
-/// composed names nobody and nothing, so it falls away — and a claim left with no number at all is exactly the claim
-/// the instruction asks for: one the correspondence does not back, kept and marked, because the sentence is in the
-/// body whatever happens to its citation.
+/// It drops a citation, a recipient, and a link it cannot resolve, and keeps the claim and the linked words. A number
+/// outside the list the turn composed names nobody and nothing, so it falls away — and a claim left with no number at
+/// all is exactly the claim the instruction asks for: one the correspondence does not back, kept and marked, because
+/// the sentence is in the body whatever happens to its citation.
 /// </para>
 /// <para>
 /// An answer with no body is nothing rather than an empty draft. There is no honest half of a reply, and a composer
@@ -35,25 +35,29 @@ internal static class ReplyDraftReading
     /// <param name="answerText">What the agent wrote, which may be empty, fenced, or surrounded by prose.</param>
     /// <param name="messages">The messages the turn published, in the order it numbered them.</param>
     /// <param name="participants">The people the turn published, in the order it numbered them.</param>
+    /// <param name="links">The links the turn published, in the order it numbered them.</param>
     /// <returns>The draft, or <see cref="ReplyDraft.Nothing" /> where the answer carried no reply.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="messages" /> or <paramref name="participants" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="messages" />, <paramref name="participants" />, or <paramref name="links" /> is <see langword="null" />.</exception>
     internal static ReplyDraft Read(
         string? answerText,
         IReadOnlyList<ReplyDraftMessage> messages,
-        IReadOnlyList<ReplyDraftParticipant> participants)
+        IReadOnlyList<ReplyDraftParticipant> participants,
+        IReadOnlyList<ReplyDraftLink> links)
     {
         ArgumentNullException.ThrowIfNull(messages);
         ArgumentNullException.ThrowIfNull(participants);
+        ArgumentNullException.ThrowIfNull(links);
 
-        if (ReadDocument(answerText) is not { } document || string.IsNullOrWhiteSpace(document.Body))
+        if (ReadDocument(answerText) is not { } answer
+            || ReplyDraftBlockReading.Read(answer.Body, links) is not { } document)
         {
             return ReplyDraft.Nothing;
         }
 
         return ReplyDraft.Written(
-            document.Body,
-            [.. Claims(document.Claims, messages)],
-            [.. Recipients(document.Recipients, participants)]);
+            document,
+            [.. Claims(answer.Claims, messages)],
+            [.. Recipients(answer.Recipients, participants)]);
     }
 
     /// <summary>Reads the written assertions into claims, keeping the ones nothing supports and marking them by their empty sources.</summary>

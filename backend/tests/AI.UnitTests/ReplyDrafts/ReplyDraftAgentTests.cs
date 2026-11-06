@@ -10,6 +10,7 @@ using MailFathom.AI.Providers;
 using MailFathom.AI.ReplyDrafts;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.AiProviders;
+using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
@@ -128,6 +129,42 @@ public sealed class ReplyDraftAgentTests
 
         // Assert
         Assert.DoesNotContain(Marker, provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A link is shown to the provider by its host and its words alone, the words guarded like every other text, so a
+    /// token in its address never leaves this deployment; a number the model cites still resolves to that address.
+    /// </summary>
+    [Fact]
+    public async Task WriteAsync_ALinkTheDraftMayCarry_SendsItsHostAndGuardedWordsAndResolvesItsNumberToItsAddress()
+    {
+        // Arrange
+        const string Target = "https://files.example.test/share/q3?token=SIGNEDSHARE7781";
+        const string Citing = """
+            {\"body\": [{\"type\": \"paragraph\", \"runs\": [{\"text\": \"the sheet\", \"link\": 0}]}],
+            \"claims\": [], \"recipients\": [0]}
+            """;
+        using var provider = ScriptedTransport.Answering(Completion(Citing));
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        using var actingFor = egress.Guard.ActingFor(await egress.ReadUserPostureAsync(TestContext.Current.CancellationToken));
+        var agent = provider.WriterOver(egressGuard: egress.Guard);
+        var brief = Brief() with
+        {
+            Links = [new ReplyDraftLink(0, new MailDocumentLink(Target, "files.example.test", null, MailLinkDeception.None), $"the sheet {Marker}")],
+        };
+
+        // Act
+        var draft = await agent.WriteAsync(brief, TestContext.Current.CancellationToken);
+
+        // Assert
+        var sent = provider.RequestBodies[0];
+
+        Assert.Contains("files.example.test", sent, StringComparison.Ordinal);
+        Assert.Contains("the sheet", sent, StringComparison.Ordinal);
+        Assert.DoesNotContain(Marker, sent, StringComparison.Ordinal);
+        Assert.DoesNotContain("SIGNEDSHARE7781", sent, StringComparison.Ordinal);
+        Assert.DoesNotContain("/share/q3", sent, StringComparison.Ordinal);
+        Assert.Equal(Target, Assert.Single(MailDocumentLinks.Of(draft.Document)).Link.Target);
     }
 
     /// <summary>What a person has when a provider fails is the composer they were already looking at.</summary>

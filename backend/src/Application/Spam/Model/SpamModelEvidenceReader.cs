@@ -4,7 +4,6 @@
 
 using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.EmailContent.Rendering.Document;
-using MailFathom.Application.EmailContent.Rendering.Document.Blocks;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Provenance;
@@ -131,31 +130,13 @@ public sealed class SpamModelEvidenceReader
     /// </remarks>
     private static IReadOnlyList<SpamModelLink> LinksOf(MailDocument? document) =>
     [
-        .. (document?.Blocks ?? [])
-            .SelectMany(LinkedRunsOf)
+        .. (document is null ? [] : MailDocumentLinks.Of(document))
             .Where(static linked => (linked.Link.AsciiHost ?? linked.Link.Host) is not null)
             .Select(static linked => new SpamModelLink(
                 (linked.Link.AsciiHost ?? linked.Link.Host)!,
-                linked.Text is { } text ? MailLinkReader.HostNamedBy(text) : null,
+                linked.Words is { } words ? MailLinkReader.HostNamedBy(words) : null,
                 linked.Link.Deception is MailLinkDeception.DisplayedHostDiffers))
             .Distinct()
             .Take(SpamModelEvidence.MaximumLinks),
     ];
-
-    private static IEnumerable<(MailDocumentLink Link, string? Text)> LinkedRunsOf(MailDocumentBlock block) => block switch
-    {
-        MailParagraphBlock paragraph => RunsWithLinks(paragraph.Content),
-        MailHeadingBlock heading => RunsWithLinks(heading.Content),
-        MailImageBlock { Link: { } link } => [(link, null)],
-        MailQuoteBlock quote => quote.Blocks.SelectMany(LinkedRunsOf),
-        MailListBlock list => list.Items.SelectMany(static item => item.Blocks).SelectMany(LinkedRunsOf),
-        MailTableBlock table => table.Rows
-            .SelectMany(static row => row.Cells)
-            .SelectMany(static cell => cell.Blocks)
-            .SelectMany(LinkedRunsOf),
-        _ => [],
-    };
-
-    private static IEnumerable<(MailDocumentLink Link, string? Text)> RunsWithLinks(IReadOnlyList<MailInlineRun> runs) =>
-        runs.Where(static run => run.Link is not null).Select(static run => (run.Link!, (string?)run.Text));
 }

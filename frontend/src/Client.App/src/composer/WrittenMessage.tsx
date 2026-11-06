@@ -6,6 +6,7 @@ import {
     createElement,
     Fragment,
     useEffect,
+    useEffectEvent,
     useId,
     useRef,
     useState,
@@ -113,6 +114,9 @@ interface RefusedPicture {
 }
 
 type FormattingMenuKind = 'colour' | 'size' | 'alignment' | 'table';
+
+// What the stylesheet draws a link's host from, as the words it says.
+const linkHostAttribute = 'data-link-host';
 
 /** One control on the formatting bar: what it is called, what it does, and how the design draws it. */
 interface FormattingControl {
@@ -283,6 +287,7 @@ export function WrittenMessage({
     onPictureHeld,
     onSendAsked,
     beforeTheWords,
+    linkHostsShown = false,
 }: {
     /** What the region opens holding, read once: a message this tab was already writing, or nothing. */
     readonly opened: readonly WrittenNode[];
@@ -312,6 +317,13 @@ export function WrittenMessage({
      * component's markup.
      */
     readonly beforeTheWords?: ReactNode;
+
+    /**
+     * Whether each link names the host it goes to beside its words, which the composer asks for while a draft nobody
+     * has accepted stands: a link the agent wrote is one somebody's mail can have steered, and ADR 0047 has its host
+     * shown before the draft becomes theirs.
+     */
+    readonly linkHostsShown?: boolean;
 }) {
     const { locale, translate } = useLocalization();
     const coarse = useCoarsePointer();
@@ -368,8 +380,30 @@ export function WrittenMessage({
         };
     }, []);
 
+    // The host is an attribute on the link, drawn by the stylesheet beside its words, rather than an element of its
+    // own: `writtenIn` reads a link's address and nothing else of it, so the host never becomes words in the message,
+    // is never saved, and is never sent, and no caret can land inside it.
+    function showTheLinksHosts(): void {
+        for (const link of words.current?.querySelectorAll('a[href]') ?? []) {
+            const host = linkHostsShown ? linkHostOf(link.getAttribute('href') ?? '') : null;
+
+            if (host === null) {
+                link.removeAttribute(linkHostAttribute);
+            } else {
+                link.setAttribute(linkHostAttribute, translate('compose.linkGoesTo', { host }));
+            }
+        }
+    }
+
+    const showTheHosts = useEffectEvent(showTheLinksHosts);
+
+    useEffect(() => {
+        showTheHosts();
+    }, [linkHostsShown, translate]);
+
     function written(): void {
         if (words.current !== null) {
+            showTheLinksHosts();
             onWritten(writtenIn(words.current, addresses.pictureAt, drawingOfRegion(words.current)));
         }
     }
@@ -1443,6 +1477,19 @@ function WrittenPart({
         },
         holds,
     );
+}
+
+// Where a link goes, as the address names it: the host of a web address, in the ASCII form a look-alike host cannot
+// hide behind, and the mailbox of a mail address.
+function linkHostOf(address: string): string | null {
+    try {
+        const url = new URL(address);
+        const where = url.protocol === 'mailto:' ? url.pathname : url.host;
+
+        return where === '' ? null : where;
+    } catch {
+        return null;
+    }
 }
 
 // The region as it is drawn now, read when the region is read so a theme switched since is the theme read.

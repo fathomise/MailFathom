@@ -72,6 +72,9 @@ internal static class CorpusReaders
             .SelectMany(static exchange => exchange.Select(message => SummaryOf(message, ThreadOf(exchange))))
             .ToDictionary(static summary => summary.StoredEmailId));
 
+    /// <summary>Gets the store a deployment would read these conversations' stored bodies from.</summary>
+    public static IEmailContentStore Content { get; } = new CorpusContent();
+
     /// <summary>Names the thread a conversation is stored as, distinct from every message's identifier and the same on every run.</summary>
     /// <param name="exchange">The conversation.</param>
     /// <returns>The thread's identifier.</returns>

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace MailFathom.AI.ReplyDrafts;
@@ -14,9 +15,10 @@ namespace MailFathom.AI.ReplyDrafts;
 /// </remarks>
 internal sealed record ReplyDraftDocument
 {
-    /// <summary>Gets the reply the model wrote.</summary>
+    /// <summary>Gets the reply the model wrote: an array of blocks, or one plain text where it wrote nothing else.</summary>
+    /// <remarks>An element rather than a typed list, because what stands here is read shape by shape and whatever fits no shape is kept as its words rather than failing the whole answer.</remarks>
     [JsonPropertyName("body")]
-    public string? Body { get; init; }
+    public JsonElement? Body { get; init; }
 
     /// <summary>Gets what the model said the reply asserts, with the messages it said back each one.</summary>
     [JsonPropertyName("claims")]

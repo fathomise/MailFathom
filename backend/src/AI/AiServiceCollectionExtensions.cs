@@ -35,6 +35,8 @@ using MailFathom.Application.Contacts.Relationship;
 using MailFathom.Application.Discovery.Planning;
 using MailFathom.Application.Discovery.Runs;
 using MailFathom.Application.EmailContent.Cleaning;
+using MailFathom.Application.EmailContent.Rendering;
+using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Enrichment;
@@ -671,6 +673,9 @@ public static class AiServiceCollectionExtensions
         services.AddScoped(provider => new MailReplyDrafting(
             provider.GetRequiredService<IReplyDraftSourceReader>(),
             provider.GetRequiredService<IReplyDraftWriter>(),
+            new ReplyDraftLinkReader(
+                provider.GetRequiredService<IEmailContentStore>(),
+                provider.GetRequiredService<IEmailContentRenderer>()),
             provider.GetRequiredService<MailboxScopeResolver>(),
             provider.GetRequiredService<SensitiveContentEgressGuard>(),
             provider.GetRequiredService<AccessAuthorization>(),

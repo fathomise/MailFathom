@@ -4,6 +4,7 @@
 
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
 import { asRecord } from './json';
+import { parseMailDocument, type MailDocument } from './mailBody';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
 import { send, type MailFathomTransport } from './transport';
@@ -64,8 +65,14 @@ export interface MailReplyDraftRecipient {
 export interface MailReplyDraft {
     readonly outcome: 'drafted';
 
-    /** The draft as plain text, which is what the composer's body is set from. */
+    /** The draft as plain text, which is the deployment's own reading of the document below. */
     readonly body: string;
+
+    /**
+     * The draft as the closed document a message body is, which is what the composer's words are set from, or `null`
+     * where the deployment answered none — the composer then sets them from the plain text above.
+     */
+    readonly document: MailDocument | null;
 
     /** What the draft asserts, in the order it was written. */
     readonly claims: readonly MailReplyDraftClaim[];
@@ -122,9 +129,11 @@ export const longestDraftSelection = 4_000;
 /** The most messages one drafting is written from, on the same terms as the instruction above. */
 export const mostDraftContextMessages = 10;
 
-// A draft is a message and a handful of short claims, so this is generous against what the route answers and exists
-// for the answer that is not a draft at all.
-const longestDraftAnswer = 128 * 1024;
+// A draft is a message, a handful of short claims, and the same message again as a document whose every run carries
+// its emphasis, size, and link beside its words — several times the words it holds. The body and the claims bound below
+// reach about 160 KiB of text before the document, so half a mebibyte leaves the document that overhead and is still
+// far below anything worth buffering.
+const longestDraftAnswer = 512 * 1024;
 
 // What one answer may carry before the draft is refused unread. The service bounds each of these itself; these are the
 // client's own copy of the bound, checked while the collections are walked rather than after.
@@ -254,12 +263,20 @@ function parseDrafting(body: string): MailReplyDrafting | null {
         return null;
     }
 
+    // A document that arrived and could not be read refuses the draft rather than being dropped for its plain text:
+    // what the agent wrote is unreadable as stated, and words that are only part of it are not the draft it wrote.
+    const carried = record['document'] ?? null;
+    const document = carried === null ? null : parseMailDocument(carried);
+    if (carried !== null && document === null) {
+        return null;
+    }
+
     const claims = parseClaims(record['claims']);
     const proposedRecipients = parseRecipients(record['proposedRecipients']);
 
     return claims === null || proposedRecipients === null
         ? null
-        : { outcome: 'drafted', body: draftBody, claims, proposedRecipients };
+        : { outcome: 'drafted', body: draftBody, document, claims, proposedRecipients };
 }
 
 function parseClaims(value: unknown): readonly MailReplyDraftClaim[] | null {

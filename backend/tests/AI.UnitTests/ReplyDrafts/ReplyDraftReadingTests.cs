@@ -38,7 +38,7 @@ public sealed class ReplyDraftReadingTests
             """;
 
         // Act
-        var draft = ReplyDraftReading.Read(answer, Messages(), Participants());
+        var draft = ReplyDraftReading.Read(answer, Messages(), Participants(), []);
 
         // Assert
         Assert.True(draft.WasWritten);
@@ -57,7 +57,7 @@ public sealed class ReplyDraftReadingTests
     public void Read_AClaimNoPublishedMessageBacks_KeepsItAndMarksItUnsupported(string answer)
     {
         // Act
-        var claim = Assert.Single(ReplyDraftReading.Read(answer, Messages(), Participants()).Claims);
+        var claim = Assert.Single(ReplyDraftReading.Read(answer, Messages(), Participants(), []).Claims);
 
         // Assert
         Assert.Equal("The deadline is the fifth.", claim.Text);
@@ -74,7 +74,7 @@ public sealed class ReplyDraftReadingTests
             """{ "body": "We accept.", "claims": [{ "text": "They quoted 4 200.", "messages": [9, 1, 1] }] }""";
 
         // Act
-        var claim = Assert.Single(ReplyDraftReading.Read(answer, Messages(), Participants()).Claims);
+        var claim = Assert.Single(ReplyDraftReading.Read(answer, Messages(), Participants(), []).Claims);
 
         // Assert
         Assert.Equal([Second], claim.Sources);
@@ -91,7 +91,7 @@ public sealed class ReplyDraftReadingTests
         var answer = $$"""{ "body": "We accept.", "recipients": {{recipients}} }""";
 
         // Act
-        var draft = ReplyDraftReading.Read(answer, Messages(), Participants());
+        var draft = ReplyDraftReading.Read(answer, Messages(), Participants(), []);
 
         // Assert
         Assert.True(draft.WasWritten);
@@ -105,7 +105,7 @@ public sealed class ReplyDraftReadingTests
         const string answer = """{ "body": "We accept.", "recipients": [1, 1, 1] }""";
 
         // Act
-        var draft = ReplyDraftReading.Read(answer, Messages(), Participants());
+        var draft = ReplyDraftReading.Read(answer, Messages(), Participants(), []);
 
         // Assert
         Assert.Equal(["karolina@example.test"], draft.ProposedRecipients.Select(static person => person.Address));
@@ -124,7 +124,7 @@ public sealed class ReplyDraftReadingTests
         var answer = $$"""{ "body": "We accept.", "claims": [{{written}}] }""";
 
         // Act
-        var draft = ReplyDraftReading.Read(answer, Messages(), Participants());
+        var draft = ReplyDraftReading.Read(answer, Messages(), Participants(), []);
 
         // Assert
         Assert.Equal(ReplyDraft.MaximumClaims, draft.Claims.Count);
@@ -138,7 +138,7 @@ public sealed class ReplyDraftReadingTests
     public void Read_AnObjectWrittenInsideProseOrAFence_IsStillRead(string answer)
     {
         // Act
-        var draft = ReplyDraftReading.Read(answer, Messages(), Participants());
+        var draft = ReplyDraftReading.Read(answer, Messages(), Participants(), []);
 
         // Assert
         Assert.Equal("We accept.", draft.Body);
@@ -156,7 +156,7 @@ public sealed class ReplyDraftReadingTests
     public void Read_AnAnswerCarryingNoReply_DraftsNothing(string? answer)
     {
         // Act
-        var draft = ReplyDraftReading.Read(answer, Messages(), Participants());
+        var draft = ReplyDraftReading.Read(answer, Messages(), Participants(), []);
 
         // Assert
         Assert.False(draft.WasWritten);
@@ -172,7 +172,7 @@ public sealed class ReplyDraftReadingTests
     public void Read_AClaimSayingNothing_IsDropped(string answer)
     {
         // Act
-        var draft = ReplyDraftReading.Read(answer, Messages(), Participants());
+        var draft = ReplyDraftReading.Read(answer, Messages(), Participants(), []);
 
         // Assert
         Assert.True(draft.WasWritten);

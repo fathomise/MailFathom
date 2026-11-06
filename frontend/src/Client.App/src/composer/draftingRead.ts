@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ClientFailureReason, ClientResult, MailReplyDrafting } from '@mailfathom/client-backend';
+import type { ClientFailureReason, ClientResult, MailDocument, MailReplyDrafting } from '@mailfathom/client-backend';
 import type { MessageKey } from '../localization/en';
 import type { ToastKind } from '../toasts/useToasts';
 
@@ -27,7 +27,7 @@ export const failureSaid: Readonly<Record<ClientFailureReason, MessageKey>> = {
 
 /** A draft the deployment wrote, or what to tell somebody about one it did not. */
 export type DraftingRead =
-    | { readonly drafted: true; readonly body: string }
+    | { readonly drafted: true; readonly body: string; readonly document: MailDocument | null }
     | { readonly drafted: false; readonly kind: ToastKind; readonly said: MessageKey };
 
 /**
@@ -49,5 +49,5 @@ export function draftingRead(answer: ClientResult<MailReplyDrafting>): DraftingR
         };
     }
 
-    return { drafted: true, body: answer.value.body };
+    return { drafted: true, body: answer.value.body, document: answer.value.document };
 }

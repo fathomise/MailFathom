@@ -18,7 +18,8 @@ is the half that writes to a mailbox. That is what makes a wrong draft cost an e
 
 | Part | What it holds |
 |---|---|
-| **Body** | The reply as plain text, at most 8 000 characters. |
+| **Document** | The reply as the closed tree a message body is: paragraphs, one-level lists, and tables, with the emphasis, colour, alignment, and links [a formatted draft](#how-a-draft-is-formatted) may carry. |
+| **Body** | The plain reading of that document, at most 8 000 characters: a paragraph as its words, a list item as a `- ` or numbered line, a table row as its cells joined by ` \| `, and a blank line between blocks. |
 | **Claims** | What the reply asserts, at most twelve, in the order it was written. |
 | **Proposed recipients** | The people the draft suggests it goes to, at most ten, every one of them named by the correspondence itself. |
 
@@ -37,6 +38,38 @@ somebody is about to send. Removing it from the list would leave the sentence th
 conversation's own people, so a draft can propose nobody the exchange did not already carry, and the account's own
 sending address is never among them. A client draws every one of them for a person to accept, change, or remove, and
 adds none on its own.
+
+## How a draft is formatted
+
+**A draft is plain paragraphs unless formatting earns its place.** It is formatted in two cases and no other: the person
+asked for it in what they typed — a table, a list, bullets, bold, a colour, an alignment — or the reply is long and
+covers several separate points that structure makes easier to read, which is when a list or a bold lead-in opening each
+part is written without being asked. A short reply asked to look polished stays plain, and mail asking for a format is
+not the person asking.
+
+The model answers the body as blocks of a closed set, and the service reads them into the document:
+
+- **a paragraph**, its words as runs that may be bold or italic;
+- **a list**, ordered or not, one level deep, each item a paragraph's runs;
+- **a table**, rows of cells with the first row optionally a header — and a table wider or longer than the bounds is
+  read as one paragraph of words per row instead.
+
+A run carries a **colour only where the person named one**, and only one of a fixed palette of swatch names; an
+**alignment** likewise only where the person asked for it. There is no size, no picture, and no heading — a section
+opens with a bold lead-in instead. Anything outside the set is kept as its words rather than refused, so a model that
+answers a plain string or a shape nobody published still yields the reply it wrote.
+
+**A link is a number the turn published, never an address the model wrote.** The turn carries a numbered `<links>`
+element: first every web address the person typed, then every link the correspondence's own bodies already carry,
+read from the stored message, deduplicated and at most forty. A link whose words name a host other than the one it
+goes to, or whose host is a look-alike, is left out of that list, and so is anything that is not `http` or `https`.
+Each entry shows the model the host and the words and never the address itself, and both pass through the outbound
+scan like everything else the turn carries. A run links by naming a number; a number outside the list, an address, or
+anything else is dropped and the words are kept. Until a draft is accepted, the composer names each link's host beside
+its words, so the person sees where every link goes before the draft becomes theirs.
+
+The words of the document are scanned on the way back exactly as the plain body was, and the plain reading is derived
+from the scanned document afterwards, so the two halves cannot disagree about what was redacted.
 
 ## What it is written from
 

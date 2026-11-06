@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Discovery.Presentation.Citations;
+using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Domain.Access;
@@ -225,9 +226,15 @@ internal sealed record ClientReplyDraftRequest(
 
 /// <summary>The drafted reply, as the client endpoint serves it.</summary>
 /// <param name="Drafted">Whether a reply was drafted at all, which is <see langword="false" /> where this deployment drafts none or the provider could not be reached.</param>
-/// <param name="Body">The drafted reply as plain text, which is empty where none was drafted.</param>
+/// <param name="Body">The drafted reply as plain text — the service's reading of <paramref name="Document" />, never a second text — which is empty where none was drafted.</param>
 /// <param name="Claims">What the reply asserts, in the order it was written, each with the messages backing it or with none.</param>
 /// <param name="ProposedRecipients">The people the draft proposes to reach, every one of whom the conversation itself names.</param>
+/// <param name="Document">
+/// The drafted reply as the composer's closed set — paragraphs, one-level lists, and tables of runs carrying bold,
+/// italic, a palette colour, and a link the correspondence or the person's own words held — or <see langword="null" />
+/// where none was drafted. It is the document type every other body here is published as, so a client reads it with
+/// the reader it already has and parses no markup.
+/// </param>
 /// <remarks>
 /// <para>
 /// <c>drafted</c> being <see langword="false" /> is not a failure a client reports. It is the composer as it was, which
@@ -242,10 +249,11 @@ internal sealed record ClientReplyDraftResponse(
     bool Drafted,
     string Body,
     IReadOnlyList<ClientReplyDraftClaimResponse> Claims,
-    IReadOnlyList<ClientReplyDraftRecipientResponse> ProposedRecipients)
+    IReadOnlyList<ClientReplyDraftRecipientResponse> ProposedRecipients,
+    MailDocument? Document)
 {
     /// <summary>The answer a drafting that produced nothing gives, which leaves the composer as it was.</summary>
-    internal static ClientReplyDraftResponse NotDrafted { get; } = new(Drafted: false, string.Empty, [], []);
+    internal static ClientReplyDraftResponse NotDrafted { get; } = new(Drafted: false, string.Empty, [], [], Document: null);
 
     /// <summary>Describes one draft for the wire.</summary>
     /// <param name="draft">The draft the use case answered with.</param>
@@ -260,7 +268,8 @@ internal sealed record ClientReplyDraftResponse(
                 Drafted: true,
                 draft.Body,
                 [.. draft.Claims.Select(ClientReplyDraftClaimResponse.For)],
-                [.. draft.ProposedRecipients.Select(ClientReplyDraftRecipientResponse.For)])
+                [.. draft.ProposedRecipients.Select(ClientReplyDraftRecipientResponse.For)],
+                draft.Document)
             : NotDrafted;
     }
 }

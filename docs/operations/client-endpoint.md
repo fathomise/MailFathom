@@ -3700,6 +3700,26 @@ Content-Type: application/json
 {
   "drafted": true,
   "body": "Yes — 4 200 net still stands, and Tuesday at ten works for us.",
+  "document": {
+    "schemaVersion": 1,
+    "blocks": [
+      {
+        "type": "paragraph",
+        "version": 1,
+        "alignment": "Inherited",
+        "content": [
+          { "text": "Yes — 4 200 net still stands, and Tuesday at ten works for us.", "emphasis": "None", "foreground": null, "size": "Normal", "link": null }
+        ]
+      }
+    ],
+    "refusal": "None",
+    "removedRemoteReferenceCount": 0,
+    "retainedRemoteImageCount": 0,
+    "inlineImageCount": 0,
+    "undrawnInlineImageCount": 0,
+    "truncated": false,
+    "footer": null
+  },
   "claims": [
     {
       "text": "The agreed price is 4 200 net.",
@@ -3767,6 +3787,15 @@ the `selection`. Either way `contextEmailIds` is the context the composer shows 
 message it answers, a new message starts with none, and while the list stands beside the composer a click on a row
 makes that message the context and a selection makes the whole selection the context — so what a draft is written
 from is what the composer said it would be written from.
+
+**`document` is the draft and `body` is its plain reading.** The document is the same closed tree
+[a message body](#the-message-body-route) is answered as, restricted to what a draft may hold — paragraphs, one-level lists,
+and tables, with bold, italic, a palette colour, alignment, and links on their words — and a composer sets its words
+from it; `body` is the deployment's own plain-text reading of the same tree, so the two never disagree. A draft is
+plain paragraphs unless the person asked for formatting or a long reply needed structure, which
+[Drafting a reply § How a draft is formatted](../features/reply-drafting.md#how-a-draft-is-formatted) describes. Every
+link in it points at an address the person typed or one the correspondence already linked to, and until the draft is
+accepted the composer names each link's host beside its words. `document` is `null` when `drafted` is `false`.
 
 **`supported` is published beside the sources rather than left to a client to derive.** A claim carrying none is one
 the correspondence does not back, and it is kept and marked rather than dropped, because the sentence is already in the

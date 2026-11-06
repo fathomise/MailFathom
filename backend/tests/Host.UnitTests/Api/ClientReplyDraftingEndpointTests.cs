@@ -4,6 +4,9 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.EmailContent.Rendering;
+using MailFathom.Application.EmailContent.Rendering.Document;
+using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Application.Mail.Delivery.Footers;
@@ -118,6 +121,7 @@ public sealed class ClientReplyDraftingEndpointTests
         Assert.NotNull(answer);
         Assert.True(answer.Drafted);
         Assert.Equal("We are asking for a 5% cap.", answer.Body);
+        Assert.Equal(["We are asking for a 5% cap."], MailDocumentTexts.Collect(answer.Document!));
     }
 
     /// <summary>
@@ -259,6 +263,7 @@ public sealed class ClientReplyDraftingEndpointTests
 
         Assert.False(drafted?.Drafted);
         Assert.Empty(drafted!.Body);
+        Assert.Null(drafted.Document);
     }
 
     /// <summary>A message this user does not hold answers exactly as one nobody holds, so nothing says somebody else's exists.</summary>
@@ -435,6 +440,7 @@ public sealed class ClientReplyDraftingEndpointTests
         return new MailReplyDrafting(
             sourceReader,
             writer,
+            new ReplyDraftLinkReader(Substitute.For<IEmailContentStore>(), Substitute.For<IEmailContentRenderer>()),
             scopeResolver,
             SensitiveContentEgressGuards.Inactive(),
             AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse, MailFathomPermission.MailRead),
