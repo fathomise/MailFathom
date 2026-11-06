@@ -1367,6 +1367,40 @@ describe('WrittenMessage, pictures', () => {
         expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 550, height: 413 }]);
     });
 
+    it('keeps the width written where a narrow region draws the picture narrower, on a tap and on a step to the right', () => {
+        const { written } = drawWords(
+            [{ element: 'img', picture: pictureName, width: 800, height: 600 }],
+            new Map([[pictureName, held]]),
+        );
+        const picture = screen.getByRole('img', { name: 'chart.png' });
+
+        vi.spyOn(picture, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 300, 225));
+        fireEvent.click(picture);
+
+        const grip = screen.getByRole('separator', { name: 'Resize picture' });
+        const readBefore = written.mock.calls.length;
+
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 900 });
+
+        expect(written).toHaveBeenCalledTimes(readBefore);
+        expect(picture.getAttribute('width')).toBe('600');
+
+        fireEvent.keyDown(grip, { key: 'ArrowLeft' });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 590, height: 443 }]);
+
+        fireEvent.keyDown(grip, { key: 'ArrowRight' });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 600, height: 450 }]);
+
+        // A drag still starts from where the picture is drawn, so the first move does not jump it past the pointer.
+        fireEvent.pointerDown(grip, { pointerId: 1, clientX: 900 });
+        fireEvent.pointerUp(grip, { pointerId: 1, clientX: 800 });
+
+        expect(written).toHaveBeenLastCalledWith([{ element: 'img', picture: pictureName, width: 200, height: 150 }]);
+    });
+
     it('says how the grip is used to a key that reaches it', () => {
         drawWords([{ element: 'img', picture: pictureName, width: 800, height: 600 }], new Map([[pictureName, held]]));
 

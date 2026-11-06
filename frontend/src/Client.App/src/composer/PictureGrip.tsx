@@ -47,7 +47,13 @@ export function PictureGrip({
 }) {
     const { translate } = useLocalization();
     const grip = useRef<HTMLDivElement | null>(null);
-    const dragging = useRef<{ pointer: number; from: number; startedAt: number; reached: number } | null>(null);
+    const dragging = useRef<{
+        pointer: number;
+        from: number;
+        startedAt: number;
+        reached: number;
+        moved: boolean;
+    } | null>(null);
     const [corner, setCorner] = useState<{ left: number; top: number } | null>(null);
 
     // A finger's hold on the grip is the drag, so it never brings the hint up — one held finger opens one surface.
@@ -59,9 +65,10 @@ export function PictureGrip({
 
     const within = (wanted: number) => Math.round(Math.min(widest, Math.max(narrowest, wanted)));
 
-    // The width a drag or a key starts from: the one drawn, which a region narrower than the picture fits below the
-    // one written, so the first move of a drag never jumps the picture past where the pointer took hold of it. A
-    // picture drawn at nothing — its octets not decoded yet, or a runtime with no layout — starts from the one written.
+    // The width a drag starts from: the one drawn, which a region narrower than the picture fits below the one written,
+    // so the first move of a drag never jumps the picture past where the pointer took hold of it. A picture drawn at
+    // nothing — its octets not decoded yet, or a runtime with no layout — starts from the one written. A key steps from
+    // the width written instead, so a step to the right never makes the picture the message keeps narrower.
     const shownWidth = () => {
         const drawn = picture.getBoundingClientRect().width;
 
@@ -124,7 +131,13 @@ export function PictureGrip({
 
         const startedAt = shownWidth();
 
-        dragging.current = { pointer: event.pointerId, from: event.clientX, startedAt, reached: startedAt };
+        dragging.current = {
+            pointer: event.pointerId,
+            from: event.clientX,
+            startedAt,
+            reached: startedAt,
+            moved: false,
+        };
 
         try {
             event.currentTarget.setPointerCapture(event.pointerId);
@@ -141,11 +154,13 @@ export function PictureGrip({
         }
 
         drag.reached = within(drag.startedAt + (event.clientX - drag.from));
+        drag.moved = true;
         onWidth(drag.reached);
     }
 
     // A release settles where the pointer was let go; a cancelled pointer says nothing about where it was, so the drag
-    // settles where it last reached.
+    // settles where it last reached. A press let go where it was taken moved nothing and settles nothing, which keeps a
+    // tap on the grip from writing the narrower width a narrow region draws the picture at.
     function endDrag(event: PointerEvent<HTMLDivElement>, released: boolean): void {
         const drag = dragging.current;
 
@@ -154,13 +169,18 @@ export function PictureGrip({
         }
 
         dragging.current = null;
-        onChosen(released ? within(drag.startedAt + (event.clientX - drag.from)) : drag.reached);
+
+        if (released && (drag.moved || event.clientX !== drag.from)) {
+            onChosen(within(drag.startedAt + (event.clientX - drag.from)));
+        } else if (!released && drag.moved) {
+            onChosen(drag.reached);
+        }
     }
 
     function moveByKey(event: KeyboardEvent<HTMLDivElement>): void {
         const keyed: Readonly<Record<string, number | undefined>> = {
-            ArrowLeft: shownWidth() - keyStep,
-            ArrowRight: shownWidth() + keyStep,
+            ArrowLeft: width - keyStep,
+            ArrowRight: width + keyStep,
             Home: widest,
         };
         const moved = keyed[event.key];
