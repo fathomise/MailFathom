@@ -472,6 +472,27 @@ public sealed class ReplyDraftInstructionsTests
         Assert.Equal(expected, Parsed(turn).Descendants(ReplyDraftInstructions.LinkElementName).Count());
     }
 
+    /// <summary>A bound reached inside a link's host keeps the whole turn within it and leaves that link unnumbered.</summary>
+    [Fact]
+    public void ComposeDraftingTurn_ABoundReachedInsideALinksHost_StaysWithinTheBoundAndCountsNoLinkItCut()
+    {
+        // Arrange
+        var unlinked = new GuardedDraftingTurn(Subject: null, [], [], [], Selection: null, "Send the sheet.");
+        var linked = unlinked with
+        {
+            Links = [new GuardedDraftingLink(0, $"{new string('h', 500)}.example.test", "comparison sheet")],
+        };
+        var bound = ReplyDraftInstructions.ComposeDraftingTurn(unlinked).Length + 200;
+
+        // Act
+        var turn = ReplyDraftInstructions.ComposeDraftingTurn(linked, bound, out var linksWritten);
+
+        // Assert
+        Assert.InRange(turn.Length, 1, bound);
+        Assert.Equal(0, linksWritten);
+        Assert.Empty(Parsed(turn).Descendants(ReplyDraftInstructions.WordsElementName));
+    }
+
     /// <summary>Anchor text is written by whoever sent the mail, so the defence against an instruction names it.</summary>
     [Fact]
     public void TextFor_TheInstruction_TreatsALinksWordsAsNotThePersonAsking()

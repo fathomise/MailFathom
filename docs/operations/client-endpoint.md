@@ -3717,7 +3717,8 @@ Content-Type: application/json
     "retainedRemoteImageCount": 0,
     "inlineImageCount": 0,
     "undrawnInlineImageCount": 0,
-    "truncated": false
+    "truncated": false,
+    "footer": null
   },
   "claims": [
     {

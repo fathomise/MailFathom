@@ -302,17 +302,25 @@ internal static class ReplyDraftBlockReading
             var columns = rows.Max(static row => row.Length);
             var header = IsTrue(block, "header");
 
-            return
+            // A row is read only where its line and the cells it is padded with still fit, and the row the bound reached
+            // inside its cells is dropped where it kept none of their words, rather than ending the table on bare cells.
+            MailTableRow[] kept =
             [
-                new MailTableBlock(
-                    [.. Enumerable.Repeat(new MailTableColumn(WidthShare: null), columns)],
-                    [.. rows.TakeWhile(_ => !this.IsExhausted).Select((row, index) => this.RowOf(row, header && index is 0, columns))]),
+                .. rows
+                    .TakeWhile(row => this.Charged(ReplyDraft.LineBreak.Length + (ReplyDraft.CellBreak.Length * (columns - row.Length))))
+                    .Select((row, index) => this.RowOf(row, header && index is 0, columns)),
             ];
+
+            if (this.IsExhausted && kept.Length > 0 && !kept[^1].Cells.Any(static cell => cell.Blocks.Any(HoldsWords)))
+            {
+                kept = kept[..^1];
+            }
+
+            return [new MailTableBlock([.. Enumerable.Repeat(new MailTableColumn(WidthShare: null), columns)], kept)];
         }
 
         private MailTableRow RowOf(JsonElement[] row, bool isHeader, int columns)
         {
-            this.Charge(ReplyDraft.LineBreak.Length + (ReplyDraft.CellBreak.Length * (columns - row.Length)));
 
             return new MailTableRow(
                 isHeader,

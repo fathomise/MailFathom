@@ -206,9 +206,7 @@ public sealed class ReplyDraftBlockReadingTests
 
         // Assert
         var table = Assert.IsType<MailTableBlock>(Assert.Single(document.Blocks));
-        var lastWords = table.Rows
-            .Select(static row => row.Cells[0].Blocks.OfType<MailParagraphBlock>().SelectMany(static paragraph => paragraph.Content).Select(static run => run.Text).FirstOrDefault())
-            .Last(static words => words is not null)!;
+        var lastWords = Assert.Single(Assert.IsType<MailParagraphBlock>(Assert.Single(table.Rows[^1].Cells[0].Blocks)).Content).Text;
         var body = ReplyDraft.Written(document, [], []).Body;
 
         Assert.True(document.Truncated);

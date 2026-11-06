@@ -291,15 +291,23 @@ internal static class ReplyDraftInstructions
     {
         ArgumentNullException.ThrowIfNull(turn);
 
-        linksWritten = 0;
-
-        // The closing sentences are the service's own and never cut, so the room they take is kept out of what the
-        // document may spend on quoted text.
+        // The closing sentences are the service's own and never cut. Written through Compose, so they, the links'
+        // structure, and everything else the writer cannot cut are held to the bound by moving the cut into earlier
+        // quoted text; the count is the one the returned pass wrote.
         var closing = (turn.Messages.Count > 0 ? LanguageStatement : string.Empty)
             + (turn.ClosesWithFooter ? FooterStatement : string.Empty);
-        using var document = new AgentTurnDocument(maximumCharacters is int.MaxValue
-            ? int.MaxValue
-            : Math.Max(0, maximumCharacters - closing.Length));
+        var written = 0;
+        var text = AgentTurnDocument.Compose(maximumCharacters, document => written = WriteDraftingTurn(document, turn, closing));
+
+        linksWritten = written;
+
+        return text;
+    }
+
+    /// <summary>Writes one pass of a drafting turn, and answers how many links it numbered.</summary>
+    private static int WriteDraftingTurn(AgentTurnDocument document, GuardedDraftingTurn turn, string closing)
+    {
+        var linksWritten = 0;
 
         // A turn carrying no correspondence writes no conversation element at all. An empty one would be read as an
         // exchange whose text could not be fetched, which is a different case with a different right answer, and this
@@ -329,7 +337,7 @@ internal static class ReplyDraftInstructions
         // reason, after the samples whose sign-off it overrides.
         document.WriteStatement(closing);
 
-        return document.Complete();
+        return linksWritten;
     }
 
     /// <summary>Writes what the person asked for: the part of the correspondence they selected, and what they typed.</summary>
@@ -447,8 +455,6 @@ internal static class ReplyDraftInstructions
                 break;
             }
 
-            written++;
-
             document.StartElement(LinkElementName);
             document.WriteAttribute(NumberAttributeName, Number(link.Position));
 
@@ -457,9 +463,16 @@ internal static class ReplyDraftInstructions
                 document.WriteQuoted(HostElementName, host);
             }
 
-            if (link.Words is { } words)
+            // A link whose host the bound cut is one the model cannot honestly be said to have seen, so it is not counted
+            // as published and nothing more is written into it.
+            if (!document.IsExhausted)
             {
-                document.WriteQuoted(WordsElementName, words);
+                written++;
+
+                if (link.Words is { } words)
+                {
+                    document.WriteQuoted(WordsElementName, words);
+                }
             }
 
             document.EndElement();
