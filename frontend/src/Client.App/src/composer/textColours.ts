@@ -18,6 +18,10 @@ export const darkestReadable = 0.1447;
 /** The lightest relative luminance the picker writes: 3:1 against the light theme's panel. */
 export const lightestReadable = 0.296;
 
+// How far inside the band the picker aims: rounding a channel to eight bits moves luminance by up to about this much,
+// so a colour aimed exactly at an edge could be written just past it.
+const roundingMargin = 0.004;
+
 /** The five shades each hue is offered in, in the order the grid's rows draw them. */
 export const textColourShades = ['deep', 'vivid', 'light', 'muted', 'soft'] as const;
 
@@ -84,7 +88,8 @@ export interface OwnColour {
 
 /** The `#rrggbb` the custom picker writes for a hue, a saturation, and a place in the readable band. */
 export function colourAt({ hue, saturation, shade }: OwnColour): string {
-    const target = darkestReadable + (lightestReadable - darkestReadable) * clamped(shade);
+    const darkestAimed = darkestReadable + roundingMargin;
+    const target = darkestAimed + (lightestReadable - roundingMargin - darkestAimed) * clamped(shade);
     let darker = 0;
     let lighter = 1;
 

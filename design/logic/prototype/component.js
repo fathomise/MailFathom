@@ -3033,7 +3033,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     /* A colour of somebody's own: a hue and a saturation from the field, and a shade from 0 to 1 across the band, turned
        into the HSL lightness that lands at that relative luminance. */
     static colourAt = (h, sat, shade) => {
-      const B = COMPOSE_FMT.band, target = B.darkest + (B.lightest - B.darkest) * Math.min(1, Math.max(0, shade));
+      const B = COMPOSE_FMT.band, lo0 = B.darkest + 0.004, target = lo0 + (B.lightest - 0.004 - lo0) * Math.min(1, Math.max(0, shade));
       const rgb = (l) => { const a = sat * Math.min(l, 1 - l); return [0, 8, 4].map(n => { const k = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); }); };
       const lum = (c) => c.map(v => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)).reduce((t, v, i) => t + v * [0.2126, 0.7152, 0.0722][i], 0);
       let lo = 0, hi = 1;
