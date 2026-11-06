@@ -6,7 +6,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
 // How the desktop head is driven, which is the one thing neither of the other two browser suites can do.
@@ -91,28 +91,39 @@ export function freshProfile(): string {
 }
 
 /**
- * Waits until no process started over that profile is left: the shell, its WebView's own processes, and the driver.
+ * Waits until no process that writes into that profile is left: the shell and its WebView's own processes.
  *
  * Ending a session does not wait for the shell to exit, and the WebView commits what it stores to the profile on its
  * own schedule — so a second shell started over the same profile straight away can read the storage before the first
  * one has written it, and open as though nothing had been chosen. Every one of those processes inherited the profile's
  * `XDG_DATA_HOME`, which is what tells them apart from every other shell on the machine; the shell gone is the moment
  * its storage is final.
+ *
+ * Only the shell and the WebView's processes are waited for, because they are the ones that write it. The drivers and
+ * whatever a graphics or accessibility stack starts beside them inherit the same environment and keep no storage, and
+ * one of them outliving its session by more than the wait is what failed the case when every process was counted.
  */
 export async function everyShellGone(profile: string): Promise<void> {
     const keeping = `XDG_DATA_HOME=${resolve(profile, 'data')}`;
 
-    await until(`every process over ${profile} exiting`, () =>
+    await until(`the shell over ${profile} exiting`, () =>
         Promise.resolve(
-            readdirSync('/proc').some((entry) => /^\d+$/.test(entry) && startedOver(entry, keeping)) ? null : true,
+            readdirSync('/proc').some((entry) => /^\d+$/.test(entry) && writingOver(entry, keeping)) ? null : true,
         ),
     );
 }
 
+// The name `/proc` gives a process is its executable's, cut to fifteen characters.
+const shellName = basename(desktopBinary).slice(0, 15);
+const nativeDriverName = 'WebKitWebDriver';
+
 // A process that has exited between the listing and the read, or that this user may not read, is not one over it.
-function startedOver(processId: string, keeping: string): boolean {
+function writingOver(processId: string, keeping: string): boolean {
     try {
-        return readFileSync(`/proc/${processId}/environ`, 'latin1').split('\0').includes(keeping);
+        const name = readFileSync(`/proc/${processId}/comm`, 'latin1').trim();
+        const writes = name === shellName || (name.startsWith('WebKit') && name !== nativeDriverName);
+
+        return writes && readFileSync(`/proc/${processId}/environ`, 'latin1').split('\0').includes(keeping);
     } catch {
         return false;
     }
