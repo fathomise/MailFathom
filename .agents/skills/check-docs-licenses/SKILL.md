@@ -20,7 +20,7 @@ Confirm that durable documentation describes implemented behavior:
 - update affected commands, examples, configuration, failure modes, security assumptions, and operations;
 - keep future intent on the issue that owns it and actual behavior in `docs/`;
 - treat stale guidance as a failure;
-- do not create or modify an ADR without explicit owner approval.
+- bring an ADR the change departs from up to date in the same change; until `1.0.0` every ADR is `proposed` and is edited without asking, as `docs/AGENTS.md` says.
 
 Start from `scripts/review-obligations.sh`, whose documentation section names every page whose `describes:` marker covers a path this change touched and whether the change touched the page. That answers which pages are candidates without a search over `docs/`, so the reading left to do is the part only a reader can do: whether the page still says something true about the part that moved.
 

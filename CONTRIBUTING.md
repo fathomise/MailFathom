@@ -173,7 +173,7 @@ It prints what your change obliges the rest of the repository to do — the test
 - **Update the documentation in the same change.** Stale guidance is a defect. [`docs/AGENTS.md`](docs/AGENTS.md) applies under `docs/`, and a new page there opens with a `describes:` marker naming the part of the repository it is written about — the contract suite fails a page without one, and a marker naming a path that no longer exists.
 - **Warnings are errors.** `TreatWarningsAsErrors` is on and the analyzer set is configured in `.editorconfig`; suppress a diagnostic only at the narrowest scope, with the concrete reason stated.
 - **Do not edit `CHANGELOG.md`.** It states what a release shipped and is written by the release pull request alone.
-- **Do not create or modify an ADR** under `docs/decisions/` without the maintainer's explicit approval. Reading the relevant ones first is expected for any architectural change.
+- **ADRs under `docs/decisions/` are working records until `1.0.0`.** Every one is `proposed`: read the relevant ones first for any architectural change, and correct, extend, or add one in the same pull request when your change departs from it or needs a new decision. The `Protected paths` check holds that pull request for a maintainer's approval.
 
 **A push carrying something credential-shaped is refused, by GitHub, before the objects reach it.** Push protection is on for this repository. The refusal names the file, the line, and what it thinks it found, and it is not a review comment you can answer — the push simply does not happen.
 

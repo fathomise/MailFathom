@@ -19,9 +19,9 @@ name: Protected paths
 #                      one. An ADR is required reading before architecture, boundaries, persistence,
 #                      configuration, or security-sensitive behavior move, so rewriting one moves
 #                      what the next change is judged against rather than what the repository does.
-#                      `docs/AGENTS.md` and `docs/decisions/README.md` both require the owner's
-#                      approval for an ADR; this line is what holds a change to one for a
-#                      maintainer before a reviewer has to notice it
+#                      Until `1.0.0` every ADR is `proposed` and an agent edits one without
+#                      asking, so this line is what holds a change to one for a maintainer
+#                      before a reviewer has to notice it
 #
 # Six files decide the same thing from wherever they sit, so they are matched by name anywhere in
 # the tree rather than at the repository root. A nested copy of each overrides the one above it for
