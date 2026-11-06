@@ -49,7 +49,9 @@ export function ColourChoice({
     // falling to the page, where the menu's keys no longer reach.
     useEffect(() => {
         if (leftThePicker) {
-            Array.from(ownRow.current?.querySelectorAll('button') ?? []).at(-1)?.focus();
+            Array.from(ownRow.current?.querySelectorAll('button') ?? [])
+                .at(-1)
+                ?.focus();
         }
     }, [leftThePicker]);
 
@@ -226,9 +228,7 @@ function OwnColourPicker({
     // The picker is a form inside the menu, so Tab walks its controls as it would anywhere; only past its first or last
     // control does Tab reach the menu, which leaves as it does from any other item.
     function walkTheForm(event: KeyboardEvent<HTMLDivElement>): void {
-        const controls = Array.from(
-            event.currentTarget.querySelectorAll<HTMLElement>('[tabindex="0"], input, button'),
-        );
+        const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[tabindex="0"], input, button'));
         const standing = controls.indexOf(event.target as HTMLElement);
         const pastTheEdge = event.shiftKey ? standing === 0 : standing === controls.length - 1;
 

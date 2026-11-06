@@ -550,7 +550,7 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
         press('Text colour - Automatic');
         fireEvent.click(screen.getByRole('menuitem', { name: 'Choose a colour of your own' }));
         fireEvent.keyDown(screen.getByRole('slider', { name: 'Hue and saturation' }), { key: 'Tab' });
-        fireEvent.keyDown(screen.getByRole('button', { name: 'Back' }), { key: 'Tab' });
+        fireEvent.keyDown(screen.getByRole('button', { name: 'Back to the palette' }), { key: 'Tab' });
 
         expect(screen.getByRole('menu')).toBeDefined();
 
@@ -565,7 +565,7 @@ describe('WrittenMessage, the colour, size, and alignment menus', () => {
 
         press('Text colour - Automatic');
         fireEvent.click(screen.getByRole('menuitem', { name: 'Choose a colour of your own' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Back to the palette' }));
 
         expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Choose a colour of your own' }));
     });
