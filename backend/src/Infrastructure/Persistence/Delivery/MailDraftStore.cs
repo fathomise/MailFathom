@@ -160,6 +160,31 @@ internal sealed class MailDraftStore(MailFathomDbContext readContext) : IMailDra
 
     /// <inheritdoc />
     /// <remarks>
+    /// Narrowed by the user first, so the read rides the index a user's own listing reads rather than one of its own: what
+    /// one person has open at a time is a handful of rows, and the filed message is compared among those. A stored message
+    /// is filed for one draft and one revision, so at most one row answers.
+    /// </remarks>
+    public async Task<MailDraftRecord?> FindFiledAsAsync(
+        UserId user,
+        StoredEmailId filedEmail,
+        CancellationToken cancellationToken)
+    {
+        var userValue = user.Value;
+        var filedValue = filedEmail.Value;
+
+        var entity = await this.ReadDrafts()
+            .SingleOrDefaultAsync(
+                draft => draft.UserId == userValue
+                    && draft.FiledStoredEmailId == filedValue
+                    && draft.DiscardedAt == null
+                    && draft.PromotedToOutgoingEmailId == null,
+                cancellationToken);
+
+        return entity is null ? null : MailDraftRecordMapping.ToRecord(entity);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
     /// What the domain reads off the copies is asked of the database here rather than by materializing every draft and
     /// filtering afterwards, so an account whose drafts are all settled costs one bounded query. The four cases are
     /// the ones <see cref="MailDraftRecord.HasOutstandingServerWork" /> names: a draft given up owes a removal whatever

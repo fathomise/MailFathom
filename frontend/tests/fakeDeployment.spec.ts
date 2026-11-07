@@ -9,6 +9,7 @@ import * as agent from './fixtures/agent';
 import * as fixtures from './fixtures/deployment';
 import * as discovery from './fixtures/discovery';
 import * as mail from './fixtures/mail';
+import * as messages from './fixtures/messages';
 import * as notifications from './fixtures/notifications';
 import * as outbox from './fixtures/outbox';
 
@@ -439,6 +440,28 @@ test('files a draft with its staged file in the drafts folder, reads it back who
 
     expect(listed(deployment, 'folder=DRAFTS')).toStrictEqual([]);
     expect(counts(deployment, 'DRAFTS')).toStrictEqual({ stored: 0, unread: 0 });
+});
+
+test('names the draft a filed message shows, as revised, until the draft is sent, and none for any other message', () => {
+    const deployment = new FakeDeployment('0.0.0');
+    const composition = { account: fixtures.workAccount.id, subject: 'The yard', plainTextBody: 'Tuesday?' };
+
+    const written = ask(deployment, 'POST', '/drafts', composition) as { draft: { draftId: string } };
+    const { draftId } = written.draft;
+
+    ask(deployment, 'PUT', `/drafts/${draftId}`, { ...composition, plainTextBody: 'Wednesday?' });
+
+    const [filed = ''] = listed(deployment, 'folder=DRAFTS');
+
+    expect(ask(deployment, 'GET', `/messages/${filed}/draft`)).toMatchObject({
+        draft: { draftId, revision: 2, subject: 'The yard' },
+        plainTextBody: 'Wednesday?',
+    });
+    expect(ask(deployment, 'GET', `/messages/${messages.markupOnlyId}/draft`)).toBe(404);
+
+    ask(deployment, 'POST', `/drafts/${draftId}/send`);
+
+    expect(ask(deployment, 'GET', `/messages/${filed}/draft`)).toBe(404);
 });
 
 test('puts a send taken back into the drafts folder as it was sent, and knows nothing of one it never queued', () => {

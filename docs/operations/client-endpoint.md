@@ -106,6 +106,7 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `GET /api/client/drafts` | `mailfathom.mail.drafts.write` |
 | `POST /api/client/drafts` | `mailfathom.mail.drafts.write` |
 | `GET /api/client/drafts/{draftId}` | `mailfathom.mail.drafts.write` |
+| `GET /api/client/messages/{storedEmailId}/draft` | `mailfathom.mail.drafts.write` |
 | `PUT /api/client/drafts/{draftId}` | `mailfathom.mail.drafts.write` |
 | `DELETE /api/client/drafts/{draftId}` | `mailfathom.mail.drafts.write` |
 | `POST /api/client/drafts/{draftId}/attachments` | `mailfathom.mail.drafts.write` |
@@ -3558,6 +3559,7 @@ route to promote one into the other.
 | `GET /api/client/drafts` | Lists what the signed-in user is writing, newest first, optionally narrowed to one account |
 | `POST /api/client/drafts` | Writes one new draft, as a message of its own or as an answer to stored mail |
 | `GET /api/client/drafts/{draftId}` | Opens one draft with the words its stored message carries, and the same `document` a message body is drawn from, which is what a composer reads the author's formatting back from |
+| `GET /api/client/messages/{storedEmailId}/draft` | Opens the draft a message in the drafts folder shows, in the same shape, so a composer continuing that message revises the draft instead of writing a second one |
 | `PUT /api/client/drafts/{draftId}` | Replaces one draft with what the author has written since |
 | `DELETE /api/client/drafts/{draftId}` | Gives one draft up, and takes its copies back out of the folder |
 | `POST /api/client/drafts/{draftId}/attachments` | Stages one file against a draft, the octets being the request body |
@@ -3568,6 +3570,18 @@ route to promote one into the other.
 holds.** A save names the account it belongs to and that name is resolved against the accounts the caller is assigned;
 every other act names a draft, and the identifier becomes a draft this user holds before anything acts on it. So a
 `404` here says nothing about whether such a draft exists somewhere in the deployment.
+
+**A message in the drafts folder names the draft it shows, and only to that draft's author.** A list row and a
+conversation publish a message by its stored-email identifier, and nothing about the message says which draft it is, so
+`GET /api/client/messages/{storedEmailId}/draft` answers it: the draft the message is the filed copy of, read exactly as
+`GET /api/client/drafts/{draftId}` reads it, while the signed-in user is still writing it. A client continuing the
+message then revises that draft on every save and sends it, which takes its copy out of the folder, rather than writing
+a second draft beside it. A message another mail client wrote, one showing another user's draft, one showing a draft
+already given up or sent, and one nobody holds all answer `404`, and a client carries each of those on as a draft of its
+own. Only the current revision's message names the draft, because filing a revision erases the one it replaced. The
+answer is the same in every custody phase: a held account files a draft into its local drafts folder as the whole of
+filing it, and a mirrored or restoring one files it there ahead of the append that the server's copy is later bound
+to, and both record which stored message that is.
 
 **A draft survives a restart and is reachable from another head**, because it is a row, a stored message, and a copy in
 the user's own drafts folder rather than anything the client holds: the desktop shell and the browser sign in to the

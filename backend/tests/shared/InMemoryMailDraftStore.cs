@@ -214,6 +214,16 @@ internal sealed class InMemoryMailDraftStore : IMailDraftStore
         Task.FromResult(this.drafts.Values.FirstOrDefault(draft => draft.PromotedTo == outgoingEmailId));
 
     /// <inheritdoc />
+    public Task<MailDraftRecord?> FindFiledAsAsync(
+        UserId user,
+        StoredEmailId filedEmail,
+        CancellationToken cancellationToken) =>
+        Task.FromResult(this.drafts.Values.FirstOrDefault(draft => draft.User == user
+            && draft.FiledEmail == filedEmail
+            && !draft.IsDiscarded
+            && draft.PromotedTo is null));
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<MailDraftRecord>> ReadOutstandingAsync(
         MailAccountId account,
         int maxCount,

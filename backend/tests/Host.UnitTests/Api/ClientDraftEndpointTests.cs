@@ -15,6 +15,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Failures;
 using MailFathom.Host.Api;
 using MailFathom.Host.Configuration.Mail;
@@ -67,6 +68,7 @@ public sealed class ClientDraftEndpointTests
         Assert.Equal(
             "/drafts/{draftId:guid}/attachments/{attachmentId:guid}",
             ClientDraftEndpoints.DraftAttachmentRoute);
+        Assert.Equal("/messages/{storedEmailId:guid}/draft", ClientDraftEndpoints.FiledDraftRoute);
     }
 
     /// <summary>
@@ -259,6 +261,79 @@ public sealed class ClientDraftEndpointTests
 
         // Assert
         Assert.IsType<NotFound>(result.Result);
+    }
+
+    /// <summary>A message in a drafts folder that shows a draft this user holds opens that draft, so a save revises it.</summary>
+    [Fact]
+    public async Task ReadFiledDraftAsync_AMessageShowingADraftThisUserHolds_AnswersWithThatDraft()
+    {
+        // Arrange
+        var drafts = new InMemoryMailDraftStore();
+        var contents = new InMemoryMailDraftContentStore();
+        var draft = await OpenAsync(drafts, SyntheticUser.Deployment);
+        var filed = StoredEmailId.Create(Guid.CreateVersion7());
+
+        await drafts.RecordFiledAsync(
+            Substitute.For<IPersistenceSession>(),
+            draft.Id,
+            filed,
+            draft.Revision,
+            TestContext.Current.CancellationToken);
+        await contents.SaveMailDraftContentAsync(
+            Substitute.For<IPersistenceSession>(),
+            draft.Id,
+            PlacedEmailContent.InDatabase(Encoding.ASCII.GetBytes("Subject: a draft\r\n\r\nHello.").AsMemory()),
+            TestContext.Current.CancellationToken);
+
+        // Act
+        var result = await ClientDraftEndpoints.ReadFiledDraftAsync(
+            filed.Value,
+            DirectoryOver(drafts, contents),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var reading = Assert.IsType<Ok<ClientDraftReadingResponse>>(result.Result);
+        Assert.Equal(draft.Id.Value, reading.Value!.Draft.DraftId);
+        Assert.Equal("Hello.", reading.Value.PlainTextBody);
+    }
+
+    /// <summary>
+    /// A message showing no draft of this user's — another client wrote it, another user's draft is filed as it, or the
+    /// identifier names nothing — answers alike, which is what tells a client to carry it on as a draft of its own.
+    /// </summary>
+    [Fact]
+    public async Task ReadFiledDraftAsync_AMessageShowingAnotherUsersDraftOrNone_AnswersAsOneShowingNothing()
+    {
+        // Arrange
+        var drafts = new InMemoryMailDraftStore();
+        var contents = new InMemoryMailDraftContentStore();
+        var theirs = await OpenAsync(drafts, SyntheticUser.Another);
+        var filed = StoredEmailId.Create(Guid.CreateVersion7());
+
+        await drafts.RecordFiledAsync(
+            Substitute.For<IPersistenceSession>(),
+            theirs.Id,
+            filed,
+            theirs.Revision,
+            TestContext.Current.CancellationToken);
+        await contents.SaveMailDraftContentAsync(
+            Substitute.For<IPersistenceSession>(),
+            theirs.Id,
+            PlacedEmailContent.InDatabase(Encoding.ASCII.GetBytes("Subject: theirs\r\n\r\nPrivate.").AsMemory()),
+            TestContext.Current.CancellationToken);
+
+        var directory = DirectoryOver(drafts, contents);
+
+        // Act
+        var answers = new[]
+        {
+            await ClientDraftEndpoints.ReadFiledDraftAsync(filed.Value, directory, TestContext.Current.CancellationToken),
+            await ClientDraftEndpoints.ReadFiledDraftAsync(Guid.CreateVersion7(), directory, TestContext.Current.CancellationToken),
+            await ClientDraftEndpoints.ReadFiledDraftAsync(Guid.Empty, directory, TestContext.Current.CancellationToken),
+        };
+
+        // Assert
+        Assert.All(answers, answer => Assert.IsType<NotFound>(answer.Result));
     }
 
     /// <summary>An upload with no body attaches nothing, and says so rather than staging an empty file.</summary>
