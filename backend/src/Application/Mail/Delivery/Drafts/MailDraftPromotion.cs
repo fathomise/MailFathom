@@ -128,9 +128,9 @@ public sealed class MailDraftPromotion
     /// </para>
     /// <para>
     /// What settles that is the request's own identity, which is why this takes no key from whoever asked. A draft is
-    /// promoted once, so the draft is the act — two callers promoting one draft compose one identity, the outbox
-    /// answers the second with the record the first opened, and the two of them then write that same record onto the
-    /// draft. A key somebody supplied would make the two asks two requests and put the message in the recipient's
+    /// promoted once until a withdrawal hands it back, so the draft and the count of its withdrawn sends are the act —
+    /// two callers promoting one draft read the same count and compose one identity, the outbox answers the second with
+    /// the record the first opened, and the two of them then write that same record onto the draft. A key somebody supplied would make the two asks two requests and put the message in the recipient's
     /// mailbox twice, which nothing downstream can withdraw.
     /// </para>
     /// <para>
