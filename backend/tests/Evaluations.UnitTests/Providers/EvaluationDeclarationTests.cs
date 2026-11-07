@@ -85,6 +85,7 @@ public sealed class EvaluationDeclarationTests
     [Theory]
     [InlineData("{MainModel: model-a, Repeat: 2}", "Repeat")]
     [InlineData("{MainModel: {Model: model-a, Thinking: high}}", "Thinking")]
+    [InlineData("{MainModel: model-a, Section: Discovery}", "Section")]
     public void Parse_AKeyTheRunDoesNotRead_FailsNamingIt(string block, string key)
     {
         // Act
@@ -154,6 +155,19 @@ public sealed class EvaluationDeclarationTests
         Assert.Equal(3, declaration.Repetitions);
         Assert.Equal(["embed-a", "embed-b"], declaration.EmbeddingModels);
         Assert.Equal(256, declaration.EmbeddingDimension);
+    }
+
+    [Theory]
+    [InlineData("{MainModel: model-a, Sections: [Discovery, SpamClassification]}")]
+    [InlineData("{MainModel: model-a, sections: Discovery}")]
+    public void Parse_SectionsTheScriptSelects_AcceptsTheKeyAndMeasuresAsWithout(string block)
+    {
+        // Act
+        var declaration = EvaluationDeclaration.Parse(block, fallbackMainModel: null, Address);
+
+        // Assert
+        Assert.Equal("model-a", Assert.Single(declaration.ModelsFor(ChatCapability.ImageDescription)).Name);
+        Assert.Equal(1, declaration.Repetitions);
     }
 
     [Fact]

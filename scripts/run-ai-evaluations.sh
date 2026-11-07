@@ -31,12 +31,22 @@ set -euo pipefail
 # classification scenario measures the decision models the block names under SpamClassification, or
 # MAILFATHOM_DECISION_MODEL where it names none, and reaches them with MAILFATHOM_DECISION_API_KEY and,
 # optionally, MAILFATHOM_DECISION_ADDRESS.
+# The block's Sections key names the sections the run measures, as one name or a list:
+# {MainModel: vendor/model, Sections: [Discovery, SpamClassification]}. A section is a directory under
+# backend/tests/Evaluations holding scenarios, and each becomes the test host's namespace filter, so a
+# run pays for those sections alone; without the key every section runs. A name that is no section
+# fails the run before the build, listing those there are. Reading the key takes yq.
 # MAILFATHOM_EVALUATION_DATABASE names a PostgreSQL server the retrieval scenario over PostgreSQL seeds a
 # database of its own on and drops afterwards; unset, that one scenario skips.
 #
 # The store is kept rather than cleared: its results are what the report compares this run against,
 # and its cache is what makes an unchanged prompt free. MAILFATHOM_AI_EVALUATIONS_STORE points it
 # elsewhere, which is how the workflow hands in the store the previous run left.
+#
+# The store keeps only what each run measured, and the report is rendered from a copy of it in which
+# this run also holds, for every scenario it did not run, that scenario's newest earlier result tagged
+# `Carried from <run>`. So a run of one section still opens on every section, and the tag says which
+# results it measured and which it carried.
 
 if ! repository_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   printf 'run-ai-evaluations.sh must run inside a Git repository.\n' >&2
@@ -54,6 +64,49 @@ fi
 evaluation_project='backend/tests/Evaluations/Evaluations.csproj'
 output_directory='artifacts/ai-evaluations'
 
+# A section is a directory holding a scenario, and a scenario is what carries the run's skip reason.
+mapfile -t available_sections < <(
+  grep -rl --include='*.cs' 'AiEvaluationRun.SkipReason' backend/tests/Evaluations |
+    sed -nE 's#^backend/tests/Evaluations/([^/]+)/.*#\1#p' | sort -u)
+
+requested_sections=()
+if [[ -n "${MAILFATHOM_EVALUATION:-}" ]]; then
+  if ! sections_text=$(printf '%s' "$MAILFATHOM_EVALUATION" |
+    yq -r '[to_entries[] | select(.key | test("(?i)^sections$")) | .value][0] // [] | [.] | flatten | .[]'); then
+    printf 'MAILFATHOM_EVALUATION is not a YAML mapping the Sections key can be read from.\n' >&2
+    exit 1
+  fi
+  if [[ -n "$sections_text" ]]; then
+    mapfile -t requested_sections <<< "$sections_text"
+  fi
+fi
+
+# Each requested name is matched without regard to case, as the suite reads every key, and filtered by
+# the directory's own spelling, which is the namespace's.
+selected_sections=()
+for requested_section in "${requested_sections[@]}"; do
+  matched_section=''
+  for available_section in "${available_sections[@]}"; do
+    if [[ "${requested_section,,}" == "${available_section,,}" ]]; then
+      matched_section="$available_section"
+    fi
+  done
+
+  if [[ -z "$matched_section" ]]; then
+    printf "MAILFATHOM_EVALUATION names the section '%s', which is not one. The sections are %s.\n" \
+      "$requested_section" "$(printf '%s\n' "${available_sections[@]}" | paste -sd ' ' | sed 's/ /, /g')" >&2
+    exit 1
+  fi
+
+  selected_sections+=("$matched_section")
+done
+
+section_filter=()
+if (( ${#selected_sections[@]} > 0 )); then
+  section_filter=(--filter-namespace "${selected_sections[@]/#/MailFathom.Evaluations.}")
+  printf 'Measuring %s alone.\n' "$(printf '%s\n' "${selected_sections[@]}" | paste -sd ' ' | sed 's/ /, /g')"
+fi
+
 MAILFATHOM_AI_EVALUATIONS_STORE="$(realpath -m "${MAILFATHOM_AI_EVALUATIONS_STORE:-$output_directory/store}")"
 export MAILFATHOM_AI_EVALUATIONS_STORE
 
@@ -67,9 +120,10 @@ export MAILFATHOM_AI_EVALUATIONS_EXECUTION
 export DOTNET_AIEVAL_TELEMETRY_OPTOUT=1
 export DOTNET_AIEVAL_SKIP_FIRST_TIME_EXPERIENCE=1
 
-# How many runs the store keeps results for. The report reads the newest ten; the rest is history a
-# comparison can still be widened to without paying for any of it again.
-retained_executions=30
+# How many results the store keeps of each scenario, whichever runs they came from, so however often
+# the other sections run, a section's own history stays. The report reads the newest ten runs; the rest
+# is history a comparison can still be widened to without paying for any of it again.
+retained_results_per_scenario=30
 
 # Written the moment the test host starts, holding its PID until the host is reaped and empty after, so
 # whoever keeps the store can tell a run that never reached a provider — no file — from one that did,
@@ -102,7 +156,7 @@ trap 'forwarded_signal=INT; kill -INT "$test_host" 2> /dev/null || true' INT
 trap 'forwarded_signal=TERM; kill -TERM "$test_host" 2> /dev/null || true' TERM
 
 set -m
-dotnet "$evaluation_assembly" --report-xunit-trx --results-directory "$output_directory/results" "$@" < /dev/null &
+dotnet "$evaluation_assembly" --report-xunit-trx --results-directory "$output_directory/results" "${section_filter[@]}" "$@" < /dev/null &
 test_host=$!
 set +m
 printf '%d\n' "$test_host" > "$test_host_file"
@@ -129,6 +183,65 @@ if [[ -n "$forwarded_signal" ]]; then
   exit $((128 + $(kill -l "$forwarded_signal")))
 fi
 
+# Results are filed as <run>/<scenario>/<iteration>.json, and a run's name is a timestamp, so a glob
+# lists a scenario's results oldest first.
+retain_newest_results() {
+  local results="$1" retained="$2" scenario surplus
+  local -a scenarios held
+
+  mapfile -t scenarios < <(find "$results" -mindepth 2 -maxdepth 2 -type d -printf '%f\n' | sort -u)
+  for scenario in "${scenarios[@]}"; do
+    held=("$results"/*/"$scenario")
+    surplus=$(( ${#held[@]} - retained ))
+    if (( surplus > 0 )); then
+      rm -rf "${held[@]:0:surplus}"
+    fi
+  done
+
+  find "$results" -mindepth 1 -maxdepth 1 -type d -empty -delete
+}
+
+# The report reads runs newest first by when their directory was created, so the copy creates the
+# earlier runs in the order they ran and this run last. A run that wrote nothing carries nothing, so
+# its report opens on the newest run that did. A scenario the suite no longer has is carried as well,
+# until its results are deleted from the store by hand; telling it apart would need the suite to
+# list its scenarios, which is worth adding once a removed one is in the way.
+compose_report_results() {
+  local results="$1" execution="$2" composed="$3" run_directory run scenario newest file
+  local -a scenarios held
+
+  mkdir -p "$composed"
+  for run_directory in "$results"/*/; do
+    run="$(basename "$run_directory")"
+    if [[ "$run" != "$execution" ]]; then
+      cp -R "$run_directory" "$composed/$run"
+    fi
+  done
+
+  if [[ ! -d "$results/$execution" ]]; then
+    return
+  fi
+
+  cp -R "$results/$execution" "$composed/$execution"
+
+  mapfile -t scenarios < <(find "$results" -mindepth 2 -maxdepth 2 -type d -printf '%f\n' | sort -u)
+  for scenario in "${scenarios[@]}"; do
+    if [[ -d "$results/$execution/$scenario" ]]; then
+      continue
+    fi
+
+    held=("$results"/*/"$scenario")
+    newest="${held[-1]}"
+    run="$(basename "$(dirname "$newest")")"
+    mkdir -p "$composed/$execution/$scenario"
+    for file in "$newest"/*.json; do
+      jq --arg execution "$execution" --arg tag "Carried from $run" \
+        '.executionName = $execution | .tags = ((.tags // []) + [$tag])' \
+        "$file" > "$composed/$execution/$scenario/$(basename "$file")"
+    done
+  done
+}
+
 # Each half is tidied only once a run has written it: the tool fails on a directory that does not
 # exist yet, which is the state of a store no requested run has touched.
 if [[ -d "$MAILFATHOM_AI_EVALUATIONS_STORE/cache" ]]; then
@@ -136,8 +249,12 @@ if [[ -d "$MAILFATHOM_AI_EVALUATIONS_STORE/cache" ]]; then
 fi
 
 if [[ -d "$MAILFATHOM_AI_EVALUATIONS_STORE/results" ]]; then
-  dotnet tool run aieval clean-results --path "$MAILFATHOM_AI_EVALUATIONS_STORE" -n "$retained_executions"
-  dotnet tool run aieval report --path "$MAILFATHOM_AI_EVALUATIONS_STORE" --output "$output_directory/report.html"
+  retain_newest_results "$MAILFATHOM_AI_EVALUATIONS_STORE/results" "$retained_results_per_scenario"
+
+  report_store="$(mktemp -d)"
+  compose_report_results "$MAILFATHOM_AI_EVALUATIONS_STORE/results" "$MAILFATHOM_AI_EVALUATIONS_EXECUTION" "$report_store/results"
+  dotnet tool run aieval report --path "$report_store" --output "$output_directory/report.html"
+  rm -rf "$report_store"
 else
   printf 'The store holds no results yet, so there is no report to render.\n' >&2
 fi
