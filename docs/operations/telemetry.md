@@ -1653,10 +1653,12 @@ name this deployment will not record, a person it holds no portrait for — has 
 it is `read`; so is a download the person waiting on it stopped, that being their own act rather than the deployment
 failing to answer. What `failed` names is the five an operator can act on, and a file larger than the message described
 is `unreadable` among them, the body having been refused rather than absent. `missing` is the one of the five that is
-not a fault to chase: only `GET /messages/{storedEmailId}` produces it, and it says the deployment answered that it no
-longer holds that message — a reader who had it open is told it is gone rather than offered a retry. A rate of it that
-tracks how much mail is being deleted is the deployment working, and it is worth separating from `unavailable` on a
-dashboard for exactly that reason.
+not a fault to chase: it is a route naming one thing answering that the deployment holds no such thing for this person.
+On `GET /messages/{storedEmailId}` that is a message it no longer holds — a reader who had it open is told it is gone
+rather than offered a retry — and on `GET /messages/{storedEmailId}/draft` it is the ordinary answer for every draft
+another mail client wrote. Read it per route rather than as one rate: a rate of it that tracks how much is being
+deleted, sent, or continued is the deployment working, and it is worth separating from `unavailable` on a dashboard
+for exactly that reason.
 
 **Moving between screens is the client's alone to report.** Every screen after the first is rendered rather than
 fetched, so the wait a person actually has is invisible from the deployment.

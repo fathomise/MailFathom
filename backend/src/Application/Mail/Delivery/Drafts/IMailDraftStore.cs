@@ -106,6 +106,21 @@ public interface IMailDraftStore
         OutgoingEmailId outgoingEmailId,
         CancellationToken cancellationToken);
 
+    /// <summary>Reads the draft one user is still writing that the account's local drafts folder shows as one stored message.</summary>
+    /// <param name="user">The user whose drafts are read.</param>
+    /// <param name="filedEmail">The stored message in the drafts folder.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The draft, or <see langword="null" /> where the message shows none of this user's drafts, or one already given up or promoted.</returns>
+    /// <remarks>
+    /// It is what lets a message opened from the drafts folder be revised as the draft it is rather than carried on beside
+    /// it. Only the current revision's message names a draft, because filing a revision erases the one it replaced; a
+    /// message another mail client wrote names none.
+    /// </remarks>
+    Task<MailDraftRecord?> FindFiledAsAsync(
+        UserId user,
+        StoredEmailId filedEmail,
+        CancellationToken cancellationToken);
+
     /// <summary>Reads the drafts one user is still writing, newest edit first.</summary>
     /// <param name="user">The user whose drafts are read.</param>
     /// <param name="account">The account to narrow to, or <see langword="null" /> for every account this user owns.</param>

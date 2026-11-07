@@ -1233,6 +1233,11 @@ export class FakeDeployment {
             return this.draftMessageAnswer(filed, part, position);
         }
 
+        // Every other message names no draft kept here, which is what one another mail client wrote answers.
+        if (part === 'draft' && position === undefined) {
+            return { status: 404, body: '' };
+        }
+
         const markupOnly = id === messages.markupOnlyId;
         const spamRow = mail.spamRows.find((row) => row.id === id);
 
@@ -1661,6 +1666,16 @@ export class FakeDeployment {
                     mediaType: file.mediaType,
                     sizeOctets: file.octets.length,
                 })),
+            });
+        }
+
+        // The draft the message is the filed copy of, read as opening that draft by its own identity is.
+        if (part === 'draft' && position === undefined) {
+            return answering({
+                draft: { ...record, attachments: files.map(stagedRecord) },
+                plainTextBody: words,
+                htmlBody: null,
+                document: null,
             });
         }
 

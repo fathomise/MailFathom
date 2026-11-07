@@ -8,6 +8,7 @@ import {
     mailDraftAttachmentUploadRequest,
     mostAttachmentsInDraft,
     mostRecipientsInDraft,
+    readFiledMailDraft,
     readMailDraft,
     readMailDrafts,
     reviseMailDraft,
@@ -651,6 +652,37 @@ describe('readMailDraft', () => {
 
     it('reads a draft this person does not hold as one that is missing', async () => {
         const answer = await readMailDraft(session, answering({ status: 404, body: '' }), draftId);
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
+    });
+});
+
+describe('readFiledMailDraft', () => {
+    const storedEmailId = '0198c1a0-0000-7000-8000-00000000d1f7';
+
+    function reading(): Answer {
+        return {
+            status: 200,
+            body: JSON.stringify({
+                draft: JSON.parse(draftBody().body) as unknown,
+                plainTextBody: 'The figure in the third column.',
+                htmlBody: null,
+                document: null,
+            }),
+        };
+    }
+
+    it('asks which draft a message shows beneath that message, and reads the draft it names', async () => {
+        const { transport, requests } = recording(reading());
+
+        const answer = await readFiledMailDraft(session, transport, storedEmailId);
+
+        expect(requests[0]?.path).toBe(`https://mail.example.invalid/api/client/messages/${storedEmailId}/draft`);
+        expect(answer).toMatchObject({ outcome: 'read', value: { draft: { draftId } } });
+    });
+
+    it('reads a message showing no draft of this person as one that is missing', async () => {
+        const answer = await readFiledMailDraft(session, answering({ status: 404, body: '' }), storedEmailId);
 
         expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'missing', status: 404 } });
     });

@@ -23743,6 +23743,44 @@
         ]
       }
     },
+    "/api/client/messages/{storedEmailId}/draft": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "storedEmailId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientDraftReadingResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Client"
+        ]
+      }
+    },
     "/api/client/messages/{storedEmailId}/read-receipt": {
       "post": {
         "parameters": [

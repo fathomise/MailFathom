@@ -125,9 +125,9 @@ export interface DraftAtDeployment {
     /**
      * Takes the files a draft in a drafts folder was filed with into the message carrying it on.
      *
-     * A save writes a draft of its own rather than taking the stored one over, so a file the draft carried would be
-     * left behind unless it is chosen again — here, from the deployment, exactly as if its author had chosen it from
-     * their machine. A file that could not be brought over is said by name rather than dropped quietly.
+     * Where the stored message names no draft kept here, a save writes a draft of its own rather than taking the stored
+     * one over, so a file the draft carried would be left behind unless it is chosen again — here, from the deployment,
+     * exactly as if its author had chosen it from their machine. A file that could not be brought over is said by name rather than dropped quietly.
      */
     readonly carry: (storedEmailId: string, attachments: readonly MailAttachment[]) => Promise<void>;
 
