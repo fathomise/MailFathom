@@ -35,7 +35,8 @@ set -euo pipefail
 # {MainModel: vendor/model, Sections: [Discovery, SpamClassification]}. A section is a directory under
 # backend/tests/Evaluations holding scenarios, and each becomes the test host's namespace filter, so a
 # run pays for those sections alone; without the key every section runs. A name that is no section
-# fails the run before the build, listing those there are. Reading the key takes yq.
+# fails the run before the build, listing those there are. Reading the key takes yq, which a block
+# not mentioning it does not need.
 # MAILFATHOM_EVALUATION_DATABASE names a PostgreSQL server the retrieval scenario over PostgreSQL seeds a
 # database of its own on and drops afterwards; unset, that one scenario skips.
 #
@@ -69,8 +70,14 @@ mapfile -t available_sections < <(
   grep -rl --include='*.cs' 'AiEvaluationRun.SkipReason' backend/tests/Evaluations |
     sed -nE 's#^backend/tests/Evaluations/([^/]+)/.*#\1#p' | sort -u)
 
+# Only a block that mentions the key is parsed, so a run naming no sections needs no yq.
 requested_sections=()
-if [[ -n "${MAILFATHOM_EVALUATION:-}" ]]; then
+if [[ "${MAILFATHOM_EVALUATION:-}" =~ [Ss][Ee][Cc][Tt][Ii][Oo][Nn][Ss] ]]; then
+  if ! command -v yq > /dev/null; then
+    printf 'MAILFATHOM_EVALUATION mentions Sections, and reading that key takes yq, which is not on PATH.\n' >&2
+    exit 1
+  fi
+
   if ! sections_text=$(printf '%s' "$MAILFATHOM_EVALUATION" |
     yq -r '[to_entries[] | select(.key | test("(?i)^sections$")) | .value][0] // [] | [.] | flatten | .[]'); then
     printf 'MAILFATHOM_EVALUATION is not a YAML mapping the Sections key can be read from.\n' >&2
