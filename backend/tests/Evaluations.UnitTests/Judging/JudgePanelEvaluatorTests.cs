@@ -124,6 +124,28 @@ public sealed class JudgePanelEvaluatorTests : IDisposable
     }
 
     [Fact]
+    public async Task EvaluateAsync_AJurorThatRefuses_FailsTheEvaluatorAndAsksItAgainNextRun()
+    {
+        // Arrange
+        using var first = new ScriptedChatClient(string.Empty, new ChatClientMetadata("planted-provider", JudgeAddress, "planted-model"), ChatFinishReason.ContentFilter);
+        using var second = Judge("5");
+        using var arbiter = Judge("5");
+
+        await this.RateAsync(WithArbiter(), [first, second, arbiter], new JudgeThresholds((RatingName, 4)), executionName: "first");
+
+        // Act
+        var rating = await this.RateAsync(WithArbiter(), [first, second, arbiter], new JudgeThresholds((RatingName, 4)), executionName: "second");
+
+        // Assert
+        Assert.False(rating.Metadata?.ContainsKey(JudgePanelEvaluator.EscalationMetadata) ?? false);
+        Assert.Contains(
+            rating.Diagnostics ?? [],
+            static diagnostic => diagnostic.Severity is EvaluationDiagnosticSeverity.Error
+                && diagnostic.Message.Contains("The judge (juror 1) refused to answer.", StringComparison.Ordinal));
+        Assert.Equal((2, 0), (first.Requests, arbiter.Requests));
+    }
+
+    [Fact]
     public async Task EvaluateAsync_AnArbiterAnsweringWithoutARating_KeepsTheLowestJurorRating()
     {
         // Arrange
