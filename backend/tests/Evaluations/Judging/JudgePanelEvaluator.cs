@@ -28,6 +28,11 @@ namespace MailFathom.Evaluations.Judging;
 /// lowest juror rating, so a juror-only run is never kinder than the jurors were.
 /// </para>
 /// <para>
+/// An arbiter that refuses, or answers without a rating, decides nothing: the lowest juror rating is kept and the rating
+/// records <see cref="ArbiterDidNotRate" />. Otherwise a provider declining the arbiter's requests would fail every
+/// rating it was asked about, and the run would measure that provider rather than the model under test.
+/// </para>
+/// <para>
 /// The rating kept records what every judge asked answered: <c>judge-juror-1</c> and its siblings, <c>judge-arbiter</c>
 /// where it was asked, <see cref="DecidedByMetadata" />, and <see cref="EscalationMetadata" />, with each judge's reason as
 /// an informational diagnostic. Judges are named by role and never by model.
@@ -51,6 +56,9 @@ internal sealed class JudgePanelEvaluator(IEvaluator inner, JudgePanel panel) : 
 
     /// <summary>A juror did not pass and no arbiter is declared, so the lowest juror rating was kept.</summary>
     public const string NeededWithoutArbiter = "needed, no arbiter declared";
+
+    /// <summary>A juror did not pass and the arbiter gave no rating, so the lowest juror rating was kept.</summary>
+    public const string ArbiterDidNotRate = "escalated, arbiter did not rate";
 
     /// <summary>No juror gave a rating, so there was nothing for the arbiter to settle.</summary>
     public const string NotRated = "not rated";
@@ -93,13 +101,33 @@ internal sealed class JudgePanelEvaluator(IEvaluator inner, JudgePanel panel) : 
             .Where(name => !unrated.Contains(name))
             .Where(name => !EveryJurorPasses([.. jurorVerdicts.Select(verdict => verdict.Metrics[name])], thresholds))
             .ToHashSet(StringComparer.Ordinal);
-        var arbiterVerdict = doubted.Count > 0 && panel.Arbiter is { } arbiter ? await AskAsync(arbiter) : null;
+        var arbiterVerdict = doubted.Count > 0 && panel.Arbiter is { } arbiter ? await AskArbiterAsync(arbiter) : null;
+
+        async Task<EvaluationResult> AskArbiterAsync(JudgeDeclaration arbiter)
+        {
+            try
+            {
+                return await AskAsync(arbiter);
+            }
+            catch (JudgeRefusedException refusal)
+            {
+                return new EvaluationResult(this.EvaluationMetricNames.Select(name => Refused(name, refusal)));
+            }
+        }
 
         return new EvaluationResult(this.EvaluationMetricNames.Select(name => Decide(
             [.. panel.Jurors.Zip(jurorVerdicts, (juror, verdict) => (juror, verdict.Metrics[name]))],
             arbiterVerdict is null ? null : (panel.Arbiter!, arbiterVerdict.Metrics[name]),
             unrated.Contains(name),
             doubted.Contains(name))));
+    }
+
+    private static NumericMetric Refused(string metricName, JudgeRefusedException refusal)
+    {
+        var rating = new NumericMetric(metricName);
+        rating.AddDiagnostics(EvaluationDiagnostic.Error(refusal.Message));
+
+        return rating;
     }
 
     private static bool IsRated(EvaluationMetric rating) =>
@@ -149,7 +177,8 @@ internal sealed class JudgePanelEvaluator(IEvaluator inner, JudgePanel panel) : 
         {
             (true, _, _) => (NotRated, lowest),
             (false, false, _) => (NotNeeded, lowest),
-            (false, true, { } arbiter) => (Escalated, arbiter),
+            (false, true, { } arbiter) when IsRated(arbiter.Rating) => (Escalated, arbiter),
+            (false, true, { }) => (ArbiterDidNotRate, lowest),
             (false, true, null) => (NeededWithoutArbiter, lowest),
         };
 

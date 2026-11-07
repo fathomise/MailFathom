@@ -22,6 +22,11 @@ namespace MailFathom.Evaluations.Judging;
 /// The role is what lets a reader of the turn details tell which judge of the panel answered a call, and it names a seat
 /// rather than a model.
 /// </para>
+/// <para>
+/// A response its provider ended on a content filter is raised as a <see cref="JudgeRefusedException" /> rather than
+/// returned. Being beneath the cache is what makes that matter: a refusal returned would be filed as the judge's answer
+/// and replayed by every later run, while one raised is filed nowhere and asked again.
+/// </para>
 /// </remarks>
 /// <param name="judge">The judge's own client, which this takes ownership of.</param>
 /// <param name="role">The role the judge holds on the panel, such as <c>juror 1</c> or <c>arbiter</c>.</param>
@@ -51,6 +56,11 @@ internal sealed class AnonymousJudgeChatClient(IChatClient judge, string role) :
             // The original is deliberately not kept as the inner exception: its message and every inner one are where a
             // provider names the model and the address, and whatever holds this exception prints the whole chain.
             throw new InvalidOperationException($"The {this.recordedModel} did not answer ({failure.GetType().Name}).");
+        }
+
+        if (response.FinishReason == ChatFinishReason.ContentFilter)
+        {
+            throw new JudgeRefusedException(this.recordedModel);
         }
 
         response.ModelId = this.recordedModel;
