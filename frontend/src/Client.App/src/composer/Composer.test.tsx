@@ -1817,6 +1817,40 @@ describe('Composer, a draft', () => {
         );
     });
 
+    // Opening a draft is not writing in it, so closing it at once is a question rather than a give-up: the draft is
+    // what the person came back for, and only Discard takes it out of the folder.
+    it('asks before closing a draft the message is the filed copy of, nobody having typed in it, and sends no delete', async () => {
+        const { asked } = drawComposer(continued, { filed: { status: 200, body: heldReading({ attachments: [] }) } });
+
+        await screen.findByText('Agenda');
+        fireEvent.click(screen.getByRole('button', { name: 'Close the message' }));
+
+        expect(screen.getByRole('dialog', { name: 'Discard this message?' })).toBeDefined();
+        expect(asked.filter((request) => request.method === 'DELETE')).toHaveLength(0);
+    });
+
+    // Only the answer that the message shows no draft here carries it on as a draft of its own; a deployment that
+    // could not say leaves that unknown, and carrying on would write a second draft beside the one it may show.
+    it('says what went wrong where it could not be told which draft the message shows, rather than carrying it on', async () => {
+        const { asked } = drawComposer(continued, { filed: { status: 503, body: '' } });
+
+        expect(await screen.findByText(/did not answer/u)).toBeDefined();
+        expect(screen.queryByRole('textbox', { name: 'Subject' })).toBeNull();
+        expect(asked.filter((request) => request.path.includes('/attachments/'))).toHaveLength(0);
+    });
+
+    it('opens the draft the message shows even where the message itself could not be read', async () => {
+        drawComposer(continued, {
+            filed: { status: 200, body: heldReading({ attachments: [] }) },
+            message: { status: 503, body: '' },
+        });
+
+        const subject = await screen.findByRole('textbox', { name: 'Subject' });
+
+        expect((subject as HTMLInputElement).value).toBe('Q4 supplier review');
+        expect(screen.getByRole('button', { name: 'Remove marta@example.invalid from To' })).toBeDefined();
+    });
+
     it('says what went wrong where the draft itself could not be read, rather than opening an empty window', async () => {
         drawComposer(continued, { message: { status: 503, body: '' } });
 

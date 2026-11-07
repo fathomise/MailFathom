@@ -731,8 +731,10 @@ server — `useDraftAtDeployment.ts` holds it, and attaching a file and sending 
 author asked for. A message opened from the drafts folder is carried on in the composer by whoever may write drafts,
 whether or not they may also act on mail. Where the deployment answers that the message is the filed copy of a draft
 this person is still writing, the composer adopts that draft, exactly as it adopts one taken back from the Outbox: every
-save revises it and a send takes its copy out of the folder. Where it answers none — another mail client wrote the
-message — a save writes a draft of its own instead, so the files the stored draft carries are brought over from the
+save revises it, a send takes its copy out of the folder, and closing it asks first as closing any kept draft does.
+Where the deployment could not say, the composer says what failed rather than guessing, since guessing wrong writes
+the second copy this exists to prevent. Where it answers none — another mail client wrote the message — a save writes
+a draft of its own instead, so the files the stored draft carries are brought over from the
 deployment as if chosen again, and one that could not be is named rather than dropped.
 
 **The body is rich text, and what leaves carries both readings of one message.** `writtenText.ts` holds what somebody

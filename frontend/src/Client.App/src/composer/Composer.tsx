@@ -439,7 +439,8 @@ export function Composer({
     // never parses — `draftWords.ts` is where that reading is stated. A body that could not be read opens the draft on
     // what the message route did answer, so the addresses and the subject are not lost with the words, and the files it
     // carries are brought over as well, because a message sent from a draft is sent whole. All three are asked at once,
-    // because which of the two answers is used is only known once the first has come back.
+    // because which of the two answers is used is only known once the first has come back — and only its answer that
+    // the message shows no draft here, rather than a failure to say, sends the composer down that second path.
     useEffect(() => {
         if (opening.kind !== 'draft') {
             return;
@@ -461,8 +462,19 @@ export function Composer({
                     setParticipants(offeredFrom(answer.value.headers.participants));
                 }
 
+                // A kept draft is somebody's writing whatever this tab has typed into it, so closing it asks first
+                // rather than giving it up — which is what closing a composition nobody wrote in does.
                 adoptTheDraft(filed.value.draft);
+                setAuthored(true);
                 setComposition((held) => held ?? { ...draftHeld(filed.value), continuing: opening.storedEmailId });
+
+                return;
+            }
+
+            // Only an answer that the message shows no draft here is a reason to carry it on as one of its own; any
+            // other failure leaves that unknown, and a save would then write a second draft beside the one it shows.
+            if (filed.failure.reason !== 'missing') {
+                setReading({ kind: 'unread', reason: filed.failure.reason });
 
                 return;
             }
