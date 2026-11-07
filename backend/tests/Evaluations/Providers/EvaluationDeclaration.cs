@@ -66,9 +66,13 @@ internal sealed class EvaluationDeclaration
     /// <summary>The commit the workflow evaluates, which it reads before this suite exists and which this suite ignores.</summary>
     private const string RefKey = "Ref";
 
+    /// <summary>The sections the run measures, which the script turns into the test host's namespace filter and which this suite ignores.</summary>
+    private const string SectionsKey = "Sections";
+
     private static readonly HashSet<string> RunKeys = new(
         [
             RefKey,
+            SectionsKey,
             MainModelKey,
             RepetitionsKey,
             EmbeddingModelsKey,

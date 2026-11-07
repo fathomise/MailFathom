@@ -22,8 +22,8 @@ name: AI evaluations
 # asks for — `Model`, `Alias`, `Api`, `ReasoningEffort`, `Temperature`, `TopP`, `ExtraHeaders`, `AdditionalProperties`.
 # A decision model is routed the same way, under the key a deployment's `Decisions` section routes its function by —
 # `SpamClassification` — and falls back to `vars.DECISION_PROVIDER_MODEL`, the one the `Integration tests` workflow
-# reaches, where the block names none. The block also takes `Ref`, `Repetitions`, `EmbeddingModels`, and
-# `EmbeddingDimension`, and a key it does not know fails the run. It is shown to anyone who can read the run, so nothing private belongs in it — a header value included.
+# reaches, where the block names none. The block also takes `Ref`, `Repetitions`, `EmbeddingModels`,
+# `EmbeddingDimension`, and `Sections`, and a key it does not know fails the run. It is shown to anyone who can read the run, so nothing private belongs in it — a header value included.
 #
 # What keeps a run cheap is the store `backend/tests/Evaluations` writes: every answer it paid for is
 # cached by prompt, model, parameters, and the name, description, and schema of every tool the model
@@ -38,11 +38,19 @@ name: AI evaluations
 # A cancel stops the paid calls within seconds: the runner signals the evaluation step's shell alone,
 # and `scripts/run-ai-evaluations.sh` passes the signal on to the test host and waits for it.
 #
+# `Sections` names the sections a run measures — `{Sections: [Discovery, SpamClassification]}`, each a directory under
+# `backend/tests/Evaluations` holding scenarios — so a run that asks one agent afresh pays for that agent alone, and a
+# name that is no section fails the run before the build. The store keeps what each run measured and nothing else; the
+# report is rendered as if this run also held every other scenario's newest earlier result, tagged `Carried from <run>`,
+# so it still opens on every section. The store keeps each scenario's newest 30 results, so a section's history does
+# not depend on how often the others run.
+#
 # The key is computed by `Microsoft.Extensions.AI`, which does not promise it stays the same across its
 # releases, so a bump of that package can re-ask every case once. Anything else a run suspects the key
 # misses is answered by the `discard_cached_answers` input: it starts the run with an empty cache,
 # keeps the results the report compares against, and uploads a store holding only what that run paid
-# for.
+# for. It is refused beside `Sections`, because the cache is not filed by section: emptying it would throw away the
+# answers of every section the run does not measure.
 #
 # The artefact is readable by anyone who can read this repository's runs, which is why nothing in the
 # store is mail anybody received and why every judge is recorded only as `judge` and its role on the panel: no judge's
@@ -115,21 +123,30 @@ jobs:
       # name unless it is a full forty-character SHA, so an abbreviated SHA handed to it straight would fail to fetch. The
       # commits API resolves a branch, a tag, and a full or abbreviated SHA to the one commit it names, and the checkout is
       # then always of a full SHA. The input reaches the shell through the environment rather than the script text, so a
-      # ref cannot write shell of its own.
+      # ref cannot write shell of its own. `discard_cached_answers` beside `Sections` is refused here too, before the
+      # restore below could empty the cache of every section the run does not measure.
       - name: Resolve the commit to evaluate
         id: resolve
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           EVALUATION: ${{ inputs.evaluation }}
+          DISCARD_CACHED_ANSWERS: ${{ inputs.discard_cached_answers }}
         run: |
           set -euo pipefail
 
           REQUESTED_REF=''
+          REQUESTED_SECTIONS=0
 
           if [ -n "$EVALUATION" ] \
-            && ! REQUESTED_REF=$(printf '%s' "$EVALUATION" | yq -r '[to_entries[] | select(.key | test("(?i)^ref$")) | .value][0] // ""'); then
+            && ! { REQUESTED_REF=$(printf '%s' "$EVALUATION" | yq -r '[to_entries[] | select(.key | test("(?i)^ref$")) | .value][0] // ""') \
+              && REQUESTED_SECTIONS=$(printf '%s' "$EVALUATION" | yq -r '[to_entries[] | select(.key | test("(?i)^sections$")) | .value][0] // [] | [.] | flatten | length'); }; then
             echo "::error::The evaluation input is not a YAML mapping."
+            exit 1
+          fi
+
+          if [ "$DISCARD_CACHED_ANSWERS" = true ] && [ "$REQUESTED_SECTIONS" -gt 0 ]; then
+            echo "::error::discard_cached_answers empties the whole response cache, which is not filed by section, so beside Sections it would throw away the answers of every section this run does not measure. Dispatch one or the other."
             exit 1
           fi
 
