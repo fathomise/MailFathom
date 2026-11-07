@@ -293,6 +293,7 @@ export {
 // is staged.
 export {
     discardMailDraft,
+    filedMailDraftRoute,
     mailDraftAttachmentRoute,
     mailDraftAttachmentsRoute,
     mailDraftRoute,
@@ -300,6 +301,7 @@ export {
     mailDraftsRoute,
     mostAttachmentsInDraft,
     mostRecipientsInDraft,
+    readFiledMailDraft,
     readMailDraft,
     readMailDrafts,
     reviseMailDraft,

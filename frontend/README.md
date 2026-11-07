@@ -729,9 +729,11 @@ dropped the moment anybody else does — or once the tab is reloaded first, sinc
 drafts folder is a separate thing that somebody asks for, because every revision of that one reaches their mail
 server — `useDraftAtDeployment.ts` holds it, and attaching a file and sending both file it first, each being an act the
 author asked for. A message opened from the drafts folder is carried on in the composer by whoever may write drafts,
-whether or not they may also act on mail. A save writes a draft of its own rather than revising the stored one, so the
-files the stored draft carries are brought over from the deployment as if chosen again, and one that could not be is
-named rather than dropped.
+whether or not they may also act on mail. Where the deployment answers that the message is the filed copy of a draft
+this person is still writing, the composer adopts that draft, exactly as it adopts one taken back from the Outbox: every
+save revises it and a send takes its copy out of the folder. Where it answers none — another mail client wrote the
+message — a save writes a draft of its own instead, so the files the stored draft carries are brought over from the
+deployment as if chosen again, and one that could not be is named rather than dropped.
 
 **The body is rich text, and what leaves carries both readings of one message.** `writtenText.ts` holds what somebody
 wrote as a closed tree of the elements the formatting controls produce, never as markup: nothing on this path turns a

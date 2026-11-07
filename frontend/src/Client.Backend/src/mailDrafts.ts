@@ -5,6 +5,7 @@
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
 import { asRecord, parseEach } from './json';
 import { parseMailDocument, type MailDocument } from './mailBody';
+import { mailMessageRoute } from './mailMessage';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
 import { send, type ClientRequest, type ClientResponse, type MailFathomTransport } from './transport';
@@ -40,6 +41,11 @@ export function mailDraftAttachmentsRoute(draftId: string): string {
 /** The route one staged file is taken back off at. */
 export function mailDraftAttachmentRoute(draftId: string, attachmentId: string): string {
     return `${mailDraftAttachmentsRoute(draftId)}/${encodeURIComponent(attachmentId)}`;
+}
+
+/** The route the draft a message in a drafts folder shows is opened at, beneath that message's own route. */
+export function filedMailDraftRoute(storedEmailId: string): string {
+    return `${mailMessageRoute(storedEmailId)}/draft`;
 }
 
 /** The route the message a draft holds is queued at. */
@@ -338,31 +344,56 @@ export function readMailDraft(
     transport: MailFathomTransport,
     draftId: string,
 ): Promise<ClientResult<MailDraftReading>> {
-    return spanned('GET /drafts/{draftId}', async () => {
-        const response = await send(transport, {
-            method: 'GET',
-            path: routeFor(session, mailDraftRoute(draftId)),
-            headers: headersFor(session),
-            longestAnswer: longestDraftReadingAnswer,
-        });
+    // The route names one draft, so its absence is that draft's: one given up, sent, or never this person's.
+    return spanned('GET /drafts/{draftId}', () => readReadingAt(session, transport, mailDraftRoute(draftId)));
+}
 
-        if (response === null) {
-            return failed('unavailable', null);
-        }
+/**
+ * Opens the draft a message in a drafts folder shows, in the shape `readMailDraft` answers, so a composer continuing
+ * that message revises the draft rather than writing a second one beside it.
+ *
+ * @param storedEmailId The message, as a list row or a conversation published it.
+ * @returns The draft and its words, `missing` where the message shows no draft this person is still writing — another
+ * mail client wrote it, or the draft was given up or sent — or another expected failure.
+ */
+export function readFiledMailDraft(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    storedEmailId: string,
+): Promise<ClientResult<MailDraftReading>> {
+    return spanned('GET /messages/{storedEmailId}/draft', () =>
+        readReadingAt(session, transport, filedMailDraftRoute(storedEmailId)),
+    );
+}
 
-        // The route names one draft, so its absence is that draft's: one given up, sent, or never this person's.
-        if (response.status === 404) {
-            return failed('missing', 404);
-        }
-
-        if (response.status !== 200) {
-            return failed(failureReasonForStatus(response.status), response.status);
-        }
-
-        const reading = parseReading(bodyIn(response));
-
-        return reading === null ? failed('unreadable', response.status) : read(reading);
+// Both routes name one draft, so a `404` is that draft being absent rather than the deployment being unreachable.
+async function readReadingAt(
+    session: ClientSession,
+    transport: MailFathomTransport,
+    route: string,
+): Promise<ClientResult<MailDraftReading>> {
+    const response = await send(transport, {
+        method: 'GET',
+        path: routeFor(session, route),
+        headers: headersFor(session),
+        longestAnswer: longestDraftReadingAnswer,
     });
+
+    if (response === null) {
+        return failed('unavailable', null);
+    }
+
+    if (response.status === 404) {
+        return failed('missing', 404);
+    }
+
+    if (response.status !== 200) {
+        return failed(failureReasonForStatus(response.status), response.status);
+    }
+
+    const reading = parseReading(bodyIn(response));
+
+    return reading === null ? failed('unreadable', response.status) : read(reading);
 }
 
 /**

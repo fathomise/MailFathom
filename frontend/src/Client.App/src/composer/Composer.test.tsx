@@ -285,6 +285,9 @@ interface Answers {
     readonly contacts?: { readonly status: number; readonly body: string };
     readonly held?: { readonly status: number; readonly body: string };
 
+    /** Which kept draft a message in a drafts folder shows, which is none unless a test says otherwise. */
+    readonly filed?: { readonly status: number; readonly body: string };
+
     /** The footers the frame read for the session, which the composer draws from rather than asking itself. */
     readonly footers?: FootersInForce;
 }
@@ -307,6 +310,10 @@ function deployment(answers: Answers = {}): { transport: MailFathomTransport; as
 function answerFor(request: ClientRequest, answers: Answers): { status: number; body: string } {
     if (request.path.includes('/contacts')) {
         return answers.contacts ?? { status: 200, body: JSON.stringify({ contacts: [], nextCursor: null }) };
+    }
+
+    if (request.method === 'GET' && /\/messages\/[^/]+\/draft$/u.test(request.path)) {
+        return answers.filed ?? { status: 404, body: '' };
     }
 
     if (request.method === 'GET' && /\/drafts\/[^/]+$/u.test(request.path)) {
@@ -1756,14 +1763,57 @@ describe('Composer, a draft', () => {
         expect(screen.getByRole('button', { name: 'Remove reader@example.invalid from To' })).toBeDefined();
     });
 
+    // A message that is the filed copy of a draft this person is still writing is that draft, so a save replaces the
+    // copy that was opened rather than leaving it in the folder beside a second one.
+    it('revises the draft the message is the filed copy of, rather than writing a second one beside it', async () => {
+        const { asked } = drawComposer(continued, { filed: { status: 200, body: heldReading() } });
+
+        await screen.findByText('Agenda');
+        fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+        await waitFor(() => {
+            expect(lastDraftRequest(asked)?.method).toBe('PUT');
+        });
+
+        expect(lastDraftRequest(asked)?.path).toBe('https://mail.example.invalid/api/client/drafts/d9');
+        expect(asked.filter((request) => request.method === 'POST' && request.path.endsWith('/drafts'))).toHaveLength(
+            0,
+        );
+    });
+
+    // Sending that draft is what takes its copy out of the folder; a draft written beside it would leave the opened
+    // one standing there as if it had never gone.
+    it('sends the draft the message is the filed copy of, so its copy leaves the folder with the send', async () => {
+        const { asked } = drawComposer(continued, {
+            filed: { status: 200, body: heldReading({ attachments: [] }) },
+            save: { status: 200, body: draftBody({ draftId: 'd9', subject: 'Q4 supplier review' }) },
+        });
+
+        await screen.findByText('Agenda');
+        confirmSend();
+
+        await waitFor(() => {
+            expect(asked.some((request) => request.path.endsWith('/send'))).toBe(true);
+        });
+
+        expect(lastDraftRequest(asked)?.path).toBe('https://mail.example.invalid/api/client/drafts/d9/send');
+        expect(asked.filter((request) => request.method === 'PUT').map((request) => request.path)).toStrictEqual([
+            'https://mail.example.invalid/api/client/drafts/d9',
+        ]);
+        expect(asked.filter((request) => request.method === 'POST' && request.path.endsWith('/drafts'))).toHaveLength(
+            0,
+        );
+    });
+
     it('says what went wrong where the draft itself could not be read, rather than opening an empty window', async () => {
         drawComposer(continued, { message: { status: 503, body: '' } });
 
         expect(await screen.findByText(/did not answer/u)).toBeDefined();
     });
 
-    // A save writes a draft of its own beside the one it was opened from, so a file the draft was filed with travels
-    // only if it is taken into this message — fetched from the deployment and put up again with the rest.
+    // A message another client wrote names no draft kept here, so a save writes a draft of its own beside it and a file
+    // the draft was filed with travels only if it is taken into this message — fetched from the deployment and put up
+    // again with the rest.
     it('brings the files a draft was filed with into the message, and puts them up with it', async () => {
         const taken: string[] = [];
         const uploaded: string[] = [];

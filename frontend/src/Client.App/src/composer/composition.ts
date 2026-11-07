@@ -83,9 +83,9 @@ export interface Composition {
      * The message in a drafts folder this was opened from, or the draft MailFathom keeps it was opened on, or `null`
      * where it was opened from neither.
      *
-     * It says where the words came from and nothing else: a draft carried on from a folder still saves as a draft of
-     * its own, and one opened on a kept draft goes on revising that draft because the composer adopts its identity
-     * rather than because of this. What it is for is telling one composition from another — a message of its own and a
+     * It says where the words came from and nothing else: a message carried on from a folder saves as a draft of its
+     * own unless it is the filed copy of a draft this person is still writing, and one opened on a kept draft goes on
+     * revising that draft — in both cases because the composer adopts its identity rather than because of this. What it is for is telling one composition from another — a message of its own and a
      * draft carried on with both answer nothing, so without it the tab would restore whichever of the two it kept last
      * into either.
      */
@@ -196,9 +196,10 @@ export function answerTo(message: MailMessage, answers: MailDraftAnswer): Compos
  * The draft somebody has just opened, put back into the composer that writes one.
  *
  * A draft is a message this deployment already holds, so nothing here is composed: the account, the addresses, the
- * subject, and the words are read back exactly as they were filed. What it is not is the deployment's own draft
- * record — the client surface publishes no route that reads one back — so `continuing` says which stored message the
- * words came from and a save still writes a draft of its own beside it.
+ * subject, and the words are read back exactly as they were filed. It is the reading for a message another mail client
+ * wrote, which names no draft this deployment keeps — so `continuing` says which stored message the words came from and
+ * a save writes a draft of its own beside it. A message that is the filed copy of a kept draft opens on `draftHeld`
+ * instead.
  *
  * @param message The draft being carried on with, as the deployment described it.
  * @param body Its body as the deployment reduced it, or `null` where it could not be read.

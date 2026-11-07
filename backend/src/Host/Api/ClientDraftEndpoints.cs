@@ -64,6 +64,9 @@ internal static class ClientDraftEndpoints
     /// <summary>The route one draft is opened, revised, and given up at.</summary>
     internal const string DraftRoute = $"{DraftsRoute}/{{draftId:guid}}";
 
+    /// <summary>The route the draft a message in a drafts folder shows is opened at, beneath the message's own route.</summary>
+    internal const string FiledDraftRoute = $"{ClientMailMessageEndpoint.MailMessageRoute}/draft";
+
     /// <summary>The route one draft is sent at.</summary>
     internal const string DraftSendRoute = $"{DraftRoute}/send";
 
@@ -167,6 +170,9 @@ internal static class ClientDraftEndpoints
         api.MapGet(DraftRoute, ReadDraftAsync)
             .RequirePermission(MailFathomPermission.MailDraftsWrite);
 
+        api.MapGet(FiledDraftRoute, ReadFiledDraftAsync)
+            .RequirePermission(MailFathomPermission.MailDraftsWrite);
+
         // The attribute is reached for its metadata rather than as an MVC filter, exactly as every other write on this
         // surface reaches it: it implements IRequestSizeLimitMetadata, which the routing pipeline applies to the
         // request body feature, so a body over the bound is answered 413 before the handler is reached.
@@ -244,6 +250,34 @@ internal static class ClientDraftEndpoints
         }
 
         return await directory.ReadComposedAsync(identifier, cancellationToken) is { } reading
+            ? TypedResults.Ok(ClientDraftReadingResponse.For(reading))
+            : TypedResults.NotFound();
+    }
+
+    /// <summary>Opens the acting user's draft that a message in a drafts folder shows, with the words its stored message carries.</summary>
+    /// <param name="storedEmailId">The message, as a list row or a conversation published it.</param>
+    /// <param name="directory">Reads the draft and its message, for a caller the read's own grant admits.</param>
+    /// <param name="cancellationToken">Cancels the reads when the client disconnects.</param>
+    /// <returns><c>200</c> with the draft and its text, or <c>404</c> where the message shows none of this user's drafts.</returns>
+    /// <remarks>
+    /// It answers what the message route cannot: which draft a client continuing the message should revise, so a save
+    /// replaces the copy that was opened instead of writing a second one beside it. A message another mail client wrote,
+    /// one showing another user's draft or a draft already sent or given up, and one nobody holds answer identically,
+    /// and a client carries each of those on as a draft of its own.
+    /// </remarks>
+    internal static async Task<Results<Ok<ClientDraftReadingResponse>, NotFound>> ReadFiledDraftAsync(
+        [FromRoute] Guid storedEmailId,
+        [FromServices] MailDraftDirectory directory,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(directory);
+
+        if (storedEmailId == Guid.Empty)
+        {
+            return TypedResults.NotFound();
+        }
+
+        return await directory.ReadComposedFiledAsAsync(StoredEmailId.Create(storedEmailId), cancellationToken) is { } reading
             ? TypedResults.Ok(ClientDraftReadingResponse.For(reading))
             : TypedResults.NotFound();
     }

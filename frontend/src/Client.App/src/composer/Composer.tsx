@@ -16,6 +16,7 @@ import {
     draftMailReply,
     longestDraftInstruction,
     longestDraftSelection,
+    readFiledMailDraft,
     readMailBody,
     readMailDraft,
     readMailMessage,
@@ -422,12 +423,23 @@ export function Composer({
         void draft.carry(storedEmailId, attachments);
     });
 
-    // A draft is read the same way an answer is, and in two reads rather than one: the message route describes who it
-    // is for and what it is about, and the body route is what holds the words. The body is asked for without the
+    // Adopting a draft MailFathom keeps is the composer taking its identity on, which both openings below read once
+    // their answer lands rather than depending on it.
+    const adoptTheDraft = useEffectEvent((held: MailDraft) => {
+        draft.adopt(held);
+    });
+
+    // A message in a drafts folder is first asked which draft it shows. Where it is the filed copy of one this person
+    // is still writing, the composer adopts that draft as it adopts a kept one, so every save revises it and a send
+    // takes its copy out of the folder rather than leaving it beside the message that went.
+    //
+    // Otherwise it is read the same way an answer is, and in two reads rather than one: the message route describes
+    // who it is for and what it is about, and the body route is what holds the words. The body is asked for without the
     // sender's own markup, because what goes back into the composer is the reduced tree rather than markup this client
     // never parses — `draftWords.ts` is where that reading is stated. A body that could not be read opens the draft on
     // what the message route did answer, so the addresses and the subject are not lost with the words, and the files it
-    // carries are brought over as well, because a message sent from a draft is sent whole.
+    // carries are brought over as well, because a message sent from a draft is sent whole. All three are asked at once,
+    // because which of the two answers is used is only known once the first has come back.
     useEffect(() => {
         if (opening.kind !== 'draft') {
             return;
@@ -436,10 +448,22 @@ export function Composer({
         let listening = true;
 
         void Promise.all([
+            readFiledMailDraft(session, transport, opening.storedEmailId),
             readMailMessage(session, transport, opening.storedEmailId),
             readMailBody(session, transport, opening.storedEmailId, { remoteImages: false, fullHtml: false }),
-        ]).then(([answer, body]) => {
+        ]).then(([filed, answer, body]) => {
             if (!listening) {
+                return;
+            }
+
+            if (filed.outcome === 'read') {
+                if (answer.outcome === 'read') {
+                    setParticipants(offeredFrom(answer.value.headers.participants));
+                }
+
+                adoptTheDraft(filed.value.draft);
+                setComposition((held) => held ?? { ...draftHeld(filed.value), continuing: opening.storedEmailId });
+
                 return;
             }
 
@@ -462,10 +486,6 @@ export function Composer({
     // A draft MailFathom keeps is read through its own record and carried on with as itself: the composer adopts its
     // identity, so every save revises it, and the files staged against it stay staged rather than being fetched and
     // chosen again. What this tab was already writing on it wins over what the record says, as with any other opening.
-    const adoptTheDraft = useEffectEvent((held: MailDraft) => {
-        draft.adopt(held);
-    });
-
     useEffect(() => {
         if (opening.kind !== 'held') {
             return;
