@@ -218,7 +218,7 @@ jobs:
 
           # Over TCP, because the image's entrypoint initializes the data directory on a server that listens on a socket
           # alone, and a socket check would call that one ready.
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if docker exec retrieval-database pg_isready --quiet --host 127.0.0.1 --username postgres; then
               port=$(docker port retrieval-database 5432/tcp | head -n 1 | sed -E 's/.*:([0-9]+)$/\1/')
               echo "Started $image on port $port."

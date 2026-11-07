@@ -91,7 +91,8 @@ jobs:
           # using. This runner is doing nothing else and is thrown away afterwards, so it spends all of them — the one
           # free way to make a job of this length shorter, since a bigger runner is a paid plan. Read rather than
           # written down, because the hosted image's core count is GitHub's to change.
-          export MAILFATHOM_MUTATION_CONCURRENCY="$(nproc)"
+          MAILFATHOM_MUTATION_CONCURRENCY="$(nproc)"
+          export MAILFATHOM_MUTATION_CONCURRENCY
 
           # The script writes Stryker's own output to standard error and the summary to standard output, so the step
           # summary carries the score and the surviving mutants by mutator without a log wrapped around them.

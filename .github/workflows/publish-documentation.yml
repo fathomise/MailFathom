@@ -142,7 +142,8 @@ jobs:
       - name: Build the site
         env:
           NuGetAudit: ${{ matrix.version == 'latest' }}
-        run: bash scripts/build-docs-site.sh "site/docs/${{ matrix.version }}"
+          SITE_VERSION: ${{ matrix.version }}
+        run: bash scripts/build-docs-site.sh "site/docs/$SITE_VERSION"
 
       - name: Upload ${{ matrix.version }}
         uses: actions/upload-artifact@v7

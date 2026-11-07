@@ -1,0 +1,25 @@
+# Copyright © 2026 Krzysztof Kasprowicz
+# Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
+# Project repository: https://github.com/fathomise/MailFathom
+
+# Read by `scripts/lint-shell-and-workflows.sh`, which is what `Repository contracts` runs. A finding that is wrong
+# about one place is silenced there, with `# zizmor: ignore[<audit>]` and its reason on the line; what is configured
+# here is a decision about the whole repository.
+rules:
+  # Actions are referenced by a tag (`actions/checkout@v7`), which is what `scripts/update-dependencies.sh` reads
+  # against each upstream and rewrites, and `every_external_action_names_an_approved_owner` limits which owners may be
+  # referenced at all. A commit SHA would need that script to keep the SHA and the tag together, and is not taken.
+  unpinned-uses:
+    config:
+      policies:
+        "*": ref-pin
+
+  # The `$/` form this audit asks for is newer than the actionlint release `Repository contracts` runs, which rejects it
+  # as an action reference with no ref, so adopting it would trade this finding for one on every local action.
+  self-repository:
+    disable: true
+
+  # Every ad-hoc install here is `npm install --global` of the pnpm version `frontend/package.json` declares in
+  # `packageManager`: a pinned version, and the one the lock file was written by.
+  adhoc-packages:
+    disable: true

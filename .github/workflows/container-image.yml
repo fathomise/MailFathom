@@ -58,13 +58,15 @@ jobs:
       # The version and the revision are supplied rather than defaulted, so this produces the same
       # self-identifying image a release build would, from the one file that declares a version.
       - name: Build the image for linux/amd64 and linux/arm64
+        env:
+          IMAGE_REVISION: ${{ steps.revision.outputs.sha }}
         run: |
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --target runtime \
             --file deploy/docker/Dockerfile \
             --build-arg "IMAGE_VERSION=$(bash scripts/read-declared-version.sh)" \
-            --build-arg "IMAGE_REVISION=${{ steps.revision.outputs.sha }}" \
+            --build-arg "IMAGE_REVISION=$IMAGE_REVISION" \
             --build-arg "IMAGE_CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --cache-from type=gha,scope=runtime \
             --cache-to type=gha,mode=max,scope=runtime \

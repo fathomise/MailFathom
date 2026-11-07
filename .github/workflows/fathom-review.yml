@@ -88,7 +88,7 @@ on:
   # reading the rest of a change that has already landed, which is subscription usage spent on a
   # verdict nobody can act on. The gate refuses the event, so it costs one short `decide` job and
   # no model call.
-  pull_request_target:
+  pull_request_target: # zizmor: ignore[dangerous-triggers] reviews the base commit; the diff is data, never code
     types:
       - opened
       - reopened
@@ -110,7 +110,7 @@ on:
   # anything can tell a request from a passing remark — so what the group must not contain is every
   # comment, which is a decision only the group expression can take. The commentary under it is the
   # whole argument.
-  issue_comment:
+  issue_comment: # zizmor: ignore[dangerous-triggers] the decide job admits a request only from an organization member
     types:
       - created
 
@@ -1927,6 +1927,8 @@ jobs:
           # it tried to authenticate as instead of printing `***`.
           client-id: ${{ vars.REVIEWER_APP_CLIENT_ID }}
           private-key: ${{ secrets.REVIEWER_APP_PRIVATE_KEY }}
+          # Asked for by name, so a permission granted to the App later does not reach this job.
+          permission-pull-requests: write
 
       # The base commit, which is code that already merged, and never the branch under review. It
       # supplies the repository's own instructions — `AGENTS.md`, the `review-change` skill, and the

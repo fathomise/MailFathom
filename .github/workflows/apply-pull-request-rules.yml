@@ -89,7 +89,7 @@ on:
   # see it: an approval is published on a diff, minutes before `Required CI` finishes or fails. Every
   # workflow a pull request runs is named here except `CodeQL`, which merging does not wait on, and
   # this one, which is running while the rule is being decided.
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers] reads run conclusions only and checks nothing out from them
     types:
       - completed
     workflows:
