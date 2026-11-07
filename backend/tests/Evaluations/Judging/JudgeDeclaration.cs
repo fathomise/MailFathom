@@ -70,10 +70,10 @@ internal sealed class JudgeDeclaration
     /// every verdict once.
     /// </para>
     /// <para>
-    /// The effort joins the key only where one is declared, so a judge that declares none keeps the verdicts it cached
-    /// before the effort could be declared at all. The output budget joins it beside the effort, because the budget is
-    /// set beneath the response cache and so never reaches the key the cache derives from a request: without it, a
-    /// verdict cut short under a smaller budget would be served again after the budget was raised.
+    /// The role, the address, and the model always join the key; the effort joins it only where one is declared, and the
+    /// output budget joins it beside the effort, because the budget is set beneath the response cache and so never
+    /// reaches the key the cache derives from a request: without it, a verdict cut short under a smaller budget would be
+    /// served again after the budget was raised.
     /// </para>
     /// <para>
     /// The role joins it too, because <see cref="AnonymousJudgeChatClient" /> records the role beneath the response cache,
