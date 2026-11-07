@@ -419,7 +419,7 @@ internal sealed partial record MailAnsweringScenario(
             cancellationToken);
 
         var search = new CorpusKnowledgeSearch(this.Mailbox);
-        var runLedger = new MailAnsweringRunLedger(MailAnsweringRunBounds.Default);
+        var runLedger = new MailAnsweringRunLedger(EvaluationRunBounds.Ceiling);
         var retrieval = new ScopedMailKnowledgeRetrieval(
             search,
             CorpusKnowledgeSearch.Scope,
@@ -585,11 +585,7 @@ internal sealed partial record MailAnsweringScenario(
                 unsupported.Count is 0 ? "Every piece of evidence is in a message the answer cites." : $"No cited message carries: {string.Join("; ", unsupported)}.");
         }
 
-        EvaluationMetrics.Record(
-            verdict,
-            WithinBoundsMetricName,
-            answer is not null,
-            answer is not null ? $"The run stayed within {MailAnsweringRunBounds.Default}." : $"The run reached {MailAnsweringRunBounds.Default} before it answered.");
+        EvaluationRunBounds.RecordWithinDefault(verdict, WithinBoundsMetricName, answer, spend);
         EvaluationMetrics.Record(
             verdict,
             LooksUpOnlyTheQuestionMetricName,

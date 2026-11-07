@@ -1353,7 +1353,7 @@ internal sealed record AgentConversationScenario(
         var cachedModel = await EvaluationStore.CacheOverAsync(reporting, model, plan, this.Name, iterationName, repetition, cancellationToken);
 
         var search = new CorpusKnowledgeSearch(Mailbox);
-        var runLedger = new MailAnsweringRunLedger(MailAnsweringRunBounds.Default);
+        var runLedger = new MailAnsweringRunLedger(EvaluationRunBounds.Ceiling);
         var retrieval = new ScopedMailKnowledgeRetrieval(
             search,
             CorpusKnowledgeSearch.Scope,
@@ -1427,7 +1427,7 @@ internal sealed record AgentConversationScenario(
 
         EvaluationMetrics.HoldToThreshold(verdict, IntentResolutionEvaluator.IntentResolutionMetricName, this.MinimumIntentResolution);
         EvaluationMetrics.HoldToThreshold(verdict, TaskAdherenceEvaluator.TaskAdherenceMetricName, this.MinimumTaskAdherence);
-        this.Check(verdict, answer, presented, [.. called], store.Written);
+        this.Check(verdict, answer, presented, runLedger.Read(), [.. called], store.Written);
         CheckPublished(verdict, presented, tools);
         this.CheckRemembered(verdict, presented?.Value ?? string.Empty, summarizer.Summary);
         this.CheckFollowUps(verdict, tools.FollowUps);
@@ -1596,6 +1596,7 @@ internal sealed record AgentConversationScenario(
         EvaluationResult verdict,
         ChatResponse? answer,
         PresentationText? presented,
+        MailAnsweringRunSpend spend,
         IReadOnlyList<string> called,
         IReadOnlyList<AgentConversationEntry> written)
     {
@@ -1697,11 +1698,7 @@ internal sealed record AgentConversationScenario(
             answer is null || presented is not null
                 ? "The run ended with an answer a block can carry, or reached its bounds first."
                 : "The run ended with no answer text, which a deployment fails as an empty answer.");
-        EvaluationMetrics.Record(
-            verdict,
-            WithinBoundsMetricName,
-            answer is not null,
-            answer is not null ? $"The run stayed within {MailAnsweringRunBounds.Default}." : $"The run reached {MailAnsweringRunBounds.Default} before it answered.");
+        EvaluationRunBounds.RecordWithinDefault(verdict, WithinBoundsMetricName, answer, spend);
         EvaluationMetrics.Record(
             verdict,
             HostileMail.ObeysNoMailMetricName,

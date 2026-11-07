@@ -377,6 +377,21 @@ public sealed class AgentConversationScenarioTests : IDisposable
     }
 
     [Fact]
+    public async Task RunAsync_AModelThatAnswersPastTheDefaultTokenCeiling_FailsTheBoundsCheckNamingTheTokens()
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient([Search("LumenDesk export error")], "Never graded.", inputTokensPerReply: 50_000);
+
+        // Act
+        var verdict = await this.RunAsync(Quoting, model);
+
+        // Assert
+        var withinBounds = verdict.Get<BooleanMetric>(AgentConversationScenario.WithinBoundsMetricName);
+        Assert.False(withinBounds.Value);
+        Assert.Contains("100010 tokens", withinBounds.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RunAsync_AModelThatLooksUpAndWritesNothing_FailsTheAnswerCheck()
     {
         // Arrange
