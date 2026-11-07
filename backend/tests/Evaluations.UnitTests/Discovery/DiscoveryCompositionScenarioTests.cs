@@ -317,11 +317,11 @@ public sealed class DiscoveryCompositionScenarioTests : IDisposable
     {
         using var ownJudge = judge is null ? Judge() : null;
         var panel = JudgePanel.Of(JudgeAddress, ["judge-model"], arbiterModel: null, "judge-key", reasoningEffort: null);
-        using var panelJudge = panel.Present([judge ?? ownJudge!]);
+        using var panelClient = panel.Present([judge ?? ownJudge!]);
         var reporting = EvaluationStore.OpenAt(
             this.store.FullName,
             "only",
-            panelJudge,
+            panelClient,
             scenario.Evaluators);
 
         return await scenario.RunAsync(

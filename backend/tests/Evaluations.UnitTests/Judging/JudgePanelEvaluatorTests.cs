@@ -131,8 +131,8 @@ public sealed class JudgePanelEvaluatorTests : IDisposable
         using var first = Judge("5");
         using var second = Judge("4");
         using var arbiter = Judge("3");
-        using var panelJudge = panel.Present([first, second, arbiter]);
-        using var asking = JudgePanelChatClient.Asking(panelJudge, panel.Jurors[1]);
+        using var panelClient = panel.Present([first, second, arbiter]);
+        using var asking = JudgePanelChatClient.Asking(panelClient, panel.Jurors[1]);
 
         // Act
         var answer = await asking.GetResponseAsync("Rate.", new ChatOptions(), TestContext.Current.CancellationToken);
@@ -149,11 +149,11 @@ public sealed class JudgePanelEvaluatorTests : IDisposable
         // Arrange
         using var first = Judge("5");
         using var second = Judge("4");
-        using var panelJudge = JurorsAlone().Present([first, second]);
+        using var panelClient = JurorsAlone().Present([first, second]);
 
         // Act
         var refusal = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => panelJudge.GetResponseAsync("Rate.", new ChatOptions(), TestContext.Current.CancellationToken));
+            () => panelClient.GetResponseAsync("Rate.", new ChatOptions(), TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Contains("without naming which judge", refusal.Message, StringComparison.Ordinal);
@@ -177,8 +177,8 @@ public sealed class JudgePanelEvaluatorTests : IDisposable
         JudgeThresholds? thresholds,
         string executionName = "only")
     {
-        using var panelJudge = panel.Present(judges);
-        var reporting = EvaluationStore.OpenAt(this.store.FullName, executionName, panelJudge, [new RatingEvaluator()]);
+        using var panelClient = panel.Present(judges);
+        var reporting = EvaluationStore.OpenAt(this.store.FullName, executionName, panelClient, [new RatingEvaluator()]);
 
         await using var run = await reporting.CreateScenarioRunAsync(Scenario, cancellationToken: TestContext.Current.CancellationToken);
         var verdict = await run.EvaluateAsync(

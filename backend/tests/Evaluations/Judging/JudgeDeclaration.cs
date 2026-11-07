@@ -64,7 +64,7 @@ internal sealed class JudgeDeclaration
     /// <summary>Gets the key the judge's cached verdicts are filed under.</summary>
     /// <remarks>
     /// <para>
-    /// Keyed by the judge's own credential over its address, its model, and its reasoning effort, so a changed judge files
+    /// Keyed by the judge's own credential over its role, its address, its model, and its reasoning effort, so a changed judge files
     /// its verdicts apart from the previous one's and none is reused across the change, while the key reveals none of
     /// them: a plain hash of a model name is reversed by guessing the name. The cost is that rotating the key re-asks
     /// every verdict once.
@@ -76,14 +76,16 @@ internal sealed class JudgeDeclaration
     /// verdict cut short under a smaller budget would be served again after the budget was raised.
     /// </para>
     /// <para>
-    /// The role does not join it, so the same model moved from one seat on the panel to another keeps its verdicts.
+    /// The role joins it too, because <see cref="AnonymousJudgeChatClient" /> records the role beneath the response cache,
+    /// so a cached verdict carries the seat it was asked from. A model moved to another seat is therefore asked afresh
+    /// rather than replayed under the name of the seat it left.
     /// </para>
     /// </remarks>
     public string CachingKey => Convert.ToHexString(HMACSHA256.HashData(
         Encoding.UTF8.GetBytes(this.apiKey),
         Encoding.UTF8.GetBytes(this.reasoningEffort is null
-            ? $"{this.endpoint.Address}\n{this.endpoint.RoutedModelName}"
-            : $"{this.endpoint.Address}\n{this.endpoint.RoutedModelName}\n{this.reasoningEffort}\n{ReasonedVerdictOutputTokens}")));
+            ? $"{this.Role}\n{this.endpoint.Address}\n{this.endpoint.RoutedModelName}"
+            : $"{this.Role}\n{this.endpoint.Address}\n{this.endpoint.RoutedModelName}\n{this.reasoningEffort}\n{ReasonedVerdictOutputTokens}")));
 
     /// <summary>Declares a judge from its values.</summary>
     /// <param name="role">The role the judge holds on the panel, such as <c>juror 1</c> or <c>arbiter</c>.</param>

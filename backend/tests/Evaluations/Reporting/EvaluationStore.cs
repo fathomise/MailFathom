@@ -47,17 +47,17 @@ internal static class EvaluationStore
     private static readonly ConcurrentDictionary<(string Root, string ExecutionName, int Repetitions), TallyingResponseCacheProvider> ResponseCaches = new();
 
     /// <summary>Opens the store a requested run was pointed at.</summary>
-    /// <param name="judge">The panel of judges, already anonymous.</param>
+    /// <param name="panelClient">The panel of judges, already anonymous.</param>
     /// <param name="evaluators">What every scenario in the run is judged on, each of which asks the judge.</param>
     /// <returns>The configuration each scenario opens its run from.</returns>
     /// <exception cref="InvalidOperationException">Thrown, naming the variable, when the run was not given a store or a name.</exception>
     public static ReportingConfiguration Open(
-        JudgePanelChatClient judge,
+        JudgePanelChatClient panelClient,
         IEnumerable<IEvaluator> evaluators) =>
         OpenAt(
             AiEvaluationRun.Required(RootVariable),
             AiEvaluationRun.Required(ExecutionVariable),
-            judge,
+            panelClient,
             evaluators,
             EvaluationRepetitions.Declared());
 
@@ -79,7 +79,7 @@ internal static class EvaluationStore
     /// <summary>Opens a store at a given directory, under a given run name.</summary>
     /// <param name="root">The directory holding the results and the cache.</param>
     /// <param name="executionName">The name this run's results are filed and compared under.</param>
-    /// <param name="judge">The panel of judges, already anonymous.</param>
+    /// <param name="panelClient">The panel of judges, already anonymous.</param>
     /// <param name="evaluators">What every scenario in the run is judged on, each of which asks the judge.</param>
     /// <param name="repetitions">How many times the run asks each case of each model.</param>
     /// <returns>The configuration each scenario opens its run from.</returns>
@@ -91,13 +91,13 @@ internal static class EvaluationStore
     public static ReportingConfiguration OpenAt(
         string root,
         string executionName,
-        JudgePanelChatClient judge,
+        JudgePanelChatClient panelClient,
         IEnumerable<IEvaluator> evaluators,
         int repetitions = 1) =>
         new(
-            [.. evaluators.Select(evaluator => new JudgePanelEvaluator(evaluator, judge.Panel))],
+            [.. evaluators.Select(evaluator => new JudgePanelEvaluator(evaluator, panelClient.Panel))],
             new DiskBasedResultStore(root),
-            new ChatConfiguration(judge),
+            new ChatConfiguration(panelClient),
             ResponseCacheAt(root, executionName, repetitions),
             executionName: executionName);
 

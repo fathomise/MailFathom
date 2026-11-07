@@ -50,7 +50,7 @@ internal sealed class AnonymousJudgeChatClient(IChatClient judge, string role) :
         {
             // The original is deliberately not kept as the inner exception: its message and every inner one are where a
             // provider names the model and the address, and whatever holds this exception prints the whole chain.
-            throw new InvalidOperationException($"The judge did not answer ({failure.GetType().Name}).");
+            throw new InvalidOperationException($"The {this.recordedModel} did not answer ({failure.GetType().Name}).");
         }
 
         response.ModelId = this.recordedModel;

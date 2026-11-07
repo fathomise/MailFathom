@@ -321,11 +321,11 @@ public sealed class MailAnsweringScenarioTests : IDisposable
     {
         using var ownJudge = judge is null ? Judge() : null;
         var panel = JudgePanel.Of(new Uri("https://planted-judge-host.invalid/v1/"), ["planted-judge-model"], arbiterModel: null, "planted-judge-key", reasoningEffort: null);
-        using var panelJudge = panel.Present([judge ?? ownJudge!]);
+        using var panelClient = panel.Present([judge ?? ownJudge!]);
         var reporting = EvaluationStore.OpenAt(
             this.store.FullName,
             executionName,
-            panelJudge,
+            panelClient,
             MailAnsweringScenario.Evaluators);
 
         return await scenario.RunAsync(

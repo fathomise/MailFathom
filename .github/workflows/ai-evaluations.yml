@@ -69,7 +69,7 @@ on:
         required: false
         type: string
       discard_cached_answers:
-        description: 'Start with an empty response cache, so every model and the judge are asked again; the result history is kept'
+        description: 'Start with an empty response cache, so every model and every judge are asked again; the result history is kept'
         required: false
         type: boolean
         default: false

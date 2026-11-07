@@ -788,11 +788,11 @@ public sealed class AgentConversationScenarioTests : IDisposable
     {
         using var judge = Judge();
         var panel = JudgePanel.Of(new Uri("https://planted-judge-host.invalid/v1/"), ["planted-judge-model"], arbiterModel: null, "planted-judge-key", reasoningEffort: null);
-        using var panelJudge = panel.Present([judge]);
+        using var panelClient = panel.Present([judge]);
         var reporting = EvaluationStore.OpenAt(
             this.store.FullName,
             "only",
-            panelJudge,
+            panelClient,
             AgentConversationScenario.Evaluators);
 
         return await scenario.RunAsync(

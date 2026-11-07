@@ -25,15 +25,15 @@ public sealed class JudgePanelTests
     }
 
     [Fact]
-    public void Of_AModelMovedFromOneSeatToAnother_KeepsTheKeyItsVerdictsAreFiledUnder()
+    public void Of_AModelMovedFromOneSeatToAnother_FilesItsVerdictsApartSoNoneIsReplayedUnderTheSeatItLeft()
     {
         // Act
         var before = JudgePanel.Of(JudgeAddress, ["model-a", "model-b"], arbiterModel: null, ApiKey, reasoningEffort: null);
-        var after = JudgePanel.Of(JudgeAddress, ["model-b"], "model-a", ApiKey, reasoningEffort: null);
+        var after = JudgePanel.Of(JudgeAddress, ["model-a"], "model-b", ApiKey, reasoningEffort: null);
 
         // Assert
-        Assert.Equal(before.Jurors[0].CachingKey, after.Arbiter?.CachingKey);
-        Assert.Equal(before.Jurors[1].CachingKey, after.Jurors[0].CachingKey);
+        Assert.Equal(before.Jurors[0].CachingKey, after.Jurors[0].CachingKey);
+        Assert.NotEqual(before.Jurors[1].CachingKey, after.Arbiter?.CachingKey);
     }
 
     [Theory]

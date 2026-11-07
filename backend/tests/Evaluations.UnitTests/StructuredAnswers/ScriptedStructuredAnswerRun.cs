@@ -53,11 +53,11 @@ internal sealed class ScriptedStructuredAnswerRun : IDisposable
     public async Task<StructuredAnswer> RunAsync(StructuredAnswerRequest request, IChatClient model)
     {
         var panel = JudgePanel.Of(JudgeAddress, ["judge-model"], arbiterModel: null, "judge-key", reasoningEffort: null);
-        using var panelJudge = panel.Present([this.Judge]);
+        using var panelClient = panel.Present([this.Judge]);
         var reporting = EvaluationStore.OpenAt(
             this.store.FullName,
             ExecutionName,
-            panelJudge,
+            panelClient,
             request.Evaluators);
 
         return await StructuredAnswerScenario.RunAsync(

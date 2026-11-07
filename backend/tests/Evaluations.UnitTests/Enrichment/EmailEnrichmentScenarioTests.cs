@@ -252,11 +252,11 @@ public sealed partial class EmailEnrichmentScenarioTests : IDisposable
             Evaluators = StructuredAnswerScenario.JudgedWhen(readsTwoWays: true),
         };
 
-        using var panelJudge = panel.Present([judge]);
+        using var panelClient = panel.Present([judge]);
         var reporting = EvaluationStore.OpenAt(
             this.store.FullName,
             executionName,
-            panelJudge,
+            panelClient,
             request.Evaluators);
 
         return await StructuredAnswerScenario.RunAsync(
