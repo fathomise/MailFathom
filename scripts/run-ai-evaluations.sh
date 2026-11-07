@@ -217,10 +217,12 @@ compose_report_results() {
   local results="$1" execution="$2" composed="$3" run_directory run scenario newest file
   local -a scenarios held
 
+  # A glob matching nothing stays literal, and copying that would end the script before it exits with the
+  # run's own code, so each loop skips what is not there.
   mkdir -p "$composed"
   for run_directory in "$results"/*/; do
     run="$(basename "$run_directory")"
-    if [[ "$run" != "$execution" ]]; then
+    if [[ -d "$run_directory" && "$run" != "$execution" ]]; then
       cp -R "$run_directory" "$composed/$run"
     fi
   done
@@ -242,6 +244,7 @@ compose_report_results() {
     run="$(basename "$(dirname "$newest")")"
     mkdir -p "$composed/$execution/$scenario"
     for file in "$newest"/*.json; do
+      [[ -f "$file" ]] || continue
       jq --arg execution "$execution" --arg tag "Carried from $run" \
         '.executionName = $execution | .tags = ((.tags // []) + [$tag])' \
         "$file" > "$composed/$execution/$scenario/$(basename "$file")"
