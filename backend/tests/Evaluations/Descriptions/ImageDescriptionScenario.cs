@@ -8,6 +8,7 @@ using MailFathom.AI.Descriptions;
 using MailFathom.Application.Emails.Extraction.Images;
 using MailFathom.Evaluations.Corpus;
 using MailFathom.Evaluations.Costing;
+using MailFathom.Evaluations.Judging;
 using MailFathom.Evaluations.Providers;
 using MailFathom.Evaluations.Reporting;
 using MailFathom.Host.Configuration.Embeddings;
@@ -447,7 +448,10 @@ internal sealed record ImageDescriptionScenario(
         var verdict = await scenarioRun.EvaluateAsync(
             [new ChatMessage(ChatRole.User, ImageDescriptionInstructions.DescriptionRequest)],
             new ChatResponse(new ChatMessage(ChatRole.Assistant, description.Text ?? string.Empty)) { ModelId = modelName },
-            [new GroundednessEvaluatorContext(this.Shows)],
+            [
+                new GroundednessEvaluatorContext(this.Shows),
+                new JudgeThresholds((GroundednessEvaluator.GroundednessMetricName, this.MinimumGroundedness)),
+            ],
             cancellationToken);
 
         EvaluationMetrics.HoldToThreshold(verdict, GroundednessEvaluator.GroundednessMetricName, this.MinimumGroundedness);

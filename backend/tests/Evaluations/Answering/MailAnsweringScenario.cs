@@ -13,6 +13,7 @@ using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Domain.Accounts;
 using MailFathom.Evaluations.Corpus;
 using MailFathom.Evaluations.Costing;
+using MailFathom.Evaluations.Judging;
 using MailFathom.Evaluations.Languages;
 using MailFathom.Evaluations.Reporting;
 using MailFathom.TestSupport;
@@ -439,6 +440,9 @@ internal sealed partial record MailAnsweringScenario(
                 new IntentResolutionEvaluatorContext(searchTool),
                 new TaskAdherenceEvaluatorContext(searchTool),
                 new ToolCallAccuracyEvaluatorContext(searchTool),
+                new JudgeThresholds(
+                    (IntentResolutionEvaluator.IntentResolutionMetricName, this.MinimumIntentResolution),
+                    (TaskAdherenceEvaluator.TaskAdherenceMetricName, this.MinimumTaskAdherence)),
             ],
             cancellationToken);
 

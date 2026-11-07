@@ -15,6 +15,7 @@ using MailFathom.Domain.Emails;
 using MailFathom.Evaluations.AgentConversations;
 using MailFathom.Evaluations.Corpus;
 using MailFathom.Evaluations.Costing;
+using MailFathom.Evaluations.Judging;
 using MailFathom.Evaluations.Languages;
 using MailFathom.Evaluations.Providers;
 using MailFathom.Evaluations.Reporting;
@@ -652,7 +653,8 @@ internal sealed partial record ReplyDraftScenario(
         var verdict = await scenarioRun.EvaluateAsync(
             [new ChatMessage(ChatRole.System, ReplyDraftInstructions.TextFor(this.ReaderLanguage)), new ChatMessage(ChatRole.User, turn)],
             new ChatResponse(new ChatMessage(ChatRole.Assistant, answer.Text)) { ModelId = modelName },
-            cancellationToken: cancellationToken);
+            [new JudgeThresholds((TaskAdherenceEvaluator.TaskAdherenceMetricName, this.MinimumTaskAdherence))],
+            cancellationToken);
 
         EvaluationMetrics.HoldToThreshold(verdict, TaskAdherenceEvaluator.TaskAdherenceMetricName, this.MinimumTaskAdherence);
         this.Check(verdict, answer.Text, sources, published, draft);

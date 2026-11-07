@@ -32,7 +32,7 @@ public sealed class DiscoveryCompositionEvaluations
     {
         // Arrange
         var scenario = DiscoveryCompositionScenario.All.Single(candidate => candidate.Name == caseName);
-        var judge = JudgeDeclaration.Read();
+        var judge = JudgePanel.Read();
         var apiKey = EvaluationEndpoint.ApiKey();
         var repetitions = EvaluationRepetitions.Declared();
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -48,7 +48,7 @@ public sealed class DiscoveryCompositionEvaluations
     /// <summary>Puts one case to one model and names what it fell short on.</summary>
     private static Task<IReadOnlyList<string>> MeasureAsync(
         DiscoveryCompositionScenario scenario,
-        JudgeDeclaration judge,
+        JudgePanel judge,
         ModelUnderTest modelUnderTest,
         string apiKey,
         int repetitions,
@@ -66,7 +66,7 @@ public sealed class DiscoveryCompositionEvaluations
                 using var model = ProviderChatClient.Open(modelUnderTest, apiKey, modelSpend);
                 using var judgeClient = judge.Open(judgeSpend);
 
-                var reporting = EvaluationStore.Open(judgeClient, judge.CachingKey, scenario.Evaluators);
+                var reporting = EvaluationStore.Open(judgeClient, scenario.Evaluators);
 
                 return [.. scenario.ShortfallsOf(await scenario.RunAsync(
                     reporting,

@@ -24,6 +24,7 @@ using MailFathom.Domain.Notifications;
 using MailFathom.Evaluations.Answering;
 using MailFathom.Evaluations.Corpus;
 using MailFathom.Evaluations.Costing;
+using MailFathom.Evaluations.Judging;
 using MailFathom.Evaluations.Languages;
 using MailFathom.Evaluations.Reporting;
 using MailFathom.Host.Configuration.Answering;
@@ -1415,7 +1416,13 @@ internal sealed record AgentConversationScenario(
         var verdict = await scenarioRun.EvaluateAsync(
             [new ChatMessage(ChatRole.System, AgentComposition.InstructionFor(AgentConversationInstructions.TextFor(this.Language))), .. messages],
             answer ?? new ChatResponse(),
-            [new IntentResolutionEvaluatorContext(offered), new TaskAdherenceEvaluatorContext(offered)],
+            [
+                new IntentResolutionEvaluatorContext(offered),
+                new TaskAdherenceEvaluatorContext(offered),
+                new JudgeThresholds(
+                    (IntentResolutionEvaluator.IntentResolutionMetricName, this.MinimumIntentResolution),
+                    (TaskAdherenceEvaluator.TaskAdherenceMetricName, this.MinimumTaskAdherence)),
+            ],
             cancellationToken);
 
         EvaluationMetrics.HoldToThreshold(verdict, IntentResolutionEvaluator.IntentResolutionMetricName, this.MinimumIntentResolution);

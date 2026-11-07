@@ -316,13 +316,12 @@ public sealed class DiscoveryCompositionScenarioTests : IDisposable
         ScriptedChatClient? judge = null)
     {
         using var ownJudge = judge is null ? Judge() : null;
-        using var anonymousJudge = new AnonymousJudgeChatClient(judge ?? ownJudge!);
-        var declaration = JudgeDeclaration.Of(JudgeAddress, "judge-model", "judge-key", reasoningEffort: null);
+        var panel = JudgePanel.Of(JudgeAddress, ["judge-model"], arbiterModel: null, "judge-key", reasoningEffort: null);
+        using var panelJudge = panel.Present([judge ?? ownJudge!]);
         var reporting = EvaluationStore.OpenAt(
             this.store.FullName,
             "only",
-            anonymousJudge,
-            declaration.CachingKey,
+            panelJudge,
             scenario.Evaluators);
 
         return await scenario.RunAsync(

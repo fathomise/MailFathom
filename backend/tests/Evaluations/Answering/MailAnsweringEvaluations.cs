@@ -28,7 +28,7 @@ public sealed class MailAnsweringEvaluations
     {
         // Arrange
         var scenario = MailAnsweringScenario.All.Single(candidate => candidate.Name == caseName);
-        var judge = JudgeDeclaration.Read();
+        var judge = JudgePanel.Read();
         var apiKey = EvaluationEndpoint.ApiKey();
         var repetitions = EvaluationRepetitions.Declared();
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -44,7 +44,7 @@ public sealed class MailAnsweringEvaluations
     /// <summary>Puts one question to one model and names what it fell short on.</summary>
     private static Task<IReadOnlyList<string>> MeasureAsync(
         MailAnsweringScenario scenario,
-        JudgeDeclaration judge,
+        JudgePanel judge,
         ModelUnderTest modelUnderTest,
         string apiKey,
         int repetitions,
@@ -62,7 +62,7 @@ public sealed class MailAnsweringEvaluations
                 using var model = ProviderChatClient.Open(modelUnderTest, apiKey, modelSpend);
                 using var judgeClient = judge.Open(judgeSpend);
 
-                var reporting = EvaluationStore.Open(judgeClient, judge.CachingKey, MailAnsweringScenario.Evaluators);
+                var reporting = EvaluationStore.Open(judgeClient, MailAnsweringScenario.Evaluators);
 
                 return [.. scenario.ShortfallsOf(await scenario.RunAsync(
                     reporting,

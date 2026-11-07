@@ -11,10 +11,13 @@ set -euo pipefail
 #
 # It runs the paid scenarios and nothing else: their free counterparts are backend/tests/Evaluations.UnitTests,
 # a unit suite every gate already runs. So without MAILFATHOM_AI_EVALUATIONS=true there is nothing here
-# to run and the script says so. With it, the run needs MAILFATHOM_CHAT_API_KEY and MAILFATHOM_JUDGE_MODEL,
-# and fails naming whichever is missing. The judge answers from the same endpoint and the same key as the
-# models under test, so its model is all that is declared apart — beside MAILFATHOM_JUDGE_REASONING_EFFORT,
-# which a run may leave unset to send the judge no reasoning parameter at all.
+# to run and the script says so. With it, the run needs MAILFATHOM_CHAT_API_KEY and MAILFATHOM_JUDGE_MODELS,
+# and fails naming whichever is missing. MAILFATHOM_JUDGE_MODELS names the panel's one to three jurors,
+# separated by commas, and MAILFATHOM_JUDGE_ARBITER_MODEL the arbiter asked only about a rating the jurors do
+# not all pass; a run leaving the arbiter unset grades with the jurors alone and records on every rating
+# whether it would have been escalated. Every judge answers from the same endpoint and the same key as the
+# models under test, so their models are all that is declared apart — beside MAILFATHOM_JUDGE_REASONING_EFFORT,
+# one effort for every judge, which a run may leave unset to send no reasoning parameter at all.
 #
 # MAILFATHOM_EVALUATION declares the run as one YAML block, which is one line in flow style:
 # {MainModel: {Model: vendor/model, ReasoningEffort: medium}, ImageDescription: [model-a, model-b]}.
@@ -152,6 +155,16 @@ if [[ -d "$execution_results" ]]; then
       awk '{ replayed += $1; reused += $2; asked += $3 } END { print replayed + 0, reused + 0, asked + 0 }')
   printf '%d answers of the models under test were replayed from an earlier run, %d were reused from answers this run asked, and %d were asked afresh.\n' \
     "$replayed_answers" "$reused_answers" "$asked_answers"
+
+  # Every judged rating records whether the panel escalated it, so a run with the jurors alone says how
+  # many ratings an arbiter would have been asked about before anybody pays for one.
+  judge_outcomes=$(
+    find "$execution_results" -name '*.json' -exec jq -r '.evaluationResult.metrics[].metadata["judge-escalation"] // empty' {} + |
+      sort | uniq -c |
+      awk '{ count = $1; $1 = ""; sub(/^ /, ""); printf "%s%d %s", separator, count, $0; separator = ", " }')
+  if [[ -n "$judge_outcomes" ]]; then
+    printf 'Judged ratings by escalation: %s.\n' "$judge_outcomes"
+  fi
 fi
 
 # A model's answer varies between calls, so a few scenarios falling short is the measurement rather

@@ -52,13 +52,12 @@ internal sealed class ScriptedStructuredAnswerRun : IDisposable
     /// <returns>What the answer was held to.</returns>
     public async Task<StructuredAnswer> RunAsync(StructuredAnswerRequest request, IChatClient model)
     {
-        var declaration = JudgeDeclaration.Of(JudgeAddress, "judge-model", "judge-key", reasoningEffort: null);
-        using var anonymousJudge = new AnonymousJudgeChatClient(this.Judge);
+        var panel = JudgePanel.Of(JudgeAddress, ["judge-model"], arbiterModel: null, "judge-key", reasoningEffort: null);
+        using var panelJudge = panel.Present([this.Judge]);
         var reporting = EvaluationStore.OpenAt(
             this.store.FullName,
             ExecutionName,
-            anonymousJudge,
-            declaration.CachingKey,
+            panelJudge,
             request.Evaluators);
 
         return await StructuredAnswerScenario.RunAsync(
