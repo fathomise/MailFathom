@@ -15,7 +15,8 @@ namespace MailFathom.Evaluations.UnitTests.Answering;
 /// </remarks>
 /// <param name="queryText">The lookup it writes, or <see langword="null" /> for a model that answers without looking anything up.</param>
 /// <param name="answer">The text it answers with.</param>
-internal sealed class ScriptedAnsweringChatClient(string? queryText, string answer) : IChatClient
+/// <param name="inputTokensPerReply">The input tokens each reply reports, which a run's ledger counts against its token ceiling.</param>
+internal sealed class ScriptedAnsweringChatClient(string? queryText, string answer, long inputTokensPerReply = 10) : IChatClient
 {
     private const string ModelName = "scripted-answering-model";
 
@@ -45,7 +46,7 @@ internal sealed class ScriptedAnsweringChatClient(string? queryText, string answ
         return Task.FromResult(new ChatResponse(reply)
         {
             ModelId = ModelName,
-            Usage = new UsageDetails { InputTokenCount = 10, OutputTokenCount = 5, TotalTokenCount = 15 },
+            Usage = new UsageDetails { InputTokenCount = inputTokensPerReply, OutputTokenCount = 5, TotalTokenCount = inputTokensPerReply + 5 },
         });
     }
 
