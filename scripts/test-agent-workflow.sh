@@ -11399,6 +11399,8 @@ CARGO
         "$script"
     )
 
+    # shellcheck disable=SC2034  # read by the rewrite_pin sourced above, for its temporary files
+    work_directory="$fixture"
     workflow_directory="$fixture/workflows"
 
     rewrite_pin nuget 'Some.Package' '1.0.0' "$hostile" "$fixture/Directory.Packages.props" \
