@@ -102,15 +102,48 @@ export function freshProfile(): string {
  * Only the shell and the WebView's processes are waited for, because they are the ones that write it. The drivers and
  * whatever a graphics or accessibility stack starts beside them inherit the same environment and keep no storage, and
  * one of them outliving its session by more than the wait is what failed the case when every process was counted.
+ *
+ * Narrowing the count was not the whole of it: on a runner, now and then, the shell or one of its WebView's processes
+ * never exits after its session ended, whatever the wait. By then the storage has had thirty seconds to settle, so
+ * whatever is still running is asked to terminate and is waited for once more. A
+ * write that had genuinely not landed still fails the case, at the restarted shell's assertion rather than as a timeout
+ * here, and a process that ignores the request is named in the failure.
  */
 export async function everyShellGone(profile: string): Promise<void> {
     const keeping = `XDG_DATA_HOME=${resolve(profile, 'data')}`;
+    const stillWriting = () =>
+        readdirSync('/proc').filter((entry) => /^\d+$/.test(entry) && writingOver(entry, keeping));
+    const noneLeft = () => Promise.resolve(stillWriting().length === 0 ? true : null);
 
-    await until(`the shell over ${profile} exiting`, () =>
-        Promise.resolve(
-            readdirSync('/proc').some((entry) => /^\d+$/.test(entry) && writingOver(entry, keeping)) ? null : true,
-        ),
-    );
+    try {
+        await until(`the shell over ${profile} exiting`, noneLeft);
+    } catch {
+        for (const processId of stillWriting()) {
+            try {
+                process.kill(Number(processId), 'SIGTERM');
+            } catch {
+                // Exited between the listing and the signal, which is the outcome being asked for.
+            }
+        }
+
+        try {
+            await until(`the shell over ${profile} exiting once asked to terminate`, noneLeft);
+        } catch (failure) {
+            throw new Error(`${String(failure)} Still running: ${namedProcesses(stillWriting())}.`, { cause: failure });
+        }
+    }
+}
+
+function namedProcesses(processIds: readonly string[]): string {
+    return processIds
+        .map((processId) => {
+            try {
+                return `${readFileSync(`/proc/${processId}/comm`, 'latin1').trim()} (${processId})`;
+            } catch {
+                return processId;
+            }
+        })
+        .join(', ');
 }
 
 // The name `/proc` gives a process is its executable's, cut to fifteen characters.

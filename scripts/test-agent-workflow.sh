@@ -9235,6 +9235,43 @@ install_script_refuses_a_platform_no_release_publishes() {
   assert_contains 'linux-x64, linux-arm64, win-x64, and win-arm64' "$output_file"
 }
 
+# The linters run with the token a workflow holds, so an archive that is not the one whose checksum was pinned is
+# refused before anything in it is unpacked, and no tool is left behind for the next run to trust without checking.
+lint_script_refuses_an_archive_its_checksum_disowns() {
+  local stub_directory="$test_directory/lint-tampered-bin"
+  local tool_directory="$test_directory/lint-tampered-tools"
+  local output_file="$test_directory/lint-tampered-log"
+
+  mkdir -p "$stub_directory"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'while [[ $# -gt 0 ]]; do' \
+    '  if [[ "$1" == --output ]]; then printf "bytes nobody pinned" > "$2"; shift; fi' \
+    '  shift' \
+    'done' \
+    > "$stub_directory/curl"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'case "$1" in -s) printf "Linux\n" ;; -m) printf "x86_64\n" ;; esac' \
+    > "$stub_directory/uname"
+  chmod +x "$stub_directory/curl" "$stub_directory/uname"
+
+  if (
+    cd "$source_repository_root"
+    PATH="$stub_directory:$PATH" MAILFATHOM_LINT_TOOLS="$tool_directory" bash scripts/lint-shell-and-workflows.sh
+  ) > "$output_file" 2>&1; then
+    printf 'The linters ran from an archive that does not match its pinned checksum\n' >&2
+    return 1
+  fi
+
+  assert_contains 'does not match the checksum pinned in this script' "$output_file"
+
+  if [[ -n "$(find "$tool_directory" -mindepth 1 -print -quit 2> /dev/null)" ]]; then
+    printf 'The refusal left something behind in %s\n' "$tool_directory" >&2
+    return 1
+  fi
+}
+
 # The guided Compose setup, which is the one script here that writes a deployment's credentials. Every contract below
 # runs the committed script against a checkout of its own — a fixture carrying `deploy/compose/`, never this
 # repository's own — because what it writes is exactly what must never be written over somebody's prepared deployment.
@@ -10583,11 +10620,14 @@ merge_groups_carry_only_a_successful_newest_check_run() {
   local newest_success='{"check_runs":[
     {"app":{"slug":"github-actions"},"started_at":"2026-10-17T10:00:00Z","conclusion":"failure"},
     {"app":{"slug":"github-actions"},"started_at":"2026-10-17T10:05:00Z","conclusion":"success"}]}'
+  # shellcheck disable=SC2034  # read through ${!check_name} below
   local newest_failure='{"check_runs":[
     {"app":{"slug":"github-actions"},"started_at":"2026-10-17T10:00:00Z","conclusion":"success"},
     {"app":{"slug":"github-actions"},"started_at":"2026-10-17T10:05:00Z","conclusion":"failure"}]}'
+  # shellcheck disable=SC2034  # read through ${!check_name} below
   local in_progress='{"check_runs":[
     {"app":{"slug":"github-actions"},"started_at":"2026-10-17T10:05:00Z","conclusion":null}]}'
+  # shellcheck disable=SC2034  # read through ${!check_name} below
   local missing='{"check_runs":[]}'
 
   for workflow in protected-paths.yml typo-check.yml; do
@@ -11350,6 +11390,7 @@ CARGO
 
   outcome="$(
     set -uo pipefail
+    # shellcheck source=/dev/null  # functions cut out of the script under test
     source <(
       sed -n \
         -e '/^as_pattern() {$/,/^}$/p' \
@@ -11358,6 +11399,7 @@ CARGO
         "$script"
     )
 
+    # shellcheck disable=SC2034  # read by the rewrite_pin sourced above, for its temporary files
     work_directory="$fixture"
     workflow_directory="$fixture/workflows"
 
@@ -11500,6 +11542,7 @@ the_dependency_survey_names_the_bump_that_may_break() {
 
   outcome="$(
     set -uo pipefail
+    # shellcheck source=/dev/null  # functions cut out of the script under test
     source <(sed -n '/^breaking_move_of() {$/,/^}$/p' "$script")
 
     for pair in \
@@ -13099,6 +13142,7 @@ run_test winget_manifests_refuse_a_missing_windows_binary
 run_test install_script_installs_the_binary_the_release_published
 run_test install_script_refuses_a_binary_the_checksum_file_disowns
 run_test install_script_refuses_a_platform_no_release_publishes
+run_test lint_script_refuses_an_archive_its_checksum_disowns
 run_test quick_start_prepares_the_deployment_the_documentation_describes
 run_test quick_start_keeps_the_mailbox_password_out_of_everything_but_its_own_file
 run_test quick_start_refuses_to_overwrite_a_prepared_deployment

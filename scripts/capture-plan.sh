@@ -11,10 +11,6 @@
 # It is sourced rather than run, so it defines and checks and never captures anything itself. The caller defines
 # `usage` before sourcing this, and calls `run_capture` with the plan it built.
 
-# Where the sibling scripts are, resolved from this file rather than from the repository root: a script calls the one
-# beside it, which is what lets the whole set be run against a checkout that is not the one they were read from.
-capture_scripts_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-
 if ! repository_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   printf 'Not inside a Git repository.\n' >&2
   exit 1

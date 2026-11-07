@@ -32,6 +32,10 @@ jobs:
         with:
           client-id: ${{ vars.LICENSE_APP_CLIENT_ID }}
           private-key: ${{ secrets.LICENSE_APP_PRIVATE_KEY }}
+          # Reading the pull request's head and its status, and posting one: the narrowest of the
+          # three permissions `contributor-licence.yml` holds that covers that.
+          permission-pull-requests: read
+          permission-statuses: write
 
       # A read that fails still posts a status, as `error`, because a required check that never
       # arrives holds the queue until its timeout and removes the pull request without saying why.

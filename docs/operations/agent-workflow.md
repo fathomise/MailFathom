@@ -1,6 +1,6 @@
 # Agent workflow
 
-<!-- describes: scripts/**, .agents/skills/**, .github/workflows/**, .github/fathom-review/**, .github/pull-request/**, .github/coherence/**, .github/duplicate-definitions/**, .github/protected-paths/**, **/.editorconfig, .gitignore, .worktreeinclude -->
+<!-- describes: scripts/**, .github/actionlint.yaml, .github/zizmor.yml, .agents/skills/**, .github/workflows/**, .github/fathom-review/**, .github/pull-request/**, .github/coherence/**, .github/duplicate-definitions/**, .github/protected-paths/**, **/.editorconfig, .gitignore, .worktreeinclude -->
 
 Codex and Claude Code share one repository-owned workflow. Deterministic Git and
 .NET operations live in scripts, while repository-specific judgment lives in
@@ -214,6 +214,27 @@ held to being usable rather than to the design — a phone on its side.
 the sizes and saying why the report is read before any image and why an invocation
 produces at most one screen at the whole matrix. None of the three gates anything,
 and nothing they write enters the tree.
+
+Lint the shell scripts and the workflows before pushing a change to either:
+
+```bash
+bash scripts/lint-shell-and-workflows.sh
+```
+
+It runs ShellCheck over every tracked `*.sh` file, actionlint over every
+workflow and the shell inside each `run:` block, and zizmor over the workflows
+and the composite actions, and it is exactly what the `Shell and workflow lint`
+job of `repository-contracts.yml` runs on every pull request. Each tool is
+downloaded at the version and checksum the script pins and cached outside the
+repository, so the first run needs the network and the answer is the pipeline's
+whatever ShellCheck the machine happens to carry. Neither gate runs it: the
+suite above reads what a workflow is made of and never reads its `run:` blocks
+as shell, but it installs nothing, and three downloads in the fast loop would be
+the cost of an answer the pull request gives in fifteen seconds anyway.
+`.github/actionlint.yaml` and `.github/zizmor.yml` hold what each tool is told
+to accept, every entry with its reason, and a finding true of one line is
+silenced on that line instead, as `# zizmor: ignore[<audit>]` or
+`# shellcheck disable=<code>` followed by why.
 
 Run the complete gate where its answer is wanted before a push, rather than as a
 step of every change:
@@ -647,7 +668,9 @@ revision every nightly and every release publishes, which is what makes these
 contracts a property of the repository rather than of whoever remembered the gate:
 the change detection in `ci.yml` routes `.github/`, `docs/`, `scripts/`, and
 `.agents/` to no other job — bar the one script that renders the Helm chart, which
-the `Helm chart` job beside it reads — because none of them can move a build, a
+the `Helm chart` job beside it reads, and the scripts and workflows the
+`Shell and workflow lint` job reads as code, unconditionally like this one —
+because none of them can move a build, a
 formatting verdict, or the EF Core model, and the merge is the moment the tree they
 describe changes without any pull request having been wrong. A fork's pull request has no local gate behind it at
 all, and it is a fork's contributor who is most likely to change a workflow or a

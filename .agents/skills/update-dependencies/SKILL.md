@@ -1,6 +1,6 @@
 ---
 name: update-dependencies
-description: Use when the task in front of you is to move dependency pins — packages in either stack, Rust crates, tools, SDKs, GitHub Action references, or container images — or to find out which of them are behind and whether any changed licence.
+description: Use when the task in front of you is to move dependency pins — packages in either stack, Rust crates, tools, SDKs, GitHub Action references, container images, or the pinned linters — or to find out which of them are behind and whether any changed licence.
 license: AGPL-3.0-only
 metadata:
   author: Krzysztof Kasprowicz
@@ -103,10 +103,10 @@ Two more decide the shape of the change rather than the content:
   nothing has reported an advisory against is fine where it is, and the survey's job is to make that a decision instead
   of an oversight.
 
-## The two the script refuses to write, and what to do instead
+## The three the script refuses to write, and what to do instead
 
-Both are surveyed and reported, and neither is rewritten by `--apply`. Moving either is a separate task with its own
-issue, and neither belongs inside a package bump.
+All three are surveyed and reported, and none is rewritten by `--apply`. Moving any of them is a separate task with its
+own issue, and none belongs inside a package bump.
 
 **`global.json`'s `sdk.version`** is a floor under `rollForward: latestFeature`, so it decides which SDK a machine has to
 have installed rather than which one a build uses. Raising it can stop a contributor's clone from restoring at all,
@@ -120,6 +120,12 @@ manifests under `deploy/helm/mailfathom/ci/golden/`, which are written by `scrip
 by nothing else. One of the pins additionally decides what the software *concludes* rather than only what it runs — the
 Presidio analyzer image — so a finding produced under one version is not a finding produced under another, and the
 deployment pages say so.
+
+**A linter** — ShellCheck, actionlint, or zizmor — is pinned in `scripts/lint-shell-and-workflows.sh` by version and by
+the SHA-256 of its release archive. Download the new archive, write its checksum beside the new version, run the script,
+and fix or accept with a reason in `.github/actionlint.yaml`, `.github/zizmor.yml`, or on the line, whatever the new
+version reports, in the same pull request: a linter that moves without that leaves the next pull request red for a
+finding it did not cause.
 
 ## What this never does
 

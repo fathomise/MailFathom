@@ -103,7 +103,8 @@ readonly client_username='end-to-end'
 readonly client_password='end-to-end-password'
 # The default administrator this deployment records on its first start, signed in with the password the run gives it.
 readonly admin_password='end-to-end-only-admin-password'
-readonly admin_authorization="Basic $(printf 'admin:%s' "$admin_password" | base64 -w0)"
+admin_authorization="Basic $(printf 'admin:%s' "$admin_password" | base64 -w0)"
+readonly admin_authorization
 
 readonly corpus_archive='backend/tools/SyntheticMail/corpora/office-en.zip'
 
