@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 using MailFathom.Domain.Delivery.Scheduling;
 using MailFathom.Domain.Emails;
 using Xunit;
@@ -33,6 +34,32 @@ public sealed class OutgoingEmailRequesterTests
         Assert.Equal(first, retried);
         Assert.Equal(OutgoingEmailOrigin.Command, retried.Origin);
     }
+
+    /// <summary>
+    /// A withdrawn send hands its draft back, so promoting the draft again is a request of its own rather than the
+    /// withdrawn send answered a second time, while the first promotion keeps the identity it was always queued under.
+    /// </summary>
+    [Fact]
+    public void Draft_PromotionsEitherSideOfAWithdrawal_AreDifferentRequesters()
+    {
+        // Arrange
+        var draft = MailDraftId.Create(Guid.Parse("0198f0a0-3333-7000-8000-000000000001"));
+
+        // Act
+        var first = OutgoingEmailRequester.Draft(draft, withdrawnPromotions: 0);
+        var afterWithdrawal = OutgoingEmailRequester.Draft(draft, withdrawnPromotions: 1);
+
+        // Assert
+        Assert.NotEqual(first, afterWithdrawal);
+        Assert.Equal("draft@0198f0a0-3333-7000-8000-000000000001", first.Identity);
+        Assert.Equal(first, OutgoingEmailRequester.Draft(draft, withdrawnPromotions: 0));
+    }
+
+    /// <summary>A count of withdrawals below zero names no promotion that could have happened.</summary>
+    [Fact]
+    public void Draft_NegativeWithdrawalCount_IsRefused() =>
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => OutgoingEmailRequester.Draft(MailDraftId.Create(Guid.Parse("0198f0a0-3333-7000-8000-000000000001")), -1));
 
     /// <summary>The revision is part of the identity, which is what makes an edited rule send again and an unchanged one send once.</summary>
     [Fact]

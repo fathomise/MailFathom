@@ -135,7 +135,9 @@ public sealed class MailDraftPromotion
     /// </para>
     /// <para>
     /// The due time is not part of that identity either, so a retry naming a different time is still the send the first
-    /// ask opened and does not move it: cancelling the send in the outbox is how a time is changed.
+    /// ask opened and does not move it: cancelling the send in the outbox is how a time is changed. A cancelled send
+    /// hands the draft back and counts itself on it, and the count is part of the identity, so promoting the draft
+    /// again queues a new send rather than answering with the one withdrawn.
     /// </para>
     /// </remarks>
     public async Task<OutgoingEmailRecord> PromoteAsync(
@@ -208,7 +210,7 @@ public sealed class MailDraftPromotion
         var request = OutgoingEmailRequest.Create(
             draft.AccountId,
             draft.User,
-            OutgoingEmailRequester.Draft(draftId),
+            OutgoingEmailRequester.Draft(draftId, draft.WithdrawnPromotions),
             [.. draft.Recipients.Select(recipient => recipient.Recipient)],
             dueAt) with
         {

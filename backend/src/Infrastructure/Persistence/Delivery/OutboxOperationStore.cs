@@ -111,18 +111,35 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
         var recorded = nameof(OutgoingEmailStage.Recorded);
         var cancelled = nameof(OutgoingEmailStage.Cancelled);
 
-        var cancelledRows = await dbContext.Database.ExecuteSqlAsync(
+        // One statement, so a send promoted from a draft is withdrawn and the draft handed back together: a withdrawal
+        // committed alone would leave the draft naming a send that will never leave, hidden from its author's drafts and
+        // refused to every edit. Counting the withdrawal is what lets the next promotion queue a send of its own. Read
+        // with ToListAsync rather than a composed operator, because a composed query wraps the statement in a subquery
+        // and PostgreSQL admits a data-modifying WITH only at the top level.
+        var cancelledRows = await dbContext.Database.SqlQuery<int>(
             $"""
-             UPDATE outgoing_emails
-             SET "Stage" = {cancelled},
-                 "StageChangedAt" = {cancelledAt}
-             WHERE "Id" = {recordId}
-               AND "Stage" = {recorded}
-               AND ("LeaseExpiresAt" IS NULL OR "LeaseExpiresAt" <= {cancelledAt})
-             """,
-            cancellationToken);
+             WITH cancelled AS (
+                 UPDATE outgoing_emails
+                 SET "Stage" = {cancelled},
+                     "StageChangedAt" = {cancelledAt}
+                 WHERE "Id" = {recordId}
+                   AND "Stage" = {recorded}
+                   AND ("LeaseExpiresAt" IS NULL OR "LeaseExpiresAt" <= {cancelledAt})
+                 RETURNING "Id"
+             ),
+             released AS (
+                 UPDATE mail_drafts
+                 SET "PromotedToOutgoingEmailId" = NULL,
+                     "WithdrawnPromotions" = "WithdrawnPromotions" + 1
+                 WHERE "PromotedToOutgoingEmailId" IN (SELECT "Id" FROM cancelled)
+                 RETURNING "Id"
+             )
+             SELECT count(*)::int AS "Value"
+             FROM cancelled
+             """)
+            .ToListAsync(cancellationToken);
 
-        return cancelledRows == 1
+        return cancelledRows is [1]
             ? OutboxDecisionOutcome.Accepted
             : await this.ExplainRefusalAsync(recordId, CancellableStages, refusalRestated: true, cancelledAt, cancellationToken);
     }
@@ -308,9 +325,10 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
         var refused = nameof(OutgoingEmailStage.Refused);
 
         // One statement, so the draft is given back and the send dismissed together or not at all: a message editable
-        // again while its refused send still stood in the outbox could be sent twice. The send's row is locked first, so
-        // an offer to send it again committed in between is seen and nothing is reopened, and the dismissal is written
-        // only where a draft of this user's was actually given back.
+        // again while its refused send still stood in the outbox could be sent twice. The draft counts the send it gave
+        // up, so sending it again queues a new one rather than being answered with the send dismissed here. The send's
+        // row is locked first, so an offer to send it again committed in between is seen and nothing is reopened, and
+        // the dismissal is written only where a draft of this user's was actually given back.
         var reopened = await dbContext.Database.SqlQuery<Guid>(
             $"""
              WITH send AS (
@@ -323,7 +341,8 @@ internal sealed class OutboxOperationStore(MailFathomDbContext dbContext, TimePr
              ),
              reopened AS (
                  UPDATE mail_drafts
-                 SET "PromotedToOutgoingEmailId" = NULL
+                 SET "PromotedToOutgoingEmailId" = NULL,
+                     "WithdrawnPromotions" = "WithdrawnPromotions" + 1
                  WHERE "PromotedToOutgoingEmailId" IN (SELECT "Id" FROM send)
                    AND "UserId" = {userId}
                    AND "DiscardedAt" IS NULL

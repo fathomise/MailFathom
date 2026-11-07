@@ -6,6 +6,7 @@ using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
+using MailFathom.Domain.Delivery.Drafts;
 
 namespace MailFathom.Application.Mail.Delivery.Drafts;
 
@@ -117,6 +118,10 @@ public sealed class MailDraftPass
     /// outcome leaves the draft exactly as it was, so a user whose send failed still has the message they wrote.
     /// </para>
     /// <para>
+    /// A send that was withdrawn hands the draft back instead, where the withdrawal itself could not: the draft names no
+    /// send again and stays where its author left it.
+    /// </para>
+    /// <para>
     /// The draft is given up rather than deleted outright, so the removal of its copy follows the same recorded
     /// sequence every other removal does and a process that dies mid-way is resumed by the pass above.
     /// </para>
@@ -132,8 +137,16 @@ public sealed class MailDraftPass
 
         if (!draft.IsDiscarded)
         {
-            if (await this.outgoingEmails.FindAsync(outgoingEmailId, cancellationToken)
-                is not { Stage: OutgoingEmailStage.Sent })
+            var send = await this.outgoingEmails.FindAsync(outgoingEmailId, cancellationToken);
+
+            if (send is { Stage: OutgoingEmailStage.Cancelled })
+            {
+                await this.ReleaseWithdrawnAsync(draft.Id, outgoingEmailId, cancellationToken);
+
+                return [];
+            }
+
+            if (send is not { Stage: OutgoingEmailStage.Sent })
             {
                 return [];
             }
@@ -152,4 +165,19 @@ public sealed class MailDraftPass
             ? [await this.filer.SettleAsync(discarded, cancellationToken)]
             : [];
     }
+
+    /// <summary>Hands back a draft whose promotion was marked after its send had already been withdrawn.</summary>
+    /// <remarks>
+    /// The withdrawal releases the draft in the statement that cancels the send, so a draft reaches this only where its
+    /// promotion committed after that statement had run, or where its send was cancelled by an earlier build whose
+    /// statement released nothing. Left promoted, it would be hidden from its author, refused to
+    /// every edit, and read again by every pass for nothing; released, it is an ordinary draft whose copy already stands.
+    /// </remarks>
+    private Task ReleaseWithdrawnAsync(
+        MailDraftId draftId,
+        OutgoingEmailId outgoingEmailId,
+        CancellationToken cancellationToken) =>
+        this.commitPolicy.CommitAsync(
+            (session, token) => this.drafts.RecordPromotionWithdrawnAsync(session, draftId, outgoingEmailId, token),
+            cancellationToken);
 }

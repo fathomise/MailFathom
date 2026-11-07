@@ -95,6 +95,11 @@ public interface IOutboxOperationStore
     /// and may be one statement away from a transmission, so cancelling it would be a race whose losing side is a
     /// message the operator was told had been withdrawn.
     /// </para>
+    /// <para>
+    /// A send promoted from a draft hands the draft back in the same write: the draft names no send again, counts the
+    /// one withdrawn, and is its author's to edit, discard, or send again as a new message. Withdrawn alone, it would be
+    /// a draft promoted to a message that will never leave, which nobody could list, edit, or remove.
+    /// </para>
     /// </remarks>
     Task<OutboxDecisionOutcome> CancelAsync(OutgoingEmailId outgoingEmailId, CancellationToken cancellationToken);
 
@@ -170,7 +175,8 @@ public interface IOutboxOperationStore
     /// ADR 0040 allows it to be: an editable draft beside a send still standing in the outbox could be sent twice. The
     /// dismissal is the ordinary one — the stage stays <see cref="OutgoingEmailStage.Refused" /> and the recipients keep
     /// what each server said — and the draft is the one the send was promoted from, unchanged, so its words, its
-    /// attachments, and its copy in the drafts folder are what they were when it was sent.
+    /// attachments, and its copy in the drafts folder are what they were when it was sent. It counts the send it gave
+    /// up, so sending it again queues a new message rather than being answered with the one dismissed here.
     /// </para>
     /// <para>
     /// Only a refused send nobody dismissed is reached, and only where it was written from a draft the deciding user
