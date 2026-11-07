@@ -6,7 +6,7 @@ using Microsoft.Extensions.AI;
 
 namespace MailFathom.Evaluations.Judging;
 
-/// <summary>Presents the judge under one fixed name, so nothing the evaluation libraries record can say which model it was.</summary>
+/// <summary>Presents a judge under a fixed name and its role on the panel, so nothing the evaluation libraries record can say which model it was.</summary>
 /// <remarks>
 /// <para>
 /// The libraries record a verdict's model from three places, and this closes all three: the model a response names, which
@@ -18,12 +18,19 @@ namespace MailFathom.Evaluations.Judging;
 /// It sits beneath the response cache rather than above it, so what the cache stores is already anonymous — the cache is
 /// kept between runs exactly as the results are.
 /// </para>
+/// <para>
+/// The role is what lets a reader of the turn details tell which judge of the panel answered a call, and it names a seat
+/// rather than a model.
+/// </para>
 /// </remarks>
 /// <param name="judge">The judge's own client, which this takes ownership of.</param>
-internal sealed class AnonymousJudgeChatClient(IChatClient judge) : DelegatingChatClient(judge)
+/// <param name="role">The role the judge holds on the panel, such as <c>juror 1</c> or <c>arbiter</c>.</param>
+internal sealed class AnonymousJudgeChatClient(IChatClient judge, string role) : DelegatingChatClient(judge)
 {
-    /// <summary>The only name the judge is ever recorded under.</summary>
+    /// <summary>The name every judge is recorded under, beside its role.</summary>
     public const string Name = "judge";
+
+    private readonly string recordedModel = $"{Name} ({role})";
 
     private static readonly ChatClientMetadata AnonymousMetadata = new(providerName: Name);
 
@@ -43,10 +50,10 @@ internal sealed class AnonymousJudgeChatClient(IChatClient judge) : DelegatingCh
         {
             // The original is deliberately not kept as the inner exception: its message and every inner one are where a
             // provider names the model and the address, and whatever holds this exception prints the whole chain.
-            throw new InvalidOperationException($"The judge did not answer ({failure.GetType().Name}).");
+            throw new InvalidOperationException($"The {this.recordedModel} did not answer ({failure.GetType().Name}).");
         }
 
-        response.ModelId = Name;
+        response.ModelId = this.recordedModel;
         response.AdditionalProperties = null;
 
         return response;

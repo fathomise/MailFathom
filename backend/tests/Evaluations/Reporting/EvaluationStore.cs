@@ -9,6 +9,7 @@ using MailFathom.AI.Chat;
 using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Decisions;
 using MailFathom.AI.Providers;
+using MailFathom.Evaluations.Judging;
 using MailFathom.Evaluations.Providers;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
@@ -26,8 +27,8 @@ namespace MailFathom.Evaluations.Reporting;
 /// the run, and the <c>AI evaluations</c> workflow carries the directory from one run to the next.
 /// </para>
 /// <para>
-/// Everything written here is published with the workflow's artefacts, which is why the judge reaches it only through
-/// <see cref="Judging.AnonymousJudgeChatClient" /> and why every input is synthetic mail.
+/// Everything written here is published with the workflow's artefacts, which is why every judge reaches it only through
+/// <see cref="AnonymousJudgeChatClient" /> and why every input is synthetic mail.
 /// </para>
 /// </remarks>
 internal static class EvaluationStore
@@ -46,20 +47,17 @@ internal static class EvaluationStore
     private static readonly ConcurrentDictionary<(string Root, string ExecutionName, int Repetitions), TallyingResponseCacheProvider> ResponseCaches = new();
 
     /// <summary>Opens the store a requested run was pointed at.</summary>
-    /// <param name="judge">The judge, already anonymous.</param>
-    /// <param name="judgeCachingKey">The key the judge's verdicts are filed under.</param>
-    /// <param name="evaluators">What every scenario in the run is judged on.</param>
+    /// <param name="panelClient">The panel of judges, already anonymous.</param>
+    /// <param name="evaluators">What every scenario in the run is judged on, each of which asks the judge.</param>
     /// <returns>The configuration each scenario opens its run from.</returns>
     /// <exception cref="InvalidOperationException">Thrown, naming the variable, when the run was not given a store or a name.</exception>
     public static ReportingConfiguration Open(
-        IChatClient judge,
-        string judgeCachingKey,
+        JudgePanelChatClient panelClient,
         IEnumerable<IEvaluator> evaluators) =>
         OpenAt(
             AiEvaluationRun.Required(RootVariable),
             AiEvaluationRun.Required(ExecutionVariable),
-            judge,
-            judgeCachingKey,
+            panelClient,
             evaluators,
             EvaluationRepetitions.Declared());
 
@@ -81,25 +79,27 @@ internal static class EvaluationStore
     /// <summary>Opens a store at a given directory, under a given run name.</summary>
     /// <param name="root">The directory holding the results and the cache.</param>
     /// <param name="executionName">The name this run's results are filed and compared under.</param>
-    /// <param name="judge">The judge, already anonymous.</param>
-    /// <param name="judgeCachingKey">The key the judge's verdicts are filed under.</param>
-    /// <param name="evaluators">What every scenario in the run is judged on.</param>
+    /// <param name="panelClient">The panel of judges, already anonymous.</param>
+    /// <param name="evaluators">What every scenario in the run is judged on, each of which asks the judge.</param>
     /// <param name="repetitions">How many times the run asks each case of each model.</param>
     /// <returns>The configuration each scenario opens its run from.</returns>
+    /// <remarks>
+    /// Every evaluator is put behind <see cref="JudgePanelEvaluator" />, which names a judge on each request it sends. The
+    /// run declares no caching key of its own for the judge: each judge's verdicts are keyed by the identity that request
+    /// names, so a panel that changed one judge re-asks only that one.
+    /// </remarks>
     public static ReportingConfiguration OpenAt(
         string root,
         string executionName,
-        IChatClient judge,
-        string judgeCachingKey,
+        JudgePanelChatClient panelClient,
         IEnumerable<IEvaluator> evaluators,
         int repetitions = 1) =>
         new(
-            evaluators,
+            [.. evaluators.Select(evaluator => new JudgePanelEvaluator(evaluator, panelClient.Panel))],
             new DiskBasedResultStore(root),
-            new ChatConfiguration(judge),
+            new ChatConfiguration(panelClient),
             ResponseCacheAt(root, executionName, repetitions),
-            [judgeCachingKey],
-            executionName);
+            executionName: executionName);
 
     /// <summary>Opens a store at a given directory, under a given run name, for a scenario that no model judges.</summary>
     /// <param name="root">The directory holding the results and the cache.</param>

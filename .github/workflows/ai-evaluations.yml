@@ -5,8 +5,11 @@
 name: AI evaluations
 
 # Measures what the agents answer, against the models a dispatch declares — or the `vars.CHAT_PROVIDER_MODEL` the
-# integration tests use where it declares none — judged by the one model `vars.JUDGE_PROVIDER_MODEL` pins. Dispatch is
-# the only way it starts: a run calls real providers and spends credit, so what a run costs is asked for rather than
+# integration tests use where it declares none — judged by the panel `vars.JUDGE_PROVIDER_MODELS` seats: one to three
+# jurors, separated by commas, every one asked about every rating, and the arbiter `vars.JUDGE_ARBITER_MODEL` names,
+# asked only about a rating the jurors do not all pass. Leaving the arbiter unset grades with the jurors alone and records
+# on every rating whether it would have been escalated, which is how the jurors are measured before an arbiter is paid
+# for. Dispatch is the only way it starts: a run calls real providers and spends credit, so what a run costs is asked for rather than
 # arriving on a timer or with a pull request.
 #
 # A dispatch declares its run in the `evaluation` input, one line of flow-style YAML, rather than in an input per
@@ -42,9 +45,9 @@ name: AI evaluations
 # for.
 #
 # The artefact is readable by anyone who can read this repository's runs, which is why nothing in the
-# store is mail anybody received and why the judge is recorded only as `judge`: its model and the
-# reasoning effort `vars.JUDGE_REASONING_EFFORT` declares for it never reach the store, the report, or
-# a failure message. The one place both appear is the evaluation step's log header, which prints every
+# store is mail anybody received and why every judge is recorded only as `judge` and its role on the panel: no judge's
+# model and not the reasoning effort `vars.JUDGE_REASONING_EFFORT` declares for them reach the store, the report, or
+# a failure message. The one place they appear is the evaluation step's log header, which prints every
 # `env:` value it is handed and masks only the secrets.
 #
 # Each case is asked of each model as many times as the block's `Repetitions` declares, and once where it declares none.
@@ -66,7 +69,7 @@ on:
         required: false
         type: string
       discard_cached_answers:
-        description: 'Start with an empty response cache, so every model and the judge are asked again; the result history is kept'
+        description: 'Start with an empty response cache, so every model and every judge are asked again; the result history is kept'
         required: false
         type: boolean
         default: false
@@ -243,10 +246,12 @@ jobs:
           MAILFATHOM_CHAT_MODEL: ${{ vars.CHAT_PROVIDER_MODEL }}
           MAILFATHOM_CHAT_ADDRESS: ${{ vars.CHAT_PROVIDER_ADDRESS }}
           MAILFATHOM_CHAT_API_KEY: ${{ secrets.CHAT_PROVIDER_API_KEY }}
-          # The judge answers from the same endpoint and the same key as the models under test, so the
-          # model is the whole of what makes it the judge.
-          MAILFATHOM_JUDGE_MODEL: ${{ vars.JUDGE_PROVIDER_MODEL }}
-          # How hard the judge reasons. Unset sends no reasoning parameter and leaves the provider's default.
+          # Every judge answers from the same endpoint and the same key as the models under test, so the
+          # models are the whole of what makes the panel.
+          MAILFATHOM_JUDGE_MODELS: ${{ vars.JUDGE_PROVIDER_MODELS }}
+          # Unset grades with the jurors alone.
+          MAILFATHOM_JUDGE_ARBITER_MODEL: ${{ vars.JUDGE_ARBITER_MODEL }}
+          # How hard every judge reasons. Unset sends no reasoning parameter and leaves each provider's default.
           MAILFATHOM_JUDGE_REASONING_EFFORT: ${{ vars.JUDGE_REASONING_EFFORT }}
           # The embedding models answer from the endpoint and key a deployment's embedding provider is reached with,
           # which the provider-contract tests already read, rather than from the chat endpoint; where the block names no

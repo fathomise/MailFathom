@@ -53,12 +53,12 @@ public sealed partial class EmailEnrichmentScenarioTests : IDisposable
     public async Task RunAsync_WithADeclaredJudge_PublishesNoValueOfItAndNoAddressOutsideAReservedDomain()
     {
         // Arrange
-        var declaration = JudgeDeclaration.Of(JudgeAddress, JudgeModel, JudgeApiKey, reasoningEffort: null);
+        var panel = JudgePanel.Of(JudgeAddress, [JudgeModel], arbiterModel: null, JudgeApiKey, reasoningEffort: null);
         using var judge = new ScriptedChatClient(JudgeAnswer, new ChatClientMetadata("planted-provider", JudgeAddress, JudgeModel));
         using var model = ScriptedStructuredAnswerRun.Model(EnrichmentAnswer);
 
         // Act
-        await this.RunJudgedCaseAsync(declaration, judge, model, executionName: "only");
+        await this.RunJudgedCaseAsync(panel, judge, model, executionName: "only");
 
         // Assert
         var published = this.ReadEveryStoredFile();
@@ -68,7 +68,7 @@ public sealed partial class EmailEnrichmentScenarioTests : IDisposable
         Assert.Contains(ScriptedStructuredAnswerRun.ModelUnderTest, published, StringComparison.Ordinal);
         Assert.Contains(AnonymousJudgeChatClient.Name, published, StringComparison.Ordinal);
 
-        string[] judgeValues = [JudgeModel, JudgeApiKey, JudgeAddress.Host, "planted-provider", declaration.CachingKey];
+        string[] judgeValues = [JudgeModel, JudgeApiKey, JudgeAddress.Host, "planted-provider", panel.Jurors[0].CachingKey];
         Assert.DoesNotContain(judgeValues, value => published.Contains(value, StringComparison.OrdinalIgnoreCase));
 
         var addresses = EmailAddress().Matches(published).Select(static match => match.Value).Distinct().ToArray();
@@ -80,14 +80,14 @@ public sealed partial class EmailEnrichmentScenarioTests : IDisposable
     public async Task RunAsync_AgainOverAnUnchangedPromptAndModel_AsksNeitherTheModelNorTheJudgeASecondTime()
     {
         // Arrange
-        var declaration = JudgeDeclaration.Of(JudgeAddress, JudgeModel, JudgeApiKey, reasoningEffort: null);
+        var panel = JudgePanel.Of(JudgeAddress, [JudgeModel], arbiterModel: null, JudgeApiKey, reasoningEffort: null);
         using var judge = new ScriptedChatClient(JudgeAnswer, new ChatClientMetadata("planted-provider", JudgeAddress, JudgeModel));
         using var model = ScriptedStructuredAnswerRun.Model(EnrichmentAnswer);
 
-        await this.RunJudgedCaseAsync(declaration, judge, model, executionName: "first");
+        await this.RunJudgedCaseAsync(panel, judge, model, executionName: "first");
 
         // Act
-        var repeated = await this.RunJudgedCaseAsync(declaration, judge, model, executionName: "second");
+        var repeated = await this.RunJudgedCaseAsync(panel, judge, model, executionName: "second");
 
         // Assert
         Assert.Equal((1, 1, null), (model.Requests, judge.Requests, repeated.Shortfall));
@@ -97,12 +97,12 @@ public sealed partial class EmailEnrichmentScenarioTests : IDisposable
     public async Task RunAsync_WithNothingReachingAProvider_ReportsTheRunAsHavingSpentNothing()
     {
         // Arrange
-        var declaration = JudgeDeclaration.Of(JudgeAddress, JudgeModel, JudgeApiKey, reasoningEffort: null);
+        var panel = JudgePanel.Of(JudgeAddress, [JudgeModel], arbiterModel: null, JudgeApiKey, reasoningEffort: null);
         using var judge = new ScriptedChatClient(JudgeAnswer, new ChatClientMetadata("planted-provider", JudgeAddress, JudgeModel));
         using var model = ScriptedStructuredAnswerRun.Model(EnrichmentAnswer);
 
         // Act
-        var outcome = await this.RunJudgedCaseAsync(declaration, judge, model, executionName: "only");
+        var outcome = await this.RunJudgedCaseAsync(panel, judge, model, executionName: "only");
 
         // Assert
         var cost = outcome.Verdict.Get<NumericMetric>(EvaluationCost.MetricName);
@@ -242,7 +242,7 @@ public sealed partial class EmailEnrichmentScenarioTests : IDisposable
     private static partial Regex ReservedDomain();
 
     private async Task<StructuredAnswer> RunJudgedCaseAsync(
-        JudgeDeclaration declaration,
+        JudgePanel panel,
         IChatClient judge,
         IChatClient model,
         string executionName)
@@ -252,12 +252,11 @@ public sealed partial class EmailEnrichmentScenarioTests : IDisposable
             Evaluators = StructuredAnswerScenario.JudgedWhen(readsTwoWays: true),
         };
 
-        using var anonymousJudge = new AnonymousJudgeChatClient(judge);
+        using var panelClient = panel.Present([judge]);
         var reporting = EvaluationStore.OpenAt(
             this.store.FullName,
             executionName,
-            anonymousJudge,
-            declaration.CachingKey,
+            panelClient,
             request.Evaluators);
 
         return await StructuredAnswerScenario.RunAsync(

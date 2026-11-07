@@ -18,6 +18,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Evaluations.Answering;
 using MailFathom.Evaluations.Corpus;
 using MailFathom.Evaluations.Costing;
+using MailFathom.Evaluations.Judging;
 using MailFathom.Evaluations.Languages;
 using MailFathom.Evaluations.Reporting;
 using MailFathom.TestSupport;
@@ -471,7 +472,7 @@ internal sealed record DiscoveryCompositionScenario(
         var verdict = await scenarioRun.EvaluateAsync(
             [new ChatMessage(ChatRole.User, this.Question)],
             new ChatResponse(new ChatMessage(ChatRole.Assistant, Rendered(result.Blocks[0]))) { ModelId = modelName },
-            [new GroundednessEvaluatorContext(firstSource < 0 ? turn : turn[firstSource..])],
+            [new GroundednessEvaluatorContext(firstSource < 0 ? turn : turn[firstSource..]), this.Thresholds()],
             cancellationToken);
 
         this.HoldRatings(verdict);
@@ -506,6 +507,12 @@ internal sealed record DiscoveryCompositionScenario(
         .. (document.Events ?? []).SelectMany(static entry => entry?.Sources ?? []),
         .. (document.Rows ?? []).SelectMany(static row => row?.Cells ?? []).SelectMany(static cell => cell?.Sources ?? []),
     ];
+
+    private JudgeThresholds Thresholds() =>
+        new([
+            .. this.MinimumRelevance is { } relevance ? [(RelevanceEvaluator.RelevanceMetricName, (double)relevance)] : Array.Empty<(string, double)>(),
+            .. this.MinimumGroundedness is { } groundedness ? [(GroundednessEvaluator.GroundednessMetricName, (double)groundedness)] : Array.Empty<(string, double)>(),
+        ]);
 
     private void HoldRatings(EvaluationResult verdict)
     {

@@ -92,12 +92,12 @@ internal static class StructuredAnswerScenario
         StructuredAnswerRequest request,
         CancellationToken cancellationToken)
     {
-        var judge = JudgeDeclaration.Read();
+        var panel = JudgePanel.Read();
         var apiKey = EvaluationEndpoint.ApiKey();
         var repetitions = EvaluationRepetitions.Declared();
 
         var shortfalls = await Task.WhenAll(
-            [.. ModelsUnderTest.For(capability).Select(model => MeasureAsync(judge, model, apiKey, repetitions, request, cancellationToken))]);
+            [.. ModelsUnderTest.For(capability).Select(model => MeasureAsync(panel, model, apiKey, repetitions, request, cancellationToken))]);
 
         return [.. shortfalls.SelectMany(static modelShortfalls => modelShortfalls)];
     }
@@ -185,7 +185,8 @@ internal static class StructuredAnswerScenario
         var verdict = await scenarioRun.EvaluateAsync(
             [new ChatMessage(ChatRole.System, request.Instruction), new ChatMessage(ChatRole.User, turn)],
             new ChatResponse(new ChatMessage(ChatRole.Assistant, answer.Text)) { ModelId = modelName },
-            cancellationToken: cancellationToken);
+            [new JudgeThresholds((IntentResolutionMetricName, IntentResolutionThreshold))],
+            cancellationToken);
 
         RecordExpectation(verdict, request.ExpectationMetricName, shortfall);
         EvaluationCost.Record(verdict, modelName, modelSpend.Take(), judgeSpend.Take());
@@ -195,7 +196,7 @@ internal static class StructuredAnswerScenario
 
     /// <summary>Measures one model, each repetition over clients, meters, and a store handle of its own, which is what lets the models and the repetitions run at once.</summary>
     private static Task<IReadOnlyList<string>> MeasureAsync(
-        JudgeDeclaration judge,
+        JudgePanel panel,
         ModelUnderTest modelUnderTest,
         string apiKey,
         int repetitions,
@@ -212,9 +213,9 @@ internal static class StructuredAnswerScenario
                 var judgeSpend = new SpendMeter();
 
                 using var model = ProviderChatClient.Open(modelUnderTest, apiKey, modelSpend);
-                using var judgeClient = judge.Open(judgeSpend);
+                using var panelClient = panel.Open(judgeSpend);
 
-                var reporting = EvaluationStore.Open(judgeClient, judge.CachingKey, request.Evaluators);
+                var reporting = EvaluationStore.Open(panelClient, request.Evaluators);
 
                 return [.. ShortfallsOf(await RunAsync(reporting, model, modelUnderTest.Plan, repetition, request, modelSpend, judgeSpend, cancellationToken))];
             },

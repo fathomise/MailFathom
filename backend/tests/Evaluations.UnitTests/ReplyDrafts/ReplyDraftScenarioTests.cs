@@ -412,13 +412,12 @@ public sealed class ReplyDraftScenarioTests : IDisposable
     private async Task<EvaluationResult> RunAsync(ReplyDraftScenario scenario, IChatClient model)
     {
         using var judge = new ScriptedChatClient(JudgeAnswer, new ChatClientMetadata("scripted-judge", JudgeAddress, "judge-model"));
-        using var anonymousJudge = new AnonymousJudgeChatClient(judge);
-        var declaration = JudgeDeclaration.Of(JudgeAddress, "judge-model", "judge-key", reasoningEffort: null);
+        var panel = JudgePanel.Of(JudgeAddress, ["judge-model"], arbiterModel: null, "judge-key", reasoningEffort: null);
+        using var panelClient = panel.Present([judge]);
         var reporting = EvaluationStore.OpenAt(
             this.store.FullName,
             "only",
-            anonymousJudge,
-            declaration.CachingKey,
+            panelClient,
             ReplyDraftScenario.Evaluators);
 
         return await scenario.RunAsync(

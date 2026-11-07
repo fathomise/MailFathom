@@ -41,14 +41,14 @@ public sealed class AgentConversationEvaluations
     {
         // Arrange
         var scenario = AgentConversationScenario.All.Single(candidate => candidate.Name == caseName);
-        var judge = JudgeDeclaration.Read();
+        var panel = JudgePanel.Read();
         var apiKey = EvaluationEndpoint.ApiKey();
         var repetitions = EvaluationRepetitions.Declared();
         var cancellationToken = TestContext.Current.CancellationToken;
 
         // Act
         var shortfalls = await Task.WhenAll(
-            [.. ModelsUnderTest.For(ChatCapability.Agent).Select(model => MeasureAsync(scenario, judge, model, apiKey, repetitions, cancellationToken))]);
+            [.. ModelsUnderTest.For(ChatCapability.Agent).Select(model => MeasureAsync(scenario, panel, model, apiKey, repetitions, cancellationToken))]);
 
         // Assert
         AiEvaluationRun.AssertNoShortfalls(shortfalls.SelectMany(static modelShortfalls => modelShortfalls));
@@ -57,7 +57,7 @@ public sealed class AgentConversationEvaluations
     /// <summary>Puts one question to one model and names what it fell short on.</summary>
     private static Task<IReadOnlyList<string>> MeasureAsync(
         AgentConversationScenario scenario,
-        JudgeDeclaration judge,
+        JudgePanel panel,
         ModelUnderTest modelUnderTest,
         string apiKey,
         int repetitions,
@@ -73,9 +73,9 @@ public sealed class AgentConversationEvaluations
                 var judgeSpend = new SpendMeter();
 
                 using var model = ProviderChatClient.Open(modelUnderTest, apiKey, modelSpend);
-                using var judgeClient = judge.Open(judgeSpend);
+                using var panelClient = panel.Open(judgeSpend);
 
-                var reporting = EvaluationStore.Open(judgeClient, judge.CachingKey, AgentConversationScenario.Evaluators);
+                var reporting = EvaluationStore.Open(panelClient, AgentConversationScenario.Evaluators);
 
                 return [.. scenario.ShortfallsOf(await scenario.RunAsync(
                     reporting,

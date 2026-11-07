@@ -787,13 +787,12 @@ public sealed class AgentConversationScenarioTests : IDisposable
     private async Task<EvaluationResult> RunAsync(AgentConversationScenario scenario, IChatClient model)
     {
         using var judge = Judge();
-        using var anonymousJudge = new AnonymousJudgeChatClient(judge);
-        var declaration = JudgeDeclaration.Of(new Uri("https://planted-judge-host.invalid/v1/"), "planted-judge-model", "planted-judge-key", reasoningEffort: null);
+        var panel = JudgePanel.Of(new Uri("https://planted-judge-host.invalid/v1/"), ["planted-judge-model"], arbiterModel: null, "planted-judge-key", reasoningEffort: null);
+        using var panelClient = panel.Present([judge]);
         var reporting = EvaluationStore.OpenAt(
             this.store.FullName,
             "only",
-            anonymousJudge,
-            declaration.CachingKey,
+            panelClient,
             AgentConversationScenario.Evaluators);
 
         return await scenario.RunAsync(
