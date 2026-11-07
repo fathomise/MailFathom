@@ -85,6 +85,9 @@ internal sealed class ScopedMailKnowledgeRetrieval
         + "worth saying so. Narrow with the "
         + "filters rather than by describing the narrowing in the query: a question about one person's mail, one period, "
         + "or mail carrying an attachment is answered far better by the matching filter than by words that have to rank. "
+        + "Set a filter only for what the question states or plainly implies: a question naming no period takes no "
+        + "received bound, and one asking about no attachment takes no attachment filter, because a filter nobody asked "
+        + "for hides mail that could answer the question. "
         + "Which accounts and folders are searched is fixed by the caller and is not yours to set. Each call returns one "
         + "window of the most relevant results that nothing continues, so call it again with a different query or "
         + "narrower filters to reach other mail. Matching nothing is an ordinary empty result rather than an error.";

@@ -76,6 +76,19 @@ public sealed class DiscoveryPlanningInstructionsTests
         Assert.Contains("let one lookup also carry the word the answer itself stands beside", text, StringComparison.Ordinal);
     }
 
+    /// <summary>A plan is run without its author seeing a result, so a received bound the question never stated hides mail nothing will retry.</summary>
+    [Fact]
+    public void Text_TheInstruction_SetsNoReceivedBoundOrAttachmentFilterTheQuestionDoesNotState()
+    {
+        // Act
+        var text = DiscoveryPlanningInstructions.Text.ReplaceLineEndings(" ");
+
+        // Assert
+        Assert.Contains("a question that names no period sets neither received bound", text, StringComparison.Ordinal);
+        Assert.Contains("one that asks about no attachment sets no \"hasAttachments\"", text, StringComparison.Ordinal);
+        Assert.Contains("never a period on its own", text, StringComparison.Ordinal);
+    }
+
     /// <summary>The agent is never asked for a block type, because the composition is derived from the intent in code.</summary>
     [Fact]
     public void Text_TheInstruction_AsksForNoPresentation()
