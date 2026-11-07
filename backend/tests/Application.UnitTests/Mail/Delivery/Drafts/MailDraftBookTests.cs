@@ -388,7 +388,7 @@ public sealed class MailDraftBookTests
             OutgoingEmailRequest.Create(
                 Account,
                 SyntheticUser.Deployment,
-                OutgoingEmailRequester.Draft(draft.Id),
+                OutgoingEmailRequester.Draft(draft.Id, withdrawnPromotions: 0),
                 [.. draft.Recipients.Select(recipient => recipient.Recipient)]),
             mimeByteLength: 64);
 
@@ -406,6 +406,57 @@ public sealed class MailDraftBookTests
         Assert.Equal(MailFathomErrorCode.MailDraftNotFound, refusal.ErrorCode);
         Assert.Empty(harness.Withdrawn);
         Assert.False(harness.Drafts.Peek(draft.Id)!.IsDiscarded);
+    }
+
+    /// <summary>
+    /// A send taken back before it left hands its draft back, so the author can give it up like any other draft rather
+    /// than being refused for a promotion that will never be delivered.
+    /// </summary>
+    [Fact]
+    public async Task DiscardAsync_DraftWhoseSendWasWithdrawn_GivesItUpAndWithdrawsTheCopy()
+    {
+        // Arrange
+        var outgoingEmails = new InMemoryOutgoingEmailStore();
+        var harness = Harness(outgoingEmails);
+        harness.MapDraftsFolder(Account);
+        var draft = await SaveAsync(harness, "first version");
+        await PromoteThenWithdrawAsync(harness, outgoingEmails, draft);
+
+        // Act
+        var result = await harness.Book.DiscardAsync(draft.Id, SyntheticUser.Deployment, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(MailDraftFilingOutcome.Discarded, result.Outcome);
+        Assert.Equal([(ImapUidValidity.Create(1), ImapUid.Create(1))], harness.Withdrawn);
+        Assert.Empty(harness.Drafts.Drafts);
+    }
+
+    /// <summary>A draft whose send was taken back is edited like any other, and keeps the count of the send it gave up.</summary>
+    [Fact]
+    public async Task SaveAsync_RevisingADraftWhoseSendWasWithdrawn_ReplacesTheMessageAndTheCopy()
+    {
+        // Arrange
+        var outgoingEmails = new InMemoryOutgoingEmailStore();
+        var harness = Harness(outgoingEmails);
+        harness.MapDraftsFolder(Account);
+        var draft = await SaveAsync(harness, "first version");
+        await PromoteThenWithdrawAsync(harness, outgoingEmails, draft);
+
+        // Act
+        var revised = await harness.Book.SaveAsync(
+            Account,
+            SyntheticUser.Deployment,
+            OutgoingEmailRequester.Command("mfctl-4f2a"),
+            Composed("second version"),
+            OutgoingReceiptRequests.None,
+            draft.Id,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(2, revised.Revision);
+        Assert.Null(revised.PromotedTo);
+        Assert.Equal(1, revised.WithdrawnPromotions);
+        Assert.Equal([(ImapUidValidity.Create(1), ImapUid.Create(1))], harness.Withdrawn);
     }
 
     /// <summary>Revising something this system does not hold is the same answer, so nothing appends over a stranger's mail.</summary>
@@ -966,6 +1017,27 @@ public sealed class MailDraftBookTests
 
         // Assert
         Assert.Equal(MailFathomErrorCode.MailDraftNotFound, refusal.ErrorCode);
+    }
+
+    private static async Task PromoteThenWithdrawAsync(
+        MailDraftHarness harness,
+        InMemoryOutgoingEmailStore outgoingEmails,
+        MailDraftRecord draft)
+    {
+        var send = outgoingEmails.Publish(
+            OutgoingEmailRequest.Create(
+                Account,
+                SyntheticUser.Deployment,
+                OutgoingEmailRequester.Draft(draft.Id, withdrawnPromotions: 0),
+                [.. draft.Recipients.Select(recipient => recipient.Recipient)]),
+            mimeByteLength: 64);
+        var session = Substitute.For<IPersistenceSession>();
+
+        await harness.Drafts.RecordPromotedAsync(session, draft.Id, send.Id, CancellationToken.None);
+
+        // What the statement withdrawing the send writes onto the draft beside the cancelled stage.
+        outgoingEmails.Arrange(send.Id, OutgoingEmailStage.Cancelled);
+        await harness.Drafts.RecordPromotionWithdrawnAsync(session, draft.Id, send.Id, CancellationToken.None);
     }
 
     private static Task<MailDraftRecord> SaveAsync(MailDraftHarness harness, string body) =>

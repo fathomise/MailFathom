@@ -127,17 +127,30 @@ public sealed record OutgoingEmailRequester
 
     /// <summary>Names the promotion of one draft, which is the draft rather than a key whoever asked supplied.</summary>
     /// <param name="draft">The draft being sent, which is what makes two callers promoting it one request.</param>
+    /// <param name="withdrawnPromotions">How many earlier sends of the draft were withdrawn, which is what makes a promotion after a withdrawal a request of its own.</param>
     /// <returns>A requester naming that draft's promotion.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="withdrawnPromotions" /> is negative.</exception>
     /// <remarks>
-    /// A draft is promoted once, so the draft is the act and there is nothing for a caller to key it by. That is what
-    /// closes the race a supplied key would leave open: two callers promoting one draft together both find it
-    /// unpromoted, and it is this identity that makes their two asks one record instead of one message sent twice —
-    /// the same reasoning an occasion of a recurring send is keyed by, where the duplicate would likewise be a message
-    /// in somebody's mailbox rather than a row.
+    /// A draft is promoted once until a withdrawal hands it back, so the draft and the count of its withdrawn sends are
+    /// the act and there is nothing for a caller to key it by. That is what closes the race a supplied key would leave
+    /// open: two callers promoting one draft together both find it unpromoted under the same count, and it is this
+    /// identity that makes their two asks one record instead of one message sent twice — the same reasoning an
+    /// occasion of a recurring send is keyed by, where the duplicate would likewise be a message in somebody's mailbox
+    /// rather than a row. The count is what keeps a promotion after a withdrawal from being answered with the send
+    /// that was withdrawn.
     /// </remarks>
-    public static OutgoingEmailRequester Draft(MailDraftId draft) => new(
-        OutgoingEmailOrigin.Command,
-        string.Create(CultureInfo.InvariantCulture, $"draft@{draft.Value:D}"));
+    public static OutgoingEmailRequester Draft(MailDraftId draft, int withdrawnPromotions)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(withdrawnPromotions);
+
+        // The first promotion keeps the identity it always had, so a send queued before withdrawals were counted is
+        // still the one a retry of it finds.
+        return new OutgoingEmailRequester(
+            OutgoingEmailOrigin.Command,
+            withdrawnPromotions == 0
+                ? string.Create(CultureInfo.InvariantCulture, $"draft@{draft.Value:D}")
+                : string.Create(CultureInfo.InvariantCulture, $"draft@{draft.Value:D}/{withdrawnPromotions}"));
+    }
 
     /// <summary>Restores a requester from the origin and identity a record holds.</summary>
     /// <param name="origin">The kind of authored act that asked.</param>

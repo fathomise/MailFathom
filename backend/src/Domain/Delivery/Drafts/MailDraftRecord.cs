@@ -130,6 +130,16 @@ public sealed record MailDraftRecord
     /// </remarks>
     public required OutgoingEmailId? PromotedTo { get; init; }
 
+    /// <summary>Gets how many sends of this draft were withdrawn, each handing the draft back to its author.</summary>
+    /// <remarks>
+    /// A send cancelled before it left, and a refused one its author took back, release the draft rather than ending
+    /// it, so one draft may be promoted more than once. The count
+    /// is what tells those promotions apart: it is part of the identity each one is queued under, so a promotion after a
+    /// withdrawal is a new send rather than the withdrawn one answered again, while two callers promoting the draft
+    /// together still read the same count and compose one.
+    /// </remarks>
+    public int WithdrawnPromotions { get; init; }
+
     /// <summary>Gets every copy of this draft MailFathom has appended, newest revision first.</summary>
     public required IReadOnlyList<MailDraftServerCopy> Copies { get; init; }
 

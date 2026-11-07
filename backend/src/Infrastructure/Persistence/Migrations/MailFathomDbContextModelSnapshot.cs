@@ -2197,6 +2197,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("WithdrawnPromotions")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PromotedToOutgoingEmailId")

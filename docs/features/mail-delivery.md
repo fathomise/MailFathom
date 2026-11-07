@@ -1357,7 +1357,13 @@ copy that could not be reached does not make the draft undeletable: it is marked
 reason is recorded, and the user is left with one message in a folder they can delete with the gesture they would have
 used anyway. **A draft that has been promoted is not given up this way**: its message is a queued send that giving the
 draft up would leave untouched, so the answer is `53008` `MailDraftNotFound` — the same one revising it gives — and
-what stops the message is cancelling the send rather than deleting the draft it came from.
+what stops the message is cancelling the send rather than deleting the draft it came from. **Cancelling it hands the
+draft back** in the statement that withdraws the send: the draft names no send again, so it is listed, revised, given
+up, and sent like any other, and its copy in the drafts folder stays where it was. It also counts the withdrawn send,
+and the count is part of the identity a promotion is queued under, so sending the draft again queues a new message
+rather than being answered with the cancelled one. Taking a refused send back to edit counts the same way. A
+promotion marked only after its send had already been cancelled — the one interleaving that statement cannot see — is
+handed back by the next draft pass rather than left for every pass to read again.
 
 **Promoting a draft produces an ordinary outgoing record carrying the same MIME.** The bytes are the ones that were
 stored rather than a recomposition, for the reason a retry reuses them: a rebuilt message threads as a second message

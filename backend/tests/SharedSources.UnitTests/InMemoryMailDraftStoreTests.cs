@@ -285,6 +285,30 @@ public sealed class InMemoryMailDraftStoreTests
         Assert.Equal(MailDraftStage.Filed, store.Peek(draft.Id)!.Stage);
     }
 
+    /// <summary>A withdrawn send hands its draft back once, and a release naming another send writes nothing.</summary>
+    [Fact]
+    public async Task RecordPromotionWithdrawnAsync_TheSendTheDraftNamesAndAnotherOne_ReleasesOnlyForItsOwnSendAndOnce()
+    {
+        // Arrange
+        var store = new InMemoryMailDraftStore();
+        var draft = await OpenAsync(store);
+        var promoted = OutgoingEmailId.Create(Guid.CreateVersion7(Moment));
+        var unrelated = OutgoingEmailId.Create(Guid.CreateVersion7(Moment.AddMinutes(1)));
+        await store.RecordPromotedAsync(Session, draft.Id, promoted, TestContext.Current.CancellationToken);
+
+        // Act
+        await store.RecordPromotionWithdrawnAsync(Session, draft.Id, unrelated, TestContext.Current.CancellationToken);
+        var afterUnrelated = store.Peek(draft.Id)!;
+        await store.RecordPromotionWithdrawnAsync(Session, draft.Id, promoted, TestContext.Current.CancellationToken);
+        await store.RecordPromotionWithdrawnAsync(Session, draft.Id, promoted, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(promoted, afterUnrelated.PromotedTo);
+        Assert.Equal(0, afterUnrelated.WithdrawnPromotions);
+        Assert.Null(store.Peek(draft.Id)!.PromotedTo);
+        Assert.Equal(1, store.Peek(draft.Id)!.WithdrawnPromotions);
+    }
+
     /// <summary>A draft names the send it became, and the mark is written once so a second promotion cannot rename it.</summary>
     [Fact]
     public async Task RecordPromotedAsync_ADraftPromotedTwice_KeepsTheRecordTheFirstPromotionWrote()
