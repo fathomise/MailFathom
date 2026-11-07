@@ -791,10 +791,10 @@ export function Composer({
     // already have been closed while the send was in flight, so this is the one place the outcome is always said, and a
     // title with nothing under it would leave somebody knowing a message did not go and not why.
     //
-    // **A queued message offers no way back here.** The design draws none, and this client has nothing to draw one
-    // with: the one act that would have to outlive the composer is the one the composer is gone for. What it offers
-    // instead is the send itself, in its account's Outbox, which is where withdrawing it is offered for as long as it
-    // can be.
+    // **Taking a queued message back is the Outbox's act, not this toast's.** The act has to outlive the composer, which
+    // is already gone, so where the session reads mail the toast leads to the send in its account's Outbox, where
+    // cancelling it is offered for as long as the deployment accepts one — the take-back `compose.confirmRecallable`
+    // promises before the send.
     function sendReport(outcome: DraftStanding, account: string, scheduled: SendTimeWording | null): Toast {
         switch (outcome.kind) {
             case 'queued':
