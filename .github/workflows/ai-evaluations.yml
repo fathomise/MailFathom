@@ -123,7 +123,8 @@ jobs:
       # name unless it is a full forty-character SHA, so an abbreviated SHA handed to it straight would fail to fetch. The
       # commits API resolves a branch, a tag, and a full or abbreviated SHA to the one commit it names, and the checkout is
       # then always of a full SHA. The input reaches the shell through the environment rather than the script text, so a
-      # ref cannot write shell of its own.
+      # ref cannot write shell of its own. `discard_cached_answers` beside `Sections` is refused here too, before the
+      # restore below could empty the cache of every section the run does not measure.
       - name: Resolve the commit to evaluate
         id: resolve
         env:

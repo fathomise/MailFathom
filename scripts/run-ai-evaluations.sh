@@ -131,7 +131,7 @@ retained_results_per_scenario=30
 test_host_file="$output_directory/test-host.pid"
 
 mkdir -p "$MAILFATHOM_AI_EVALUATIONS_STORE" "$output_directory"
-rm -rf "$output_directory/results" "$output_directory/report.html" "$test_host_file"
+rm -rf "$output_directory/results" "$output_directory/report.html" "$output_directory/report-store" "$test_host_file"
 
 dotnet tool restore
 dotnet restore "$evaluation_project" --locked-mode
@@ -251,7 +251,7 @@ fi
 if [[ -d "$MAILFATHOM_AI_EVALUATIONS_STORE/results" ]]; then
   retain_newest_results "$MAILFATHOM_AI_EVALUATIONS_STORE/results" "$retained_results_per_scenario"
 
-  report_store="$(mktemp -d)"
+  report_store="$output_directory/report-store"
   compose_report_results "$MAILFATHOM_AI_EVALUATIONS_STORE/results" "$MAILFATHOM_AI_EVALUATIONS_EXECUTION" "$report_store/results"
   dotnet tool run aieval report --path "$report_store" --output "$output_directory/report.html"
   rm -rf "$report_store"
