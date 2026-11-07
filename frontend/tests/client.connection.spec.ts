@@ -8,9 +8,9 @@ import { folder, holdTheClock, messageRegion, openSignedIn, openWithTheChannel, 
 import type { FakeDeployment } from './fakeDeployment';
 
 // The client losing its way to the deployment and finding it again: the machine going offline, and the deployment
-// itself going quiet. Each is read off every screen it reaches — the rail's alarm, the freshness line, the list, the
-// open message, and a search — and off the requests the page issued, because what the client promises about both is
-// that nothing already on the screen is thrown away and that it comes back by itself.
+// itself going quiet. Each is read off every screen it reaches — the rail's alarm, the freshness line, the folder tree,
+// the list, the open message, and a search — and off the requests the page issued, because what the client promises
+// about both is that nothing already on the screen is thrown away and that it comes back by itself.
 
 /**
  * What a signed-in frame says once the server is out of reach: the rail's alarm, and the freshness line saying it no
@@ -38,7 +38,7 @@ function sessionReads(deployment: FakeDeployment): number {
     return deployment.requests('GET', '/session').length;
 }
 
-test('says the server is out of reach while keeping the list and the open message, and reads both again once the network is back', async ({
+test('says the server is out of reach while keeping the folders, the list, and the open message, and reads them again once the network is back', async ({
     page,
     context,
     deployment,
@@ -54,11 +54,13 @@ test('says the server is out of reach while keeping the list and the open messag
 
     await expect(outOfReach(page)).toBeVisible();
     await expect(mailboxesUnknown(page)).toBeVisible();
+    await expect(folder(page, 'Inbox 12 unread')).toBeVisible();
     await expect(row(page, 'Message 0')).toBeVisible();
     await expect(row(page, 'Message 7')).toBeVisible();
     await expect(message).toBeVisible();
     await expect.poll(() => deployment.channelsOpen()).toBe(0);
 
+    const folderReads = deployment.requests('GET', '/folders').length;
     const listReads = deployment.requests('GET', '/emails').length;
     const messageReads = deployment.requests('GET', '/messages/message-7').length;
 
@@ -67,8 +69,11 @@ test('says the server is out of reach while keeping the list and the open messag
     await expect(outOfReach(page)).toHaveCount(0);
     await expect(mailboxesUnknown(page)).toHaveCount(0);
     await expect.poll(() => deployment.channelsOpen()).toBe(1);
+    await expect.poll(() => deployment.requests('GET', '/folders').length).toBeGreaterThan(folderReads);
     await expect.poll(() => deployment.requests('GET', '/emails').length).toBeGreaterThan(listReads);
     await expect.poll(() => deployment.requests('GET', '/messages/message-7').length).toBeGreaterThan(messageReads);
+    await expect(folder(page, 'Inbox 12 unread')).toBeVisible();
+    await expect(page.getByText('Reading mailboxes and folders…')).toHaveCount(0);
     await expect(row(page, 'Message 0')).toBeVisible();
     await expect(message).toBeVisible();
 });
