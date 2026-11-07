@@ -102,6 +102,66 @@ public sealed class JudgePanelEvaluatorTests : IDisposable
         Assert.Equal((0, 0, 0), (first.Requests, second.Requests, arbiter.Requests));
     }
 
+    [Fact]
+    public async Task EvaluateAsync_AnArbiterThatRefuses_KeepsTheLowestJurorRatingAndAsksItAgainNextRun()
+    {
+        // Arrange
+        using var first = Judge("5");
+        using var second = Judge("3");
+        using var arbiter = new ScriptedChatClient(string.Empty, new ChatClientMetadata("planted-provider", JudgeAddress, "planted-model"), ChatFinishReason.ContentFilter);
+
+        await this.RateAsync(WithArbiter(), [first, second, arbiter], new JudgeThresholds((RatingName, 4)), executionName: "first");
+
+        // Act
+        var rating = await this.RateAsync(WithArbiter(), [first, second, arbiter], new JudgeThresholds((RatingName, 4)), executionName: "second");
+
+        // Assert
+        Assert.Equal(3, Assert.IsType<NumericMetric>(rating).Value);
+        Assert.Equal(JudgePanelEvaluator.ArbiterDidNotRate, rating.Metadata?[JudgePanelEvaluator.EscalationMetadata]);
+        Assert.Equal(("juror 2", "not rated"), (rating.Metadata?[JudgePanelEvaluator.DecidedByMetadata], rating.Metadata?["judge-arbiter"]));
+        Assert.Contains(rating.Diagnostics ?? [], static diagnostic => diagnostic.Message == "arbiter: The judge (arbiter) refused to answer.");
+        Assert.Equal((1, 1, 2), (first.Requests, second.Requests, arbiter.Requests));
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_AJurorThatRefuses_FailsTheEvaluatorAndAsksItAgainNextRun()
+    {
+        // Arrange
+        using var first = new ScriptedChatClient(string.Empty, new ChatClientMetadata("planted-provider", JudgeAddress, "planted-model"), ChatFinishReason.ContentFilter);
+        using var second = Judge("5");
+        using var arbiter = Judge("5");
+
+        await this.RateAsync(WithArbiter(), [first, second, arbiter], new JudgeThresholds((RatingName, 4)), executionName: "first");
+
+        // Act
+        var rating = await this.RateAsync(WithArbiter(), [first, second, arbiter], new JudgeThresholds((RatingName, 4)), executionName: "second");
+
+        // Assert
+        Assert.False(rating.Metadata?.ContainsKey(JudgePanelEvaluator.EscalationMetadata) ?? false);
+        Assert.Contains(
+            rating.Diagnostics ?? [],
+            static diagnostic => diagnostic.Severity is EvaluationDiagnosticSeverity.Error
+                && diagnostic.Message.Contains("The judge (juror 1) refused to answer.", StringComparison.Ordinal));
+        Assert.Equal((2, 0), (first.Requests, arbiter.Requests));
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_AnArbiterAnsweringWithoutARating_KeepsTheLowestJurorRating()
+    {
+        // Arrange
+        using var first = Judge("5");
+        using var second = Judge("3");
+        using var arbiter = Judge("no score here");
+
+        // Act
+        var rating = await this.RateAsync(WithArbiter(), [first, second, arbiter], new JudgeThresholds((RatingName, 4)));
+
+        // Assert
+        Assert.Equal(3, Assert.IsType<NumericMetric>(rating).Value);
+        Assert.Equal(JudgePanelEvaluator.ArbiterDidNotRate, rating.Metadata?[JudgePanelEvaluator.EscalationMetadata]);
+        Assert.Equal("juror 2", rating.Metadata?[JudgePanelEvaluator.DecidedByMetadata]);
+    }
+
     [Theory]
     [InlineData("5", "5", JudgePanelEvaluator.NotNeeded)]
     [InlineData("5", "4", JudgePanelEvaluator.Escalated)]
@@ -237,7 +297,10 @@ public sealed class JudgePanelEvaluatorTests : IDisposable
 
             EvaluationMetric rating = bool.TryParse(answer.Text, out var held)
                 ? new BooleanMetric(RatingName, held, reason)
-                : new NumericMetric(RatingName, double.Parse(answer.Text, CultureInfo.InvariantCulture), reason);
+                : new NumericMetric(
+                    RatingName,
+                    double.TryParse(answer.Text, CultureInfo.InvariantCulture, out var score) ? score : null,
+                    reason);
 
             return new EvaluationResult(rating);
         }

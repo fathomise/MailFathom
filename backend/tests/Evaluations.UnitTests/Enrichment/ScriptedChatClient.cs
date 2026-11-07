@@ -17,7 +17,8 @@ namespace MailFathom.Evaluations.UnitTests.Enrichment;
 /// </remarks>
 /// <param name="answer">The text every response carries.</param>
 /// <param name="metadata">What the client publishes about itself, which is where a real one names its address and model.</param>
-internal sealed class ScriptedChatClient(string answer, ChatClientMetadata metadata) : IChatClient
+/// <param name="finishReason">Why every response ends, or <see langword="null" /> for none stated, as most providers answer.</param>
+internal sealed class ScriptedChatClient(string answer, ChatClientMetadata metadata, ChatFinishReason? finishReason = null) : IChatClient
 {
     private readonly Lock received = new();
 
@@ -42,6 +43,7 @@ internal sealed class ScriptedChatClient(string answer, ChatClientMetadata metad
         return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, answer))
         {
             ModelId = metadata.DefaultModelId,
+            FinishReason = finishReason,
             AdditionalProperties = new AdditionalPropertiesDictionary { ["provider"] = metadata.ProviderUri?.Host },
             Usage = new UsageDetails { InputTokenCount = 10, OutputTokenCount = 5, TotalTokenCount = 15 },
         });
