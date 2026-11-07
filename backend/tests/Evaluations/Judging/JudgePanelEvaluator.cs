@@ -16,6 +16,12 @@ namespace MailFathom.Evaluations.Judging;
 /// passing when every juror gives the same value, because without a threshold the only doubt left is disagreement.
 /// </para>
 /// <para>
+/// A rating no juror gave is not escalated. Every juror comes back unrated when the evaluator refused the answer itself —
+/// an empty response above all, which it refuses before asking any judge — so the arbiter would refuse it the same way
+/// and there is nothing for it to settle. The verdict is then recorded as <see cref="NotRated" />, and the scenario still
+/// fails the rating it did not get.
+/// </para>
+/// <para>
 /// Where every juror passes, the verdict is the lowest of their ratings and the arbiter is not asked. Where one does not
 /// and an arbiter is declared, the arbiter's rating is the verdict, never a vote beside the jurors' — escalating exists
 /// so the stronger judge settles what the cheaper ones left in doubt. Where no arbiter is declared, the verdict is the
@@ -45,6 +51,9 @@ internal sealed class JudgePanelEvaluator(IEvaluator inner, JudgePanel panel) : 
 
     /// <summary>A juror did not pass and no arbiter is declared, so the lowest juror rating was kept.</summary>
     public const string NeededWithoutArbiter = "needed, no arbiter declared";
+
+    /// <summary>No juror gave a rating, so there was nothing for the arbiter to settle.</summary>
+    public const string NotRated = "not rated";
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> EvaluationMetricNames => inner.EvaluationMetricNames;
@@ -77,7 +86,11 @@ internal sealed class JudgePanelEvaluator(IEvaluator inner, JudgePanel panel) : 
                 cancellationToken).AsTask();
 
         var jurorVerdicts = await Task.WhenAll(panel.Jurors.Select(AskAsync));
+        var unrated = this.EvaluationMetricNames
+            .Where(name => jurorVerdicts.All(verdict => !IsRated(verdict.Metrics[name])))
+            .ToHashSet(StringComparer.Ordinal);
         var doubted = this.EvaluationMetricNames
+            .Where(name => !unrated.Contains(name))
             .Where(name => !EveryJurorPasses([.. jurorVerdicts.Select(verdict => verdict.Metrics[name])], thresholds))
             .ToHashSet(StringComparer.Ordinal);
         var arbiterVerdict = doubted.Count > 0 && panel.Arbiter is { } arbiter ? await AskAsync(arbiter) : null;
@@ -85,8 +98,12 @@ internal sealed class JudgePanelEvaluator(IEvaluator inner, JudgePanel panel) : 
         return new EvaluationResult(this.EvaluationMetricNames.Select(name => Decide(
             [.. panel.Jurors.Zip(jurorVerdicts, (juror, verdict) => (juror, verdict.Metrics[name]))],
             arbiterVerdict is null ? null : (panel.Arbiter!, arbiterVerdict.Metrics[name]),
+            unrated.Contains(name),
             doubted.Contains(name))));
     }
+
+    private static bool IsRated(EvaluationMetric rating) =>
+        rating is not (NumericMetric { Value: null } or BooleanMetric { Value: null });
 
     private static bool EveryJurorPasses(IReadOnlyList<EvaluationMetric> ratings, JudgeThresholds? thresholds)
     {
@@ -124,13 +141,16 @@ internal sealed class JudgePanelEvaluator(IEvaluator inner, JudgePanel panel) : 
     private static EvaluationMetric Decide(
         IReadOnlyList<(JudgeDeclaration Judge, EvaluationMetric Rating)> jurorRatings,
         (JudgeDeclaration Judge, EvaluationMetric Rating)? arbiterRating,
+        bool unrated,
         bool doubted)
     {
-        (string Outcome, (JudgeDeclaration Judge, EvaluationMetric Rating) Kept) decision = (doubted, arbiterRating) switch
+        var lowest = jurorRatings.MinBy(static asked => RankOf(asked.Rating));
+        (string Outcome, (JudgeDeclaration Judge, EvaluationMetric Rating) Kept) decision = (unrated, doubted, arbiterRating) switch
         {
-            (false, _) => (NotNeeded, jurorRatings.MinBy(static asked => RankOf(asked.Rating))),
-            (true, { } arbiter) => (Escalated, arbiter),
-            (true, null) => (NeededWithoutArbiter, jurorRatings.MinBy(static asked => RankOf(asked.Rating))),
+            (true, _, _) => (NotRated, lowest),
+            (false, false, _) => (NotNeeded, lowest),
+            (false, true, { } arbiter) => (Escalated, arbiter),
+            (false, true, null) => (NeededWithoutArbiter, lowest),
         };
 
         IEnumerable<(JudgeDeclaration Judge, EvaluationMetric Rating)> asked =

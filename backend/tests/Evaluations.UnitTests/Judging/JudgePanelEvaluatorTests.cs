@@ -84,6 +84,24 @@ public sealed class JudgePanelEvaluatorTests : IDisposable
         Assert.Equal("juror 2", rating.Metadata?[JudgePanelEvaluator.DecidedByMetadata]);
     }
 
+    [Fact]
+    public async Task EvaluateAsync_AnAnswerNoJurorCouldRate_RecordsItAsNotRatedAndNeverAsksTheArbiter()
+    {
+        // Arrange
+        using var first = Judge("5");
+        using var second = Judge("5");
+        using var arbiter = Judge("5");
+
+        // Act
+        var rating = await this.RateAsync(WithArbiter(), [first, second, arbiter], new JudgeThresholds((RatingName, 4)), response: new ChatResponse([]));
+
+        // Assert
+        Assert.Null(Assert.IsType<NumericMetric>(rating).Value);
+        Assert.Equal(JudgePanelEvaluator.NotRated, rating.Metadata?[JudgePanelEvaluator.EscalationMetadata]);
+        Assert.Equal(("not rated", "not rated", false), (rating.Metadata?["judge-juror-1"], rating.Metadata?["judge-juror-2"], rating.Metadata!.ContainsKey("judge-arbiter")));
+        Assert.Equal((0, 0, 0), (first.Requests, second.Requests, arbiter.Requests));
+    }
+
     [Theory]
     [InlineData("5", "5", JudgePanelEvaluator.NotNeeded)]
     [InlineData("5", "4", JudgePanelEvaluator.Escalated)]
@@ -175,7 +193,8 @@ public sealed class JudgePanelEvaluatorTests : IDisposable
         JudgePanel panel,
         IReadOnlyList<IChatClient> judges,
         JudgeThresholds? thresholds,
-        string executionName = "only")
+        string executionName = "only",
+        ChatResponse? response = null)
     {
         using var panelClient = panel.Present(judges);
         var reporting = EvaluationStore.OpenAt(this.store.FullName, executionName, panelClient, [new RatingEvaluator()]);
@@ -183,14 +202,14 @@ public sealed class JudgePanelEvaluatorTests : IDisposable
         await using var run = await reporting.CreateScenarioRunAsync(Scenario, cancellationToken: TestContext.Current.CancellationToken);
         var verdict = await run.EvaluateAsync(
             [new ChatMessage(ChatRole.User, "Answer the question.")],
-            new ChatResponse(new ChatMessage(ChatRole.Assistant, "An answer.")),
+            response ?? new ChatResponse(new ChatMessage(ChatRole.Assistant, "An answer.")),
             thresholds is null ? null : [thresholds],
             TestContext.Current.CancellationToken);
 
         return verdict.Metrics[RatingName];
     }
 
-    /// <summary>Asks the judge for a rating and reads its answer as a number or as a yes or no, as the quality evaluators do with theirs.</summary>
+    /// <summary>Asks the judge for a rating and reads its answer as a number or as a yes or no, as the quality evaluators do with theirs, refusing an empty response before asking as they do too.</summary>
     private sealed class RatingEvaluator : IEvaluator
     {
         public IReadOnlyCollection<string> EvaluationMetricNames => [RatingName];
@@ -202,6 +221,14 @@ public sealed class JudgePanelEvaluatorTests : IDisposable
             IEnumerable<EvaluationContext>? additionalContext = null,
             CancellationToken cancellationToken = default)
         {
+            if (modelResponse.Messages.Count is 0)
+            {
+                var refusal = new NumericMetric(RatingName);
+                refusal.AddDiagnostics(EvaluationDiagnostic.Error("The response held no messages."));
+
+                return new EvaluationResult(refusal);
+            }
+
             var answer = await chatConfiguration!.ChatClient.GetResponseAsync(
                 "Rate the answer.",
                 new ChatOptions { MaxOutputTokens = 800 },
