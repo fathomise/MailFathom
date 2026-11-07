@@ -34,7 +34,7 @@ using MimeKit;
 
 namespace MailFathom.Evaluations.SpamClassification;
 
-/// <summary>Classifies every labelled message through the spam model stage under one decision model, and files what it recorded.</summary>
+/// <summary>Classifies the labelled messages — the whole set, or one message — through the spam model stage under one decision model, and files what it recorded.</summary>
 /// <remarks>
 /// <para>
 /// Everything between the stored message and the record is the deployment's own code: the header reader and the
@@ -77,25 +77,74 @@ internal static class SpamClassificationScenario
         ? authority
         : throw new InvalidOperationException($"'{SpamClassificationCase.Receiver}' is not an authority an account can trust.");
 
-    /// <summary>Gets what every run of this scenario is measured on.</summary>
+    /// <summary>Gets what every run of the whole labelled set is measured on.</summary>
     public static IReadOnlyList<IEvaluator> Evaluators => [new SpamClassificationEvaluator()];
 
-    /// <summary>Runs the scenario under one decision model and files the measurement in the run's store.</summary>
-    /// <param name="reporting">The run's store, opened without a judge.</param>
+    /// <summary>Gets what every run of one labelled message is measured on.</summary>
+    public static IReadOnlyList<IEvaluator> CaseEvaluators => [new SpamCaseEvaluator()];
+
+    /// <summary>Names the scenario one message is filed and reported under.</summary>
+    /// <param name="scenario">The message.</param>
+    /// <returns>The scenario's name.</returns>
+    public static string NameOf(SpamClassificationCase scenario)
+    {
+        ArgumentNullException.ThrowIfNull(scenario);
+
+        return $"SpamClassification.{scenario.Name}";
+    }
+
+    /// <summary>Runs the scenario over every labelled message under one decision model and files the measurement in the run's store.</summary>
+    /// <param name="reporting">The run's store, opened without a judge and over <see cref="Evaluators" />.</param>
     /// <param name="model">The decision model's client, which stays the caller's.</param>
     /// <param name="plan">The plan the model is measured with, whose alias is what the result is filed under.</param>
     /// <param name="repetition">Which repetition this is, counted from one, which the result and the cached answers are filed under.</param>
     /// <param name="modelSpend">What reaching that model has cost, which is the meter its client is opened over.</param>
     /// <param name="cancellationToken">Withdraws the run.</param>
     /// <returns>The metrics the measurement produced.</returns>
+    public static Task<EvaluationResult> RunAsync(
+        ReportingConfiguration reporting,
+        IDecisionClient model,
+        DecisionModelPlan plan,
+        int repetition,
+        SpendMeter modelSpend,
+        CancellationToken cancellationToken) =>
+        MeasureAsync(reporting, model, plan, Name, SpamClassificationCase.All, repetition, modelSpend, cancellationToken);
+
+    /// <summary>Runs the scenario over one labelled message under one decision model and files the measurement in the run's store.</summary>
+    /// <param name="reporting">The run's store, opened without a judge and over <see cref="CaseEvaluators" />.</param>
+    /// <param name="model">The decision model's client, which stays the caller's.</param>
+    /// <param name="plan">The plan the model is measured with, whose alias is what the result is filed under.</param>
+    /// <param name="scenario">The message, whose <see cref="NameOf" /> the result and the cached answers are filed under.</param>
+    /// <param name="repetition">Which repetition this is, counted from one, which the result and the cached answers are filed under.</param>
+    /// <param name="modelSpend">What reaching that model has cost, which is the meter its client is opened over.</param>
+    /// <param name="cancellationToken">Withdraws the run.</param>
+    /// <returns>The metrics the measurement produced.</returns>
+    public static Task<EvaluationResult> RunCaseAsync(
+        ReportingConfiguration reporting,
+        IDecisionClient model,
+        DecisionModelPlan plan,
+        SpamClassificationCase scenario,
+        int repetition,
+        SpendMeter modelSpend,
+        CancellationToken cancellationToken) =>
+        MeasureAsync(reporting, model, plan, NameOf(scenario), [scenario], repetition, modelSpend, cancellationToken);
+
+    /// <summary>Classifies the messages one after another under one decision model, and files what was recorded under the scenario's name.</summary>
+    /// <remarks>
+    /// The cached answers are filed under the same name, so the whole set and each message keep caches of their own and a
+    /// cold run asks a model about each message twice; a decision call is a single closed question, which is what makes
+    /// that the cheaper side of sharing one cache between scenarios that run at the same time.
+    /// </remarks>
     [SuppressMessage(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "Disposing the caching wrapper would dispose the caller's model client, which this scenario does not own.")]
-    public static async Task<EvaluationResult> RunAsync(
+    private static async Task<EvaluationResult> MeasureAsync(
         ReportingConfiguration reporting,
         IDecisionClient model,
         DecisionModelPlan plan,
+        string scenarioName,
+        IReadOnlyList<SpamClassificationCase> cases,
         int repetition,
         SpendMeter modelSpend,
         CancellationToken cancellationToken)
@@ -106,12 +155,12 @@ internal static class SpamClassificationScenario
         var iterationName = EvaluationStore.IterationNameFor(plan.Alias, repetition);
 
         await using var scenarioRun = await reporting.CreateScenarioRunAsync(
-            Name,
+            scenarioName,
             iterationName,
-            additionalTags: EvaluationStore.TagsFor(Name, plan.Alias),
+            additionalTags: EvaluationStore.TagsFor(scenarioName, plan.Alias),
             cancellationToken: cancellationToken);
 
-        var cachedModel = await EvaluationStore.CacheDecisionsOverAsync(reporting, model, plan, Name, iterationName, repetition, cancellationToken);
+        var cachedModel = await EvaluationStore.CacheDecisionsOverAsync(reporting, model, plan, scenarioName, iterationName, repetition, cancellationToken);
         var egressGuard = SensitiveContentEgressGuards.Inactive();
 
         await using var services = new ServiceCollection()
@@ -125,9 +174,9 @@ internal static class SpamClassificationScenario
             plan.MaximumRequestCharacters,
             NullLogger<SpamModelJudge>.Instance);
 
-        var outcomes = new List<SpamCaseOutcome>(SpamClassificationCase.All.Count);
+        var outcomes = new List<SpamCaseOutcome>(cases.Count);
 
-        foreach (var scenario in SpamClassificationCase.All)
+        foreach (var scenario in cases)
         {
             outcomes.Add(await ClassifyAsync(judge, egressGuard, scenario, cancellationToken));
         }
@@ -135,7 +184,7 @@ internal static class SpamClassificationScenario
         var measurement = new SpamClassificationMeasurement(outcomes);
 
         var verdict = await scenarioRun.EvaluateAsync(
-            [new ChatMessage(ChatRole.User, DescribeCases())],
+            [new ChatMessage(ChatRole.User, Describe(cases))],
             new ChatResponse(new ChatMessage(ChatRole.Assistant, measurement.Summary)) { ModelId = plan.Alias },
             [measurement],
             cancellationToken);
@@ -225,10 +274,10 @@ internal static class SpamClassificationScenario
         };
     }
 
-    private static string DescribeCases() =>
+    private static string Describe(IReadOnlyList<SpamClassificationCase> cases) =>
         string.Join(
             '\n',
-            SpamClassificationCase.All.Select(static scenario =>
+            cases.Select(static scenario =>
                 $"{scenario.Name} ({scenario.Language}, {scenario.Job}): {scenario.Mail.Subject}"));
 
     /// <summary>Keeps the one consultation a classification makes, which is how the stage reports a model that gave no answer.</summary>
