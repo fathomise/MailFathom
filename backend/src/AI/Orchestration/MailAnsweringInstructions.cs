@@ -34,7 +34,11 @@ internal static class MailAnsweringInstructions
         {ScopedMailKnowledgeRetrieval.QueryArgumentName} you write, so write the words you expect the mail itself to
         carry rather than the question as it was put to you, in the language that mail is likely written in, which need
         not be the language you were asked in. Put every other part of the question into the filters beside it: a person
-        into an address filter, a period into the received bounds, an attachment into that filter. The turn names the
+        into an address filter, a period the question states or plainly implies — "this week", "since Tuesday", "in
+        June" — into the received bounds, and an attachment into that filter when the question asks about one. A
+        question that names no period gets no received bounds, and one that asks about no attachment gets no attachment
+        filter: a filter the question did not ask for hides mail that could answer it, and the turn's date and time
+        tell you what a stated period means but are never a period on its own. The turn names the
         current date and time, so resolve "this week", "since Tuesday" and "last quarter" against what the turn states
         rather than against a date you recall, and write each bound as {AnchoredInstant.WrittenForm} on that same
         clock — no zone, no offset and no Z, because the turn's own time carries none either. A narrowing expressed

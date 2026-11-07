@@ -90,4 +90,27 @@ public sealed class MailAnsweringInstructionsTests
         // Assert
         Assert.Contains("Write the identifier in full, exactly as the attribute carries it, never shortened", Instruction, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// A filter the question did not state hides mail that could answer it, and the turn's clock read as a period is the
+    /// shape that did it: a question naming no period searched from the first of the month and reported nothing found.
+    /// </summary>
+    [Fact]
+    public void Text_TheInstruction_SetsNoReceivedBoundOrAttachmentFilterTheQuestionDoesNotState()
+    {
+        // Assert
+        Assert.Contains("A question that names no period gets no received bounds", Instruction, StringComparison.Ordinal);
+        Assert.Contains("one that asks about no attachment gets no attachment filter", Instruction, StringComparison.Ordinal);
+        Assert.Contains("never a period on its own", Instruction, StringComparison.Ordinal);
+    }
+
+    /// <summary>A period the question does state is still applied as a filter, resolved against the turn's own clock.</summary>
+    [Fact]
+    public void Text_TheInstruction_ResolvesAStatedPeriodAgainstTheTurnsClock()
+    {
+        // Assert
+        Assert.Contains("a period the question states or plainly implies", Instruction, StringComparison.Ordinal);
+        Assert.Contains("resolve \"this week\", \"since Tuesday\" and \"last quarter\" against what the turn states", Instruction, StringComparison.Ordinal);
+        Assert.Contains(AnchoredInstant.WrittenForm, Instruction, StringComparison.Ordinal);
+    }
 }

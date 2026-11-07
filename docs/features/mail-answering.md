@@ -124,6 +124,12 @@ narrowing — one person's mail, one week, mail carrying an attachment — is th
 are both weakest at, so expressing it as words in a query means competing with every other word in that query. Expressed
 as a filter it selects the mail exactly, and the ranking is then left to do the part it is good at.
 
+The same exactness is why a filter the question did not state is a defect rather than extra precision: it hides mail
+that could answer the question, and the model then reports that the mailbox does not answer it. So the instruction and
+the tool's own description both ask for received bounds only where the question states or plainly implies a period,
+and for the attachment filter only where it asks about an attachment. The current date and time the turn names resolve
+a stated period and are never a period on their own.
+
 The arguments a caller of `search_emails` holds and a model does not are deliberately withheld, each for its own reason:
 
 - **The accounts and folders**, because they are the caller's authorization rather than a search preference. A model

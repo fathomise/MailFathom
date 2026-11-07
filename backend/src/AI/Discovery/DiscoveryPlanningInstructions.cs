@@ -70,7 +70,9 @@ internal static class DiscoveryPlanningInstructions
         than leaving the period in the words — "isRemotelySeen"
         and "isRemotelyFlagged" for the read and starred states, "keyword" for a label, and "hasAttachments" for whether
         mail carries files. Omit a filter you have no reason to set; a filter narrows exactly, while the same words in
-        the query only compete with every other word in it. A person the question names without an address has no
+        the query only compete with every other word in it. So a question that names no period sets neither received
+        bound and one that asks about no attachment sets no "hasAttachments": the current date and time the turn names
+        resolve a stated period and are never a period on its own. A person the question names without an address has no
         filter to go into, so their name belongs in the words, which is where their mail carries it.
 
         "sufficientPassages" is how many separate extracts of mail you judge would answer this question, between 1 and

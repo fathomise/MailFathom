@@ -455,6 +455,18 @@ public sealed class ScopedMailKnowledgeRetrievalTests
                 .Element(RetrievedMailContextFormatter.ExtractElementName)?.Value);
     }
 
+    /// <summary>The tool's own description is read beside the instruction, so it must not ask for a filter the instruction withholds.</summary>
+    [Fact]
+    public void SearchTool_ItsDescription_SetsNoReceivedBoundOrAttachmentFilterTheQuestionDoesNotState()
+    {
+        // Act
+        var description = ToolOver(new RecordingEmailKnowledgeSearch()).Description;
+
+        // Assert
+        Assert.Contains("a question naming no period takes no received bound", description, StringComparison.Ordinal);
+        Assert.Contains("one asking about no attachment takes no attachment filter", description, StringComparison.Ordinal);
+    }
+
     private static Dictionary<string, object?> OneQuery =>
         new() { [ScopedMailKnowledgeRetrieval.QueryArgumentName] = Query };
 
