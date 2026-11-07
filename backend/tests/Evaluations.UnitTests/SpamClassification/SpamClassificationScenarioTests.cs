@@ -16,6 +16,7 @@ using MailFathom.Evaluations.Reporting;
 using MailFathom.Evaluations.SpamClassification;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
+using Microsoft.Extensions.AI.Evaluation.Reporting.Storage;
 using Xunit;
 
 namespace MailFathom.Evaluations.UnitTests.SpamClassification;
@@ -259,6 +260,73 @@ public sealed partial class SpamClassificationScenarioTests : IDisposable
         Assert.Equal("0", repeated.Get<NumericMetric>(EvaluationCost.MetricName).Metadata?["paid-calls"]);
     }
 
+    [Theory]
+    [InlineData("Legitimate.BankNotice")]
+    [InlineData("Phishing.MailboxSignIn")]
+    [InlineData("Phishing.CustomsFee")]
+    [InlineData("Hostile.Extortion.ClaimsToBeMarketing")]
+    public async Task RunCaseAsync_AModelAnsweringTheLabel_FailsNothingAndFilesTheMessageUnderAScenarioOfItsOwn(string caseName)
+    {
+        // Arrange
+        var scenario = SpamClassificationCase.Named(caseName);
+        using var model = new LabelReadingDecisionClient(static labelled => labelled.Expected is { } kind ? SpamCaseOutcome.OptionOf(kind) : SpamClassificationQuestions.NotSpamOption);
+
+        // Act
+        var verdict = await this.RunCaseAsync(model, scenario);
+
+        // Assert
+        Assert.Empty(FailedMetrics(verdict));
+        Assert.Equal(1, model.Requests);
+        Assert.Equal(
+            1,
+            await new DiskBasedResultStore(this.store.FullName)
+                .ReadResultsAsync("only", SpamClassificationScenario.NameOf(scenario), cancellationToken: TestContext.Current.CancellationToken)
+                .CountAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RunCaseAsync_AModelCallingLegitimateMailPhishing_FailsTheLabelCheckAndNamesWhatWasRecorded()
+    {
+        // Arrange
+        using var model = new LabelReadingDecisionClient(static _ => SpamCaseOutcome.OptionOf(SpamSubcategory.Phishing));
+
+        // Act
+        var verdict = await this.RunCaseAsync(model, SpamClassificationCase.Named("Legitimate.BankNotice"));
+
+        // Assert
+        Assert.Equal([SpamCaseEvaluator.LabelledMetricName], FailedMetrics(verdict));
+        Assert.Contains("recorded phishing", verdict.Get<BooleanMetric>(SpamCaseEvaluator.LabelledMetricName).Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunCaseAsync_AModelObeyingAHostileMessage_FailsTheLabelCheckAndTheCheckThatItObeysNoInstructionInTheMail()
+    {
+        // Arrange
+        using var model = new LabelReadingDecisionClient(static scenario => scenario.DictatedOption!);
+
+        // Act
+        var verdict = await this.RunCaseAsync(model, SpamClassificationCase.Named("Hostile.Phishing.FilterInstruction"));
+
+        // Assert
+        Assert.Equal(
+            [HostileMail.ObeysNoMailMetricName, SpamCaseEvaluator.LabelledMetricName],
+            FailedMetrics(verdict));
+    }
+
+    [Fact]
+    public async Task RunCaseAsync_AProviderThatCannotBeReached_FailsOnlyTheAnsweredCheck()
+    {
+        // Arrange
+        using var model = new LabelReadingDecisionClient(static _ => throw new DecisionFailedException(Plan.Alias, DecisionFailure.TransportFaulted));
+
+        // Act
+        var verdict = await this.RunCaseAsync(model, SpamClassificationCase.Named("Legitimate.Invoice"));
+
+        // Assert
+        Assert.Equal([SpamCaseEvaluator.AnsweredMetricName], FailedMetrics(verdict));
+        Assert.Contains(nameof(SpamModelOutcome.ProviderUnavailable), verdict.Get<BooleanMetric>(SpamCaseEvaluator.AnsweredMetricName).Reason, StringComparison.Ordinal);
+    }
+
     public void Dispose() => this.store.Delete(recursive: true);
 
     private static string[] FailedMetrics(EvaluationResult verdict) =>
@@ -288,6 +356,20 @@ public sealed partial class SpamClassificationScenarioTests : IDisposable
             reporting,
             model,
             Plan,
+            repetition: 1,
+            new SpendMeter(),
+            TestContext.Current.CancellationToken);
+    }
+
+    private async Task<EvaluationResult> RunCaseAsync(IDecisionClient model, SpamClassificationCase scenario)
+    {
+        var reporting = EvaluationStore.OpenUnjudgedAt(this.store.FullName, "only", SpamClassificationScenario.CaseEvaluators);
+
+        return await SpamClassificationScenario.RunCaseAsync(
+            reporting,
+            model,
+            Plan,
+            scenario,
             repetition: 1,
             new SpendMeter(),
             TestContext.Current.CancellationToken);
