@@ -205,6 +205,37 @@ public sealed class MailDraftPassTests
         Assert.Equal(MailDraftStage.Filed, harness.Drafts.Peek(draft.Id)!.Stage);
     }
 
+    /// <summary>
+    /// A promotion marked after its send was already withdrawn is the one the withdrawal could not release. The pass
+    /// hands the draft back instead of skipping it, so it is its author's again and no later pass spends a slot on it.
+    /// </summary>
+    [Fact]
+    public async Task SettleOutstandingAsync_PromotedDraftWhoseSendWasWithdrawn_HandsTheDraftBackAndLeavesItOutOfLaterPasses()
+    {
+        // Arrange
+        var outgoingEmails = new InMemoryOutgoingEmailStore();
+        var harness = new MailDraftHarness(new FakeTimeProvider(Moment), outgoingEmails, Settings());
+        harness.MapDraftsFolder(Account);
+        var draft = await SaveAsync(harness, "first version");
+        await PromoteAsync(harness, outgoingEmails, draft, OutgoingEmailStage.Cancelled);
+
+        // Act
+        var results = await harness.Pass.SettleOutstandingAsync(Account, CancellationToken.None);
+
+        // Assert
+        Assert.Empty(results);
+        Assert.Empty(harness.Withdrawn);
+        var released = harness.Drafts.Peek(draft.Id)!;
+        Assert.Null(released.PromotedTo);
+        Assert.Equal(1, released.WithdrawnPromotions);
+        Assert.Equal(MailDraftStage.Filed, released.Stage);
+        Assert.Empty(await harness.Drafts.ReadOutstandingAsync(
+            Account,
+            maxCount: 10,
+            localCopySettles: false,
+            CancellationToken.None));
+    }
+
     private static async Task PromoteAsync(
         MailDraftHarness harness,
         InMemoryOutgoingEmailStore outgoingEmails,
@@ -215,7 +246,7 @@ public sealed class MailDraftPassTests
             OutgoingEmailRequest.Create(
                 Account,
                 SyntheticUser.Deployment,
-                OutgoingEmailRequester.Draft(draft.Id),
+                OutgoingEmailRequester.Draft(draft.Id, withdrawnPromotions: 0),
                 [.. draft.Recipients.Select(recipient => recipient.Recipient)]),
             mimeByteLength: 64);
 

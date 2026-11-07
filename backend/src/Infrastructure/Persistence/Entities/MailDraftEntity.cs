@@ -66,6 +66,14 @@ internal sealed class MailDraftEntity
     /// </remarks>
     public Guid? PromotedToOutgoingEmailId { get; set; }
 
+    /// <summary>Gets or sets how many sends of this draft were withdrawn, each handing the draft back to its author.</summary>
+    /// <remarks>
+    /// Raised in the same write that clears the promotion — the statement cancelling a send, the one reopening a refused
+    /// send as a draft, and the draft pass reaching a promotion marked after its send was cancelled — and read into the
+    /// identity the next promotion is queued under, so a send after a withdrawal is a new one.
+    /// </remarks>
+    public int WithdrawnPromotions { get; set; }
+
     /// <summary>Gets or sets the stored message a held account filed the current revision as, and <see langword="null" /> while none is filed.</summary>
     /// <remarks>
     /// No foreign key stands behind it either. The person may delete the message from their drafts folder like any other,

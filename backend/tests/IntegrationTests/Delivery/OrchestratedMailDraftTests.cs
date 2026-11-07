@@ -197,13 +197,67 @@ public sealed class OrchestratedMailDraftTests(MailFathomOrchestrationFixture or
         Assert.Equal(new OutboxReopening(OutboxDecisionOutcome.Accepted, draft.Id), reopened);
         Assert.NotEqual(OutboxDecisionOutcome.Accepted, again.Outcome);
         Assert.Null(again.Draft);
-        Assert.Null((await FindAsync(services, draft.Id, cancellationToken))?.PromotedTo);
+        var released = await FindAsync(services, draft.Id, cancellationToken);
+        Assert.Null(released?.PromotedTo);
+        Assert.Equal(1, released?.WithdrawnPromotions);
         Assert.Contains(draft.Id, await HeldForUserAsync(services, cancellationToken));
 
         var send = await services.InScopeAsync(
             (scope, token) => scope.GetRequiredService<IOutgoingEmailStore>().FindAsync(promoted.Id, token),
             cancellationToken);
         Assert.Equal(SyntheticMailAccount.User, send?.Dismissal?.DismissedBy);
+    }
+
+    /// <summary>
+    /// A send cancelled before it left hands its draft back in the statement that withdraws it: the draft is listed for
+    /// its writer again and sending it again opens a new send.
+    /// </summary>
+    /// <remarks>
+    /// It is here because the withdrawal and the release are one SQL statement, two data-modifying parts that only
+    /// PostgreSQL can be wrong about together, and because the second send is told apart from the first by the unique
+    /// index the outbox keys requests on.
+    /// </remarks>
+    [Fact]
+    public async Task CancelAsync_ASendWrittenFromADraft_HandsTheDraftBackAndSendingItAgainOpensANewSend()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var mailbox = new OrchestratedMailbox(orchestration.MailServer);
+        await mailbox.RecreateFolderAsync(SyntheticMailAccount.DraftCopyFolderPath, cancellationToken);
+
+        await using var services = await OrchestratedMailFathomServices.StartAsync(
+            orchestration,
+            cancellationToken,
+            keepsDrafts: true);
+
+        await OrchestratedFolderBinding.CommitAsync(
+            services,
+            SyntheticMailAccount.DraftCopyFolderAlias,
+            SyntheticMailAccount.DraftCopyFolderPath,
+            cancellationToken);
+
+        var draft = await SaveAsync(
+            services,
+            $"draft-withdrawn-{Guid.NewGuid():N}",
+            OutgoingReceiptRequests.None,
+            revises: null,
+            cancellationToken);
+        var promoted = await PromoteAsync(services, draft.Id, cancellationToken);
+
+        // Act
+        var cancelled = await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IOutboxOperationStore>().CancelAsync(promoted.Id, token),
+            cancellationToken);
+        var released = await FindAsync(services, draft.Id, cancellationToken);
+        var sentAgain = await PromoteAsync(services, draft.Id, cancellationToken);
+
+        // Assert
+        Assert.Equal(OutboxDecisionOutcome.Accepted, cancelled);
+        Assert.Null(released?.PromotedTo);
+        Assert.Equal(1, released?.WithdrawnPromotions);
+        Assert.Contains(draft.Id, await HeldForUserAsync(services, cancellationToken));
+        Assert.NotEqual(promoted.Id, sentAgain.Id);
+        Assert.Equal(sentAgain.Id, (await FindAsync(services, draft.Id, cancellationToken))?.PromotedTo);
     }
 
     /// <summary>

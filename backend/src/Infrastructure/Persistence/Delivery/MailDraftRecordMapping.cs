@@ -50,6 +50,7 @@ internal static class MailDraftRecordMapping
             PromotedTo = entity.PromotedToOutgoingEmailId is { } promoted
                 ? OutgoingEmailId.Create(promoted)
                 : null,
+            WithdrawnPromotions = entity.WithdrawnPromotions,
             FiledEmail = entity.FiledStoredEmailId is { } filed ? StoredEmailId.Create(filed) : null,
             FiledRevision = entity.FiledRevision,
             Copies = [.. entity.Copies.Select(ToCopy).OrderByDescending(copy => copy.Revision)],
