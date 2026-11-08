@@ -202,6 +202,15 @@ public sealed record OutgoingEmailRecord
     /// </remarks>
     public DateTimeOffset? FirstFailedAt { get; init; }
 
+    /// <summary>Gets the instant the latest attempt to transmit this send began at, or <see langword="null" /> while none has begun or the attempt was recorded by a build that did not write it.</summary>
+    /// <remarks>
+    /// It is the message's <c>Date</c>: the attempt writes it into the bytes it transmits, and the sent copy is dated
+    /// with it again when it is filed, so recipients, the sent folder, and the stored copy's sent instant all name the
+    /// moment the message left rather than the moment it was asked for. It is whole seconds, because the header carries
+    /// no finer part. Without it the sent copy is the stored message exactly as it was enqueued.
+    /// </remarks>
+    public DateTimeOffset? TransmittedAt { get; init; }
+
     /// <summary>Reports whether an attempt holds this send at an instant.</summary>
     /// <param name="asOf">The instant the question is asked at.</param>
     /// <returns><see langword="true" /> while the lease the last claim took has not run out.</returns>

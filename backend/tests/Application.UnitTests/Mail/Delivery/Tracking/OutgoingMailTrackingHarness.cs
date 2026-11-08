@@ -121,6 +121,7 @@ internal sealed class OutgoingMailTrackingHarness
             lease,
             outgoingEmailId,
             deliveryNotificationCarried: null,
+            transmittedAt: DateTimeOffset.UnixEpoch,
             TestContext.Current.CancellationToken);
     }
 

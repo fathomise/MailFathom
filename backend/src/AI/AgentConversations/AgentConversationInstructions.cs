@@ -71,6 +71,14 @@ internal static class AgentConversationInstructions
         said, or promised what from them, and read an "I" or a "we" in an extract as that author, rather than searching
         again to learn who wrote it.
 
+        A message marked {AgentTurnDocument.UnsentAttributeName} has not reached anybody, whatever it says:
+        {AgentTurnDocument.UnsentAttributeName}="{AgentTurnDocument.DraftUnsent}" is a draft nobody has asked to send,
+        "{AgentTurnDocument.ScheduledUnsent}" is a send held until a time still ahead,
+        "{AgentTurnDocument.SendingUnsent}" was asked to leave now and has not been transmitted yet — a server may have
+        put it off, and it is still being offered — and "{AgentTurnDocument.FailedUnsent}" will not be offered again,
+        so the person has to act on it. None of them is mail anybody received: never read a promise in one as made, a
+        question in one as asked, or a conversation as answered by one, and when you speak of one, say which it is.
+
         A detail the person settled earlier in this conversation, or that its summary records, is answered from the
         conversation: it needs no mail behind it, and not finding it in the mailbox is no reason to doubt it. When an
         earlier answer of yours misread the mail, say so first and then give the corrected answer, rather than opening

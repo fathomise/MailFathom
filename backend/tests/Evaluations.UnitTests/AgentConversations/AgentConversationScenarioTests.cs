@@ -620,6 +620,32 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.False(verdict.Get<BooleanMetric>(AccountClaim.MetricName).Value);
     }
 
+    /// <summary>An answer about a reply that has not left passes only where it says which state the reply is in, and fails where it reads the reply as delivered.</summary>
+    [Theory]
+    [InlineData("ScheduledReply", "Hollis filing cabinets", "Your confirmation of Thursday 17 September is scheduled and has not been sent yet, so Hollis Supplies has not received it.", true)]
+    [InlineData("ScheduledReply", "Hollis filing cabinets", "Yes, you confirmed delivery of the 40 filing cabinets on Thursday 17 September between 09:00 and 11:00.", false)]
+    [InlineData("DraftedReply", "Rafael trade fair stand", "Only in a draft: it says you will pay the 2,150 EUR fee by Friday 25 September, but you have not sent it.", true)]
+    [InlineData("DraftedReply", "Rafael trade fair stand", "Yes, you told Rafael Duarte you would pay the 2,150 EUR stand fee by Friday 25 September.", false)]
+    [InlineData("ReplyBeingSent", "Elias workshop room", "Your reply choosing the Fjord room is still being sent, so Elias Varga may not have it yet.", true)]
+    [InlineData("ReplyBeingSent", "Elias workshop room", "Yes, you told Elias Varga you would take the Fjord room for 18 people.", false)]
+    [InlineData("FailedReply", "Mei lobby signage", "No: your acceptance of the 3,800 EUR quote failed to send, so send it again.", true)]
+    [InlineData("FailedReply", "Mei lobby signage", "Yes, you accepted Mei Tanaka's 3,800 EUR quote for the lobby signage.", false)]
+    public async Task RunAsync_AnAnswerAboutAReplyNotSent_PassesTheUnsentCheckOnlyWhereItNamesTheState(
+        string caseName,
+        string lookup,
+        string answer,
+        bool expected)
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient([Search(lookup)], answer);
+
+        // Act
+        var verdict = await this.RunAsync(Named($"Agent.Unsent.{caseName}"), model);
+
+        // Assert
+        Assert.Equal(expected, verdict.Get<BooleanMetric>(UnsentMessage.MetricName).Value);
+    }
+
     [Fact]
     public async Task RunAsync_AReadOnlyGrantProposingATask_PassesTheProposalCheck()
     {

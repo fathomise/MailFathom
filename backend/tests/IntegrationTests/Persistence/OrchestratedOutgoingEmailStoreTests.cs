@@ -197,7 +197,7 @@ public sealed class OrchestratedOutgoingEmailStoreTests(MailFathomOrchestrationF
         // Act
         var announced = await services.CommitAsync(
             (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
-                .RecordTransmissionBegunAsync(session, claimed.Lease, enqueued.Id, deliveryNotificationCarried: null, token),
+                .RecordTransmissionBegunAsync(session, claimed.Lease, enqueued.Id, deliveryNotificationCarried: null, DateTimeOffset.UnixEpoch, token),
             cancellationToken);
 
         // Assert
@@ -294,7 +294,7 @@ public sealed class OrchestratedOutgoingEmailStoreTests(MailFathomOrchestrationF
         // Act
         var announced = await services.CommitAsync(
             (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
-                .RecordTransmissionBegunAsync(session, claimed.Lease, enqueued.Id, carried, token),
+                .RecordTransmissionBegunAsync(session, claimed.Lease, enqueued.Id, carried, DateTimeOffset.UnixEpoch, token),
             cancellationToken);
 
         // Assert
@@ -515,7 +515,7 @@ public sealed class OrchestratedOutgoingEmailStoreTests(MailFathomOrchestrationF
 
         await services.CommitAsync(
             (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
-                .RecordTransmissionBegunAsync(session, claimed.Lease, outgoingEmailId, deliveryNotificationCarried: null, token),
+                .RecordTransmissionBegunAsync(session, claimed.Lease, outgoingEmailId, deliveryNotificationCarried: null, DateTimeOffset.UnixEpoch, token),
             cancellationToken);
 
         await services.CommitAsync(

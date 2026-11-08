@@ -27,8 +27,8 @@ person's own.
 
 **What goes out is what is in force when the message is sent**, not when it was written. A draft sent days after it
 was saved and each occasion of a recurring send carry the footer of that moment. A send held for later is different:
-it is footed, screened, and signed when it is queued, so it carries the footer in force then, and a footer changed while
-it waits does not reach it.
+it is footed and screened when it is queued, so it carries the footer in force then, and a footer changed while it
+waits does not reach it; only its `Date` and the organization's signature are written when it leaves.
 
 ## Where it goes in a message
 

@@ -5,6 +5,7 @@
 using System.Text;
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Jobs;
@@ -14,7 +15,6 @@ using MailFathom.Application.Mail.Delivery.Governance;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Receipts;
-using MailFathom.Application.Mail.Delivery.Signing;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Detection;
@@ -241,7 +241,7 @@ public sealed class ReadReceiptSendingTests
         var answered = Requesting();
         var sending = this.SendingOver(
             answered,
-            signer: SignerFailingWith(SensitiveContentScannerUnavailableException.DidNotAnswerInTime(SensitiveContentScannerKind.Secrets, TimeSpan.FromSeconds(5))));
+            contentStore: ContentStoreFailingWith(SensitiveContentScannerUnavailableException.DidNotAnswerInTime(SensitiveContentScannerKind.Secrets, TimeSpan.FromSeconds(5))));
 
         // Act
         await Assert.ThrowsAsync<SensitiveContentScannerUnavailableException>(
@@ -257,7 +257,7 @@ public sealed class ReadReceiptSendingTests
     {
         // Arrange
         var answered = Requesting();
-        var sending = this.SendingOver(answered, signer: SignerFailingWith(new InvalidOperationException("The key could not be opened.")));
+        var sending = this.SendingOver(answered, contentStore: ContentStoreFailingWith(new InvalidOperationException("The content could not be placed.")));
 
         // Act
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -276,13 +276,13 @@ public sealed class ReadReceiptSendingTests
     private static AccessAuthorization Granted() =>
         AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailSend, MailFathomPermission.MailRead);
 
-    private static IOrganizationMailSigner SignerFailingWith(Exception failure)
+    private static IEmailContentStore ContentStoreFailingWith(Exception failure)
     {
-        var signer = Substitute.For<IOrganizationMailSigner>();
-        signer.SignAsync(Arg.Any<MailAccountId>(), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<ReadOnlyMemory<byte>>(failure));
+        var contentStore = ContentStores.Substituted();
+        contentStore.PlaceContentAsync(Arg.Any<EmailContentKind>(), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<PlacedEmailContent>(failure));
 
-        return signer;
+        return contentStore;
     }
 
     private static IAuthoredEmailComposer ComposerThatComposesReceipts()
@@ -313,7 +313,7 @@ public sealed class ReadReceiptSendingTests
         IStoredEmailSummaryReader? summaryReader = null,
         ICallerMailAccountCatalog? catalog = null,
         IOutgoingSenderIdentityReader? senderIdentities = null,
-        IOrganizationMailSigner? signer = null,
+        IEmailContentStore? contentStore = null,
         AccessAuthorization? authorization = null)
     {
         var granted = authorization ?? Granted();
@@ -339,13 +339,13 @@ public sealed class ReadReceiptSendingTests
             this.store,
             this.composer,
             governor ?? AuthoredSendGovernors.Permitting(granted),
-            OutboxOver(granted, signer ?? OrganizationMailSigners.SigningNothing()),
+            OutboxOver(granted, contentStore ?? ContentStores.Substituted()),
             languages,
             granted,
             new FakeTimeProvider(Now));
     }
 
-    private static MailOutbox OutboxOver(AccessAuthorization granted, IOrganizationMailSigner signer)
+    private static MailOutbox OutboxOver(AccessAuthorization granted, IEmailContentStore contentStore)
     {
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
         sessionFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(_ =>
@@ -358,7 +358,7 @@ public sealed class ReadReceiptSendingTests
 
         return new MailOutbox(
             new InMemoryOutgoingEmailStore(timeProvider: new FakeTimeProvider(Now)),
-            ContentStores.Substituted(),
+            contentStore,
             new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), new FakeTimeProvider()),
             new MailOutboxSignal(capacity: 8),
             Substitute.For<IJobStore>(),
@@ -367,7 +367,6 @@ public sealed class ReadReceiptSendingTests
             OutgoingMailGovernors.Permitting(),
             MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
-            signer,
             new FakeTimeProvider(Now),
             ClientSignalPublishers.ReachingNobody);
     }

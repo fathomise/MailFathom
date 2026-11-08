@@ -301,7 +301,6 @@ public sealed class AgentActPerformerTests
             OutgoingMailGovernors.Permitting(),
             MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
-            OrganizationMailSigners.SigningNothing(),
             this.clock,
             ClientSignalPublishers.ReachingNobody);
         var promotion = new MailDraftPromotion(

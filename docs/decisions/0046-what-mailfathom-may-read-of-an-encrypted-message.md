@@ -418,7 +418,7 @@ would arrive unreadable to the person it was written for, and nobody would have 
   send refuses, because an unsigned message claims nothing false.
 
 **What MailFathom adds to an outgoing message goes in before the message is signed and encrypted.** A message is
-footed, screened, and given the organization's signature when it is queued. The footer is appended and the outgoing
+footed and screened when it is queued, and dated and given the organization's signature each time it leaves. The footer is appended and the outgoing
 screening reads the message first. The S/MIME or OpenPGP signature then covers the message with its footer, and the
 encryption seals that signed message.
 [ADR 0042](0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md)'s organization signature

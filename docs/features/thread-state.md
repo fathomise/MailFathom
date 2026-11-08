@@ -96,7 +96,9 @@ says what the request carries.
 **Some conversations are given no title, and say so** rather than receiving a placeholder: one too long to read
 (`ThreadTooLarge`), one with no settled derivation yet, and one whose every message sits in junk — a spam conversation,
 which a name on its row would vouch for. A message the classification gate withholds as spam, and one moved to Trash,
-never reaches the derivation at all, so it feeds neither the statements nor the title. Nor does a delivery report or a
+never reaches the derivation at all, so it feeds neither the statements nor the title, and neither does mail nobody
+received — a draft, or a send waiting in or refused by the outbox — which [mail nobody received](mailbox-queries.md#mail-nobody-received-read-by-the-persons-own-agent-alone) describes: a reply the person has not sent
+answers nothing yet. Nor does a delivery report or a
 read receipt: it is left out of the messages the derivation reads and of the count and newest arrival that mark a
 conversation as changed, so one arriving in a conversation whose state is current leaves it current.
 

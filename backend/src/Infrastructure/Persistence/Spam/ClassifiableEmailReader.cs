@@ -7,6 +7,7 @@ using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Infrastructure.Persistence.Emails;
 using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Spam;
@@ -27,7 +28,9 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
     /// <remarks>
     /// A tombstoned occurrence is deliberately still readable here. The message left the server, and whether the local
     /// copy is kept is a disposition a user chose; a copy that is kept is mail a reader can still reach, so refusing to
-    /// classify it would leave exactly the mail nobody else can act on unclassified.
+    /// classify it would leave exactly the mail nobody else can act on unclassified. A draft and a send that has not left
+    /// are not read at all, because their words reached nobody and no model judges them: the classifier reads one as it
+    /// reads a message that is gone.
     /// </remarks>
     public async Task<ClassifiableEmail?> FindAsync(
         MailAccountId account,
@@ -39,6 +42,7 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
         var row = await dbContext.StoredEmails
             .AsNoTracking()
             .Where(email => email.Id == storedEmailId && email.MailboxAccountId == mailboxAccountId)
+            .Where(UnsentStoredEmails.IsSentOrReceived)
             .Select(email => new
             {
                 email.MailboxAccountId,
@@ -98,7 +102,8 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
     /// The folder is matched on the alias the mapping gave it rather than on the remote path, because the alias is what
     /// the run's scope was written in and what an operator typed. A tombstoned occurrence is walked for the reason it is
     /// readable one at a time: the local copy is mail somebody can still reach, so leaving it out would put exactly the
-    /// mail nobody else can act on outside every run.
+    /// mail nobody else can act on outside every run. A draft and a send that has not left are walked by no run, for the
+    /// reason they are not read one at a time.
     /// </remarks>
     public async Task<IReadOnlyList<ClassifiableEmail>> GetStoredEmailsAsync(
         MailAccountId account,
@@ -120,7 +125,8 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
         var emails = dbContext.StoredEmails
             .AsNoTracking()
             .Where(email => email.MailboxAccountId == mailboxAccountId
-                && aliases.Contains(email.MailFolderBinding.Alias));
+                && aliases.Contains(email.MailFolderBinding.Alias))
+            .Where(UnsentStoredEmails.IsSentOrReceived);
 
         if (resumeAfter is { } position)
         {

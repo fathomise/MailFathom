@@ -143,7 +143,7 @@ public sealed class MimeKitMailFooterComposerTests
 
         // Act
         var footed = this.composer.Append(rawMime, Footer);
-        var signed = OrganizationMailSigner.Sign(footed, keyId, privateKey.GetEncoded());
+        var signed = OrganizationMailSigner.Sign(footed, keyId, privateKey.GetEncoded(), DateTimeOffset.UnixEpoch);
 
         // Assert
         Assert.NotNull(signed);

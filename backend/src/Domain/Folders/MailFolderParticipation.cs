@@ -132,8 +132,8 @@ public sealed record MailFolderParticipation
     /// </remarks>
     public bool Admits(MailboxReaderKind reader) => reader switch
     {
-        MailboxReaderKind.Agent => this.IsVisibleToAI,
+        MailboxReaderKind.Agent or MailboxReaderKind.ConversationAgent => this.IsVisibleToAI,
         MailboxReaderKind.Person => this.IsSynchronized,
-        _ => throw new ArgumentOutOfRangeException(nameof(reader), reader, "A read answers either for an agent or for the person."),
+        _ => throw new ArgumentOutOfRangeException(nameof(reader), reader, "A read answers for an agent, the person's own Agent, or the person."),
     };
 }

@@ -303,6 +303,38 @@ public sealed class AgentTurnDocumentTests
                 (string?)message.Attribute(AgentTurnDocument.WrittenByMailboxAttributeName) == "true"));
     }
 
+    /// <summary>A message nobody received carries the state the outbox holds it in, and a message that left or arrived carries none.</summary>
+    [Theory]
+    [InlineData(UnsentEmailState.Draft, AgentTurnDocument.DraftUnsent)]
+    [InlineData(UnsentEmailState.Scheduled, AgentTurnDocument.ScheduledUnsent)]
+    [InlineData(UnsentEmailState.Sending, AgentTurnDocument.SendingUnsent)]
+    [InlineData(UnsentEmailState.Failed, AgentTurnDocument.FailedUnsent)]
+    [InlineData(null, null)]
+    public void WriteProvenance_AnUnsentState_WritesItsPublishedValue(UnsentEmailState? state, string? expected)
+    {
+        // Arrange
+        using var document = new AgentTurnDocument();
+        var provenance = new EmailProvenance
+        {
+            Sender = new SenderVerification
+            {
+                AuthorAuthentication = AuthorAuthenticationOutcome.NotEstablished,
+                DeploymentTrust = SenderTrustLevel.Unknown,
+            },
+            IsInJunkFolder = false,
+            IsFirstContact = false,
+            Unsent = state,
+        };
+
+        // Act
+        document.StartElement("message");
+        document.WriteProvenance(provenance);
+        var message = Parsed(document.Complete()).Element("message")!;
+
+        // Assert
+        Assert.Equal(expected, (string?)message.Attribute(AgentTurnDocument.UnsentAttributeName));
+    }
+
     /// <summary>The clause names every attribute it explains, so the rule a model reads and the markup it meets cannot drift apart.</summary>
     [Fact]
     public void DataClause_TheProvenanceRule_NamesEveryAttributeTheWriterPublishes()

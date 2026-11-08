@@ -33,6 +33,9 @@ a run's batch budget left behind.
 [Junk is kept out of what a deployment derives from mail](spam-classification.md#junk-is-kept-out-of-what-a-deployment-derives-from-mail)
 holds the whole of it, and none of it applies with classification off.
 
+Mail nobody received — a draft, or a send waiting in or refused by the outbox — is never cut or embedded, with
+classification on or off, as [mail nobody received](mailbox-queries.md#mail-nobody-received-read-by-the-persons-own-agent-alone) states.
+
 ## The backlog between synchronization and the provider
 
 A message is offered for embedding by the last local step of its account's synchronization run — the step that cuts its

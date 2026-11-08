@@ -354,7 +354,8 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
         return services.InScopeAsync(
             (scope, token) => new StoredEmailProvenanceReader(
                     scope.GetRequiredService<MailFathomDbContext>(),
-                    deploymentFolders)
+                    deploymentFolders,
+                    TimeProvider.System)
                 .ReadAsync(emails, token),
             cancellationToken);
     }

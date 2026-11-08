@@ -165,6 +165,28 @@ public sealed class AgentConversationInstructionsTests
         Assert.Contains("read the conversation that message belongs to and answer from the latest message that settles it", text, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The Agent reads drafts and sends that have not left, so the instruction names every state the turn marks one with
+    /// and says that none of them was received.
+    /// </summary>
+    [Fact]
+    public void TextFor_TheInstruction_NamesEveryUnsentStateAndReadsNoneAsReceived()
+    {
+        // Act
+        var text = string.Join(' ', AgentConversationInstructions.TextFor(UserLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.All(
+            [
+                $"{AgentTurnDocument.UnsentAttributeName}=\"{AgentTurnDocument.DraftUnsent}\"",
+                $"\"{AgentTurnDocument.ScheduledUnsent}\"",
+                $"\"{AgentTurnDocument.SendingUnsent}\"",
+                $"\"{AgentTurnDocument.FailedUnsent}\"",
+                "None of them is mail anybody received",
+            ],
+            fragment => Assert.Contains(fragment, text, StringComparison.Ordinal));
+    }
+
     /// <summary>A quotation keeps the mail's language, so an answer that is only a quotation is not written in the person's.</summary>
     [Fact]
     public void TextFor_EveryLanguage_FramesAQuotationInThatLanguage()

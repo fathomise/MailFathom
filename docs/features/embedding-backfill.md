@@ -57,7 +57,10 @@ the third is what a change to the boundary rules leaves behind.
   builds against one database: a build that re-cut whatever it did not recognize would cut the newer build's passages
   back to its own rules on every sweep while the newer one cut them forward, paying a provider each time.
 
-A message a tombstone hides is in none of the groups. Vectors nothing may retrieve are a provider bill with no reader. A
+A message a tombstone hides is in none of the groups, and neither is mail nobody received — a draft, or a send waiting
+in or refused by the outbox — which no agent may retrieve, as
+[mail nobody received](mailbox-queries.md#mail-nobody-received-read-by-the-persons-own-agent-alone) states. Vectors
+nothing may retrieve are a provider bill with no reader. A
 message whose local copy was deliberately kept after MailFathom deleted it on the server is not that: nothing may
 retrieve it from the server any more, and everything may still retrieve it here, so the walk reaches it like any other.
 

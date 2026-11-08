@@ -808,7 +808,9 @@ internal sealed class AgentConversationTools
         }
 
         var named = StoredEmailId.Create(parsed);
-        var opened = await this.readers.ContentReader.ReadContentAsync(GetEmailContentRequest.Create([named]), cancellationToken);
+        var opened = await this.readers.ContentReader.ReadContentAsync(
+            GetEmailContentRequest.Create([named]) with { Reader = MailboxReaderKind.ConversationAgent },
+            cancellationToken);
         var message = opened.Emails.Count is 0 ? null : opened.Emails[0].Content;
 
         if (message is { Thread: null })
@@ -819,7 +821,7 @@ internal sealed class AgentConversationTools
         // The id may name the conversation itself, which is how the turn names the one the person is looking at.
         var thread = message?.Thread?.ThreadId ?? EmailThreadId.Create(parsed);
         var conversation = await this.readers.ContentReader.ReadContentAsync(
-            GetEmailContentRequest.CreateForThread(thread),
+            GetEmailContentRequest.CreateForThread(thread) with { Reader = MailboxReaderKind.ConversationAgent },
             cancellationToken);
         var read = ContentsOf(conversation).ToDictionary(static content => content.StoredEmailId);
         StoredEmailId[] order =
@@ -840,7 +842,9 @@ internal sealed class AgentConversationTools
 
         foreach (var unread in unreadBatches)
         {
-            var more = await this.readers.ContentReader.ReadContentAsync(GetEmailContentRequest.Create(unread), cancellationToken);
+            var more = await this.readers.ContentReader.ReadContentAsync(
+                GetEmailContentRequest.Create(unread) with { Reader = MailboxReaderKind.ConversationAgent },
+                cancellationToken);
 
             foreach (var content in ContentsOf(more))
             {

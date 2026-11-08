@@ -7,6 +7,7 @@ using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Mail.Delivery.Filing;
+using MailFathom.Application.Mail.Delivery.Transmission;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Synchronization;
@@ -94,6 +95,9 @@ internal sealed class HeldLocalMailbox
     /// <summary>Gets every message stored, in the order it was filed, with the flags and the send it was filed with.</summary>
     internal List<(StoredEmailId Email, AppendedMailFlags Flags, OutgoingEmailId? FiledFrom)> Stored { get; } = [];
 
+    /// <summary>Gets what dates and signs a send's sent copy, which leaves it as stored unless a test states otherwise.</summary>
+    internal TransmittedEmailForm TransmittedForm { get; init; } = TransmittedEmailForms.Unchanged();
+
     /// <summary>Gets or sets whether the account files a copy of what it sends, which defaults to yes.</summary>
     internal bool FilesSentCopy { get; set; } = true;
 
@@ -153,6 +157,7 @@ internal sealed class HeldLocalMailbox
         custodians,
         this.Emails,
         contents,
+        this.TransmittedForm,
         this.mimeReader,
         this.mappings,
         this.folderResolutions,

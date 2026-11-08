@@ -168,6 +168,10 @@ internal sealed class MimeKitAuthoredEmailComposer(
     }
 
     /// <inheritdoc />
+    public ReadOnlyMemory<byte> DateAt(ReadOnlyMemory<byte> rawMime, DateTimeOffset transmittedAt) =>
+        RawHeaderFields.Replace(rawMime.Span, "Date", DateUtils.FormatDate(transmittedAt));
+
+    /// <inheritdoc />
     public MailDraftComposition ComposeDraft(
         MailAccountId account,
         AuthoredEmail authored,

@@ -122,7 +122,9 @@ digest adds when the model is consulted, so a change to any of them re-decides m
 that does not consult it keeps the deterministic profile. Every record a stage writes names the profile it was decided
 under; the person's own verdict names none, and a run skips it whatever its profile. The folders an account classifies
 are deliberately outside it: adding a folder changes which mail is classified and not what any classification would have
-concluded. A stage's record whose profile differs from the current one — or that names none — was decided under other
+concluded. Mail nobody received — a draft, or a send waiting in or refused by the outbox — is classified by no stage and
+walked by no run, because it is the mailbox's own words that reached nobody, as
+[mail nobody received](mailbox-queries.md#mail-nobody-received-read-by-the-persons-own-agent-alone) states. A stage's record whose profile differs from the current one — or that names none — was decided under other
 terms, and a [classification run](#classifying-the-mail-you-already-have) classifies it again rather than skipping it.
 
 ## The deterministic stage

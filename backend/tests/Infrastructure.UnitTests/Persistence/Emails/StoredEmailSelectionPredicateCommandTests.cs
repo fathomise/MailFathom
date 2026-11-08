@@ -162,6 +162,30 @@ public sealed class StoredEmailSelectionPredicateCommandTests
     }
 
     /// <summary>
+    /// A draft, or a send still waiting in or refused by the outbox, is a word nobody received, so an agent's scope
+    /// leaves it out by its <c>\Draft</c> flag and by the folder it sits in. The person reads their own drafts, and the
+    /// person's own Agent reads them to be told what state each is in, so neither of those scopes reads the flag.
+    /// </summary>
+    [Theory]
+    [InlineData(MailboxReaderKind.Agent, true)]
+    [InlineData(MailboxReaderKind.ConversationAgent, false)]
+    [InlineData(MailboxReaderKind.Person, false)]
+    public void WithinScope_EachReader_LeavesUnsentMailOutOfAnAgentsScopeAlone(MailboxReaderKind reader, bool narrowed)
+    {
+        // Arrange
+        var scope = WholeMailbox
+            .RestrictedTo([new MailFolderIdentity(MailAccountId.Create("primary"), MailFolderAlias.Create("INBOX"))])
+            .AnsweringFor(reader, []);
+
+        // Act
+        var narrowing = ScopeNarrowingOf(scope);
+
+        // Assert
+        Assert.Equal(narrowed, narrowing.Contains($"\"{nameof(StoredEmailEntity.IsRemotelyDraft)}\"", StringComparison.Ordinal));
+        Assert.Equal(narrowed, narrowing.Contains($"\"{nameof(MailFolderEntity.Role)}\"", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// The junk folder is admitted to an agent only for mail the person marked not spam, so the clause over it reads who
     /// decided the verdict as well as what it is. A clause reading the verdict alone would hand an agent junk-folder mail
     /// a model or the deterministic stage judged not spam, and it would read exactly like this one without the stage.

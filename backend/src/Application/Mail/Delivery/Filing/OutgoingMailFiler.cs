@@ -283,7 +283,7 @@ public sealed class OutgoingMailFiler
         var appended = await this.appends.AppendAsync(
             record.AccountId,
             filing,
-            MailboxCopySource.OutgoingEmail(record.Id),
+            MailboxCopySource.SentCopy(record),
             (binding, token) => this.commitPolicy.CommitAsync(
                 (persistenceSession, commitToken) => this.filings.RecordAppendIssuedAsync(
                     persistenceSession,

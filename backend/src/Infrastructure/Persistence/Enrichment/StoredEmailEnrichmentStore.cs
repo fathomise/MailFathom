@@ -206,6 +206,7 @@ internal sealed class StoredEmailEnrichmentStore(
         AccountScopedMailFolders.Admitting(
             emails
                 .Where(StoredEmailTombstone.IsNotTombstoned)
+                .Where(UnsentStoredEmails.IsSentOrReceived)
                 .Where(email => email.MailboxAccountId == mailboxAccountId
                     && email.ReportKind == null
                     && email.Chunks.Any()

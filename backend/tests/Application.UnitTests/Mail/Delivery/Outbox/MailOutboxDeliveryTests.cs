@@ -131,6 +131,103 @@ public sealed class MailOutboxDeliveryTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// A send held until a due instant leaves dated with the attempt that transmits it rather than with the moment it was
+    /// asked for, and the record keeps that instant for the sent copy.
+    /// </summary>
+    [Fact]
+    public async Task DeliverAsync_AScheduledSendTakenUpAfterItsDueInstant_TransmitsTheMessageDatedWithTheAttempt()
+    {
+        // Arrange
+        var context = new DeliveryContext(transmittedForm: TransmittedEmailForms.Dating());
+        var reachedAt = ClaimedAt.AddDays(3).AddMilliseconds(750);
+        var claimed = await context.ClaimHeldAsync(dueAt: ClaimedAt.AddDays(3), reachedAt);
+        byte[]? transmitted = null;
+        context.Transmit = (request, envelope, _) =>
+        {
+            transmitted = request.RawMime.ToArray();
+            AcceptEveryRecipient(request, envelope);
+
+            return Task.FromResult(new MailTransmission(MailTransmissionOutcome.Accepted, 250));
+        };
+        var transmittedAt = ClaimedAt.AddDays(3);
+
+        // Act
+        var result = await context.DeliverAsync(claimed, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailOutboxDeliveryOutcome.Sent, result.Outcome);
+        Assert.Equal(TransmittedEmailForms.DatedAt(RawMime, transmittedAt), transmitted);
+        Assert.Equal(transmittedAt, context.Store.Read(claimed.Record.Id).TransmittedAt);
+    }
+
+    /// <summary>A send a temporary refusal deferred carries the instant of the attempt that delivered it, not of the one that was refused.</summary>
+    [Fact]
+    public async Task DeliverAsync_ASendDeferredByATemporaryRefusal_CarriesTheInstantOfTheAttemptThatDeliveredIt()
+    {
+        // Arrange
+        var context = new DeliveryContext(transmittedForm: TransmittedEmailForms.Dating());
+        var first = await context.ClaimAsync("anna@example.test");
+        context.Transmit = (_, _, _) =>
+            Task.FromResult(new MailTransmission(MailTransmissionOutcome.RefusedTemporarily, 451));
+        await context.DeliverAsync(first, TestContext.Current.CancellationToken);
+        var second = await context.ClaimAsync(first.Record.Id);
+        var deliveredAt = TransmittedEmailForm.TransmissionInstantAt(context.Now);
+        byte[]? transmitted = null;
+        context.Transmit = (request, envelope, _) =>
+        {
+            transmitted = request.RawMime.ToArray();
+            AcceptEveryRecipient(request, envelope);
+
+            return Task.FromResult(new MailTransmission(MailTransmissionOutcome.Accepted, 250));
+        };
+
+        // Act
+        await context.DeliverAsync(second, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotEqual(ClaimedAt, deliveredAt);
+        Assert.Equal(TransmittedEmailForms.DatedAt(RawMime, deliveredAt), transmitted);
+        Assert.Equal(deliveredAt, context.Store.Read(first.Record.Id).TransmittedAt);
+    }
+
+    /// <summary>A held account's sent copy is dated with the instant the message was transmitted, so it is the message the recipients received.</summary>
+    [Fact]
+    public async Task DeliverAsync_HeldAccountThatFilesSentCopies_FilesTheCopyDatedWithTheTransmission()
+    {
+        // Arrange
+        var held = new HeldLocalMailbox(Account, new FakeTimeProvider(ClaimedAt)) { TransmittedForm = TransmittedEmailForms.Dating() };
+        held.MapRole(MailFolderSpecialUse.Sent, "sent");
+        IEmailContentStore? contents = null;
+        var context = new DeliveryContext(
+            localFiler: store =>
+            {
+                contents = store;
+
+                return held.FilerOver(store);
+            },
+            transmittedForm: TransmittedEmailForms.Dating());
+        var claimed = await context.ClaimAsync("anna@example.test");
+        byte[]? transmitted = null;
+        context.Transmit = (request, envelope, _) =>
+        {
+            transmitted = request.RawMime.ToArray();
+            AcceptEveryRecipient(request, envelope);
+
+            return Task.FromResult(new MailTransmission(MailTransmissionOutcome.Accepted, 250));
+        };
+
+        // Act
+        await context.DeliverAsync(claimed, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(TransmittedEmailForms.DatedAt(RawMime, ClaimedAt), transmitted);
+        await contents!.Received(1).PlaceContentAsync(
+            EmailContentKind.IncomingMessage,
+            Arg.Is<ReadOnlyMemory<byte>>(filed => filed.ToArray().SequenceEqual(transmitted!)),
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>A sent copy filed for a held account is announced to its clients in the sent folder once the delivery commits.</summary>
     [Fact]
     public async Task DeliverAsync_HeldAccountThatFilesSentCopies_AnnouncesTheSentCopyInTheSentFolder()
@@ -984,7 +1081,8 @@ public sealed class MailOutboxDeliveryTests
             bool storeContent = true,
             string? sender = "me@example.test",
             TimeSpan? allowedLateness = null,
-            Func<IEmailContentStore, LocalMailFiler>? localFiler = null)
+            Func<IEmailContentStore, LocalMailFiler>? localFiler = null,
+            TransmittedEmailForm? transmittedForm = null)
         {
             this.Store = new InMemoryOutgoingEmailStore(timeProvider: this.clock);
             this.Session = new ScriptedMailDeliverySession(
@@ -1015,6 +1113,7 @@ public sealed class MailOutboxDeliveryTests
                 this.Session,
                 this.Store,
                 contentStore,
+                transmittedForm ?? TransmittedEmailForms.Unchanged(),
                 senderIdentities,
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), this.clock),
                 localFiler?.Invoke(contentStore) ?? LocalMailFilers.HoldingNothing(this.clock),

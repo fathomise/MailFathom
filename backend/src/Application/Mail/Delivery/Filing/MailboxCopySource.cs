@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.EmailContent.Storage;
+using MailFathom.Application.Mail.Delivery.Transmission;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
 
@@ -23,40 +24,59 @@ namespace MailFathom.Application.Mail.Delivery.Filing;
 /// </remarks>
 public sealed record MailboxCopySource
 {
-    private readonly OutgoingEmailId? outgoingEmailId;
+    private readonly OutgoingEmailRecord? send;
     private readonly MailDraftId? mailDraftId;
 
-    private MailboxCopySource(OutgoingEmailId? outgoingEmailId, MailDraftId? mailDraftId)
+    private MailboxCopySource(OutgoingEmailRecord? send, MailDraftId? mailDraftId)
     {
-        this.outgoingEmailId = outgoingEmailId;
+        this.send = send;
         this.mailDraftId = mailDraftId;
     }
 
-    /// <summary>Names the message one outgoing record will be, or already was, transmitted as.</summary>
-    /// <param name="outgoingEmailId">The record of the send.</param>
-    /// <returns>A source that reads the send's stored payload.</returns>
-    public static MailboxCopySource OutgoingEmail(OutgoingEmailId outgoingEmailId) =>
-        new(outgoingEmailId, mailDraftId: null);
+    /// <summary>Names the copy of a delivered send that is filed in the sent folder: the message as its latest transmission left.</summary>
+    /// <param name="send">The record of the send, carrying the instant that transmission began.</param>
+    /// <returns>A source that reads the send's stored payload and dates it as it was transmitted.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="send" /> is <see langword="null" />.</exception>
+    public static MailboxCopySource SentCopy(OutgoingEmailRecord send)
+    {
+        ArgumentNullException.ThrowIfNull(send);
+
+        return new(send, mailDraftId: null);
+    }
 
     /// <summary>Names the message the current revision of one draft is held as.</summary>
     /// <param name="mailDraftId">The draft to append.</param>
     /// <returns>A source that reads the draft's stored payload.</returns>
     public static MailboxCopySource MailDraft(MailDraftId mailDraftId) =>
-        new(outgoingEmailId: null, mailDraftId);
+        new(send: null, mailDraftId);
 
     /// <summary>Reads the bytes this source names.</summary>
     /// <param name="contentStore">The port every piece of raw MIME is held behind.</param>
+    /// <param name="transmittedForm">Dates a sent copy as its transmission left.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The stored message, or <see langword="null" /> when none is stored under this source.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="contentStore" /> is <see langword="null" />.</exception>
-    public Task<StoredEmailContent?> FindContentAsync(
+    /// <returns>The message to append, or <see langword="null" /> when none is stored under this source.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="contentStore" /> or <paramref name="transmittedForm" /> is <see langword="null" />.</exception>
+    public async Task<StoredEmailContent?> FindContentAsync(
         IEmailContentStore contentStore,
+        TransmittedEmailForm transmittedForm,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(contentStore);
+        ArgumentNullException.ThrowIfNull(transmittedForm);
 
-        return this.outgoingEmailId is { } outgoingEmail
-            ? contentStore.FindOutgoingContentAsync(outgoingEmail, cancellationToken)
-            : contentStore.FindMailDraftContentAsync(this.mailDraftId!.Value, cancellationToken);
+        if (this.send is null)
+        {
+            return await contentStore.FindMailDraftContentAsync(this.mailDraftId!.Value, cancellationToken);
+        }
+
+        if (await contentStore.FindOutgoingContentAsync(this.send.Id, cancellationToken) is not { RawMime.IsEmpty: false } content)
+        {
+            return null;
+        }
+
+        return content with
+        {
+            RawMime = await transmittedForm.ComposeSentCopyAsync(this.send, content.RawMime, cancellationToken),
+        };
     }
 }

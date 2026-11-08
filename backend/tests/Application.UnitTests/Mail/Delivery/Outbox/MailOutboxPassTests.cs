@@ -528,6 +528,7 @@ public sealed class MailOutboxPassTests
                 this.Session,
                 this.Store,
                 contentStore,
+                TransmittedEmailForms.Unchanged(),
                 senderIdentities,
                 new OptimisticConcurrencyRetryPolicy(
                     sessionFactory,
@@ -623,6 +624,7 @@ public sealed class MailOutboxPassTests
                 lease,
                 stranded,
                 deliveryNotificationCarried: null,
+                transmittedAt: DateTimeOffset.UnixEpoch,
                 TestContext.Current.CancellationToken);
 
             this.clock.Advance(TimeSpan.FromMinutes(30));

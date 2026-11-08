@@ -9,6 +9,7 @@ using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
+using MailFathom.Application.Mail.Delivery.Transmission;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Synchronization;
@@ -45,6 +46,7 @@ public sealed class LocalMailFiler
     private readonly MailboxCustodianResolver custodians;
     private readonly IEmailMetadataRepository emails;
     private readonly IEmailContentStore contents;
+    private readonly TransmittedEmailForm transmittedForm;
     private readonly IEmailMimeReader mimeReader;
     private readonly IMailFolderMappingReader folderMappings;
     private readonly IMailFolderResolutionStore folderResolutions;
@@ -59,6 +61,7 @@ public sealed class LocalMailFiler
     /// <param name="custodians">Chooses whether a sent copy is prepared here, and says inside a filing's transaction whether the account is still held.</param>
     /// <param name="emails">Writes the stored message.</param>
     /// <param name="contents">Places and saves the message's payload, and reads a send's.</param>
+    /// <param name="transmittedForm">Dates a sent copy as its transmission left.</param>
     /// <param name="mimeReader">Reads the metadata the stored message is searched and threaded by.</param>
     /// <param name="folderMappings">Finds the source folder playing the role a message is filed under.</param>
     /// <param name="folderResolutions">Finds that folder's current binding.</param>
@@ -73,6 +76,7 @@ public sealed class LocalMailFiler
         MailboxCustodianResolver custodians,
         IEmailMetadataRepository emails,
         IEmailContentStore contents,
+        TransmittedEmailForm transmittedForm,
         IEmailMimeReader mimeReader,
         IMailFolderMappingReader folderMappings,
         IMailFolderResolutionStore folderResolutions,
@@ -86,6 +90,7 @@ public sealed class LocalMailFiler
         ArgumentNullException.ThrowIfNull(custodians);
         ArgumentNullException.ThrowIfNull(emails);
         ArgumentNullException.ThrowIfNull(contents);
+        ArgumentNullException.ThrowIfNull(transmittedForm);
         ArgumentNullException.ThrowIfNull(mimeReader);
         ArgumentNullException.ThrowIfNull(folderMappings);
         ArgumentNullException.ThrowIfNull(folderResolutions);
@@ -99,6 +104,7 @@ public sealed class LocalMailFiler
         this.custodians = custodians;
         this.emails = emails;
         this.contents = contents;
+        this.transmittedForm = transmittedForm;
         this.mimeReader = mimeReader;
         this.folderMappings = folderMappings;
         this.folderResolutions = folderResolutions;
@@ -202,7 +208,9 @@ public sealed class LocalMailFiler
             return null;
         }
 
-        if (await this.PrepareAsync(record.AccountId, OutgoingMailFiling.Sent, content.RawMime, cancellationToken)
+        var sentCopy = await this.transmittedForm.ComposeSentCopyAsync(record, content.RawMime, cancellationToken);
+
+        if (await this.PrepareAsync(record.AccountId, OutgoingMailFiling.Sent, sentCopy, cancellationToken)
             is { } copy)
         {
             return copy;

@@ -119,6 +119,21 @@ public sealed class MailFolderParticipationTests
         Assert.False(participation.Admits(MailboxReaderKind.Agent));
     }
 
+    /// <summary>The person's own Agent is an agent as far as folders go, so a folder withheld from AI is withheld from it as well.</summary>
+    [Fact]
+    public void Admits_TheConversationAgent_IsAdmittedWhereAnAgentIs()
+    {
+        // Arrange
+        var withheld = MailFolderParticipation.Create(
+            isSynchronized: true,
+            generatesEmbeddings: false,
+            isVisibleToAI: false);
+
+        // Act, Assert
+        Assert.True(MailFolderParticipation.Full.Admits(MailboxReaderKind.ConversationAgent));
+        Assert.False(withheld.Admits(MailboxReaderKind.ConversationAgent));
+    }
+
     /// <summary>A folder nothing mirrors holds only what an earlier configuration left, so neither reader is shown it.</summary>
     [Fact]
     public void Admits_MappedOnly_AdmitsNoReader()
