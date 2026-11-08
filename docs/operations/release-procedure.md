@@ -1,6 +1,6 @@
 # The release procedure
 
-<!-- describes: Version.props, server.json, .github/workflows/release.yml, .github/workflows/publish-helm-chart.yml, .github/workflows/submit-winget-manifest.yml, scripts/assert-release-tag.sh, scripts/read-declared-version.sh, scripts/build-winget-manifests.sh, .agents/skills/prepare-release/SKILL.md -->
+<!-- describes: Version.props, server.json, .github/workflows/release.yml, .github/workflows/publish-helm-chart.yml, .github/workflows/submit-winget-manifest.yml, scripts/assert-release-tag.sh, scripts/read-declared-version.sh, scripts/build-winget-manifests.sh, scripts/squash-migrations.sh, scripts/compare-migration-squash.sh, .agents/skills/prepare-release/SKILL.md -->
 
 MailFathom's version number is a compatibility promise over four public surfaces. This page records how a build
 acquires that number, how the official MCP Registry metadata records the released one, where both are observable, and
@@ -186,6 +186,17 @@ unavailable:
    "no versioned artifact exists yet", "a release will attach it" — because that kind of sentence goes stale at the
    moment of the tag and no search for the version number would ever find it. Each hit is read and either corrected in
    this same pull request or left alone; the sweep reports and never gates.
+
+   **The same pull request folds the cycle's migrations into one.** `scripts/squash-migrations.sh <x.y.z> <previous
+   tag>` nests every migration added since the previous release into one `Release_<x>_<y>_<z>` migration that keeps the
+   identifier of the last of them, so an installation of the previous release takes exactly the statements it would
+   have taken from the individual migrations, and a database that recorded the cycle's last migration takes nothing.
+   `scripts/compare-migration-squash.sh origin/main` then proves it: a fresh install, a second apply, an upgrade from
+   the previous release's published artifact, an upgrade from the last nightly, and the generated SQL itself, each
+   identical before and after the fold. The pull request is not published until all five are, and its body reports
+   them. A release that added no migration folds nothing. [ADR 0050](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0050-folding-each-releases-migrations-into-one.md)
+   records why, and the upgrades a fold leaves unsupported — skipping a release, and crossing a fold from a nightly in
+   the middle of its cycle — which the release's changelog entry names with the operator's action.
 
    The same pull request reads the two committed pages a registry renders — `deploy/docker/README.md`, pushed onto the
    Docker Hub repository page, and `deploy/helm/mailfathom/README.md`, packaged into the chart — against what this

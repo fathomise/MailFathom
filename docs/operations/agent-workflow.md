@@ -979,7 +979,11 @@ The canonical skills are:
   names. Its changelog pull request also brings `server.json` onto the release
   version, carries the files that name a version in prose, and sweeps for prose
   describing the release state without naming one, because all go stale at the
-  tag and none is reached by `<VersionPrefix>`. Three readings sit beside those
+  tag and none is reached by `<VersionPrefix>`. It also folds the migrations the
+  cycle added into one migration for the release with
+  `scripts/squash-migrations.sh`, and publishes nothing until
+  `scripts/compare-migration-squash.sh` has proven the fold cannot be told apart
+  from the migrations it replaced, as ADR 0050 decides. Three readings sit beside those
   edits, for the one reason that governs the whole step — the tagged tree is
   what a registry, a listing, and every new reader meets: `server.json`'s
   `description` and the two committed pages a registry renders are each read
@@ -1903,7 +1907,9 @@ repository and are read like anything else, against the bar the last of those st
 
 `backend/src/Infrastructure/Persistence/Migrations/` is the second. EF Core writes
 the migration, its `.Designer.cs` twin and the model snapshot; `AGENTS.md` makes
-them append-only; and the schema change they carry is reviewed as SQL by
+them append-only between releases, and a release's fold is written by
+`scripts/squash-migrations.sh` and proven equivalent by
+`scripts/compare-migration-squash.sh`; and the schema change they carry is reviewed as SQL by
 `$add-migration` before it is committed — so a reader given one can only judge a
 tool's output or re-judge a decision already reviewed, while the snapshot alone is
 thousands of lines that would take a group of the reader matrix and head-content
