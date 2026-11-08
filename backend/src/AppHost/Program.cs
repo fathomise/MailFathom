@@ -534,8 +534,10 @@ else
 
     // The three mailbox parameters configure nothing here. A deployment reads no mailbox from its own file any more,
     // so what they compose is a record: the worker below declares the account in the served user's record once the host
-    // reports itself started, which is the same administrative surface an operator would have used.
+    // reports itself started, which is the same administrative surface an operator would have used. The password is the
+    // one value the host's own environment carries, because the record may only name it by an env: reference.
     mailFathomHost
+        .WithEnvironment(OrchestrationContract.DevelopmentMailAccountPasswordVariable, mailAccountPassword)
         // The MCP endpoint's own socket, stated to the app model and injected into the host's own configuration key, so
         // the number is written once rather than declared here and configured again beside it. Its scheme is tcp rather
         // than http, for the reason the probe endpoint's is: Aspire builds ASPNETCORE_URLS from the http and https
@@ -620,7 +622,6 @@ else
         mailFathomHost.GetEndpoint(OrchestrationContract.HostAdminEndpointName),
         mailAccountHost.Resource,
         mailAccountUserName.Resource,
-        mailAccountPassword.Resource,
         TimeProvider.System,
         provider.GetRequiredService<ILogger<DevelopmentCredentialProvisioningWorker>>()));
 
@@ -715,6 +716,9 @@ else
             // belongs to whichever replica holds its lease, so the run a signal is raised by is as likely to be this
             // process as the other one.
             .WithEnvironment("MailSynchronization__Enabled", "true")
+            // The local mailbox's record names its password by this variable, and whichever replica holds the
+            // account's lease is the one that resolves it.
+            .WithEnvironment(OrchestrationContract.DevelopmentMailAccountPasswordVariable, mailAccountPassword)
             .WithEnvironment("ClientEndpoint__Enabled", "true")
             .WithEnvironment("ClientEndpoint__Authentication__0__Method", "password")
             .WithEnvironment("ClientEndpoint__BindAddress", OrchestrationContract.DeveloperLoopbackAddress)
