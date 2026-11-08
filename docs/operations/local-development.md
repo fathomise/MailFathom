@@ -262,10 +262,10 @@ Before any resource starts, Aspire asks for any of three parameters it has not a
 `mail-account-host`, `mail-account-username`, and the secret `mail-account-password`. Once the host reports itself
 started, the AppHost declares one account from them in the served user's record, named `Local mailbox` and stated in
 English, over implicit TLS on port 993, with its inbox as the default folder. The password is never written into that
-record: the host's environment carries it as `MAILFATHOM_LOCAL_MAILBOX_PASSWORD`, and the record names it with an
-`env:` reference, because a persisted record refuses `plaintext:`. Aspire offers to keep the values in the AppHost's
-user secrets; leaving any of them unanswered leaves the application waiting rather than starting a host with no
-mailbox.
+record: the environment of every host the run starts — the backplane's second replica included — carries it as
+`MAILFATHOM_LOCAL_MAILBOX_PASSWORD`, and the record names it with an `env:` reference, because a persisted record
+refuses `plaintext:`. Aspire offers to keep the values in the AppHost's user secrets; leaving any of them unanswered
+leaves the application waiting rather than starting a host with no mailbox.
 
 Four resources come up, three of them in dependency order. The `postgres` container starts first and has to report
 healthy; the `mailfathom-migrations` resource then applies every pending migration to it; and `mailfathom-host` waits

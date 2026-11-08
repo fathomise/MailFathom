@@ -716,6 +716,9 @@ else
             // belongs to whichever replica holds its lease, so the run a signal is raised by is as likely to be this
             // process as the other one.
             .WithEnvironment("MailSynchronization__Enabled", "true")
+            // The local mailbox's record names its password by this variable, and whichever replica holds the
+            // account's lease is the one that resolves it.
+            .WithEnvironment(OrchestrationContract.DevelopmentMailAccountPasswordVariable, mailAccountPassword)
             .WithEnvironment("ClientEndpoint__Enabled", "true")
             .WithEnvironment("ClientEndpoint__Authentication__0__Method", "password")
             .WithEnvironment("ClientEndpoint__BindAddress", OrchestrationContract.DeveloperLoopbackAddress)
