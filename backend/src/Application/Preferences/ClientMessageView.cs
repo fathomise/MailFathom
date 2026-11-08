@@ -2,6 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace MailFathom.Application.Preferences;
 
 /// <summary>Which of the two renderings a message opens on.</summary>
@@ -24,6 +27,7 @@ namespace MailFathom.Application.Preferences;
 /// rendering.
 /// </para>
 /// </remarks>
+[JsonConverter(typeof(ClientMessageViewJsonConverter))]
 public readonly record struct ClientMessageView
 {
     private readonly string? name;
@@ -62,4 +66,60 @@ public readonly record struct ClientMessageView
 
     /// <inheritdoc />
     public override string ToString() => this.name ?? "(unspecified)";
+}
+
+/// <summary>Serializes <see cref="ClientMessageView" /> as its published name, and refuses anything else.</summary>
+/// <remarks>
+/// The client endpoint and the stored document carry the name as a string and resolve it through
+/// <see cref="ClientMessageView.TryParse" />, each with its own answer to an undeclared name. This converter is what any
+/// serializer that meets the value itself uses, so the value crosses as its published name rather than as the struct's
+/// members, and an undeclared name or the struct default is refused rather than written.
+/// </remarks>
+public sealed class ClientMessageViewJsonConverter : JsonConverter<ClientMessageView>
+{
+    /// <inheritdoc />
+    /// <exception cref="JsonException">Thrown when the token is not a string or does not name a published choice.</exception>
+    public override ClientMessageView Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options) =>
+        reader.TokenType == JsonTokenType.String
+            ? ParseOrThrow(reader.GetString())
+            : throw new JsonException("A message view is the name of one, which is a JSON string.");
+
+    /// <inheritdoc />
+    /// <exception cref="JsonException">Thrown when the value is the struct default rather than a choice.</exception>
+    public override void Write(Utf8JsonWriter writer, ClientMessageView value, JsonSerializerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+
+        writer.WriteStringValue(NameOrThrow(value));
+    }
+
+    /// <inheritdoc />
+    /// <exception cref="JsonException">Thrown when the property name does not name a published choice.</exception>
+    public override ClientMessageView ReadAsPropertyName(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options) => ParseOrThrow(reader.GetString());
+
+    /// <inheritdoc />
+    /// <exception cref="JsonException">Thrown when the value is the struct default rather than a choice.</exception>
+    public override void WriteAsPropertyName(
+        Utf8JsonWriter writer,
+        ClientMessageView value,
+        JsonSerializerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+
+        writer.WritePropertyName(NameOrThrow(value));
+    }
+
+    private static ClientMessageView ParseOrThrow(string? name) => ClientMessageView.TryParse(name, out var view)
+        ? view
+        : throw new JsonException("The value does not name a message view this build publishes.");
+
+    private static string NameOrThrow(ClientMessageView value) => value.IsSpecified
+        ? value.Name
+        : throw new JsonException("The value is the default of the struct and does not name a message view.");
 }
