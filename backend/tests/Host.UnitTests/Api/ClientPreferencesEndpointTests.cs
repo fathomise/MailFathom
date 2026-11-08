@@ -369,7 +369,7 @@ public sealed class ClientPreferencesEndpointTests
         Assert.False(request!.Stated()!.ExpandWholeThread);
     }
 
-    /// <summary>The sixth preference binds like the five beside it, and a body written before it existed reads as the reduced document rather than as either of the other two.</summary>
+    /// <summary>The sixth preference binds like the five beside it, and a body written before it existed reads as the reduced document rather than as the sender's own markup.</summary>
     [Fact]
     public void Deserialize_ABodyOmittingTheMessageView_StatesItAsTheReducedDocument()
     {
@@ -405,7 +405,7 @@ public sealed class ClientPreferencesEndpointTests
             WebFormat));
     }
 
-    /// <summary>The rendering travels as a name, so the refusal is this surface's to write and names the three that are on offer rather than the themes.</summary>
+    /// <summary>The rendering travels as a name, so the refusal is this surface's to write and names the two that are on offer rather than the themes.</summary>
     [Fact]
     public async Task SaveAsync_ABodyNamingAMessageViewNothingPublishes_RefusesNamingTheOnesThatAre()
     {
@@ -417,7 +417,7 @@ public sealed class ClientPreferencesEndpointTests
             SignedIn(store),
             Acting(),
             Serving(),
-            new ClientPreferencesRequest(MessageView: "tidied"),
+            new ClientPreferencesRequest(MessageView: "cleaned"),
             TestContext.Current.CancellationToken);
 
         // Assert

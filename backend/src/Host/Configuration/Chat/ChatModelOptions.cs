@@ -96,7 +96,7 @@ internal sealed class ChatModelOptions : IValidatableObject
 
     /// <summary>Gets or sets which declared model arranges a day when somebody asks for one.</summary>
     /// <remarks>
-    /// A block carrying the reference and nothing else, and one of the two that carries no switch at all. What decides
+    /// A block carrying the reference and nothing else, and no switch at all. What decides
     /// whether a day is ever arranged is the person pressing the control, not a key an operator writes: an instance
     /// that declared a model offers it, and one that declared none says so when it is asked.
     /// </remarks>

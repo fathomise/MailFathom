@@ -78,6 +78,17 @@ describe('readClientPreferences', () => {
         expect(answer).toStrictEqual({ outcome: 'read', value: stored });
     });
 
+    // An older replica answers the rendering this build withdrew for somebody who chose it, and the rest of their
+    // document is still theirs: refusing it would write every other preference back as its default on the next choice.
+    it('reads a message view this build does not publish as the unset one and keeps the rest', async () => {
+        const answer = await readClientPreferences(
+            session,
+            answering({ status: 200, body: JSON.stringify({ ...stored, messageView: 'cleaned' }) }),
+        );
+
+        expect(answer).toStrictEqual({ outcome: 'read', value: { ...stored, messageView: 'reduced' } });
+    });
+
     it('reads a person who has set nothing as the unset answers rather than as an absence', async () => {
         const answer = await readClientPreferences(
             session,
@@ -109,10 +120,6 @@ describe('readClientPreferences', () => {
         ['a theme this build does not publish', JSON.stringify({ ...unsetClientPreferences, theme: 'sepia' })],
         ['a theme that is not a string', JSON.stringify({ ...unsetClientPreferences, theme: 3 })],
         ['a switch that is not a boolean', JSON.stringify({ ...unsetClientPreferences, openMailInTabs: 'yes' })],
-        [
-            'a message view this build does not publish',
-            JSON.stringify({ ...unsetClientPreferences, messageView: 'tidied' }),
-        ],
         ['a message view that is not a string', JSON.stringify({ ...unsetClientPreferences, messageView: true })],
         ['a preference the answer left out', JSON.stringify({ theme: 'dark', openMailInTabs: false })],
         [

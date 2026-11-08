@@ -219,7 +219,12 @@ function parsePreferences(body: string): ClientPreferences | null {
     const openMailInTabs = record['openMailInTabs'];
     const markReadOnOpen = record['markReadOnOpen'];
     const expandWholeThread = record['expandWholeThread'];
-    const messageView = record['messageView'];
+    // A name this build does not publish is a rendering an older replica still stores for somebody who chose it before
+    // it was withdrawn, which a rolling upgrade puts beside this build. It reads as the unset one rather than refusing
+    // the document, which would leave every other preference read as its default too.
+    const statedView = record['messageView'];
+    const messageView =
+        typeof statedView === 'string' && !isMessageView(statedView) ? unsetClientPreferences.messageView : statedView;
     const aiFiltersShown = record['aiFiltersShown'];
     const notificationSeconds = record['notificationSeconds'];
     // Absent is an answer from a replica built before the list existed, which a rolling upgrade puts beside one built

@@ -155,7 +155,7 @@ public sealed class ClientPreferencesDocumentTests
         Assert.Equal(stored, read.NotificationSeconds);
     }
 
-    /// <summary>The reduced document is what the client drew before the message view was a preference, so a row written then reads as that rather than as either of the other two.</summary>
+    /// <summary>The reduced document is what the client drew before the message view was a preference, so a row written then reads as that rather than as the sender's own markup.</summary>
     [Fact]
     public void Parse_ARowWrittenBeforeTheMessageViewWasAPreference_AnswersItAsTheReducedDocument()
     {

@@ -9,9 +9,9 @@ import { LocalizationProvider } from '../localization/Localization';
 import type { ClientPreferencesInForce } from '../preferences/useClientPreferences';
 import { MessageView, MessageViewWarning } from './MessageView';
 
-// Three segments a reader picks between are radios rather than buttons, which is what this file is mostly about: the
-// chosen one has to *report* itself as chosen, and the arrow keys have to move between the three. Both are properties
-// of the element rather than of how it is painted, so a screen drawn with three pressed-looking buttons would pass
+// Two segments a reader picks between are radios rather than buttons, which is what this file is mostly about: the
+// chosen one has to *report* itself as chosen, and the arrow keys have to move between the two. Both are properties
+// of the element rather than of how it is painted, so a screen drawn with two pressed-looking buttons would pass
 // every other assertion here and fail the one that matters to somebody not looking at it.
 
 function inForce(

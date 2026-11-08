@@ -546,8 +546,8 @@ question turn, the `<retrieved-mail>` envelope, the relevance judgement below, t
 `read_thread`, `read_calendar`, and `read_tasks` results, the Agent's earlier turns where they are not plain text the
 person or the Agent wrote, the turn a compaction of an Agent conversation reads,
 [reply drafting](reply-drafting.md#what-reaches-the-provider-and-what-does-not)'s turn, and the turns of enrichment, a
-conversation's state, contact relationships, calendar-event extraction, the day layout, Discover's composition, and body
-cleanup. Only the writer names elements and attributes, and it escapes every
+conversation's state, contact relationships, calendar-event extraction, the day layout, and Discover's composition. Only
+the writer names elements and attributes, and it escapes every
 value wherever the value sits — the extract, the subject, a calendar title, and a task as text content, and the
 account alias, the folder path, an attachment's file name, and a sender's name and address as attributes — so none can end an
 element or open one. A message whose text closes the envelope and opens a forged instruction arrives as that text:
