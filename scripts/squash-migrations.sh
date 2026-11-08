@@ -8,12 +8,12 @@ set -euo pipefail
 ### Folds a release cycle's migrations into one migration for that release.
 #
 # Usage:
-#   scripts/squash-migrations.sh <version> <previous-release-tag>             every migration added since that tag
-#   scripts/squash-migrations.sh <version> <previous-release-tag> <through>   only those up to the newest one at <through>
-#   scripts/squash-migrations.sh <version> none <through>                     every migration up to the newest one at <through>
+#   scripts/squash-migrations.sh <version> <previous-release-tag>             every migration that tag does not define
+#   scripts/squash-migrations.sh <version> <previous-release-tag> <through>   only those <through> defines as well
+#   scripts/squash-migrations.sh <version> none <through>                     every migration <through> defines
 #
-# `$prepare-release` runs the first form: `scripts/squash-migrations.sh 0.9.0 v0.8.0` folds every migration added after
-# the newest one `v0.8.0` carries. The last form folded the baseline: `scripts/squash-migrations.sh 0.8.0 none v0.8.0`.
+# `$prepare-release` runs the first form: `scripts/squash-migrations.sh 0.9.0 v0.8.0` folds every migration `v0.8.0` does
+# not define. The last form folded the baseline: `scripts/squash-migrations.sh 0.8.0 none v0.8.0`.
 #
 # The fold is a concatenation, never a regeneration. Many migrations carry hand-written SQL — role seeding, data
 # rewrites, backfills — that `dotnet ef migrations add` would not reproduce, and a release migration applied over the
@@ -60,24 +60,28 @@ migration_identifier_of() {
   sed -n 's/^ *\[Migration("\([^"]*\)")\].*/\1/p' | head -n 1
 }
 
-newest_identifier_at() {
-  local revision="$1" newest_designer
+# Every identifier a revision's tree defines, one per line. The range is a difference of these sets rather than a span
+# between two identifiers, because a migration authored against an older base can carry an identifier that sorts before
+# one merged ahead of it, and a span would leave such a migration standing outside every release.
+identifiers_at() {
+  local revision="$1" designer
 
-  newest_designer="$(
-    git ls-tree --name-only "$revision" "$migrations_directory/" | grep '_.*\.Designer\.cs$' | sort | tail -n 1
-  )" || fail "No migration exists at $revision."
-
-  git show "$revision:$newest_designer" | migration_identifier_of
+  git ls-tree --name-only "$revision" "$migrations_directory/" | grep '_.*\.Designer\.cs$' |
+    while read -r designer; do
+      git show "$revision:$designer" | migration_identifier_of
+    done
 }
 
-lower_bound=''
+previous_identifiers=''
 if [[ "$previous_release" != 'none' ]]; then
-  lower_bound="$(newest_identifier_at "$previous_release")"
+  previous_identifiers="$(identifiers_at "$previous_release")"
+  [[ -n "$previous_identifiers" ]] || fail "No migration exists at $previous_release."
 fi
 
-upper_bound=''
+through_identifiers=''
 if [[ -n "$through" ]]; then
-  upper_bound="$(newest_identifier_at "$through")"
+  through_identifiers="$(identifiers_at "$through")"
+  [[ -n "$through_identifiers" ]] || fail "No migration exists at $through."
 fi
 
 mapfile -t migration_files < <(
@@ -86,6 +90,7 @@ mapfile -t migration_files < <(
 
 folded_stems=()
 folded_classes=()
+folded_identifiers=()
 for file in "${migration_files[@]}"; do
   stem="${file%.cs}"
   designer="$migrations_directory/$stem.Designer.cs"
@@ -94,11 +99,11 @@ for file in "${migration_files[@]}"; do
   identifier="$(migration_identifier_of < "$designer")"
   [[ -n "$identifier" ]] || fail "$stem.Designer.cs carries no [Migration] attribute."
 
-  if [[ -n "$lower_bound" && ! "$identifier" > "$lower_bound" ]]; then
+  if grep --quiet --fixed-strings --line-regexp -- "$identifier" <<< "$previous_identifiers"; then
     continue
   fi
 
-  if [[ -n "$upper_bound" && "$identifier" > "$upper_bound" ]]; then
+  if [[ -n "$through" ]] && ! grep --quiet --fixed-strings --line-regexp -- "$identifier" <<< "$through_identifiers"; then
     continue
   fi
 
@@ -107,16 +112,28 @@ for file in "${migration_files[@]}"; do
 
   folded_stems+=("$stem")
   folded_classes+=("$class_name")
-  last_identifier="$identifier"
+  folded_identifiers+=("$identifier")
 done
 
 if [[ "${#folded_stems[@]}" -eq 0 ]]; then
   fail 'No migration falls in the range, so there is nothing to fold.'
 fi
 
-if [[ -n "$upper_bound" && "$last_identifier" != "$upper_bound" ]]; then
-  fail "The range ends at $last_identifier, but $through ends at $upper_bound, which this tree no longer carries."
+# Every migration <through> adds over the previous release has to be here to be folded; one this tree no longer carries
+# would leave the release migration short of a step a database at <through> has taken.
+folded_identifier_lines="$(printf '%s\n' "${folded_identifiers[@]}")"
+if [[ -n "$through" ]]; then
+  while read -r identifier; do
+    grep --quiet --fixed-strings --line-regexp -- "$identifier" <<< "$previous_identifiers" && continue
+    grep --quiet --fixed-strings --line-regexp -- "$identifier" <<< "$folded_identifier_lines" ||
+      fail "$through defines $identifier, which this tree no longer carries."
+  done <<< "$through_identifiers"
 fi
+
+# The newest identifier, which EF Core orders by; the files sort the same way, since each is named after its timestamp.
+last_identifier="$(sort <<< "$folded_identifier_lines" | tail -n 1)"
+[[ "$last_identifier" == "${folded_identifiers[-1]}" ]] ||
+  fail "The migration files do not sort in the order of their identifiers, so the fold cannot tell which one is last."
 
 timestamp="${last_identifier%%_*}"
 release_stem="${timestamp}_${release_class}"
@@ -148,7 +165,20 @@ nest_migration() {
   # A nested class inherits nothing to document, so every <inheritdoc /> becomes a summary of its own: a remarks block
   # written beside one would otherwise be left with no summary, which the analyzers refuse.
   body="$(
-    perl -0pe 's{^        /// <inheritdoc />\n((?:        ///.*\n)*)(        protected override void (Up|Down)\()}{"        /// <summary>" . ($3 eq "Up" ? "Applies" : "Reverts") . " the migration.</summary>\n$1$2"}gme' <<< "$body" |
+    awk '
+      pending {
+        if ($0 ~ /^        \/\/\//) { buffer = buffer "\n" $0; next }
+        summary = ""
+        if ($0 ~ /^        protected override void Up\(/) summary = "Applies"
+        if ($0 ~ /^        protected override void Down\(/) summary = "Reverts"
+        if (summary != "") sub(/^        \/\/\/ <inheritdoc \/>/, "        /// <summary>" summary " the migration.</summary>", buffer)
+        print buffer
+        pending = 0
+      }
+      $0 == "        /// <inheritdoc />" { pending = 1; buffer = $0; next }
+      { print }
+      END { if (pending) print buffer }
+    ' <<< "$body" |
       sed \
         -e "s|^    /// <inheritdoc />\$|    /// <summary>The <c>$class_name</c> migration, as it was added.</summary>|" \
         -e "s/^    public partial class $class_name : Migration\$/    private static class $class_name/" \

@@ -85,7 +85,8 @@ path_is_changed() {
 # Tests
 # ---------------------------------------------------------------------------
 
-# Migrations are excluded: `AGENTS.md` makes them append-only and generated, so a migration owes no
+# Migrations are excluded: `AGENTS.md` makes them generated and append-only between releases, and a release's fold is
+# written by a script and proven by another, so a migration owes no
 # unit test and a reviewer asked to check for one would raise the same wrong finding on every schema
 # change.
 grep -E '^backend/src/.+\.cs$' "$work_directory/present-paths" \

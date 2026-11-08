@@ -1140,7 +1140,12 @@ public sealed class OrchestratedGrantStoreTests(MailFathomOrchestrationFixture o
     /// </summary>
     private static (string Up, string Down) ReadSeededRoleStatements(MailFathomDbContext dbContext, Guid[] roleIds)
     {
-        Guid[] seededRoleIds = [SeededUserRoleId, SeededOrganizationAdministratorRoleId, PersistedDefaultAdministrator.AdministratorRoleId];
+        Guid[] seededRoleIds =
+        [
+            SeededUserRoleId,
+            SeededOrganizationAdministratorRoleId,
+            PersistedDefaultAdministrator.AdministratorRoleId,
+        ];
         var migrations = dbContext.GetService<IMigrationsAssembly>();
         var chain = migrations.Migrations
             .OrderBy(migration => migration.Key, StringComparer.Ordinal)
@@ -1150,10 +1155,10 @@ public sealed class OrchestratedGrantStoreTests(MailFathomOrchestrationFixture o
         bool NamesExactly(SqlOperation statement) => seededRoleIds.All(roleId =>
             statement.Sql.Contains(roleId.ToString(), StringComparison.Ordinal) == roleIds.Contains(roleId));
 
-        string Single(Func<Migration, IReadOnlyList<MigrationOperation>> direction) =>
+        string StatementIn(Func<Migration, IReadOnlyList<MigrationOperation>> direction) =>
             Assert.Single(chain.SelectMany(direction).OfType<SqlOperation>().Where(NamesExactly)).Sql;
 
-        return (Single(migration => migration.UpOperations), Single(migration => migration.DownOperations));
+        return (StatementIn(migration => migration.UpOperations), StatementIn(migration => migration.DownOperations));
     }
 
     private static Task<bool> HoldsWideningRoleAsync(

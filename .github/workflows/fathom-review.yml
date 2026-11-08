@@ -1178,9 +1178,10 @@ jobs:
           # The second class, dropped for a reason of its own rather than by widening the one above.
           # EF Core writes every file under `backend/src/Infrastructure/Persistence/Migrations/` —
           # the migration, its `.Designer.cs` twin, and the model snapshot the whole solution shares
-          # — and `AGENTS.md` makes them append-only, so what a reader could say about one is either
-          # a judgement on a tool's output or a judgement on a schema decision that `$add-migration`
-          # already reviewed as SQL before it was committed. `index-obligations.sh` has kept them out
+          # — and `AGENTS.md` makes them append-only between releases, with a release's fold written by
+          # `scripts/squash-migrations.sh` and proven equivalent by `scripts/compare-migration-squash.sh`,
+          # so what a reader could say about one is either a judgement on a tool's output or a judgement
+          # on a schema decision that `$add-migration` already reviewed as SQL before it was committed. `index-obligations.sh` has kept them out
           # of the test obligation on exactly that reasoning since it was written; this applies the
           # same reasoning to the reading. The snapshot alone is thousands of lines, so left in they
           # take groups of the reader matrix and head-content budget from the files somebody wrote.
@@ -1200,7 +1201,7 @@ jobs:
               "$REVIEW_DIRECTORY/files.json" > "$REVIEW_DIRECTORY/files.reviewable.json"
             mv "$REVIEW_DIRECTORY/files.reviewable.json" "$REVIEW_DIRECTORY/files.json"
 
-            printf '%s generated EF Core migration files under backend/src/Infrastructure/Persistence/Migrations/ are not reviewed: EF Core writes them, they are append-only, and the schema change they carry is reviewed as SQL before it is committed.\n' \
+            printf '%s generated EF Core migration files under backend/src/Infrastructure/Persistence/Migrations/ are not reviewed: EF Core writes them, a release fold is written by a script and proven equivalent by another, and the schema change they carry is reviewed as SQL before it is committed.\n' \
               "$migrations" >> "$REVIEW_DIRECTORY/truncation.txt"
           fi
 
