@@ -95,12 +95,14 @@ internal static class ThreadStateReading
     /// </remarks>
     private static ThreadTitleProposal? ReadTitle(ThreadTitleDocument written, IReadOnlyList<ThreadStateEntry> entries)
     {
-        var standing = Shortened(written.Standing?.Trim() ?? string.Empty, ThreadTitle.MaximumStandingLength);
+        var standing = written.Standing?.Trim() ?? string.Empty;
 
-        if (standing.Length > 0 && !ThreadTitle.IsPlainLine(standing, ThreadTitle.MaximumStandingLength))
+        if (standing.Length > 0 && !IsPlainWhole(standing))
         {
             return null;
         }
+
+        standing = Shortened(standing, ThreadTitle.MaximumStandingLength);
 
         if (!entries.Any(static entry => entry.Aspect is ThreadStateAspect.OpenQuestion or ThreadStateAspect.Commitment))
         {
@@ -112,14 +114,18 @@ internal static class ThreadStateReading
             return new ThreadTitleProposal(Topic: null, StatesSubjectChange: false, standing);
         }
 
-        var topic = written.Topic is { } writtenTopic
-            ? Shortened(writtenTopic.Trim(), ThreadTitle.MaximumTopicLength)
-            : null;
+        var topic = written.Topic?.Trim();
 
-        return ThreadTitle.IsPlainLine(topic, ThreadTitle.MaximumTopicLength)
-            ? new ThreadTitleProposal(topic, written.SubjectChanged is true, standing)
+        return topic is not null && IsPlainWhole(topic)
+            ? new ThreadTitleProposal(
+                Shortened(topic, ThreadTitle.MaximumTopicLength),
+                written.SubjectChanged is true,
+                standing)
             : null;
     }
+
+    /// <summary>Judges a whole title line as written, before any cut, so markup or a break past the bound is still refused.</summary>
+    private static bool IsPlainWhole(string line) => ThreadTitle.IsPlainLine(line, line.Length);
 
     /// <summary>Cuts a title line past its bound and marks it as cut, on a text-element boundary.</summary>
     private static string Shortened(string line, int maximumLength) =>

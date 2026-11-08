@@ -304,6 +304,28 @@ public sealed class ThreadStateReadingTests
         Assert.Equal(new string('a', ThreadTitle.MaximumTopicLength - 1) + "…", derivation.Title?.Topic);
     }
 
+    /// <summary>A line is judged whole before it is cut, so markup or a line break past the bound is refused rather than cut away.</summary>
+    [Theory]
+    [InlineData("\\nmore")]
+    [InlineData(" https://example.test")]
+    [InlineData(" <b>")]
+    public void Read_ATitleLinePastItsBoundCarryingMoreThanTextBeyondTheCut_IsWithheldAsUnreadable(string tail)
+    {
+        // Arrange
+        var line = new string('a', ThreadTitle.MaximumStandingLength) + tail;
+        var answers = new[]
+        {
+            $$"""{ "title": { "topic": "{{line}}", "standing": "" } }""",
+            $$"""{ "openQuestions": [{ "text": "Open.", "messages": [1] }], "title": { "topic": "Racking", "standing": "{{line}}" } }""",
+        };
+
+        // Act
+        var derivations = answers.Select(answer => ThreadStateReading.Read(answer, Messages())).ToArray();
+
+        // Assert
+        Assert.All(derivations, derivation => Assert.Equal(ThreadStateWithholding.AnswerUnreadable, derivation.Withheld));
+    }
+
     /// <summary>
     /// The two answers gpt-6-luna wrote in the evaluation run that the reading withheld whole: one topic two characters
     /// past its bound, one standing eight past it, every statement beside them readable.

@@ -57,7 +57,8 @@ statement:
 Each is one line of plain text, with no markup and no link. **A line that only runs past its bound is cut there and
 ends in an ellipsis**, because a topic two characters too long is still the line the row is recognized by, and
 withholding the answer for it would throw away every statement beside it. **An answer whose title carries markup, a
-link, or a line break is withheld as unreadable** rather than repaired, because a title is drawn where a sender's words
+link, or a line break is withheld as unreadable** rather than repaired, wherever in the line it sits — the whole line
+is judged before any cut, so one carried past the bound is not cut away — because a title is drawn where a sender's words
 are not, and a line carrying a tag or a link would be a sender's text reaching a place the deployment writes. An answer
 carrying no title at all settles
 proposing none: the conversation keeps the topic it had, with no standing beside it.
