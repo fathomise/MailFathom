@@ -20,8 +20,9 @@ namespace MailFathom.Evaluations.Providers;
 /// <remarks>
 /// <para>
 /// One block rather than a variable per setting, because a workflow dispatch carries few inputs and each is one line, so
-/// a new setting is a key here rather than a new input. Flow style keeps it on that one line:
-/// <c>{MainModel: {Model: openai/gpt-5.6-luna, ReasoningEffort: medium}, ImageDescription: [model-a, model-b]}</c>.
+/// a new setting is a key here rather than a new input. Either YAML style is read: block style over several lines, as the
+/// repository variable a workflow keeps its default block in reads best, and flow style on the one line a dispatch input
+/// takes: <c>{MainModel: {Model: openai/gpt-5.6-luna, ReasoningEffort: medium}, ImageDescription: [model-a, model-b]}</c>.
 /// </para>
 /// <para>
 /// A model is routed the way a deployment routes it: <c>MainModel</c> is the fallback, and each <see cref="ChatCapability" />
