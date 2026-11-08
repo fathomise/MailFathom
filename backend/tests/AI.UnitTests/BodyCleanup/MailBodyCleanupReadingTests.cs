@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.BodyCleanup;
+using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.EmailContent.Cleaning;
 using Xunit;
 
@@ -157,5 +158,22 @@ public sealed class MailBodyCleanupReadingTests
 
         // Assert
         Assert.Empty(segments);
+    }
+
+    /// <summary>Every answer a model wrote to a cleaning in the last evaluation run reads as the ranges it stated, which is what a stricter reading must keep doing.</summary>
+    [Fact]
+    public void Read_EveryRecordedAnswer_ReadsAsRanges()
+    {
+        // Arrange
+        var recorded = RecordedAnswers.Of("MailBodyCleanup");
+
+        // Act
+        var unread = recorded
+            .Where(static answer => MailBodyCleanupReading.Read(answer.Answer).Count == 0)
+            .Select(static answer => answer.Scenario);
+
+        // Assert
+        Assert.NotEmpty(recorded);
+        Assert.Empty(unread);
     }
 }

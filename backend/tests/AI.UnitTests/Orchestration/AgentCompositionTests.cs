@@ -288,6 +288,7 @@ public sealed class AgentCompositionTests
         ["discovery composition"] = static chatClient => DiscoveryCompositionAgentComposition.Compose(
             chatClient,
             ChatDeclarations.Plan(),
+            [],
             new EmptyAgentInstructionEnvelope(),
             NullLoggerFactory.Instance),
         ["reply draft"] = static chatClient => ReplyDraftAgentComposition.Compose(

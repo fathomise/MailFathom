@@ -5,6 +5,7 @@
 using MailFathom.AI.Orchestration;
 using MailFathom.Application.Calendar.Extraction;
 using MailFathom.Domain.Calendar;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.AI.CalendarEvents;
 
@@ -18,9 +19,10 @@ namespace MailFathom.AI.CalendarEvents;
 /// <para>
 /// It drops rather than repairs. An event with no title, no start, or a start written in a form the instruction did
 /// not ask for is one nothing could be shown for, and there is no honest way to invent the missing half — so it falls
-/// away and the reading keeps what survived. The one exception is an end that is not after its start: the event is
-/// kept without it, because what the text fixed was when the thing begins and a length that read wrongly is the part
-/// to discard rather than the occasion.
+/// away and the reading keeps what survived. Two things are repaired instead. An end that is not after its start is
+/// dropped and the event kept, because what the text fixed was when the thing begins and a length that read wrongly is
+/// the part to discard rather than the occasion. A title that only runs past its length is cut there and marked as
+/// cut, because the occasion it names is still the one the text fixed.
 /// </para>
 /// <para>
 /// The model writes a local date and time and never a zone, and the offset comes from the instant this reading is
@@ -63,7 +65,7 @@ internal static class CalendarEventExtractionReading
     private static ExtractedCalendarEvent? ToEvent(CalendarEventDocument? written, DateTimeOffset anchor)
     {
         if (written is null
-            || !CalendarEventTitle.TryCreate(written.Title, out var title)
+            || !CalendarEventTitle.TryCreate(Shortened(written.Title), out var title)
             || AnchoredInstant.Read(written.Start, anchor) is not { } start)
         {
             return null;
@@ -72,6 +74,16 @@ internal static class CalendarEventExtractionReading
         var end = AnchoredInstant.Read(written.End, anchor);
 
         return new ExtractedCalendarEvent(title, start, end > start ? end : null);
+    }
+
+    /// <summary>Cuts a title past its length and marks it as cut, on a text-element boundary, leaving every other title as written.</summary>
+    private static string? Shortened(string? title)
+    {
+        var trimmed = title?.Trim();
+
+        return trimmed is null || trimmed.Length <= CalendarEventTitle.MaximumLength
+            ? trimmed
+            : MailTextBounds.TruncateAtTextElementBoundary(trimmed, CalendarEventTitle.MaximumLength - 1).TrimEnd() + "…";
     }
 
     private static CalendarEventExtractionDocument? ReadDocument(string? answerText) =>

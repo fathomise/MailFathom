@@ -67,7 +67,7 @@ message, a recipient, a link — is read whether it was written as a number or a
 request carries a strict JSON schema built for the turn, in which every message, person, and link number is one the turn
 published, and the instruction then says only what each field means. Every other model is told the shape in prose, with
 one worked paragraph carrying a link. The reading above is the same for both and keeps every bound, which a strict
-schema cannot state. [Chat generation § A reply draft can be constrained by a schema](chat-generation.md#a-reply-draft-can-be-constrained-by-a-schema)
+schema cannot state. [Chat generation § An answer in one document can be constrained by a schema](chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema)
 says what the request carries.
 
 **A link is a number the turn published, never an address the model wrote.** The turn carries a numbered `<links>`

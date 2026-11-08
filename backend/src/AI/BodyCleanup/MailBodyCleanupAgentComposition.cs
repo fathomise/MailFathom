@@ -25,16 +25,29 @@ internal static class MailBodyCleanupAgentComposition
     /// <summary>Composes the body-cleanup agent over a chat client.</summary>
     /// <param name="chatClient">The client the one call is made through.</param>
     /// <param name="plan">The generation parameters this pass runs on, which may name a model of its own.</param>
+    /// <param name="blockCount">How many blocks the outline the agent is put holds, which the response schema numbers.</param>
     /// <param name="instructionEnvelope">The preamble and postamble every agent here carries.</param>
     /// <param name="loggerFactory">The factory the agent logs through.</param>
     /// <returns>The composed agent.</returns>
+    /// <remarks>
+    /// The schema and the instruction are decided by the same declaration: a model whose server honours a strict schema is
+    /// sent one and told only what each field means, and any other model is sent none and told the shape in prose. A
+    /// fallback is composed for its own declaration, so a chain mixing the two asks each model the way it can answer.
+    /// </remarks>
     internal static ChatClientAgent Compose(
         IChatClient chatClient,
         ChatGenerationPlan plan,
+        int blockCount,
         IAgentInstructionEnvelope instructionEnvelope,
         ILoggerFactory loggerFactory)
     {
-        var operation = new AgentOperation(AgentName, MailBodyCleanupInstructions.Text, []);
+        ArgumentNullException.ThrowIfNull(plan);
+
+        var operation = new AgentOperation(
+            AgentName,
+            MailBodyCleanupInstructions.TextFor(plan.StructuredOutputs),
+            [],
+            plan.StructuredOutputs ? MailBodyCleanupSchema.For(blockCount) : null);
 
         return AgentComposition.Compose(chatClient, plan, operation, instructionEnvelope, loggerFactory);
     }

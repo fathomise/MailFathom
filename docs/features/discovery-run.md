@@ -56,7 +56,9 @@ question did not use is still reached. The plan is bounded before it runs:
 - **At most six lookups.** More than that is a model misjudging a question rather than a question that needs them, so
   the surplus is dropped and the first six run.
 - **A lookup whose words could not be searched for is dropped**, and the rest of the plan still runs. Blank query text
-  and text longer than a search query may be are both this case.
+  and text longer than a search query may be are both this case. A plan left with no lookup — none written, or none
+  that could be searched for — keeps the intent and the number of extracts the model named, and runs one lookup for the
+  question's own words.
 - **A date bound is read back against the anchor the turn stated**, and one the model wrote a zone onto is dropped
   while the lookup itself still runs. The anchor names a wall clock with no offset, so a bound written back the same
   way is the asking person's own hour and is placed on their offset; a bound carrying `Z` or an offset was resolved
@@ -115,6 +117,13 @@ somebody pasted into a question is withheld here too.
 The call is made with no tools at all. A derivation that cannot call anything cannot iterate, cannot retrieve, and
 cannot spend more than the single turn it was given.
 
+**Where the model declares `StructuredOutputs`, both calls ask for the shape rather than describing it.** The plan's
+intent is one of the intents a run knows and a lookup's filters are `null` where the question stated none; the composed
+result cites only the source names its turn gave the extracts, names only the columns a fact table knows, and writes an
+array it has nothing for as empty. Each reading is the same either way, so a plan or a result that runs past a bound is
+cut to it rather than refused. [Chat generation § An answer in one document can be constrained by a schema](chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema)
+says what the request carries.
+
 ## When a model does not answer, a run still runs
 
 Nothing about a derivation is allowed to end a question. An answer that is not JSON, is JSON of the wrong shape, is
@@ -130,8 +139,9 @@ not that: it is the reason the run is being stopped, so falling back would spend
 has already run out and would tell somebody their answer was thin when what happened was that the deployment stopped
 paying.
 
-The fallback plan is the one a deployment with no model at all would run: a single lookup for the question's own words,
-classified as `unclassified`, which opens with an answer and its evidence. It is a worse plan than a derived one and it
+The fallback plan is the one a deployment with no model at all would run, and the one an answer that does not read as a
+plan at all is replaced by: a single lookup for the question's own words, classified as `unclassified`, which opens with
+an answer and its evidence. It is a worse plan than a derived one and it
 is a plan, which is the difference between a question answered less well and a question refused. A derivation that fell
 back is logged as unreadable, with no question text in the record.
 

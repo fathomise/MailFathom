@@ -4,6 +4,7 @@
 
 using System.Net;
 using System.Text;
+using MailFathom.AI.Chat;
 using MailFathom.AI.Discovery;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ProviderAdapters;
@@ -35,6 +36,13 @@ public sealed class DiscoveryPlanningAgentTests
 {
     /// <summary>The literal the scanner in the guarded-egress test reports, standing in for a credential in a question.</summary>
     private const string Marker = "AKIAEXAMPLEKEY";
+
+    /// <summary>A plan as a model held to the schema writes it, every filter written and null where it does not apply.</summary>
+    private const string StructuredPlan = """
+        {"intent": "compareTerms", "sufficientPassages": 6, "lookups": [{"queryText": "quotation", "senderAddress": null,
+        "recipientAddress": null, "subjectFragment": null, "receivedOnOrAfter": null, "receivedBefore": null,
+        "isRemotelySeen": null, "isRemotelyFlagged": null, "keyword": null, "hasAttachments": null}]}
+        """;
 
     private static readonly MailboxScope WholeMailbox = MailboxScope.Create(
         [MailAccountId.Create("primary")],
@@ -215,6 +223,48 @@ public sealed class DiscoveryPlanningAgentTests
         Assert.Equal(0, provider.RequestCount);
     }
 
+    /// <summary>A model whose server honours a strict schema is asked for one, its intents the catalogue's own.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task DerivePlanAsync_AModelDeclaringStructuredOutputs_AsksForAStrictSchemaOfTheCataloguesIntents(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredPlan));
+        var planner = provider.PlannerOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api), structuredOutputs: true));
+
+        // Act
+        var plan = await planner.DerivePlanAsync(Question(), TestContext.Current.CancellationToken);
+
+        // Assert
+        var format = StructuredRequests.SchemaFormatOf(provider.RequestBodies[0], api);
+        var intents = format.Schema.GetProperty("properties").GetProperty("intent").GetProperty("enum");
+
+        Assert.Equal(DiscoveryIntent.CompareTerms, plan.Intent);
+        Assert.Equal(["quotation"], plan.Retrieval.Lookups.Select(static lookup => lookup.QueryText));
+        Assert.Equal(("json_schema", DiscoveryPlanningSchema.Name, true), (format.Type, format.Name, format.Strict));
+        Assert.Equal(DiscoveryIntent.All.Select(static intent => intent.Identity), intents.EnumerateArray().Select(static intent => intent.GetString()));
+        Assert.DoesNotContain("whose only required field is", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>Without the declaration the request is the one every derivation sent before, the shape told in prose instead.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task DerivePlanAsync_AModelDeclaringNoStructuredOutputs_SendsNoResponseFormat(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredPlan));
+        var planner = provider.PlannerOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api)));
+
+        // Act
+        await planner.DerivePlanAsync(Question(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(StructuredRequests.CarriesResponseFormat(provider.RequestBodies[0]));
+        Assert.Contains("whose only required field is", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
     private static MailQuestion Question() =>
         new(MailQuestionText.Create("which supplier quoted least"), WholeMailbox, new DateTimeOffset(2026, 9, 14, 10, 0, 0, TimeSpan.FromHours(2)));
 
@@ -262,6 +312,7 @@ public sealed class DiscoveryPlanningAgentTests
             new() { status = status, payload = "{\"error\":{\"message\":\"no\"}}" };
 
         public DiscoveryPlanningAgent PlannerOver(
+            ChatGenerationPlan? plan = null,
             SensitiveContentEgressGuard? egressGuard = null,
             Exception? credentialFailure = null,
             MailAnsweringRunLedger? runLedger = null,
@@ -296,7 +347,7 @@ public sealed class DiscoveryPlanningAgentTests
                 });
 
             return new DiscoveryPlanningAgent(
-                ChatDeclarations.Plan(),
+                plan ?? ChatDeclarations.Plan(),
                 EmailKnowledgeBounds.Default,
                 runLedger ?? new MailAnsweringRunLedger(MailAnsweringRunBounds.Default),
                 spendLedger ?? Substitute.For<IMailAnsweringSpendLedger>(),

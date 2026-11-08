@@ -152,7 +152,7 @@ internal sealed class EmailEnrichmentAgent : IEmailEnricher
             this.plan.MaximumRequestCharacters,
             this.plan.MaximumRequestImageOctets);
 
-        var answer = await this.AskAsync(turn, language, cancellationToken);
+        var answer = await this.AskAsync(turn, email, language, cancellationToken);
 
         if (answer is not { Text: { } answerText })
         {
@@ -222,6 +222,7 @@ internal sealed class EmailEnrichmentAgent : IEmailEnricher
     /// </remarks>
     private async Task<ChatModelAnswer?> AskAsync(
         string turn,
+        EnrichableEmail email,
         MailAccountLanguage language,
         CancellationToken cancellationToken)
     {
@@ -234,7 +235,7 @@ internal sealed class EmailEnrichmentAgent : IEmailEnricher
             return await ChatModelFallThrough.RunAsync(
                 this.plan,
                 this.logger,
-                (model, attemptToken) => this.AskModelAsync(model, turn, language, runLedger, attemptToken),
+                (model, attemptToken) => this.AskModelAsync(model, turn, email, language, runLedger, attemptToken),
                 cancellationToken);
         }
         catch (ChatGenerationFailedException failure)
@@ -257,6 +258,7 @@ internal sealed class EmailEnrichmentAgent : IEmailEnricher
     private async Task<ChatModelAnswer> AskModelAsync(
         ChatGenerationPlan model,
         string turn,
+        EnrichableEmail email,
         MailAccountLanguage language,
         MailAnsweringRunLedger runLedger,
         CancellationToken cancellationToken)
@@ -291,6 +293,7 @@ internal sealed class EmailEnrichmentAgent : IEmailEnricher
             chatClient,
             model,
             language,
+            email,
             this.instructionEnvelope,
             this.loggerFactory);
 

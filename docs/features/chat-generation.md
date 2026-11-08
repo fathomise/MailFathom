@@ -1,6 +1,6 @@
 # Chat generation
 
-<!-- describes: backend/src/AI/Chat/**, backend/src/AI/Providers/**, backend/src/AI/ProviderAdapters/Chat*.cs, backend/src/AI/ProviderAdapters/ProviderChatModelClient.cs, backend/src/AI/ProviderAdapters/ProviderCallFailure*.cs, backend/src/Application/Chat/**, backend/src/Application/AiProviders/**, backend/src/Host/Configuration/Chat/**, backend/src/Host/Configuration/Providers/**, backend/src/Host/Hosting/AiProviderHealthCheck.cs, backend/src/Host/Hosting/Warnings/AiProviderTransportEncryptionWarning.cs, backend/src/Host/Hosting/Warnings/ChatStickySessionsIgnoredWarning.cs, backend/src/Infrastructure/Observability/AiProviderHealthTracker.cs -->
+<!-- describes: backend/src/AI/Chat/**, backend/src/AI/Providers/**, backend/src/AI/ProviderAdapters/Chat*.cs, backend/src/AI/Orchestration/AgentJsonAnswer.cs, backend/src/AI/Orchestration/StrictJsonSchema.cs, backend/src/AI/ProviderAdapters/ProviderChatModelClient.cs, backend/src/AI/ProviderAdapters/ProviderCallFailure*.cs, backend/src/Application/Chat/**, backend/src/Application/AiProviders/**, backend/src/Host/Configuration/Chat/**, backend/src/Host/Configuration/Providers/**, backend/src/Host/Hosting/AiProviderHealthCheck.cs, backend/src/Host/Hosting/Warnings/AiProviderTransportEncryptionWarning.cs, backend/src/Host/Hosting/Warnings/ChatStickySessionsIgnoredWarning.cs, backend/src/Infrastructure/Observability/AiProviderHealthTracker.cs -->
 
 Text in, generated text out. This page describes the second kind of outbound AI call MailFathom makes: what a
 deployment declares to enable it, what one call is allowed to spend, what a failing call is classified as, and how an
@@ -441,12 +441,13 @@ records. A header rather than the body's `session_id`, because it reaches both A
 takes; `session_id` is refused as an [additional request member](#a-model-may-declare-request-members-of-its-own) so
 nothing in the body can override it, and a declared header of the same name is overwritten by it.
 
-## A reply draft can be constrained by a schema
+## An answer in one document can be constrained by a schema
 
-A reply draft is a document the client renders: a body of paragraphs, lists, and tables, the claims it makes with the
-messages that state them, and the people proposed to receive it. A model told that shape in prose writes it wrong often
-enough to lose drafts — a number as a string, a block as a string holding JSON, a link as Markdown. `StructuredOutputs`
-lets a model whose server honours a strict JSON schema be asked for one instead:
+Ten agents answer in one JSON document a reader takes apart: reply drafts, thread states, message enrichment, contact
+relationships, Discover planning and composition, calendar-event extraction, the day layout, body cleanup, and the
+search phrase. A model told that shape in prose writes it wrong often enough to lose answers — a number as a string, a
+block as a string holding JSON, a field written beside the object it belongs in. `StructuredOutputs` lets a model whose
+server honours a strict JSON schema be asked for one instead:
 
 ```json
 {
@@ -460,24 +461,40 @@ lets a model whose server honours a strict JSON schema be asked for one instead:
 
 **It is off unless declared, and nothing checks it at startup.** Not every OpenAI-compatible server honours a
 `json_schema` response format, and only a request shows what one does with it. Where the key is off, every request is
-exactly what it would be without it.
+exactly what it would be without it. Where it is on, it covers every one of those agents that runs on the model; no agent
+has a key of its own.
 
-**The schema is built for each drafting.** Every message, person, and link number in it is limited to the numbers that
-drafting's turn published, so a number outside the conversation cannot be written at all; an array the turn published
-nothing for is left out of the schema. It is sent as a strict schema, over chat completions as `response_format` and over
-the responses API as `text.format`. A request reaching an `openrouter.ai` host also carries
-`provider.require_parameters: true`, merged into any `provider` block the model declares as an
-[additional request member](#a-model-may-declare-request-members-of-its-own), so the router never routes it to a provider
-that would drop the schema.
+**Each schema is built for its turn.** Every number the turn published — a message, person, or link in a draft, a
+message a thread-state statement cites, a passage, a source, a task, a block — is limited to the numbers that turn
+published, so a number outside it cannot be written at all. A provider caps how many values one schema may enumerate, so
+a turn publishing more than 250 of one kind asks for a plain integer there instead, which the reader bounds. A fixed
+vocabulary — an alignment, a colour, an intent, an action — is enumerated too. Every object requires every member and
+admits no other, and a member that does not always apply is nullable rather than optional. It is sent as a strict
+schema, over chat completions as `response_format` and over the responses API as `text.format`. A request reaching an
+`openrouter.ai` host also carries `provider.require_parameters: true`, merged into any `provider` block the model declares
+as an [additional request member](#a-model-may-declare-request-members-of-its-own), so the router never routes it to a
+provider that would drop the schema.
 
-**The instruction follows the same declaration.** A model sent the schema is told what each field means and not its
-shape; a model sent none is told the shape in prose, with a worked paragraph carrying a link. A fallback is asked
-according to its own declaration. Either way the answer is read by the same forgiving reader, which keeps every bound a
-draft has — strict mode drops `maxItems` and `maxLength`, so the schema states none of them.
+**The instruction follows the same declaration.** A model sent the schema is told what each field means and when it is
+`null`, not its shape; a model sent none is told the shape in prose. A fallback is asked according to its own
+declaration, so a chain mixing the two works.
 
-**Only reply drafting asks for a schema today.** Every other operation sends the request it always sent, whatever the
-key says. [ADR 0049](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0049-constraining-the-reply-draft-by-a-strict-json-schema.md)
-records why the draft is constrained and spam classification is not.
+**One reader serves both, and refuses nothing a schema admits.** Strict mode cannot state a length, a count, a numeric
+range, or a pattern, so each reader keeps every bound it had: where an answer only runs past one, the reader cuts or drops
+the part past it and keeps the answer, and it refuses the answer only where the meaning would be lost — a thread title
+carrying markup, or a body partition that leaves blocks unaccounted for. Every reader follows one policy about members it
+was not asked for:
+
+- **A member no level of the document declares is ignored**, so a field a model invented never costs the rest of the answer.
+- **A member the document declares only inside one nested object, written beside it instead, is read inside it** —
+  `keepTopic` beside a thread state's `title` keeps the topic — provided the answer wrote that object and gave it no value
+  of its own. A member several objects declare belongs to none of them in particular and is ignored.
+- **A member written as `null` reads as one left out**, and an object whose every member is `null` reads as the empty
+  answer it stands for: no title, no mark, no card.
+
+**Spam classification asks for no schema**, and neither do the mail-answering agent and the Agent, which answer in text
+and through tools. [ADR 0049](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0049-constraining-the-reply-draft-by-a-strict-json-schema.md)
+records why these answers are constrained and spam classification is not.
 
 ## The model and its parameters come from configuration
 

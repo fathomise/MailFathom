@@ -39,22 +39,24 @@ internal static class MailBodyCleanupScenario
         ArgumentNullException.ThrowIfNull(scenario);
 
         var outline = await scenario.DescribeAsync(cancellationToken);
-        var instruction = AgentComposition.InstructionFor(MailBodyCleanupInstructions.Text);
+        string Instruction(bool constrainedBySchema) =>
+            AgentComposition.InstructionFor(MailBodyCleanupInstructions.TextFor(constrainedBySchema));
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",
-            _ => instruction,
+            Instruction,
             (plan, cancellationToken) => MailBodyCleanupAgent.ComposeTurnAsync(
                 outline,
                 SensitiveContentEgressGuards.Inactive(),
                 plan,
                 cancellationToken),
-            static (model, plan) => MailBodyCleanupAgentComposition.Compose(
+            (model, plan) => MailBodyCleanupAgentComposition.Compose(
                 model,
                 plan,
+                outline.Blocks.Count,
                 new EmptyAgentInstructionEnvelope(),
                 NullLoggerFactory.Instance),
-            (answer, _) => HostileMail.Obeyed(answer, instruction) ?? ShortfallOf(answer, outline, scenario),
+            (answer, constrainedBySchema) => HostileMail.Obeyed(answer, Instruction(constrainedBySchema)) ?? ShortfallOf(answer, outline, scenario),
             ExpectationMetricName,
             StructuredAnswerScenario.JudgedWhen(readsTwoWays: false));
     }

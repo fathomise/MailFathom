@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.Search;
+using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Emails.Search.Phrasing;
 using Xunit;
 
@@ -278,5 +279,22 @@ public sealed class MailSearchPhraseDocumentReadingTests
         Assert.Equal(first.Filters, second.Filters);
         Assert.Equal(first.Criteria, second.Criteria);
         Assert.Equal(first.Unaccounted, second.Unaccounted);
+    }
+
+    /// <summary>Every answer a model wrote to a phrase reading in the last evaluation run reads, which is what a stricter reading must keep doing.</summary>
+    [Fact]
+    public void Read_EveryRecordedAnswer_IsRead()
+    {
+        // Arrange
+        var recorded = RecordedAnswers.Of("MailSearchPhrase");
+
+        // Act
+        var unread = recorded
+            .Where(static answer => !MailSearchPhraseDocumentReading.Read(answer.Answer).WasRead)
+            .Select(static answer => answer.Scenario);
+
+        // Assert
+        Assert.NotEmpty(recorded);
+        Assert.Empty(unread);
     }
 }

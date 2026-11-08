@@ -28,13 +28,24 @@ internal static class MailSearchPhraseAgentComposition
     /// <param name="instructionEnvelope">The preamble and postamble every agent here carries.</param>
     /// <param name="loggerFactory">The factory the agent logs through.</param>
     /// <returns>The composed agent.</returns>
+    /// <remarks>
+    /// The schema and the instruction are decided by the same declaration: a model whose server honours a strict schema is
+    /// sent one and told what each field means, and any other model is sent none and told the shape in prose. A fallback
+    /// is composed for its own declaration, so a chain mixing the two asks each model the way it can answer.
+    /// </remarks>
     internal static ChatClientAgent Compose(
         IChatClient chatClient,
         ChatGenerationPlan plan,
         IAgentInstructionEnvelope instructionEnvelope,
         ILoggerFactory loggerFactory)
     {
-        var operation = new AgentOperation(AgentName, MailSearchPhraseInstructions.Text, []);
+        ArgumentNullException.ThrowIfNull(plan);
+
+        var operation = new AgentOperation(
+            AgentName,
+            MailSearchPhraseInstructions.TextFor(plan.StructuredOutputs),
+            [],
+            plan.StructuredOutputs ? MailSearchPhraseSchema.ResponseFormat : null);
 
         return AgentComposition.Compose(chatClient, plan, operation, instructionEnvelope, loggerFactory);
     }

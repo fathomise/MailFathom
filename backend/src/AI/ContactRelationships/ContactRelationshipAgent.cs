@@ -146,7 +146,7 @@ internal sealed class ContactRelationshipAgent : IContactRelationshipDeriver
             this.plan.MaximumRequestCharacters,
             this.plan.MaximumRequestImageOctets);
 
-        var answer = await this.AskAsync(turn, brief.Language, cancellationToken);
+        var answer = await this.AskAsync(turn, correspondence, brief.Language, cancellationToken);
         var card = ContactRelationshipReading.Read(answer?.Text, correspondence);
 
         // The model that answered where one did, and the model the brief was put to where none could.
@@ -238,6 +238,7 @@ internal sealed class ContactRelationshipAgent : IContactRelationshipDeriver
     /// </remarks>
     private async Task<ChatModelAnswer?> AskAsync(
         string turn,
+        ContactCorrespondence correspondence,
         UserLanguage language,
         CancellationToken cancellationToken)
     {
@@ -246,7 +247,7 @@ internal sealed class ContactRelationshipAgent : IContactRelationshipDeriver
             return await ChatModelFallThrough.RunAsync(
                 this.plan,
                 this.logger,
-                (model, attemptToken) => this.AskModelAsync(model, turn, language, attemptToken),
+                (model, attemptToken) => this.AskModelAsync(model, turn, correspondence, language, attemptToken),
                 cancellationToken);
         }
         catch (ChatGenerationFailedException failure)
@@ -266,6 +267,7 @@ internal sealed class ContactRelationshipAgent : IContactRelationshipDeriver
     private async Task<ChatModelAnswer> AskModelAsync(
         ChatGenerationPlan model,
         string turn,
+        ContactCorrespondence correspondence,
         UserLanguage language,
         CancellationToken cancellationToken)
     {
@@ -298,6 +300,7 @@ internal sealed class ContactRelationshipAgent : IContactRelationshipDeriver
             chatClient,
             model,
             language,
+            correspondence,
             this.instructionEnvelope,
             this.loggerFactory);
 

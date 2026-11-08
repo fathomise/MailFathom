@@ -2207,8 +2207,13 @@ the call is made.
 **The model is sent an outline and answers in block indices.** What leaves the deployment is each block's kind, its link
 count and the opening of its text, beside the envelope sender and the subject — never the source markup and never the
 message whole — and what comes back is ranges of block indices. An answer whose ranges overlap, leave a gap, reach past
-the last block, arrive renumbered, or carry any message text is refused; the body is put once more and a second refusal
-answers `AnswerRejected`. That is what makes the rendering incapable of rewriting a word.
+the last block, or arrive renumbered is refused; the body is put once more and a second refusal answers
+`AnswerRejected`. A range is read as two indices and an action and nothing else, so message text written beside one
+has nowhere to be read into and is ignored with every other member the answer was not asked for. That is what makes the
+rendering incapable of rewriting a word. Where the model declares `StructuredOutputs`, the request carries a strict
+schema in which every index is one of the outline's blocks — a plain integer past 250 blocks — and every action one of
+the two the reading knows, as
+[chat generation](../features/chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema) describes.
 
 **It is asked per open and remembered nowhere.** Nothing is derived when a message arrives, nothing is stored, and opening
 the message again asks again — which is why the reader's own answer about remote pictures travels here too: a cleaning

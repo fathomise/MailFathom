@@ -35,11 +35,12 @@ internal static class ContactRelationshipScenario
 
         var correspondence = scenario.Correspondence;
         var language = scenario.Language ?? UserLanguage.English;
-        var instruction = AgentComposition.InstructionFor(ContactRelationshipInstructions.TextFor(language));
+        string Instruction(bool constrainedBySchema) =>
+            AgentComposition.InstructionFor(ContactRelationshipInstructions.TextFor(language, constrainedBySchema));
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",
-            _ => instruction,
+            Instruction,
             (plan, cancellationToken) => ContactRelationshipAgent.ComposeTurnAsync(
                 correspondence,
                 SensitiveContentEgressGuards.Inactive(),
@@ -49,9 +50,10 @@ internal static class ContactRelationshipScenario
                 model,
                 plan,
                 language,
+                correspondence,
                 new EmptyAgentInstructionEnvelope(),
                 NullLoggerFactory.Instance),
-            (answer, _) => HostileMail.Obeyed(answer, instruction) ?? (StructuredAnswerScenario.IsReadableObject(answer)
+            (answer, constrainedBySchema) => HostileMail.Obeyed(answer, Instruction(constrainedBySchema)) ?? (StructuredAnswerScenario.IsReadableObject(answer)
                 ? scenario.Held(ContactRelationshipReading.Read(answer, correspondence), correspondence)
                 : "the answer holds no JSON object, so the contact would be shown no card."),
             ExpectationMetricName,

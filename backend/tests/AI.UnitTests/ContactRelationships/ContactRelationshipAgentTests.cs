@@ -4,6 +4,7 @@
 
 using System.Net;
 using System.Text;
+using MailFathom.AI.Chat;
 using MailFathom.AI.ContactRelationships;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ProviderAdapters;
@@ -39,6 +40,9 @@ public sealed class ContactRelationshipAgentTests
         {\"note\": {\"text\": \"They lead the addendum renegotiation.\", \"sources\": [0]},
         \"openItem\": {\"text\": \"the indexation cap\", \"sources\": [1]}}
         """;
+
+    private const string StructuredCard =
+        """{"note": {"text": "They lead the addendum renegotiation.", "sources": [0]}, "nextAction": null, "activePeriod": null, "openItem": null, "cases": null}""";
 
     private static readonly DateTimeOffset FirstJuly = new(2026, 7, 1, 8, 0, 0, TimeSpan.Zero);
 
@@ -187,6 +191,47 @@ public sealed class ContactRelationshipAgentTests
             () => agent.DeriveAsync(null!, TestContext.Current.CancellationToken));
     }
 
+    /// <summary>A model whose server honours a strict schema is asked for one, limited to the numbers the turn gave the correspondence.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task DeriveAsync_AModelDeclaringStructuredOutputs_AsksForAStrictSchemaOfTheCorrespondencesOwnNumbers(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredCard));
+        var agent = provider.DeriverOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api), structuredOutputs: true));
+
+        // Act
+        var card = await agent.DeriveAsync(Brief(), TestContext.Current.CancellationToken);
+
+        // Assert
+        var format = StructuredRequests.SchemaFormatOf(provider.RequestBodies[0], api);
+        var cited = format.Schema.GetProperty("$defs").GetProperty("observation").GetProperty("properties").GetProperty("sources").GetProperty("items");
+
+        Assert.True(card.WasDerived);
+        Assert.Equal(("json_schema", ContactRelationshipSchema.Name, true), (format.Type, format.Name, format.Strict));
+        Assert.Equal([0, 1], cited.GetProperty("enum").EnumerateArray().Select(static position => position.GetInt32()).ToArray());
+        Assert.DoesNotContain("A field you cannot cite is a field you leave out.", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>Without the declaration the request is the one every derivation sent before, the shape told in prose instead.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task DeriveAsync_AModelDeclaringNoStructuredOutputs_SendsNoResponseFormat(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredCard));
+        var agent = provider.DeriverOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api)));
+
+        // Act
+        await agent.DeriveAsync(Brief(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(StructuredRequests.CarriesResponseFormat(provider.RequestBodies[0]));
+        Assert.Contains("A field you cannot cite is a field you leave out.", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
     private static ContactRelationshipBrief Brief(
         string subject = "the addendum",
         string fileName = "addendum.pdf",
@@ -238,7 +283,8 @@ public sealed class ContactRelationshipAgentTests
         public ContactRelationshipAgent DeriverOver(
             SensitiveContentEgressGuard? egressGuard = null,
             Exception? credentialFailure = null,
-            IMailAnsweringSpendLedger? spendLedger = null)
+            IMailAnsweringSpendLedger? spendLedger = null,
+            ChatGenerationPlan? plan = null)
         {
             var transportFactory = Substitute.For<IHttpClientFactory>();
             transportFactory
@@ -269,7 +315,7 @@ public sealed class ContactRelationshipAgentTests
                 });
 
             return new ContactRelationshipAgent(
-                ChatDeclarations.Plan(),
+                plan ?? ChatDeclarations.Plan(),
                 new MailAnsweringRunLedger(MailAnsweringRunBounds.Default),
                 spendLedger ?? AdmittingSpendLedger(),
                 credentialSource,

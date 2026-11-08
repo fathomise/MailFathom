@@ -36,7 +36,7 @@ internal static class MailSearchPhraseScenario
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",
-            _ => MailSearchPhraseInstructions.Text,
+            static constrainedBySchema => MailSearchPhraseInstructions.TextFor(constrainedBySchema),
             (_, cancellationToken) => MailSearchPhraseAgent.ComposeTurnAsync(
                 new MailSearchPhrase(EmailSearchQueryText.Create(scenario.Sentence), MailSearchPhraseCase.AskedAt),
                 SensitiveContentEgressGuards.Inactive(),

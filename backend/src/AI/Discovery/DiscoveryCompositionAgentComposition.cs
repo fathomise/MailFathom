@@ -25,16 +25,31 @@ internal static class DiscoveryCompositionAgentComposition
     /// <summary>Composes the composing agent over a chat client.</summary>
     /// <param name="chatClient">The client the one call is made through.</param>
     /// <param name="plan">The generation parameters this deployment configured.</param>
+    /// <param name="sources">The sources the run declared, whose minted names the response schema admits as citations.</param>
     /// <param name="instructionEnvelope">The preamble and postamble every agent here carries.</param>
     /// <param name="loggerFactory">The factory the agent logs through.</param>
     /// <returns>The composed agent.</returns>
+    /// <remarks>
+    /// The schema and the instruction are decided by the same declaration: a model whose server honours a strict schema is
+    /// sent one and told to leave a field empty where it does not apply, and any other model is sent none and told the
+    /// shape in prose. A fallback is composed for its own declaration, so a chain mixing the two asks each model the way
+    /// it can answer.
+    /// </remarks>
     internal static ChatClientAgent Compose(
         IChatClient chatClient,
         ChatGenerationPlan plan,
+        IReadOnlyList<DiscoveryComposedSource> sources,
         IAgentInstructionEnvelope instructionEnvelope,
         ILoggerFactory loggerFactory)
     {
-        var operation = new AgentOperation(AgentName, DiscoveryCompositionInstructions.Text, []);
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(sources);
+
+        var operation = new AgentOperation(
+            AgentName,
+            DiscoveryCompositionInstructions.TextFor(plan.StructuredOutputs),
+            [],
+            plan.StructuredOutputs ? DiscoveryCompositionSchema.For(sources) : null);
 
         return AgentComposition.Compose(chatClient, plan, operation, instructionEnvelope, loggerFactory);
     }

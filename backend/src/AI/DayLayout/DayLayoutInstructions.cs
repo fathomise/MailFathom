@@ -66,9 +66,22 @@ internal static class DayLayoutInstructions
     /// <summary>Names the element carrying a task's or a commitment's title.</summary>
     internal const string TitleElementName = "title";
 
-    /// <summary>The instruction the agent is composed with.</summary>
+    /// <summary>The instruction the agent is composed with where no schema shapes its answer.</summary>
     /// <remarks>Composed once, there being nothing about a person, a mailbox, or a language in it.</remarks>
-    internal static readonly string Text = string.Create(
+    internal static readonly string Text = Compose(constrainedBySchema: false);
+
+    /// <summary>The instruction the agent is composed with where the request carries <see cref="DayLayoutSchema" />.</summary>
+    private static readonly string SchemaText = Compose(constrainedBySchema: true);
+
+    /// <summary>Gets the instruction for whether the request carries the strict schema.</summary>
+    /// <param name="constrainedBySchema">
+    /// Whether the request carries the strict schema <see cref="DayLayoutSchema" /> builds, in which case both arrays are
+    /// always written and an empty one stands for an absent one.
+    /// </param>
+    /// <returns>The instruction text.</returns>
+    internal static string TextFor(bool constrainedBySchema) => constrainedBySchema ? SchemaText : Text;
+
+    private static string Compose(bool constrainedBySchema) => string.Create(
         CultureInfo.InvariantCulture,
         $"""
         You arrange one person's day. The turn gives you a <{DayElementName}> element whose "{StartAttributeName}" and
@@ -80,7 +93,9 @@ internal static class DayLayoutInstructions
 
         Answer with one JSON object and nothing else — no prose around it, no code fence.
 
-        The object may carry two fields, "placements" and "notToday".
+        {(constrainedBySchema
+            ? "The object carries two arrays, \"placements\" and \"notToday\"; leave one empty where nothing belongs in it."
+            : "The object may carry two fields, \"placements\" and \"notToday\".")}
 
         "placements" is an array, in the order the work is to be done, of at most {TodayLayout.MaximumTasks} objects.
         Each has three required fields: "task", the "{PositionAttributeName}" the turn gave that task; "startAt", when to begin it, as an

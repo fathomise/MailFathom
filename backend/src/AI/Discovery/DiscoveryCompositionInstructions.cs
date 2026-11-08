@@ -63,8 +63,41 @@ internal static class DiscoveryCompositionInstructions
         ", ",
         FactTableColumn.All.Select(column => $"\"{column.Identity}\""));
 
-    /// <summary>The instruction the agent is composed with.</summary>
-    internal static string Text { get; } = string.Create(
+    /// <summary>The instruction the agent is composed with where no schema shapes its answer.</summary>
+    internal static string Text { get; } = Compose(constrainedBySchema: false);
+
+    /// <summary>The instruction the agent is composed with where the request carries <see cref="DiscoveryCompositionSchema" />.</summary>
+    private static string SchemaText { get; } = Compose(constrainedBySchema: true);
+
+    /// <summary>Gets the instruction for whether the request carries the strict schema.</summary>
+    /// <param name="constrainedBySchema">
+    /// Whether the request carries the strict schema <see cref="DiscoveryCompositionSchema" /> builds, in which case every
+    /// field is written and the instruction says to leave a field empty, or a value null, where it would otherwise say to
+    /// leave one out.
+    /// </param>
+    /// <returns>The instruction text.</returns>
+    internal static string TextFor(bool constrainedBySchema) => constrainedBySchema ? SchemaText : Text;
+
+    /// <summary>Says what becomes of a conflict nobody has: left out in prose, and left an empty array under a schema.</summary>
+    private static string ConflictLeft(bool constrainedBySchema) => constrainedBySchema ? "empty" : "out";
+
+    /// <summary>Says what a cell the extracts say nothing about holds: nothing in prose, and a null value under a schema.</summary>
+    private static string SilentCell(bool constrainedBySchema) => constrainedBySchema
+        ? "has a null \"value\" and\nan empty \"sources\""
+        : "carries no value and\nno source";
+
+    /// <summary>Says which fields are always given and what becomes of the rest: omitted in prose, and empty under a schema.</summary>
+    private static string FieldsAlwaysGiven(bool constrainedBySchema) => constrainedBySchema
+        ? """
+          Always give "answer", "sources", and "confidence". Of the other fields, fill only the ones the turn asks you
+          for and leave the rest empty; anything in them is ignored.
+          """
+        : """
+          Always give "answer", "sources", and "confidence". Of the other fields, give only the ones the turn asks you
+          for; the rest are ignored.
+          """;
+
+    private static string Compose(bool constrainedBySchema) => string.Create(
         CultureInfo.InvariantCulture,
         $"""
         You are given one question somebody asked about their own mailbox, in an <{AgentTurnDocument.AskElementName}>
@@ -95,10 +128,10 @@ internal static class DiscoveryCompositionInstructions
 
         "conflict" is how you report extracts that contradict each other. Do not choose between them and do not average
         them. Give one object per side, each with a "statement" saying what that side says and a "sources" array naming
-        the extracts saying it, at most {PresentationEvidence.MaxConflictingClaims} sides in all. Leave it out where the
+        the extracts saying it, at most {PresentationEvidence.MaxConflictingClaims} sides in all. Leave it {ConflictLeft(constrainedBySchema)} where the
         extracts agree; two sides at least are needed for a disagreement. A message that arrived later and corrects or
         withdraws what an earlier one said is not a disagreement: answer with what the correction says, name the
-        earlier statement as the one it replaced, and leave "conflict" out.
+        earlier statement as the one it replaced, and leave "conflict" {ConflictLeft(constrainedBySchema)}.
 
         "events" is for a question about how something changed over time. Give one object per dated event, in the order
         the answer reads in, each with an ISO 8601 "occurredAt", a "summary" of what happened, a "subject" naming what
@@ -110,11 +143,9 @@ internal static class DiscoveryCompositionInstructions
         "columns" and "rows" are for a question comparing offers, terms, or versions. "columns" names what is compared,
         from this list and no other: {ColumnNames}. At most {FactTableBlock.MaxColumns}, each named once. "rows" is an
         array of objects each holding "cells", one cell per column in the columns' order, where a cell has a "value" as
-        the correspondence wrote it and a "sources" array. A cell the extracts say nothing about carries no value and
-        no source rather than a blank or a guess. At most {FactTableBlock.MaxRows} rows.
+        the correspondence wrote it and a "sources" array. A cell the extracts say nothing about {SilentCell(constrainedBySchema)} rather than a blank or a guess. At most {FactTableBlock.MaxRows} rows.
 
-        Always give "answer", "sources", and "confidence". Of the other fields, give only the ones the turn asks you
-        for; the rest are ignored.
+        {FieldsAlwaysGiven(constrainedBySchema)}
 
         Each <{SourceElementName}> element names the author its message displays in its
         {AgentTurnDocument.FromNameAttributeName} and {AgentTurnDocument.FromAttributeName} attributes: answer who wrote,

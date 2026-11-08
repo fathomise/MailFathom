@@ -4,6 +4,7 @@
 
 using MailFathom.AI.Chat;
 using MailFathom.AI.Orchestration;
+using MailFathom.Application.Tasks;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -25,16 +26,30 @@ internal static class DayLayoutAgentComposition
     /// <summary>Composes the day-layout agent over a chat client.</summary>
     /// <param name="chatClient">The client the one call is made through.</param>
     /// <param name="plan">The generation parameters this deployment configured.</param>
+    /// <param name="question">The day the agent is put, whose tasks the response schema numbers.</param>
     /// <param name="instructionEnvelope">The preamble and postamble every agent here carries.</param>
     /// <param name="loggerFactory">The factory the agent logs through.</param>
     /// <returns>The composed agent.</returns>
+    /// <remarks>
+    /// The schema and the instruction are decided by the same declaration: a model whose server honours a strict schema is
+    /// sent one and told only what each field means, and any other model is sent none and told the shape in prose. A
+    /// fallback is composed for its own declaration, so a chain mixing the two asks each model the way it can answer.
+    /// </remarks>
     internal static ChatClientAgent Compose(
         IChatClient chatClient,
         ChatGenerationPlan plan,
+        DayLayoutQuestion question,
         IAgentInstructionEnvelope instructionEnvelope,
         ILoggerFactory loggerFactory)
     {
-        var operation = new AgentOperation(AgentName, DayLayoutInstructions.Text, []);
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(question);
+
+        var operation = new AgentOperation(
+            AgentName,
+            DayLayoutInstructions.TextFor(plan.StructuredOutputs),
+            [],
+            plan.StructuredOutputs ? DayLayoutSchema.For(question.Tasks.Count) : null);
 
         return AgentComposition.Compose(chatClient, plan, operation, instructionEnvelope, loggerFactory);
     }

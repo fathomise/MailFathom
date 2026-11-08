@@ -37,15 +37,31 @@ public sealed class CalendarEventExtractionInstructionsTests
     }
 
     /// <summary>The reading refuses an instant carrying a zone, so the instruction has to be the half that says not to write one.</summary>
-    [Fact]
-    public void Text_TheInstruction_AsksForALocalTimeCarryingNoZone()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TextFor_EitherShapeOfAnswer_AsksForALocalTimeCarryingNoZone(bool constrainedBySchema)
     {
         // Act
-        var text = CalendarEventExtractionInstructions.Text;
+        var text = CalendarEventExtractionInstructions.TextFor(constrainedBySchema);
 
         // Assert
         Assert.Contains("YYYY-MM-DDTHH:MM", text, StringComparison.Ordinal);
         Assert.Contains("no zone offset", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A schema requires every member, so where it shapes the answer an end the text does not state is null rather than left out.</summary>
+    [Fact]
+    public void TextFor_AnAnswerShapedByTheSchema_AsksForANullEndRatherThanALeftOutOne()
+    {
+        // Act
+        var constrained = CalendarEventExtractionInstructions.TextFor(constrainedBySchema: true);
+        var prose = CalendarEventExtractionInstructions.TextFor(constrainedBySchema: false);
+
+        // Assert
+        Assert.Contains("It is null otherwise.", constrained, StringComparison.Ordinal);
+        Assert.DoesNotContain("Omit it entirely", constrained, StringComparison.Ordinal);
+        Assert.Contains("Omit it entirely otherwise.", prose, StringComparison.Ordinal);
     }
 
     [Fact]

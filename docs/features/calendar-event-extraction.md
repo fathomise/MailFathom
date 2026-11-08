@@ -47,6 +47,13 @@ proposal carries no reminders for the same reason.
 is dropped while the event is kept — what the text fixed was when the thing begins, so the length is the part to
 discard rather than the occasion.
 
+**A title that only runs long is cut and marked as cut**, because the event it names is still the one the text
+described; an event with no title, or a start that is not an instant, is dropped.
+
+**Where the model declares `StructuredOutputs`, the shape is asked for rather than described.** The request carries a
+strict schema in which every event writes its title and start and writes an end as `null` where the text gives none.
+The reading is the same either way. [Chat generation § An answer in one document can be constrained by a schema](chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema) says what the request carries.
+
 ## Which clock an hour is in
 
 The model writes a local wall clock and never a zone, and MailFathom supplies the offset. That division is deliberate:

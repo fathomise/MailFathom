@@ -32,7 +32,8 @@ internal sealed class ScriptedDiscoveryChatClient(string plan, Func<string, stri
 
         var conversation = messages.ToList();
         var instructed = string.Concat(options?.Instructions, string.Concat(conversation.Select(static message => message.Text)));
-        var answer = instructed.Contains(DiscoveryPlanningInstructions.Text, StringComparison.Ordinal)
+        var answer = instructed.Contains(DiscoveryPlanningInstructions.TextFor(constrainedBySchema: false), StringComparison.Ordinal)
+            || instructed.Contains(DiscoveryPlanningInstructions.TextFor(constrainedBySchema: true), StringComparison.Ordinal)
             ? plan
             : composition(conversation[^1].Text);
 

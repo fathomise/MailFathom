@@ -36,13 +36,15 @@ internal static class DayLayoutScenario
         ArgumentNullException.ThrowIfNull(scenario);
 
         var question = scenario.Question;
-        var instruction = AgentComposition.InstructionFor(DayLayoutInstructions.Text);
+
+        static string Instruction(bool constrainedBySchema) =>
+            AgentComposition.InstructionFor(DayLayoutInstructions.TextFor(constrainedBySchema));
 
         // The lines pass an inactive guard, an egress guard being what a deployment puts between the store and this turn
         // rather than part of what the agent is measured on.
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",
-            _ => instruction,
+            Instruction,
             (plan, cancellationToken) => DayLayoutAgent.ComposeTurnAsync(
                 question,
                 SensitiveContentEgressGuards.Inactive(),
@@ -51,9 +53,10 @@ internal static class DayLayoutScenario
             (model, plan) => DayLayoutAgentComposition.Compose(
                 model,
                 plan,
+                question,
                 new EmptyAgentInstructionEnvelope(),
                 NullLoggerFactory.Instance),
-            (answer, _) => HostileMail.Obeyed(answer, instruction) ?? (StructuredAnswerScenario.IsReadableObject(answer)
+            (answer, constrainedBySchema) => HostileMail.Obeyed(answer, Instruction(constrainedBySchema)) ?? (StructuredAnswerScenario.IsReadableObject(answer)
                 ? scenario.Expectation(question, DayLayoutReading.Read(answer, question))
                 : "the answer holds no JSON object, so the person would be shown no arrangement at all."),
             ExpectationMetricName,

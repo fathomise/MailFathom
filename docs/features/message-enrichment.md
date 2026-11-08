@@ -173,6 +173,12 @@ on. The passages are **numbered in the turn and cited by number**, and the model
 citation is a position in a list this deployment composed: an answer naming a passage it was not given names nothing,
 and its mark is dropped.
 
+**Where the model declares `StructuredOutputs`, the shape is asked for rather than described.** The request carries a
+strict schema in which every cited passage is one of the message's own positions, and a reading or a day the model
+cannot support is written as `null`. The reading is the same either way: a text that runs long is cut, and a reading
+citing no passage is still dropped. [Chat generation § An answer in one document can be constrained by a schema](chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema)
+says what the request carries.
+
 The dating instant is in the turn because a message saying "by Friday" is resolved against when it was dated rather
 than against now, which is what makes the same message derived again next month resolve to the same day. Mail somebody
 else wrote is dated by its arrival, a server's own clock, and by its `Date` header only where no receiving hop recorded

@@ -128,7 +128,7 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
 
         var turn = await ComposeTurnAsync(question, plan, sources, this.egressGuard, cancellationToken);
 
-        var answer = await this.AskAsync(turn, cancellationToken);
+        var answer = await this.AskAsync(turn, sources, cancellationToken);
         var composed = DiscoveryCompositionReading.Read(answer?.Text, plan, sources, evidence, coverage, language);
 
         if (answer is { Text: not null })
@@ -263,7 +263,10 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
     /// be a composition that failed, which is the one thing this one does not do.
     /// </para>
     /// </remarks>
-    private async Task<ChatModelAnswer?> AskAsync(string turn, CancellationToken cancellationToken)
+    private async Task<ChatModelAnswer?> AskAsync(
+        string turn,
+        IReadOnlyList<DiscoveryComposedSource> sources,
+        CancellationToken cancellationToken)
     {
         var endpoint = this.plan.Endpoint;
 
@@ -282,7 +285,7 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
             return await ChatModelFallThrough.RunAsync(
                 this.plan,
                 this.logger,
-                (model, attemptToken) => this.AskModelAsync(model, turn, attemptToken),
+                (model, attemptToken) => this.AskModelAsync(model, turn, sources, attemptToken),
                 cancellationToken);
         }
         catch (ChatGenerationFailedException failure)
@@ -308,6 +311,7 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
     private async Task<ChatModelAnswer> AskModelAsync(
         ChatGenerationPlan model,
         string turn,
+        IReadOnlyList<DiscoveryComposedSource> sources,
         CancellationToken cancellationToken)
     {
         // Against this model's own bounds rather than the main model's, because a fallback may be declared
@@ -338,6 +342,7 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
         var agent = DiscoveryCompositionAgentComposition.Compose(
             chatClient,
             model,
+            sources,
             this.instructionEnvelope,
             this.loggerFactory);
 

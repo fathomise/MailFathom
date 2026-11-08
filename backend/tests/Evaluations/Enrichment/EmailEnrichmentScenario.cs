@@ -39,11 +39,12 @@ internal static class EmailEnrichmentScenario
 
         var message = scenario.Message().Enrichable;
         var language = scenario.Language ?? MailAccountLanguage.English;
-        var instruction = AgentComposition.InstructionFor(EmailEnrichmentInstructions.TextFor(language));
+        string Instruction(bool constrainedBySchema) =>
+            AgentComposition.InstructionFor(EmailEnrichmentInstructions.TextFor(language, constrainedBySchema));
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",
-            _ => instruction,
+            Instruction,
             (plan, cancellationToken) => EmailEnrichmentAgent.ComposeTurnAsync(
                 message,
                 SensitiveContentEgressGuards.Inactive(),
@@ -53,9 +54,10 @@ internal static class EmailEnrichmentScenario
                 model,
                 plan,
                 language,
+                message,
                 new EmptyAgentInstructionEnvelope(),
                 NullLoggerFactory.Instance),
-            (answer, _) => HostileMail.Obeyed(answer, instruction) ?? (StructuredAnswerScenario.IsReadableObject(answer)
+            (answer, constrainedBySchema) => HostileMail.Obeyed(answer, Instruction(constrainedBySchema)) ?? (StructuredAnswerScenario.IsReadableObject(answer)
                 ? Held(scenario, EmailEnrichmentReading.Read(answer, message.Passages, EmailEnrichmentAgentComposition.AgentName))
                 : "the answer holds no JSON object, so the message would be listed with no reading."),
             ExpectationMetricName,

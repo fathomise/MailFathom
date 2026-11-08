@@ -1795,7 +1795,7 @@ A model under `MainModel` or an agent's key is its routed name alone, or a mappi
 | `ReasoningEffort` | The reasoning effort every call states | No reasoning parameter at all | One word the provider reads as a level, such as `low`, `medium`, `high`, or `none`, which states an effort of none rather than leaving it out |
 | `Temperature` | The sampling temperature | The model's own default | A number from 0 to 2 |
 | `TopP` | The nucleus-sampling threshold | The model's own default | A number from 0 to 1 |
-| `StructuredOutputs` | That the model's server honours a strict JSON schema, so the reply-draft agent is measured under the schema a deployment declaring it sends; an answer written under the schema is filed apart from one written without it | No schema, the shape told in prose | `true` or `false` |
+| `StructuredOutputs` | That the model's server honours a strict JSON schema, so every agent answering in one JSON document is measured under the schema a deployment declaring it sends; an answer written under one agent's schema is filed apart from one written without it, and from one written under another agent's | No schema, the shape told in prose | `true` or `false` |
 | `ExtraHeaders` | Headers every request carries beside the credential's | None | A list of `{Name, Value}` pairs, each value written literally |
 | `AdditionalProperties` | Members every request body carries beside the ones MailFathom writes, such as `top_k` or a gateway's routing block | None | A mapping whose members may be scalars, mappings, or lists; a member MailFathom writes itself, or has a key of its own for, is refused |
 

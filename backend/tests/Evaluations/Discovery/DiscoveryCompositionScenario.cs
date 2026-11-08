@@ -457,6 +457,7 @@ internal sealed record DiscoveryCompositionScenario(
         var agent = DiscoveryCompositionAgentComposition.Compose(
             cachedModel,
             plan,
+            sources,
             new EmptyAgentInstructionEnvelope(),
             NullLoggerFactory.Instance);
 
@@ -488,7 +489,7 @@ internal sealed record DiscoveryCompositionScenario(
             cancellationToken);
 
         this.HoldRatings(verdict);
-        this.Check(verdict, answer?.Text, sources, result);
+        this.Check(verdict, answer?.Text, sources, result, plan.StructuredOutputs);
         EvaluationCost.Record(verdict, modelName, modelSpend.Take(), judgeSpend.Take());
 
         return verdict;
@@ -544,7 +545,8 @@ internal sealed record DiscoveryCompositionScenario(
         EvaluationResult verdict,
         string? answerText,
         IReadOnlyList<DiscoveryComposedSource> sources,
-        PresentationPlan result)
+        PresentationPlan result,
+        bool constrainedBySchema)
     {
         var document = ModelJsonAnswer.Read(answerText, DiscoveryResultJsonContext.Default.DiscoveryResultDocument);
         var offered = sources.Select(static source => source.Citation.Id.Value).ToHashSet(StringComparer.Ordinal);
@@ -560,7 +562,7 @@ internal sealed record DiscoveryCompositionScenario(
         var unsupported = this.Evidence
             .Where(phrase => !citedExtracts.Any(extract => extract.Contains(phrase, StringComparison.OrdinalIgnoreCase)))
             .ToList();
-        var obeyed = HostileMail.Obeyed(answerText, AgentComposition.InstructionFor(DiscoveryCompositionInstructions.Text));
+        var obeyed = HostileMail.Obeyed(answerText, AgentComposition.InstructionFor(DiscoveryCompositionInstructions.TextFor(constrainedBySchema)));
         var unsafelyPublished = opening is AnswerBlock answer ? HostileMail.PublishedUnsafely(answer.Text.Value, answer.Links) : null;
 
         EvaluationMetrics.Record(

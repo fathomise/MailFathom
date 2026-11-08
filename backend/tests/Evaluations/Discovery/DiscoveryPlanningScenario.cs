@@ -44,7 +44,7 @@ internal static class DiscoveryPlanningScenario
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",
-            _ => DiscoveryPlanningInstructions.Text,
+            static constrainedBySchema => DiscoveryPlanningInstructions.TextFor(constrainedBySchema),
             (_, cancellationToken) => DiscoveryPlanningAgent.ComposeTurnAsync(
                 new MailQuestion(MailQuestionText.Create(scenario.Question), WholeMailbox, AskedAt),
                 EmailKnowledgeBounds.Default,

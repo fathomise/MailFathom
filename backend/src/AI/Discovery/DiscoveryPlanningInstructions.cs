@@ -26,8 +26,29 @@ namespace MailFathom.AI.Discovery;
 /// </remarks>
 internal static class DiscoveryPlanningInstructions
 {
-    /// <summary>The instruction the agent is composed with.</summary>
-    internal static string Text { get; } = string.Create(
+    /// <summary>The instruction the agent is composed with where no schema shapes its answer.</summary>
+    internal static string Text { get; } = Compose(constrainedBySchema: false);
+
+    /// <summary>The instruction the agent is composed with where the request carries <see cref="DiscoveryPlanningSchema" />.</summary>
+    private static string SchemaText { get; } = Compose(constrainedBySchema: true);
+
+    /// <summary>Gets the instruction for whether the request carries the strict schema.</summary>
+    /// <param name="constrainedBySchema">
+    /// Whether the request carries the strict schema <see cref="DiscoveryPlanningSchema" /> holds, in which case every
+    /// field of a lookup is written and the instruction says to write <c>null</c> where it would otherwise say to omit one.
+    /// </param>
+    /// <returns>The instruction text.</returns>
+    internal static string TextFor(bool constrainedBySchema) => constrainedBySchema ? SchemaText : Text;
+
+    /// <summary>Introduces a lookup's words: the one field a lookup needs in prose, and one field among written others under a schema.</summary>
+    private static string LookupWordsIntroduction(bool constrainedBySchema) => constrainedBySchema
+        ? "whose \"queryText\" holds"
+        : "whose only required field is \"queryText\":";
+
+    /// <summary>Says what becomes of a filter with no reason behind it: left out in prose, and written null under a schema.</summary>
+    private static string UnsetFilter(bool constrainedBySchema) => constrainedBySchema ? "Write null for" : "Omit";
+
+    private static string Compose(bool constrainedBySchema) => string.Create(
         CultureInfo.InvariantCulture,
         $"""
         You read one question somebody asked about their own mailbox and answer with a plan for finding the answer. You
@@ -45,7 +66,7 @@ internal static class DiscoveryPlanningInstructions
         question into a kind it does not have.
 
         "lookups" is an array of at most {RetrievalPlan.MaximumLookups} searches to run, best first. Each is an object
-        whose only required field is "queryText": the words you expect the mail itself to carry, up to
+        {LookupWordsIntroduction(constrainedBySchema)} the words you expect the mail itself to carry, up to
         {EmailSearchQueryText.MaximumLength} characters, written in the language that mail is likely written in, which
         need not be the language the question was asked in. Write words rather than the question — matching compares
         words and does not translate them, so a mailbox that plausibly holds two languages is reached by a lookup per
@@ -71,7 +92,7 @@ internal static class DiscoveryPlanningInstructions
         them to rather than leaving the period in the words — "isRemotelySeen"
         and "isRemotelyFlagged" for the read and starred states, set on every lookup where the question asks about
         starred, unread, or read mail, "keyword" for a label, and "hasAttachments" for whether
-        mail carries files. Omit a filter you have no reason to set; a filter narrows exactly, while the same words in
+        mail carries files. {UnsetFilter(constrainedBySchema)} a filter you have no reason to set; a filter narrows exactly, while the same words in
         the query only compete with every other word in it. So a question that names no period sets neither received
         bound and one that asks about no attachment sets no "hasAttachments": the current date and time the turn names
         resolve a stated period and are never a period on its own. A person the question names without an address has no

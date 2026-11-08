@@ -75,6 +75,10 @@ retrieval** — so the only mail a model sees is what this turn published to it.
 numbered in one list and the answer cites those numbers, so a statement can name nothing outside the correspondence
 this contact was correlated with, and a number the turn never published is dropped rather than followed.
 
+**Where the model declares `StructuredOutputs`, the shape is asked for rather than described.** Every cited number is
+one of the numbers the turn published, and a line the model cannot cite is written as `null`; a `null` note is the empty
+card. The reading is the same either way. [Chat generation § An answer in one document can be constrained by a schema](chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema) says what the request carries.
+
 Everything that goes out is scanned at `ChatPrompt` before it is sent, and every statement that comes back is scanned
 again before it reaches the client, at `client_contact_relationship` —
 [Sensitive-content scanning](sensitive-content-scanning.md) is what each scan does and what a scanner that cannot

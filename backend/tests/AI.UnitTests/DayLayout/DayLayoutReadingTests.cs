@@ -3,6 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.DayLayout;
+using MailFathom.AI.Orchestration;
+using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Tasks;
 using MailFathom.Domain.Tasks;
 using Xunit;
@@ -234,6 +236,28 @@ public sealed class DayLayoutReadingTests
 
         // Assert
         Assert.Equal(FirstTask, Assert.Single(suggestion.Placements).Task);
+    }
+
+    /// <summary>
+    /// Every answer a model wrote to this agent in the last evaluation run, replayed through the reading. There is one
+    /// reading whether or not the request carried a schema, so this is the replay under both: each still reads as the
+    /// document it was, rather than as an answer holding nothing.
+    /// </summary>
+    [Fact]
+    public void Read_EveryAnswerRecordedInTheLastEvaluationRun_StillReadsAsADocument()
+    {
+        // Arrange
+        var recorded = RecordedAnswers.Of("DayLayout");
+
+        // Act
+        var unreadable = recorded
+            .Where(static answer => AgentJsonAnswer.Read(answer.Answer, DayLayoutJsonContext.Default.DayLayoutDocument) is null)
+            .Select(static answer => answer.Scenario);
+
+        // Assert
+        Assert.NotEmpty(recorded);
+        Assert.Empty(unreadable);
+        Assert.All(recorded, static answer => DayLayoutReading.Read(answer.Answer, Question));
     }
 
     /// <summary>An answer nothing can be read out of is a day arranged with nothing rather than a failure to report.</summary>
