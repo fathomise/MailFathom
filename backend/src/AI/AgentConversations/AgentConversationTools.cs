@@ -157,7 +157,7 @@ internal sealed class AgentConversationTools
     {
         List<AITool> tools =
         [
-            AIFunctionFactory.Create(this.SuggestFollowUps, "suggest_follow_ups", $"Suggests up to {AgentConversationBounds.MaximumFollowUps} short questions the person could ask you next, shown under your answer. Pressing one only asks it; nothing is done."),
+            AIFunctionFactory.Create(this.SuggestFollowUps, "suggest_follow_ups", $"Suggests up to {AgentConversationBounds.MaximumFollowUps} short questions the person could ask you next, shown under your answer. Each is a question in the person's own voice, never an offer of yours such as \"Would you like…\". Pressing one only asks it; nothing is done."),
             AIFunctionFactory.Create(this.RateConfidence, "rate_confidence", "Rates how settled your answer is, shown beside it: high, moderate, or low."),
         ];
 
@@ -165,7 +165,7 @@ internal sealed class AgentConversationTools
         {
             tools.Add(new ReportingFunction(this.retrieval.CreateSearchTool(), this.journal, AgentActivity.SearchingMail));
             tools.Add(AIFunctionFactory.Create(this.ReadThreadAsync, "read_thread", $"Reads the email conversation a message belongs to, up to its {MaximumThreadMessages} newest messages: each one's sender, date, subject, and body. Pass the id of any message in it, or of the conversation; where the message is older than those, the reading ends at it instead. The reading says how many earlier or later messages it left out. A conversation past {IEmailThreadReader.MaximumAssembledEmails} messages is read from its first {IEmailThreadReader.MaximumAssembledEmails} only."));
-            tools.Add(AIFunctionFactory.Create(this.ShowThreadStateAsync, "show_thread_state", "Shows the person where the conversation a message belongs to stands — what was agreed, what is still open, what somebody owes — exactly as it was already derived. The reading is placed in the conversation for them; do not restate it."));
+            tools.Add(AIFunctionFactory.Create(this.ShowThreadStateAsync, "show_thread_state", "Shows the person where the conversation a message belongs to stands — what was agreed, what is still open, what somebody owes — exactly as it was already derived. Use it only when the person asks where a conversation stands or what is open in it; to read, summarise, or retell a conversation, use read_thread. The reading is placed in the conversation for them; do not restate it."));
         }
 
         if (this.readers.Authorization.Permits(MailFathomPermission.CalendarRead))
@@ -221,7 +221,7 @@ internal sealed class AgentConversationTools
 
     [Description("Suggests what the person could ask next.")]
     private string SuggestFollowUps(
-        [Description("Each question as the person would ask it of you, one short line each.")] string[] questions)
+        [Description("Each question as the person would ask it of you, one short line each, never an offer of yours.")] string[] questions)
     {
         if (AgentFollowUps.Read(questions) is not { } suggested)
         {

@@ -1285,6 +1285,29 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             ["sendAt"] = sendAt,
         });
 
+    /// <summary>Follow-ups were written as the Agent's offers, so the tool says each is a question the person would ask.</summary>
+    [Fact]
+    public void SuggestFollowUps_ItsDescription_IsAQuestionThePersonWouldAskNeverAnOffer()
+    {
+        // Act
+        var tool = this.ToolNamed("suggest_follow_ups", MailFathomPermission.MailRead);
+
+        // Assert
+        Assert.Contains("never an offer of yours", tool.Description, StringComparison.Ordinal);
+    }
+
+    /// <summary>A request to summarise a conversation reached the state tool, so its description sends it to the reading instead.</summary>
+    [Fact]
+    public void ShowThreadState_ItsDescription_SendsARequestToSummariseToReadThread()
+    {
+        // Act
+        var tool = this.ToolNamed("show_thread_state", MailFathomPermission.MailRead);
+
+        // Assert
+        Assert.Contains("Use it only when the person asks where a conversation stands or what is open in it", tool.Description, StringComparison.Ordinal);
+        Assert.Contains("to read, summarise, or retell a conversation, use read_thread", tool.Description, StringComparison.Ordinal);
+    }
+
     private AIFunction ToolNamed(string name, params MailFathomPermission[] granted)
     {
         this.tools = this.Tools(granted);

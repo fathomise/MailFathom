@@ -83,11 +83,12 @@ internal sealed class ScopedMailKnowledgeRetrieval
         + $"<{RetrievedMailContextFormatter.ImageDescriptionElementName}> element is a model's account of a picture "
         + "that nobody wrote, reachable by meaning alone, so a claim resting on one is a claim about a guess and is "
         + "worth saying so. Narrow with the "
-        + "filters rather than by describing the narrowing in the query: a question about one person's mail, one period, "
-        + "or mail carrying an attachment is answered far better by the matching filter than by words that have to rank. "
+        + "filters rather than by describing the narrowing in the query: a question about one person's mail or one "
+        + "period is answered far better by the matching filter than by words that have to rank. "
         + "Set a filter only for what the question states or plainly implies: a question naming no period takes no "
         + "received bound, and one asking about no attachment takes no attachment filter, because a filter nobody asked "
-        + "for hides mail that could answer the question. "
+        + "for hides mail that could answer the question. Naming a document — an invoice, a contract, a report — is not "
+        + "asking about an attachment. "
         + "Which accounts and folders are searched is fixed by the caller and is not yours to set. Each call returns one "
         + "window of the most relevant results that nothing continues, so call it again with a different query or "
         + "narrower filters to reach other mail. Matching nothing is an ordinary empty result rather than an error.";
@@ -201,7 +202,7 @@ internal sealed class ScopedMailKnowledgeRetrieval
         string? receivedOnOrAfter = null,
         [Description("Return only mail received strictly before this moment, written as yyyy-MM-ddTHH:mm against the date and time the turn states, with no zone and no Z. Omit for no upper bound.")]
         string? receivedBefore = null,
-        [Description("Return only mail the mail server last reported as read (true) or unread (false). Omit to match either. Searching never changes this state.")]
+        [Description("Return only mail this mailbox has opened (true) or not opened (false), as the mail server last reported it. It is whether the person whose mailbox this is opened the message, never whether a recipient read mail the person sent. Omit to match either. Searching never changes this state.")]
         bool? isRemotelySeen = null,
         [Description("Return only mail the mail server last reported as flagged (true) or unflagged (false), which is the star most mail clients show. Omit to match either. This is the \\Flagged flag on a message and is unrelated to the Flagged folder role.")]
         bool? isRemotelyFlagged = null,

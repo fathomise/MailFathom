@@ -268,6 +268,10 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
     /// <returns>The answer, or <see langword="null" /> where the text is blank, which the run fails as an empty answer.</returns>
     internal static MailAnswer? AnswerOf(string? text) => string.IsNullOrWhiteSpace(text) ? null : new MailAnswer(text);
 
+    /// <summary>The sentence closing every turn, restating the language the answer is written in.</summary>
+    internal const string AnswerLanguageStatement =
+        "Write the answer in the language this question is written in, whatever language the mail you find is in.";
+
     /// <summary>Composes the one turn a run sends: the instant the question was asked at, and the question itself.</summary>
     /// <remarks>
     /// The anchor is stated on the turn beside the question and never in the instruction: the instruction is this run's
@@ -276,7 +280,8 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
     /// absolute instants, as a date the model recalled rather than one it was given. Composed through one method so the
     /// bounds above are applied to the turn that is actually sent rather than to the question the anchor expands. The
     /// question is written in the person's ask element, which is the one place the composed instruction says the
-    /// person's wishes are read from.
+    /// person's wishes are read from. The answer's language is restated after it because a model that has just read
+    /// mail in another language drifts into that language, and the turn is the text read last.
     /// </remarks>
     /// <param name="askedAt">The instant the question was asked at.</param>
     /// <param name="questionText">The question, as guarded for the provider.</param>
@@ -287,6 +292,7 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
 
         document.WriteStatement($"{AgentTimeAnchor.Stated(askedAt)}\n\n");
         document.WriteAsk(questionText);
+        document.WriteStatement($"\n\n{AnswerLanguageStatement}");
 
         return document.Complete();
     }
