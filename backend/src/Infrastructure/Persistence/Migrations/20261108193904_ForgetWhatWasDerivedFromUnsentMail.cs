@@ -27,7 +27,7 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                 CREATE TEMPORARY TABLE mf_unsent_stored_emails ON COMMIT DROP AS
                 SELECT email."Id", email."EmailThreadId"
                 FROM stored_emails AS email
-                LEFT JOIN mail_folders AS folder ON folder."Id" = email."FolderId"
+                LEFT JOIN local_mail_folders AS folder ON folder."Id" = email."FolderId"
                 WHERE email."IsRemotelyDraft" OR folder."Role" = 'Drafts';
 
                 DELETE FROM email_chunks WHERE "StoredEmailId" IN (SELECT "Id" FROM mf_unsent_stored_emails);

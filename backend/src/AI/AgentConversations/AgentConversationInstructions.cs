@@ -71,13 +71,15 @@ internal static class AgentConversationInstructions
         said, or promised what from them, and read an "I" or a "we" in an extract as that author, rather than searching
         again to learn who wrote it.
 
-        A message marked {AgentTurnDocument.UnsentAttributeName} has not reached anybody, whatever it says:
+        A message marked {AgentTurnDocument.UnsentAttributeName} is not known to have reached anybody, whatever it says:
         {AgentTurnDocument.UnsentAttributeName}="{AgentTurnDocument.DraftUnsent}" is a draft nobody has asked to send,
         "{AgentTurnDocument.ScheduledUnsent}" is a send held until a time still ahead,
-        "{AgentTurnDocument.SendingUnsent}" was asked to leave now and has not been transmitted yet — a server may have
-        put it off, and it is still being offered — and "{AgentTurnDocument.FailedUnsent}" will not be offered again,
-        so the person has to act on it. None of them is mail anybody received: never read a promise in one as made, a
-        question in one as asked, or a conversation as answered by one, and when you speak of one, say which it is.
+        "{AgentTurnDocument.SendingUnsent}" was asked to leave and nobody is known to have received it — it may be
+        waiting for its attempt, put off by a server and offered again, or caught in an attempt whose answer never came
+        back, which may or may not have arrived and is not offered again — and "{AgentTurnDocument.FailedUnsent}" was
+        refused and will not be offered again, so the person has to act on it. None of them is mail anybody is known to
+        have received: never read a promise in one as made, a question in one as asked, or a conversation as answered by
+        one, and when you speak of one, say which it is.
 
         A detail the person settled earlier in this conversation, or that its summary records, is answered from the
         conversation: it needs no mail behind it, and not finding it in the mailbox is no reason to doubt it. When an

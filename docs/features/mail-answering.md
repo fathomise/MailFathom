@@ -629,9 +629,11 @@ structural is that the attributes are the service's own, in a place no message c
 
 `unsent` reaches the Agent alone, because no other operation is ever handed mail nobody received. Its value is read
 from the send a draft was promoted to: `draft` for a working copy nobody asked to send, or whose send was withdrawn;
-`scheduled` for a send held until a due instant still ahead; `sending` for one asked to leave that has not been
-transmitted yet, a server's temporary refusal included; and `failed` for one the outbox will not offer again. The
-Agent's own instruction, rather than the shared data clause, explains it: none of these is mail anybody received, so
+`scheduled` for a send held until a due instant still ahead; `sending` for one asked to leave that nobody is known to
+have received — waiting for its attempt, put off by a server's temporary refusal, or an attempt whose answer never came
+back, which may have arrived and is not offered again; and `failed` for one the outbox refused and will not offer
+again. The
+Agent's own instruction, rather than the shared data clause, explains it: none of these is mail anybody is known to have received, so
 a promise in one is never read as made, a question in one as asked, or a conversation as answered by one, and the
 Agent says which state a message is in whenever it speaks of one.
 

@@ -29,7 +29,7 @@ internal sealed record UnsentMessage(CorpusMessage Message)
     {
         UnsentEmailState.Draft => ["draft"],
         UnsentEmailState.Scheduled => ["scheduled", "schedule"],
-        UnsentEmailState.Sending => ["being sent", "sending", "outbox", "not been transmitted", "not yet been transmitted", "not yet transmitted", "waiting to be sent", "waiting to go out"],
+        UnsentEmailState.Sending => ["being sent", "sending", "outbox", "not been transmitted", "not yet been transmitted", "not yet transmitted", "waiting to be sent", "waiting to go out", "not known to have", "not confirmed", "no confirmation", "may not have arrived", "may or may not have"],
         UnsentEmailState.Failed => ["failed", "could not be sent", "couldn't be sent", "did not go out", "didn't go out", "was not delivered", "wasn't delivered", "never left", "refused", "rejected"],
         _ => throw new ArgumentOutOfRangeException(nameof(this.State), this.State, "The state is one no case writes."),
     };

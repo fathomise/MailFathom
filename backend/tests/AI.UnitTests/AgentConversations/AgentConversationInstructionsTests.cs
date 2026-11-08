@@ -167,7 +167,8 @@ public sealed class AgentConversationInstructionsTests
 
     /// <summary>
     /// The Agent reads drafts and sends that have not left, so the instruction names every state the turn marks one with
-    /// and says that none of them was received.
+    /// and says that none of them is known to have been received — including a send whose attempt was never answered,
+    /// which may have arrived and is not offered again.
     /// </summary>
     [Fact]
     public void TextFor_TheInstruction_NamesEveryUnsentStateAndReadsNoneAsReceived()
@@ -182,7 +183,8 @@ public sealed class AgentConversationInstructionsTests
                 $"\"{AgentTurnDocument.ScheduledUnsent}\"",
                 $"\"{AgentTurnDocument.SendingUnsent}\"",
                 $"\"{AgentTurnDocument.FailedUnsent}\"",
-                "None of them is mail anybody received",
+                "None of them is mail anybody is known to have received",
+                "an attempt whose answer never came back, which may or may not have arrived and is not offered again",
             ],
             fragment => Assert.Contains(fragment, text, StringComparison.Ordinal));
     }

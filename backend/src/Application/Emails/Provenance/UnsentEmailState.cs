@@ -6,9 +6,10 @@ namespace MailFathom.Application.Emails.Provenance;
 
 /// <summary>Names where a message the mailbox has not sent stands, which is what the person's own Agent is told about it.</summary>
 /// <remarks>
-/// None of these is mail anybody received. They differ in what the person can expect of it: a draft goes nowhere until
-/// they ask, a scheduled send leaves at its instant, a send in progress leaves as soon as a server takes it, and a failed
-/// one goes nowhere until they act on it.
+/// None of these is mail anybody is known to have received. They differ in what the person can expect of it: a draft goes
+/// nowhere until they ask, a scheduled send leaves at its instant, a send in progress leaves as soon as a server takes it —
+/// or, where an attempt's answer never came back, may already have arrived and is not offered again — and a failed one
+/// goes nowhere until they act on it.
 /// </remarks>
 public enum UnsentEmailState
 {
@@ -18,7 +19,7 @@ public enum UnsentEmailState
     /// <summary>A send held until a due instant still ahead.</summary>
     Scheduled = 1,
 
-    /// <summary>A send asked to leave now that has not been transmitted yet, a send a server deferred, and an attempt whose answer never came back.</summary>
+    /// <summary>A send asked to leave that nobody is known to have received: one waiting for its attempt, one a server deferred, and one whose attempt was never answered, which may have arrived.</summary>
     Sending = 2,
 
     /// <summary>A send that will not be offered again, so the person has to act on it.</summary>

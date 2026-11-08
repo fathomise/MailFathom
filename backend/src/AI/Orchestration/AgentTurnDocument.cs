@@ -93,10 +93,14 @@ internal sealed class AgentTurnDocument : IDisposable
     /// <summary>The value of <see cref="UnsentAttributeName" /> for a send held until a due instant still ahead.</summary>
     internal const string ScheduledUnsent = "scheduled";
 
-    /// <summary>The value of <see cref="UnsentAttributeName" /> for a send asked to leave now that has not been transmitted yet.</summary>
+    /// <summary>
+    /// The value of <see cref="UnsentAttributeName" /> for a send asked to leave that nobody is known to have received:
+    /// one waiting for its attempt, one a server put off, and one whose attempt was never answered, which may have
+    /// arrived and is not offered again.
+    /// </summary>
     internal const string SendingUnsent = "sending";
 
-    /// <summary>The value of <see cref="UnsentAttributeName" /> for a send that will not be offered again.</summary>
+    /// <summary>The value of <see cref="UnsentAttributeName" /> for a send refused and not offered again.</summary>
     internal const string FailedUnsent = "failed";
 
     /// <summary>The rule every composed instruction carries about the text a turn or a tool result quotes.</summary>
