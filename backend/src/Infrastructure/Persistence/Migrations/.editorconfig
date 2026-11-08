@@ -13,3 +13,4 @@ dotnet_diagnostic.CA1707.severity = none # A release migration is named for its 
 dotnet_diagnostic.CA1825.severity = none # Avoid unnecessary zero-length array allocations.
 dotnet_diagnostic.CA1861.severity = none # Prefer static readonly fields over constant array arguments.
 dotnet_diagnostic.IDE0005.severity = none # Using directive is unnecessary.
+dotnet_diagnostic.IDE0060.severity = none # A folded migration keeps the Down(MigrationBuilder) the release migration calls, even where it has nothing to revert.
