@@ -248,6 +248,21 @@ public sealed class ChatGenerationPlanTests
         Assert.Equal(0.05, plan.AdditionalProperties["min_p"].GetDouble());
     }
 
+    /// <summary>Not every server honours a schema, so a model asks for none unless its declaration says it may, and a fallback keeps what its own declaration said.</summary>
+    [Fact]
+    public void WithFallback_TwoModelsDeclaringStructuredOutputsDifferently_KeepsEachDeclaration()
+    {
+        // Arrange
+        var declaring = ChatDeclarations.Plan(structuredOutputs: true);
+        var silent = ChatDeclarations.Plan(ChatDeclarations.Endpoint(alias: "fallback"));
+
+        // Act
+        var chained = declaring.WithFallback(silent);
+
+        // Assert
+        Assert.Equal([true, false], chained.Chain.Select(static model => model.StructuredOutputs));
+    }
+
     [Fact]
     public void Create_WithoutAdditionalProperties_CarriesNone()
     {

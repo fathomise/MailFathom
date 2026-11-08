@@ -113,4 +113,50 @@ public sealed class MailAnsweringInstructionsTests
         Assert.Contains("resolve \"this week\", \"since Tuesday\" and \"last quarter\" against what the turn states", Instruction, StringComparison.Ordinal);
         Assert.Contains(AnchoredInstant.WrittenForm, Instruction, StringComparison.Ordinal);
     }
+
+    /// <summary>A question naming a document set the attachment filter and hid the invoice it asked about, so naming one is said not to be asking about an attachment.</summary>
+    [Fact]
+    public void Text_TheInstruction_SaysNamingADocumentIsNotAskingAboutAnAttachment()
+    {
+        // Assert
+        Assert.Contains("naming a document — an invoice, a contract, a report — is not asking about an attachment", Instruction, StringComparison.Ordinal);
+    }
+
+    /// <summary>One plausible lookup answered with a date a later message had already corrected.</summary>
+    [Fact]
+    public void Text_TheInstruction_LooksForALaterMessageBeforeAnsweringWithASettledDetail()
+    {
+        // Assert
+        Assert.Contains("A date, an amount, an account, or an arrangement one message states may be corrected by a later message", Instruction, StringComparison.Ordinal);
+        Assert.Contains("answer from the latest message that settles it", Instruction, StringComparison.Ordinal);
+    }
+
+    /// <summary>Mail about another report or ticket was answered as if it were the one asked about.</summary>
+    [Fact]
+    public void Text_TheInstruction_RefusesMailAboutAnotherItemAsAnAnswer()
+    {
+        // Assert
+        Assert.Contains("Mail about another report, person, or ticket than the one the question names is not an answer to it", Instruction, StringComparison.Ordinal);
+        Assert.Contains("by the number alone, and in the mailbox's other language", Instruction, StringComparison.Ordinal);
+    }
+
+    /// <summary>A nothing-found answer cited the neighbouring mail it set aside, and any citation fails such an answer.</summary>
+    [Fact]
+    public void Text_TheInstruction_CitesNothingWhenTheMailboxDoesNotAnswer()
+    {
+        // Assert
+        Assert.Contains("an answer saying the mailbox does not answer cites no message", Instruction, StringComparison.Ordinal);
+    }
+
+    /// <summary>English questions about Polish mail were answered in Polish, so the turn read last restates the answer's language after the question.</summary>
+    [Fact]
+    public void ComposeTurn_AnyQuestion_EndsByRestatingThatTheAnswerFollowsTheQuestionsLanguage()
+    {
+        // Act
+        var turn = MailAnsweringAgent.ComposeTurn(DateTimeOffset.UnixEpoch, "Czy faktura dotarła?");
+
+        // Assert
+        Assert.EndsWith(MailAnsweringAgent.AnswerLanguageStatement, turn, StringComparison.Ordinal);
+        Assert.Contains("whatever language the mail you find is in", MailAnsweringAgent.AnswerLanguageStatement, StringComparison.Ordinal);
+    }
 }

@@ -4,6 +4,7 @@
 
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using MailFathom.AI.Chat;
 using Microsoft.Extensions.AI;
 using OpenAI.Chat;
@@ -33,11 +34,30 @@ namespace MailFathom.AI.ProviderAdapters;
 /// </remarks>
 internal static class ChatGenerationParameterMapping
 {
+    /// <summary>The key the client library reads off the options to send a response schema as a strict one.</summary>
+    internal const string StrictSchemaKey = "strict";
+
+    /// <summary>The request member OpenRouter reads its routing preferences from.</summary>
+    private const string ProviderMember = "provider";
+
+    /// <summary>The routing preference that keeps OpenRouter from choosing a provider that would ignore a parameter the request carries.</summary>
+    private const string RequireParametersMember = "require_parameters";
+
     /// <summary>Builds the options one request carries from what the deployment declared.</summary>
     /// <param name="plan">The validated declaration.</param>
+    /// <param name="responseSchema">
+    /// The JSON schema an operation answering in a document of a known shape names for its answer, or
+    /// <see langword="null" /> for an answer of free text.
+    /// </param>
     /// <returns>The options, carrying only the parameters the declaration wrote.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="plan" /> is <see langword="null" />.</exception>
-    public static ChatOptions ToChatOptions(ChatGenerationPlan plan)
+    /// <remarks>
+    /// The schema is sent only where the model declares that its server honours one, and then always as a strict
+    /// schema: a schema the provider is free to depart from constrains nothing a reading has to rely on. Where the
+    /// model declares nothing, the schema is dropped here and the request is exactly the one an operation naming none
+    /// sends, which is why an operation decides what its instruction says from the same declaration.
+    /// </remarks>
+    public static ChatOptions ToChatOptions(ChatGenerationPlan plan, ChatResponseFormatJson? responseSchema = null)
     {
         ArgumentNullException.ThrowIfNull(plan);
 
@@ -48,10 +68,19 @@ internal static class ChatGenerationParameterMapping
             TopP = plan.TopP,
         };
 
+        var schema = plan.StructuredOutputs ? responseSchema : null;
+
+        if (schema is not null)
+        {
+            options.ResponseFormat = schema;
+            options.AdditionalProperties = new AdditionalPropertiesDictionary { [StrictSchemaKey] = true };
+        }
+
         options.RawRepresentationFactory = RequestOptionsFactoryFor(
             plan.Endpoint.Api,
             plan.ReasoningEffort,
-            plan.AdditionalProperties);
+            plan.AdditionalProperties,
+            requiresEveryParameter: schema is not null && plan.Endpoint.IsReachedThroughOpenRouter);
 
         return options;
     }
@@ -78,13 +107,23 @@ internal static class ChatGenerationParameterMapping
     /// <param name="api">The API the request is conducted through.</param>
     /// <param name="effort">The declared reasoning effort, or <see langword="null" /> to send none.</param>
     /// <param name="additionalProperties">The request members every call carries beside the ones this deployment writes, or <see langword="null" /> for none.</param>
+    /// <param name="requiresEveryParameter">
+    /// Whether the request asks OpenRouter to route it only to a provider honouring every parameter it carries, which a
+    /// strict response schema needs: a provider that drops the schema answers in whatever shape it likes.
+    /// </param>
     /// <returns>The hook, or <see langword="null" /> where the request needs none.</returns>
     public static Func<IChatClient, object?>? RequestOptionsFactoryFor(
         ChatProviderApi api,
         string? effort,
-        IReadOnlyDictionary<string, JsonElement>? additionalProperties = null)
+        IReadOnlyDictionary<string, JsonElement>? additionalProperties = null,
+        bool requiresEveryParameter = false)
     {
         additionalProperties ??= new Dictionary<string, JsonElement>();
+
+        if (requiresEveryParameter)
+        {
+            additionalProperties = WithEveryParameterRequired(additionalProperties);
+        }
 
         if (api is ChatProviderApi.Responses)
         {
@@ -94,6 +133,25 @@ internal static class ChatGenerationParameterMapping
         return effort is null && additionalProperties.Count == 0
             ? null
             : _ => ChatCompletionOptionsFor(effort, additionalProperties);
+    }
+
+    /// <summary>Adds the routing preference that requires every parameter to be honoured to whatever routing block the model declared.</summary>
+    /// <remarks>
+    /// Merged rather than written beside the declaration, because OpenRouter reads one <c>provider</c> member and an
+    /// operator may already have declared one as an additional property — an order of providers, a refusal of data
+    /// collection — which a second member of the same name would overwrite.
+    /// </remarks>
+    private static Dictionary<string, JsonElement> WithEveryParameterRequired(IReadOnlyDictionary<string, JsonElement> additionalProperties)
+    {
+        var routing = additionalProperties.TryGetValue(ProviderMember, out var declared) && declared.ValueKind is JsonValueKind.Object
+            ? JsonNode.Parse(declared.GetRawText())!.AsObject()
+            : new JsonObject();
+
+        routing[RequireParametersMember] = true;
+
+        using var merged = JsonDocument.Parse(routing.ToJsonString());
+
+        return new Dictionary<string, JsonElement>(additionalProperties) { [ProviderMember] = merged.RootElement.Clone() };
     }
 
     /// <summary>Builds the responses request that leaves the provider holding nothing once it has answered.</summary>

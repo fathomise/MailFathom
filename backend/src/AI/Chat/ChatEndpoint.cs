@@ -60,9 +60,15 @@ public sealed record ChatEndpoint(
     /// the upstream provider whose prompt cache already holds their prefix. No other provider reached through these APIs
     /// defines one, so a declaration anywhere else sends nothing rather than a header that means nothing there.
     /// </remarks>
-    public bool SendsStickySessions =>
-        this.StickySessions
-        && this.Address?.Host is { } host
+    public bool SendsStickySessions => this.StickySessions && this.IsReachedThroughOpenRouter;
+
+    /// <summary>Gets whether requests reach OpenRouter, which chooses an upstream provider per request.</summary>
+    /// <remarks>
+    /// What it decides is what a request may ask of that choice: a sticky session keeps a conversation on one provider,
+    /// and a strict response schema requires a provider that honours every parameter the request carries.
+    /// </remarks>
+    public bool IsReachedThroughOpenRouter =>
+        this.Address?.Host is { } host
         && (host.Equals(OpenRouterHost, StringComparison.OrdinalIgnoreCase)
             || host.EndsWith("." + OpenRouterHost, StringComparison.OrdinalIgnoreCase));
 }

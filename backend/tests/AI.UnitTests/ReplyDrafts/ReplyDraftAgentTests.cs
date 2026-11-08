@@ -4,6 +4,8 @@
 
 using System.Net;
 using System.Text;
+using System.Text.Json;
+using MailFathom.AI.Chat;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ProviderAdapters;
 using MailFathom.AI.Providers;
@@ -230,6 +232,92 @@ public sealed class ReplyDraftAgentTests
         Assert.Equal(1, provider.RequestCount);
     }
 
+    /// <summary>A model whose server honours a strict schema is asked for one, limited to the numbers this turn published.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task WriteAsync_AModelDeclaringStructuredOutputs_AsksForAStrictSchemaOfTheTurnsOwnNumbers(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Answer(api, Reply));
+        var agent = provider.WriterOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api), structuredOutputs: true));
+
+        // Act
+        var draft = await agent.WriteAsync(Brief(), TestContext.Current.CancellationToken);
+
+        // Assert
+        using var sent = JsonDocument.Parse(provider.RequestBodies[0]);
+        var format = SchemaFormatOf(sent.RootElement, api);
+        var properties = format.Schema.GetProperty("properties");
+
+        Assert.True(draft.WasWritten);
+        Assert.Equal(("json_schema", ReplyDraftSchema.Name, true), (format.Type, format.Name, format.Strict));
+        Assert.Equal([0], NumbersIn(properties.GetProperty("recipients").GetProperty("items")));
+        Assert.Equal([0], NumbersIn(properties.GetProperty("claims").GetProperty("items").GetProperty("properties").GetProperty("messages").GetProperty("items")));
+        Assert.DoesNotContain("never a string holding JSON", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>Without the declaration the request is the one every drafting sent before, the shape told in prose instead.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task WriteAsync_AModelDeclaringNoStructuredOutputs_SendsNoResponseFormat(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Answer(api, Reply));
+        var agent = provider.WriterOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api)));
+
+        // Act
+        await agent.WriteAsync(Brief(), TestContext.Current.CancellationToken);
+
+        // Assert
+        using var sent = JsonDocument.Parse(provider.RequestBodies[0]);
+
+        Assert.False(sent.RootElement.TryGetProperty("response_format", out _));
+        Assert.False(sent.RootElement.TryGetProperty("text", out var text) && text.TryGetProperty("format", out _));
+        Assert.Contains("never a string holding JSON", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>OpenRouter routes per request, so a schema sent through it requires a provider that honours it, beside whatever routing was declared.</summary>
+    [Fact]
+    public async Task WriteAsync_AStructuredRequestThroughOpenRouter_RequiresEveryParameterAndKeepsTheDeclaredRouting()
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Completion(Reply));
+        var plan = ChatDeclarations.Plan(
+            ChatDeclarations.Endpoint(address: "https://openrouter.ai/api/v1/"),
+            additionalProperties: new Dictionary<string, JsonElement> { ["provider"] = JsonElement.Parse("""{"order":["a-provider"]}""") },
+            structuredOutputs: true);
+        var agent = provider.WriterOver(plan: plan);
+
+        // Act
+        await agent.WriteAsync(Brief(), TestContext.Current.CancellationToken);
+
+        // Assert
+        using var sent = JsonDocument.Parse(provider.RequestBodies[0]);
+        var routing = sent.RootElement.GetProperty("provider");
+
+        Assert.True(routing.GetProperty("require_parameters").GetBoolean());
+        Assert.Equal("a-provider", Assert.Single(routing.GetProperty("order").EnumerateArray()).GetString());
+    }
+
+    /// <summary>A drafting asking for no schema leaves OpenRouter's routing as the operator declared it.</summary>
+    [Fact]
+    public async Task WriteAsync_AnUnstructuredRequestThroughOpenRouter_AddsNoRoutingPreference()
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Completion(Reply));
+        var agent = provider.WriterOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(address: "https://openrouter.ai/api/v1/")));
+
+        // Act
+        await agent.WriteAsync(Brief(), TestContext.Current.CancellationToken);
+
+        // Assert
+        using var sent = JsonDocument.Parse(provider.RequestBodies[0]);
+
+        Assert.False(sent.RootElement.TryGetProperty("provider", out _));
+    }
+
     private static ReplyDraftBrief Brief(
         string text = "It is 4 200 zloty.",
         IReadOnlyList<string>? styleSamples = null,
@@ -257,6 +345,34 @@ public sealed class ReplyDraftAgentTests
             language,
             ClosesWithFooter: false);
     }
+
+    /// <summary>Builds the payload a provider answers with over the API a test asks through.</summary>
+    private static string Answer(ChatProviderApi api, string content) => api is ChatProviderApi.Responses
+        ? "{\"id\":\"resp-1\",\"object\":\"response\",\"created_at\":1,\"model\":\"a-chat-model\",\"status\":\"completed\","
+          + "\"output\":[{\"type\":\"message\",\"id\":\"msg-1\",\"status\":\"completed\",\"role\":\"assistant\","
+          + "\"content\":[{\"type\":\"output_text\",\"text\":\""
+          + content.ReplaceLineEndings(string.Empty)
+          + "\",\"annotations\":[]}]}]}"
+        : Completion(content);
+
+    /// <summary>Reads the response format a request carries, where each API places it: nested under chat completions, flat under responses.</summary>
+    private static (string? Type, string? Name, bool Strict, JsonElement Schema) SchemaFormatOf(JsonElement request, ChatProviderApi api)
+    {
+        if (api is ChatProviderApi.Responses)
+        {
+            var format = request.GetProperty("text").GetProperty("format");
+
+            return (format.GetProperty("type").GetString(), format.GetProperty("name").GetString(), format.GetProperty("strict").GetBoolean(), format.GetProperty("schema"));
+        }
+
+        var responseFormat = request.GetProperty("response_format");
+        var schema = responseFormat.GetProperty("json_schema");
+
+        return (responseFormat.GetProperty("type").GetString(), schema.GetProperty("name").GetString(), schema.GetProperty("strict").GetBoolean(), schema.GetProperty("schema"));
+    }
+
+    private static int[] NumbersIn(JsonElement schema) =>
+        [.. schema.GetProperty("enum").EnumerateArray().Select(static number => number.GetInt32())];
 
     /// <summary>Builds the chat-completion payload a provider answers with.</summary>
     private static string Completion(string content) =>
@@ -299,7 +415,8 @@ public sealed class ReplyDraftAgentTests
         public ReplyDraftAgent WriterOver(
             SensitiveContentEgressGuard? egressGuard = null,
             Exception? credentialFailure = null,
-            IMailAnsweringSpendLedger? spendLedger = null)
+            IMailAnsweringSpendLedger? spendLedger = null,
+            ChatGenerationPlan? plan = null)
         {
             var transportFactory = Substitute.For<IHttpClientFactory>();
             transportFactory
@@ -330,7 +447,7 @@ public sealed class ReplyDraftAgentTests
                 });
 
             return new ReplyDraftAgent(
-                ChatDeclarations.Plan(),
+                plan ?? ChatDeclarations.Plan(),
                 new MailAnsweringRunLedger(MailAnsweringRunBounds.Default),
                 spendLedger ?? AdmittingSpendLedger(),
                 credentialSource,

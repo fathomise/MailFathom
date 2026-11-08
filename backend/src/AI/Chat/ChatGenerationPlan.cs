@@ -100,6 +100,7 @@ public sealed partial class ChatGenerationPlan
         int maximumRequestImageOctets,
         TimeSpan requestTimeout,
         IReadOnlyDictionary<string, JsonElement> additionalProperties,
+        bool structuredOutputs,
         ChatGenerationPlan? fallback)
     {
         this.Endpoint = endpoint;
@@ -113,6 +114,7 @@ public sealed partial class ChatGenerationPlan
         this.MaximumRequestImageOctets = maximumRequestImageOctets;
         this.RequestTimeout = requestTimeout;
         this.AdditionalProperties = additionalProperties;
+        this.StructuredOutputs = structuredOutputs;
     }
 
     /// <summary>Gets the endpoint every request is sent to.</summary>
@@ -192,6 +194,22 @@ public sealed partial class ChatGenerationPlan
     /// </remarks>
     public IReadOnlyDictionary<string, JsonElement> AdditionalProperties { get; }
 
+    /// <summary>Gets whether an operation that answers in a document of a known shape may ask this model for a strict JSON schema.</summary>
+    /// <remarks>
+    /// <para>
+    /// Off unless the operator declared it, because not every OpenAI-compatible server honours a <c>json_schema</c>
+    /// response format: one refuses the request, another accepts it and ignores the schema. Where it is off, every
+    /// request is exactly what it would be without the setting. Where it is on, an operation that names a schema sends it
+    /// as a strict one, and a request reaching OpenRouter also requires its parameters to be honoured, so the router
+    /// never chooses an upstream provider that would drop the schema silently.
+    /// </para>
+    /// <para>
+    /// Only the reply-drafting agent names a schema today. Every other operation sends what it sent before whatever this
+    /// says, so the setting is a statement about what the model's server honours rather than a switch per operation.
+    /// </para>
+    /// </remarks>
+    public bool StructuredOutputs { get; }
+
     /// <summary>Gets the greatest number of turns one request carries.</summary>
     public int MaximumMessagesPerRequest { get; }
 
@@ -234,6 +252,7 @@ public sealed partial class ChatGenerationPlan
     /// <param name="maximumRequestImageOctets">The greatest number of octets the images of those turns may add up to, which zero states as an endpoint sent no image at all.</param>
     /// <param name="requestTimeout">The time one request may take.</param>
     /// <param name="additionalProperties">The request members every call carries beside the ones this deployment writes, or <see langword="null" /> for none.</param>
+    /// <param name="structuredOutputs">Whether an operation answering in a document of a known shape may ask this model for a strict JSON schema.</param>
     /// <returns>The plan.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="endpoint" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException">Thrown when the endpoint declares a blank alias or a blank routed model name, or when an additional property is misnamed, names a member this deployment owns, or exceeds <see cref="GreatestAdditionalPropertyCount" />.</exception>
@@ -248,7 +267,8 @@ public sealed partial class ChatGenerationPlan
         int maximumRequestCharacters,
         int maximumRequestImageOctets,
         TimeSpan requestTimeout,
-        IReadOnlyDictionary<string, JsonElement>? additionalProperties = null)
+        IReadOnlyDictionary<string, JsonElement>? additionalProperties = null,
+        bool structuredOutputs = false)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(endpoint.Alias, nameof(endpoint));
@@ -311,6 +331,7 @@ public sealed partial class ChatGenerationPlan
             maximumRequestImageOctets,
             requestTimeout,
             declaredProperties,
+            structuredOutputs,
             fallback: null);
     }
 
@@ -353,6 +374,7 @@ public sealed partial class ChatGenerationPlan
             this.MaximumRequestImageOctets,
             this.RequestTimeout,
             this.AdditionalProperties,
+            this.StructuredOutputs,
             fallback);
     }
 

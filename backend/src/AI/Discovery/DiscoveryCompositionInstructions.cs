@@ -49,6 +49,14 @@ internal static class DiscoveryCompositionInstructions
     /// <summary>Names the element carrying a source's extract.</summary>
     internal const string ExtractElementName = "extract";
 
+    /// <summary>Restates, in the turn itself, which language the answer is written in.</summary>
+    /// <remarks>
+    /// The instruction already says so, and a model that has just read a page of extracts in another language still
+    /// drifts into it; saying it again beside the question is what keeps the answer in the asker's language.
+    /// </remarks>
+    private const string AnswerLanguage =
+        "Write \"answer\" in the language the question above is written in, whatever language the extracts are in.";
+
     /// <summary>The catalogue's column names, written into the instruction so a model cannot propose a column nobody can label.</summary>
     /// <remarks>Declared before the instruction so it is initialized when that initializer runs.</remarks>
     private static readonly string ColumnNames = string.Join(
@@ -75,7 +83,9 @@ internal static class DiscoveryCompositionInstructions
         "sources" is an array of the "{NameAttributeName}" values — "s1", "s2" — of the extracts your answer rests on, at most
         {PresentationEvidence.MaxCitations} of them. **Leave it empty when the extracts do not answer the
         question.** An empty list is a correct and useful answer; a sentence that rests on nothing is not, and one
-        resting on a name that was not offered to you is the same thing.
+        resting on a name that was not offered to you is the same thing. An answer saying the extracts do not answer
+        the question cites nothing, even where an extract is about something close to it: that extract is not what the
+        answer rests on.
 
         "confidence" is "high" when the extracts settle the question and your answer restates them, "moderate" when
         they carry it with a step of inference somebody may want to check, and "low" when it is the best reading of
@@ -136,7 +146,7 @@ internal static class DiscoveryCompositionInstructions
         using var document = new AgentTurnDocument();
 
         document.WriteAsk(question);
-        document.WriteStatement($"\n\n{AskedFor(intent)}\n\n");
+        document.WriteStatement($"\n\n{AskedFor(intent)} {AnswerLanguage}\n\n");
 
         if (sources.Count is 0)
         {
@@ -186,7 +196,8 @@ internal static class DiscoveryCompositionInstructions
     private static string AskedFor(DiscoveryIntent intent) => intent.OpensWith.Identity switch
     {
         PresentationBlockType.TimelineIdentity =>
-            "This question is about how something changed over time. Give \"events\" beside \"answer\", \"sources\", and \"confidence\".",
+            "This question is about how something changed over time. Give \"events\" beside \"answer\", \"sources\", and \"confidence\". "
+            + "Follow the change in date order across every extract you were given, naming each step it went through rather than only where it ended, and cite each step.",
         PresentationBlockType.FactTableIdentity =>
             "This question compares offers, terms, or versions. Give \"columns\" and \"rows\" beside \"answer\", \"sources\", and \"confidence\".",
         _ => "Give \"answer\", \"sources\", and \"confidence\", and \"conflict\" where the extracts disagree.",

@@ -15,6 +15,9 @@ public sealed class CorpusKnowledgeSearchTests
 {
     private const string HalinaPettersen = "halina.pettersen@latticeworks.test";
 
+    /// <summary>The evidence <c>DiscoveryEndToEnd.QuotesAMessageWrittenInMarkup</c> holds a result to.</summary>
+    private const string BrowserMessage = "timed out while preparing the task set";
+
     private readonly CorpusKnowledgeSearch search = new(CorpusMessage.All);
 
     [Fact]
@@ -93,6 +96,44 @@ public sealed class CorpusKnowledgeSearchTests
 
         // Assert
         Assert.Contains(lookup.Passages, passage => passage.Text.Contains(scenario.Evidence[0], StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The lookups gpt-6-luna planned for <c>DiscoveryEndToEnd.QuotesAMessageWrittenInMarkup</c>, none of which reach the
+    /// browser's message: the windows that carry most of their words are the test-details table's, and they crowd out the
+    /// one opened beside "browser".
+    /// </summary>
+    [Theory]
+    [InlineData("QuillDesk CSV export")]
+    [InlineData("QuillDesk filtered project")]
+    [InlineData("QuillDesk browser error")]
+    [InlineData("QuillDesk export failure")]
+    [InlineData("CSV filtered project error")]
+    [InlineData("QuillDesk")]
+    public async Task FindPassagesAsync_ARecordedQuillDeskLookup_DoesNotReachTheMessageTheBrowserShowed(string queryText)
+    {
+        // Act
+        var lookup = await this.search.FindPassagesAsync(
+            CorpusKnowledgeSearch.Scope,
+            EmailKnowledgeQuery.ForText(queryText),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.DoesNotContain(lookup.Passages, static passage => passage.Text.Contains(BrowserMessage, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>The word the mail introduces the browser's message with opens a window that carries the message whole.</summary>
+    [Fact]
+    public async Task FindPassagesAsync_ALookupCarryingMessageBesideTheProduct_ReachesTheMessageTheBrowserShowed()
+    {
+        // Act
+        var lookup = await this.search.FindPassagesAsync(
+            CorpusKnowledgeSearch.Scope,
+            EmailKnowledgeQuery.ForText("QuillDesk browser message"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(lookup.Passages, static passage => passage.Text.Contains(BrowserMessage, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

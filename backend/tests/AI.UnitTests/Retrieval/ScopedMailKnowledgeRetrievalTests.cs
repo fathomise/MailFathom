@@ -505,6 +505,38 @@ public sealed class ScopedMailKnowledgeRetrievalTests
         Assert.Contains("one asking about no attachment takes no attachment filter", description, StringComparison.Ordinal);
     }
 
+    /// <summary>A question naming only a document set the attachment filter, so the description no longer invites one for it.</summary>
+    [Fact]
+    public void SearchTool_ItsDescription_SaysNamingADocumentIsNotAskingAboutAnAttachment()
+    {
+        // Act
+        var description = ToolOver(new RecordingEmailKnowledgeSearch()).Description;
+
+        // Assert
+        Assert.DoesNotContain("or mail carrying an attachment is answered far better", description, StringComparison.Ordinal);
+        Assert.Contains("Naming a document — an invoice, a contract, a report — is not asking about an attachment.", description, StringComparison.Ordinal);
+    }
+
+    /// <summary>A question whether a recipient read a message was answered with the remote read state, which says nothing about a recipient.</summary>
+    [Fact]
+    public void SearchTool_TheReadStateArgument_IsThisMailboxOpeningTheMessageNeverARecipientReadingIt()
+    {
+        // Arrange
+        var tool = ToolOver(new RecordingEmailKnowledgeSearch());
+
+        // Act
+        var description = tool.JsonSchema
+            .GetProperty("properties")
+            .GetProperty("isRemotelySeen")
+            .GetProperty("description")
+            .GetString();
+
+        // Assert
+        Assert.NotNull(description);
+        Assert.Contains("whether the person whose mailbox this is opened the message", description, StringComparison.Ordinal);
+        Assert.Contains("never whether a recipient read mail the person sent", description, StringComparison.Ordinal);
+    }
+
     private static Dictionary<string, object?> OneQuery =>
         new() { [ScopedMailKnowledgeRetrieval.QueryArgumentName] = Query };
 

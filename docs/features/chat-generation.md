@@ -441,6 +441,44 @@ records. A header rather than the body's `session_id`, because it reaches both A
 takes; `session_id` is refused as an [additional request member](#a-model-may-declare-request-members-of-its-own) so
 nothing in the body can override it, and a declared header of the same name is overwritten by it.
 
+## A reply draft can be constrained by a schema
+
+A reply draft is a document the client renders: a body of paragraphs, lists, and tables, the claims it makes with the
+messages that state them, and the people proposed to receive it. A model told that shape in prose writes it wrong often
+enough to lose drafts — a number as a string, a block as a string holding JSON, a link as Markdown. `StructuredOutputs`
+lets a model whose server honours a strict JSON schema be asked for one instead:
+
+```json
+{
+  "Alias": "drafting",
+  "Model": "example/chat-2",
+  "Address": "https://openrouter.ai/api/v1/",
+  "ApiKey": { "SecretReference": "file:/etc/mailfathom/secrets/openrouter-key" },
+  "StructuredOutputs": true
+}
+```
+
+**It is off unless declared, and nothing checks it at startup.** Not every OpenAI-compatible server honours a
+`json_schema` response format, and only a request shows what one does with it. Where the key is off, every request is
+exactly what it would be without it.
+
+**The schema is built for each drafting.** Every message, person, and link number in it is limited to the numbers that
+drafting's turn published, so a number outside the conversation cannot be written at all; an array the turn published
+nothing for is left out of the schema. It is sent as a strict schema, over chat completions as `response_format` and over
+the responses API as `text.format`. A request reaching an `openrouter.ai` host also carries
+`provider.require_parameters: true`, merged into any `provider` block the model declares as an
+[additional request member](#a-model-may-declare-request-members-of-its-own), so the router never routes it to a provider
+that would drop the schema.
+
+**The instruction follows the same declaration.** A model sent the schema is told what each field means and not its
+shape; a model sent none is told the shape in prose, with a worked paragraph carrying a link. A fallback is asked
+according to its own declaration. Either way the answer is read by the same forgiving reader, which keeps every bound a
+draft has — strict mode drops `maxItems` and `maxLength`, so the schema states none of them.
+
+**Only reply drafting asks for a schema today.** Every other operation sends the request it always sent, whatever the
+key says. [ADR 0049](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0049-constraining-the-reply-draft-by-a-strict-json-schema.md)
+records why the draft is constrained and spam classification is not.
+
 ## The model and its parameters come from configuration
 
 None of them is a compile-time constant, so changing model is an edit rather than a rebuild and a model released after

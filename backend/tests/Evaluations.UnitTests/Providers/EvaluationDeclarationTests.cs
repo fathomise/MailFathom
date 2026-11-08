@@ -62,7 +62,7 @@ public sealed class EvaluationDeclarationTests
         // Arrange
         const string Block =
             "{MainModel: {Model: vendor/model, Alias: careful, Api: Responses, ReasoningEffort: high, Temperature: 0.5, TopP: 0.9, "
-            + "ExtraHeaders: [{Name: X-Title, Value: MailFathom}], AdditionalProperties: {provider: {order: [first, second]}, top_k: 40}}}";
+            + "StructuredOutputs: true, ExtraHeaders: [{Name: X-Title, Value: MailFathom}], AdditionalProperties: {provider: {order: [first, second]}, top_k: 40}}}";
 
         // Act
         var model = Assert.Single(EvaluationDeclaration.Parse(Block, fallbackMainModel: null, Address).ModelsFor(ChatCapability.Agent));
@@ -75,6 +75,7 @@ public sealed class EvaluationDeclarationTests
         Assert.Equal("high", model.Plan.ReasoningEffort);
         Assert.Equal(0.5f, model.Plan.Temperature);
         Assert.Equal(0.9f, model.Plan.TopP);
+        Assert.True(model.Plan.StructuredOutputs);
         Assert.Equal("""{"order":["first","second"]}""", model.Plan.AdditionalProperties["provider"].GetRawText());
         Assert.Equal("40", model.Plan.AdditionalProperties["top_k"].GetRawText());
 

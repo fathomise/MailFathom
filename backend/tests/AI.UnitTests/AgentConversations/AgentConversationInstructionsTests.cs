@@ -158,4 +158,124 @@ public sealed class AgentConversationInstructionsTests
         // Assert
         Assert.All(texts, static pair => Assert.Contains($"A quotation never stands alone as your answer: even when the person asks for the exact words, say in {pair.language} what they are", pair.Item2, StringComparison.Ordinal));
     }
+
+    /// <summary>The Agent set received bounds and an attachment filter no question stated, so the rule mail answering carries reaches it too.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_SetsNoReceivedBoundOrAttachmentFilterTheQuestionDoesNotState()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("A question that names no period gets no received bounds, and one that asks about no attachment gets no attachment filter", text, StringComparison.Ordinal);
+        Assert.Contains("naming a document, such as an invoice, a contract, or a report, is not asking about an attachment", text, StringComparison.Ordinal);
+        Assert.Contains("never a period on its own", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A question the mailbox cannot answer ran ten to seventeen searches, so the search is bounded.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_EndsTheSearchAfterAFewLookupsFindNothing()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("other words, the mail's other language, the other forms an inflected word takes", text, StringComparison.Ordinal);
+        Assert.Contains("After a few such lookups find nothing, say that the mailbox does not answer rather than searching on.", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>After compaction a detail the person settled was searched for in mail and doubted when it was not found.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_AnswersWhatThePersonSettledFromTheConversation()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("A detail the person settled earlier in this conversation, or that its summary records, is answered from the conversation", text, StringComparison.Ordinal);
+        Assert.Contains("not finding it in the mailbox is no reason to doubt it", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A corrected answer opened with the conclusion it was correcting.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_SaysAnEarlierMisreadingFirst()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("When an earlier answer of yours misread the mail, say so first", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>"Propose it." yielded the event and an invitation nobody asked for.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_ProposesOnlyWhatThePersonAskedFor()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.DoesNotContain("or clearly needs", text, StringComparison.Ordinal);
+        Assert.Contains("Propose only what the person asked for, and one proposal per act.", text, StringComparison.Ordinal);
+        Assert.Contains("A proposed event invites nobody", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A grant that cannot write was asked to write, and the person is owed the wording rather than silence.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_GivesTheWordingWhereNoToolCanProposeIt()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("Where you have no tool to propose what the person asked for, say so and give them the wording", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A message mentioning a time was scheduled to leave at it.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_NeverReadsATimeTheMessageNamesAsItsSendTime()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("A time the message's own text names", text, StringComparison.Ordinal);
+        Assert.Contains("is never a time for it to leave", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>Follow-ups were written as the Agent's own offers rather than as questions the person would ask.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_WritesFollowUpsAsThePersonsQuestionsNeverAsOffers()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("A suggestion is a question the person would ask, never an offer of yours", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A request to summarise a conversation was answered by showing its state.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_ReadsAConversationItIsAskedToSummariseRatherThanShowingItsState()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("When the person asks where a conversation stands or what is still open in it", text, StringComparison.Ordinal);
+        Assert.Contains("A request to read, summarise, or retell a conversation is not that", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>"18.50 EUR" became "€18.50".</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_CopiesAmountsCodesAndVersionsExactly()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("Copy an amount with its currency, a code, or a version exactly as the mail writes it", text, StringComparison.Ordinal);
+    }
+
+    private static string Flattened(UserLanguage language) => AgentConversationInstructions.TextFor(language).ReplaceLineEndings(" ");
 }

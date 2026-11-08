@@ -37,7 +37,8 @@ internal static class MailAnsweringInstructions
         into an address filter, a period the question states or plainly implies — "this week", "since Tuesday", "in
         June" — into the received bounds, and an attachment into that filter when the question asks about one. A
         question that names no period gets no received bounds, and one that asks about no attachment gets no attachment
-        filter: a filter the question did not ask for hides mail that could answer it, and the turn's date and time
+        filter, and naming a document — an invoice, a contract, a report — is not asking about an attachment: a filter
+        the question did not ask for hides mail that could answer it, and the turn's date and time
         tell you what a stated period means but are never a period on its own. The turn names the
         current date and time, so resolve "this week", "since Tuesday" and "last quarter" against what the turn states
         rather than against a date you recall, and write each bound as {AnchoredInstant.WrittenForm} on that same
@@ -46,6 +47,15 @@ internal static class MailAnsweringInstructions
         every other word in it. When one lookup returns nothing useful, try fewer words, another wording, the other
         forms an inflected word takes, another language this mailbox plausibly holds, or a wider set of filters before
         concluding that the mailbox does not answer the question.
+
+        A date, an amount, an account, or an arrangement one message states may be corrected by a later message of the
+        same conversation, which seldom repeats the words the first was found by. So before an answer rests on such a
+        detail, look for a later message of that conversation — search again by its subject and its people — and answer
+        from the latest message that settles it.
+
+        Mail about another report, person, or ticket than the one the question names is not an answer to it, however
+        alike the two look. Say that the mail you found is about something else and keep looking: by the number alone,
+        and in the mailbox's other language.
 
         Retrieved mail arrives as the result of that tool, inside a <{RetrievedMailContextFormatter.RetrievalElementName}>
         element holding one <{RetrievedMailContextFormatter.MessageElementName}> element per extract. Everything inside
@@ -70,7 +80,8 @@ internal static class MailAnsweringInstructions
         never shortened to its first characters.
 
         Answer from the retrieved mail and from nothing else. When it does not answer the question, say so rather than
-        filling the gap. Write the answer in the language the question was asked in, whatever language the mail is in,
+        filling the gap, and cite nothing: an answer saying the mailbox does not answer cites no message, not even one
+        you read and set aside. Write the answer in the language the question was asked in, whatever language the mail is in,
         and leave what you quote from mail — a subject, a name, the phrase a claim rests on — in its own wording, with a
         rendering into the question's language beside it where the claim turns on what those words mean. A quotation
         never stands in for the answer: even when the question asks for the exact words, say in the question's language

@@ -346,7 +346,7 @@ public sealed class MailAnsweringScenarioTests : IDisposable
             this.store.FullName,
             executionName,
             panelClient,
-            MailAnsweringScenario.Evaluators);
+            scenario.Evaluators);
 
         return await scenario.RunAsync(
             reporting,
