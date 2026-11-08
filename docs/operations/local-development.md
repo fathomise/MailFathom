@@ -259,10 +259,13 @@ calls `snap-confine`, which cannot change AppArmor profile from an unconfined pr
 binary on the snap mount instead, with `--headless` and a writable `--user-data-dir`.
 
 Before any resource starts, Aspire asks for any of three parameters it has not already stored:
-`mail-account-host`, `mail-account-username`, and the secret `mail-account-password`. They configure one local account
-named `local`, over implicit TLS on port 993, with its inbox as the default folder. Aspire offers to keep the values in
-the AppHost's user secrets; leaving any of them unanswered leaves the application waiting rather than starting a host
-with no mailbox.
+`mail-account-host`, `mail-account-username`, and the secret `mail-account-password`. Once the host reports itself
+started, the AppHost declares one account from them in the served user's record, named `Local mailbox` and stated in
+English, over implicit TLS on port 993, with its inbox as the default folder. The password is never written into that
+record: the host's environment carries it as `MAILFATHOM_LOCAL_MAILBOX_PASSWORD`, and the record names it with an
+`env:` reference, because a persisted record refuses `plaintext:`. Aspire offers to keep the values in the AppHost's
+user secrets; leaving any of them unanswered leaves the application waiting rather than starting a host with no
+mailbox.
 
 Four resources come up, three of them in dependency order. The `postgres` container starts first and has to report
 healthy; the `mailfathom-migrations` resource then applies every pending migration to it; and `mailfathom-host` waits
@@ -279,8 +282,10 @@ document carries both HTTP APIs from the first run. The host runs in the `Develo
 sockets — MCP, probes, administration, and the client surface — each on a free port the run takes unless the setting
 has a documented pin; the dashboard reports the numbers it took. MCP and administration authenticate nobody in this
 local topology. The client surface accepts HTTP Basic and the AppHost provisions `test` / `test-password` for the sole
-owner once the host reports startup readiness. A credential already present under that username is left unchanged, so
-a local rotation survives the persistent database and every later orchestration restart.
+owner once the host reports startup readiness, after giving that user the seeded `User` role at their own scope — the
+credential names no permissions of its own, so it holds what that role grants. A credential already present under that
+username, and a role already assigned there, are left unchanged, so a local rotation survives the persistent database
+and every later orchestration restart.
 
 There is no local TLS listener: MailFathom
 never serves one out of an ASP.NET Core development certificate, so a developer who wants TLS configures

@@ -836,6 +836,10 @@ public static class OrchestrationContract
     /// <remarks>A name rather than the material, which is what a record keeps beside the reference: rotating the mailbox password is then a change to what the reference reaches rather than to the record.</remarks>
     public const string DevelopmentMailAccountPasswordName = "local-mail-password";
 
+    /// <summary>The environment variable the normal local run hands the host the mailbox password in.</summary>
+    /// <remarks>The recorded account names it through an <c>env:</c> reference, so the password reaches the host's process and never the database.</remarks>
+    public const string DevelopmentMailAccountPasswordVariable = "MAILFATHOM_LOCAL_MAILBOX_PASSWORD";
+
     /// <summary>The username the normal local run provisions for the browser client.</summary>
     public const string DevelopmentBasicUsername = "test";
 

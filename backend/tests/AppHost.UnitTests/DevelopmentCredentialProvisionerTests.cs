@@ -177,7 +177,6 @@ public sealed class DevelopmentCredentialProvisionerTests
             UserId,
             "imap.example.test",
             "someone@example.test",
-            "mailbox-password",
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -205,7 +204,10 @@ public sealed class DevelopmentCredentialProvisionerTests
         Assert.Equal(
             OrchestrationContract.DevelopmentMailAccountPasswordName,
             password.GetProperty("Name").GetString());
-        Assert.Equal("plaintext:mailbox-password", password.GetProperty("SecretReference").GetString());
+        Assert.Equal(
+            $"env:{OrchestrationContract.DevelopmentMailAccountPasswordVariable}",
+            password.GetProperty("SecretReference").GetString());
+        Assert.Equal("English", account.RootElement.GetProperty("Language").GetString());
     }
 
     [Fact]
@@ -224,7 +226,6 @@ public sealed class DevelopmentCredentialProvisionerTests
             UserId,
             "localhost",
             "someone",
-            "mailbox-password",
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -248,7 +249,6 @@ public sealed class DevelopmentCredentialProvisionerTests
             UserId,
             "imap.example.test",
             "someone@example.test",
-            "mailbox-password",
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -273,11 +273,81 @@ public sealed class DevelopmentCredentialProvisionerTests
             UserId,
             "imap.example.test",
             "someone@example.test",
-            "mailbox-password",
             TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Contains("The mailbox names no host.", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EnsureUserRoleAsync_TheUserHoldsNoRole_AssignsTheSeededUserRoleAtTheirOwnScope()
+    {
+        // Arrange
+        var userRole = Guid.Parse("7c1d2e3f-4a5b-4c6d-8e7f-901a2b3c4d5e");
+        using var responses = new RecordingHandler(
+            RolesResponse((Guid.Parse("11111111-2222-4333-8444-555555555555"), "Administrator"), (userRole, "User")),
+            JsonResponse("""{"id":"0c9b8a7d-6e5f-4a3b-9c2d-1e0f9a8b7c6d"}"""));
+        using var client = new HttpClient(responses);
+        var provisioner = new DevelopmentCredentialProvisioner(client, TimeProvider.System);
+
+        // Act
+        var assigned = await provisioner.EnsureUserRoleAsync(
+            AdminEndpoint,
+            UserId,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(assigned);
+        Assert.Equal(
+            [
+                "GET http://127.0.0.1:5200/api/admin/roles",
+                "POST http://127.0.0.1:5200/api/admin/role-assignments",
+            ],
+            responses.Requests.Select(static request => $"{request.Method} {request.Address}"));
+        Assert.Equal(
+            $$"""{"roleId":"{{userRole}}","principalKind":"user","principalId":"{{UserId}}","scopeKind":"user","scopeId":"{{UserId}}"}""",
+            responses.Requests[^1].Body);
+    }
+
+    [Fact]
+    public async Task EnsureUserRoleAsync_TheRoleIsAlreadyAssigned_LeavesItUnchanged()
+    {
+        // Arrange
+        using var responses = new RecordingHandler(
+            RolesResponse((Guid.Parse("7c1d2e3f-4a5b-4c6d-8e7f-901a2b3c4d5e"), "User")),
+            Response(HttpStatusCode.Conflict));
+        using var client = new HttpClient(responses);
+        var provisioner = new DevelopmentCredentialProvisioner(client, TimeProvider.System);
+
+        // Act
+        var assigned = await provisioner.EnsureUserRoleAsync(
+            AdminEndpoint,
+            UserId,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(assigned);
+        Assert.Equal(2, responses.Requests.Count);
+    }
+
+    [Fact]
+    public async Task EnsureUserRoleAsync_ADeploymentHoldingNoUserRole_ReportsIt()
+    {
+        // Arrange
+        using var responses = new RecordingHandler(
+            RolesResponse((Guid.Parse("11111111-2222-4333-8444-555555555555"), "Administrator")));
+        using var client = new HttpClient(responses);
+        var provisioner = new DevelopmentCredentialProvisioner(client, TimeProvider.System);
+
+        // Act
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => provisioner.EnsureUserRoleAsync(
+            AdminEndpoint,
+            UserId,
+            TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Contains("'User'", refused.Message, StringComparison.Ordinal);
+        Assert.Single(responses.Requests);
     }
 
     private static HttpResponseMessage Response(HttpStatusCode statusCode) => new(statusCode);
@@ -292,6 +362,13 @@ public sealed class DevelopmentCredentialProvisionerTests
         $$"""
         {"accounts":[{{string.Join(",", accounts.Select(static account =>
             $$"""{"id":"{{Guid.NewGuid()}}","version":1,"users":["{{account.User}}"],"emailAddress":{{JsonSerializer.Serialize(account.EmailAddress)}},"displayName":"Local mailbox"}"""))}}],"nextCursor":null}
+        """);
+
+    /// <summary>Answers the role listing, which names each role by the identifier its assignments carry and the name an operator reads.</summary>
+    private static HttpResponseMessage RolesResponse(params (Guid Id, string Name)[] roles) => JsonResponse(
+        $$"""
+        {"roles":[{{string.Join(",", roles.Select(static role =>
+            $$"""{"id":"{{role.Id}}","name":"{{role.Name}}","permissions":[],"patterns":[],"unpublished":[],"createdAt":"2026-11-08T00:00:00+00:00"}"""))}}],"nextCursor":null}
         """);
 
     private sealed class RecordingHandler(params HttpResponseMessage[] responses) : HttpMessageHandler

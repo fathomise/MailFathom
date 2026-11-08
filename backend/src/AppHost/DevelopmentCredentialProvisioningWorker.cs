@@ -7,9 +7,9 @@ using Microsoft.Extensions.Logging;
 
 namespace MailFathom.AppHost;
 
-/// <summary>Records the local user where the database holds none, then the local mailbox and the synthetic Basic credential, once the normal local host is ready.</summary>
+/// <summary>Records the local user where the database holds none, then the local mailbox, the <c>User</c> role, and the synthetic Basic credential, once the normal local host is ready.</summary>
 /// <remarks>
-/// Both writes go through the existing administrative API rather than through persistence, so the same validation,
+/// Every write goes through the existing administrative API rather than through persistence, so the same validation,
 /// password policy, hashing, audit, and ownership rules apply here as to an operator performing them. Each is skipped
 /// where the deployment already holds it, which preserves a local rotation, and a mailbox an operator edited, across
 /// restarts of the persistent database.
@@ -21,7 +21,6 @@ internal sealed partial class DevelopmentCredentialProvisioningWorker(
     EndpointReference adminEndpoint,
     ParameterResource mailAccountHost,
     ParameterResource mailAccountUserName,
-    ParameterResource mailAccountPassword,
     TimeProvider timeProvider,
     ILogger<DevelopmentCredentialProvisioningWorker> logger) : BackgroundService
 {
@@ -51,7 +50,6 @@ internal sealed partial class DevelopmentCredentialProvisioningWorker(
             user,
             await RequiredValueAsync(mailAccountHost, stoppingToken),
             await RequiredValueAsync(mailAccountUserName, stoppingToken),
-            await RequiredValueAsync(mailAccountPassword, stoppingToken),
             stoppingToken);
 
         if (declared)
@@ -61,6 +59,15 @@ internal sealed partial class DevelopmentCredentialProvisioningWorker(
         else
         {
             MailAccountAlreadyDeclared(logger, OrchestrationContract.DevelopmentMailAccountDisplayName);
+        }
+
+        if (await provisioner.EnsureUserRoleAsync(adminAddress, user, stoppingToken))
+        {
+            UserRoleAssigned(logger);
+        }
+        else
+        {
+            UserRoleAlreadyAssigned(logger);
         }
 
         var created = await provisioner.EnsureCredentialAsync(
@@ -108,4 +115,10 @@ internal sealed partial class DevelopmentCredentialProvisioningWorker(
 
     [LoggerMessage(4, LogLevel.Information, "The local user is already assigned an account for the local mailbox, {MailAccountDisplayName}, and it was left unchanged.")]
     private static partial void MailAccountAlreadyDeclared(ILogger logger, string mailAccountDisplayName);
+
+    [LoggerMessage(5, LogLevel.Information, "Assigned the User role to the local user at their own scope.")]
+    private static partial void UserRoleAssigned(ILogger logger);
+
+    [LoggerMessage(6, LogLevel.Information, "The local user already holds the User role at their own scope, and it was left unchanged.")]
+    private static partial void UserRoleAlreadyAssigned(ILogger logger);
 }
