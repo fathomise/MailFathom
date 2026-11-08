@@ -114,7 +114,7 @@ The tool publishes the query and the narrowing `search_emails` publishes to its 
 | `recipientAddress` | Only mail whose `To` or `Cc` header names this address |
 | `subjectFragment` | Only mail whose subject contains this text, which narrows before anything is ranked |
 | `receivedOnOrAfter`, `receivedBefore` | Only mail received in the range, the start inclusive and the end exclusive |
-| `isRemotelySeen` | Only mail the server last reported as read, or as unread |
+| `isRemotelySeen` | Only mail the server last reported as read, or as unread — whether this mailbox opened it, never whether a recipient read mail the person sent |
 | `isRemotelyFlagged` | Only mail the server last reported as flagged, or as unflagged, which is the star a mail client shows |
 | `keyword` | Only mail carrying this keyword, matched whole and without regard to case |
 | `hasAttachments` | Only mail that carries attachments, or that carries none |
@@ -127,7 +127,8 @@ as a filter it selects the mail exactly, and the ranking is then left to do the 
 The same exactness is why a filter the question did not state is a defect rather than extra precision: it hides mail
 that could answer the question, and the model then reports that the mailbox does not answer it. So the instruction and
 the tool's own description both ask for received bounds only where the question states or plainly implies a period,
-and for the attachment filter only where it asks about an attachment. The current date and time the turn names resolve
+and for the attachment filter only where it asks about an attachment; a question naming a document — an invoice, a
+contract, a report — is not asking about one. The current date and time the turn names resolve
 a stated period and are never a period on their own.
 
 The arguments a caller of `search_emails` holds and a model does not are deliberately withheld, each for its own reason:

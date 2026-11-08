@@ -430,6 +430,10 @@ the place a schema check would do, and because the repository pins no Markdown p
 a parser on hostile input, and one taken from a package is a dependency, a licence review, and a grammar far wider than
 the subset it would be used for.
 
+How the blocks are asked for is [ADR 0049](0049-constraining-the-reply-draft-by-a-strict-json-schema.md)'s: a model whose
+declaration says its server honours a strict JSON schema is sent one built for the turn, and every other model is told
+the shape in prose. The reading at the AI boundary is the same for both.
+
 ### Consequences
 
 - Good, because the safety of every child of #2846 rests on one statement a reviewer can check: only the composer's own
