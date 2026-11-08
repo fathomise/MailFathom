@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Globalization;
+using System.Net;
 using MailFathom.Evaluations.Judging;
 using MailFathom.Evaluations.Reporting;
 using MailFathom.Evaluations.UnitTests.Enrichment;
@@ -118,13 +119,13 @@ public sealed class JudgePanelEvaluatorTests : IDisposable
         // Assert
         Assert.Equal(3, Assert.IsType<NumericMetric>(rating).Value);
         Assert.Equal(JudgePanelEvaluator.ArbiterDidNotRate, rating.Metadata?[JudgePanelEvaluator.EscalationMetadata]);
-        Assert.Equal(("juror 2", "not rated"), (rating.Metadata?[JudgePanelEvaluator.DecidedByMetadata], rating.Metadata?["judge-arbiter"]));
+        Assert.Equal(("juror 2", "did not answer"), (rating.Metadata?[JudgePanelEvaluator.DecidedByMetadata], rating.Metadata?["judge-arbiter"]));
         Assert.Contains(rating.Diagnostics ?? [], static diagnostic => diagnostic.Message == "arbiter: The judge (arbiter) refused to answer.");
         Assert.Equal((1, 1, 2), (first.Requests, second.Requests, arbiter.Requests));
     }
 
     [Fact]
-    public async Task EvaluateAsync_AJurorThatRefuses_FailsTheEvaluatorAndAsksItAgainNextRun()
+    public async Task EvaluateAsync_AJurorThatRefuses_EscalatesToTheArbiterAndAsksTheJurorAgainNextRun()
     {
         // Arrange
         using var first = new ScriptedChatClient(string.Empty, new ChatClientMetadata("planted-provider", JudgeAddress, "planted-model"), ChatFinishReason.ContentFilter);
@@ -137,12 +138,99 @@ public sealed class JudgePanelEvaluatorTests : IDisposable
         var rating = await this.RateAsync(WithArbiter(), [first, second, arbiter], new JudgeThresholds((RatingName, 4)), executionName: "second");
 
         // Assert
-        Assert.False(rating.Metadata?.ContainsKey(JudgePanelEvaluator.EscalationMetadata) ?? false);
+        Assert.Equal(5, Assert.IsType<NumericMetric>(rating).Value);
+        Assert.Equal($"{JudgePanelEvaluator.Escalated} ({JudgePanelEvaluator.JurorDidNotAnswer})", rating.Metadata?[JudgePanelEvaluator.EscalationMetadata]);
+        Assert.Contains(rating.Diagnostics ?? [], static diagnostic => diagnostic.Message == "juror 1: The judge (juror 1) refused to answer.");
+        Assert.Equal((2, 1), (first.Requests, arbiter.Requests));
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_AJurorThatDoesNotAnswer_EscalatesWhatItLeftUndecidedToTheArbiter()
+    {
+        // Arrange
+        using var first = Judge("5");
+        using var second = new SilentJudge();
+        using var arbiter = Judge("4");
+
+        // Act
+        var rating = await this.RateAsync(WithArbiter(), [first, second, arbiter], new JudgeThresholds((RatingName, 4)));
+
+        // Assert
+        Assert.Equal(4, Assert.IsType<NumericMetric>(rating).Value);
+        Assert.Equal($"{JudgePanelEvaluator.Escalated} ({JudgePanelEvaluator.JurorDidNotAnswer})", rating.Metadata?[JudgePanelEvaluator.EscalationMetadata]);
+        Assert.Equal(("5", "did not answer", "4"), (rating.Metadata?["judge-juror-1"], rating.Metadata?["judge-juror-2"], rating.Metadata?["judge-arbiter"]));
         Assert.Contains(
             rating.Diagnostics ?? [],
             static diagnostic => diagnostic.Severity is EvaluationDiagnosticSeverity.Error
-                && diagnostic.Message.Contains("The judge (juror 1) refused to answer.", StringComparison.Ordinal));
-        Assert.Equal((2, 0), (first.Requests, arbiter.Requests));
+                && diagnostic.Message == "juror 2: The judge (juror 2) did not answer (HttpRequestException 429).");
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_NoJurorAnswering_KeepsTheArbitersRating()
+    {
+        // Arrange
+        using var first = new SilentJudge();
+        using var second = new SilentJudge();
+        using var arbiter = Judge("5");
+
+        // Act
+        var rating = await this.RateAsync(WithArbiter(), [first, second, arbiter], new JudgeThresholds((RatingName, 4)));
+
+        // Assert
+        Assert.Equal(5, Assert.IsType<NumericMetric>(rating).Value);
+        Assert.Equal($"{JudgePanelEvaluator.Escalated} ({JudgePanelEvaluator.NoJurorAnswered})", rating.Metadata?[JudgePanelEvaluator.EscalationMetadata]);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_NoJurorAnsweringAndNoArbiter_RecordsItAsNotRatedNamingTheFailure()
+    {
+        // Arrange
+        using var first = new SilentJudge();
+        using var second = new SilentJudge();
+
+        // Act
+        var rating = await this.RateAsync(JurorsAlone(), [first, second], new JudgeThresholds((RatingName, 4)));
+
+        // Assert
+        Assert.Null(Assert.IsType<NumericMetric>(rating).Value);
+        Assert.Equal($"{JudgePanelEvaluator.NotRated} ({JudgePanelEvaluator.NoJurorAnswered})", rating.Metadata?[JudgePanelEvaluator.EscalationMetadata]);
+        Assert.Equal(
+            "The judge (juror 1) did not answer (HttpRequestException 429).",
+            rating.Diagnostics?.First(static diagnostic => diagnostic.Severity is EvaluationDiagnosticSeverity.Error).Message);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_NoJudgeAnsweringAtAll_RecordsItAsNotRated()
+    {
+        // Arrange
+        using var first = new SilentJudge();
+        using var second = new SilentJudge();
+        using var arbiter = new SilentJudge();
+
+        // Act
+        var rating = await this.RateAsync(WithArbiter(), [first, second, arbiter], new JudgeThresholds((RatingName, 4)));
+
+        // Assert
+        Assert.Null(Assert.IsType<NumericMetric>(rating).Value);
+        Assert.Equal($"{JudgePanelEvaluator.NotRated} ({JudgePanelEvaluator.NoJurorAnswered})", rating.Metadata?[JudgePanelEvaluator.EscalationMetadata]);
+        Assert.Equal("did not answer", rating.Metadata?["judge-arbiter"]);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_AnArbiterThatDoesNotAnswer_KeepsTheLowestJurorRating()
+    {
+        // Arrange
+        using var first = Judge("5");
+        using var second = Judge("3");
+        using var arbiter = new SilentJudge();
+
+        // Act
+        var rating = await this.RateAsync(WithArbiter(), [first, second, arbiter], new JudgeThresholds((RatingName, 4)));
+
+        // Assert
+        Assert.Equal(3, Assert.IsType<NumericMetric>(rating).Value);
+        Assert.Equal(JudgePanelEvaluator.ArbiterDidNotRate, rating.Metadata?[JudgePanelEvaluator.EscalationMetadata]);
+        Assert.Contains(rating.Diagnostics ?? [], static diagnostic => diagnostic.Message == "arbiter: The judge (arbiter) did not answer (HttpRequestException 429).");
     }
 
     [Fact]
@@ -303,6 +391,29 @@ public sealed class JudgePanelEvaluatorTests : IDisposable
                     reason);
 
             return new EvaluationResult(rating);
+        }
+    }
+
+    /// <summary>A judge whose provider never answers, failing every request the way a provider still rate-limiting after every retry does.</summary>
+    private sealed class SilentJudge : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<ChatResponse>(
+                new HttpRequestException("planted-model at planted-judge-host.invalid is rate limited", inner: null, HttpStatusCode.TooManyRequests));
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
         }
     }
 }

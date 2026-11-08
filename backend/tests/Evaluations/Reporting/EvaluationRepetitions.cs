@@ -90,9 +90,16 @@ internal static class EvaluationRepetitions
     /// <param name="cancellationToken">Withdraws the run.</param>
     /// <returns>One line naming the case, the model, how many repetitions fell short, and how many of its answers were replayed from an earlier run, followed by why each fell short; none where the share holds.</returns>
     /// <remarks>
+    /// <para>
     /// The repetitions are asked at once, because a case costs whatever its slowest repetition takes rather than the sum
     /// of them. A repetition's cost is read off the spend meters its clients were opened over, so each repetition opens
     /// clients and meters of its own: two answers measured over one meter would each be charged with the other's calls.
+    /// </para>
+    /// <para>
+    /// A repetition that ends because a provider stayed busy or unreachable past every retry falls short naming the
+    /// failure's type and HTTP status, rather than ending the case in an exception: the case still fails, but legibly, and
+    /// <c>scripts/run-ai-evaluations.sh</c> counts it among the cases a provider or judge did not answer.
+    /// </para>
     /// </remarks>
     public static async Task<IReadOnlyList<string>> MeasureAsync(
         ReportingConfiguration reporting,
@@ -105,7 +112,8 @@ internal static class EvaluationRepetitions
         ArgumentNullException.ThrowIfNull(reporting);
         ArgumentNullException.ThrowIfNull(measure);
 
-        var shortfalls = await Task.WhenAll(Enumerable.Range(1, repetitions).Select(measure));
+        var shortfalls = await Task.WhenAll(
+            Enumerable.Range(1, repetitions).Select(repetition => MeasureOrRecordSilenceAsync(measure, repetition, cancellationToken)));
 
         var passed = shortfalls.Count(static repetitionShortfalls => repetitionShortfalls.Count is 0);
         var holds = (double)passed / repetitions >= RequiredShare;
@@ -131,6 +139,22 @@ internal static class EvaluationRepetitions
             .. shortfalls.SelectMany(static (repetitionShortfalls, index) =>
                 repetitionShortfalls.Select(shortfall => $"  repetition {index + 1}: {shortfall}")),
         ];
+    }
+
+    /// <summary>Asks one repetition, and names a provider that did not answer it as the repetition's shortfall.</summary>
+    private static async Task<IReadOnlyList<string>> MeasureOrRecordSilenceAsync(
+        Func<int, Task<IReadOnlyList<string>>> measure,
+        int repetition,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await measure(repetition);
+        }
+        catch (Exception failure) when (UnansweredProviderCall.FindIn(failure, cancellationToken) is { } unanswered)
+        {
+            return [$"A provider did not answer ({UnansweredProviderCall.Describe(unanswered)})."];
+        }
     }
 
     /// <summary>Adds the share that passed and what the repetitions cost together to every repetition's filed result, and to each where its own answers came from.</summary>

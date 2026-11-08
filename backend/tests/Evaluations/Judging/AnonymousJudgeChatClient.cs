@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Evaluations.Providers;
 using Microsoft.Extensions.AI;
 
 namespace MailFathom.Evaluations.Judging;
@@ -12,7 +13,9 @@ namespace MailFathom.Evaluations.Judging;
 /// The libraries record a verdict's model from three places, and this closes all three: the model a response names, which
 /// becomes the turn details and the <c>eval-model</c> metadata of every metric; the metadata the client publishes, whose
 /// provider address becomes the turn's provider; and a failure, whose message the composite evaluator stores as a
-/// diagnostic and which a provider fills with the model it could not reach.
+/// diagnostic and which a provider fills with the model it could not reach. A call that got no answer is raised as a
+/// <see cref="JudgeDidNotAnswerException" /> naming the failure's type and HTTP status alone, so a reader can tell a rate
+/// limit from an outage without the provider's own message, which is where it names the model.
 /// </para>
 /// <para>
 /// It sits beneath the response cache rather than above it, so what the cache stores is already anonymous — the cache is
@@ -51,11 +54,11 @@ internal sealed class AnonymousJudgeChatClient(IChatClient judge, string role) :
         {
             response = await base.GetResponseAsync(messages, options, cancellationToken);
         }
-        catch (Exception failure) when (failure is not OperationCanceledException)
+        catch (Exception failure) when (!cancellationToken.IsCancellationRequested)
         {
-            // The original is deliberately not kept as the inner exception: its message and every inner one are where a
-            // provider names the model and the address, and whatever holds this exception prints the whole chain.
-            throw new InvalidOperationException($"The {this.recordedModel} did not answer ({failure.GetType().Name}).");
+            // A cancellation the caller did not ask for is the transport abandoning the request, which is a judge that did
+            // not answer rather than a run being withdrawn.
+            throw new JudgeDidNotAnswerException(this.recordedModel, UnansweredProviderCall.Describe(failure));
         }
 
         if (response.FinishReason == ChatFinishReason.ContentFilter)

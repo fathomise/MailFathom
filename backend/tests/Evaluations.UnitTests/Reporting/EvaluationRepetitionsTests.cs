@@ -4,6 +4,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
 using MailFathom.Evaluations.Costing;
 using MailFathom.Evaluations.Providers;
 using MailFathom.Evaluations.Reporting;
@@ -103,6 +104,45 @@ public sealed class EvaluationRepetitionsTests : IDisposable
 
         // Assert
         Assert.Equal([1, 2, 3], askedBeforeAnyAnswered);
+    }
+
+    [Fact]
+    public async Task MeasureAsync_ARepetitionWhoseProviderNeverAnswered_FallsShortNamingTheFailureRatherThanThrowing()
+    {
+        // Arrange
+        var reporting = EvaluationStore.OpenUnjudgedAt(this.store.FullName, "only", []);
+
+        // Act
+        var shortfalls = await EvaluationRepetitions.MeasureAsync(
+            reporting,
+            Scenario,
+            Model,
+            repetitions: 1,
+            static _ => Task.FromException<IReadOnlyList<string>>(
+                new InvalidOperationException("the agent run failed", new HttpRequestException("throttled", inner: null, HttpStatusCode.TooManyRequests))),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("  repetition 1: A provider did not answer (HttpRequestException 429).", shortfalls[1]);
+    }
+
+    [Fact]
+    public async Task MeasureAsync_ARepetitionFailingForAReasonNoProviderGave_StillThrows()
+    {
+        // Arrange
+        var reporting = EvaluationStore.OpenUnjudgedAt(this.store.FullName, "only", []);
+
+        // Act
+        var measuring = EvaluationRepetitions.MeasureAsync(
+            reporting,
+            Scenario,
+            Model,
+            repetitions: 1,
+            static _ => Task.FromException<IReadOnlyList<string>>(new InvalidOperationException("the answer could not be read")),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => measuring);
     }
 
     [Fact]
