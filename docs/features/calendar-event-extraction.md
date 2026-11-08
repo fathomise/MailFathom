@@ -55,7 +55,7 @@ offset the text was written in, so neither is asked to guess the other's half.
 
 | Half | The instant every relative day is resolved against, and whose offset an hour is read in |
 | --- | --- |
-| Mail | When the message arrived, from its own metadata — or, for mail the person sent, which no receiving server dated, when it was sent |
+| Mail | The message's own metadata: when it arrived, or when it was sent where no receiving server dated it — and for mail the person sent, when it was sent, whichever provider filed the copy |
 | A typed sentence | This deployment's own clock, read in the [time zone the asking person's record states](../operations/configuration-sources.md#the-zone-this-persons-days-are-read-in--timezone) |
 
 Reading the message's own arrival rather than the current time is what makes the same message, read again next month,

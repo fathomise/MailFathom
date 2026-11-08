@@ -17,9 +17,10 @@ namespace MailFathom.IntegrationTests.Persistence;
 /// Proves what the enrichment selection hands a derivation about each message, against a real schema.
 /// </summary>
 /// <remarks>
-/// The instant a relative date is resolved against is a coalescing projection PostgreSQL evaluates, so only a real
-/// server says whether a copy of the person's own mail — which no receiving hop dated — reaches the derivation dated by
-/// when it was sent rather than not dated at all.
+/// The instant a relative date is resolved against is chosen from two the query projects, so only a real server says
+/// whether both reach the choice — a message no receiving hop dated reaching the derivation dated by when it was sent
+/// rather than not dated at all. Which of the two wins for mail the mailbox wrote is decided by
+/// <see cref="EnrichableEmail.DatedAtOf" />, whose own tests cover it.
 /// </remarks>
 [Collection(OrchestratedInfrastructureCollectionDefinition.Name)]
 public sealed class OrchestratedEmailEnrichmentSelectionTests(MailFathomOrchestrationFixture orchestration)
@@ -36,9 +37,9 @@ public sealed class OrchestratedEmailEnrichmentSelectionTests(MailFathomOrchestr
     private const int EveryAwaitingMessage = int.MaxValue;
 
     /// <summary>
-    /// One test over the three datings, because each is only meaningful beside the others: a received message keeps its
-    /// arrival over its sent instant, a Sent copy falls back to its sent instant, and a message carrying neither stays
-    /// undated rather than being given one.
+    /// One test over the three datings of mail somebody else wrote, because each is only meaningful beside the others:
+    /// a message keeps its arrival over its sent instant, one no hop dated falls back to its sent instant, and one
+    /// carrying neither stays undated rather than being given one.
     /// </summary>
     [Fact]
     public async Task GetEmailsAwaitingEnrichmentAsync_MessagesDatedEachWay_DatesEachByArrivalThenBySending()
@@ -51,7 +52,7 @@ public sealed class OrchestratedEmailEnrichmentSelectionTests(MailFathomOrchestr
             uid: 9851,
             static extraction => extraction,
             cancellationToken);
-        var sentCopy = await StoreCutMessageAsync(
+        var undatedByAnyHop = await StoreCutMessageAsync(
             services,
             uid: 9852,
             static extraction => extraction with { ReceivedAt = null },
@@ -75,7 +76,7 @@ public sealed class OrchestratedEmailEnrichmentSelectionTests(MailFathomOrchestr
         var datedAt = awaiting.ToDictionary(static email => email.StoredEmailId, static email => email.DatedAt);
 
         Assert.Equal(SyntheticEmail.ReceivedAt, datedAt[received]);
-        Assert.Equal(SyntheticEmail.SentAt, datedAt[sentCopy]);
+        Assert.Equal(SyntheticEmail.SentAt, datedAt[undatedByAnyHop]);
         Assert.Null(datedAt[undated]);
     }
 
