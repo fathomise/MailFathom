@@ -54,9 +54,12 @@ statement:
 | **Topic** | What the conversation is about, at most 80 characters. Set early and kept, so a reply never turns the row somebody is looking for into a different one. |
 | **Standing** | Where it stands now, at most 160 characters: what is still open, owed, or awaited. Written again on every derivation, and empty where nothing is left open. |
 
-Each is one line of plain text, with no markup and no link. **An answer whose title breaks that is withheld as
-unreadable** rather than shortened, because a title is drawn where a sender's words are not, and a line carrying a tag
-or a link would be a sender's text reaching a place the deployment writes. An answer carrying no title at all settles
+Each is one line of plain text, with no markup and no link. **A line that only runs past its bound is cut there and
+ends in an ellipsis**, because a topic two characters too long is still the line the row is recognized by, and
+withholding the answer for it would throw away every statement beside it. **An answer whose title carries markup, a
+link, or a line break is withheld as unreadable** rather than repaired, because a title is drawn where a sender's words
+are not, and a line carrying a tag or a link would be a sender's text reaching a place the deployment writes. An answer
+carrying no title at all settles
 proposing none: the conversation keeps the topic it had, with no standing beside it.
 
 **The standing is a reading of the statements beside it, never a sentence of its own.** It is kept only beside an open
