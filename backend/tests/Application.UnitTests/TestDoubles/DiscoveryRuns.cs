@@ -159,11 +159,24 @@ internal static class DiscoveryRuns
     /// <param name="intent">What the plan says the question asks for.</param>
     /// <param name="sufficientPassages">How much evidence the plan calls enough.</param>
     /// <param name="queries">The lookups the plan names, in the order it names them.</param>
-    /// <returns>The derivation.</returns>
+    /// <returns>The derivation, whose follow-up adds no lookup.</returns>
     public static IDiscoveryRunPlanner PlannerDeriving(
         DiscoveryIntent intent,
         int sufficientPassages,
-        params string[] queries)
+        params string[] queries) =>
+        PlannerDerivingAndFollowingUp(intent, sufficientPassages, queries, followUpQueries: []);
+
+    /// <summary>Stands in for the derivation and its follow-up, producing the plan and the further lookups a test wants run.</summary>
+    /// <param name="intent">What the plan says the question asks for.</param>
+    /// <param name="sufficientPassages">How much evidence the plan calls enough.</param>
+    /// <param name="queries">The lookups the plan names, in the order it names them.</param>
+    /// <param name="followUpQueries">The lookups the follow-up adds once the plan's have run.</param>
+    /// <returns>The derivation.</returns>
+    public static IDiscoveryRunPlanner PlannerDerivingAndFollowingUp(
+        DiscoveryIntent intent,
+        int sufficientPassages,
+        IReadOnlyList<string> queries,
+        IReadOnlyList<string> followUpQueries)
     {
         var planner = Substitute.For<IDiscoveryRunPlanner>();
         planner.DerivePlanAsync(Arg.Any<MailQuestion>(), Arg.Any<CancellationToken>())
@@ -173,6 +186,8 @@ internal static class DiscoveryRuns
                     EmailKnowledgeBounds.Default,
                     [.. queries.Select(EmailKnowledgeQuery.ForText)],
                     sufficientPassages)));
+        planner.FollowUpAsync(Arg.Any<MailQuestion>(), Arg.Any<DiscoveryRunPlan>(), Arg.Any<DiscoveryEvidence>(), Arg.Any<CancellationToken>())
+            .Returns([.. followUpQueries.Select(EmailKnowledgeQuery.ForText)]);
 
         return planner;
     }

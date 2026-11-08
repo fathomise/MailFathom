@@ -200,7 +200,7 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
     /// the user's own mail going back to the user, and redacting it there would hide from somebody what they already
     /// have. A guard that is inactive returns the same text, so a deployment scanning nothing pays nothing here.
     /// </remarks>
-    private static async Task<IReadOnlyList<DiscoveryTurnSource>> GuardAsync(
+    internal static async Task<IReadOnlyList<DiscoveryTurnSource>> GuardAsync(
         IReadOnlyList<DiscoveryComposedSource> sources,
         SensitiveContentEgressGuard egressGuard,
         CancellationToken cancellationToken)
@@ -336,7 +336,8 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
 
         // Outside the resilience decorator rather than inside it, so a call this deployment's own ceiling refused
         // never reaches the endpoint's circuit, its concurrency budget, or its health record. The two ledgers are
-        // the run's and the period's: this call is one of the two a Discover run makes, and both are charged.
+        // the run's and the period's: this call is the last of the at most three a Discover run makes, and both
+        // are charged.
         await using var chatClient = new BudgetedChatClient(resilientClient, this.runLedger, this.spendLedger);
 
         var agent = DiscoveryCompositionAgentComposition.Compose(

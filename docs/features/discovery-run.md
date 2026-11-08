@@ -46,12 +46,18 @@ the block catalogue closed — a model cannot name a block a client has no rende
 ## What retrieval is allowed to do
 
 The searches the model proposes are a plan, not commands. Each becomes an ordinary knowledge lookup, run in order
-against the same retrieval the rest of the system uses. The model never sees what a lookup found and nothing is searched
-again, so it is told how the words of a lookup are matched — none stemmed, and every word required wherever the search
+against the same retrieval the rest of the system uses. The model writes every lookup of the plan before any of them has
+found anything, so it is told how the words of a lookup are matched — none stemmed, and every word required wherever the search
 also ranks by meaning — and asked for several lookups of two or three distinctive words each, the most distinctive
 first, rather than one lookup restating the question. Because every word may be required, the last lookup is always the name alone — the product, the person, the place,
 or the code the question is about, with no other word — so a message that puts the rest of the question in words the
-question did not use is still reached. The plan is bounded before it runs:
+question did not use is still reached. Reaching a message is not handing over its answer: of each message a lookup
+reaches, only the few short extracts the deployment's snippet bounds allow are handed over, cut where the most of that
+lookup's words stand together. A lookup carrying the words of the problem the question describes therefore hands over the
+sentences describing the problem, while the sentence naming the fix, the cause, or the message a screen showed stands
+beside other words. So one lookup is the name beside the word the answer stands beside — "patch" or "deployed" for what
+fixed something, "caused" for why it happened, "message" for what a program showed, "room" or "hotel" for where — and
+nothing else. The plan is bounded before it runs:
 
 - **At most six lookups.** More than that is a model misjudging a question rather than a question that needs them, so
   the surplus is dropped and the first six run.
@@ -87,6 +93,40 @@ What a run reports back is the passages, which ranking answered them, how many l
 A lookup a filter refuses is counted and skipped; only a plan whose every lookup was refused fails, and it fails with
 that refusal rather than with an empty answer.
 
+### One follow-up round may add lookups
+
+Some answers sit in a message only a word from another message reaches: a delivery date in a carrier's notice that names
+a consignment reference and never the thing being delivered, while the message that names the thing carries the
+reference. No plan written from the question alone can know that word. So once the plan's lookups have run, the planning
+model is asked once more, shown what they found, and may add lookups:
+
+- **It happens once per run, and it is one call.** The run makes at most three calls — the plan, the follow-up, and the
+  composition — and the follow-up is never repeated, whatever its lookups find. A run whose retrieval already reached
+  the deployment's character ceiling skips it, since nothing a further lookup found could be handed over.
+- **It may add at most three lookups, and nothing else.** Each is read exactly as a plan's lookup is read — a lookup
+  whose words could not be searched for is dropped, and a date bound is read against the same anchor — and one
+  repeating a lookup that already ran, or another follow-up lookup, is dropped. An intent or a judgement of enough the
+  answer also carries is ignored: the plan handed to the composition is the plan the question was first read as, so the
+  presentation never changes on the strength of what a message said.
+- **It runs inside fixed bounds of its own.** The lookups are bounded by the question's scope like every other. They do
+  not share the plan's allowance of messages, which the plan's lookups usually fill — a follow-up lookup exists for the
+  message they did not reach, so one admitted only into what they left would hand nothing over in exactly the run it
+  was asked for. Each is assured four messages the plan did not hand over instead, within the twenty-four sources one
+  result may declare, so the round never reads a message the composition could not be shown; a new cut of a message
+  already handed over — often the point, the same message cut around the word the answer stands beside — is admitted as
+  the plan's own lookups' are. Every passage passes the same ledger, whose character ceiling is the run's and is what
+  stops the round. A refused follow-up lookup is skipped, and a round whose every lookup was refused leaves the run
+  with what the plan found rather than failing it.
+- **It is charged like the plan's own call.** The call is counted against the run's call and token ceilings and the
+  deployment's period ledger before it is sent, so a run whose allowance is spent is stopped there and ends as `failed`
+  with `RunSpent` or `PeriodSpent`, as any other refused call does.
+- **A follow-up that fails adds nothing.** A provider that refused or failed the call, an answer that is not a plan, or a
+  turn too large for the model's single request leaves the lookups the plan ran, and the run composes from what they
+  found. There is no fallback to fall back to: the run already holds evidence, so the round simply did not add any.
+
+What the follow-up is shown is mail, which the plan never is; [what the model is shown](#what-the-model-is-shown) states
+what that costs and what bounds it.
+
 ## The scope is what a question was asked about, and it is applied in the database
 
 A question carries a [mailbox scope](mailbox-queries.md#what-each-filter-accepts-and-what-it-refuses) like any other
@@ -117,7 +157,20 @@ somebody pasted into a question is withheld here too.
 The call is made with no tools at all. A derivation that cannot call anything cannot iterate, cannot retrieve, and
 cannot spend more than the single turn it was given.
 
-**Where the model declares `StructuredOutputs`, both calls ask for the shape rather than describing it.** The plan's
+**The follow-up turn carries mail, and that is the risk accepted for it.** It repeats the question, lists the lookups the
+plan ran, and shows each message they found by its subject and the start of its extract, cut to two hundred and forty
+characters and marked as cut — enough to decide what else to search for, while the whole extract stays the
+composition's to read. The subjects and extracts pass the same egress guard the composition's do, and are quoted through
+the same writer every turn quoting mail goes through, so an extract that closes its element and writes a lookup of its
+own is that extract's text rather than a lookup. What is accepted is that a message somebody sent can still steer the
+lookups the round adds: written to read like guidance, it can make the model search for something the question never
+asked about. The bounds above are what keep that from mattering beyond the run — the lookups stay inside the question's
+scope, the allowance, and the ceilings, the round runs once, and it cannot change the intent or write any part of the
+answer — so the most a hostile message achieves is to spend part of one run's retrieval on mail the person asking
+could already read. The agent evaluations hold a case where a hostile message asks for exactly that.
+
+**Where the model declares `StructuredOutputs`, every call asks for the shape rather than describing it.** The follow-up
+asks for the plan's shape, of which only the lookups are read. The plan's
 intent is one of the intents a run knows and a lookup's filters are `null` where the question stated none; the composed
 result cites only the source names its turn gave the extracts, names only the columns a fact table knows, and writes an
 array it has nothing for as empty. Each reading is the same either way, so a plan or a result that runs past a bound is
@@ -133,7 +186,7 @@ failing. So does a call the deployment never managed to make: an endpoint the co
 or a key behind a reference that did not resolve, ends the derivation exactly as a refusal does rather than ending the
 run around it.
 
-**A spend ceiling is the one exception**, in the derivation and in the composition alike. Every other failure leaves a
+**A spend ceiling is the one exception**, in the derivation, the follow-up, and the composition alike. Every other failure leaves a
 worse plan and the run goes on, because a question answered less well is better than a question refused. A ceiling is
 not that: it is the reason the run is being stopped, so falling back would spend the next call against a budget that
 has already run out and would tell somebody their answer was thin when what happened was that the deployment stopped
@@ -147,7 +200,7 @@ back is logged as unreadable, with no question text in the record.
 
 ## Composing the answer, and what it may not say
 
-Once the plan has run, a second call puts the question and the extracts to a composing agent — its own instruction, its
+Once the plan and its follow-up have run, a third call puts the question and the extracts to a composing agent — its own instruction, its
 own name, no tools at all, and the same instruction envelope every agent here carries. It is shown a numbered set of
 extracts and nothing else about the mailbox.
 
@@ -220,8 +273,8 @@ finding resting only on a source that is not authenticated, or is junk or a firs
 qualification — unless the source carries `written-by-mailbox`, which makes it the person's own words. The same values reach the client again on [the citation route](../operations/client-endpoint.md#the-citation-route),
 so a person reading the plan can see why a claim was qualified.
 
-One call leaves per composition, with no tools, so a question costs two turns however much mail it read. Both of them
-are charged to the run's own ledger and to the deployment's period ledger before they are sent, which is what makes the
+One call leaves per composition, with no tools, so a question costs at most three turns however much mail it read: the
+plan, the follow-up, and the composition. Every one of them is charged to the run's own ledger and to the deployment's period ledger before they are sent, which is what makes the
 ceilings in [what bounds a run](#what-bounds-a-run) real rather than nominal.
 
 ### When the composing model does not answer
@@ -292,7 +345,7 @@ order and never has to sort. Six kinds are published, and the run ends on exactl
 | Event | What it carries |
 |---|---|
 | `started` | The revision of the [presentation contract](presentation-plan.md), which is what a client keys its renderers by; the ceilings that will stop this run; and the endpoint alias and published model name that will answer it |
-| `retrieval` | How far retrieval has got: lookups run, lookups refused, lookups planned, passages found — counts, and no mail — beside what the run has spent so far |
+| `retrieval` | How far retrieval has got: lookups run, lookups refused, lookups planned, passages found — counts, and no mail — beside what the run has spent so far. Lookups planned counts the plan's lookups and then, once the follow-up added any, those as well, so it can grow after lookups run has reached it: retrieval is over when the run moves on to its sources, never when the two counts meet |
 | `citation` | One source the run declares, ready to be named by a block |
 | `block` | One composed block, ready to be drawn |
 | `completed` | The run finished, with what made the answer narrower than the question, what it read of each account, and what it spent |
@@ -389,7 +442,7 @@ with the first.
 | Bound | What it is | What happens when it is reached |
 |---|---|---|
 | The longest one run may take | Five minutes | The run is stopped and ends as `failed` with `TimedOut` |
-| Events one run may publish | Two hundred and twenty-eight — one opening, six lookups, two hundred sources, twenty blocks, one ending | Nothing further is published, and the run still ends: it completes stating `BlocksOmitted` |
+| Events one run may publish | Two hundred and thirty-one — one opening, six lookups and three follow-up lookups, two hundred sources, twenty blocks, one ending | Nothing further is published, and the run still ends: it completes stating `BlocksOmitted` |
 | Runs one person may have executing at once | Eight, across the whole deployment | The asking route answers `429` rather than opening a ninth |
 | How long a finished run is held | Five minutes after it was last read | The run is forgotten, and reading it reports no such run |
 | What one run may draw out of the mailbox | The deployment's own per-run character ceiling | Retrieval is trimmed to whole passages that fit and the run answers from them, stating `RetrievalTruncated` |

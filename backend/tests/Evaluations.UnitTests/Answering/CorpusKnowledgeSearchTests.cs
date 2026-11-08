@@ -18,6 +18,9 @@ public sealed class CorpusKnowledgeSearchTests
     /// <summary>The evidence <c>DiscoveryEndToEnd.QuotesAMessageWrittenInMarkup</c> holds a result to.</summary>
     private const string BrowserMessage = "timed out while preparing the task set";
 
+    /// <summary>The evidence <c>DiscoveryEndToEnd.NamesTheFix</c> holds a result to.</summary>
+    private const string Fix = "queue-handling patch";
+
     private readonly CorpusKnowledgeSearch search = new(CorpusMessage.All);
 
     [Fact]
@@ -99,18 +102,42 @@ public sealed class CorpusKnowledgeSearchTests
     }
 
     /// <summary>
-    /// The lookups gpt-6-luna planned for <c>DiscoveryEndToEnd.QuotesAMessageWrittenInMarkup</c>, none of which reach the
-    /// browser's message: the windows that carry most of their words are the test-details table's, and they crowd out the
-    /// one opened beside "browser".
+    /// The lookups gpt-6-luna planned for <c>DiscoveryEndToEnd.QuotesAMessageWrittenInMarkup</c>, every one of which reaches
+    /// the message holding the browser's words and none of which hands them over: a message gives a lookup only its few
+    /// extracts carrying the most of the lookup's words, and those are the ones describing the export failure.
     /// </summary>
     [Theory]
     [InlineData("QuillDesk CSV export")]
     [InlineData("QuillDesk filtered project")]
     [InlineData("QuillDesk browser error")]
     [InlineData("QuillDesk export failure")]
-    [InlineData("CSV filtered project error")]
+    [InlineData("QuillDesk CSV export message")]
+    [InlineData("QuillDesk filtered project message")]
+    [InlineData("QuillDesk filtered project failure")]
+    [InlineData("QuillDesk export failed")]
     [InlineData("QuillDesk")]
-    public async Task FindPassagesAsync_ARecordedQuillDeskLookup_DoesNotReachTheMessageTheBrowserShowed(string queryText)
+    public Task FindPassagesAsync_ARecordedQuillDeskLookup_ReachesTheMessageWithoutHandingOverWhatTheBrowserShowed(string queryText) =>
+        this.AssertReachedWithoutTheEvidenceAsync(queryText, BrowserMessage);
+
+    /// <summary>
+    /// The lookups gpt-6-luna planned for <c>DiscoveryEndToEnd.NamesTheFix</c> in the repetitions that missed it: each
+    /// reaches the message naming the fix, and the extracts it hands over describe the spinning panel instead.
+    /// </summary>
+    [Theory]
+    [InlineData("SurveyDesk confirmation panel deploy")]
+    [InlineData("SurveyDesk spinning submission patch")]
+    [InlineData("SurveyDesk confirmation panel")]
+    [InlineData("SurveyDesk deployed submission")]
+    [InlineData("SurveyDesk")]
+    public Task FindPassagesAsync_ARecordedSurveyDeskLookup_ReachesTheMessageWithoutHandingOverTheFix(string queryText) =>
+        this.AssertReachedWithoutTheEvidenceAsync(queryText, Fix);
+
+    /// <summary>The name beside the word the answer stands beside, and nothing else, hands over the sentence holding the answer.</summary>
+    [Theory]
+    [InlineData("QuillDesk message", BrowserMessage)]
+    [InlineData("SurveyDesk patch", Fix)]
+    [InlineData("SurveyDesk deployed", Fix)]
+    public async Task FindPassagesAsync_TheNameBesideTheWordTheAnswerStandsBeside_HandsOverTheAnswer(string queryText, string evidence)
     {
         // Act
         var lookup = await this.search.FindPassagesAsync(
@@ -119,7 +146,7 @@ public sealed class CorpusKnowledgeSearchTests
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.DoesNotContain(lookup.Passages, static passage => passage.Text.Contains(BrowserMessage, StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(lookup.Passages, passage => passage.Text.Contains(evidence, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>The word the mail introduces the browser's message with opens a window that carries the message whole.</summary>
@@ -208,6 +235,22 @@ public sealed class CorpusKnowledgeSearchTests
             passage.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length,
             1,
             snippets.SnippetsPerEmail * snippets.WordsPerSnippet));
+    }
+
+    private async Task AssertReachedWithoutTheEvidenceAsync(string queryText, string evidence)
+    {
+        // Arrange
+        var holding = CorpusMessage.All.Single(message => message.GroundingText.Contains(evidence, StringComparison.OrdinalIgnoreCase));
+
+        // Act
+        var lookup = await this.search.FindPassagesAsync(
+            CorpusKnowledgeSearch.Scope,
+            EmailKnowledgeQuery.ForText(queryText),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(lookup.Passages, passage => passage.StoredEmailId == holding.Id);
+        Assert.DoesNotContain(lookup.Passages, passage => passage.Text.Contains(evidence, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task<IReadOnlyList<CorpusMessage>> FindAsync(EmailKnowledgeQuery query)

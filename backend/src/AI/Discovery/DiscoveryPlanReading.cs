@@ -72,6 +72,36 @@ internal static class DiscoveryPlanReading
         return new DiscoveryPlanReadingOutcome(plan, WasRead: true);
     }
 
+    /// <summary>Reads the lookups a follow-up answer adds, or none wherever the answer cannot be believed.</summary>
+    /// <param name="answerText">What the agent wrote in the follow-up turn.</param>
+    /// <param name="plan">The plan whose lookups already ran, which a follow-up lookup may not repeat.</param>
+    /// <param name="askedAt">The instant the turn stated, whose offset every written received bound belongs to.</param>
+    /// <returns>At most <see cref="RetrievalPlan.MaximumFollowUpLookups" /> lookups, each read as a plan's lookup is read.</returns>
+    /// <remarks>
+    /// Only the lookups are read. An intent or an enough the answer also carries is ignored rather than compared, because
+    /// the round may add searching and change nothing else, and an answer that is no plan at all adds nothing: the run
+    /// already holds what the plan found, so there is no fallback to fall back to.
+    /// </remarks>
+    internal static IReadOnlyList<EmailKnowledgeQuery> ReadFollowUp(string? answerText, DiscoveryRunPlan plan, DateTimeOffset askedAt)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+
+        var alreadyRun = plan.Retrieval.Lookups.Select(static lookup => lookup.QueryText).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return ReadDocument(answerText) is not { } document
+            ? []
+            :
+            [
+                .. (document.Lookups ?? [])
+                    .Where(static lookup => lookup is not null)
+                    .Select(lookup => ToQuery(lookup, askedAt))
+                    .OfType<EmailKnowledgeQuery>()
+                    .Where(lookup => !alreadyRun.Contains(lookup.QueryText))
+                    .DistinctBy(static lookup => lookup.QueryText, StringComparer.OrdinalIgnoreCase)
+                    .Take(RetrievalPlan.MaximumFollowUpLookups),
+            ];
+    }
+
     /// <summary>Composes the plan a run falls back to: the question's own words, over everything its scope admits.</summary>
     /// <param name="question">The question.</param>
     /// <param name="retrievalBounds">What this deployment's retrieval returns at most.</param>

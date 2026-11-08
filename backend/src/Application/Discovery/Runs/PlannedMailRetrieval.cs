@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Discovery.Planning;
+using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Retrieval;
@@ -83,7 +84,7 @@ public sealed class PlannedMailRetrieval
     /// delegate that puts them there.
     /// </para>
     /// </remarks>
-    public async Task<DiscoveryEvidence> RetrieveAsync(
+    public Task<DiscoveryEvidence> RetrieveAsync(
         MailQuestion question,
         RetrievalPlan plan,
         Func<DiscoveryRetrievalProgress, Task>? progress,
@@ -92,17 +93,78 @@ public sealed class PlannedMailRetrieval
         ArgumentNullException.ThrowIfNull(question);
         ArgumentNullException.ThrowIfNull(plan);
 
-        var found = new List<EmailKnowledgePassage>(plan.MessageAllowance);
-        var alreadyFound = new HashSet<(Guid StoredEmailId, string Text)>();
-        var messagesFound = new HashSet<Guid>();
-        var beyondShare = new List<IReadOnlyList<EmailKnowledgePassage>>(plan.Lookups.Count);
-        var share = Math.Max(1, plan.MessageAllowance / plan.Lookups.Count);
-        var retrievalMode = EmailSearchRetrievalMode.Lexical;
+        return this.RunLookupsAsync(question, plan, plan.Lookups, earlier: null, progress, cancellationToken);
+    }
+
+    /// <summary>Runs the lookups the follow-up round added, each assured a few messages the plan did not hand over.</summary>
+    /// <param name="question">The question, whose scope bounds every lookup.</param>
+    /// <param name="plan">The plan whose lookups have already run.</param>
+    /// <param name="followUpLookups">The lookups the round added, at most <see cref="RetrievalPlan.MaximumFollowUpLookups" />.</param>
+    /// <param name="earlier">What the plan's own lookups found.</param>
+    /// <param name="progress">Told how far retrieval has got as each lookup settles, counting the plan's lookups and these together.</param>
+    /// <param name="cancellationToken">Cancels the retrieval between and during lookups.</param>
+    /// <returns>What the plan found with what these lookups added after it, and the lookups themselves.</returns>
+    /// <remarks>
+    /// <para>
+    /// The round does not share the plan's <see cref="RetrievalPlan.MessageAllowance" />, which the plan's own lookups
+    /// usually fill: a follow-up lookup exists to reach the message holding the answer that no plan lookup reached, so
+    /// one admitted only into what the plan left would hand nothing over in exactly the run it was asked for. Each lookup
+    /// here is assured <see cref="RetrievalPlan.MessagesAssuredPerLookup" /> messages of its own instead, within the
+    /// sources one result may declare, <see cref="PresentationEvidence.MaxCitations" />, so a message handed over is
+    /// never one the composition cannot be shown. A cut of a message already handed over is admitted as it is for the
+    /// plan's own lookups, which is often what the round is for — the same message, cut around the word the answer stands
+    /// beside — and every passage passes the same ledger, whose ceiling on retrieved characters is the run's and is what
+    /// stops a lookup here.
+    /// </para>
+    /// <para>
+    /// A refused lookup is skipped, and a round whose every lookup was refused ends with what the plan found rather than
+    /// with the refusal, since the run still has something to answer from.
+    /// </para>
+    /// </remarks>
+    public Task<DiscoveryEvidence> RetrieveFollowUpAsync(
+        MailQuestion question,
+        RetrievalPlan plan,
+        IReadOnlyList<EmailKnowledgeQuery> followUpLookups,
+        DiscoveryEvidence earlier,
+        Func<DiscoveryRetrievalProgress, Task>? progress,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(question);
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(followUpLookups);
+        ArgumentNullException.ThrowIfNull(earlier);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(followUpLookups.Count, RetrievalPlan.MaximumFollowUpLookups);
+
+        return followUpLookups.Count is 0 || earlier.RetrievalTruncated
+            ? Task.FromResult(earlier)
+            : this.RunLookupsAsync(question, plan, followUpLookups, earlier, progress, cancellationToken);
+    }
+
+    private async Task<DiscoveryEvidence> RunLookupsAsync(
+        MailQuestion question,
+        RetrievalPlan plan,
+        IReadOnlyList<EmailKnowledgeQuery> lookups,
+        DiscoveryEvidence? earlier,
+        Func<DiscoveryRetrievalProgress, Task>? progress,
+        CancellationToken cancellationToken)
+    {
+        var found = new List<EmailKnowledgePassage>(earlier?.Passages ?? []);
+        var alreadyFound = found.Select(IdentityOf).ToHashSet();
+        var messagesFound = found.Select(static passage => passage.StoredEmailId.Value).ToHashSet();
+        var beyondShare = new List<IReadOnlyList<EmailKnowledgePassage>>(lookups.Count);
+        var messageAllowance = earlier is null
+            ? plan.MessageAllowance
+            : Math.Max(
+                messagesFound.Count,
+                Math.Min(messagesFound.Count + (lookups.Count * RetrievalPlan.MessagesAssuredPerLookup), PresentationEvidence.MaxCitations));
+        var share = Math.Max(1, (messageAllowance - messagesFound.Count) / lookups.Count);
+        var retrievalMode = earlier?.RetrievalMode ?? EmailSearchRetrievalMode.Lexical;
+        var lookupsPlanned = earlier is null ? lookups.Count : plan.Lookups.Count + lookups.Count;
         var lookupsRun = 0;
         var lookupsRefused = 0;
         MailboxQueryFilterInvalidException? lastRefusal = null;
 
-        foreach (var lookup in plan.Lookups)
+        foreach (var lookup in lookups)
         {
             EmailKnowledgeLookup? retrieved = null;
             try
@@ -119,7 +181,7 @@ public sealed class PlannedMailRetrieval
             {
                 // Taken from the first lookup that ran rather than from the last, because the mode describes how this
                 // deployment ranks and every lookup of one run is therefore ranked the same way.
-                if (lookupsRun is 0)
+                if (lookupsRun is 0 && earlier is null)
                 {
                     retrievalMode = retrieved.RetrievalMode;
                 }
@@ -134,31 +196,33 @@ public sealed class PlannedMailRetrieval
                 var (taken, held) = Split(
                     NotYetFound(retrieved.Passages, alreadyFound),
                     messagesFound,
-                    Math.Min(share, plan.MessageAllowance - messagesFound.Count));
+                    Math.Min(share, messageAllowance - messagesFound.Count));
 
                 beyondShare.Add(held);
                 found.AddRange(Admit(taken));
             }
 
-            if (lookupsRun + lookupsRefused == plan.Lookups.Count && !this.ledger.RetrievalWasTruncated)
+            if (lookupsRun + lookupsRefused == lookups.Count && !this.ledger.RetrievalWasTruncated)
             {
                 found.AddRange(Admit(Split(
                     RankByRank(beyondShare, alreadyFound),
                     messagesFound,
-                    plan.MessageAllowance - messagesFound.Count).Taken));
+                    messageAllowance - messagesFound.Count).Taken));
             }
 
             await ReportAsync();
 
-            if (messagesFound.Count >= plan.MessageAllowance || this.ledger.RetrievalWasTruncated)
+            // A ceiling that is reached stops the lookups rather than cutting one: nothing a later lookup found would fit
+            // either, so issuing it would read more of somebody's mail out of the database to discard it. A full
+            // allowance stops the plan's own lookups for the same reason, and not the follow-up's, whose cuts of messages
+            // already handed over still fit.
+            if (this.ledger.RetrievalWasTruncated || (earlier is null && messagesFound.Count >= messageAllowance))
             {
-                // A ceiling that is reached stops the plan rather than cutting one lookup: nothing a later lookup found
-                // would fit either, so issuing it would read more of somebody's mail out of the database to discard it.
                 break;
             }
         }
 
-        if (lookupsRun is 0 && lastRefusal is not null)
+        if (earlier is null && lookupsRun is 0 && lastRefusal is not null)
         {
             throw lastRefusal;
         }
@@ -166,14 +230,17 @@ public sealed class PlannedMailRetrieval
         return new DiscoveryEvidence(
             found,
             retrievalMode,
-            lookupsRun,
-            lookupsRefused,
-            this.ledger.RetrievalWasTruncated);
+            (earlier?.LookupsRun ?? 0) + lookupsRun,
+            (earlier?.LookupsRefused ?? 0) + lookupsRefused,
+            this.ledger.RetrievalWasTruncated)
+        {
+            FollowUpLookups = earlier is null ? [] : [.. lookups],
+        };
 
         Task ReportAsync() => progress?.Invoke(new DiscoveryRetrievalProgress(
-            lookupsRun,
-            lookupsRefused,
-            plan.Lookups.Count,
+            (earlier?.LookupsRun ?? 0) + lookupsRun,
+            (earlier?.LookupsRefused ?? 0) + lookupsRefused,
+            lookupsPlanned,
             found.Count)) ?? Task.CompletedTask;
 
         IReadOnlyList<EmailKnowledgePassage> Admit(IReadOnlyList<EmailKnowledgePassage> passages)
