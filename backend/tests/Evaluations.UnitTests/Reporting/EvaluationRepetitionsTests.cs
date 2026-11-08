@@ -224,8 +224,30 @@ public sealed class EvaluationRepetitionsTests : IDisposable
 
         // Assert
         Assert.Equal(failed, shortfalls.Count > 0);
-        Assert.Equal(repetitions, shares.Count);
-        Assert.All(shares, share => Assert.Equal((failed, reason), (share.Interpretation!.Failed, share.Interpretation.Reason)));
+        Assert.Equal(
+            [.. Enumerable.Range(1, repetitions).Select(repetition => (failed && fallingShort.Contains(repetition), reason))],
+            shares.Select(static share => (share.Interpretation!.Failed, share.Interpretation.Reason)));
+    }
+
+    [Theory]
+    [InlineData(new[] { 3 }, new[] { EvaluationRating.Good, EvaluationRating.Good, EvaluationRating.Good }, new[] { false, false, false })]
+    [InlineData(new[] { 2, 3 }, new[] { EvaluationRating.Inconclusive, EvaluationRating.Unacceptable, EvaluationRating.Unacceptable }, new[] { false, true, true })]
+    public async Task MeasureAsync_ARepetitionThatPassed_FilesTheShareAsAPassWhicheverWayTheCaseWent(
+        int[] fallingShort,
+        EvaluationRating[] ratings,
+        bool[] failed)
+    {
+        // Arrange
+        using var model = ScriptedStructuredAnswerRun.Model("{}");
+
+        // Act
+        await this.MeasureAsync("only", model, fallingShort, repetitions: 3);
+        var shares = await this.FiledAsync("only", 3, EvaluationRepetitions.PassingShareMetricName);
+
+        // Assert
+        Assert.Equal(
+            ratings.Zip(failed),
+            shares.Select(static share => (share.Interpretation!.Rating, share.Interpretation.Failed)));
     }
 
     [Fact]

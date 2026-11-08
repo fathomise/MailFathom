@@ -129,7 +129,9 @@ internal static class EvaluationRepetitions
                 EvaluationStore.TallyOf(reporting, scenarioName, EvaluationStore.IterationNameFor(modelName, repetition))),
         ];
 
-        await RecordAsync(reporting, scenarioName, modelName, passed, holds, rule, tallies, cancellationToken);
+        bool[] repetitionsPassed = [.. shortfalls.Select(static repetitionShortfalls => repetitionShortfalls.Count is 0)];
+
+        await RecordAsync(reporting, scenarioName, modelName, repetitionsPassed, holds, rule, tallies, cancellationToken);
 
         if (holds)
         {
@@ -175,21 +177,29 @@ internal static class EvaluationRepetitions
 
     /// <summary>Adds the share that passed and what the repetitions cost together to every repetition's filed result, and to each where its own answers came from.</summary>
     /// <remarks>
+    /// <para>
     /// Written into each repetition rather than a result of its own, so every row the report shows for the model carries
     /// the rate beside its own verdict, and no iteration exists in the store that no answer was given under.
+    /// </para>
+    /// <para>
+    /// The report counts a row as failed when any of its metrics is, so a repetition whose own answer passed files the
+    /// share as passed even where its case fell short — rated inconclusive rather than good, which is where the case's
+    /// verdict stays visible — and the report's pass rate counts repetitions, as the run's gate does.
+    /// <c>scripts/run-ai-evaluations.sh</c> reads earlier runs, which filed the case's verdict in every row, the same way.
+    /// </para>
     /// </remarks>
     private static async Task RecordAsync(
         ReportingConfiguration reporting,
         string scenarioName,
         string modelName,
-        int passed,
+        bool[] repetitionsPassed,
         bool holds,
         string rule,
         CachedAnswerTally[] tallies,
         CancellationToken cancellationToken)
     {
         var repetitions = tallies.Length;
-        List<(ScenarioRunResult Result, CachedAnswerTally Tally)> filed = [];
+        List<(ScenarioRunResult Result, CachedAnswerTally Tally, bool Passed)> filed = [];
 
         for (var repetition = 1; repetition <= repetitions; repetition++)
         {
@@ -199,29 +209,31 @@ internal static class EvaluationRepetitions
                 EvaluationStore.IterationNameFor(modelName, repetition),
                 cancellationToken))
             {
-                filed.Add((result, tallies[repetition - 1]));
+                filed.Add((result, tallies[repetition - 1], repetitionsPassed[repetition - 1]));
             }
         }
 
+        var passed = repetitionsPassed.Count(static repetitionPassed => repetitionPassed);
         var reason = string.Create(
             CultureInfo.InvariantCulture,
             $"{passed} of {repetitions} passed, against {rule}.");
-        var share = new NumericMetric(PassingShareMetricName, (double)passed / repetitions, reason)
-        {
-            Interpretation = new EvaluationMetricInterpretation(
-                holds ? EvaluationRating.Good : EvaluationRating.Unacceptable,
-                failed: !holds,
-                reason),
-        };
         var cost = EvaluationCost.SumOver([.. filed.Select(static filing => filing.Result.EvaluationResult)]);
 
-        foreach (var (result, tally) in filed)
+        foreach (var (result, tally, repetitionPassed) in filed)
         {
             var origin = string.Create(
                 CultureInfo.InvariantCulture,
                 $"{tally.Replayed} of the {tally.Replayed + tally.Reused + tally.Asked} answer(s) the model gave in this repetition were replayed from an earlier run, {tally.Reused} reused from this run's own, and {tally.Asked} asked afresh.");
 
-            result.EvaluationResult.Metrics[share.Name] = share;
+            result.EvaluationResult.Metrics[PassingShareMetricName] = new NumericMetric(PassingShareMetricName, (double)passed / repetitions, reason)
+            {
+                Interpretation = (holds, repetitionPassed) switch
+                {
+                    (true, _) => new EvaluationMetricInterpretation(EvaluationRating.Good, failed: false, reason),
+                    (false, true) => new EvaluationMetricInterpretation(EvaluationRating.Inconclusive, failed: false, reason),
+                    (false, false) => new EvaluationMetricInterpretation(EvaluationRating.Unacceptable, failed: true, reason),
+                },
+            };
             result.EvaluationResult.Metrics[cost.Name] = cost;
             result.EvaluationResult.Metrics[ReplayedAnswersMetricName] = new NumericMetric(ReplayedAnswersMetricName, tally.Replayed, origin);
             result.EvaluationResult.Metrics[ReusedAnswersMetricName] = new NumericMetric(ReusedAnswersMetricName, tally.Reused, origin);

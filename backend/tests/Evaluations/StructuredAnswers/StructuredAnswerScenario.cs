@@ -189,6 +189,13 @@ internal static class StructuredAnswerScenario
             cancellationToken);
 
         RecordExpectation(verdict, request.ExpectationMetricName, shortfall);
+
+        // The library's own reading fails a rating under four, so a row the scenario counts as passed would read as failed.
+        if (verdict.Metrics.ContainsKey(IntentResolutionMetricName))
+        {
+            EvaluationMetrics.HoldToThreshold(verdict, IntentResolutionMetricName, (int)IntentResolutionThreshold);
+        }
+
         EvaluationCost.Record(verdict, modelName, modelSpend.Take(), judgeSpend.Take());
 
         return new StructuredAnswer(modelName, shortfall, verdict);
