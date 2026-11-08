@@ -13,11 +13,13 @@ using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
 using MailFathom.Application.Emails.SearchEmails;
 using MailFathom.Application.Retrieval;
+using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
@@ -132,6 +134,29 @@ public sealed class MailboxKnowledgeSearchTests
 
         Assert.Equal("Ewa Nowak", passage.SenderDisplayName);
         Assert.Equal("ewa@example.org", passage.SenderAddress);
+    }
+
+    /// <summary>A name longer than a run's whole allowance would spend it on one passage and push every more relevant one out.</summary>
+    [Fact]
+    public async Task FindPassagesAsync_ASenderNameLongerThanACorrespondentsNameMayBe_CutsItToThatLength()
+    {
+        // Arrange
+        var matched = SyntheticEmailSummaries.Create(FirstJuly) with
+        {
+            SenderDisplayName = new string('n', MailAnsweringRunBounds.Default.MaximumRetrievedCharacters),
+        };
+        var index = new InMemoryEmailSearchIndex().With(matched, snippets: "I look after the network");
+        var search = SearchOver(index);
+
+        // Act
+        var passage = Assert.Single((await search.FindPassagesAsync(
+            EveryAccount,
+            EmailKnowledgeQuery.ForText("network"),
+            TestContext.Current.CancellationToken)).Passages);
+
+        // Assert
+        Assert.Equal(new string('n', ContactDisplayName.MaximumLength), passage.SenderDisplayName);
+        Assert.Single(new MailAnsweringRunLedger(MailAnsweringRunBounds.Default).AdmitPassages([passage]));
     }
 
     /// <summary>An answer qualifies what it draws on by where each message came from, and this is the hop that carries it to the passage.</summary>

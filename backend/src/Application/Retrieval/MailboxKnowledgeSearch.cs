@@ -7,6 +7,7 @@ using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
 using MailFathom.Application.Emails.SearchEmails;
+using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Retrieval;
@@ -155,7 +156,7 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
             Folder = summary.Folder,
             Subject = summary.Subject,
             ReceivedAt = summary.ReceivedAt,
-            SenderDisplayName = summary.SenderDisplayName,
+            SenderDisplayName = BoundedSenderName(summary.SenderDisplayName),
             SenderAddress = summary.SenderAddress,
             Provenance = provenance,
             MachineAuthorship = summary.MachineAuthorship,
@@ -178,6 +179,16 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
         match.Kind,
         match.Segment,
         Bounded(string.Join(SnippetSeparator, match.Extracts), bounds));
+
+    /// <summary>Cuts the name a sender wrote to the length a correspondent's name is held to anywhere in this deployment.</summary>
+    /// <remarks>
+    /// The extract is cut and the address is held to its column, but nothing stored bounds the display name, and a
+    /// sender writing a name longer than the run's whole allowance would otherwise spend it on one passage and push every
+    /// more relevant one out of the run. Cut here, so the scan, the run's count, and the written attribute all see the
+    /// same bounded value.
+    /// </remarks>
+    private static string? BoundedSenderName(string? name) =>
+        name is null ? null : MailTextBounds.TruncateAtTextElementBoundary(name, ContactDisplayName.MaximumLength);
 
     /// <summary>Cuts an extract to the size one passage may carry.</summary>
     /// <remarks>

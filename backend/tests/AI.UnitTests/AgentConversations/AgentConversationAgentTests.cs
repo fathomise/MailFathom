@@ -240,6 +240,22 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
         Assert.DoesNotContain(this.conversation.Value.ToString("N"), expected, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>A search matches words rather than translating them, so the Agent is told which languages the accounts it names are kept in.</summary>
+    [Fact]
+    public async Task ComposeAsync_AnAccountKeptInPolish_NamesItsLanguageOnTheTurn()
+    {
+        // Arrange
+        using var provider = new ScriptedProvider(answering: [Answering("The train leaves at 7:10.")], standby: []);
+        var languages = new SyntheticAccountLanguages().Reading(Primary, MailAccountLanguage.Polish);
+
+        // Act
+        await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000), new RecordingEmailKnowledgeSearch(), accountLanguages: languages)
+            .ComposeAsync(this.Brief(), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains("The mailboxes you may search are kept in: Polish.", provider.SentBodies[0], StringComparison.Ordinal);
+    }
+
     [Fact]
     public void StickySessionOf_TheSameConversationTwice_IsTheSameKey()
     {
@@ -329,6 +345,7 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
                 var body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
                 var fromStandby = body.Contains(StandbyModel, StringComparison.Ordinal);
                 this.SentSessions.Add(request.Headers.TryGetValues("x-session-id", out var sessions) ? sessions.Single() : null);
+                this.SentBodies.Add(body);
                 this.StandbyRequestCount += fromStandby ? 1 : 0;
                 var payload = (fromStandby ? standbyScript : answeringScript).Dequeue();
 
@@ -349,10 +366,14 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
         /// <summary>Gets the session each request carried, in the order they arrived, with <see langword="null" /> for one carrying none.</summary>
         public List<string?> SentSessions { get; } = [];
 
+        /// <summary>Gets what each request carried, in the order they arrived, which is where a test reads the turn the model was sent.</summary>
+        public List<string> SentBodies { get; } = [];
+
         public AgentConversationAgent AgentOver(
             ChatGenerationPlan plan,
             IEmailKnowledgeSearch? search = null,
-            MailFolderIdentity[]? foldersWithheldFromAI = null)
+            MailFolderIdentity[]? foldersWithheldFromAI = null,
+            IMailAccountLanguages? accountLanguages = null)
         {
             var transportFactory = Substitute.For<IHttpClientFactory>();
             transportFactory
@@ -408,7 +429,7 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
                 operationRunner,
                 Substitute.For<IAiProviderHealthRecorder>(),
                 SensitiveContentEgressGuards.Inactive(),
-                new SyntheticAccountLanguages(),
+                accountLanguages ?? new SyntheticAccountLanguages(),
                 new EmptyAgentInstructionEnvelope(),
                 readers,
                 NullLoggerFactory.Instance,

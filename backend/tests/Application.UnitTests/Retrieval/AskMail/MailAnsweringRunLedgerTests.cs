@@ -81,15 +81,17 @@ public sealed class MailAnsweringRunLedgerTests
     }
 
     /// <summary>The sender's name and address reach the provider beside the extract, so they spend the run's allowance as the extract does.</summary>
-    [Fact]
-    public void AdmitPassages_APassageWhoseSenderTakesItPastTheCeiling_IsNotHandedOver()
+    [Theory]
+    [InlineData("Ewa Nowak of the network team", null)]
+    [InlineData(null, "ewa.nowak@network.example.org")]
+    public void AdmitPassages_APassageWhoseSenderTakesItPastTheCeiling_IsNotHandedOver(string? displayName, string? address)
     {
         // Arrange
         var ledger = LedgerAllowing(retrievedCharacters: 120);
         var passage = ScriptedEmailKnowledgeSearch.Passage(new string('a', 100)) with
         {
-            SenderDisplayName = "Ewa Nowak",
-            SenderAddress = "ewa.nowak@example.org",
+            SenderDisplayName = displayName,
+            SenderAddress = address,
         };
 
         // Act
