@@ -207,6 +207,33 @@ public sealed class TransientProviderRetryChatClientTests
     }
 
     [Fact]
+    public async Task GetResponseAsync_ACallWaitingToBeAskedAgain_HoldsNoSlotWhileItWaits()
+    {
+        // Arrange
+        var clock = new FakeTimeProvider();
+        using var slots = new SemaphoreSlim(1);
+        using var throttled = new ScriptedProvider(clock, new HttpRequestException("throttled", inner: null, HttpStatusCode.TooManyRequests));
+        using var other = new ScriptedProvider(clock);
+        using var throttledClient = new TransientProviderRetryChatClient(throttled, clock, slots);
+        using var otherClient = new TransientProviderRetryChatClient(other, clock, slots);
+
+        // CA2025 cannot see that both calls are awaited below, before the clients they use leave scope. Holding them
+        // unawaited is the point of the test: a slot still held by the waiting call would leave the other one unsent.
+#pragma warning disable CA2025
+        var throttledCall = AskAsync(throttledClient, TestContext.Current.CancellationToken);
+
+        // Act
+        var otherCall = AskAsync(otherClient, TestContext.Current.CancellationToken);
+#pragma warning restore CA2025
+        var sentWhileTheThrottledCallWaited = (throttled.Calls, other.Calls, throttledCall.IsCompleted);
+        await AdvanceUntilCompletedAsync(clock, throttledCall);
+        await otherCall;
+
+        // Assert
+        Assert.Equal((1, 1, false), sentWhileTheThrottledCallWaited);
+    }
+
+    [Fact]
     public async Task GetResponseAsync_MoreCallsThanTheRunHasSlotsFor_SendsTheNextOnlyOnceASlotIsFree()
     {
         // Arrange

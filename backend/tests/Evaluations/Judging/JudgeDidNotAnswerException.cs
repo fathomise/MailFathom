@@ -6,12 +6,18 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace MailFathom.Evaluations.Judging;
 
-/// <summary>A judge's provider gave no answer at all, after the run had asked it as many times as a busy provider is asked.</summary>
+/// <summary>A judge's call ended in a failure other than the run's own cancellation, so the judge gave no answer at all.</summary>
 /// <remarks>
+/// <para>
+/// Any such failure raises it — a refused request or a rejected credential as much as a provider still busy — and only a
+/// transient one was asked again before it, by the retry beneath the judge's client.
+/// </para>
+/// <para>
 /// Raised beneath the run's response cache, by <see cref="AnonymousJudgeChatClient" />, so nothing is filed for the call
 /// and a later run asks the judge again. <see cref="JudgePanelEvaluator" /> catches it for every judge of the panel, whose
 /// silence leaves its ratings unrated rather than failing the panel. The original failure is deliberately not kept as the
 /// inner exception, because its message and every inner one are where a provider names the model and the address.
+/// </para>
 /// </remarks>
 /// <param name="recordedModel">The name the judge is recorded under, its role and never its model.</param>
 /// <param name="failure">The failure's type and HTTP status, such as <c>ClientResultException 429</c>, and never its message.</param>
