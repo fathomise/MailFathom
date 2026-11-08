@@ -384,6 +384,21 @@ public sealed class EvaluationStoreTests : IDisposable
         Assert.Equal(expected, tags);
     }
 
+    [Theory]
+    [InlineData("MailFathom.Evaluations.Answering.MailAnsweringEvaluations", "section:Answering")]
+    [InlineData("MailFathom.Evaluations.Retrieval.SemanticRetrievalEvaluations", "section:Retrieval")]
+    [InlineData("MailFathom.Evaluations.UnitTests.Reporting.EvaluationStoreTests", null)]
+    [InlineData("MailFathom.Evaluations.Answering.MailAnsweringScenario", null)]
+    [InlineData(null, null)]
+    public void SectionTagOf_TheRunningTestClass_NamesTheSectionOnlyForAPaidEvaluationClass(string? testClassName, string? sectionTag)
+    {
+        // Act
+        var tag = EvaluationStore.SectionTagOf(testClassName);
+
+        // Assert
+        Assert.Equal(sectionTag, tag);
+    }
+
     /// <inheritdoc />
     public void Dispose() => this.store.Delete(recursive: true);
 
