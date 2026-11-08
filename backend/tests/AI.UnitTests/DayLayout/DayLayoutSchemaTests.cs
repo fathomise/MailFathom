@@ -83,6 +83,23 @@ public sealed class DayLayoutSchemaTests
         });
     }
 
+    /// <summary>The sampled corners place every task they defer, so a task deferred without being placed is written by hand.</summary>
+    [Fact]
+    public void Read_ADocumentDeferringATaskItDoesNotPlace_DefersThatTask()
+    {
+        // Arrange
+        const string document = """
+            { "placements": [ { "task": 0, "startAt": "2026-09-21T10:00:00Z", "minutes": 30 } ], "notToday": [1] }
+            """;
+
+        // Act
+        var reading = DayLayoutReading.Read(document, Question);
+
+        // Assert
+        Assert.Equal([Question.Tasks[0].Id], reading.Placements.Select(static placement => placement.Task));
+        Assert.Equal([Question.Tasks[1].Id], reading.NotToday);
+    }
+
     private static (HashSet<PersonalTaskId> Placed, HashSet<PersonalTaskId> Deferred) Written(string document)
     {
         using var parsed = JsonDocument.Parse(document);
