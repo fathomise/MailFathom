@@ -47,7 +47,7 @@ public interface ICalendarEventExtractor
     /// <exception cref="OperationCanceledException">Thrown when the caller cancels.</exception>
     /// <remarks>
     /// It is shown the message the enrichment pass composed rather than one of its own, because the two readings want
-    /// exactly the same thing of a message — its subject, when it arrived, and the opening of its text — and a second
+    /// exactly the same thing of a message — its subject, the instant it is dated by, and the opening of its text — and a second
     /// selection would be a second query over the same rows for the same columns.
     /// </remarks>
     Task<CalendarEventExtraction> ProposeFromEmailAsync(

@@ -58,7 +58,7 @@ offset the text was written in, so neither is asked to guess the other's half.
 | Mail | The message's own metadata: when it arrived, or when it was sent where no receiving server dated it — and for mail the person sent, when it was sent, whichever provider filed the copy |
 | A typed sentence | This deployment's own clock, read in the [time zone the asking person's record states](../operations/configuration-sources.md#the-zone-this-persons-days-are-read-in--timezone) |
 
-Reading the message's own arrival rather than the current time is what makes the same message, read again next month,
+Reading the message's own dating instant rather than the current time is what makes the same message, read again next month,
 resolve *Friday* to the same day it did the first time. A message that carries neither instant is read into nothing
 at all, because every relative day in it would otherwise be resolved against whenever the pass happened to run.
 

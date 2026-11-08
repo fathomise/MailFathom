@@ -173,8 +173,8 @@ on. The passages are **numbered in the turn and cited by number**, and the model
 citation is a position in a list this deployment composed: an answer naming a passage it was not given names nothing,
 and its mark is dropped.
 
-The arrival instant is in the turn because a message saying "by Friday" is resolved against when it arrived rather than
-against now, which is what makes the same message derived again next month resolve to the same day. Mail somebody
+The dating instant is in the turn because a message saying "by Friday" is resolved against when it was dated rather
+than against now, which is what makes the same message derived again next month resolve to the same day. Mail somebody
 else wrote is dated by its arrival, a server's own clock, and by its `Date` header only where no receiving hop recorded
 one. Mail the mailbox wrote is dated by when it was sent, because that is what the person's own "I'll send it before
 Monday" is relative to — and because whether the copy filed in Sent carries an arrival at all depends on the provider,
