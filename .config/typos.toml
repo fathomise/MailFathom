@@ -122,8 +122,15 @@
 # is one long run of SVG path data whose commands and fractions a dictionary reads as two- and three-letter words, so no
 # spelling in them is a decision anybody made. The directory rather than the files, for the reason the fixtures above
 # are: a picture added beside them is the same kind of data.
+#
+# `backend/tests/AI.UnitTests/RecordedAnswers/` holds the answers models wrote to the evaluation cases, kept verbatim so
+# that each agent's reading is replayed over what a model actually sent. It is the fourth kind as well as data: the
+# cases ask in the corpus's languages, so a model answering a Polish or German case answers in Polish or German, and
+# an answer corrected to a dictionary is no longer the answer that was recorded. The directory rather than the files,
+# because an answer recorded for an agent added later is the same kind of data.
 extend-exclude = [
   'backend/src/Application/Localization/ApplicationTexts.pl.resx',
+  'backend/tests/AI.UnitTests/RecordedAnswers/',
   'backend/tests/Infrastructure.UnitTests/Mail/Signatures/Fixtures/',
   'backend/tests/Infrastructure.UnitTests/Mail/Signing/SigningIdentityFixtures.cs',
   'backend/tools/SyntheticMail/corpora/',
