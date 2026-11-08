@@ -50,7 +50,7 @@ reader waits in front of on a small fast model writes a second block rather than
 **Every capability may name a model of its own**, through a `Model` block shaped exactly alike wherever it appears:
 `Chat:MailAnswering`, `Chat:Agent`, `Chat:DiscoveryPlanning`, `Chat:DiscoveryComposition`, `Chat:Enrichment`,
 `Chat:ThreadState`, `Chat:ReplyDrafting`, `Chat:ContactRelationship`, `Chat:SearchPhrasing`, `Chat:RelevanceFilter`,
-`Chat:ImageDescription`, `Chat:BodyCleanup`, `Chat:CalendarEventExtraction`, `Chat:DayLayout`, and
+`Chat:ImageDescription`, `Chat:CalendarEventExtraction`, `Chat:DayLayout`, and
 `Chat:ConversationCompaction`. That is what lets
 one deployment run the per-message derivations and the per-candidate judgement on a cheap fast model while answering
 and drafting keep the best one it pays for, and describe a picture with a vision model while everything else runs on a
@@ -111,7 +111,7 @@ the run's own record, by alias and by that block's own `PublishedModel`, because
 deployment never called is worse than no record at all.
 
 **Every capability's outcome line names the model that answered it**, not the alias the capability was configured
-with. A fallback producing a cleaning proposal, an enrichment mark, a reply draft, a search reading, a thread state, a
+with. A fallback producing an enrichment mark, a reply draft, a search reading, a thread state, a
 Discover plan or a Discover composition is named as the fallback in the line that reports it, and a chat call that
 failed is reported against the endpoint that failed rather than the one asked first.
 
@@ -443,9 +443,8 @@ nothing in the body can override it, and a declared header of the same name is o
 
 ## An answer in one document can be constrained by a schema
 
-Ten agents answer in one JSON document a reader takes apart: reply drafts, thread states, message enrichment, contact
-relationships, Discover planning and composition, calendar-event extraction, the day layout, body cleanup, and the
-search phrase. A model told that shape in prose writes it wrong often enough to lose answers — a number as a string, a
+Nine agents answer in one JSON document a reader takes apart: reply drafts, thread states, message enrichment, contact
+relationships, Discover planning and composition, calendar-event extraction, the day layout, and the search phrase. A model told that shape in prose writes it wrong often enough to lose answers — a number as a string, a
 block as a string holding JSON, a field written beside the object it belongs in. `StructuredOutputs` lets a model whose
 server honours a strict JSON schema be asked for one instead:
 
@@ -482,7 +481,7 @@ declaration, so a chain mixing the two works.
 **One reader serves both, and refuses nothing a schema admits.** Strict mode cannot state a length, a count, a numeric
 range, or a pattern, so each reader keeps every bound it had: where an answer only runs past one, the reader cuts or drops
 the part past it and keeps the answer, and it refuses the answer only where the meaning would be lost — a thread title
-carrying markup, or a body partition that leaves blocks unaccounted for. Every reader follows one policy about members it
+carrying markup. Every reader follows one policy about members it
 was not asked for:
 
 - **A member no level of the document declares is ignored**, so a field a model invented never costs the rest of the answer.
@@ -688,14 +687,6 @@ an arranged day or an image description to a model of its own therefore has that
 role — so a failing cheap endpoint reports the role degraded, and withholds `ask_mail`, although the model questions
 are answered with is working. Routing a capability elsewhere is worth knowing for that reason as much as for the bill, and the warning each
 fall-through writes is what names the endpoint that actually failed.
-
-**The body-cleanup pass records nothing, because the state it would write is not about it.** `Chat:BodyCleanup:Model`
-may name a model of its own, at its own address and under its own credential, and the chat role's state is what decides
-whether `ask_mail` is offered. A cleaning endpoint failing says nothing about whether questions can be answered, so
-recording it there would take a working `ask_mail` out of service on the strength of an endpoint no question is ever
-sent to. What shows a cleaning endpoint failing is the failures themselves in the log, and the reader being shown the
-message uncleaned and told so. Where the pass names the answering model anyway, that endpoint's state is already
-written by the questions themselves.
 
 **Nothing probes a provider to find out.** A paid call made to answer a health check would spend an operator's money on
 every scrape, and the answer would be about a request nobody asked for. What is reported is the outcome of the last real

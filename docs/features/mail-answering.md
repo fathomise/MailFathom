@@ -546,8 +546,8 @@ question turn, the `<retrieved-mail>` envelope, the relevance judgement below, t
 `read_thread`, `read_calendar`, and `read_tasks` results, the Agent's earlier turns where they are not plain text the
 person or the Agent wrote, the turn a compaction of an Agent conversation reads,
 [reply drafting](reply-drafting.md#what-reaches-the-provider-and-what-does-not)'s turn, and the turns of enrichment, a
-conversation's state, contact relationships, calendar-event extraction, the day layout, Discover's composition, and body
-cleanup. Only the writer names elements and attributes, and it escapes every
+conversation's state, contact relationships, calendar-event extraction, the day layout, and Discover's composition. Only
+the writer names elements and attributes, and it escapes every
 value wherever the value sits — the extract, the subject, a calendar title, and a task as text content, and the
 account alias, the folder path, an attachment's file name, and a sender's name and address as attributes — so none can end an
 element or open one. A message whose text closes the envelope and opens a forged instruction arrives as that text:
@@ -555,7 +555,7 @@ visible, attributed to the message that sent it, and inert. A character that has
 of a surrogate pair — is replaced rather than allowed to fail the turn. The writer also holds a turn's
 character budget: a quoted value it has to shorten is cut at a text-element boundary, its element says so in a
 `cut="true"` attribute, and every element it opened is closed however much was cut. Enrichment, a conversation's state,
-contact relationships, calendar-event extraction, the day layout, and body cleanup hand their agent's request bound to
+contact relationships, calendar-event extraction, and the day layout hand their agent's request bound to
 the writer, and a turn whose structure still outgrows it is written again under a smaller budget, so the request is cut
 to fit rather than refused. Discover's composition is written with no budget, and a turn past its request bound is
 still refused. A lookup that found nothing writes
@@ -583,8 +583,8 @@ A message does not need to give an order to do harm. It only has to state someth
 bank account changed, that a colleague needs a payment approved today — and an answer that restates it hands the claim to
 the person in the assistant's voice. So the operations that quote a message to a model write where the message came
 from as attributes of the element the writer wrote for it: `ask_mail`, the Agent's `search_mail` and `read_thread`,
-enrichment, a conversation's state, and Discover. Reply drafting, contact relationships, calendar-event extraction, and
-body cleanup quote mail too and carry no provenance yet; their turns carry the clause below, which applies only where a
+enrichment, a conversation's state, and Discover. Reply drafting, contact relationships, and calendar-event extraction
+quote mail too and carry no provenance yet; their turns carry the clause below, which applies only where a
 turn carries the attributes. The attributes are these:
 
 | Attribute | Written | What it says |

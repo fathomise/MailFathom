@@ -64,10 +64,10 @@ export interface ClientPreferencesInForce {
     readonly expandWholeThread: boolean;
 
     /**
-     * Which of the three renderings an open message is drawn on.
+     * Which of the two renderings an open message is drawn on.
      *
      * Unset reads as the reduced document, which is what this client has always drawn: the closed document tree
-     * ADR 0024 takes, with the cleaned rendering and the sender's own markup each one control away.
+     * ADR 0024 takes, with the sender's own markup one control away.
      */
     readonly messageView: ClientMessageView;
 

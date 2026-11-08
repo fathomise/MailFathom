@@ -5,7 +5,6 @@
 using System.Collections.Frozen;
 using System.Xml.Linq;
 using MailFathom.AI.AgentConversations;
-using MailFathom.AI.BodyCleanup;
 using MailFathom.AI.CalendarEvents;
 using MailFathom.AI.ContactRelationships;
 using MailFathom.AI.DayLayout;
@@ -21,7 +20,6 @@ using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Discovery.Planning;
 using MailFathom.Application.Discovery.Presentation.Citations;
-using MailFathom.Application.EmailContent.Cleaning;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Search;
@@ -252,15 +250,6 @@ public sealed class QuotedTextContainmentTests
             ["day layout: commitment title"] = (
                 static text => DayLayoutInstructions.ComposeLayoutTurn(Day(), [Harmless], [text]),
                 DayLayoutInstructions.TitleElementName),
-            ["outline: subject"] = (
-                static text => MailBodyCleanupInstructions.ComposeOutlineTurn(new CleanableMailBody(text, Harmless, [Block(0, Harmless)])),
-                MailBodyCleanupInstructions.SubjectElementName),
-            ["outline: sender"] = (
-                static text => MailBodyCleanupInstructions.ComposeOutlineTurn(new CleanableMailBody(Harmless, text, [Block(0, Harmless)])),
-                MailBodyCleanupInstructions.SenderElementName),
-            ["outline: block"] = (
-                static text => MailBodyCleanupInstructions.ComposeOutlineTurn(new CleanableMailBody(Harmless, Harmless, [Block(0, Harmless), Block(1, text)])),
-                MailBodyCleanupInstructions.BlockElementName),
             ["discovery: question"] = (
                 static text => DiscoveryCompositionInstructions.ComposeCompositionTurn(text, DiscoveryIntent.FindFact, [DiscoverySource(Harmless, Harmless)]),
                 AgentTurnDocument.AskElementName),
@@ -389,8 +378,6 @@ public sealed class QuotedTextContainmentTests
         Now.AddHours(9),
         [new DayLayoutTask(PersonalTaskId.Create(Guid.CreateVersion7()), Harmless, DueOn: null)],
         [new DayLayoutCommitment(Harmless, Now.AddHours(1), End: null)]);
-
-    private static CleanableMailBlock Block(int index, string opening) => new(index, "paragraph", LinkCount: 0, opening);
 
     private static DiscoveryTurnSource DiscoverySource(string label, string extract, EmailProvenance? provenance = null) =>
         new("s1", label, extract, Now, provenance ?? KnowledgePassages.KnownCorrespondent);

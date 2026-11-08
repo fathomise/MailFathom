@@ -21,7 +21,7 @@
 // them for both panels, so nothing here computes a contrast and nothing asks which theme is in force.
 //
 // The sender's own markup is the surface that still shows their colours, and that is what that surface is for. This
-// governs the reduced document and the cleaned rendering drawn from it, those being one tree.
+// governs the reduced document.
 
 /** The one notation `Client.Backend` lets a run's colour through as. */
 const sixDigitHex = /^#[0-9a-f]{6}$/iu;

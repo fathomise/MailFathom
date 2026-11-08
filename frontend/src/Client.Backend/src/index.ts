@@ -248,16 +248,12 @@ export {
     type MailEnrichmentSource,
 } from './mailEnrichment';
 export {
-    cleanedMailBodyRoute,
     mailBodyRoute,
-    readCleanedMailBody,
     readMailBody,
-    type CleanedMailBody,
     type MailBlockAlignment,
     type MailBody,
     type MailBodyAsk,
     type MailBodyAvailability,
-    type MailBodyCleaning,
     type MailBodyText,
     type MailBodyTruncation,
     type MailDocument,

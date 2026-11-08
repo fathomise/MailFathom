@@ -1224,7 +1224,7 @@ tab strip under the head and the version sits in a footer.
 | Notifications cleared on read | `notifAutoClear` | the *Notifications* tab's switch; while it is on, a `Remove` select offers Right away, After 1 hour, After 24 hours and After 7 days |
 | Notified on this device | `notifDevice` | the *Notifications* tab's `This device` group, off by default — *When the window is not in front of you, this device tells you how many things arrived and of what kind - never from whom, never what it is about.* |
 | How long one stays up | `notifDuration` / `notifDurationLabel` | the range beneath it, 1 to 30 whole seconds and 5 by default, drawn as `<n> s` in the accent; its copy ties the value to the undo window, which *waits exactly as long as its notification is up* |
-| The message view | `viewAiStyle` / `viewSimpleStyle` / `viewHtmlStyle` | *Application* — a `Message view` strip of three, *AI simplified*, *Simplified* and *Original* in that order, each drawn by one `segStyle` helper that is the only place the segment's own styling lives |
+| The message view | `viewSimpleStyle` / `viewHtmlStyle` | *Application* — a `Message view` strip of two, *Simplified* and *Original* in that order, each drawn by one `segStyle` helper that is the only place the segment's own styling lives |
 | Images loaded automatically | `autoImages` | *Application* — while it is on, a warning states the image is fetched from the sender's server and is how tracking pixels work |
 | Layout reset | `resetLayout` / `resetLayoutDone` | *Reset layout* under `Layout on this device`; the confirmation *Layout restored to the defaults.* stands for 3 200 ms and then goes |
 
@@ -1239,18 +1239,14 @@ its warning moved into the account editor, and where the global switch stood the
 Accounts and pick the account*. Which is why the editor's own group is captioned
 `Before sending to the model - this account only` and its copy says *from this account*.
 
-The message view is **three** options rather than two, drawn *AI simplified*, *Simplified*,
-*Original* — the last reading **Original** and not *HTML*. `msgView` carries `"ai"`, `"simple"` and
-`"html"` behind them, and *Simplified* is what an unset value draws: `viewSimpleStyle` is on whenever
-`msgView` is neither of the other two, rather than testing for its own value.
+The message view is **two** options, drawn *Simplified* and *Original* — the second reading
+**Original** and not *HTML*. `msgView` carries `"simple"` and `"html"` behind them, and *Simplified*
+is what an unset value draws: `viewSimpleStyle` is on whenever `msgView` is not `"html"`, rather than
+testing for its own value. No model decides how a message is drawn, so neither option has a state in
+which the reading pane says a model failed to answer.
 
-`viewHint` changes with the choice and `htmlModeWarn` does not: the warning, the inline original and
-the *Show the original message?* confirmation all still turn on `msgView === "html"` alone, so
-*AI simplified* reveals none of them and behaves as *Simplified* does everywhere but the hint. That
-hint is the panel's longest copy and states what the view is: the same deterministic cleanup as
-*Simplified*, with AI deciding only what to keep and what to drop, never rewriting a word, so the
-text stays exactly as the sender wrote it and only the presentation changes — usually cleaner than
-plain *Simplified*, especially on newsletters and long reply chains.
+`viewHint` changes with the choice, and the warning, the inline original and the *Show the original
+message?* confirmation all turn on `msgView === "html"`.
 
 ### What a refresh turns up, and which row animates
 

@@ -177,20 +177,6 @@ describe('useClientPreferences', () => {
         });
     });
 
-    // The third of the three is the one this change added, and it travels as itself rather than as the absence of the
-    // other two: a client reading it as anything else would draw the reduced document for somebody who asked for a
-    // cleaning and report the setting as having had no effect.
-    it('answers the message view as the cleaned rendering once the person has chosen it', async () => {
-        const { transport } = recording(
-            stored({ telemetryEnabled: true, theme: 'system', openMailInTabs: false, messageView: 'cleaned' }),
-        );
-        const { result } = reading(transport);
-
-        await waitFor(() => {
-            expect(result.current.preferences.messageView).toBe('cleaned');
-        });
-    });
-
     it('lets the deployment’s theme replace what the device opened in', async () => {
         const { transport } = recording(stored({ telemetryEnabled: true, theme: 'dark', openMailInTabs: false }));
         const { result } = reading(transport);

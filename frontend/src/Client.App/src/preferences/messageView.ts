@@ -5,7 +5,7 @@
 import { createContext, useContext } from 'react';
 import type { ClientMessageView } from '@mailfathom/client-backend';
 
-// Which of the three reading surfaces a message is drawn on, reached by the components that draw one.
+// Which of the two reading surfaces a message is drawn on, reached by the components that draw one.
 //
 // A context rather than a prop, and that is the exception the rule in `frontend/src/AGENTS.md` § *Components* names
 // rather than a way around it: the value decides how *every* message anywhere in the client is drawn, and the two
@@ -23,7 +23,7 @@ import type { ClientMessageView } from '@mailfathom/client-backend';
  */
 export const MessageViewContext = createContext<ClientMessageView>('reduced');
 
-/** Which of the three renderings the message being drawn is shown as. */
+/** Which of the two renderings the message being drawn is shown as. */
 export function useMessageView(): ClientMessageView {
     return useContext(MessageViewContext);
 }

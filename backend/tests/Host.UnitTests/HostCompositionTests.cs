@@ -288,7 +288,7 @@ public sealed class HostCompositionTests
                 .. ChatEndpoint,
                 new("Chat:CalendarEventExtraction:Enabled", "true"),
             ],
-            ["bodies cleaned on a model of their own"] =
+            ["a day laid out on a model of its own"] =
             [
                 .. ChatEndpoint,
                 new("Chat:Models:1:Alias", "cheap"),
@@ -296,7 +296,7 @@ public sealed class HostCompositionTests
                 new("Chat:Models:1:Address", "http://models.example.test/v1/"),
                 new("Chat:Models:1:Unauthenticated", "true"),
                 new("Chat:MainModel:Alias", "chat"),
-                new("Chat:BodyCleanup:Model:Alias", "cheap"),
+                new("Chat:DayLayout:Model:Alias", "cheap"),
             ],
             ["replies drafted from a conversation"] =
             [

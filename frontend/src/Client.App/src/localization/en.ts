@@ -639,11 +639,8 @@ export const en = {
     'settings.timeZoneNotStored':
         'That time zone was not saved to the server, so your dates are still written in the old one.',
     'settings.messageView': 'Message view',
-    'settings.messageViewCleaned': 'AI simplified',
     'settings.messageViewReduced': 'Simplified',
     'settings.messageViewHtml': 'Original',
-    'settings.messageViewCleanedExplanation':
-        'The same deterministic cleanup as Simplified, with AI deciding only what to keep and what to drop - it never rewrites a word, so the text stays exactly as the sender wrote it; only the presentation changes. Usually cleaner than plain Simplified, especially on newsletters and long reply chains.',
     'settings.messageViewReducedExplanation':
         'Messages are shown as cleaned-up text; the original is one control away on the message head.',
     'settings.messageViewHtmlExplanation':
@@ -1690,15 +1687,6 @@ export const en = {
     'body.markupFitting': 'Fitting the height to the content…',
     'body.markupIsolated': "The sender's HTML in isolation - scripts and remote resources blocked",
     'body.markupNotMeasured': 'The height of this content could not be measured, so this one frame scrolls on its own',
-    'body.cleaning': 'Deciding what of this message to keep…',
-    'body.cleaningNotActivated':
-        'This server does not simplify messages with a model, so the simplified version is shown.',
-    'body.cleaningAllowanceExhausted':
-        "This server's allowance for the period is spent, so the simplified version is shown.",
-    'body.cleaningProviderUnavailable': 'The AI did not answer, so the simplified version is shown.',
-    'body.cleaningAnswerRejected': 'The answer the model gave could not be used, so the simplified version is shown.',
-    'body.cleaningWithheldFromAI': 'This message is withheld from AI, so the simplified version is shown.',
-    'body.cleaningNotRead': 'This message could not be simplified by a model, so the simplified version is shown.',
 
     'body.markupAbsent':
         'The sender wrote no formatted version of this message, so it is shown as the reduced version instead.',

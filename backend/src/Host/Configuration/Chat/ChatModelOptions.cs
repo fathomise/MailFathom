@@ -90,17 +90,13 @@ internal sealed class ChatModelOptions : IValidatableObject
     /// <remarks>Present rather than nullable for the reason the blocks above are: its own <c>Enabled</c> is what says whether a drafting runs, and on is the default for the reason the block beneath it is on — the block itself says why, and what turning it off leaves is the composer somebody writes in themselves.</remarks>
     public ReplyDraftingOptions ReplyDrafting { get; set; } = new();
 
-    /// <summary>Gets or sets which model the cleaned rendering of a message body is decided by.</summary>
-    /// <remarks>Present rather than nullable for the reason the blocks above are, and the one of them that carries no switch at all — the block itself says why, and what decides whether a body is cleaned is the reader's own preference.</remarks>
-    public BodyCleanupOptions BodyCleanup { get; set; } = new();
-
     /// <summary>Gets or sets whether a sentence typed into the search field is read into the filters it describes.</summary>
     /// <remarks>Present rather than nullable for the reason the three blocks above are, and on by default as the block above it is — the block itself says why, and what turning it off leaves is the word search every deployment serves.</remarks>
     public MailSearchPhrasingOptions SearchPhrasing { get; set; } = new();
 
     /// <summary>Gets or sets which declared model arranges a day when somebody asks for one.</summary>
     /// <remarks>
-    /// A block carrying the reference and nothing else, and one of the two that carries no switch at all. What decides
+    /// A block carrying the reference and nothing else, and no switch at all. What decides
     /// whether a day is ever arranged is the person pressing the control, not a key an operator writes: an instance
     /// that declared a model offers it, and one that declared none says so when it is asked.
     /// </remarks>
@@ -192,7 +188,6 @@ internal sealed class ChatModelOptions : IValidatableObject
         ChatCapability.SearchPhrasing => this.SearchPhrasing.Model,
         ChatCapability.RelevanceFilter => this.RelevanceFilter.Model,
         ChatCapability.ImageDescription => this.ImageDescription.Model,
-        ChatCapability.BodyCleanup => this.BodyCleanup.Model,
         ChatCapability.CalendarEventExtraction => this.CalendarEventExtraction.Model,
         ChatCapability.DayLayout => this.DayLayout.Model,
         ChatCapability.Agent => this.Agent.Model,

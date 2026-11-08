@@ -157,7 +157,7 @@ public sealed class ChatGenerationPlanMapperTests
     public void Map_ACapabilityNamingNoModel_RoutesToTheMainModel()
     {
         // Act
-        var plan = ChatGenerationPlanMapper.Map(RoutedSection(), ChatCapability.BodyCleanup);
+        var plan = ChatGenerationPlanMapper.Map(RoutedSection(), ChatCapability.DayLayout);
 
         // Assert
         Assert.NotNull(plan);
@@ -257,10 +257,10 @@ public sealed class ChatGenerationPlanMapperTests
     {
         // Arrange
         var settings = new ChatModelOptions();
-        settings.BodyCleanup.Model.Alias = "cheap";
+        settings.DayLayout.Model.Alias = "cheap";
 
         // Act
-        var plan = ChatGenerationPlanMapper.Map(settings, ChatCapability.BodyCleanup);
+        var plan = ChatGenerationPlanMapper.Map(settings, ChatCapability.DayLayout);
 
         // Assert
         Assert.Null(plan);

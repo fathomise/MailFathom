@@ -242,8 +242,7 @@ leaves it out by the same predicate that leaves out spam, so `ask_mail`, Discove
 reply drafting, a contact's correspondence, and a conversation's state never reach it, and a read that names one by
 its identifier answers as if it did not exist. Nothing is derived from it either: no passage is cut from it and no
 vector embedded, no reading or mark is derived, no date is read out of it, so no proposed event of the calendar the day
-layout arranges comes from it, no spam stage judges it, no conversation's state counts it, and body cleanup sends none
-of it to a model — the person is shown its reduced body instead. What earlier releases derived from such mail was removed when the database was brought to this release.
+layout arranges comes from it, no spam stage judges it, and no conversation's state counts it. What earlier releases derived from such mail was removed when the database was brought to this release.
 
 The Agent reads it under a reader of its own, `ConversationAgent`, which sees the folders an agent sees and admits
 this mail where an agent's scope does not, so it can answer what the person wrote and has not sent. Its `search_mail`
