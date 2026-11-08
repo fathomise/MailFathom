@@ -188,13 +188,13 @@ public sealed partial class SpamClassificationScenarioTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_AModelCallingEveryBusinessEmailCompromisePhishing_FailsThatRecallAndThePrecisionOfPhishing()
+    public async Task RunAsync_AModelCallingEveryBusinessEmailCompromiseScam_FailsThatRecallAndThePrecisionOfScam()
     {
         // Arrange
         using var model = new LabelReadingDecisionClient(static scenario => scenario.Expected switch
         {
             null => SpamClassificationQuestions.NotSpamOption,
-            SpamSubcategory.BusinessEmailCompromise => SpamCaseOutcome.OptionOf(SpamSubcategory.Phishing),
+            SpamSubcategory.BusinessEmailCompromise => SpamCaseOutcome.OptionOf(SpamSubcategory.Scam),
             { } kind => SpamCaseOutcome.OptionOf(kind),
         });
 
@@ -203,7 +203,7 @@ public sealed partial class SpamClassificationScenarioTests : IDisposable
 
         // Assert
         Assert.Equal(
-            [SpamClassificationEvaluator.PrecisionName(SpamSubcategory.Phishing), SpamClassificationEvaluator.RecallName(SpamSubcategory.BusinessEmailCompromise)],
+            [SpamClassificationEvaluator.PrecisionName(SpamSubcategory.Scam), SpamClassificationEvaluator.RecallName(SpamSubcategory.BusinessEmailCompromise)],
             FailedMetrics(verdict));
     }
 
