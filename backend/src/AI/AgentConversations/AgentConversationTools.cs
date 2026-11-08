@@ -163,7 +163,7 @@ internal sealed class AgentConversationTools
         if (this.readers.Authorization.Permits(MailFathomPermission.MailRead))
         {
             tools.Add(new ReportingFunction(this.retrieval.CreateSearchTool(), this.journal, AgentActivity.SearchingMail));
-            tools.Add(AIFunctionFactory.Create(this.ReadThreadAsync, "read_thread", "Reads the whole email conversation a message belongs to: every message's sender, date, subject, and body. Pass the id of any message in it."));
+            tools.Add(AIFunctionFactory.Create(this.ReadThreadAsync, "read_thread", $"Reads the email conversation a message belongs to, up to its {MaximumThreadMessages} newest messages: each one's sender, date, subject, and body. Pass the id of any message in it, or of the conversation; where the message is older than those, the reading ends at it instead. The reading says how many earlier or later messages it left out."));
             tools.Add(AIFunctionFactory.Create(this.ShowThreadStateAsync, "show_thread_state", "Shows the person where the conversation a message belongs to stands — what was agreed, what is still open, what somebody owes — exactly as it was already derived. The reading is placed in the conversation for them; do not restate it."));
         }
 
@@ -261,14 +261,18 @@ internal sealed class AgentConversationTools
     {
         await this.ReportAsync(AgentActivity.ReadingThread, cancellationToken);
 
-        if (await this.ReadConversationAsync(messageId, cancellationToken) is not { Count: > 0 } messages)
+        if (await this.ReadConversationAsync(messageId, cancellationToken) is not { Messages.Count: > 0 } conversation)
         {
             return "No message with that id is readable here.";
         }
 
-        var readings = await this.GuardedReadingsOfAsync(messages.Take(MaximumThreadMessages).ToArray(), cancellationToken);
+        var readings = await this.GuardedReadingsOfAsync(conversation.Messages, cancellationToken);
 
-        return AgentConversationReadings.Thread(readings);
+        return AgentConversationReadings.Thread(
+            readings,
+            conversation.ThreadId,
+            conversation.EarlierLeftOut,
+            conversation.LaterLeftOut);
     }
 
     /// <summary>Reads where each shown message came from and guards the ones it answers for.</summary>
@@ -366,10 +370,9 @@ internal sealed class AgentConversationTools
     {
         await this.ReportAsync(AgentActivity.ReadingThread, cancellationToken);
 
-        if (await this.ReadConversationAsync(messageId, cancellationToken) is not { Count: > 0 } messages
-            || messages[0].Thread is not { } thread
-            || await this.readers.StateBrowser.ReadStateAsync(thread.ThreadId, MailboxReaderKind.Agent, cancellationToken) is not { } state
-            || await this.ThreadStateBlockOfAsync(state, messages, cancellationToken) is not { } block)
+        if (await this.ReadConversationAsync(messageId, cancellationToken) is not { ThreadId: { } thread } conversation
+            || await this.readers.StateBrowser.ReadStateAsync(thread, MailboxReaderKind.Agent, cancellationToken) is not { } state
+            || await this.ThreadStateBlockOfAsync(state, conversation.Messages, cancellationToken) is not { } block)
         {
             return "This conversation has no reading yet. Answer from its messages instead.";
         }
@@ -775,22 +778,34 @@ internal sealed class AgentConversationTools
     private static EmailAddress? SenderOf(ReadEmailContent message) =>
         message.Headers.Participants.FirstOrDefault(static participant => participant.Role is EmailAddressRole.From)?.Address;
 
-    private async Task<IReadOnlyList<ReadEmailContent>?> ReadConversationAsync(string messageId, CancellationToken cancellationToken)
+    /// <summary>Reads the stretch of one conversation a reading shows, in the conversation's order.</summary>
+    /// <remarks>
+    /// <para>
+    /// The stretch is the conversation's newest <see cref="MaximumThreadMessages" />, because what arrived last is what a
+    /// question about a conversation is most often about, and the content read answers a named conversation from its
+    /// oldest message. Where the id names a message older than that stretch, the stretch ends at it instead, so the
+    /// message asked about is read with what led to it. Whatever falls outside is counted rather than dropped in silence,
+    /// so a model reading part of a long conversation knows it has.
+    /// </para>
+    /// <para>
+    /// The content read names the messages it did not serve, so the stretch is read from those identities a bounded
+    /// read at a time, and the messages the first read already served are not read again.
+    /// </para>
+    /// </remarks>
+    private async Task<ShownConversation?> ReadConversationAsync(string messageId, CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(messageId, out var parsed))
         {
             return null;
         }
 
-        var opened = await this.readers.ContentReader.ReadContentAsync(
-            GetEmailContentRequest.Create([StoredEmailId.Create(parsed)]),
-            cancellationToken);
-
+        var named = StoredEmailId.Create(parsed);
+        var opened = await this.readers.ContentReader.ReadContentAsync(GetEmailContentRequest.Create([named]), cancellationToken);
         var message = opened.Emails.Count is 0 ? null : opened.Emails[0].Content;
 
         if (message is { Thread: null })
         {
-            return [message];
+            return new ShownConversation([message], ThreadId: null, EarlierLeftOut: 0, LaterLeftOut: 0);
         }
 
         // The id may name the conversation itself, which is how the turn names the one the person is looking at.
@@ -798,9 +813,44 @@ internal sealed class AgentConversationTools
         var conversation = await this.readers.ContentReader.ReadContentAsync(
             GetEmailContentRequest.CreateForThread(thread),
             cancellationToken);
+        var read = ContentsOf(conversation).ToDictionary(static content => content.StoredEmailId);
+        StoredEmailId[] order =
+        [
+            .. conversation.Emails.Select(static outcome => outcome.StoredEmailId),
+            .. conversation.UnreadThreadEmails,
+        ];
 
-        return [.. conversation.Emails.Select(static outcome => outcome.Content).OfType<ReadEmailContent>()];
+        var namedAt = message is null ? -1 : Array.IndexOf(order, named);
+        var end = namedAt >= 0 && namedAt < order.Length - MaximumThreadMessages ? namedAt : order.Length - 1;
+        var start = Math.Max(0, end - MaximumThreadMessages + 1);
+        var shown = order[start..(end + 1)];
+
+        var unreadBatches = shown
+            .Where(storedEmailId => !read.ContainsKey(storedEmailId))
+            .Chunk(GetEmailContentRequest.MaximumEmails)
+            .ToArray();
+
+        foreach (var unread in unreadBatches)
+        {
+            var more = await this.readers.ContentReader.ReadContentAsync(GetEmailContentRequest.Create(unread), cancellationToken);
+
+            foreach (var content in ContentsOf(more))
+            {
+                read[content.StoredEmailId] = content;
+            }
+        }
+
+        ReadEmailContent[] messages = [.. shown.Where(read.ContainsKey).Select(storedEmailId => read[storedEmailId])];
+
+        return new ShownConversation(
+            messages,
+            messages.FirstOrDefault()?.Thread?.ThreadId,
+            EarlierLeftOut: start,
+            LaterLeftOut: order.Length - 1 - end);
     }
+
+    private static IEnumerable<ReadEmailContent> ContentsOf(GetEmailContentResult result) =>
+        result.Emails.Select(static outcome => outcome.Content).OfType<ReadEmailContent>();
 
     private async Task<ThreadStateBlock?> ThreadStateBlockOfAsync(
         EmailThreadState state,
@@ -898,6 +948,17 @@ internal sealed class AgentConversationTools
             this.journal.Stopping.ThrowIfCancellationRequested();
         }
     }
+
+    /// <summary>The messages of one conversation a reading shows, and how many it left out on either side of them.</summary>
+    /// <param name="Messages">The messages shown, in the conversation's order.</param>
+    /// <param name="ThreadId">The conversation as its messages name it, which a reading may be repeated with to reach its newest messages, or <see langword="null" /> where nothing shown belongs to one.</param>
+    /// <param name="EarlierLeftOut">How many of the conversation's messages come before the first one shown.</param>
+    /// <param name="LaterLeftOut">How many of the conversation's messages come after the last one shown.</param>
+    private sealed record ShownConversation(
+        IReadOnlyList<ReadEmailContent> Messages,
+        EmailThreadId? ThreadId,
+        int EarlierLeftOut,
+        int LaterLeftOut);
 
     /// <summary>A tool that says what the run is doing before it does it.</summary>
     private sealed class ReportingFunction(AIFunction inner, AgentAnswerJournal journal, AgentActivity activity) : DelegatingAIFunction(inner)

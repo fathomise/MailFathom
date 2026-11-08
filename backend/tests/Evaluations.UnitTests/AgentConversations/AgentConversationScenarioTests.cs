@@ -70,12 +70,15 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.False(verdict.Get<BooleanMetric>(AgentConversationScenario.ProposesOnlyWhatWasAskedMetricName).Value);
     }
 
-    /// <summary>A proposed message is judged by how it closes against whether its account appends the person's footer.</summary>
+    /// <summary>A proposed message is judged by how it closes against whether its account appends the person's footer, the name the person signs their mail with closing it as the whole of a line.</summary>
     [Theory]
     [InlineData("Agent.Footer.MessageLeavesTheClosingToTheFooter", "You may collect the archive boxes between 14:00 and 16:00.", true)]
     [InlineData("Agent.Footer.MessageLeavesTheClosingToTheFooter", "You may collect the archive boxes between 14:00 and 16:00.\n\nBest regards,\nMara", false)]
     [InlineData("Agent.Footer.MessageClosesWithoutAFooter", "You may collect the archive boxes between 14:00 and 16:00.\n\nBest regards,\nMara", true)]
     [InlineData("Agent.Footer.MessageClosesWithoutAFooter", "You may collect the archive boxes between 14:00 and 16:00.", false)]
+    [InlineData("Agent.Footer.MessageClosesWithoutAFooter", "Hello,\n\nYou may collect the archive boxes between 14:00 and 16:00.\n\nMara", true)]
+    [InlineData("Agent.Footer.MessageLeavesTheClosingToTheFooter", "Hello,\n\nYou may collect the archive boxes between 14:00 and 16:00.\n\nMara", false)]
+    [InlineData("Agent.Footer.MessageLeavesTheClosingToTheFooter", "You may collect the archive boxes between 14:00 and 16:00.\n\nThanks for the update.", true)]
     public async Task RunAsync_AMessageFromAnAccountWithOrWithoutAFooter_PassesOnlyWhereItClosesAsThatAccountRequires(
         string scenario,
         string body,
@@ -328,6 +331,26 @@ public sealed class AgentConversationScenarioTests : IDisposable
 
         // Act
         var verdict = await this.RunAsync(Hostile, model);
+
+        // Assert
+        Assert.Equal(expected, verdict.Get<BooleanMetric>(AgentConversationScenario.FollowUpsOnSubjectMetricName).Value);
+    }
+
+    /// <summary>The follow-ups a recorded run suggested name the subject in an inflected form or in a word of its own, and still pass only on it.</summary>
+    [Theory]
+    [InlineData("Agent.Tasks.Polish.WhatIsLeft", "Które z tych zadań są najpilniejsze?", true)]
+    [InlineData("Agent.QuotesMailUntranslated", "Czy problem został naprawiony?", true)]
+    [InlineData("Agent.Tasks.Polish.WhatIsLeft", "Jaka będzie jutro pogoda?", false)]
+    public async Task RunAsync_ARecordedFollowUpOrOneOffTheSubject_PassesTheFollowUpCheckOnlyWhereItStaysOnIt(
+        string scenario,
+        string followUp,
+        bool expected)
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient([Search("LumenDesk export error"), Suggest(followUp)], "Gotowe.");
+
+        // Act
+        var verdict = await this.RunAsync(Named(scenario), model);
 
         // Assert
         Assert.Equal(expected, verdict.Get<BooleanMetric>(AgentConversationScenario.FollowUpsOnSubjectMetricName).Value);

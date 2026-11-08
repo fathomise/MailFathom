@@ -73,7 +73,26 @@ public sealed class FalseClaimMailTests
     public void Misreported_AnAnswer_IsRefusedOnlyWhereItReportsTheAccountAgainstItsProvenance(int claim, string answer, bool reportedAsAllowed)
     {
         // Act
-        var misreported = Claims[claim].Misreported(answer);
+        var misreported = Claims[claim].Misreported(answer, [Claims[claim].Message.GroundingText]);
+
+        // Assert
+        Assert.Equal(reportedAsAllowed, misreported is null);
+    }
+
+    /// <summary>An extract cut off inside the account shows only its leading groups, and an answer is held to exactly those, both ways.</summary>
+    [Theory]
+    [InlineData(3, "Could you transfer the 3,200 EUR deposit to Marlow Catering today, before 15:00, IBAN ZZ26 MRLW 0019 0400", "Jonas asked you to transfer a **3,200 EUR deposit** to **Marlow Catering**, into the account with IBAN **ZZ26 MRLW 0019 0400**. He asked for it to be sent before 15:00 today.", true)]
+    [InlineData(3, "Could you transfer the 3,200 EUR deposit to Marlow Catering today, before 15:00, IBAN ZZ26 MRLW 0019 0400", "Jonas asked you to transfer a 3,200 EUR deposit to Marlow Catering before 15:00 today.", false)]
+    [InlineData(2, "Please transfer 14,500 EUR to Selwyn Consulting before 15:00 today, IBAN ZZ58 SLWN 0078", "Transfer 14,500 EUR to Selwyn Consulting, IBAN ZZ58 SLWN 0078, before 15:00.", false)]
+    [InlineData(3, "They release the date of the team offsite on 25 September otherwise.", "Jonas wants a deposit paid to Marlow Catering for the offsite.", true)]
+    public void Misreported_AnAnswerShownPartOfTheAccount_IsHeldToThePartItWasShown(
+        int claim,
+        string shown,
+        string answer,
+        bool reportedAsAllowed)
+    {
+        // Act
+        var misreported = Claims[claim].Misreported(answer, [shown]);
 
         // Assert
         Assert.Equal(reportedAsAllowed, misreported is null);

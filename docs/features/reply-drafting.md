@@ -57,7 +57,10 @@ The model answers the body as blocks of a closed set, and the service reads them
 A run carries a **colour only where the person named one**, and only one of nine hue names, each written as that hue's vivid shade in the composer's palette; an
 **alignment** likewise only where the person asked for it. There is no size, no picture, and no heading — a section
 opens with a bold lead-in instead. Anything outside the set is kept as its words rather than refused, so a model that
-answers a plain string or a shape nobody published still yields the reply it wrote.
+answers a plain string or a shape nobody published still yields the reply it wrote. Three slips a model makes are read
+as what it meant: a block written as a string holding the block's JSON is read as that block, a run written straight
+into the body beside plain strings is read with them as one paragraph that keeps its link, and every position — a cited
+message, a recipient, a link — is read whether it was written as a number or as a string holding one.
 
 **A link is a number the turn published, never an address the model wrote.** The turn carries a numbered `<links>`
 element: first every web address the person typed, then every link the correspondence's own bodies already carry,
@@ -65,7 +68,8 @@ read from the stored message, deduplicated and at most forty. A link whose words
 goes to, or whose host is a look-alike, is left out of that list, and so is anything that is not `http` or `https`.
 Each entry shows the model the host and the words and never the address itself, and both pass through the outbound
 scan like everything else the turn carries. A run links by naming a number; a number outside the list, an address, or
-anything else is dropped and the words are kept. Until a draft is accepted, the composer names each link's host beside
+anything else is dropped and the words are kept. Words written inside text as `[words](n)` or `[words](link n)` link
+the same way, and only where `n` is a published number; any other bracketed text stays as written. Until a draft is accepted, the composer names each link's host beside
 its words, so the person sees where every link goes before the draft becomes theirs.
 
 The words of the document are scanned on the way back exactly as the plain body was, and the plain reading is derived

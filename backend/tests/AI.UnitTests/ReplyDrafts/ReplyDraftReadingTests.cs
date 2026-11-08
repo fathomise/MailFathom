@@ -54,6 +54,7 @@ public sealed class ReplyDraftReadingTests
     [InlineData("""{ "body": "We accept.", "claims": [{ "text": "The deadline is the fifth." }] }""")]
     [InlineData("""{ "body": "We accept.", "claims": [{ "text": "The deadline is the fifth.", "messages": [] }] }""")]
     [InlineData("""{ "body": "We accept.", "claims": [{ "text": "The deadline is the fifth.", "messages": [9] }] }""")]
+    [InlineData("""{ "body": "We accept.", "claims": [{ "text": "The deadline is the fifth.", "messages": ["9"] }] }""")]
     public void Read_AClaimNoPublishedMessageBacks_KeepsItAndMarksItUnsupported(string answer)
     {
         // Act
@@ -85,6 +86,7 @@ public sealed class ReplyDraftReadingTests
     [InlineData("[-1]")]
     [InlineData("[7]")]
     [InlineData("[]")]
+    [InlineData("""["7"]""")]
     public void Read_ARecipientTheTurnNeverPublished_ProposesNobody(string recipients)
     {
         // Arrange
@@ -96,6 +98,23 @@ public sealed class ReplyDraftReadingTests
         // Assert
         Assert.True(draft.WasWritten);
         Assert.Empty(draft.ProposedRecipients);
+    }
+
+    /// <summary>A model writing a position as a string still names the message and the person it means.</summary>
+    [Fact]
+    public void Read_PositionsWrittenAsStrings_ReadsTheMessagesAndPeopleTheyName()
+    {
+        // Arrange
+        const string answer = """
+            { "body": "We accept.", "claims": [{ "text": "They asked for a quote.", "messages": ["0"] }], "recipients": ["0"] }
+            """;
+
+        // Act
+        var draft = ReplyDraftReading.Read(answer, Messages(), Participants(), []);
+
+        // Assert
+        Assert.Equal([First], Assert.Single(draft.Claims).Sources);
+        Assert.Equal(["anna@example.test"], draft.ProposedRecipients.Select(static person => person.Address));
     }
 
     [Fact]

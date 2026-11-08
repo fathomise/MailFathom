@@ -4,28 +4,44 @@
 
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using MailFathom.Application.AiProviders;
+using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
+using MailFathom.Application.Emails.Search.Attachments;
+using MailFathom.Application.Emails.SearchEmails;
+using MailFathom.Application.Observability;
 using MailFathom.Application.Retrieval;
+using MailFathom.Application.Synchronization.Checkpoints;
+using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Evaluations.AgentConversations;
 using MailFathom.Evaluations.Corpus;
+using MailFathom.Infrastructure.Persistence.Emails;
+using MailFathom.Infrastructure.Persistence.Entities;
+using MailFathom.TestSupport;
 
 namespace MailFathom.Evaluations.Answering;
 
-/// <summary>Answers the answering agent's lookups from the synthetic corpus, held in memory as one inbox.</summary>
+/// <summary>Answers the answering agent's lookups from the synthetic corpus, held in memory as one inbox, through the deployment's own knowledge search.</summary>
 /// <remarks>
 /// <para>
 /// What is measured is the agent — which lookups it writes, which filters it reaches for, and what it does with what
-/// comes back — so the search only has to honour the tool's contract: every filter the tool publishes narrows exactly
-/// as it says, and the words match the way a deployment's lexical search matches them, every word required unless
-/// <c>OR</c> offers an alternative. That last part is what keeps a lookup from flooding the run: admitting any message
-/// carrying any word fills a whole window with mail that barely matches and spends the run's retrieval allowance on
-/// the first lookup. What it stands in for is the search window beneath the deployment's knowledge search: it answers
-/// with one match per message, cut into the extracts <see cref="EmailSearchSnippetBounds.Default" /> allows, and those
-/// matches become passages through <see cref="MailboxKnowledgeSearch.PassagesOf" /> under
-/// <see cref="EmailKnowledgeBounds.Default" />, as a deployment's become them.
+/// comes back — so what it searches has to be what a deployment searches. Every step a deployment takes is its own
+/// class here: <see cref="MailboxKnowledgeSearch" /> over <see cref="MailboxSearchReader" />, which validates the query
+/// and the filters, decides how the words match through <see cref="EmailSearchQueryText.MatchedUnder" />, bounds the
+/// window, and cuts the passages, and the selection a deployment's PostgreSQL query narrows by is
+/// <see cref="StoredEmailSelectionPredicate" /> itself, run over the corpus as rows. A copy of any of that would let the
+/// harness and a deployment disagree about which mail a lookup finds.
+/// </para>
+/// <para>
+/// What stands in for the database is the full-text index alone, which has no form outside PostgreSQL: any word or
+/// quoted phrase of the matched text admits a message, an excluded one leaves it out, a message carrying more of the
+/// words ranks higher with the newest first on a tie, and each match is cut into the extracts
+/// <see cref="EmailSearchSnippetBounds.Default" /> allows. Semantic retrieval is off, as on a deployment that embeds
+/// nothing, so every search ranks lexically.
 /// </para>
 /// <para>
 /// The corpus carries no server state, so every message reads as unread, unflagged, and carrying no keyword.
@@ -46,19 +62,23 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
         "INBOX",
         Inbox);
 
-    /// <summary>Words too common to say anything about which message a query means, in either language a question is asked in.</summary>
-    /// <remarks>No Polish word here is spelt like an English one, so an English lookup matches exactly what it matched before.</remarks>
-    private static readonly HashSet<string> CommonWords = new(
-        [
-            "the", "and", "for", "from", "with", "what", "which", "when", "who", "did", "was", "were", "about", "that", "this", "have", "has", "you", "your", "our", "any", "are",
-            "na", "jak", "czy", "się", "nie", "jest", "dla", "jaki", "jaka", "jakie", "który", "która", "które", "kiedy", "ile", "oraz", "przez", "mój", "moja", "moje", "nasz", "nasza", "nasze",
-        ],
-        StringComparer.OrdinalIgnoreCase);
+    private static readonly MailFolderIdentity InboxIdentity = new(Account, Inbox);
+
+    private static readonly MailFolderEntity InboxRow = new()
+    {
+        Id = InboxFolder.Id.Value,
+        MailboxAccountId = Account.Value,
+        Name = Inbox.Value,
+        NameKey = Inbox.Value,
+        Alias = Inbox.Value,
+    };
 
     private readonly ConcurrentQueue<string> queries = new();
 
-    /// <summary>Gets the scope every lookup of a run is answered from: the one inbox.</summary>
-    public static MailboxScope Scope { get; } = MailboxScope.Create([Account], [InboxFolder.Id]);
+    private readonly MailboxKnowledgeSearch search = SearchOver(corpus);
+
+    /// <summary>Gets the scope every lookup of a run is answered from: the one inbox, admitted as a deployment's folder mapping admits it.</summary>
+    public static MailboxScope Scope { get; } = MailboxScope.Create([Account], [InboxFolder.Id]).RestrictedTo([InboxIdentity]);
 
     /// <summary>Gets the words of every lookup this search answered, in the order they arrived.</summary>
     public IReadOnlyList<string> Queries => [.. this.queries];
@@ -74,125 +94,284 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
 
         this.queries.Enqueue(query.QueryText);
 
-        var (alternatives, excluded) = TermsOf(query.QueryText);
-        var wanted = alternatives.SelectMany(static terms => terms).ToList();
-
-        // Substring matching over websearch_to_tsquery's AND and OR, not the deployment's PostgreSQL full-text
-        // search — no tokenizer, no phrase adjacency, ranked by words carried rather than ts_rank; run the scenarios over
-        // the real search in the integration harness if the ranking itself is measured.
-        var found = corpus
-            .Where(message => Admits(message, query))
-            .Where(message => !excluded.Any(term => Mentions(message, term)))
-            .Where(message => alternatives.Count is 0 || alternatives.Any(terms => terms.All(term => Mentions(message, term))))
-            .Select(message => (Message: message, Score: wanted.Count(term => Mentions(message, term))))
-            .OrderByDescending(static candidate => candidate.Score)
-            .ThenByDescending(static candidate => candidate.Message.ReceivedAt)
-            .Take(EmailKnowledgeBounds.Default.MaximumPassages)
-            .ToArray();
-
-        return Task.FromResult(EmailKnowledgeLookup.Unfiltered(
-            MailboxKnowledgeSearch.PassagesOf(
-                [.. found.Select(candidate => MatchOf(candidate.Message, candidate.Score, wanted))],
-                found.ToDictionary(static candidate => candidate.Message.Id, static candidate => candidate.Message.Provenance),
-                EmailKnowledgeBounds.Default),
-            EmailSearchRetrievalMode.Lexical));
+        return this.search.FindPassagesAsync(scope, query, cancellationToken);
     }
 
-    private static bool Admits(CorpusMessage message, EmailKnowledgeQuery query) =>
-        (query.SenderAddress is null || string.Equals(message.Sender, query.SenderAddress, StringComparison.OrdinalIgnoreCase))
-        && (query.RecipientAddress is null || message.Recipients.Contains(query.RecipientAddress, StringComparer.OrdinalIgnoreCase))
-        && (query.SubjectFragment is null || message.Subject.Contains(query.SubjectFragment, StringComparison.OrdinalIgnoreCase))
-        && (query.ReceivedOnOrAfter is not { } after || message.ReceivedAt >= after)
-        && (query.ReceivedBefore is not { } before || message.ReceivedAt < before)
-        && (query.HasAttachments is not { } attached || message.HasAttachments == attached)
-        && query.IsRemotelySeen is not true
-        && query.IsRemotelyFlagged is not true
-        && query.Keyword is null;
-
-    private static bool Mentions(CorpusMessage message, string term) =>
-        message.GroundingText.Contains(term, StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>Reads the alternatives a query offers, each the words it requires together, and the words it excludes, keeping a quoted phrase whole.</summary>
-    private static (IReadOnlyList<IReadOnlyList<string>> Alternatives, IReadOnlyList<string> Excluded) TermsOf(string queryText)
+    private static MailboxKnowledgeSearch SearchOver(IReadOnlyList<CorpusMessage> corpus)
     {
-        List<IReadOnlyList<string>> alternatives = [];
-        List<string> current = [];
-        List<string> excluded = [];
+        // The window an answering run reads asks for no grant of its own: the run asked for the assistant's at its entry.
+        var authorization = AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse);
+        var participation = StubMailFolderParticipation.Mapping(InboxIdentity);
+        var nothingEmbedded = new NothingEmbedded();
+        var unobserved = new Unobserved();
 
-        foreach (Match token in QueryToken().Matches(queryText))
-        {
-            if (string.Equals(token.Value, "OR", StringComparison.OrdinalIgnoreCase))
-            {
-                EndAlternative();
-                continue;
-            }
-
-            var excludes = token.Value.StartsWith('-');
-            var term = token.Value.TrimStart('-').Trim('"').Trim('.', ',', ';', ':', '!', '?', '(', ')', '\'');
-
-            if (term.Length < 2 || CommonWords.Contains(term))
-            {
-                continue;
-            }
-
-            (excludes ? excluded : current).Add(term);
-        }
-
-        EndAlternative();
-
-        return (alternatives, excluded);
-
-        void EndAlternative()
-        {
-            if (current.Count > 0)
-            {
-                alternatives.Add(current);
-                current = [];
-            }
-        }
-    }
-
-    /// <summary>Cuts the message down to the extracts a deployment's <c>ts_headline</c> returns: a few short windows around the wanted words, those carrying the most of them first.</summary>
-    /// <remarks>
-    /// The size is what matters here rather than the exact words: a whole passage per message is several times what a
-    /// deployment sends, so twenty of them spend a run's whole retrieval allowance on one lookup, and an extract cut from
-    /// the start of a message rather than around the match misses the sentence that carries the answer.
-    /// </remarks>
-    private static EmailSearchMatch MatchOf(CorpusMessage message, int score, IReadOnlyList<string> wanted)
-    {
-        var snippets = EmailSearchSnippetBounds.Default;
-
-        // One window per wanted word's first occurrence in a passage, scored by the words it carries — not
-        // ts_headline's cover density; measure the ranking over the real search if an extract's exact words matter.
-        IReadOnlyList<string> fragments =
-        [
-            .. message.Passages
-                .SelectMany(passage => wanted
-                    .Select(term => passage.Text.IndexOf(term, StringComparison.OrdinalIgnoreCase))
-                    .Where(static position => position >= 0)
-                    .Select(position => WindowAround(passage.Text, position, snippets.WordsPerSnippet)))
-                .Distinct(StringComparer.Ordinal)
-                .OrderByDescending(fragment => wanted.Count(term => fragment.Contains(term, StringComparison.OrdinalIgnoreCase)))
-                .Take(snippets.SnippetsPerEmail)
-                .DefaultIfEmpty(message.Passages.Count is 0 ? string.Empty : WindowAround(message.Passages[0].Text, 0, snippets.WordsPerSnippet)),
-        ];
-
-        return new EmailSearchMatch(CorpusReaders.SummaryOf(message, thread: null), score, fragments);
-    }
-
-    /// <summary>Takes the words around a position, a third before it and the rest from it.</summary>
-    /// <remarks>
-    /// A matched word usually opens the clause that answers, so a window split evenly cut the fact it was found for
-    /// halfway through its sentence and a model was graded for quoting what it was shown.
-    /// </remarks>
-    private static string WindowAround(string text, int position, int words)
-    {
-        var before = text[..position].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).TakeLast(words / 3);
-        var after = text[position..].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Take(words - (words / 3));
-
-        return string.Join(' ', before.Concat(after));
+        return new MailboxKnowledgeSearch(
+            new MailboxSearchReader(
+                new CorpusSearchIndex(corpus),
+                new NoAttachmentText(),
+                new SemanticEmailSearch(nothingEmbedded, nothingEmbedded, nothingEmbedded, TimeProvider.System, textEmbeddingGenerator: null),
+                unobserved,
+                new MailboxScopeResolver(
+                    AssignedMailAccountCatalogs.For(authorization, SyntheticServedAccount.Of(Account)),
+                    participation,
+                    StubDeploymentMailFolders.Of(participation),
+                    StubMailFolderMappings.ResolvingNothing),
+                EmailSearchSnippetBounds.Default,
+                SensitiveContentEgressGuards.Inactive(),
+                unobserved,
+                authorization),
+            StubEmailProvenanceReader.Answering(corpus.ToDictionary(static message => message.Id, static message => message.Provenance)),
+            EmailKnowledgeBounds.Default);
     }
 
     [GeneratedRegex("-?\"[^\"]+\"|\\S+")]
     private static partial Regex QueryToken();
+
+    [GeneratedRegex(@"[\p{L}\p{N}]+")]
+    private static partial Regex Word();
+
+    /// <summary>The full-text index a deployment keeps in PostgreSQL, over the corpus held as the rows it would have stored.</summary>
+    private sealed class CorpusSearchIndex(IReadOnlyList<CorpusMessage> corpus) : IEmailSearchIndexReader
+    {
+        private readonly IReadOnlyList<StoredEmailEntity> rows = [.. corpus.Select(RowOf)];
+
+        private readonly Dictionary<Guid, CorpusMessage> messages = corpus.ToDictionary(static message => message.Id.Value);
+
+        public Task<IReadOnlyList<RankedEmailCandidate>> ReadRankedCandidatesAsync(
+            MailboxEmailSelection selection,
+            EmailSearchQueryText queryText,
+            int limit,
+            CancellationToken cancellationToken)
+        {
+            var (matched, excluded) = TermsOf(queryText);
+
+            // Whole words over the terms websearch_to_tsquery reads rather than PostgreSQL's own parser, and the
+            // words carried counted rather than ts_rank_cd's cover density; run the scenarios over the real index in the
+            // retrieval evaluation if the ranking itself is measured. A query that only excludes matches everything else,
+            // as websearch_to_tsquery reads one.
+            IReadOnlyList<RankedEmailCandidate> ranked =
+            [
+                .. this.Selected(selection)
+                    .Where(message => !excluded.Any(term => Mentions(message, term)))
+                    .Select(message => (Message: message, Score: matched.Count(term => Mentions(message, term))))
+                    .Where(candidate => candidate.Score > 0 || (matched.Count is 0 && excluded.Count > 0))
+                    .Select(static candidate => new RankedEmailCandidate(
+                        new EmailTimelinePosition(candidate.Message.ReceivedAt, candidate.Message.Id),
+                        candidate.Score))
+                    .Order(RankedEmailCandidate.BestFirst)
+                    .Take(limit),
+            ];
+
+            return Task.FromResult(ranked);
+        }
+
+        public Task<IReadOnlyList<EmailSearchMatch>> ReadMatchesAsync(
+            MailboxEmailSelection selection,
+            EmailSearchQueryText queryText,
+            EmailSearchSnippetBounds snippetBounds,
+            IReadOnlyList<RankedEmailCandidate> rankedCandidates,
+            CancellationToken cancellationToken)
+        {
+            var eligible = this.Selected(selection).ToDictionary(static message => message.Id);
+            var (matched, _) = TermsOf(queryText);
+
+            IReadOnlyList<EmailSearchMatch> matches =
+            [
+                .. rankedCandidates
+                    .Where(candidate => eligible.ContainsKey(candidate.StoredEmailId))
+                    .Select(candidate => MatchOf(eligible[candidate.StoredEmailId], candidate.Score, matched, snippetBounds)),
+            ];
+
+            return Task.FromResult(matches);
+        }
+
+        /// <summary>Reads the terms a query matches and the ones it excludes, from the text a deployment hands <c>websearch_to_tsquery</c>.</summary>
+        /// <exception cref="NotSupportedException">Thrown for a query requiring every word, which only the lexical half of a fusion reads.</exception>
+        private static (IReadOnlyList<string> Matched, IReadOnlyList<string> Excluded) TermsOf(EmailSearchQueryText queryText)
+        {
+            if (queryText.WordMatching is not EmailSearchWordMatching.AnyWord)
+            {
+                throw new NotSupportedException("The corpus search embeds nothing, so a deployment's lexical ranking stands alone and matches any word.");
+            }
+
+            // A query that excludes and matches nothing else travels as written, its exclusions inside the matched text.
+            var written = WordsOf(queryText.MatchedText).ToArray();
+
+            return (
+                [.. written.Where(static word => !word.StartsWith('-')).Select(Bare).Where(static word => word.Length > 0)],
+                [
+                    .. written.Where(static word => word.StartsWith('-'))
+                        .Concat(WordsOf(queryText.ExcludedText ?? string.Empty))
+                        .Select(Bare)
+                        .Where(static word => word.Length > 0),
+                ]);
+        }
+
+        private static IEnumerable<string> WordsOf(string text) =>
+            QueryToken().Matches(text)
+                .Select(static token => token.Value)
+                .Where(static token => !token.Equals("or", StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>Strips what PostgreSQL's parser reads as no part of a word: the exclusion mark, the quotes, and the punctuation around it.</summary>
+        private static string Bare(string word) =>
+            word.TrimStart('-').Trim('"').Trim('.', ',', ';', ':', '!', '?', '(', ')', '\'');
+
+        /// <summary>Reads whether a message carries a term as whole words, as the <c>simple</c> configuration a deployment indexes under reads it: no stem, no stop word, and a phrase's words one after another.</summary>
+        private static bool Mentions(CorpusMessage message, string term)
+        {
+            var words = Word().Matches(term).Select(static word => Regex.Escape(word.Value)).ToArray();
+
+            return words.Length > 0
+                && Regex.IsMatch(
+                    message.GroundingText,
+                    string.Concat(@"(?<![\p{L}\p{N}])", string.Join(@"[^\p{L}\p{N}]+", words), @"(?![\p{L}\p{N}])"),
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
+
+        /// <summary>Writes a message as the row a deployment would have stored, carrying what the selection predicate reads.</summary>
+        /// <remarks>An agent's read never reaches the folder binding, which only the person's own junk exclusion reads.</remarks>
+        private static StoredEmailEntity RowOf(CorpusMessage message) => new()
+        {
+            Id = message.Id.Value,
+            MailboxAccountId = Account.Value,
+            MailFolderBinding = null!,
+            FolderId = InboxFolder.Id.Value,
+            Folder = InboxRow,
+            Subject = message.Subject,
+            SentAt = message.ReceivedAt,
+            ReceivedAt = message.ReceivedAt,
+            SenderNormalizedAddress = CorpusMailbox.NormalizedAddressOf(message.Sender),
+            ToAddresses = [.. message.Recipients.Select(CorpusMailbox.NormalizedAddressOf).OfType<string>()],
+            AttachmentCount = message.Attachments.Count,
+            SettledAt = message.ReceivedAt,
+        };
+
+        /// <summary>Cuts the message down to the extracts a deployment's <c>ts_headline</c> returns: a few short windows around the matched words, those carrying the most of them first.</summary>
+        /// <remarks>
+        /// The size is what matters here rather than the exact words: a whole passage per message is several times what a
+        /// deployment sends, so twenty of them spend a run's whole retrieval allowance on one lookup, and an extract cut from
+        /// the start of a message rather than around the match misses the sentence that carries the answer.
+        /// </remarks>
+        private static EmailSearchMatch MatchOf(
+            CorpusMessage message,
+            float score,
+            IReadOnlyList<string> matched,
+            EmailSearchSnippetBounds snippets)
+        {
+            // One window per matched word's first occurrence in a passage, scored by the words it carries — not
+            // ts_headline's cover density; measure the ranking over the real search if an extract's exact words matter.
+            IReadOnlyList<string> fragments =
+            [
+                .. message.Passages
+                    .SelectMany(passage => matched
+                        .Select(term => passage.Text.IndexOf(term, StringComparison.OrdinalIgnoreCase))
+                        .Where(static position => position >= 0)
+                        .Select(position => WindowAround(passage.Text, position, snippets.WordsPerSnippet)))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderByDescending(fragment => matched.Count(term => fragment.Contains(term, StringComparison.OrdinalIgnoreCase)))
+                    .Take(snippets.SnippetsPerEmail)
+                    .DefaultIfEmpty(message.Passages.Count is 0 ? string.Empty : WindowAround(message.Passages[0].Text, 0, snippets.WordsPerSnippet)),
+            ];
+
+            return new EmailSearchMatch(CorpusReaders.SummaryOf(message, thread: null), score, fragments);
+        }
+
+        /// <summary>Takes the words around a position, a third before it and the rest from it.</summary>
+        /// <remarks>
+        /// A matched word usually opens the clause that answers, so a window split evenly cut the fact it was found for
+        /// halfway through its sentence and a model was graded for quoting what it was shown.
+        /// </remarks>
+        private static string WindowAround(string text, int position, int words)
+        {
+            var before = text[..position].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).TakeLast(words / 3);
+            var after = text[position..].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Take(words - (words / 3));
+
+            return string.Join(' ', before.Concat(after));
+        }
+
+        /// <summary>Reads the mail a selection admits, through the predicate a deployment's query narrows by.</summary>
+        /// <remarks>
+        /// The subject fragment is matched here rather than by the predicate, because the predicate matches it with
+        /// PostgreSQL's <c>ILIKE</c>, which has no form outside the database; everything else is the predicate's own.
+        /// </remarks>
+        private IEnumerable<CorpusMessage> Selected(MailboxEmailSelection selection)
+        {
+            var subjectFragment = selection.SubjectFragment;
+            var predicateSelection = subjectFragment is null
+                ? selection
+                : MailboxEmailSelection.Create(
+                    selection.Scope,
+                    selection.SenderNormalizedAddress,
+                    selection.RecipientNormalizedAddress,
+                    subjectFragment: null,
+                    selection.ReceivedOnOrAfter,
+                    selection.ReceivedBefore,
+                    selection.IsRemotelySeen,
+                    selection.IsRemotelyFlagged,
+                    selection.Keyword,
+                    selection.HasAttachments,
+                    selection.Mark);
+
+            return StoredEmailSelectionPredicate.Matching(this.rows.AsQueryable(), predicateSelection)
+                .AsEnumerable()
+                .Where(row => subjectFragment is null || (row.Subject?.Contains(subjectFragment, StringComparison.OrdinalIgnoreCase) ?? false))
+                .Select(row => this.messages[row.Id]);
+        }
+    }
+
+    /// <summary>Reads no attachment text: the corpus indexes what its messages say, and no case asks for a clause inside a file.</summary>
+    private sealed class NoAttachmentText : IEmailAttachmentMatchReader
+    {
+        public Task<IReadOnlyList<StoredEmailAttachmentMatches>> ReadWrittenMatchesAsync(
+            MailboxEmailSelection selection,
+            EmailSearchQueryText queryText,
+            EmailSearchSnippetBounds snippetBounds,
+            IReadOnlyList<StoredEmailId> rankedEmailIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StoredEmailAttachmentMatches>>([]);
+
+        public Task<IReadOnlyList<StoredEmailAttachmentMatches>> ReadDepictedMatchesAsync(
+            MailboxEmailSelection selection,
+            EmailSearchSnippetBounds snippetBounds,
+            IReadOnlyList<StoredEmailId> depictedEmailIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StoredEmailAttachmentMatches>>([]);
+    }
+
+    /// <summary>Stands for a deployment that activated no embedding profile, so semantic retrieval is inactive and nothing past the profile is asked.</summary>
+    private sealed class NothingEmbedded : IActiveEmbeddingProfileReader, IEmailVectorSearchIndexReader, IAiProviderHealthReader
+    {
+        public Task<RegisteredEmbeddingProfile?> FindActiveProfileAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<RegisteredEmbeddingProfile?>(null);
+
+        public Task<SemanticEmailRankings> ReadNearestCandidatesAsync(
+            MailboxEmailSelection selection,
+            RegisteredEmbeddingProfile profile,
+            EmbeddingVector queryVector,
+            int limit,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("No profile is active, so no vector is ever searched.");
+
+        public AiProviderHealth Read(AiProviderRole role) =>
+            throw new NotSupportedException("No profile is active, so no embedding provider is ever asked about.");
+    }
+
+    /// <summary>Reports no synchronization and records no read: the corpus was never synchronized, and a run reports its own span.</summary>
+    private sealed class Unobserved : ISynchronizationFreshnessReader, IMailboxReadTelemetry, IMailboxReadScope
+    {
+        public Task<IReadOnlyList<MailboxFolderFreshness>> ReadAsync(MailboxScope scope, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<MailboxFolderFreshness>>([]);
+
+        public IMailboxReadScope BeginRead(MailboxReadOperation operation, CancellationToken cancellationToken) => this;
+
+        public IMailboxReadScope BeginSearchRanking(CancellationToken cancellationToken) => this;
+
+        public void Completed(int resultCount)
+        {
+        }
+
+        public void Dispose()
+        {
+        }
+    }
 }

@@ -172,6 +172,40 @@ public sealed class AgentCompositionTests
             (Assert.Single(chatClient.Calls).Options?.Tools ?? []).Select(offered => offered.Name));
     }
 
+    /// <summary>
+    /// Every tool is held to its schema by the composition rather than by itself, so a key the model invented is refused
+    /// before the tool runs, whichever operation offered it.
+    /// </summary>
+    [Fact]
+    public async Task Compose_AToolCalledWithAnArgumentOutsideItsSchema_RefusesTheCallWithoutRunningTheTool()
+    {
+        // Arrange
+        using var chatClient = ScriptedChatClient.Answering("answered");
+        var ran = false;
+        var tool = AIFunctionFactory.Create((string word) => ran = word.Length > 0, "count_words");
+        var agent = AgentComposition.Compose(
+            chatClient,
+            ChatDeclarations.Plan(),
+            new AgentOperation("an-operation", Instruction, [tool]),
+            new EmptyAgentInstructionEnvelope(),
+            NullLoggerFactory.Instance);
+        await agent.RunAsync("a question", session: null, options: null, TestContext.Current.CancellationToken);
+        var offered = Assert.IsType<AIFunction>(
+            Assert.Single(Assert.Single(chatClient.Calls).Options?.Tools ?? []),
+            exactMatch: false);
+
+        // Act
+        var answer = await offered.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?> { ["word"] = "invoice", ["receivedOnOrBefore"] = "2026-09-14T12:00" }),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            "count_words takes no argument named \"receivedOnOrBefore\". Its arguments are word. Call it again without that one.",
+            answer);
+        Assert.False(ran);
+    }
+
     /// <summary>An envelope with something to say in both positions.</summary>
     private sealed class StubAgentInstructionEnvelope(string preamble, string postamble) : IAgentInstructionEnvelope
     {

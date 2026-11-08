@@ -143,7 +143,15 @@ The arguments a caller of `search_emails` holds and a model does not are deliber
 A filter this system would refuse from a caller is refused from a model, in the same words and under the same error
 code, because both reach the same use case. What differs is what happens next: the lookup comes back as a
 `<search-refused>` element naming the argument, and the model corrects it and calls again. Nothing was searched, which
-is exactly what an empty envelope would have failed to say.
+is exactly what an empty envelope would have failed to say. A blank `queryText`, and a sender or recipient address with
+no `@`, are refused the same way before the use case is reached, naming the tool's own argument.
+
+Every tool a run offers also refuses a call whose arguments its schema does not describe, through one wrapper the
+composition puts around each tool rather than a check per tool: an argument outside the schema, a required one left out,
+or a value that cannot be read as the type the schema names comes back as a refusal naming the argument and listing the
+valid ones, and the tool does not run. Without it an argument the model invented — a `receivedOnOrBefore` beside the
+published `receivedBefore` — would be dropped by the binding, and the lookup would run without the bound the model meant
+and report nothing about it.
 
 ## A question in one language, mail in another
 

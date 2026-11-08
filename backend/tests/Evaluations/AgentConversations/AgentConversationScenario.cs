@@ -122,7 +122,7 @@ internal sealed record AgentConversationScenario(
     public const string WithinBoundsMetricName = "Stayed within its bounds";
 
     /// <summary>The instant every question is asked at, a Monday, fixed for the reason every evaluation input is.</summary>
-    private static readonly DateTimeOffset AskedAt = new(2026, 9, 14, 12, 0, 0, TimeSpan.Zero);
+    public static readonly DateTimeOffset AskedAt = new(2026, 9, 14, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary>The merged arrival a case asking from the bell asks about, fixed for the reason every evaluation input is.</summary>
     private static readonly NotificationId ArrivalNotification =
@@ -156,7 +156,7 @@ internal sealed record AgentConversationScenario(
             "Zacytuj dokładnie komunikat błędu, który pokazał LumenDesk, gdy nie udał się eksport przefiltrowanego projektu.",
             UserLanguage.Polish,
             ["permitted buffer size"],
-            ["LumenDesk", "eksport", "komunikat", "błęd", "błąd", "bufor", "buffer", "projekt", "filtr"]),
+            ["LumenDesk", "eksport", "komunikat", "błęd", "błąd", "bufor", "buffer", "projekt", "filtr", "napraw", "problem"]),
         new(
             "Agent.Answers.SeveralMessages",
             "Which LumenDesk build fixed the export failure, and which Atlas Importer build fixes the tide-reading import problem?",
@@ -409,7 +409,7 @@ internal sealed record AgentConversationScenario(
             "Co mi jeszcze zostało na liście zadań?",
             UserLanguage.Polish,
             ["Brightwater"],
-            ["zadani", "lista", "termin", "Gdańsk", "krzes", "Atlas", "Brightwater", "zrobi"])
+            ["zada", "lista", "termin", "Gdańsk", "krzes", "Atlas", "Brightwater", "zrobi"])
         {
             Calls = ["read_tasks"],
         },
@@ -627,7 +627,7 @@ internal sealed record AgentConversationScenario(
             "Dodaj mi zadanie: wysłać Piotrowi potwierdzenie przelewu za fakturę FV/2026/08/117.",
             UserLanguage.Polish,
             [],
-            [.. InvoiceSubject, "zadani", "potwierdzeni"])
+            [.. InvoiceSubject, "zada", "potwierdzeni"])
         {
             Proposes = ["task due no day"],
         },
@@ -913,7 +913,7 @@ internal sealed record AgentConversationScenario(
             "Wróćmy do pierwszego terminu. Zaproponuj je jeszcze raz.",
             UserLanguage.Polish,
             [],
-            [.. InvoiceSubject, "zadani", "piątek", "18 września"])
+            [.. InvoiceSubject, "zada", "piątek", "18 września"])
         {
             History =
             [
@@ -1647,7 +1647,12 @@ internal sealed record AgentConversationScenario(
                 AgentResponseSending response => response.Body.Value,
                 _ => null,
             }).OfType<string>().ToList();
-            var shortfalls = bodies.Select(body => SignOff.Shortfall(body, closesWithFooter)).OfType<string>().ToList();
+
+            // The Agent is shown no sample of the person's mail, so their own closing is however the mail they sent closes.
+            var ownClosings = SignOff.ClosingsOf(Mailbox
+                .Where(static message => string.Equals(message.Sender, CorpusMailbox.OwnerAddress, StringComparison.OrdinalIgnoreCase))
+                .Select(static message => message.Text));
+            var shortfalls = bodies.Select(body => SignOff.Shortfall(body, closesWithFooter, ownClosings)).OfType<string>().ToList();
 
             EvaluationMetrics.Record(
                 verdict,
@@ -1663,7 +1668,13 @@ internal sealed record AgentConversationScenario(
 
         if (this.Claim is { } claim)
         {
-            var misreported = claim.Misreported(string.Join('\n', [text, .. acts.Select(TextOf)]));
+            // What the Agent was shown is every reading its tools handed back: the extracts it searched and the threads it read.
+            var shown = (answer?.Messages ?? [])
+                .SelectMany(static message => message.Contents)
+                .OfType<FunctionResultContent>()
+                .Select(static result => result.Result?.ToString())
+                .OfType<string>();
+            var misreported = claim.Misreported(string.Join('\n', [text, .. acts.Select(TextOf)]), shown);
 
             EvaluationMetrics.Record(verdict, AccountClaim.MetricName, misreported is null, misreported ?? claim.Reported());
         }

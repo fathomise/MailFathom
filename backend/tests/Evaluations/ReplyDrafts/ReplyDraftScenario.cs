@@ -828,7 +828,7 @@ internal sealed partial record ReplyDraftScenario(
 
         if (this.ClosesWithFooter is { } closesWithFooter)
         {
-            var shortfall = SignOff.Shortfall(draft.WasWritten ? draft.Body : null, closesWithFooter);
+            var shortfall = SignOff.Shortfall(draft.WasWritten ? draft.Body : null, closesWithFooter, SignOff.ClosingsOf(sources.StyleSamples));
 
             EvaluationMetrics.Record(
                 verdict,

@@ -10,7 +10,7 @@ using Xunit;
 
 namespace MailFathom.Evaluations.UnitTests.Answering;
 
-/// <summary>Covers the corpus search honouring the filters the answering tool publishes, which is what a scenario about a person or a period rests on.</summary>
+/// <summary>Covers the corpus search answering through the deployment's own search: the filters the answering tool publishes, which a scenario about a person or a period rests on, and the words matching as a lexical search matches them.</summary>
 public sealed class CorpusKnowledgeSearchTests
 {
     private const string HalinaPettersen = "halina.pettersen@latticeworks.test";
@@ -48,19 +48,51 @@ public sealed class CorpusKnowledgeSearchTests
     }
 
     [Fact]
-    public async Task FindPassagesAsync_SeveralWords_ReturnsOnlyMailCarryingEveryOne()
+    public async Task FindPassagesAsync_ASubjectFragment_ReturnsMailWhoseSubjectCarriesItAlone()
     {
         // Arrange
-        var query = EmailKnowledgeQuery.ForText("Lumenfield INV-4827");
+        var query = new EmailKnowledgeQuery { QueryText = "INV-4827", SubjectFragment = "billing follow-up" };
 
         // Act
         var found = await this.FindAsync(query);
 
         // Assert
         Assert.NotEmpty(found);
-        Assert.All(found, static message => Assert.True(
-            message.GroundingText.Contains("Lumenfield", StringComparison.OrdinalIgnoreCase)
-            && message.GroundingText.Contains("INV-4827", StringComparison.OrdinalIgnoreCase)));
+        Assert.All(found, static message => Assert.Contains("Billing follow-up", message.Subject, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task FindPassagesAsync_SeveralWords_ReturnsMailCarryingAnyOneMostWordsFirst()
+    {
+        // Arrange
+        string[] words = ["Lumenfield", "INV-4827"];
+        var query = EmailKnowledgeQuery.ForText(string.Join(' ', words));
+
+        // Act
+        var found = await this.FindAsync(query);
+
+        // Assert
+        int[] carried = [.. found.Select(message => words.Count(word => message.GroundingText.Contains(word, StringComparison.OrdinalIgnoreCase)))];
+        Assert.Contains(1, carried);
+        Assert.Equal(carried.OrderDescending(), carried);
+    }
+
+    /// <summary>The lookup a recorded run wrote for this question, which the correcting message answers without carrying its last word.</summary>
+    [Fact]
+    public async Task FindPassagesAsync_TheRecordedKestrelQuayLookup_HandsOverTheMessageCorrectingTheMoveDate()
+    {
+        // Arrange
+        var scenario = MailAnsweringScenario.All.Single(static scenario => scenario.Name == "MailAnswering.LaterMessageCorrectsAnEarlierOne");
+        var search = new CorpusKnowledgeSearch(scenario.Mailbox);
+
+        // Act
+        var lookup = await search.FindPassagesAsync(
+            CorpusKnowledgeSearch.Scope,
+            EmailKnowledgeQuery.ForText("Kestrel Quay move team"),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(lookup.Passages, passage => passage.Text.Contains(scenario.Evidence[0], StringComparison.Ordinal));
     }
 
     [Fact]

@@ -88,8 +88,9 @@ internal sealed record DiscoveryCompositionScenario(
     /// <summary>The check that the result rests on the evidence, or is composed as unanswered where there is none.</summary>
     public const string RestsOnEvidenceMetricName = "Rests on the evidence";
 
-    /// <summary>When the run read the mailbox, which is fixed so a result's freshness is the same on every run.</summary>
-    private static readonly DateTimeOffset ObservedAt = new(2026, 9, 1, 0, 0, 0, TimeSpan.Zero);
+    /// <summary>When the run read the mailbox and the question is asked, which is fixed so a result's freshness is the same on every run.</summary>
+    /// <remarks>The instant mail answering and the Agent ask at, so no message the mailbox holds arrived after the run read it.</remarks>
+    public static readonly DateTimeOffset ObservedAt = new(2026, 9, 14, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary>Gets every question the agent is measured on.</summary>
     public static IReadOnlyList<DiscoveryCompositionScenario> All { get; } =
@@ -376,14 +377,16 @@ internal sealed record DiscoveryCompositionScenario(
         .. this.MinimumGroundedness is null ? [] : new IEvaluator[] { new GroundednessEvaluator() },
     ];
 
+    /// <summary>Gets the mailbox the question is looked up over: the mixed one for a question holding its result to a language, the English one otherwise.</summary>
+    public IReadOnlyList<CorpusMessage> Mailbox => this.AnswersIn is null ? HostileMail.Mailbox : PolishCorpus.MixedMailbox;
+
     /// <summary>Reads the extracts a run would hand the agent for this question, declared as the sources it may cite.</summary>
     /// <param name="cancellationToken">Withdraws the lookup.</param>
     /// <returns>What the lookup found, and the sources declared over it.</returns>
     public async Task<(DiscoveryEvidence Evidence, IReadOnlyList<DiscoveryComposedSource> Sources)> RetrieveAsync(
         CancellationToken cancellationToken)
     {
-        var mailbox = this.AnswersIn is null ? HostileMail.Mailbox : PolishCorpus.MixedMailbox;
-        var lookup = await new CorpusKnowledgeSearch(mailbox).FindPassagesAsync(
+        var lookup = await new CorpusKnowledgeSearch(this.Mailbox).FindPassagesAsync(
             CorpusKnowledgeSearch.Scope,
             EmailKnowledgeQuery.ForText(this.Lookup),
             cancellationToken);
@@ -574,7 +577,7 @@ internal sealed record DiscoveryCompositionScenario(
 
         if (this.Claim is { } claim)
         {
-            var misreported = claim.Misreported(Rendered(opening));
+            var misreported = claim.Misreported(Rendered(opening), sources.Select(static source => source.Extract));
 
             EvaluationMetrics.Record(verdict, AccountClaim.MetricName, misreported is null, misreported ?? claim.Reported());
         }

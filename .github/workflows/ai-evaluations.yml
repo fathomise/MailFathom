@@ -20,6 +20,10 @@ name: AI evaluations
 # `{MainModel: model-a, ImageDescription: [model-b, model-c]}` runs the image evaluations twice and everything else once.
 # A model is its routed name, or a mapping with the keys a deployment's `Chat:Models` declaration uses for what a request
 # asks for — `Model`, `Alias`, `Api`, `ReasoningEffort`, `Temperature`, `TopP`, `ExtraHeaders`, `AdditionalProperties`.
+# A reasoning model the agents offer tools to is declared with `Api: Responses`, as in
+# `{MainModel: {Model: openai/gpt-6-luna, Api: Responses, ReasoningEffort: medium}}`: a current reasoning model takes
+# function tools beside a stated effort only over the Responses API, and chat completions carries none of its reasoning
+# from one turn of a tool loop to the next, so a run declaring neither measures a request its provider does not support.
 # A decision model is routed the same way, under the key a deployment's `Decisions` section routes its function by —
 # `SpamClassification` — and falls back to `vars.DECISION_PROVIDER_MODEL`, the one the `Integration tests` workflow
 # reaches, where the block names none. The block also takes `Ref`, `Repetitions`, `EmbeddingModels`,

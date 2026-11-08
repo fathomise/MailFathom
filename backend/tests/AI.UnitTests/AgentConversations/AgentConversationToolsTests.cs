@@ -8,19 +8,26 @@ using MailFathom.AI.Orchestration;
 using MailFathom.AI.Retrieval;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Access;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Calendar;
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Presentation.Citations;
+using MailFathom.Application.EmailContent;
+using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.EmailContent.Rendering;
+using MailFathom.Application.EmailContent.Repair;
+using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Summaries;
+using MailFathom.Application.Emails.Threads;
 using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.Mail.Delivery.Footers;
+using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent;
@@ -58,6 +65,8 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
     private static readonly MailAccountId Primary = MailAccountId.Create("primary");
 
     private static readonly string[] Recipients = ["ada@example.org"];
+
+    private static readonly EmailThreadId ConversationThread = EmailThreadId.Create(Guid.Parse("0199a7c4-5b1e-7c3a-9d42-6f1e2a3b4c5d"));
 
     private readonly FakeTimeProvider clock = new(Now);
 
@@ -813,6 +822,76 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             task.Element(AgentConversationReadings.TitleElementName)?.Value);
     }
 
+    /// <summary>
+    /// A conversation of twelve is read whole, its eleventh and twelfth messages included, although one content read
+    /// serves only its oldest ten: what arrived last is what a question about a conversation is most often about.
+    /// </summary>
+    [Fact]
+    public async Task ReadThread_AConversationOfTwelve_ShowsEveryMessageInItsOrderAndLeavesNothingOut()
+    {
+        // Arrange
+        var (reader, messages) = ReadingConversation(12);
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            contentReader: reader);
+        var tool = this.CreatedTool("read_thread");
+
+        // Act
+        var answer = await tool.InvokeAsync(ReadingThreadOf(ConversationThread.ToString()), TestContext.Current.CancellationToken);
+
+        // Assert
+        var thread = XElement.Parse(answer!.ToString()!);
+
+        Assert.Equal(
+            messages.Select(static message => message.ToString()),
+            thread.Elements(AgentConversationReadings.MessageElementName)
+                .Select(static message => message.Attribute(AgentConversationReadings.MessageIdAttributeName)?.Value));
+        Assert.Equal(ConversationThread.ToString(), thread.Attribute(AgentConversationReadings.ThreadIdAttributeName)?.Value);
+        Assert.Null(thread.Attribute(AgentConversationReadings.EarlierLeftOutAttributeName));
+        Assert.Null(thread.Attribute(AgentConversationReadings.LaterLeftOutAttributeName));
+    }
+
+    /// <summary>
+    /// A conversation longer than one reading shows is read from its newest message back, unless the message named is
+    /// older than that stretch, which is then read with what led to it; either way the reading counts what it left out.
+    /// </summary>
+    [Theory]
+    [InlineData(null, 6, 25, "5", null)]
+    [InlineData(10, 6, 25, "5", null)]
+    [InlineData(3, 1, 3, null, "22")]
+    public async Task ReadThread_AConversationOfTwentyFive_ShowsItsNewestMessagesOrThoseEndingAtAnOlderOneNamedAndCountsTheRest(
+        int? namedOrdinal,
+        int firstShownOrdinal,
+        int lastShownOrdinal,
+        string? earlierLeftOut,
+        string? laterLeftOut)
+    {
+        // Arrange
+        var (reader, messages) = ReadingConversation(25);
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            contentReader: reader);
+        var tool = this.CreatedTool("read_thread");
+        var named = namedOrdinal is { } ordinal ? messages[ordinal - 1].ToString() : ConversationThread.ToString();
+
+        // Act
+        var answer = await tool.InvokeAsync(ReadingThreadOf(named), TestContext.Current.CancellationToken);
+
+        // Assert
+        var thread = XElement.Parse(answer!.ToString()!);
+
+        Assert.Equal(
+            messages[(firstShownOrdinal - 1)..lastShownOrdinal].Select(static message => message.ToString()),
+            thread.Elements(AgentConversationReadings.MessageElementName)
+                .Select(static message => message.Attribute(AgentConversationReadings.MessageIdAttributeName)?.Value));
+        Assert.Equal(
+            (earlierLeftOut, laterLeftOut),
+            (thread.Attribute(AgentConversationReadings.EarlierLeftOutAttributeName)?.Value,
+                thread.Attribute(AgentConversationReadings.LaterLeftOutAttributeName)?.Value));
+    }
+
     /// <summary>A thread's message is guarded value by value, so each redaction lands in the part of the message that carried it.</summary>
     [Fact]
     public async Task GuardedReadingOf_AMessageCarryingWhatTheScannerFinds_RedactsItsSubjectAndBodyAndLeavesItsSender()
@@ -997,6 +1076,104 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         return this.signals.DisposeAsync();
     }
 
+    private static AIFunctionArguments ReadingThreadOf(string messageId) =>
+        new(new Dictionary<string, object?> { ["messageId"] = messageId });
+
+    /// <summary>Arranges a content read over one conversation of the given length, each message answering the one before it.</summary>
+    /// <remarks>
+    /// Every message's content was kept out of local storage, which a read answers from the stored row alone: what is
+    /// asserted is which messages a reading shows, and that path reaches neither a content store nor a renderer.
+    /// </remarks>
+    private static (EmailContentReader Reader, StoredEmailId[] Messages) ReadingConversation(int length)
+    {
+        var summaries = Enumerable
+            .Range(1, length)
+            .Select(ordinal => ConversationMessage(
+                StoredEmailId.Create(new Guid($"00000000-0000-0000-0000-{ordinal:D12}")),
+                Now.AddMinutes(ordinal - length)))
+            .ToArray();
+
+        var summaryReader = Substitute.For<IStoredEmailSummaryReader>();
+
+        foreach (var summary in summaries)
+        {
+            summaryReader.FindAsync(summary.StoredEmailId, Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult<EmailSummary?>(summary));
+        }
+
+        var threadReader = Substitute.For<IEmailThreadReader>();
+        threadReader
+            .ReadEmailsAsync(ConversationThread, Arg.Any<MailboxScope>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<ThreadedEmailSummary>>(
+            [
+                .. summaries.Select((summary, index) => new ThreadedEmailSummary
+                {
+                    StoredEmailId = summary.StoredEmailId,
+                    AccountId = summary.Account,
+                    Folder = summary.Folder,
+                    ParentStoredEmailId = index is 0 ? null : summaries[index - 1].StoredEmailId,
+                    Subject = summary.Subject,
+                    SentAt = summary.SentAt,
+                    SenderAddress = summary.SenderAddress,
+                }),
+            ]));
+
+        var catalog = Substitute.For<ICallerMailAccountCatalog>();
+        catalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns([SyntheticServedAccount.Of(Primary)]);
+
+        var readTelemetry = Substitute.For<IMailboxReadTelemetry>();
+        readTelemetry.BeginRead(Arg.Any<MailboxReadOperation>(), Arg.Any<CancellationToken>())
+            .Returns(Substitute.For<IMailboxReadScope>());
+
+        var folders = StubMailFolderParticipation.Mapping(new MailFolderIdentity(Primary, MailFolderAlias.Create("INBOX")));
+        var reader = new EmailContentReader(
+            summaryReader,
+            threadReader,
+            Substitute.For<IEmailContentStore>(),
+            Substitute.For<IEmailContentRenderer>(),
+            Substitute.For<IEmailContentRepairRequestStore>(),
+            new MailboxScopeResolver(
+                catalog,
+                folders,
+                StubDeploymentMailFolders.Of(folders),
+                StubMailFolderMappings.ResolvingNothing),
+            Substitute.For<IAttachmentDownloadLinkIssuer>(),
+            SensitiveContentEgressGuards.Inactive(),
+            new EmailContentReadOptions(),
+            readTelemetry,
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));
+
+        StoredEmailId[] messages = [.. summaries.Select(static summary => summary.StoredEmailId)];
+
+        return (reader, messages);
+    }
+
+    private static EmailSummary ConversationMessage(StoredEmailId storedEmailId, DateTimeOffset sentAt) => new()
+    {
+        StoredEmailId = storedEmailId,
+        Account = Primary,
+        Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
+        ThreadId = ConversationThread,
+        Subject = "Kestrel Quay move",
+        SentAt = sentAt,
+        ReceivedAt = sentAt,
+        SizeOctets = 2048,
+        SenderAddress = "ada@example.org",
+        ToAddresses = ["anna@example.org"],
+        SenderVerification = SenderVerification.NotEstablished,
+        SenderAuthenticationEvidence = SenderAuthenticationEvidence.None,
+        MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
+        Attachments = new StoredEmailAttachmentSummary(
+            AttachmentCount: 0,
+            TotalSizeOctets: 0,
+            InlineResourceCount: 0,
+            IsEncrypted: false,
+            CarriesUnverifiedSignature: false,
+            ContainsUnexpandedTnefPart: false),
+        ContentAvailability = StoredEmailContentAvailability.ExceededSizeLimit,
+        RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved,
+    };
+
     private static AIFunctionArguments Suggesting(params string[] questions) =>
         new(new Dictionary<string, object?> { ["questions"] = questions });
 
@@ -1097,7 +1274,8 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         IEmailProvenanceReader? provenanceReader = null,
         UserClock? clock = null,
         StoredEmailResponseAuthoring? responseAuthoring = null,
-        MailFootersInForce? footers = null)
+        MailFootersInForce? footers = null,
+        EmailContentReader? contentReader = null)
     {
         var retrieval = new ScopedMailKnowledgeRetrieval(
             this.knowledgeSearch,
@@ -1108,7 +1286,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         var readers = new AgentConversationReaders(
             ScopeResolver: null!,
             KnowledgeSearch: null!,
-            ContentReader: null!,
+            ContentReader: contentReader!,
             ProvenanceReader: provenanceReader ?? StubEmailProvenanceReader.AllKnownCorrespondents,
             StateBrowser: null!,
             calendar!,
