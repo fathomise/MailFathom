@@ -292,6 +292,7 @@ public sealed class AgentCompositionTests
             chatClient,
             ChatDeclarations.Plan(),
             UserLanguage.English,
+            new ReplyDraftTurn("a turn", [], [], []),
             new EmptyAgentInstructionEnvelope(),
             NullLoggerFactory.Instance),
         ["thread state"] = static chatClient => ThreadStateAgentComposition.Compose(
