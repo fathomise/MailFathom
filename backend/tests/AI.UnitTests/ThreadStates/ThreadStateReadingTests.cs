@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.ThreadStates;
+using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Domain.Emails;
 using MailFathom.TestSupport;
@@ -282,21 +283,112 @@ public sealed class ThreadStateReadingTests
     }
 
     /// <summary>
-    /// Two answers gpt-6-luna wrote in the evaluation run that put "keepTopic" beside "title" rather than inside it, one
-    /// where the turn showed a topic and one where it showed none. The reading does not move a field into the object it
-    /// belongs to, so each title carries neither a topic nor a kept one and the answer is withheld; the instruction
-    /// saying where the field goes is what answers this.
+    /// An answer gpt-6-luna wrote in an evaluation run that put "keepTopic" beside "title" rather than inside it, where the
+    /// turn showed a topic. A member the document declares only inside the title is read there, so the answer keeps the
+    /// topic and settles with every statement it wrote.
     /// </summary>
-    [Theory]
-    [InlineData(RecordedAnswerKeepingTheTopicOutsideTheTitle, true)]
-    [InlineData(RecordedPolishAnswerKeepingATopicOutsideTheTitle, false)]
-    public void Read_ARecordedAnswerKeepingTheTopicOutsideTheTitle_IsWithheldAsUnreadable(string answer, bool topicShown)
+    [Fact]
+    public void Read_ARecordedAnswerKeepingTheShownTopicOutsideTheTitle_KeepsTheTopicAndSettlesEveryStatement()
     {
+        // Act
+        var derivation = ThreadStateReading.Read(RecordedAnswerKeepingTheTopicOutsideTheTitle, Conversation(4), topicShown: true);
+
+        // Assert
+        Assert.True(derivation.IsSettled);
+        Assert.Equal(3, derivation.Entries.Count);
+        Assert.Null(derivation.Title?.Topic);
+        Assert.StartsWith("The invoice 7842 payment is due", derivation.Title?.Standing, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The same misplacement where the turn showed no topic reads exactly as the field written inside the title would: a
+    /// topic kept where none was shown keeps nothing, and a title naming no topic beside it leaves the conversation
+    /// nameless, so the answer is withheld and asked again.
+    /// </summary>
+    [Fact]
+    public void Read_ARecordedAnswerKeepingATopicItWasNotShownOutsideTheTitle_IsWithheldAsTheSameFieldInsideItWouldBe()
+    {
+        // Arrange
+        var nested = RecordedPolishAnswerKeepingATopicOutsideTheTitle
+            .Replace("\"keepTopic\": true,", string.Empty, StringComparison.Ordinal)
+            .Replace("\"title\": {", "\"title\": { \"keepTopic\": true,", StringComparison.Ordinal);
+
+        // Act
+        var misplaced = ThreadStateReading.Read(RecordedPolishAnswerKeepingATopicOutsideTheTitle, Messages(), topicShown: false);
+        var inside = ThreadStateReading.Read(nested, Messages(), topicShown: false);
+
+        // Assert
+        Assert.Equal(ThreadStateWithholding.AnswerUnreadable, misplaced.Withheld);
+        Assert.Equal(inside.Withheld, misplaced.Withheld);
+    }
+
+    /// <summary>The topic the turn showed stays until the conversation moves on, so a title naming no new one keeps it whether or not it says so.</summary>
+    [Theory]
+    [InlineData("""{ "title": { "standing": "Upper limit still open" } }""")]
+    [InlineData("""{ "title": { "topic": null, "keepTopic": false, "subjectChanged": false, "standing": "Upper limit still open" } }""")]
+    public void Read_ATitleNamingNoNewTopicWhereTheTurnShowedOne_KeepsTheTopicItWasShown(string answer)
+    {
+        // Act
+        var derivation = ThreadStateReading.Read(answer, Messages(), topicShown: true);
+
+        // Assert
+        Assert.True(derivation.IsSettled);
+        Assert.NotNull(derivation.Title);
+        Assert.Null(derivation.Title.Topic);
+    }
+
+    /// <summary>A title whose every member is null or blank is the empty answer a strict schema's required members stand for, read as no title at all.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Read_ATitleSayingNothing_SettlesWithoutOne(bool topicShown)
+    {
+        // Arrange
+        const string answer = """{ "agreements": [], "title": { "topic": null, "keepTopic": null, "subjectChanged": null, "standing": null } }""";
+
         // Act
         var derivation = ThreadStateReading.Read(answer, Messages(), topicShown);
 
         // Assert
-        Assert.Equal(ThreadStateWithholding.AnswerUnreadable, derivation.Withheld);
+        Assert.True(derivation.IsSettled);
+        Assert.Null(derivation.Title);
+    }
+
+    /// <summary>A member written as null is read as one left out, so a commitment naming nobody and no date keeps its statement.</summary>
+    [Fact]
+    public void Read_ACommitmentWritingItsOwnerAndDateAsNull_KeepsTheCommitmentWithoutThem()
+    {
+        // Arrange
+        const string answer = """{ "commitments": [{ "text": "The figures will be sent.", "messages": [0], "owedBy": null, "dueAt": null }] }""";
+
+        // Act
+        var entry = Assert.Single(ThreadStateReading.Read(answer, Messages(), topicShown: false).Entries);
+
+        // Assert
+        Assert.Equal((null, null), (entry.OwedBy, entry.DueAt));
+    }
+
+    /// <summary>
+    /// Every answer a model wrote to this agent in the last evaluation run, replayed through the reading. There is one
+    /// reading whether or not the request carried a schema, so this is the replay under both: nothing it read before a
+    /// misplaced member was placed where it belongs, a null read as left out, and a title naming no new topic read as
+    /// keeping the one shown is unreadable now.
+    /// </summary>
+    [Fact]
+    public void Read_EveryAnswerRecordedInTheLastEvaluationRun_IsReadRatherThanWithheld()
+    {
+        // Arrange
+        var recorded = RecordedAnswers.Of("ThreadState");
+        var conversation = Conversation(12);
+
+        // Act
+        var withheld = recorded
+            .Where(answer => !ThreadStateReading.Read(answer.Answer, conversation, TopicShownTo(answer)).IsSettled)
+            .Select(static answer => answer.Scenario);
+
+        // Assert
+        Assert.NotEmpty(recorded);
+        Assert.Empty(withheld);
     }
 
     /// <summary>A standing is a reading of what is still open, so one written beside nothing open says nothing the statements carry.</summary>
@@ -323,7 +415,7 @@ public sealed class ThreadStateReadingTests
     [InlineData("""{ "title": { "topic": "<b>Racking</b>", "standing": "" } }""")]
     [InlineData("""{ "title": { "topic": "Racking\nquotation", "standing": "" } }""")]
     [InlineData("""{ "title": { "topic": "See https://example.test", "standing": "" } }""")]
-    [InlineData("""{ "title": { "standing": "" } }""")]
+    [InlineData("""{ "title": { "standing": "Upper limit still open" } }""")]
     [InlineData("""{ "openQuestions": [{ "text": "Open.", "messages": [1] }], "title": { "topic": "Racking", "standing": "**Open**" } }""")]
     public void Read_ATitleThatIsNotOnePlainLine_IsWithheldAsUnreadable(string answer)
     {
@@ -515,6 +607,21 @@ public sealed class ThreadStateReadingTests
           }
         }
         """;
+
+    /// <summary>Whether the turn a recorded answer replied to showed a topic, which an answer keeping one says it did.</summary>
+    private static bool TopicShownTo(RecordedAnswer answer) => answer.Answer.Contains("keepTopic", StringComparison.Ordinal);
+
+    /// <summary>A conversation of as many messages as a recorded answer may cite.</summary>
+    private static IReadOnlyList<DerivableThreadMessage> Conversation(int count) =>
+    [
+        .. Enumerable.Range(0, count).Select(static position => new DerivableThreadMessage(
+            StoredEmailId.Create(Guid.CreateVersion7()),
+            position,
+            "Karolina",
+            new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero).AddHours(position),
+            "the price holds",
+            StubEmailProvenanceReader.KnownCorrespondent)),
+    ];
 
     private static IReadOnlyList<DerivableThreadMessage> Messages() =>
     [

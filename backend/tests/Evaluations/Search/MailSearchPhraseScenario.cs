@@ -36,7 +36,7 @@ internal static class MailSearchPhraseScenario
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",
-            MailSearchPhraseInstructions.Text,
+            _ => MailSearchPhraseInstructions.Text,
             (_, cancellationToken) => MailSearchPhraseAgent.ComposeTurnAsync(
                 new MailSearchPhrase(EmailSearchQueryText.Create(scenario.Sentence), MailSearchPhraseCase.AskedAt),
                 SensitiveContentEgressGuards.Inactive(),
@@ -46,7 +46,7 @@ internal static class MailSearchPhraseScenario
                 plan,
                 new EmptyAgentInstructionEnvelope(),
                 NullLoggerFactory.Instance),
-            answer => MailSearchPhraseDocumentReading.Read(answer) is { WasRead: true } reading
+            (answer, _) => MailSearchPhraseDocumentReading.Read(answer) is { WasRead: true } reading
                 ? scenario.Expectation(reading)
                 : "nothing could be read from the answer, so the search would fall back to the sentence's own words.",
             ExpectationMetricName,

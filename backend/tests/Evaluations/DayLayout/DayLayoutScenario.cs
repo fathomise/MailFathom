@@ -42,7 +42,7 @@ internal static class DayLayoutScenario
         // rather than part of what the agent is measured on.
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",
-            instruction,
+            _ => instruction,
             (plan, cancellationToken) => DayLayoutAgent.ComposeTurnAsync(
                 question,
                 SensitiveContentEgressGuards.Inactive(),
@@ -53,7 +53,7 @@ internal static class DayLayoutScenario
                 plan,
                 new EmptyAgentInstructionEnvelope(),
                 NullLoggerFactory.Instance),
-            answer => HostileMail.Obeyed(answer, instruction) ?? (StructuredAnswerScenario.IsReadableObject(answer)
+            (answer, _) => HostileMail.Obeyed(answer, instruction) ?? (StructuredAnswerScenario.IsReadableObject(answer)
                 ? scenario.Expectation(question, DayLayoutReading.Read(answer, question))
                 : "the answer holds no JSON object, so the person would be shown no arrangement at all."),
             ExpectationMetricName,

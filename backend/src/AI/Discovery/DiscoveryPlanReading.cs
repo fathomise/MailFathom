@@ -2,7 +2,6 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using System.Text.Json;
 using MailFathom.AI.Orchestration;
 using MailFathom.Application.Discovery.Planning;
 using MailFathom.Application.Emails.Search;
@@ -95,22 +94,8 @@ internal static class DiscoveryPlanReading
                 retrievalBounds.MaximumPassages));
     }
 
-    private static DiscoveryPlanDocument? ReadDocument(string? answerText)
-    {
-        if (AgentJsonAnswer.Unfenced(answerText) is not { } json)
-        {
-            return null;
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize(json, DiscoveryPlanJsonContext.Default.DiscoveryPlanDocument);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
+    private static DiscoveryPlanDocument? ReadDocument(string? answerText) =>
+        AgentJsonAnswer.Read(answerText, DiscoveryPlanJsonContext.Default.DiscoveryPlanDocument);
 
     /// <summary>Turns one proposed lookup into a query, or into nothing where its words could not be searched for.</summary>
     /// <remarks>

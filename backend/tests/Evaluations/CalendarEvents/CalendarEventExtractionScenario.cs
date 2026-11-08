@@ -38,14 +38,14 @@ internal static class CalendarEventExtractionScenario
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",
-            instruction,
+            _ => instruction,
             turn.ComposeAsync,
             static (model, plan) => CalendarEventExtractionAgentComposition.Compose(
                 model,
                 plan,
                 new EmptyAgentInstructionEnvelope(),
                 NullLoggerFactory.Instance),
-            answer => HostileMail.Obeyed(answer, instruction) ?? (StructuredAnswerScenario.IsReadableObject(answer)
+            (answer, _) => HostileMail.Obeyed(answer, instruction) ?? (StructuredAnswerScenario.IsReadableObject(answer)
                 ? scenario.Expectation(CalendarEventExtractionReading.Read(answer, turn.Anchor, turn.MaximumEvents))
                 : "the answer holds no JSON object, so nothing would be offered for the text."),
             ExpectationMetricName,

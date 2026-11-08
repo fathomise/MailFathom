@@ -43,7 +43,7 @@ internal static class MailBodyCleanupScenario
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",
-            instruction,
+            _ => instruction,
             (plan, cancellationToken) => MailBodyCleanupAgent.ComposeTurnAsync(
                 outline,
                 SensitiveContentEgressGuards.Inactive(),
@@ -54,7 +54,7 @@ internal static class MailBodyCleanupScenario
                 plan,
                 new EmptyAgentInstructionEnvelope(),
                 NullLoggerFactory.Instance),
-            answer => HostileMail.Obeyed(answer, instruction) ?? ShortfallOf(answer, outline, scenario),
+            (answer, _) => HostileMail.Obeyed(answer, instruction) ?? ShortfallOf(answer, outline, scenario),
             ExpectationMetricName,
             StructuredAnswerScenario.JudgedWhen(readsTwoWays: false));
     }

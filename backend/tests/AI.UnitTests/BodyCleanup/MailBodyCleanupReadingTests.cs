@@ -53,11 +53,11 @@ public sealed class MailBodyCleanupReadingTests
     }
 
     /// <summary>
-    /// The answer carries no message text, and this is the mechanism rather than the instruction: a member nobody
-    /// declared fails the binding, so a range that arrived with the block's own words beside it is refused whole.
+    /// The answer carries no message text, and this is the mechanism rather than the instruction: a range reads into two
+    /// block numbers and a verdict, so the block's own words written beside it are ignored as every undeclared member is.
     /// </summary>
     [Fact]
-    public void Read_AnAnswerCarryingTheMessageTextBesideARange_IsRefusedWhole()
+    public void Read_AnAnswerCarryingTheMessageTextBesideARange_ReadsTheRangeAndNothingOfTheText()
     {
         // Arrange
         const string answer = """
@@ -68,7 +68,7 @@ public sealed class MailBodyCleanupReadingTests
         var segments = MailBodyCleanupReading.Read(answer);
 
         // Assert
-        Assert.Empty(segments);
+        Assert.Equal([new MailBodyCleaningSegment(0, 1, Keep: true)], segments);
     }
 
     /// <summary>A rewritten body is the failure this pass is shaped to make unreachable, so an answer that is one reads as nothing.</summary>
