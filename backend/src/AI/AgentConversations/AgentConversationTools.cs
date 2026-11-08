@@ -14,6 +14,7 @@ using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Provenance;
+using MailFathom.Application.Emails.Threads;
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Application.Mail.Delivery.Authoring;
@@ -163,7 +164,7 @@ internal sealed class AgentConversationTools
         if (this.readers.Authorization.Permits(MailFathomPermission.MailRead))
         {
             tools.Add(new ReportingFunction(this.retrieval.CreateSearchTool(), this.journal, AgentActivity.SearchingMail));
-            tools.Add(AIFunctionFactory.Create(this.ReadThreadAsync, "read_thread", $"Reads the email conversation a message belongs to, up to its {MaximumThreadMessages} newest messages: each one's sender, date, subject, and body. Pass the id of any message in it, or of the conversation; where the message is older than those, the reading ends at it instead. The reading says how many earlier or later messages it left out."));
+            tools.Add(AIFunctionFactory.Create(this.ReadThreadAsync, "read_thread", $"Reads the email conversation a message belongs to, up to its {MaximumThreadMessages} newest messages: each one's sender, date, subject, and body. Pass the id of any message in it, or of the conversation; where the message is older than those, the reading ends at it instead. The reading says how many earlier or later messages it left out. A conversation past {IEmailThreadReader.MaximumAssembledEmails} messages is read from its first {IEmailThreadReader.MaximumAssembledEmails} only."));
             tools.Add(AIFunctionFactory.Create(this.ShowThreadStateAsync, "show_thread_state", "Shows the person where the conversation a message belongs to stands — what was agreed, what is still open, what somebody owes — exactly as it was already derived. The reading is placed in the conversation for them; do not restate it."));
         }
 
@@ -790,6 +791,13 @@ internal sealed class AgentConversationTools
     /// <para>
     /// The content read names the messages it did not serve, so the stretch is read from those identities a bounded
     /// read at a time, and the messages the first read already served are not read again.
+    /// </para>
+    /// <para>
+    /// The order comes from one assembly of the conversation, which stops at
+    /// <see cref="IEmailThreadReader.MaximumAssembledEmails" /> messages and does not say whether it stopped early. A
+    /// conversation past that is read from its assembled part only: the stretch ends at the last assembled message
+    /// rather than the newest, and the count of later messages leaves the unassembled ones out. The tool description
+    /// says so, because nothing in the reading can.
     /// </para>
     /// </remarks>
     private async Task<ShownConversation?> ReadConversationAsync(string messageId, CancellationToken cancellationToken)

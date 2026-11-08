@@ -16,11 +16,12 @@ namespace MailFathom.AI.Orchestration;
 /// One composition rather than a chat call written beside each feature, because what makes an operation safe is a
 /// property of the composition rather than of its prose. An instruction cannot be reached from a tool result because of
 /// where each is placed; the tool set <em>is</em> the capability, so an operation that only reads composes no mutating
-/// tool, and every tool refuses a call naming an argument its schema does not, through <see cref="SchemaEnforcingFunction" />;
-/// every call passes through whichever client the caller wrapped, which is where a run's spend is counted; and
-/// what a run reports about cost, cancellation, and the model is what
+/// tool; every tool is held to its schema through <see cref="SchemaEnforcingFunction" />, which refuses an argument the
+/// schema does not name, a required one left out, and a value the binding cannot read; every call passes through
+/// whichever client the caller wrapped, which is where a run's spend is counted; and what a run reports about cost,
+/// cancellation, and the model is what
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0022-what-an-ai-run-reports-about-cost-cancellation-and-the-model.md">ADR 0022</see>
-/// says. A feature composing its own call would re-decide all four in silence, once per feature.
+/// says. A feature composing its own call would re-decide all five in silence, once per feature.
 /// </para>
 /// <para>
 /// The instruction is carried as the agent's own rather than written into a message, which is what keeps it in a
