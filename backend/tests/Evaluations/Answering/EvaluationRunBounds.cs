@@ -18,8 +18,9 @@ namespace MailFathom.Evaluations.Answering;
 /// and so what an answer can rest on.
 /// </para>
 /// <para>
-/// The within-bounds metric still holds a run to the default bounds, read from what its ledger spent, so the empty
-/// answer a deployment would have returned stays visible in the report.
+/// The within-bounds metric still holds a run to the default bounds, checked the way a deployment checks them: against
+/// what the run's ledger held as each call started. So the empty answer a deployment would have returned stays visible in
+/// the report, and a run a deployment would have answered is not failed for the tokens its last call spent.
 /// </para>
 /// </remarks>
 internal static class EvaluationRunBounds
@@ -30,40 +31,48 @@ internal static class EvaluationRunBounds
         maximumProviderCalls: 16,
         maximumTokens: 160_000);
 
-    /// <summary>Records whether a run answered within the bounds a deployment applies by default, naming each ceiling it passed.</summary>
+    /// <summary>Records whether a run answered within the bounds a deployment applies by default, naming each ceiling a call started past.</summary>
     /// <param name="verdict">The verdict the metric is recorded on.</param>
     /// <param name="metricName">The scenario's name for the within-bounds metric.</param>
     /// <param name="answer">The run's answer, or <see langword="null" /> when <see cref="Ceiling" /> stopped it first.</param>
-    /// <param name="spend">What the run's ledger spent.</param>
+    /// <param name="atLastCallStart">
+    /// The run's ledger as its last call started, counting that call among the calls and none of its tokens, or
+    /// <see langword="null" /> where the run made no call.
+    /// </param>
     /// <remarks>
-    /// A deployment checks its token ceiling before each call, so the call that crosses it is still paid for and answered.
-    /// A run whose last call alone took it past the default token ceiling therefore fails here although a deployment would
-    /// have answered it — a spend total cannot tell the two apart, and failing such a run errs towards showing the problem.
+    /// <see cref="MailAnsweringRunLedger.RequireAllowanceForNextCall" /> refuses a call once the run has made every call it
+    /// may make or the tokens spent before it reach the ceiling, and both counts only grow, so a run a deployment would
+    /// have stopped is one whose last call it would have refused. The call that crosses the token ceiling is still answered there, and here.
     /// </remarks>
-    public static void RecordWithinDefault(EvaluationResult verdict, string metricName, ChatResponse? answer, MailAnsweringRunSpend spend)
+    public static void RecordWithinDefault(
+        EvaluationResult verdict,
+        string metricName,
+        ChatResponse? answer,
+        MailAnsweringRunSpend? atLastCallStart)
     {
         var production = MailAnsweringRunBounds.Default;
-        List<string> passed = [];
+        var lastCall = atLastCallStart ?? MailAnsweringRunSpend.Nothing;
+        List<string> refused = [];
 
-        if (spend.ProviderCalls > production.MaximumProviderCalls)
+        if (lastCall.ProviderCalls > production.MaximumProviderCalls)
         {
-            passed.Add($"{spend.ProviderCalls} calls, more than the {production.MaximumProviderCalls} a deployment allows by default");
+            refused.Add($"call {lastCall.ProviderCalls}, past the {production.MaximumProviderCalls} calls it allows by default");
         }
 
-        if (spend.Tokens > production.MaximumTokens)
+        if (lastCall.Tokens >= production.MaximumTokens)
         {
-            passed.Add($"{spend.Tokens} tokens, more than the {production.MaximumTokens} a deployment allows by default");
+            refused.Add($"a call that started at {lastCall.Tokens} tokens, at or past the {production.MaximumTokens} it allows by default");
         }
 
         EvaluationMetrics.Record(
             verdict,
             metricName,
-            answer is not null && passed.Count is 0,
-            (answer, passed.Count) switch
+            answer is not null && refused.Count is 0,
+            (answer, refused.Count) switch
             {
                 (null, _) => $"The run reached {Ceiling} before it answered.",
                 (_, 0) => $"The run stayed within {production}.",
-                _ => $"The run answered only after {string.Join(" and ", passed)}.",
+                _ => $"A deployment would have refused {string.Join(" and ", refused)}.",
             });
     }
 }

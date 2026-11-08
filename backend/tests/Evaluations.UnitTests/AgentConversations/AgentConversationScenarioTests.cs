@@ -400,7 +400,7 @@ public sealed class AgentConversationScenarioTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_AModelThatAnswersPastTheDefaultTokenCeiling_FailsTheBoundsCheckNamingTheTokens()
+    public async Task RunAsync_AModelWhoseLastCallAloneCrossesTheDefaultTokenCeiling_PassesTheBoundsCheck()
     {
         // Arrange
         using var model = new ScriptedAgentChatClient([Search("LumenDesk export error")], "Never graded.", inputTokensPerReply: 50_000);
@@ -410,8 +410,22 @@ public sealed class AgentConversationScenarioTests : IDisposable
 
         // Assert
         var withinBounds = verdict.Get<BooleanMetric>(AgentConversationScenario.WithinBoundsMetricName);
+        Assert.True(withinBounds.Value, withinBounds.Reason);
+    }
+
+    [Fact]
+    public async Task RunAsync_AModelWhoseCallStartsPastTheDefaultTokenCeiling_FailsTheBoundsCheckNamingTheTokens()
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient([Search("LumenDesk export error")], "Never graded.", inputTokensPerReply: 90_000);
+
+        // Act
+        var verdict = await this.RunAsync(Quoting, model);
+
+        // Assert
+        var withinBounds = verdict.Get<BooleanMetric>(AgentConversationScenario.WithinBoundsMetricName);
         Assert.False(withinBounds.Value);
-        Assert.Contains("100010 tokens", withinBounds.Reason, StringComparison.Ordinal);
+        Assert.Contains("started at 90005 tokens", withinBounds.Reason, StringComparison.Ordinal);
     }
 
     [Fact]

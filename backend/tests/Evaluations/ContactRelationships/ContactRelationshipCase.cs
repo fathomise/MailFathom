@@ -140,7 +140,8 @@ internal sealed record ContactRelationshipCase(
         // An invoice chased and paid, an order confirmed, and a new price list: three kinds of matter with one supplier.
         new("Polish.SeveralMatters", "piotr.wawrzyniak@kamionka.test", NamesItsCases, UserLanguage.Polish),
 
-        // A catalogue, then a quotation asked for, promised, and chased by the owner in the same conversation.
+        // A catalogue, then a quotation asked for, promised, and chased by the owner in the same conversation, whose chase
+        // says in its subject that the quotation is still awaited, because a subject is all the card is shown of it.
         new(
             "Polish.UnansweredQuote",
             "jolanta.mazur@bursztynowa.test",

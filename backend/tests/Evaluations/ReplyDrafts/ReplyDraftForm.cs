@@ -13,6 +13,6 @@ internal enum ReplyDraftForm
     /// <summary>A table and a list, because the person asked for both.</summary>
     TableAndList = 1,
 
-    /// <summary>Some structure — a list, a table, or a bold lead-in — on a long reply nobody asked to be formatted.</summary>
+    /// <summary>Some structure — a list, a table, or a bold lead-in — on a reply asked for a list, or a long one of separate points.</summary>
     Structured = 2,
 }

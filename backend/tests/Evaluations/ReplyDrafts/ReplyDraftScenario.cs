@@ -90,8 +90,8 @@ namespace MailFathom.Evaluations.ReplyDrafts;
 /// draft must then not propose, or <see langword="null" /> where no message names one.
 /// </param>
 /// <param name="ExpectedForm">
-/// The shape the draft's blocks are held to — plain, a table and a list asked for, or structure on a long reply nobody
-/// asked to format — or <see langword="null" /> where the case holds the form to nothing.
+/// The shape the draft's blocks are held to — plain, a table and a list asked for, or structure on a reply asked for a
+/// list or a long one of separate points — or <see langword="null" /> where the case holds the form to nothing.
 /// </param>
 /// <param name="LinksTo">
 /// The addresses the draft has to link, each of them and nothing else, or <see langword="null" /> where the case holds the
@@ -200,7 +200,7 @@ internal sealed partial record ReplyDraftScenario(
         new(
             "ReplyDraft.Formatting.StructuresALongMultiPartReply",
             CorpusMessage.ConversationUpTo(position: 110),
-            "Reply to Ingrid and Tobias about move day covering each of these: the two parking spaces for the vans from 07:00, the printer ports on the third floor, the key cards I will collect at reception, the boxes at reception by 14:00 on Friday, the IT cutover on Saturday morning, and who to call if the lift is booked.",
+            "Reply to Ingrid and Tobias about move day covering each of these: the two parking spaces for the vans from 07:00, the printer ports at desk C4-06 on the fourth floor, the key cards I will collect at reception, the boxes at reception by 14:00 on Friday, the fibre going live on Thursday ahead of the move on Sunday, and who to call if the lift is booked.",
             "Thorough, so they can check every point off.",
             AsksForWhatNothingSupports: false,
             MinimumTaskAdherence: 4,
@@ -282,7 +282,8 @@ internal sealed partial record ReplyDraftScenario(
             "Ask Ada for the request identifier the export error showed and whether \"All teams\" also covers archived teams.",
             "Concise, with the questions as a numbered list.",
             AsksForWhatNothingSupports: false,
-            MinimumTaskAdherence: 4),
+            MinimumTaskAdherence: 4,
+            ExpectedForm: ReplyDraftForm.Structured),
         new(
             "ReplyDraft.AsksForAPaymentReference",
             CorpusMessage.ConversationUpTo(position: 81),
