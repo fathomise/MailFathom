@@ -51,7 +51,13 @@ again, so it is told how the words of a lookup are matched — none stemmed, and
 also ranks by meaning — and asked for several lookups of two or three distinctive words each, the most distinctive
 first, rather than one lookup restating the question. Because every word may be required, the last lookup is always the name alone — the product, the person, the place,
 or the code the question is about, with no other word — so a message that puts the rest of the question in words the
-question did not use is still reached. The plan is bounded before it runs:
+question did not use is still reached. Reaching a message is not handing over its answer: of each message a lookup
+reaches, only the few short extracts the deployment's snippet bounds allow are handed over, cut where the most of that
+lookup's words stand together. A lookup carrying the words of the problem the question describes therefore hands over the
+sentences describing the problem, while the sentence naming the fix, the cause, or the message a screen showed stands
+beside other words. So one lookup is the name beside the word the answer stands beside — "patch" or "deployed" for what
+fixed something, "caused" for why it happened, "message" for what a program showed, "room" or "hotel" for where — and
+nothing else. The plan is bounded before it runs:
 
 - **At most six lookups.** More than that is a model misjudging a question rather than a question that needs them, so
   the surplus is dropped and the first six run.

@@ -62,7 +62,7 @@ public sealed class DiscoveryPlanningInstructionsTests
 
     /// <summary>
     /// Every word of a lookup has to be in the message and the extract is cut around those words, so a lookup copying the
-    /// question's own wording misses the message and one naming only the matter hands over an extract without the answer.
+    /// question's own wording misses the message and one naming the matter hands over an extract without the answer.
     /// </summary>
     [Fact]
     public void Text_TheInstruction_AsksForALookupWithoutTheQuestionsWordingAndOneBesideTheAnswer()
@@ -73,7 +73,25 @@ public sealed class DiscoveryPlanningInstructionsTests
         // Assert
         Assert.Contains("the last lookup is always the name alone", text, StringComparison.Ordinal);
         Assert.Contains("with no other word beside it", text, StringComparison.Ordinal);
-        Assert.Contains("let one lookup also carry the word the answer itself stands beside", text, StringComparison.Ordinal);
+        Assert.Contains("one lookup is the name and the word the answer itself stands beside, and nothing else", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A message hands over only the few extracts carrying the most of a lookup's words, so the words of the problem the
+    /// question describes pulled every extract to the description, and the sentence naming the fix or the message shown
+    /// was never handed over even though the lookup reached its message.
+    /// </summary>
+    [Fact]
+    public void Text_TheInstruction_KeepsTheProblemsWordsOutOfTheLookupBesideTheAnswer()
+    {
+        // Act
+        var text = DiscoveryPlanningInstructions.Text.ReplaceLineEndings(" ");
+
+        // Assert
+        Assert.Contains("cut where the most of that lookup's words stand together", text, StringComparison.Ordinal);
+        Assert.Contains("Never add the words of the problem the question describes to that lookup", text, StringComparison.Ordinal);
+        Assert.Contains("\"patch\", \"deployed\", or \"fixed\" for what fixed something", text, StringComparison.Ordinal);
+        Assert.Contains("\"caused\" or \"because\" for why it happened", text, StringComparison.Ordinal);
     }
 
     /// <summary>
