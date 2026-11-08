@@ -1156,7 +1156,7 @@ public sealed class OrchestratedGrantStoreTests(MailFathomOrchestrationFixture o
             statement.Sql.Contains(roleId.ToString(), StringComparison.Ordinal) == roleIds.Contains(roleId));
 
         string StatementIn(Func<Migration, IReadOnlyList<MigrationOperation>> direction) =>
-            Assert.Single(chain.SelectMany(direction).OfType<SqlOperation>().Where(NamesExactly)).Sql;
+            Assert.Single(chain.SelectMany(direction).OfType<SqlOperation>(), NamesExactly).Sql;
 
         return (StatementIn(migration => migration.UpOperations), StatementIn(migration => migration.DownOperations));
     }

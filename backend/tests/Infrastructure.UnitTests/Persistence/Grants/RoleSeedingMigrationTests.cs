@@ -184,6 +184,6 @@ public sealed class RoleSeedingMigrationTests
         int DownStatements)
     {
         public bool Recognizes(MigrationOperation operation) =>
-            operation is SqlOperation sql && WritesARole(sql) && RecognizesSql(sql.Sql);
+            operation is SqlOperation sql && WritesARole(sql) && this.RecognizesSql(sql.Sql);
     }
 }
