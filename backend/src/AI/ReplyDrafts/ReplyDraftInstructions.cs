@@ -120,6 +120,11 @@ internal static class ReplyDraftInstructions
 
     private const string CellShape = """{"runs": [run, ...]}""";
 
+    /// <summary>The one block the prose instruction writes out whole: a paragraph whose last words link to the turn's first link.</summary>
+    /// <remarks>Shown because a model told the shape in prose alone wrote a link as Markdown inside a string and lost it.</remarks>
+    internal const string WorkedLinkedParagraph =
+        """{"type": "paragraph", "runs": ["The minutes are in ", {"text": "the shared folder", "link": 0}, "."]}""";
+
     private const string LanguageStatement =
         "\nWrite the reply in the language the conversation is written in, whatever language the ask and the samples "
         + "are in, unless the ask names a language for it.\n";
@@ -128,24 +133,81 @@ internal static class ReplyDraftInstructions
         "\nThe account this message is sent from closes it with the person's footer. End the body at its own last "
         + "sentence, with no closing phrase and no sign-off.\n";
 
-    /// <summary>The instruction for each language this deployment writes in, composed once per language.</summary>
+    /// <summary>The instruction for each language this deployment writes in, with and without a response schema, composed once each.</summary>
     /// <remarks>Composed from the members rather than written out twice, so the set is the enumeration's and a language added to it arrives here without this file being edited.</remarks>
-    private static readonly FrozenDictionary<UserLanguage, string> TextByLanguage = Enum
+    private static readonly FrozenDictionary<(UserLanguage Language, bool ConstrainedBySchema), string> TextByLanguage = Enum
         .GetValues<UserLanguage>()
-        .ToFrozenDictionary(static language => language, Compose);
+        .SelectMany(static language => new[] { (language, false), (language, true) })
+        .ToFrozenDictionary(static key => key, static key => Compose(key.Item1, key.Item2));
 
     /// <summary>Gets the instruction the agent is composed with for one person's language.</summary>
     /// <param name="language">The language the person writing reads, which decides a draft answering no correspondence.</param>
+    /// <param name="constrainedBySchema">
+    /// Whether the request carries the strict schema <see cref="ReplyDraftSchema" /> builds, in which case the instruction
+    /// says only what each field means rather than describing the shape the schema already enforces.
+    /// </param>
     /// <returns>The instruction text.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the value names no language this deployment writes in.</exception>
-    internal static string TextFor(UserLanguage language) => TextByLanguage.TryGetValue(language, out var text)
-        ? text
-        : throw new ArgumentOutOfRangeException(
-            nameof(language),
-            language,
-            "The reply-drafting agent is composed for a language MailFathom writes in.");
+    internal static string TextFor(UserLanguage language, bool constrainedBySchema = false) =>
+        TextByLanguage.TryGetValue((language, constrainedBySchema), out var text)
+            ? text
+            : throw new ArgumentOutOfRangeException(
+                nameof(language),
+                language,
+                "The reply-drafting agent is composed for a language MailFathom writes in.");
 
-    private static string Compose(UserLanguage language) => string.Create(
+    /// <summary>Describes the body: in prose, shape and all, where no schema shapes it, and by what its blocks mean where one does.</summary>
+    private static string BodyStatement(bool constrainedBySchema) => constrainedBySchema
+        ? string.Create(
+            CultureInfo.InvariantCulture,
+            $"""
+            "body" is the reply itself, holding at most {ReplyDraft.MaximumBodyLength} characters of words, in the blocks
+            the response schema allows. A string is a paragraph of plain words; a paragraph object holds runs whose words
+            carry formatting; a list is one level deep, "ordered" true for a numbered one; a table holds at most
+            {ReplyDraftBlockReading.MaximumTableRows} rows and {ReplyDraftBlockReading.MaximumTableColumns} columns, "header"
+            true where its first row names the columns. A run is plain words, or words that are bold, italic, coloured, or
+            linked, with "bold" and "italic" false and "colour" null where they do not apply. A line break inside a
+            paragraph is "\n"; a new paragraph is a new block. There are no headings: a section opens with a short bold run
+            at the start of its first paragraph.
+            """)
+        : string.Create(
+            CultureInfo.InvariantCulture,
+            $"""
+            "body" is the reply itself, an array of blocks holding at most {ReplyDraft.MaximumBodyLength} characters of words.
+            A block is one of these:
+            - a string, which is a paragraph of plain words;
+            - {ParagraphShape}, a paragraph whose words carry formatting;
+            - {ListShape}, a list one level deep, "ordered" true for a numbered
+              one, each item a string or an array of runs;
+            - {TableShape}, a table of at most
+              {ReplyDraftBlockReading.MaximumTableRows} rows and {ReplyDraftBlockReading.MaximumTableColumns} columns, "header"
+              true where its first row names the columns, each cell a string or an array of runs.
+            A run is a string of plain words, or {RunShape} with every field but "text"
+            left out where it does not apply. A line break inside a paragraph is "\n"; a new paragraph is a new block. There
+            are no headings: a section opens with a short bold run at the start of its first paragraph.
+
+            Each block is a JSON value written in the array itself, never a string holding JSON. A link is a run carrying
+            "link", never Markdown such as [words](link 0) inside a string. A list is a list block, never paragraphs opening
+            with "1." or "-". A paragraph whose last words link to the turn's link 0, for example, is written
+            {WorkedLinkedParagraph}
+            """);
+
+    /// <summary>Says when a colour or an alignment is written, naming the members only where no schema already does.</summary>
+    private static string ColourAndAlignmentStatement(bool constrainedBySchema) => constrainedBySchema
+        ? """
+          A colour or an alignment is written only where the person named that colour or that alignment themselves;
+          otherwise a run's "colour" and a paragraph's or a cell's "align" are null. Write no text size and no picture.
+          """
+        : string.Create(
+            CultureInfo.InvariantCulture,
+            $"""
+            A colour or an alignment is written only where the person named that colour or that alignment themselves. A run
+            then carries "colour", one of {string.Join(", ", ReplyDraftBlockReading.SwatchNames)}; a paragraph, or a cell
+            written as {CellShape}, then carries "align", one of "start", "center", "end", or "justify". Write no
+            text size and no picture.
+            """);
+
+    private static string Compose(UserLanguage language, bool constrainedBySchema) => string.Create(
         CultureInfo.InvariantCulture,
         $"""
         You draft a reply to email correspondence from somebody's own mailbox, in their own voice. What you write is
@@ -175,18 +237,7 @@ internal static class ReplyDraftInstructions
 
         Answer with one JSON object and nothing else — no prose around it, no code fence.
 
-        "body" is the reply itself, an array of blocks holding at most {ReplyDraft.MaximumBodyLength} characters of words.
-        A block is one of these:
-        - a string, which is a paragraph of plain words;
-        - {ParagraphShape}, a paragraph whose words carry formatting;
-        - {ListShape}, a list one level deep, "ordered" true for a numbered
-          one, each item a string or an array of runs;
-        - {TableShape}, a table of at most
-          {ReplyDraftBlockReading.MaximumTableRows} rows and {ReplyDraftBlockReading.MaximumTableColumns} columns, "header"
-          true where its first row names the columns, each cell a string or an array of runs.
-        A run is a string of plain words, or {RunShape} with every field but "text"
-        left out where it does not apply. A line break inside a paragraph is "\n"; a new paragraph is a new block. There
-        are no headings: a section opens with a short bold run at the start of its first paragraph.
+        {BodyStatement(constrainedBySchema)}
 
         Most replies are plain: an array of strings, one per paragraph. Format only where one of two things holds. The
         person asked for it in what they typed — a table, a list, bullet points, emphasis, or formatting in general — and
@@ -196,10 +247,7 @@ internal static class ReplyDraftInstructions
         and a reply from somebody whose own messages in <{UnrelatedSentMailElementName}> are plain stay plain, however
         much the person asks for the reply to be polished.
 
-        A colour or an alignment is written only where the person named that colour or that alignment themselves. A run
-        then carries "colour", one of {string.Join(", ", ReplyDraftBlockReading.SwatchNames)}; a paragraph, or a cell
-        written as {CellShape}, then carries "align", one of "start", "center", "end", or "justify". Write no
-        text size and no picture.
+        {ColourAndAlignmentStatement(constrainedBySchema)}
 
         The turn may carry a <{LinksElementName}> element numbering what the reply may link to: each <{LinkElementName}>
         names the <{HostElementName}> it goes to and the <{WordsElementName}> it was linked from, where there were any. A
@@ -225,7 +273,8 @@ internal static class ReplyDraftInstructions
         reply asserting nothing checkable has an empty "claims" array, which is a perfectly good answer.
 
         "recipients" is an array of at most {ReplyDraft.MaximumProposedRecipients} person numbers from the turn who
-        should receive the reply, or an empty array where you propose nobody in particular. Every one of them is shown
+        should receive the reply — the numbers of <{PersonElementName}> elements, never of messages — or an empty array
+        where you propose nobody in particular. Every one of them is shown
         to the person before anything is sent and none is added on their behalf, so propose who the conversation
         suggests rather than everybody it names.
 
@@ -282,32 +331,33 @@ internal static class ReplyDraftInstructions
     internal static string ComposeDraftingTurn(GuardedDraftingTurn turn, int maximumCharacters = int.MaxValue) =>
         ComposeDraftingTurn(turn, maximumCharacters, out _);
 
-    /// <summary>Composes the one turn a drafting is put to the agent as, and says how many of its links it wrote.</summary>
+    /// <summary>Composes the one turn a drafting is put to the agent as, and says how much of what it numbers it wrote.</summary>
     /// <param name="turn">Everything the drafting sends, with the egress guard already applied to every text of it.</param>
     /// <param name="maximumCharacters">The most characters the turn may hold.</param>
-    /// <param name="linksWritten">How many of the turn's links, from the first, the bound left room to number.</param>
+    /// <param name="written">How many of the turn's people, messages, and links, from the first, the bound left room to number.</param>
     /// <returns>The turn text.</returns>
-    internal static string ComposeDraftingTurn(GuardedDraftingTurn turn, int maximumCharacters, out int linksWritten)
+    internal static string ComposeDraftingTurn(GuardedDraftingTurn turn, int maximumCharacters, out NumberedCounts written)
     {
         ArgumentNullException.ThrowIfNull(turn);
 
         // The closing sentences are the service's own and never cut. Written through Compose, so they, the links'
         // structure, and everything else the writer cannot cut are held to the bound by moving the cut into earlier
-        // quoted text; the count is the one the returned pass wrote.
+        // quoted text; the counts are the ones the returned pass wrote.
         var closing = (turn.Messages.Count > 0 ? LanguageStatement : string.Empty)
             + (turn.ClosesWithFooter ? FooterStatement : string.Empty);
-        var written = 0;
-        var text = AgentTurnDocument.Compose(maximumCharacters, document => written = WriteDraftingTurn(document, turn, closing));
+        var counts = new NumberedCounts(0, 0, 0);
+        var text = AgentTurnDocument.Compose(maximumCharacters, document => counts = WriteDraftingTurn(document, turn, closing));
 
-        linksWritten = written;
+        written = counts;
 
         return text;
     }
 
-    /// <summary>Writes one pass of a drafting turn, and answers how many links it numbered.</summary>
-    private static int WriteDraftingTurn(AgentTurnDocument document, GuardedDraftingTurn turn, string closing)
+    /// <summary>Writes one pass of a drafting turn, and answers how much of what it numbers it wrote.</summary>
+    private static NumberedCounts WriteDraftingTurn(AgentTurnDocument document, GuardedDraftingTurn turn, string closing)
     {
         var linksWritten = 0;
+        var conversation = (People: 0, Messages: 0);
 
         // A turn carrying no correspondence writes no conversation element at all. An empty one would be read as an
         // exchange whose text could not be fetched, which is a different case with a different right answer, and this
@@ -315,7 +365,7 @@ internal static class ReplyDraftInstructions
         if (turn.Messages.Count > 0)
         {
             document.Reserve(reserved => WriteRequest(reserved, turn));
-            WriteConversation(document, turn);
+            conversation = WriteConversation(document, turn);
             document.Release();
         }
 
@@ -337,7 +387,7 @@ internal static class ReplyDraftInstructions
         // reason, after the samples whose sign-off it overrides.
         document.WriteStatement(closing);
 
-        return linksWritten;
+        return new NumberedCounts(conversation.People, conversation.Messages, linksWritten);
     }
 
     /// <summary>Writes what the person asked for: the part of the correspondence they selected, and what they typed.</summary>
@@ -354,9 +404,12 @@ internal static class ReplyDraftInstructions
         }
     }
 
-    /// <summary>Writes the correspondence, opening nothing more once the budget has cut it.</summary>
-    private static void WriteConversation(AgentTurnDocument document, GuardedDraftingTurn turn)
+    /// <summary>Writes the correspondence, opening nothing more once the budget has cut it, and answers how many people and messages it numbered.</summary>
+    private static (int People, int Messages) WriteConversation(AgentTurnDocument document, GuardedDraftingTurn turn)
     {
+        var people = 0;
+        var messages = 0;
+
         document.StartElement(ConversationElementName);
 
         if (turn.Subject is { } subject)
@@ -375,6 +428,7 @@ internal static class ReplyDraftInstructions
             document.WriteAttribute(NumberAttributeName, Number(person.Position));
             WriteOptionalContent(document, person.DisplayName);
             document.EndElement();
+            people++;
         }
 
         foreach (var message in turn.Messages)
@@ -385,9 +439,12 @@ internal static class ReplyDraftInstructions
             }
 
             WriteMessage(document, message);
+            messages++;
         }
 
         document.EndElement();
+
+        return (people, messages);
     }
 
     /// <summary>Writes one message of the conversation, marked where the person chose it, followed by its attachments.</summary>
@@ -569,3 +626,9 @@ internal sealed record GuardedDraftingMessage(
 /// <param name="Kind">Whether the words are the file's own or a description of a picture, which the turn says.</param>
 /// <param name="Text">The guarded words.</param>
 internal sealed record GuardedDraftingAttachment(string? FileName, AttachmentTextKind Kind, string Text);
+
+/// <summary>How many of what a drafting turn numbers it wrote, each counted from the first.</summary>
+/// <param name="People">The people the turn numbered.</param>
+/// <param name="Messages">The messages the turn numbered.</param>
+/// <param name="Links">The links the turn numbered.</param>
+internal sealed record NumberedCounts(int People, int Messages, int Links);

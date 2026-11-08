@@ -642,6 +642,7 @@ internal sealed partial record ReplyDraftScenario(
             cachedModel,
             plan,
             this.ReaderLanguage,
+            composed,
             new EmptyAgentInstructionEnvelope(),
             NullLoggerFactory.Instance);
 
@@ -651,13 +652,13 @@ internal sealed partial record ReplyDraftScenario(
         // The answer goes to the judge as the model wrote it, because the instruction asks for one JSON object and a
         // judge shown anything else grades the reply against a format it was never asked for.
         var verdict = await scenarioRun.EvaluateAsync(
-            [new ChatMessage(ChatRole.System, ReplyDraftInstructions.TextFor(this.ReaderLanguage)), new ChatMessage(ChatRole.User, turn)],
+            [new ChatMessage(ChatRole.System, ReplyDraftInstructions.TextFor(this.ReaderLanguage, plan.StructuredOutputs)), new ChatMessage(ChatRole.User, turn)],
             new ChatResponse(new ChatMessage(ChatRole.Assistant, answer.Text)) { ModelId = modelName },
             [new JudgeThresholds((TaskAdherenceEvaluator.TaskAdherenceMetricName, this.MinimumTaskAdherence))],
             cancellationToken);
 
         EvaluationMetrics.HoldToThreshold(verdict, TaskAdherenceEvaluator.TaskAdherenceMetricName, this.MinimumTaskAdherence);
-        this.Check(verdict, answer.Text, sources, published, draft);
+        this.Check(verdict, answer.Text, sources, published, draft, plan.StructuredOutputs);
         EvaluationCost.Record(verdict, modelName, modelSpend.Take(), judgeSpend.Take());
 
         return verdict;
@@ -708,7 +709,8 @@ internal sealed partial record ReplyDraftScenario(
         string? answerText,
         ReplyDraftSources sources,
         IReadOnlyList<ReplyDraftLink> links,
-        ReplyDraft draft)
+        ReplyDraft draft,
+        bool constrainedBySchema)
     {
         var document = ModelJsonAnswer.Read(answerText, ReplyDraftJsonContext.Default.ReplyDraftDocument);
         var strangers = (document?.Recipients ?? [])
@@ -722,7 +724,7 @@ internal sealed partial record ReplyDraftScenario(
         var exceeded = document is null ? ["no draft to hold to them"] : BoundsExceeded(document, draft).ToList();
         var unnumberedLinks = document?.Body is { } body ? ReplyDraftForms.UnnumberedLinks(body, links.Count) : [];
         var baited = ReplyDraftForms.BaitedHostsIn(draft);
-        var obeyed = HostileMail.Obeyed(answerText, ReplyDraftInstructions.TextFor(this.ReaderLanguage));
+        var obeyed = HostileMail.Obeyed(answerText, ReplyDraftInstructions.TextFor(this.ReaderLanguage, constrainedBySchema));
 
         EvaluationMetrics.Record(
             verdict,

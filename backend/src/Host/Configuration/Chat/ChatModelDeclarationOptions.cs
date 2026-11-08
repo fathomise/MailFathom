@@ -128,6 +128,22 @@ internal sealed class ChatModelDeclarationOptions : IProviderEndpointReachDeclar
     /// </remarks>
     public bool StickySessions { get; set; }
 
+    /// <summary>Gets or sets whether this model's server honours a strict JSON schema, so an operation answering in a document of a known shape may ask for one.</summary>
+    /// <remarks>
+    /// <para>
+    /// Off by default, because not every OpenAI-compatible server honours a <c>json_schema</c> response format: one
+    /// refuses the request outright and another accepts it and ignores the schema. Where it is off, every request is what
+    /// it would be without the key. Where it is on, the reply-drafting agent — the one operation that names a schema
+    /// today — sends a strict schema built for the conversation it answers, and a request reaching OpenRouter also
+    /// requires every parameter it carries to be honoured, so the router never chooses a provider that would drop it.
+    /// </para>
+    /// <para>
+    /// Nothing checks the claim at startup, since only a request can show what a server does with a schema. A server
+    /// that refuses one fails the drafting the way any refused request does, and the person keeps the composer.
+    /// </para>
+    /// </remarks>
+    public bool StructuredOutputs { get; set; }
+
     /// <summary>Gets or sets the greatest number of turns one request carries.</summary>
     [Range(1, 512)]
     public int MaxMessagesPerRequest { get; set; } = 64;
@@ -348,7 +364,7 @@ internal sealed class ChatModelDeclarationOptions : IProviderEndpointReachDeclar
             else if (ChatGenerationPlan.IsOwnedRequestMember(member.Key))
             {
                 yield return new ValidationResult(
-                    $"{description} declares an additional property '{member.Key}', which is a request member this deployment writes itself. Use the model's own key where one exists — MaxOutputTokens, Temperature, TopP, ReasoningEffort, or StickySessions — and leave the rest to the deployment.",
+                    $"{description} declares an additional property '{member.Key}', which is a request member this deployment writes itself. Use the model's own key where one exists — MaxOutputTokens, Temperature, TopP, ReasoningEffort, StickySessions, or StructuredOutputs — and leave the rest to the deployment.",
                     key);
             }
 
@@ -393,7 +409,8 @@ internal sealed class ChatModelDeclarationOptions : IProviderEndpointReachDeclar
         this.MaxRequestCharacters,
         this.MaxRequestImageOctets,
         this.RequestTimeout,
-        this.DeclaredMembers);
+        this.DeclaredMembers,
+        this.StructuredOutputs);
 
     private List<ValidationResult> FindBoundErrors()
     {

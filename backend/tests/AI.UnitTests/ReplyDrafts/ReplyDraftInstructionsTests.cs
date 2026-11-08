@@ -2,10 +2,14 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.Json;
 using System.Xml.Linq;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ReplyDrafts;
+using MailFathom.Application.EmailContent.Rendering.Document;
+using MailFathom.Application.EmailContent.Rendering.Document.Blocks;
 using MailFathom.Application.Emails.AttachmentText;
+using MailFathom.Application.Emails.ReplyDrafts;
 using MailFathom.Domain.Access;
 using Xunit;
 
@@ -516,6 +520,64 @@ public sealed class ReplyDraftInstructionsTests
         Assert.Contains("The person asked for it in what they typed", text, StringComparison.Ordinal);
         Assert.Contains("the reply is long and structure clearly helps the person reading it", text, StringComparison.Ordinal);
         Assert.Contains("only to a number the turn gave you", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A model told the shape in prose wrote blocks as strings, links as Markdown, and lists as paragraphs, so the prose names each and shows one block whole.</summary>
+    [Fact]
+    public void TextFor_WithoutASchema_SaysEachBlockIsAJsonValueAndShowsAWorkedLinkedParagraph()
+    {
+        // Act
+        var text = Normalized(ReplyDraftInstructions.TextFor(UserLanguage.English));
+
+        // Assert
+        Assert.Contains("never a string holding JSON", text, StringComparison.Ordinal);
+        Assert.Contains("never Markdown", text, StringComparison.Ordinal);
+        Assert.Contains("A list is a list block", text, StringComparison.Ordinal);
+        Assert.Contains(ReplyDraftInstructions.WorkedLinkedParagraph, text, StringComparison.Ordinal);
+    }
+
+    /// <summary>Where the schema shapes the answer, the instruction says what the fields mean and leaves their shape to it.</summary>
+    [Fact]
+    public void TextFor_WithASchema_SaysWhatTheFieldsMeanAndDescribesNoShape()
+    {
+        // Act
+        var text = Normalized(ReplyDraftInstructions.TextFor(UserLanguage.English, constrainedBySchema: true));
+
+        // Assert
+        Assert.Contains("in the blocks the response schema allows", text, StringComparison.Ordinal);
+        Assert.Contains("Most replies are plain", text, StringComparison.Ordinal);
+        Assert.Contains("A run links its words to one by carrying \"link\"", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(ReplyDraftInstructions.WorkedLinkedParagraph, text, StringComparison.Ordinal);
+        Assert.DoesNotContain("[run, ...]", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A draft once proposed a message's number as a recipient, so both shapes say whose numbers recipients are.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TextFor_EitherShape_SaysRecipientsArePeopleAndNeverMessages(bool constrainedBySchema)
+    {
+        // Act
+        var text = Normalized(ReplyDraftInstructions.TextFor(UserLanguage.English, constrainedBySchema));
+
+        // Assert
+        Assert.Contains($"the numbers of <{ReplyDraftInstructions.PersonElementName}> elements, never of messages", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>The block the prose shows is one the reading takes as the paragraph and the link it claims to be.</summary>
+    [Fact]
+    public void WorkedLinkedParagraph_ReadAsABody_IsAParagraphCarryingALinkedRun()
+    {
+        // Arrange
+        IReadOnlyList<ReplyDraftLink> links = [new ReplyDraftLink(0, MailLinkReader.Read("https://files.example.com/minutes", "the shared folder")!, "the shared folder")];
+
+        // Act
+        var document = ReplyDraftBlockReading.Read(JsonDocument.Parse($"[{ReplyDraftInstructions.WorkedLinkedParagraph}]").RootElement, links);
+
+        // Assert
+        var paragraph = Assert.IsType<MailParagraphBlock>(Assert.Single(document!.Blocks));
+
+        Assert.Equal("the shared folder", Assert.Single(paragraph.Content, static run => run.Link is not null).Text);
     }
 
     private static GuardedDraftingMessage Message(int position, string text, bool isChosen) =>

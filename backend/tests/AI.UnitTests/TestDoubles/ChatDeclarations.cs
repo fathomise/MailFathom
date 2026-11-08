@@ -41,7 +41,8 @@ internal static class ChatDeclarations
         int maximumRequestCharacters = 4000,
         int maximumRequestImageOctets = 1024,
         TimeSpan? requestTimeout = null,
-        IReadOnlyDictionary<string, JsonElement>? additionalProperties = null) =>
+        IReadOnlyDictionary<string, JsonElement>? additionalProperties = null,
+        bool structuredOutputs = false) =>
         ChatGenerationPlan.Create(
             endpoint ?? Endpoint(),
             maximumOutputTokens,
@@ -52,7 +53,8 @@ internal static class ChatDeclarations
             maximumRequestCharacters,
             maximumRequestImageOctets,
             requestTimeout ?? RequestTimeout,
-            additionalProperties);
+            additionalProperties,
+            structuredOutputs);
 
     /// <summary>Publishes one fixed plan, standing in for the composition root's reading of the declaration in force.</summary>
     /// <param name="plan">The plan every capability the routing does not name resolves to.</param>

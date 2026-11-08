@@ -147,7 +147,7 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
             this.plan.MaximumRequestCharacters,
             this.plan.MaximumRequestImageOctets);
 
-        var answer = await this.AskAsync(turn.Text, brief.Language, cancellationToken);
+        var answer = await this.AskAsync(turn, brief.Language, cancellationToken);
         var draft = ReplyDraftReading.Read(answer?.Text, sources.Messages, sources.Participants, turn.Links);
 
         // The model that answered where one did, and the model the brief was put to where none could.
@@ -178,7 +178,7 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
     /// <param name="egressGuard">Scans every text somebody wrote before it is composed.</param>
     /// <param name="plan">The model the turn is sent to, whose request bound the turn is cut to.</param>
     /// <param name="cancellationToken">Withdraws the scan.</param>
-    /// <returns>The turn, and the links it numbered, which are the only ones a draft may cite.</returns>
+    /// <returns>The turn, and the links, messages, and people it numbered, which are the only ones a draft may cite.</returns>
     /// <remarks>
     /// A bound rather than a refusal, applied by the document as it is written, so a bounded turn is still one whose
     /// every element is closed.
@@ -192,9 +192,13 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
         var text = ReplyDraftInstructions.ComposeDraftingTurn(
             await GuardedTurnAsync(brief, egressGuard, cancellationToken),
             plan.MaximumRequestCharacters,
-            out var linksWritten);
+            out var written);
 
-        return new ReplyDraftTurn(text, [.. brief.Links.Take(linksWritten)]);
+        return new ReplyDraftTurn(
+            text,
+            [.. brief.Links.Take(written.Links)],
+            [.. brief.Sources.Messages.Take(written.Messages).Select(static message => message.Position)],
+            [.. brief.Sources.Participants.Take(written.People).Select(static participant => participant.Position)]);
     }
 
     /// <summary>Puts every text of the drafting through the egress guard before any of it is composed into a turn.</summary>
@@ -298,7 +302,7 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
     /// </para>
     /// </remarks>
     private async Task<ChatModelAnswer?> AskAsync(
-        string turn,
+        ReplyDraftTurn turn,
         UserLanguage language,
         CancellationToken cancellationToken)
     {
@@ -322,13 +326,13 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
     /// <summary>Asks one model of the chain, letting a failure out so the fallback behind it can be tried.</summary>
     private async Task<ChatModelAnswer> AskModelAsync(
         ChatGenerationPlan model,
-        string turn,
+        ReplyDraftTurn turn,
         UserLanguage language,
         CancellationToken cancellationToken)
     {
         // Against this model's own bounds rather than the main model's, because a fallback may be declared
         // narrower and a conversation too wide for it is refused here rather than sent and billed for.
-        ChatRequestBounds.RequireForAttempt([new ChatMessage(ChatRole.User, turn)], model);
+        ChatRequestBounds.RequireForAttempt([new ChatMessage(ChatRole.User, turn.Text)], model);
 
         var endpoint = model.Endpoint;
 
@@ -354,10 +358,11 @@ internal sealed class ReplyDraftAgent : IReplyDraftWriter
             chatClient,
             model,
             language,
+            turn,
             this.instructionEnvelope,
             this.loggerFactory);
 
-        var response = await agent.RunAsync(turn, session: null, options: null, cancellationToken);
+        var response = await agent.RunAsync(turn.Text, session: null, options: null, cancellationToken);
 
         return new ChatModelAnswer(endpoint.Alias, response.Text);
     }

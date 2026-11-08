@@ -30,7 +30,7 @@ namespace MailFathom.Evaluations.Providers;
 /// <c>ImageDescription</c> runs the image evaluations once per model and leaves every other evaluation on the main model.
 /// A model is its routed name, or a mapping carrying the keys a <c>Chat:Models</c> declaration carries for what a
 /// request asks for — <c>Model</c>, <c>Alias</c>, <c>Api</c>, <c>ReasoningEffort</c>, <c>Temperature</c>, <c>TopP</c>,
-/// <c>ExtraHeaders</c>, and <c>AdditionalProperties</c> — and each is built into a plan through
+/// <c>StructuredOutputs</c>, <c>ExtraHeaders</c>, and <c>AdditionalProperties</c> — and each is built into a plan through
 /// <see cref="ChatModelDeclarationOptions" />, so a value is refused here as a deployment refuses it.
 /// </para>
 /// <para>
@@ -369,6 +369,7 @@ internal sealed class EvaluationDeclaration
             ReasoningEffort = declared.ReasoningEffort,
             Temperature = declared.Temperature,
             TopP = declared.TopP,
+            StructuredOutputs = declared.StructuredOutputs,
             AdditionalProperties = declared.AdditionalProperties,
         };
 
@@ -401,6 +402,8 @@ internal sealed class EvaluationDeclaration
         public float? Temperature { get; set; }
 
         public float? TopP { get; set; }
+
+        public bool StructuredOutputs { get; set; }
 
         public IList<DeclaredHeader> ExtraHeaders { get; } = [];
 

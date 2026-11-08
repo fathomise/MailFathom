@@ -84,7 +84,7 @@ internal static class AgentComposition
         ArgumentNullException.ThrowIfNull(instructionEnvelope);
         ArgumentNullException.ThrowIfNull(loggerFactory);
 
-        var chatOptions = ChatGenerationParameterMapping.ToChatOptions(plan);
+        var chatOptions = ChatGenerationParameterMapping.ToChatOptions(plan, operation.ResponseSchema);
 
         chatOptions.Instructions = string.Concat(
             instructionEnvelope.Preamble,
