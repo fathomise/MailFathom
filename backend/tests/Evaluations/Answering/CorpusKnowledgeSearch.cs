@@ -357,21 +357,24 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
     }
 
     /// <summary>Reports no synchronization and records no read: the corpus was never synchronized, and a run reports its own span.</summary>
-    private sealed class Unobserved : ISynchronizationFreshnessReader, IMailboxReadTelemetry, IMailboxReadScope
+    private sealed class Unobserved : ISynchronizationFreshnessReader, IMailboxReadTelemetry
     {
         public Task<IReadOnlyList<MailboxFolderFreshness>> ReadAsync(MailboxScope scope, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MailboxFolderFreshness>>([]);
 
-        public IMailboxReadScope BeginRead(MailboxReadOperation operation, CancellationToken cancellationToken) => this;
+        public IMailboxReadScope BeginRead(MailboxReadOperation operation, CancellationToken cancellationToken) => new UnobservedRead();
 
-        public IMailboxReadScope BeginSearchRanking(CancellationToken cancellationToken) => this;
+        public IMailboxReadScope BeginSearchRanking(CancellationToken cancellationToken) => new UnobservedRead();
 
-        public void Completed(int resultCount)
+        private sealed class UnobservedRead : IMailboxReadScope
         {
-        }
+            public void Completed(int resultCount)
+            {
+            }
 
-        public void Dispose()
-        {
+            public void Dispose()
+            {
+            }
         }
     }
 }
