@@ -15,6 +15,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Reporting;
 using Microsoft.Extensions.AI.Evaluation.Reporting.Storage;
+using Xunit;
 
 namespace MailFathom.Evaluations.Reporting;
 
@@ -33,6 +34,12 @@ namespace MailFathom.Evaluations.Reporting;
 /// </remarks>
 internal static class EvaluationStore
 {
+    /// <summary>The tag a case reading mail written to take the agent over carries.</summary>
+    public const string HostileMailTag = "mail:hostile";
+
+    /// <summary>The tag a case reading mail stating something false carries.</summary>
+    public const string FalseClaimMailTag = "mail:false-claim";
+
     private const string RootVariable = "MAILFATHOM_AI_EVALUATIONS_STORE";
     private const string ExecutionVariable = "MAILFATHOM_AI_EVALUATIONS_EXECUTION";
 
@@ -151,7 +158,7 @@ internal static class EvaluationStore
     /// <summary>Names the tags a scenario run carries, which are what the report's cases are filtered by.</summary>
     /// <param name="scenarioName">The scenario's dotted name, whose first segment names the agent or scenario family and whose later segments name the kind of mail a case reads.</param>
     /// <param name="modelName">The model under test, as its iteration is named after.</param>
-    /// <returns><c>model:</c> and <c>family:</c>, then one <c>mail:</c> tag for each kind of mail the name carries.</returns>
+    /// <returns><c>model:</c> and <c>family:</c>, <c>section:</c> where a paid scenario's test is running, then one <c>mail:</c> tag for each kind of mail the name carries.</returns>
     /// <remarks>
     /// <para>
     /// The kind of mail is read from the segments a case is already named with — <c>Hostile</c>, <c>FalseClaim</c>,
@@ -162,18 +169,32 @@ internal static class EvaluationStore
     /// A tag only labels a result. The store files it beside the verdict and no cache key reads it, so tagging a run asks
     /// no model again.
     /// </para>
+    /// <para>
+    /// The section is read from the test running the scenario rather than from the name, because a family's name is not
+    /// its section's — <c>MailAnswering</c> lives in <c>Answering</c> — and the section is what a run's <c>Sections</c>
+    /// key and <c>scripts/run-ai-evaluations.sh</c>'s per-section share are written in.
+    /// </para>
     /// </remarks>
     public static string[] TagsFor(string scenarioName, string modelName)
     {
         var segments = scenarioName.Split('.');
+        string?[] labels = [$"model:{modelName}", $"family:{segments[0]}", SectionTagOf(TestContext.Current.TestClass?.TestClassName)];
 
         return
         [
-            $"model:{modelName}",
-            $"family:{segments[0]}",
+            .. labels.OfType<string>(),
             .. segments.Skip(1).Select(KindOfMailNamedBy).OfType<string>().Distinct(),
         ];
     }
+
+    /// <summary>Names the section a paid scenario's test class sits in, as a tag.</summary>
+    /// <param name="testClassName">The running test's class, fully qualified, or <see langword="null" /> outside a test.</param>
+    /// <returns><c>section:</c> and the namespace segment under <c>MailFathom.Evaluations</c>, for a <c>&lt;Subject&gt;Evaluations</c> class directly in a section; <see langword="null" /> for anything else, a free test included.</returns>
+    public static string? SectionTagOf(string? testClassName) =>
+        testClassName?.Split('.') is ["MailFathom", "Evaluations", var section, var className]
+            && className.EndsWith("Evaluations", StringComparison.Ordinal)
+            ? $"section:{section}"
+            : null;
 
     /// <summary>Puts the run's response cache in front of the model under test, filed under the model, its address, and the tools a request offers.</summary>
     /// <param name="reporting">The run's store.</param>
@@ -304,8 +325,8 @@ internal static class EvaluationStore
 
     private static string? KindOfMailNamedBy(string segment) => segment switch
     {
-        "Hostile" => "mail:hostile",
-        "FalseClaim" => "mail:false-claim",
+        "Hostile" => HostileMailTag,
+        "FalseClaim" => FalseClaimMailTag,
         "Polish" => "mail:polish",
         "Mixed" => "mail:mixed-language",
         _ => null,

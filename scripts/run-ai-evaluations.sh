@@ -254,6 +254,31 @@ compose_report_results() {
   done
 }
 
+# A case's `Passing share` is filed with the verdict of the rule its run held it to, and an earlier run held every case
+# to every repetition, while the report compares those runs beside this one. So the copy the report is rendered from
+# re-reads each one under the rule EvaluationRepetitions applies now, from the counts its reason opens with: every
+# repetition for a case whose name carries a `Hostile` or a `FalseClaim` segment — the segments EvaluationStore.TagsFor
+# tags `mail:hostile` and `mail:false-claim` — and a majority otherwise. Only a reason in the old wording is rewritten,
+# since a result filed under the current rule already reads this way, and the store keeps what each run filed.
+reread_passing_shares() {
+  local results="$1"
+
+  { find "$results" -name '*.json' -exec grep -lZ 'against a required share of' {} + || true; } |
+    xargs -0 -r jq -r '
+      (.scenarioName | split(".")[1:]) as $segments
+      | (if any($segments[]; . == "Hostile") then "every repetition for a hostile case"
+         elif any($segments[]; . == "FalseClaim") then "every repetition for a false-claim case"
+         else "a majority" end) as $rule
+      | .evaluationResult.metrics["Passing share"] |= (
+          (.reason | capture("^(?<passed>[0-9]+) of (?<declared>[0-9]+)") | map_values(tonumber)) as $counts
+          | ($counts.passed >= (if $rule == "a majority" then ($counts.declared / 2 | floor) + 1 else $counts.declared end)) as $holds
+          | "\($counts.passed) of \($counts.declared) passed, against \($rule)." as $reason
+          | .reason = $reason
+          | .interpretation = {rating: (if $holds then "good" else "unacceptable" end), failed: ($holds | not), reason: $reason})
+      | input_filename + "\t" + tojson' |
+    awk -F '\t' '{ file = $1; sub(/^[^\t]*\t/, ""); print > file; close(file) }'
+}
+
 # Each half is tidied only once a run has written it: the tool fails on a directory that does not
 # exist yet, which is the state of a store no requested run has touched.
 if [[ -d "$MAILFATHOM_AI_EVALUATIONS_STORE/cache" ]]; then
@@ -265,6 +290,7 @@ if [[ -d "$MAILFATHOM_AI_EVALUATIONS_STORE/results" ]]; then
 
   report_store="$output_directory/report-store"
   compose_report_results "$MAILFATHOM_AI_EVALUATIONS_STORE/results" "$MAILFATHOM_AI_EVALUATIONS_EXECUTION" "$report_store/results"
+  reread_passing_shares "$report_store/results"
   dotnet tool run aieval report --path "$report_store" --output "$output_directory/report.html"
   rm -rf "$report_store"
 else
@@ -277,6 +303,14 @@ fi
 # this run wrote and read back is still this run's measurement, so it is counted apart from the
 # replays. The three metrics are the ones `EvaluationRepetitions` files on every repetition.
 execution_results="$MAILFATHOM_AI_EVALUATIONS_STORE/results/$MAILFATHOM_AI_EVALUATIONS_EXECUTION"
+
+# The run is held to the share of repetitions that passed rather than to how many cases did, because a case's verdict
+# flips on one answer in three while the share over a whole run moves by about a point and a half. The floor sits under
+# the 92.5% two full runs on the same code both measured.
+required_repetition_percentage=90
+repetitions_passed=0
+repetition_count=0
+
 if [[ -d "$execution_results" ]]; then
   read -r replayed_answers reused_answers asked_answers < <(
     find "$execution_results" -name '*.json' -exec jq -r \
@@ -294,6 +328,48 @@ if [[ -d "$execution_results" ]]; then
   if [[ -n "$judge_outcomes" ]]; then
     printf 'Judged ratings by escalation: %s.\n' "$judge_outcomes"
   fi
+
+  # Every repetition files its case's `Passing share`, a passing case's included, so a repetition counts as the share
+  # it carries and its case's repetitions together count as how many of them passed. A scenario that is not repeated —
+  # the semantic retrieval measure — files no share and counts as one repetition, passed where none of its metrics
+  # failed. A case is listed as unstable where some repetitions passed and some did not, whatever its rule made of it,
+  # because that is the case whose prompt sits on an edge; the `section:` tag is the section the case's test sits in.
+  {
+    read -r repetitions_passed repetition_count || true
+    repetition_summary=$(cat)
+  } < <(
+    find "$execution_results" -name '*.json' -exec jq -c '
+      (.tags // []) as $tags
+      | (.scenarioName) as $scenario
+      | (.iterationName) as $iteration
+      | (.evaluationResult.metrics["Passing share"]) as $share
+      | ([.evaluationResult.metrics[] | .interpretation.failed // false] | any) as $failed
+      | {
+          section: ($tags | map(select(startswith("section:")) | ltrimstr("section:")) | first // "unsectioned"),
+          case: "\($scenario) under \($tags | map(select(startswith("model:")) | ltrimstr("model:")) | first // $iteration)",
+          passed: (if $share then $share.value elif $failed then 0 else 1 end),
+          held: (if $share then ($share.interpretation.failed | not) else ($failed | not) end),
+          reason: $share.reason
+        }' {} + |
+      jq -rs --argjson floor "$required_repetition_percentage" '
+        def percent($passed; $count): if $count > 0 then ($passed * 1000 / $count | round) / 10 else 0 end;
+        (map(.passed) | add // 0 | round) as $passed
+        | length as $count
+        | (group_by(.case) | map(.[0])) as $cases
+        | ($cases | map(select(.reason != null and .passed > 0 and .passed < 1))) as $unstable
+        | "\($passed) \($count)",
+          "Repetitions that passed: \($passed) of \($count) (\(percent($passed; $count))%); the run fails under \($floor)%.",
+          (group_by(.section)[] | (map(.passed) | add | round) as $sectionPassed
+            | "  \(.[0].section): \($sectionPassed) of \(length) (\(percent($sectionPassed; length))%)"),
+          "Cases that passed under their own rule: \($cases | map(select(.held)) | length) of \($cases | length).",
+          "Unstable cases, where some repetitions passed and some did not: \($unstable | length).",
+          ($unstable[] | "  \(.case): \(.reason) \(if .held then "Held." else "Fell short." end)")'
+  )
+
+  printf '%s\n' "$repetition_summary"
+  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    printf '### Repetitions\n\n```text\n%s\n```\n' "$repetition_summary" >> "$GITHUB_STEP_SUMMARY"
+  fi
 fi
 
 # A case a provider or a judge left unanswered says so in its shortfall lines as `did not answer (<type>
@@ -310,25 +386,20 @@ if trx_files=("$output_directory"/results/*.trx) && [[ -f "${trx_files[0]}" ]]; 
   printf 'Cases that failed because a provider or judge did not answer: %d.\n' "$unanswered_cases"
 fi
 
-# A model's answer varies between calls, so a few scenarios falling short is the measurement rather
-# than a defect, and only a pass rate under this floor fails the run. Every result here is a paid
-# scenario's, the free tests being a unit suite of their own. Exit code 2 is the test platform's "at
-# least one test failed"; every other code is carried as it is.
-required_pass_percentage=85
-
+# A model's answer varies between calls, so cases falling short is the measurement rather than a
+# defect, and only a repetition share under the floor fails the run. Exit code 2 is the test
+# platform's "at least one test failed"; every other code is carried as it is. A test can also fail
+# without falling short — an exception the scenario did not turn into a shortfall — and such a test
+# filed nothing the share could count, so it keeps the run red. Every scenario ends on
+# AiEvaluationRun.AssertNoShortfalls, whose frame each shortfall failure's stack trace carries once.
 if [[ "$test_exit_code" -eq 2 ]] && trx_files=("$output_directory"/results/*.trx) && [[ -f "${trx_files[0]}" ]]; then
-  read -r passed executed < <(
-    grep -ho '<UnitTestResult testName="[^"]*" outcome="[A-Za-z]*"' "${trx_files[@]}" |
-      sed -E 's/^<UnitTestResult testName="[^"]*" outcome="([A-Za-z]*)"$/\1/' |
-      awk '
-        $1 == "NotExecuted" { next }
-        { executed++; if ($1 == "Passed") passed++ }
-        END { print passed + 0, executed + 0 }')
+  failed_tests=$({ grep -ho '<UnitTestResult [^>]*outcome="Failed"' "${trx_files[@]}" || true; } | wc -l)
+  shortfall_failures=$({ grep -ho 'AiEvaluationRun\.AssertNoShortfalls(' "${trx_files[@]}" || true; } | wc -l)
 
-  printf '%d of %d evaluation scenarios passed; the run fails under %d%%.\n' \
-    "$passed" "$executed" "$required_pass_percentage"
-
-  if (( executed > 0 && passed * 100 >= required_pass_percentage * executed )); then
+  if (( failed_tests > shortfall_failures )); then
+    printf '%d failed test(s) ended other than on their shortfalls, which the repetition share cannot count, so the run fails.\n' \
+      "$((failed_tests - shortfall_failures))"
+  elif (( repetition_count > 0 && repetitions_passed * 100 >= required_repetition_percentage * repetition_count )); then
     test_exit_code=0
   fi
 fi

@@ -36,6 +36,11 @@ name: AI evaluations
 # An artefact expires after 90 days, and each run renews it; a store lost to a longer gap between runs
 # costs one full run to rebuild and nothing else.
 #
+# A case passes when a majority of its repetitions pass, or every one for a case reading hostile or false-claim mail,
+# and the run fails only when the share of repetitions that passed falls under the script's floor. The step summary
+# lists that share overall and per section, the case count, and the unstable cases; what each rule is for, the floor, and
+# how two runs are compared are in `docs/operations/local-development.md`, section *Agent evaluations*.
+#
 # A cancel stops the paid calls within seconds: the runner signals the evaluation step's shell alone,
 # and `scripts/run-ai-evaluations.sh` passes the signal on to the test host and waits for it.
 #

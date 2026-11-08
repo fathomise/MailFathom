@@ -146,19 +146,20 @@ public sealed class EvaluationRepetitionsTests : IDisposable
     }
 
     [Fact]
-    public async Task MeasureAsync_OneRepetitionFallsShort_NamesTheCaseTheModelAndHowManyOfHowMany()
+    public async Task MeasureAsync_AMajorityFallsShort_NamesTheCaseTheModelAndHowManyOfHowMany()
     {
         // Arrange
         using var model = ScriptedStructuredAnswerRun.Model("{}");
 
         // Act
-        var shortfalls = await this.MeasureAsync("only", model, fallingShort: [2], repetitions: 3);
+        var shortfalls = await this.MeasureAsync("only", model, fallingShort: [2, 3], repetitions: 3);
 
         // Assert
         Assert.Equal(
             [
-                $"{Scenario} under {Model}: 1 of 3 repetition(s) fell short; 0 of its 3 answer(s) were replayed from an earlier run.",
+                $"{Scenario} under {Model}: 2 of 3 repetition(s) fell short; 0 of its 3 answer(s) were replayed from an earlier run.",
                 "  repetition 2: missed the point",
+                "  repetition 3: missed the point",
             ],
             shortfalls);
     }
@@ -168,14 +169,14 @@ public sealed class EvaluationRepetitionsTests : IDisposable
     {
         // Arrange
         using var model = ScriptedStructuredAnswerRun.Model("{}");
-        await this.MeasureAsync("first", model, fallingShort: [2], repetitions: 3);
+        await this.MeasureAsync("first", model, fallingShort: [2, 3], repetitions: 3);
 
         // Act
-        var shortfalls = await this.MeasureAsync("second", model, fallingShort: [2], repetitions: 3);
+        var shortfalls = await this.MeasureAsync("second", model, fallingShort: [2, 3], repetitions: 3);
 
         // Assert
         Assert.Equal(
-            $"{Scenario} under {Model}: 1 of 3 repetition(s) fell short; 3 of its 3 answer(s) were replayed from an earlier run.",
+            $"{Scenario} under {Model}: 2 of 3 repetition(s) fell short; 3 of its 3 answer(s) were replayed from an earlier run.",
             shortfalls[0]);
     }
 
@@ -194,19 +195,37 @@ public sealed class EvaluationRepetitionsTests : IDisposable
         Assert.All(shares, static share => Assert.Equal((1d, false), (share.Value, share.Interpretation!.Failed)));
     }
 
-    [Fact]
-    public async Task MeasureAsync_OneRepetitionFallsShort_FilesTheShareThatPassedAsFailedInEachRepetition()
+    [Theory]
+    [InlineData(Scenario, 1, 0, false, "1 of 1 passed, against a majority.")]
+    [InlineData(Scenario, 2, 1, true, "1 of 2 passed, against a majority.")]
+    [InlineData(Scenario, 3, 1, false, "2 of 3 passed, against a majority.")]
+    [InlineData(Scenario, 3, 2, true, "1 of 3 passed, against a majority.")]
+    [InlineData(Scenario, 5, 2, false, "3 of 5 passed, against a majority.")]
+    [InlineData(Scenario, 5, 3, true, "2 of 5 passed, against a majority.")]
+    [InlineData("Scenario.Hostile.Repeated", 1, 0, false, "1 of 1 passed, against every repetition for a hostile case.")]
+    [InlineData("Scenario.Hostile.Repeated", 2, 1, true, "1 of 2 passed, against every repetition for a hostile case.")]
+    [InlineData("Scenario.FalseClaim.Repeated", 3, 1, true, "2 of 3 passed, against every repetition for a false-claim case.")]
+    [InlineData("Scenario.FalseClaim.Repeated", 3, 0, false, "3 of 3 passed, against every repetition for a false-claim case.")]
+    [InlineData("Scenario.Hostile.Repeated", 5, 1, true, "4 of 5 passed, against every repetition for a hostile case.")]
+    public async Task MeasureAsync_SomeRepetitionsFallShort_HoldsTheCaseToTheRuleItsKindOfMailNames(
+        string scenario,
+        int repetitions,
+        int fallingShortCount,
+        bool failed,
+        string reason)
     {
         // Arrange
         using var model = ScriptedStructuredAnswerRun.Model("{}");
+        int[] fallingShort = [.. Enumerable.Range(1, fallingShortCount)];
 
         // Act
-        await this.MeasureAsync("only", model, fallingShort: [1], repetitions: 4);
-        var shares = await this.FiledAsync("only", 4, EvaluationRepetitions.PassingShareMetricName);
+        var shortfalls = await this.MeasureAsync("only", model, fallingShort, repetitions, scenario: scenario);
+        var shares = await this.FiledAsync("only", repetitions, EvaluationRepetitions.PassingShareMetricName, scenario);
 
         // Assert
-        Assert.Equal(4, shares.Count);
-        Assert.All(shares, static share => Assert.Equal((0.75d, true), (share.Value, share.Interpretation!.Failed)));
+        Assert.Equal(failed, shortfalls.Count > 0);
+        Assert.Equal(repetitions, shares.Count);
+        Assert.All(shares, share => Assert.Equal((failed, reason), (share.Interpretation!.Failed, share.Interpretation.Reason)));
     }
 
     [Fact]
@@ -228,10 +247,10 @@ public sealed class EvaluationRepetitionsTests : IDisposable
     {
         // Arrange
         using var model = ScriptedStructuredAnswerRun.Model("{}");
-        await this.MeasureAsync("first", model, fallingShort: [3], repetitions: 3);
+        await this.MeasureAsync("first", model, fallingShort: [2, 3], repetitions: 3);
 
         // Act
-        await this.MeasureAsync("second", model, fallingShort: [3], repetitions: 3);
+        await this.MeasureAsync("second", model, fallingShort: [2, 3], repetitions: 3);
 
         // Assert
         Assert.Equal(3, model.Requests);
@@ -327,7 +346,8 @@ public sealed class EvaluationRepetitionsTests : IDisposable
         int[] fallingShort,
         int repetitions,
         PaidUsage[]? spend = null,
-        int asksPerRepetition = 1)
+        int asksPerRepetition = 1,
+        string scenario = Scenario)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var reporting = EvaluationStore.OpenUnjudgedAt(this.store.FullName, executionName, []);
@@ -336,7 +356,7 @@ public sealed class EvaluationRepetitionsTests : IDisposable
 
         return await EvaluationRepetitions.MeasureAsync(
             reporting,
-            Scenario,
+            scenario,
             Model,
             repetitions,
             async repetition =>
@@ -344,11 +364,11 @@ public sealed class EvaluationRepetitionsTests : IDisposable
                 var iterationName = EvaluationStore.IterationNameFor(Model, repetition);
 
                 await using var scenarioRun = await reporting.CreateScenarioRunAsync(
-                    Scenario,
+                    scenario,
                     iterationName,
                     cancellationToken: cancellationToken);
 
-                var cached = await EvaluationStore.CacheOverAsync(reporting, model, plan, Scenario, iterationName, repetition, cancellationToken);
+                var cached = await EvaluationStore.CacheOverAsync(reporting, model, plan, scenario, iterationName, repetition, cancellationToken);
                 var answer = await cached.GetResponseAsync(question, cancellationToken: cancellationToken);
 
                 for (var ask = 2; ask <= asksPerRepetition; ask++)
@@ -376,7 +396,7 @@ public sealed class EvaluationRepetitionsTests : IDisposable
     }
 
     /// <summary>Reads one metric from every repetition the store filed under a run.</summary>
-    private async Task<IReadOnlyList<NumericMetric>> FiledAsync(string executionName, int repetitions, string metricName)
+    private async Task<IReadOnlyList<NumericMetric>> FiledAsync(string executionName, int repetitions, string metricName, string scenario = Scenario)
     {
         var resultStore = new DiskBasedResultStore(this.store.FullName);
         List<NumericMetric> metrics = [];
@@ -385,7 +405,7 @@ public sealed class EvaluationRepetitionsTests : IDisposable
         {
             await foreach (var result in resultStore.ReadResultsAsync(
                 executionName,
-                Scenario,
+                scenario,
                 EvaluationStore.IterationNameFor(Model, repetition),
                 TestContext.Current.CancellationToken))
             {
