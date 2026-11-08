@@ -469,10 +469,10 @@ public sealed class ReplyDraftInstructionsTests
         };
 
         // Act
-        var turn = ReplyDraftInstructions.ComposeDraftingTurn(drafting, bound, out var linksWritten);
+        var turn = ReplyDraftInstructions.ComposeDraftingTurn(drafting, bound, out var written);
 
         // Assert
-        Assert.Equal(expected, linksWritten);
+        Assert.Equal(expected, written.Links);
         Assert.Equal(expected, Parsed(turn).Descendants(ReplyDraftInstructions.LinkElementName).Count());
     }
 
@@ -489,11 +489,11 @@ public sealed class ReplyDraftInstructionsTests
         var bound = ReplyDraftInstructions.ComposeDraftingTurn(unlinked).Length + 200;
 
         // Act
-        var turn = ReplyDraftInstructions.ComposeDraftingTurn(linked, bound, out var linksWritten);
+        var turn = ReplyDraftInstructions.ComposeDraftingTurn(linked, bound, out var written);
 
         // Assert
         Assert.InRange(turn.Length, 1, bound);
-        Assert.Equal(0, linksWritten);
+        Assert.Equal(0, written.Links);
         Assert.Empty(Parsed(turn).Descendants(ReplyDraftInstructions.WordsElementName));
     }
 
