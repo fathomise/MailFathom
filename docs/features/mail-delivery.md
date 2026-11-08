@@ -667,7 +667,8 @@ holds the whole of it.
 **The `Date` a recipient reads is the instant of the attempt that transmitted the message**, for a message sent at once
 and for one held until a later time alike. A send scheduled for nine o'clock and composed the evening before arrives
 dated nine o'clock, and one a server put off with a temporary refusal arrives dated by the attempt that delivered it,
-not by the first one. The instant is the attempt's own clock reading in UTC, to the whole second a `Date` header can
+not by the first one. A send a server accepted for some recipients and put off for others is offered again to the rest
+alone, so each recipient's copy is dated by the attempt that reached them, and the two can differ. The instant is the attempt's own clock reading in UTC, to the whole second a `Date` header can
 carry.
 
 **The stored message is never rewritten.** The outbox stores the composed bytes once, and every attempt derives the form
@@ -682,7 +683,8 @@ recorded instant, so while the organization's signing key stands it is byte for 
 received, whether a held account files it locally or a mirrored or restoring account appends it to the source, and the
 stored message it becomes reads that instant as its `SentAt`. A key rotated or revoked between the send and the filing
 gives a copy whose [organization signature](../operations/organization-signing-keys.md) differs or is absent; its date
-and body do not. A send an earlier build transmitted recorded no instant, and its copy is the stored bytes, which is then
+and body do not. The record keeps the latest attempt's instant, so the copy of a partly accepted send is the message its
+last attempt transmitted, and a recipient an earlier attempt reached holds one dated and signed earlier. A send an earlier build transmitted recorded no instant, and its copy is the stored bytes, which is then
 what it sent.
 
 **An attempt whose answer never came back is not repeated, and the instant it recorded stands.** The outbox does not

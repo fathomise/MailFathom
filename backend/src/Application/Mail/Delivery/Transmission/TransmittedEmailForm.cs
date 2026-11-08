@@ -21,6 +21,9 @@ namespace MailFathom.Application.Mail.Delivery.Transmission;
 /// <para>
 /// The derivation is deterministic while the organization's key stands: the date is whole seconds, the signature's time
 /// is that same instant, and Ed25519 signs deterministically, so a sent copy filed later is the transmitted message.
+/// The record keeps the latest attempt's instant, so where a send was partly accepted and its remaining recipients were
+/// offered it again, the copy is the message the last attempt transmitted, and a recipient an earlier attempt reached
+/// holds an earlier <c>Date</c> and signature.
 /// </para>
 /// </remarks>
 /// <param name="composer">Rewrites the message's <c>Date</c>.</param>

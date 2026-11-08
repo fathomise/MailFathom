@@ -247,7 +247,8 @@ public sealed class MailOutboxDelivery
 
         // Dated with the instant this attempt begins rather than the one the send was asked at, so a send held until its
         // due instant or deferred by a refusal reaches its recipients dated when it left. The record keeps the instant
-        // with the stage below, and the sent copy is dated with it again when it is filed.
+        // with the stage below, and the sent copy is dated with it again when it is filed — the latest attempt's, so a
+        // recipient an earlier attempt of a partly accepted send reached holds an earlier Date and signature than the copy.
         var transmittedAt = TransmittedEmailForm.TransmissionInstantAt(this.timeProvider.GetUtcNow());
         var transmittedMime = await this.transmittedForm.ComposeAsync(
             record.AccountId,

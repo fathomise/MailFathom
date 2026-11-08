@@ -65,7 +65,9 @@ states, and `Date` is among the signed headers. The outbox stores the message un
 form it transmits, with `t=` set to that same instant, and the sent copy is that form derived again, so it is byte for
 byte the message the recipients received, whether the account is mirrored, held, or restoring — as long as the key that
 signed the send is still the active one when the copy is filed. A copy filed after a rotation or a revocation is signed
-with the key active then, or not at all, while its date and body still match what was sent. Signing a message twice
+with the key active then, or not at all, while its date and body still match what was sent. The copy is the message
+the send's latest attempt transmitted, so a recipient an earlier attempt of a partly accepted send reached holds one
+dated and signed earlier. Signing a message twice
 at one instant writes the same bytes, because Ed25519 signatures are deterministic, and a signature a message already
 carries is replaced rather than kept beside the new one. A draft that is only saved is never signed: it is not sent.
 The sender's [footer](../features/mail-footers.md) goes into the message before it is stored, so the signature covers
