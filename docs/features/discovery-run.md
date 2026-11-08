@@ -143,8 +143,10 @@ extracts and nothing else about the mailbox.
 
 **The citations are minted before the model sees anything, and they are the only ones a claim may rest on.** The run
 declares one source per distinct message it retrieved, names it `s1`, `s2`, and so on, and shows the model those names —
-each as one `<source>` element carrying that name and the day the message arrived, around the message's subject and
-every extract the run retrieved from it — the day being what tells a correction from the statement it corrects. The
+each as one `<source>` element carrying that name, the day the message arrived, and the author it displays in
+`from-name` and `from`, around the message's subject and every extract the run retrieved from it — the day being what
+tells a correction from the statement it corrects, and the author what a question about who promised what is answered
+from. The author passes the sensitive-content scanner beside the subject and the extract. The
 element is written by the same writer as every other turn quoting mail, so an extract that closes it and opens a forged
 source arrives as text inside the source it came from.
 A name the model invents resolves to nothing, so the claim resting on it is read as resting on nothing — which is what

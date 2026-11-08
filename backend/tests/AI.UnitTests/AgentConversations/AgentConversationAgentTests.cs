@@ -408,6 +408,7 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
                 operationRunner,
                 Substitute.For<IAiProviderHealthRecorder>(),
                 SensitiveContentEgressGuards.Inactive(),
+                new SyntheticAccountLanguages(),
                 new EmptyAgentInstructionEnvelope(),
                 readers,
                 NullLoggerFactory.Instance,

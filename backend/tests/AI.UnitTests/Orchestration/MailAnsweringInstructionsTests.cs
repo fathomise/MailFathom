@@ -55,12 +55,24 @@ public sealed class MailAnsweringInstructionsTests
             StringComparison.Ordinal);
     }
 
-    /// <summary>One empty lookup is not a mailbox without an answer, and another language is one of the things to try before saying it is.</summary>
+    /// <summary>One empty lookup is not a mailbox without an answer, and another of the mailboxes' languages is one of the things to try before saying it is.</summary>
     [Fact]
     public void Text_TheInstruction_StatesThatAnEmptyLookupIsRetriedInAnotherLanguage()
     {
         // Assert
-        Assert.Contains("another language this mailbox plausibly holds", Instruction, StringComparison.Ordinal);
+        Assert.Contains("another of the languages the turn names", Instruction, StringComparison.Ordinal);
+        Assert.Contains("search in each of them before concluding that the mail is not there", Instruction, StringComparison.Ordinal);
+    }
+
+    /// <summary>A model not told to read the author off the extract spent its lookups asking the mailbox again who wrote it.</summary>
+    [Fact]
+    public void Text_TheInstruction_AnswersWhoWroteWhatFromTheAuthorOnTheExtract()
+    {
+        // Assert
+        Assert.Contains(
+            $"{AgentTurnDocument.FromNameAttributeName} and {AgentTurnDocument.FromAttributeName} attributes. Answer who wrote, said, or promised what from them",
+            Instruction,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -153,7 +165,7 @@ public sealed class MailAnsweringInstructionsTests
     public void ComposeTurn_AnyQuestion_EndsByRestatingThatTheAnswerFollowsTheQuestionsLanguage()
     {
         // Act
-        var turn = MailAnsweringAgent.ComposeTurn(DateTimeOffset.UnixEpoch, "Czy faktura dotarła?");
+        var turn = MailAnsweringAgent.ComposeTurn(DateTimeOffset.UnixEpoch, [], "Czy faktura dotarła?");
 
         // Assert
         Assert.EndsWith(MailAnsweringAgent.AnswerLanguageStatement, turn, StringComparison.Ordinal);

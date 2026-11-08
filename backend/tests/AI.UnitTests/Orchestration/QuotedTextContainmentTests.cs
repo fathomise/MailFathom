@@ -151,10 +151,10 @@ public sealed class QuotedTextContainmentTests
                     EmailSearchRetrievalMode.Hybrid),
                 PassageRelevanceInstructions.SubjectFragmentElementName),
             ["answering: question"] = (
-                static text => MailAnsweringAgent.ComposeTurn(Now, text),
+                static text => MailAnsweringAgent.ComposeTurn(Now, [], text),
                 AgentTurnDocument.AskElementName),
             ["agent: question"] = (
-                static text => AgentConversationComposition.ComposeTurn(Now, UserTimeZone.Coordinated, [new AgentNamedAccount(MailAccountId.Create("primary"), ClosesWithFooter: false)], AgentMessageScope.Mailbox(), [], text),
+                static text => AgentConversationComposition.ComposeTurn(Now, UserTimeZone.Coordinated, [new AgentNamedAccount(MailAccountId.Create("primary"), ClosesWithFooter: false)], [], AgentMessageScope.Mailbox(), [], text),
                 AgentTurnDocument.AskElementName),
             ["agent thread: subject"] = (
                 static text => AgentConversationReadings.Thread([ThreadMessage(subject: text, body: Harmless)]),

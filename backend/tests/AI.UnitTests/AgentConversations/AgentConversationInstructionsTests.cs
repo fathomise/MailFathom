@@ -35,14 +35,31 @@ public sealed class AgentConversationInstructionsTests
         var askedAt = new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero);
 
         // Act
-        var naming = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [new AgentNamedAccount(MailAccountId.Create("primary"), ClosesWithFooter: false)], AgentMessageScope.Mailbox(), [], "What is due?");
-        var silent = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [], AgentMessageScope.Mailbox(), [], "What is due?");
+        var naming = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [new AgentNamedAccount(MailAccountId.Create("primary"), ClosesWithFooter: false)], [], AgentMessageScope.Mailbox(), [], "What is due?");
+        var silent = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [], [], AgentMessageScope.Mailbox(), [], "What is due?");
 
         // Assert
         Assert.Contains("The person's accounts: primary.", naming, StringComparison.Ordinal);
         Assert.DoesNotContain("accounts", silent, StringComparison.OrdinalIgnoreCase);
         Assert.EndsWith($"<{AgentTurnDocument.AskElementName}>What is due?</{AgentTurnDocument.AskElementName}>", silent, StringComparison.Ordinal);
         Assert.DoesNotContain("footer", naming, StringComparison.Ordinal);
+    }
+
+    /// <summary>A turn names the languages the person's mailboxes are kept in, so a search can try each, and says nothing of languages where it was handed none.</summary>
+    [Fact]
+    public void ComposeTurn_MailboxesInTwoLanguages_NamesBothLanguages()
+    {
+        // Arrange
+        var askedAt = new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero);
+        IReadOnlyList<AgentNamedAccount> accounts = [new(MailAccountId.Create("primary"), ClosesWithFooter: false)];
+
+        // Act
+        var naming = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, accounts, [MailAccountLanguage.English, MailAccountLanguage.Polish], AgentMessageScope.Mailbox(), [], "Which train?");
+        var silent = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, accounts, [], AgentMessageScope.Mailbox(), [], "Which train?");
+
+        // Assert
+        Assert.Contains("The mailboxes you may search are kept in: English, Polish.", naming, StringComparison.Ordinal);
+        Assert.DoesNotContain("kept in", silent, StringComparison.Ordinal);
     }
 
     /// <summary>A turn names which accounts close a message with the person's footer, and nothing of what the footer says, because the turn is never handed it.</summary>
@@ -58,7 +75,7 @@ public sealed class AgentConversationInstructionsTests
         ];
 
         // Act
-        var turn = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, accounts, AgentMessageScope.Mailbox(), [], "Write to Karolina.");
+        var turn = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, accounts, [], AgentMessageScope.Mailbox(), [], "Write to Karolina.");
 
         // Assert
         Assert.Contains("The person's accounts: primary, private.", turn, StringComparison.Ordinal);
@@ -85,7 +102,7 @@ public sealed class AgentConversationInstructionsTests
         Assert.True(UserTimeZone.TryRead("Europe/Warsaw", out var warsaw));
 
         // Act
-        var turn = AgentConversationComposition.ComposeTurn(askedAt, warsaw, [], AgentMessageScope.Mailbox(), [], "Send it tomorrow at 8.");
+        var turn = AgentConversationComposition.ComposeTurn(askedAt, warsaw, [], [], AgentMessageScope.Mailbox(), [], "Send it tomorrow at 8.");
 
         // Assert
         Assert.Contains("The person's time zone: Europe/Warsaw, at UTC+02:00 now.", turn, StringComparison.Ordinal);
@@ -103,8 +120,8 @@ public sealed class AgentConversationInstructionsTests
         var second = StoredEmailId.Create(Guid.CreateVersion7());
 
         // Act
-        var naming = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [], scope, [first, second], "Summarize these.");
-        var holdingNone = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [], scope, [], "Summarize these.");
+        var naming = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [], [], scope, [first, second], "Summarize these.");
+        var holdingNone = AgentConversationComposition.ComposeTurn(askedAt, UserTimeZone.Coordinated, [], [], scope, [], "Summarize these.");
 
         // Assert
         Assert.Contains($"by id: {first}, {second}.", naming, StringComparison.Ordinal);
@@ -180,7 +197,9 @@ public sealed class AgentConversationInstructionsTests
         var text = Flattened(UserLanguage.English);
 
         // Assert
-        Assert.Contains("other words, the mail's other language, the other forms an inflected word takes", text, StringComparison.Ordinal);
+        Assert.Contains("other words, another of those languages, the other forms an inflected word takes", text, StringComparison.Ordinal);
+        Assert.Contains("search in each of those languages before concluding that the mail is not there", text, StringComparison.Ordinal);
+        Assert.Contains($"{AgentTurnDocument.FromNameAttributeName} and {AgentTurnDocument.FromAttributeName} attributes: answer who wrote", text, StringComparison.Ordinal);
         Assert.Contains("After a few such lookups find nothing, say that the mailbox does not answer rather than searching on.", text, StringComparison.Ordinal);
     }
 

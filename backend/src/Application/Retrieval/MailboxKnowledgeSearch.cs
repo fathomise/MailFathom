@@ -27,9 +27,9 @@ namespace MailFathom.Application.Retrieval;
 /// </para>
 /// <para>
 /// What this adds is the shape a model's context needs rather than a reader's: one bounded extract per message instead
-/// of a summary and several highlighted fragments, carrying only the identity an answer is traced through. Everything a
-/// listing publishes and an answer does not need — the participants, the size, the flags, the attachment summary — is
-/// dropped here rather than sent to a provider.
+/// of a summary and several highlighted fragments, carrying the identity an answer is traced through and the sender an
+/// answer about who said what is drawn from. Everything else a listing publishes and an answer does not need — the
+/// recipients, the size, the flags, the attachment summary — is dropped here rather than sent to a provider.
 /// </para>
 /// <para>
 /// What a file the message carried contributed is kept, and kept separate. It is what lets an answer draw on a
@@ -155,6 +155,8 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
             Folder = summary.Folder,
             Subject = summary.Subject,
             ReceivedAt = summary.ReceivedAt,
+            SenderDisplayName = summary.SenderDisplayName,
+            SenderAddress = summary.SenderAddress,
             Provenance = provenance,
             MachineAuthorship = summary.MachineAuthorship,
             Text = Bounded(string.Join(SnippetSeparator, match.Snippets), bounds),

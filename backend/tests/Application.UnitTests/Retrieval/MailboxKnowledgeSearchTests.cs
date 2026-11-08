@@ -108,6 +108,32 @@ public sealed class MailboxKnowledgeSearchTests
         Assert.Equal("the invoice is attached", passage.Text);
     }
 
+    /// <summary>A question about who said what is answered from the passage, so the sender travels with it from the stored message.</summary>
+    [Fact]
+    public async Task FindPassagesAsync_AMatch_CarriesTheSenderTheMessageDisplays()
+    {
+        // Arrange
+        var matched = SyntheticEmailSummaries.Create(FirstJuly) with
+        {
+            SenderDisplayName = "Ewa Nowak",
+            SenderAddress = "ewa@example.org",
+        };
+        var index = new InMemoryEmailSearchIndex().With(matched, snippets: "I look after the network");
+        var search = SearchOver(index);
+
+        // Act
+        var passages = (await search.FindPassagesAsync(
+            EveryAccount,
+            EmailKnowledgeQuery.ForText("network"),
+            TestContext.Current.CancellationToken)).Passages;
+
+        // Assert
+        var passage = Assert.Single(passages);
+
+        Assert.Equal("Ewa Nowak", passage.SenderDisplayName);
+        Assert.Equal("ewa@example.org", passage.SenderAddress);
+    }
+
     /// <summary>An answer qualifies what it draws on by where each message came from, and this is the hop that carries it to the passage.</summary>
     [Fact]
     public async Task FindPassagesAsync_AMatch_CarriesTheProvenanceTheDeploymentRecordedForIt()

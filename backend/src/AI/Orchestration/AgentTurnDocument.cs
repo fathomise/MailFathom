@@ -54,6 +54,12 @@ internal sealed class AgentTurnDocument : IDisposable
     /// <summary>Names the attribute saying that the element's quoted text was cut, by the writer's budget or by its caller.</summary>
     internal const string CutAttributeName = "cut";
 
+    /// <summary>Names the attribute carrying the address a message says it was sent from.</summary>
+    internal const string FromAttributeName = "from";
+
+    /// <summary>Names the attribute carrying the name a message says its sender goes by.</summary>
+    internal const string FromNameAttributeName = "from-name";
+
     /// <summary>Names the attribute carrying what the receiving server established about the author a message displays.</summary>
     internal const string SenderAuthenticationAttributeName = "sender-authentication";
 
@@ -326,6 +332,27 @@ internal sealed class AgentTurnDocument : IDisposable
         if (isTrusted)
         {
             this.writer.WriteAttributeString(SenderTrustedAttributeName, TrueValue);
+        }
+    }
+
+    /// <summary>Writes the author a message displays as attributes of the element just opened.</summary>
+    /// <param name="displayName">The name the message says its sender goes by, already guarded for egress, or <see langword="null" /> where it carried none.</param>
+    /// <param name="address">The address the message says it was sent from, already guarded for egress, or <see langword="null" /> where it carried none.</param>
+    /// <remarks>
+    /// Attributes rather than quoted text, so a name a sender chose can neither close the element nor be read as part of
+    /// what the message says. Each is absent rather than empty where the message carried none, so a blank is never read
+    /// as a name somebody wrote. Whether the claim held is <see cref="WriteProvenance" />'s to say, beside it.
+    /// </remarks>
+    internal void WriteAuthor(string? displayName, string? address)
+    {
+        if (!string.IsNullOrWhiteSpace(displayName))
+        {
+            this.WriteAttribute(FromNameAttributeName, displayName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(address))
+        {
+            this.WriteAttribute(FromAttributeName, address);
         }
     }
 

@@ -1413,7 +1413,7 @@ internal sealed record AgentConversationScenario(
         var called = new ConcurrentQueue<string>();
         IReadOnlyList<AITool> offered = [.. tools.Create().OfType<AIFunction>().Select(tool => new CalledFunction(tool, called))];
 
-        var composed = AgentConversationAgent.ComposeMessages(brief, await tools.NameAccountsAsync(cancellationToken), readers.Clock.Zone());
+        var composed = AgentConversationAgent.ComposeMessages(brief, await tools.NameAccountsAsync(cancellationToken), PolishCorpus.MixedMailboxLanguages, readers.Clock.Zone());
 
         // Refused rather than sent, as a deployment refuses it: a conversation past the model's bound fails the run.
         ChatRequestBounds.RequireForAttempt(composed, plan);

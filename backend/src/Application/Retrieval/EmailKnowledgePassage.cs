@@ -50,6 +50,17 @@ public sealed record EmailKnowledgePassage
     /// <summary>Gets when the last receiving hop recorded the message, or <see langword="null" /> when no header carried a usable date.</summary>
     public DateTimeOffset? ReceivedAt { get; init; }
 
+    /// <summary>Gets the display name the sender wrote, or <see langword="null" /> when the header carried none.</summary>
+    /// <remarks>
+    /// It travels with the extract because an extract saying "I will look after the network" answers who does what only
+    /// beside the name of whoever wrote it, and a model that is not shown the name spends its lookups asking for it. It
+    /// is what the message claims rather than who sent it: <see cref="Provenance" /> is what says whether the claim held.
+    /// </remarks>
+    public string? SenderDisplayName { get; init; }
+
+    /// <summary>Gets the sender's address as the message wrote it, or <see langword="null" /> when no usable sender was found.</summary>
+    public string? SenderAddress { get; init; }
+
     /// <summary>Gets where the message the extract came from came from, as this deployment recorded it.</summary>
     /// <remarks>
     /// It travels with the passage for two readers. A model is shown it beside the extract, written by the service, so a

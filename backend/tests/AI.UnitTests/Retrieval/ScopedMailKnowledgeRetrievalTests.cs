@@ -4,6 +4,7 @@
 
 using System.Text.Json;
 using System.Xml.Linq;
+using MailFathom.AI.Orchestration;
 using MailFathom.AI.Retrieval;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Emails.AttachmentText;
@@ -382,6 +383,38 @@ public sealed class ScopedMailKnowledgeRetrievalTests
         Assert.Equal(
             "re: [redacted:CloudKey]",
             message.Element(RetrievedMailContextFormatter.SubjectElementName)?.Value);
+    }
+
+    /// <summary>The sender is mail a stranger wrote and reaches the provider beside the extract, so it is scanned on the same terms.</summary>
+    [Fact]
+    public async Task SearchTool_ASwitchedOnScanner_RedactsTheSendersNameAndAddressBeforeTheyReachTheModel()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        using var actingFor = egress.Guard.ActingFor(await egress.ReadUserPostureAsync(TestContext.Current.CancellationToken));
+        var knowledgeSearch = new RecordingEmailKnowledgeSearch().Returning(
+            Query,
+            KnowledgePassages.Create("I look after the network.") with
+            {
+                SenderDisplayName = $"Key {Marker}",
+                SenderAddress = $"{Marker}@example.org",
+            });
+        var retrieval = new ScopedMailKnowledgeRetrieval(
+            knowledgeSearch,
+            OnePrimaryAccount,
+            new MailAnsweringRunLedger(MailAnsweringRunBounds.Default),
+            egress.Guard,
+            AskedAt);
+
+        // Act
+        var envelope = await InvokeAsync(retrieval.CreateSearchTool(), OneQuery);
+
+        // Assert
+        var message = Assert.Single(
+            RootOf(envelope).Elements(RetrievedMailContextFormatter.MessageElementName));
+
+        Assert.Equal("Key [redacted:CloudKey]", message.Attribute(AgentTurnDocument.FromNameAttributeName)?.Value);
+        Assert.Equal("[redacted:CloudKey]@example.org", message.Attribute(AgentTurnDocument.FromAttributeName)?.Value);
     }
 
     /// <summary>

@@ -32,6 +32,11 @@ namespace MailFathom.AI.Retrieval;
 /// checked, and the identity is what survives formatting to make that possible.
 /// </para>
 /// <para>
+/// Each message element names the author the message displays — the name and the address it says it was sent from — so a
+/// question about who said or did something is answered from the extract that says it rather than by asking the mailbox
+/// again who wrote it.
+/// </para>
+/// <para>
 /// Each message element also says where the message came from — the sender verdict, the junk folder, a first contact —
 /// as the attributes <see cref="AgentTurnDocument.WriteProvenance" /> writes from what this deployment recorded, so a
 /// claim resting on a message that only claims a name can be qualified, and no extract can claim a status of its own.
@@ -254,6 +259,7 @@ internal static class RetrievedMailContextFormatter
                 receivedAt.ToString("O", CultureInfo.InvariantCulture));
         }
 
+        document.WriteAuthor(passage.SenderDisplayName, passage.SenderAddress);
         document.WriteProvenance(passage.Provenance);
         AgentReceiptReadings.Write(document, passage.Receipts);
 
