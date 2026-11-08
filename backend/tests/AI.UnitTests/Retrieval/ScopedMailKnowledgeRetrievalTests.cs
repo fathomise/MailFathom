@@ -254,6 +254,44 @@ public sealed class ScopedMailKnowledgeRetrievalTests
         Assert.Empty(knowledgeSearch.Calls);
     }
 
+    /// <summary>
+    /// A query holding no words ranks nothing, and an address filter written as a name or a fragment matches no whole
+    /// address: each would answer with an empty mailbox, so each is refused naming the argument, as an unreadable bound
+    /// is, and the lookup reaches no search.
+    /// </summary>
+    [Theory]
+    [InlineData("queryText", "", null)]
+    [InlineData("queryText", "   ", null)]
+    [InlineData("senderAddress", Query, "Anna Kowalska")]
+    [InlineData("recipientAddress", Query, "example.test")]
+    public async Task SearchTool_ABlankQueryOrAnAddressWithoutAnAtSign_IsRefusedNamingTheArgumentAndReachesNoSearch(
+        string filterName,
+        string queryText,
+        string? address)
+    {
+        // Arrange
+        var knowledgeSearch = new RecordingEmailKnowledgeSearch();
+        var tool = ToolOver(knowledgeSearch);
+        var arguments = new Dictionary<string, object?> { [ScopedMailKnowledgeRetrieval.QueryArgumentName] = queryText };
+
+        if (address is not null)
+        {
+            arguments[filterName] = address;
+        }
+
+        // Act
+        var document = await InvokeAsync(tool, arguments);
+
+        // Assert
+        var root = RootOf(document);
+
+        Assert.Equal(RetrievedMailContextFormatter.RefusalElementName, root.Name.LocalName);
+        Assert.Equal(
+            filterName,
+            root.Attribute(RetrievedMailContextFormatter.RefusedFilterAttributeName)?.Value);
+        Assert.Empty(knowledgeSearch.Calls);
+    }
+
     /// <summary>A run may be handed no more mail than its ceiling allows, whatever the lookup narrowed to.</summary>
     [Fact]
     public async Task SearchTool_MoreMailThanTheRunMaySend_HandsOverWhatFitsAndSaysThereIsNoMore()

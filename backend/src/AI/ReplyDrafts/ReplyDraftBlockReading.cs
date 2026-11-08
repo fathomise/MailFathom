@@ -5,6 +5,7 @@
 using System.Collections.Frozen;
 using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.EmailContent.Rendering.Document.Blocks;
 using MailFathom.Application.Emails.ReplyDrafts;
@@ -19,13 +20,18 @@ namespace MailFathom.AI.ReplyDrafts;
 /// value is read only where it sits in a shape the instruction names, and whatever does not fit is dropped to its words
 /// rather than refused. A paragraph, a one-level list, and a table are the blocks; bold, italic, a link, and a colour
 /// are what a run carries; an alignment is what a paragraph and a cell carry. A heading, a picture, a size, a nested
-/// list, and a table inside a table are none of them, so each is its words.
+/// list, and a table inside a table are none of them, so each is its words. A block written as a string holding its
+/// JSON is read as that block, and a run with no type standing where a block stands is read, with the strings directly
+/// beside it, as one paragraph of runs, because each is how a model writes the block or the sentence it meant, and its
+/// words alone would show raw JSON, lose the link, or split the sentence.
 /// </para>
 /// <para>
 /// A link is a number in the list the turn published and nothing else. A number the turn never published, and an
 /// address the model typed in its place, both leave the words as words, which is what makes a link to an address from
-/// outside the exchange impossible rather than unlikely. A colour is a palette swatch's name, never a value, so a model
-/// cannot write a colour nobody can read.
+/// outside the exchange impossible rather than unlikely. Words marked up as a link inside plain text, as
+/// <c>[the sheet](0)</c> or <c>[the sheet](link 0)</c>, are read as that link under the same rule, and stay exactly as
+/// written where the number names nothing the turn published. A colour is a palette swatch's name, never a value, so a
+/// model cannot write a colour nobody can read.
 /// </para>
 /// <para>
 /// The words are bounded as the plain draft always was, at <see cref="ReplyDraft.MaximumBodyLength" />: the run that
@@ -34,7 +40,7 @@ namespace MailFathom.AI.ReplyDrafts;
 /// drawn as lines.
 /// </para>
 /// </remarks>
-internal static class ReplyDraftBlockReading
+internal static partial class ReplyDraftBlockReading
 {
     /// <summary>The most blocks one draft holds.</summary>
     internal const int MaximumBlocks = 100;
@@ -92,6 +98,10 @@ internal static class ReplyDraftBlockReading
     /// <summary>Gets the names of the swatches a draft may colour words with.</summary>
     internal static IEnumerable<string> SwatchNames => Swatches.Keys.Order(StringComparer.Ordinal);
 
+    /// <summary>Gets the shape of words marked up as a link inside plain text, <c>[words](n)</c> or <c>[words](link n)</c>.</summary>
+    [GeneratedRegex(@"\[(?<words>[^\[\]\n]+)\]\((?:link\s+)?(?<position>[0-9]{1,9})\)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
+    private static partial Regex MarkedUpLinkShape { get; }
+
     /// <summary>Reads what the model wrote as the draft's body.</summary>
     /// <param name="body">The body as the model wrote it: an array of blocks, or one plain text.</param>
     /// <param name="links">The links the turn published, in the order it numbered them.</param>
@@ -105,7 +115,7 @@ internal static class ReplyDraftBlockReading
         var reading = new Reading(links);
         IReadOnlyList<MailDocumentBlock> blocks = body switch
         {
-            { ValueKind: JsonValueKind.Array } array => [.. array.EnumerateArray().Take(MaximumBlocks).SelectMany(reading.BlocksOf)],
+            { ValueKind: JsonValueKind.Array } array => reading.BlocksOfBody([.. array.EnumerateArray().Take(MaximumBlocks)]),
             { ValueKind: JsonValueKind.String } text => [.. reading.ParagraphsOf(text.GetString()!)],
             _ => [],
         };
@@ -144,11 +154,36 @@ internal static class ReplyDraftBlockReading
 
         internal bool IsExhausted => this.remainingCharacters <= 0;
 
+        /// <summary>Reads the blocks of a body written as an array, a run with no type and the strings directly beside it as one sentence.</summary>
+        internal List<MailDocumentBlock> BlocksOfBody(JsonElement[] elements)
+        {
+            var blocks = new List<MailDocumentBlock>();
+            var sentence = new List<JsonElement>();
+
+            for (var index = 0; index < elements.Length; index++)
+            {
+                if (IsPartOfSentence(elements, index))
+                {
+                    sentence.Add(elements[index]);
+                    continue;
+                }
+
+                blocks.AddRange(this.SentenceOf(sentence));
+                blocks.AddRange(this.BlocksOf(elements[index]));
+            }
+
+            blocks.AddRange(this.SentenceOf(sentence));
+
+            return blocks;
+        }
+
         internal IEnumerable<MailDocumentBlock> BlocksOf(JsonElement block)
         {
             if (block.ValueKind is JsonValueKind.String)
             {
-                return this.ParagraphsOf(block.GetString()!);
+                var text = block.GetString()!;
+
+                return BlockWrittenAsText(text) is { } written ? this.BlocksOf(written) : this.ParagraphsOf(text);
             }
 
             if (!this.Charged(ReplyDraft.BlockBreak.Length))
@@ -177,7 +212,7 @@ internal static class ReplyDraftBlockReading
                     break;
                 }
 
-                paragraphs.Add(new MailParagraphBlock(this.PlainRun(paragraph), MailBlockAlignment.Inherited));
+                paragraphs.Add(new MailParagraphBlock(this.TextRuns(paragraph), MailBlockAlignment.Inherited));
             }
 
             return paragraphs;
@@ -190,6 +225,45 @@ internal static class ReplyDraftBlockReading
             && BlockTypes.TryGetValue(type.GetString()!, out var known)
                 ? known
                 : null;
+
+        /// <summary>Whether a body element belongs to a sentence: a run with no type, or a string standing directly beside one.</summary>
+        private static bool IsPartOfSentence(JsonElement[] elements, int index) =>
+            IsUntypedRun(elements[index])
+            || (elements[index].ValueKind is JsonValueKind.String
+                && ((index > 0 && IsUntypedRun(elements[index - 1])) || (index + 1 < elements.Length && IsUntypedRun(elements[index + 1]))));
+
+        private static bool IsUntypedRun(JsonElement element) =>
+            element.ValueKind is JsonValueKind.Object
+            && !element.TryGetProperty("type", out _)
+            && element.TryGetProperty("text", out var text)
+            && text.ValueKind is JsonValueKind.String;
+
+        private static int? PositionOf(JsonElement cited) => cited.ValueKind switch
+        {
+            JsonValueKind.Number when cited.TryGetInt32(out var position) => position,
+            JsonValueKind.String when int.TryParse(cited.GetString(), NumberStyles.None, CultureInfo.InvariantCulture, out var position) => position,
+            _ => null,
+        };
+
+        /// <summary>Reads a string holding one block of the closed set written out as JSON, which a model writes in place of the block itself.</summary>
+        private static JsonElement? BlockWrittenAsText(string text)
+        {
+            if (!text.TrimStart().StartsWith('{'))
+            {
+                return null;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(text);
+
+                return TypeOf(document.RootElement) is null ? null : document.RootElement.Clone();
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
 
         private static MailBlockAlignment AlignmentOf(JsonElement element) =>
             element.ValueKind is JsonValueKind.Object
@@ -359,7 +433,7 @@ internal static class ReplyDraftBlockReading
         /// <summary>Reads runs out of whatever stands where runs are expected: one plain text, an array of runs, or an object holding them.</summary>
         private IReadOnlyList<MailInlineRun> RunsOf(JsonElement element) => element.ValueKind switch
         {
-            JsonValueKind.String => this.PlainRun(element.GetString()!),
+            JsonValueKind.String => this.TextRuns(element.GetString()!),
             JsonValueKind.Array => [.. element.EnumerateArray().Take(MaximumRuns).SelectMany(this.RunOf)],
             JsonValueKind.Object when element.TryGetProperty("runs", out var runs) => this.RunsOf(runs),
             JsonValueKind.Object => this.RunOf(element),
@@ -370,7 +444,7 @@ internal static class ReplyDraftBlockReading
         {
             if (run.ValueKind is JsonValueKind.String)
             {
-                return this.PlainRun(run.GetString()!);
+                return this.TextRuns(run.GetString()!);
             }
 
             if (run.ValueKind is not JsonValueKind.Object
@@ -394,12 +468,23 @@ internal static class ReplyDraftBlockReading
 
         private MailDocumentLink? LinkOf(JsonElement run) =>
             run.TryGetProperty("link", out var cited)
-            && cited.ValueKind is JsonValueKind.Number
-            && cited.TryGetInt32(out var position)
+            && PositionOf(cited) is { } position
             && position >= 0
             && position < links.Count
                 ? links[position].Link
                 : null;
+
+        /// <summary>Reads the elements of one sentence as one paragraph of their runs, in order, and empties the sentence.</summary>
+        private MailDocumentBlock[] SentenceOf(List<JsonElement> sentence)
+        {
+            MailDocumentBlock[] paragraph = sentence.Count > 0 && this.Charged(ReplyDraft.BlockBreak.Length)
+                ? [new MailParagraphBlock([.. sentence.Take(MaximumRuns).SelectMany(this.RunOf)], MailBlockAlignment.Inherited)]
+                : [];
+
+            sentence.Clear();
+
+            return paragraph;
+        }
 
         private MailParagraphBlock WordsAsParagraph(JsonElement element) => new(this.WordsOf(element), MailBlockAlignment.Inherited);
 
@@ -411,6 +496,33 @@ internal static class ReplyDraftBlockReading
 
         /// <summary>Reads a shape this does not take as the plain words inside it, a space between each.</summary>
         private IReadOnlyList<MailInlineRun> WordsOf(JsonElement element) => this.PlainRun(WordsTextOf(element));
+
+        /// <summary>Reads plain text as runs, linking the words it marks up as a link only where the number cites one the turn published.</summary>
+        private List<MailInlineRun> TextRuns(string text)
+        {
+            var cited = MarkedUpLinkShape.Matches(text)
+                .Select(match => (Match: match, Link: this.LinkCitedBy(match)))
+                .Where(static marked => marked.Link is not null);
+            var runs = new List<MailInlineRun>();
+            var plainStart = 0;
+
+            foreach (var (match, link) in cited)
+            {
+                runs.AddRange(this.PlainRun(text[plainStart..match.Index]));
+                runs.AddRange(this.Kept(match.Groups["words"].Value, MailTextEmphasis.None, foreground: null, link));
+                plainStart = match.Index + match.Length;
+            }
+
+            runs.AddRange(this.PlainRun(text[plainStart..]));
+
+            return runs;
+        }
+
+        private MailDocumentLink? LinkCitedBy(Match match) =>
+            int.TryParse(match.Groups["position"].ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out var position)
+            && position < links.Count
+                ? links[position].Link
+                : null;
 
         private IReadOnlyList<MailInlineRun> PlainRun(string text) =>
             this.Kept(text, MailTextEmphasis.None, foreground: null, link: null);

@@ -128,6 +128,9 @@ public sealed class ReplyDraftScenarioTests : IDisposable
     [InlineData("ReplyDraft.LeavesTheClosingToTheFooter", """{"body":"Thank you, Zofia, for checking the corrected invoice.\nWe now consider INV-4827 closed.\nBest regards,\nMara","claims":[],"recipients":[0]}""", false)]
     [InlineData("ReplyDraft.ClosesWithoutAFooter", """{"body":"Thank you, Zofia, for checking the corrected invoice.\nWe now consider INV-4827 closed.\nBest regards,\nMara","claims":[],"recipients":[0]}""", true)]
     [InlineData("ReplyDraft.ClosesWithoutAFooter", """{"body":"Thank you, Zofia, for checking the corrected invoice.\nWe now consider INV-4827 closed.","claims":[],"recipients":[0]}""", false)]
+    [InlineData("ReplyDraft.ClosesWithoutAFooter", """{"body":["Hi Zofia,","Thanks for checking the corrected invoice. We now consider INV-4827 closed.","Thanks"],"claims":[{"text":"We now consider INV-4827 closed.","messages":[]}],"recipients":[0]}""", true)]
+    [InlineData("ReplyDraft.LeavesTheClosingToTheFooter", """{"body":["Hi Zofia,","Thanks for checking the corrected invoice. We now consider INV-4827 closed.","Thanks"],"claims":[{"text":"We now consider INV-4827 closed.","messages":[]}],"recipients":[0]}""", false)]
+    [InlineData("ReplyDraft.LeavesTheClosingToTheFooter", """{"body":["Hi Zofia,","Thanks for checking the corrected invoice and confirming the billing details are now intact. We now consider INV-4827 closed."],"claims":[{"text":"We now consider INV-4827 closed.","messages":[]}],"recipients":[0]}""", true)]
     public async Task RunAsync_ADraftFromAnAccountWithOrWithoutAFooter_PassesOnlyWhereItClosesAsThatAccountRequires(string name, string answer, bool expected)
     {
         // Arrange

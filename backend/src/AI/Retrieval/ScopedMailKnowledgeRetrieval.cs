@@ -216,12 +216,15 @@ internal sealed class ScopedMailKnowledgeRetrieval
         // never heard of the asking person, would answer one belonging to nobody. A bound written in some other form
         // is reported back rather than dropped: this caller is a tool loop, so a model that wrote an unusable value
         // can write a usable one, while a silently missing bound would answer the wrong question convincingly.
-        var refusedBound = this.RefusedBound(receivedOnOrAfter, "receivedOnOrAfter")
+        var refused = RefusedQueryText(queryText)
+            ?? RefusedAddress(senderAddress, "senderAddress")
+            ?? RefusedAddress(recipientAddress, "recipientAddress")
+            ?? this.RefusedBound(receivedOnOrAfter, "receivedOnOrAfter")
             ?? this.RefusedBound(receivedBefore, "receivedBefore");
 
-        if (refusedBound is not null)
+        if (refused is not null)
         {
-            return refusedBound;
+            return refused;
         }
 
         var query = new EmailKnowledgeQuery
@@ -281,6 +284,29 @@ internal sealed class ScopedMailKnowledgeRetrieval
             ? RetrievedMailContextFormatter.FormatRefusal(
                 filterName,
                 $"Write this bound as {AnchoredInstant.WrittenForm} against the date and time the turn states, with no zone and no Z.")
+            : null;
+
+    /// <summary>Reports a query holding no words, which ranks nothing, or nothing where it holds some.</summary>
+    /// <remarks>Refused rather than run, because an empty lookup reads to the model as a mailbox holding no such mail.</remarks>
+    private static string? RefusedQueryText(string? written) =>
+        string.IsNullOrWhiteSpace(written)
+            ? RetrievedMailContextFormatter.FormatRefusal(
+                QueryArgumentName,
+                "Write the words you expect the mail itself to contain; a lookup needs at least one.")
+            : null;
+
+    /// <summary>Reports an address filter that is not a whole mail address, or nothing where it is one or is omitted.</summary>
+    /// <param name="written">What the model wrote for the filter.</param>
+    /// <param name="filterName">The filter's own name, as the tool publishes it.</param>
+    /// <remarks>
+    /// The filter matches a whole address, so a name or a fragment matches no mail at all and would answer the question
+    /// with an empty mailbox. Like a refused bound, the refusal names the filter and never the value.
+    /// </remarks>
+    private static string? RefusedAddress(string? written, string filterName) =>
+        !string.IsNullOrWhiteSpace(written) && !written.Contains('@', StringComparison.Ordinal)
+            ? RetrievedMailContextFormatter.FormatRefusal(
+                filterName,
+                "Write a whole mail address, such as name@example.org, or omit this filter to match anybody.")
             : null;
 
     /// <summary>Scans every extract this lookup is about to hand to a model.</summary>

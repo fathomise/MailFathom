@@ -78,7 +78,7 @@ internal sealed partial record MailAnsweringScenario(
 {
     /// <summary>The instant every question is asked at, which is the anchor the turn states and a written bound is read against.</summary>
     /// <remarks>Stated by the scenario rather than read from a clock, for the reason every evaluation input is fixed: a case resolving <em>this week</em> against today would score differently every day it is run.</remarks>
-    private static readonly DateTimeOffset AskedAt = new(2026, 9, 14, 12, 0, 0, TimeSpan.Zero);
+    public static readonly DateTimeOffset AskedAt = new(2026, 9, 14, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary>The check that the run ended with text a deployment returns rather than failing as an empty answer.</summary>
     public const string AnsweredMetricName = "Produced an answer";
@@ -609,7 +609,7 @@ internal sealed partial record MailAnsweringScenario(
 
         if (this.Claim is { } claim)
         {
-            var misreported = claim.Misreported(answer?.Text);
+            var misreported = claim.Misreported(answer?.Text, retrieved.Passages.Select(static passage => passage.Text));
 
             EvaluationMetrics.Record(verdict, AccountClaim.MetricName, misreported is null, misreported ?? claim.Reported());
         }

@@ -30,6 +30,15 @@ internal static class AgentConversationReadings
     /// <summary>Names the element a conversation is read into.</summary>
     internal const string ThreadElementName = "thread";
 
+    /// <summary>Names the attribute carrying the identifier of the conversation itself, which a reading may be repeated with to reach its newest messages.</summary>
+    internal const string ThreadIdAttributeName = "id";
+
+    /// <summary>Names the attribute counting the conversation's messages before the first one shown, written only where there are some.</summary>
+    internal const string EarlierLeftOutAttributeName = "earlier-messages-left-out";
+
+    /// <summary>Names the attribute counting the conversation's messages after the last one shown, written only where there are some.</summary>
+    internal const string LaterLeftOutAttributeName = "later-messages-left-out";
+
     /// <summary>Names the element one message of a conversation occupies.</summary>
     internal const string MessageElementName = "message";
 
@@ -99,16 +108,30 @@ internal static class AgentConversationReadings
     /// <summary>Names the attribute carrying the day a task is due.</summary>
     internal const string DueAttributeName = "due";
 
-    /// <summary>Writes one conversation.</summary>
+    /// <summary>Writes one conversation, or the stretch of it a reading shows.</summary>
     /// <param name="messages">The messages shown, in the conversation's order.</param>
+    /// <param name="threadId">The conversation, or <see langword="null" /> where the messages belong to none.</param>
+    /// <param name="earlierLeftOut">How many of the conversation's messages come before the first one shown.</param>
+    /// <param name="laterLeftOut">How many of the conversation's messages come after the last one shown.</param>
     /// <returns>The document.</returns>
-    internal static string Thread(IReadOnlyList<GuardedThreadReading> messages)
+    /// <remarks>
+    /// What was left out is counted on the conversation rather than hidden, because a model shown part of a long
+    /// conversation as though it were the whole of it answers about the part with the confidence of the whole.
+    /// </remarks>
+    internal static string Thread(
+        IReadOnlyList<GuardedThreadReading> messages,
+        EmailThreadId? threadId = null,
+        int earlierLeftOut = 0,
+        int laterLeftOut = 0)
     {
         ArgumentNullException.ThrowIfNull(messages);
 
         using var document = new AgentTurnDocument();
 
         document.StartElement(ThreadElementName);
+        WriteOptional(document, ThreadIdAttributeName, threadId?.ToString());
+        WriteOptional(document, EarlierLeftOutAttributeName, Count(earlierLeftOut));
+        WriteOptional(document, LaterLeftOutAttributeName, Count(laterLeftOut));
 
         foreach (var message in messages)
         {
@@ -194,6 +217,10 @@ internal static class AgentConversationReadings
 
         return document.Complete();
     }
+
+    /// <summary>Writes a count only where it counts something, so a conversation shown whole carries no zero to read.</summary>
+    private static string? Count(int count) =>
+        count > 0 ? count.ToString(CultureInfo.InvariantCulture) : null;
 
     /// <summary>Writes an attribute only where there is a value, so the model reads what a record carries rather than blanks to tell apart from it.</summary>
     private static void WriteOptional(AgentTurnDocument document, string attributeName, string? value)
