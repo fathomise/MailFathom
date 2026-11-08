@@ -19,9 +19,11 @@ internal sealed class JudgeThresholds : EvaluationContext
     private readonly Dictionary<string, double> minimums;
 
     /// <summary>Initializes a new instance of the <see cref="JudgeThresholds" /> class.</summary>
-    /// <param name="minimums">Each metric's name and the lowest rating, from one to five, that passes it.</param>
-    public JudgeThresholds(params IEnumerable<(string MetricName, double Minimum)> minimums)
-        : this(minimums.ToDictionary(static threshold => threshold.MetricName, static threshold => threshold.Minimum, StringComparer.Ordinal))
+    /// <param name="minimums">Each metric's name and the lowest rating, from one to five, that passes it, or <see langword="null" /> for a metric the scenario holds to none.</param>
+    public JudgeThresholds(params IEnumerable<(string MetricName, double? Minimum)> minimums)
+        : this(minimums
+            .Where(static threshold => threshold.Minimum is not null)
+            .ToDictionary(static threshold => threshold.MetricName, static threshold => threshold.Minimum!.Value, StringComparer.Ordinal))
     {
     }
 

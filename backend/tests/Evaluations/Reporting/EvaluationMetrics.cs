@@ -27,6 +27,18 @@ internal static class EvaluationMetrics
                 reason),
         };
 
+    /// <summary>Holds one of the judge's ratings to the lowest score a scenario records for it, where it records one.</summary>
+    /// <param name="verdict">The verdict the rating is in.</param>
+    /// <param name="metricName">The name the judge's evaluator reports the rating under.</param>
+    /// <param name="minimum">The lowest rating, from one to five, a model may score, or <see langword="null" /> where the scenario does not ask the judge for it.</param>
+    public static void HoldToThreshold(EvaluationResult verdict, string metricName, int? minimum)
+    {
+        if (minimum is { } held)
+        {
+            HoldToThreshold(verdict, metricName, held);
+        }
+    }
+
     /// <summary>Holds one of the judge's ratings to the lowest score a scenario records for it.</summary>
     /// <param name="verdict">The verdict the rating is in.</param>
     /// <param name="metricName">The name the judge's evaluator reports the rating under.</param>

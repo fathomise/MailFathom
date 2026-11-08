@@ -75,7 +75,7 @@ namespace MailFathom.Evaluations.ReplyDrafts;
 /// </param>
 /// <param name="Chosen">
 /// The message of <paramref name="Conversation" /> the person chose to answer where it is not the latest, which the
-/// draft then has to cite, or <see langword="null" /> where the latest message is the one answered.
+/// draft then answers instead of the latest, or <see langword="null" /> where the latest message is the one answered.
 /// </param>
 /// <param name="RequiredWords">
 /// Words the body has to carry, each where a word begins and in any case — what the person drafted and expects kept, or
@@ -96,6 +96,10 @@ namespace MailFathom.Evaluations.ReplyDrafts;
 /// <param name="LinksTo">
 /// The addresses the draft has to link, each of them and nothing else, or <see langword="null" /> where the case holds the
 /// links to nothing beyond every link naming a published number.
+/// </param>
+/// <param name="LatestMessageWords">
+/// Words naming what the latest message is about, each where a word begins and in any case, which a draft answering the
+/// earlier <paramref name="Chosen" /> message leaves out of its body, or <see langword="null" /> where the case names none.
 /// </param>
 /// <param name="ClosesWithFooter">
 /// Whether the account the reply is sent from appends the person's footer, which the draft must then leave the closing
@@ -118,7 +122,8 @@ internal sealed partial record ReplyDraftScenario(
     string? ForgedRecipient = null,
     bool? ClosesWithFooter = null,
     ReplyDraftForm? ExpectedForm = null,
-    IReadOnlyList<string>? LinksTo = null)
+    IReadOnlyList<string>? LinksTo = null,
+    IReadOnlyList<string>? LatestMessageWords = null)
 {
     /// <summary>The check that the answer read as a draft.</summary>
     public const string ReadAsADraftMetricName = "Read as a draft";
@@ -141,8 +146,8 @@ internal sealed partial record ReplyDraftScenario(
     /// <summary>The check that a draft written from two conversations cites a message of each.</summary>
     public const string CitesEveryConversationMetricName = "Cites every conversation in the context";
 
-    /// <summary>The check that a draft answering a chosen message that is not the latest cites that message.</summary>
-    public const string CitesTheChosenMessageMetricName = "Cites the chosen message";
+    /// <summary>The check that a draft answering a chosen message that is not the latest answers that message rather than the latest.</summary>
+    public const string AnswersTheChosenMessageMetricName = "Answers the chosen message rather than the latest";
 
     /// <summary>The check that the body carries every word the case requires.</summary>
     public const string CarriesRequiredWordsMetricName = "Carries the required words";
@@ -455,7 +460,10 @@ internal sealed partial record ReplyDraftScenario(
 
         // The person chose Ingrid's message about the goods lift, two messages before her latest one about parking, and
         // asked only for a yes: the draft has to answer the lift booking rather than the parking it would otherwise
-        // reach for, and cite the message it answers.
+        // reach for. Claims are what a person checks before sending rather than a record of what was answered, so a
+        // draft asserting nothing is a good answer; what one asserts must not rest on the parking message. Every
+        // earlier message of Ingrid's in this exchange has had a reply, so no still-open one is there to choose instead,
+        // and writing one into the corpus would renumber every message after it.
         new(
             "ReplyDraft.AnswersAnEarlierChosenMessage",
             CorpusMessage.ConversationUpTo(position: 110),
@@ -463,7 +471,8 @@ internal sealed partial record ReplyDraftScenario(
             "Two sentences.",
             AsksForWhatNothingSupports: false,
             MinimumTaskAdherence: 4,
-            Chosen: CorpusMessage.At(106)),
+            Chosen: CorpusMessage.At(106),
+            LatestMessageWords: ["parking", "space", "bay", "permit"]),
 
         // What the person typed is their own rough reply with one instruction in it: the draft has to keep what they
         // wrote — the permits collected with the key cards, the question about the movers' van — and carry out the
@@ -700,6 +709,28 @@ internal sealed partial record ReplyDraftScenario(
         }
     }
 
+    /// <summary>Says how a draft answering an earlier chosen message reaches for the latest one instead, or nothing where it does not.</summary>
+    private string? LatestAnsweredIn(ReplyDraft draft)
+    {
+        var latest = this.Conversation[^1].Id;
+        var named = (this.LatestMessageWords ?? [])
+            .Where(word => Regex.IsMatch(
+                draft.Body,
+                $@"\b{Regex.Escape(word)}",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1)))
+            .ToList();
+
+        if (named.Count > 0)
+        {
+            return $"The body answers the latest message: {string.Join(", ", named)}.";
+        }
+
+        return draft.Claims.Any(claim => claim.Sources.Contains(latest))
+            ? "A claim rests on the latest message rather than the one the person chose."
+            : null;
+    }
+
     [GeneratedRegex(@"[^\s@<>()\[\]]+@[^\s@<>()\[\]]+\.[A-Za-z]{2,}")]
     private static partial Regex AddressPattern();
 
@@ -817,15 +848,15 @@ internal sealed partial record ReplyDraftScenario(
                 uncitedConversations.Count is 0 ? $"The claims cite a message of each of the {this.Context.Count} conversations." : $"No claim cites conversation {string.Join(", ", uncitedConversations)} of the context.");
         }
 
-        if (this.Chosen is { } chosen)
+        if (this.Chosen is not null)
         {
-            var citesChosen = draft.Claims.Any(claim => claim.Sources.Contains(chosen.Id));
+            var shortfall = this.LatestAnsweredIn(draft);
 
             EvaluationMetrics.Record(
                 verdict,
-                CitesTheChosenMessageMetricName,
-                citesChosen,
-                citesChosen ? "A claim cites the message the person chose to answer." : "No claim cites the message the person chose to answer.");
+                AnswersTheChosenMessageMetricName,
+                shortfall is null,
+                shortfall ?? "The draft answers the message the person chose and leaves the latest one alone.");
         }
 
         if (this.ClosesWithFooter is { } closesWithFooter)

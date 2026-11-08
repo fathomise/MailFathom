@@ -831,7 +831,7 @@ public sealed class AgentConversationScenarioTests : IDisposable
             this.store.FullName,
             "only",
             panelClient,
-            AgentConversationScenario.Evaluators);
+            scenario.Evaluators);
 
         return await scenario.RunAsync(
             reporting,

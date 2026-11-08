@@ -62,7 +62,7 @@ public sealed class MailAnsweringEvaluations
                 using var model = ProviderChatClient.Open(modelUnderTest, apiKey, modelSpend);
                 using var panelClient = panel.Open(judgeSpend);
 
-                var reporting = EvaluationStore.Open(panelClient, MailAnsweringScenario.Evaluators);
+                var reporting = EvaluationStore.Open(panelClient, scenario.Evaluators);
 
                 return [.. scenario.ShortfallsOf(await scenario.RunAsync(
                     reporting,

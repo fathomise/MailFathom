@@ -75,7 +75,7 @@ public sealed class AgentConversationEvaluations
                 using var model = ProviderChatClient.Open(modelUnderTest, apiKey, modelSpend);
                 using var panelClient = panel.Open(judgeSpend);
 
-                var reporting = EvaluationStore.Open(panelClient, AgentConversationScenario.Evaluators);
+                var reporting = EvaluationStore.Open(panelClient, scenario.Evaluators);
 
                 return [.. scenario.ShortfallsOf(await scenario.RunAsync(
                     reporting,

@@ -257,24 +257,27 @@ public sealed class ReplyDraftScenarioTests : IDisposable
         Assert.Equal("parking-permit-terms.pdf", Assert.Single(chosen.Attachments).FileName);
     }
 
+    /// <summary>
+    /// The first three are the drafts gpt-6-luna wrote for the case, replayed as they were recorded: each answers the
+    /// lift, one asserting nothing and two citing Mara's own replies. The last two answer the parking message instead.
+    /// </summary>
     [Theory]
-    [InlineData(true, true)]
-    [InlineData(false, false)]
-    public async Task RunAsync_ADraftAnsweringAnEarlierChosenMessage_PassesOnlyWhereItCitesThatMessage(bool citesChosen, bool expected)
+    [InlineData("""{"body":["Hi Ingrid,\n\nThat works for us. Thanks for the update."],"claims":[{"text":"The lift arrangements work for us.","messages":[7,9]}],"recipients":[0]}""", true)]
+    [InlineData("""{"body":["Hi Ingrid,","","That works for us. Thanks for the update.","","Thanks"],"claims":[],"recipients":[0]}""", true)]
+    [InlineData("""{"body":["Hi Ingrid,","","That works for us. Thank you for arranging the lift.","","Thanks"],"claims":[{"text":"The half hour of slack works for us.","messages":["7"]}],"recipients":["0"]}""", true)]
+    [InlineData("""{"body":["Hi Ingrid,","","Four parking spaces work for us. Thank you."],"claims":[],"recipients":[0]}""", false)]
+    [InlineData("""{"body":["Hi Ingrid,","","That works for us. Thank you."],"claims":[{"text":"The building owner allotted four places.","messages":[10]}],"recipients":[0]}""", false)]
+    public async Task RunAsync_ADraftAnsweringAnEarlierChosenMessage_PassesOnlyWhereItLeavesTheLatestMessageAlone(string answer, bool expected)
     {
         // Arrange
         var scenario = Named("ReplyDraft.AnswersAnEarlierChosenMessage");
-        var sources = scenario.Sources();
-        var cited = sources.Messages
-            .Single(message => message.StoredEmailId == (citesChosen ? scenario.Chosen!.Id : scenario.Conversation[^1].Id))
-            .Position;
-        using var model = Model($$"""{"body":"Thank you, Ingrid. The lift booking works for us.","claims":[{"text":"The goods lift is booked for move day.","messages":[{{cited}}]}],"recipients":[0]}""");
+        using var model = Model(answer);
 
         // Act
         var verdict = await this.RunAsync(scenario, model);
 
         // Assert
-        Assert.Equal(expected, verdict.Get<BooleanMetric>(ReplyDraftScenario.CitesTheChosenMessageMetricName).Value);
+        Assert.Equal(expected, verdict.Get<BooleanMetric>(ReplyDraftScenario.AnswersTheChosenMessageMetricName).Value);
     }
 
     [Theory]
