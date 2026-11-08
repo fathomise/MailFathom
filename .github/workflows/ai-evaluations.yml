@@ -12,22 +12,19 @@ name: AI evaluations
 # for. Dispatch is the only way it starts: a run calls real providers and spends credit, so what a run costs is asked for rather than
 # arriving on a timer or with a pull request.
 #
-# A dispatch declares its run in the `evaluation` input, one line of flow-style YAML, rather than in an input per
-# setting: a dispatch carries few inputs, each one line, so a new setting is a new key in the block rather than a new
-# input. `MainModel` names the model every agent runs on, and each agent may name its own under the key its `Chat`
-# section uses — `ImageDescription`, `DiscoveryPlanning`, `Agent`, and the rest — which falls back to the main model as a
-# deployment's does. A role takes one model or a list, and an evaluation runs once per model of the agent it measures, so
-# `{MainModel: model-a, ImageDescription: [model-b, model-c]}` runs the image evaluations twice and everything else once.
-# A model is its routed name, or a mapping with the keys a deployment's `Chat:Models` declaration uses for what a request
-# asks for — `Model`, `Alias`, `Api`, `ReasoningEffort`, `Temperature`, `TopP`, `ExtraHeaders`, `AdditionalProperties`.
-# A reasoning model the agents offer tools to is declared with `Api: Responses`, as in
-# `{MainModel: {Model: openai/gpt-6-luna, Api: Responses, ReasoningEffort: medium}}`: a current reasoning model takes
-# function tools beside a stated effort only over the Responses API, and chat completions carries none of its reasoning
-# from one turn of a tool loop to the next, so a run declaring neither measures a request its provider does not support.
-# A decision model is routed the same way, under the key a deployment's `Decisions` section routes its function by —
-# `SpamClassification` — and falls back to `vars.DECISION_PROVIDER_MODEL`, the one the `Integration tests` workflow
-# reaches, where the block names none. The block also takes `Ref`, `Repetitions`, `EmbeddingModels`,
-# `EmbeddingDimension`, and `Sections`, and a key it does not know fails the run. It is shown to anyone who can read the run, so nothing private belongs in it — a header value included.
+# A run measures exactly one YAML block: the `evaluation` input where a dispatch fills it in, which replaces the
+# `vars.AI_EVALUATION` repository variable whole and merges no key with it, otherwise that variable, otherwise none. The
+# variable keeps the block a routine run measures and may be written as multi-line block YAML; the input takes the same
+# language, usually as one line of flow YAML. The `sections` input, a comma-separated list, is the one exception to
+# replacing whole: it sets the `Sections` key of whichever block won and leaves every other key as written. The first
+# step resolves that one block, validates it, states in the run's summary where it came from, and hands it to the run as
+# it validated it. `run_name_suffix` labels the run: its name becomes the UTC timestamp, a hyphen, and the suffix, which
+# is what the report's run pickers show. A key the block does not name falls back as the suite's own defaults say — the main model to
+# `vars.CHAT_PROVIDER_MODEL`, which the `Integration tests` workflow reaches too, and a reasoning model the agents offer
+# tools to has to be declared with `Api: Responses`. Every key, its default, and a worked example in both YAML styles
+# are in `docs/operations/local-development.md`, section *Agent evaluations*, rather than here. The variable and the
+# input are both shown to anyone who can read the repository's settings or the run, so nothing private belongs in
+# either — a header value included; the keys stay in secrets.
 #
 # What keeps a run cheap is the store `backend/tests/Evaluations` writes: every answer it paid for is
 # cached by prompt, model, parameters, and the name, description, and schema of every tool the model
@@ -42,9 +39,9 @@ name: AI evaluations
 # A cancel stops the paid calls within seconds: the runner signals the evaluation step's shell alone,
 # and `scripts/run-ai-evaluations.sh` passes the signal on to the test host and waits for it.
 #
-# `Sections` names the sections a run measures — `{Sections: [Discovery, SpamClassification]}`, each a directory under
-# `backend/tests/Evaluations` holding scenarios — so a run that asks one agent afresh pays for that agent alone, and a
-# name that is no section fails the run before the build. The store keeps what each run measured and nothing else; the
+# `Sections` names the sections a run measures — `{Sections: [Discovery, SpamClassification]}`, or the `sections` input,
+# each a directory under `backend/tests/Evaluations` holding scenarios — so a run that asks one agent afresh pays for that
+# agent alone, and a name that is no section fails the run before the build. The store keeps what each run measured and nothing else; the
 # report is rendered as if this run also held every other scenario's newest earlier result, tagged `Carried from <run>`,
 # so it still opens on every section. The store keeps each scenario's newest 30 results, so a section's history does
 # not depend on how often the others run.
@@ -77,7 +74,15 @@ on:
   workflow_dispatch:
     inputs:
       evaluation:
-        description: 'The run as one line of flow-style YAML, such as {Ref: main, MainModel: {Model: vendor/model, ReasoningEffort: medium}, ImageDescription: [model-a, model-b]}'
+        description: 'The run as one YAML block, replacing the AI_EVALUATION variable whole, such as {Ref: main, MainModel: {Model: vendor/model, Api: Responses, ReasoningEffort: medium}, Repetitions: 2}; empty runs the variable'
+        required: false
+        type: string
+      sections:
+        description: 'The sections to measure, separated by commas, such as Descriptions, ReplyDrafts; replaces the Sections key of the block the run measures and nothing else'
+        required: false
+        type: string
+      run_name_suffix:
+        description: 'A label appended to the run''s name, such as luna-pro, so the report shows 20261107T222230Z-luna-pro; letters, digits, dot, underscore, and hyphen, up to 40'
         required: false
         type: string
       discard_cached_answers:
@@ -122,37 +127,114 @@ jobs:
       NUGET_XMLDOC_MODE: skip
       EVALUATION_STORE_ARCHIVE: ai-evaluations-store.tar.gz
     steps:
+      # The one block the run measures is resolved here and nowhere else: the `evaluation` input, which replaces the
+      # `AI_EVALUATION` variable whole, otherwise the variable, otherwise none — then the `sections` input, where filled in,
+      # set as that block's `Sections` key in place of whatever spelling of it the block carried. What this step validates
+      # is what it hands the run step as its `evaluation` output, so the two can never read different blocks.
+      #
       # The block's `Ref` is read here, before any of the repository exists to read it with, and by the key's name alone,
       # without regard to case, as the suite reads every other key. `actions/checkout` reads a ref as a branch or a tag
       # name unless it is a full forty-character SHA, so an abbreviated SHA handed to it straight would fail to fetch. The
       # commits API resolves a branch, a tag, and a full or abbreviated SHA to the one commit it names, and the checkout is
-      # then always of a full SHA. The input reaches the shell through the environment rather than the script text, so a
-      # ref cannot write shell of its own. `discard_cached_answers` beside `Sections` is refused here too, before the
-      # restore below could empty the cache of every section the run does not measure.
-      - name: Resolve the commit to evaluate
+      # then always of a full SHA. The inputs and the variable reach the shell through the environment rather than the
+      # script text, so a ref cannot write shell of its own, and the block reaches the output under a delimiter drawn at
+      # random, so it cannot write an output of its own either. `discard_cached_answers` beside `Sections` is refused here
+      # too, before the restore below could empty the cache of every section the run does not measure.
+      #
+      # The run's name is set here as well — the UTC timestamp, then a hyphen and `run_name_suffix` where one is given — so
+      # the summary can print it and the suffix is refused before anything is restored or paid for. It becomes a
+      # directory name in the store, so it is held to characters every file system and the report take as they are.
+      - name: Resolve the block, the run's name, and the commit to evaluate
         id: resolve
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          EVALUATION: ${{ inputs.evaluation }}
+          EVALUATION_INPUT: ${{ inputs.evaluation }}
+          EVALUATION_VARIABLE: ${{ vars.AI_EVALUATION }}
+          SECTIONS_INPUT: ${{ inputs.sections }}
+          RUN_NAME_SUFFIX: ${{ inputs.run_name_suffix }}
           DISCARD_CACHED_ANSWERS: ${{ inputs.discard_cached_answers }}
         run: |
           set -euo pipefail
 
+          if [ -n "$RUN_NAME_SUFFIX" ] && ! [[ "$RUN_NAME_SUFFIX" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,39}$ ]]; then
+            echo "::error::run_name_suffix takes up to 40 ASCII letters, digits, '.', '_', and '-', and does not start with '.' or '-'."
+            exit 1
+          fi
+
+          EXECUTION="$(date -u +%Y%m%dT%H%M%SZ)${RUN_NAME_SUFFIX:+-$RUN_NAME_SUFFIX}"
+          echo "execution=$EXECUTION" >> "$GITHUB_OUTPUT"
+
+          if [ -n "${EVALUATION_INPUT//[[:space:]]/}" ]; then
+            EVALUATION="$EVALUATION_INPUT"
+            SOURCE='the `evaluation` input, which replaces the `AI_EVALUATION` variable whole'
+          elif [ -n "${EVALUATION_VARIABLE//[[:space:]]/}" ]; then
+            EVALUATION="$EVALUATION_VARIABLE"
+            SOURCE='the `AI_EVALUATION` repository variable'
+          else
+            EVALUATION=''
+            SOURCE='neither the `evaluation` input nor the `AI_EVALUATION` variable'
+          fi
+
+          if [ -n "$EVALUATION" ] \
+            && ! { kind=$(printf '%s' "$EVALUATION" | yq 'tag' 2> /dev/null) && [ "$kind" = '!!map' ]; }; then
+            echo "::error::The evaluation block is not a YAML mapping. It came from $SOURCE."
+            exit 1
+          fi
+
+          REQUESTED_SECTIONS_INPUT=$(yq -n -o=json -I=0 \
+            '[strenv(SECTIONS_INPUT) | split(",") | .[] | sub("^\s+", "") | sub("\s+$", "") | select(. != "")]')
+          SECTIONS_REPLACED=false
+
+          if [ "$REQUESTED_SECTIONS_INPUT" != '[]' ]; then
+            export REQUESTED_SECTIONS_INPUT
+            SECTIONS_REPLACED=true
+            if [ -n "$EVALUATION" ]; then
+              EVALUATION=$(printf '%s' "$EVALUATION" \
+                | yq 'with_entries(select(.key | test("(?i)^sections$") | not)) | .Sections = env(REQUESTED_SECTIONS_INPUT) | .Sections[] style=""')
+            else
+              EVALUATION=$(yq -n '.Sections = env(REQUESTED_SECTIONS_INPUT) | .Sections[] style=""')
+            fi
+          fi
+
           REQUESTED_REF=''
           REQUESTED_SECTIONS=0
 
-          if [ -n "$EVALUATION" ] \
-            && ! { REQUESTED_REF=$(printf '%s' "$EVALUATION" | yq -r '[to_entries[] | select(.key | test("(?i)^ref$")) | .value][0] // ""') \
-              && REQUESTED_SECTIONS=$(printf '%s' "$EVALUATION" | yq -r '[to_entries[] | select(.key | test("(?i)^sections$")) | .value][0] // [] | [.] | flatten | length'); }; then
-            echo "::error::The evaluation input is not a YAML mapping."
-            exit 1
+          if [ -n "$EVALUATION" ]; then
+            REQUESTED_REF=$(printf '%s' "$EVALUATION" | yq -r '[to_entries[] | select(.key | test("(?i)^ref$")) | .value][0] // ""')
+            REQUESTED_SECTIONS=$(printf '%s' "$EVALUATION" | yq -r '[to_entries[] | select(.key | test("(?i)^sections$")) | .value][0] // [] | [.] | flatten | length')
           fi
 
           if [ "$DISCARD_CACHED_ANSWERS" = true ] && [ "$REQUESTED_SECTIONS" -gt 0 ]; then
-            echo "::error::discard_cached_answers empties the whole response cache, which is not filed by section, so beside Sections it would throw away the answers of every section this run does not measure. Dispatch one or the other."
+            echo "::error::discard_cached_answers empties the whole response cache, which is not filed by section, so beside Sections or the sections input it would throw away the answers of every section this run does not measure. Dispatch one or the other."
             exit 1
           fi
+
+          {
+            echo "## Run \`$EXECUTION\`"
+            echo
+            echo '### The block this run measures'
+            echo
+            echo "From $SOURCE."
+            if [ "$SECTIONS_REPLACED" = true ]; then
+              echo 'The `sections` input replaced its `Sections` key; every other key is as written.'
+            fi
+            echo
+            if [ -n "$EVALUATION" ]; then
+              echo '````yaml'
+              printf '%s\n' "$EVALUATION"
+              echo '````'
+            else
+              echo 'No block, so every key takes its fallback.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          delimiter="EVALUATION_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+          {
+            echo "evaluation<<$delimiter"
+            printf '%s\n' "$EVALUATION"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
 
           if [ -z "$REQUESTED_REF" ]; then
             echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
@@ -261,7 +343,10 @@ jobs:
         run: bash scripts/run-ai-evaluations.sh
         env:
           MAILFATHOM_AI_EVALUATIONS: 'true'
-          MAILFATHOM_EVALUATION: ${{ inputs.evaluation }}
+          # The block the first step resolved and validated, never the input or the variable read a second time, and the
+          # name it gave the run, which the store files this run's results under.
+          MAILFATHOM_EVALUATION: ${{ steps.resolve.outputs.evaluation }}
+          MAILFATHOM_AI_EVALUATIONS_EXECUTION: ${{ steps.resolve.outputs.execution }}
           # Where the block names no `MainModel`, the one the `Integration tests` workflow already reaches is measured, so
           # a repository configured for those tests can run this one as it stands.
           MAILFATHOM_CHAT_MODEL: ${{ vars.CHAT_PROVIDER_MODEL }}

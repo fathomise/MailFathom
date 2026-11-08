@@ -19,8 +19,9 @@ set -euo pipefail
 # models under test, so their models are all that is declared apart — beside MAILFATHOM_JUDGE_REASONING_EFFORT,
 # one effort for every judge, which a run may leave unset to send no reasoning parameter at all.
 #
-# MAILFATHOM_EVALUATION declares the run as one YAML block, which is one line in flow style:
-# {MainModel: {Model: vendor/model, ReasoningEffort: medium}, ImageDescription: [model-a, model-b]}.
+# MAILFATHOM_EVALUATION declares the run as one YAML block, in block style over several lines or in flow
+# style on one: {MainModel: {Model: vendor/model, ReasoningEffort: medium}, ImageDescription: [model-a, model-b]}.
+# docs/operations/local-development.md, section Agent evaluations, lists every key and its default.
 # MainModel is the model every agent runs on and each agent may name its own under its Chat key; a role
 # takes one model or a list, and an evaluation runs once per model of the agent it measures. The block also
 # takes Repetitions, from 1 to 20, and EmbeddingModels and EmbeddingDimension for the retrieval scenario.

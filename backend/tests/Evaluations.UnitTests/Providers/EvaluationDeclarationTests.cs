@@ -157,6 +157,44 @@ public sealed class EvaluationDeclarationTests
         Assert.Equal(256, declaration.EmbeddingDimension);
     }
 
+    [Fact]
+    public void Parse_ABlockStyleDeclaration_ReadsWhatTheSameRunInFlowStyleDeclares()
+    {
+        // Arrange
+        const string BlockStyle = """
+            Ref: main
+            MainModel:
+              Model: vendor/reasoner
+              Api: Responses
+              ReasoningEffort: medium
+            ImageDescription:
+              - model-b
+              - Model: vendor/vision
+                Alias: vision
+            Repetitions: 2
+            Sections:
+              - Descriptions
+              - ReplyDrafts
+            """;
+        const string FlowStyle =
+            "{Ref: main, MainModel: {Model: vendor/reasoner, Api: Responses, ReasoningEffort: medium}, "
+            + "ImageDescription: [model-b, {Model: vendor/vision, Alias: vision}], Repetitions: 2, Sections: [Descriptions, ReplyDrafts]}";
+
+        // Act
+        var block = EvaluationDeclaration.Parse(BlockStyle, fallbackMainModel: null, Address);
+        var flow = EvaluationDeclaration.Parse(FlowStyle, fallbackMainModel: null, Address);
+
+        // Assert
+        Assert.Equal(flow.Repetitions, block.Repetitions);
+        Assert.All(
+            Enum.GetValues<ChatCapability>(),
+            capability => Assert.Equal(
+                flow.ModelsFor(capability).Select(static model => (model.Name, model.Plan.Endpoint.RoutedModelName, model.Plan.Endpoint.Api, model.Plan.ReasoningEffort)),
+                block.ModelsFor(capability).Select(static model => (model.Name, model.Plan.Endpoint.RoutedModelName, model.Plan.Endpoint.Api, model.Plan.ReasoningEffort))));
+        Assert.Equal(["model-b", "vision"], block.ModelsFor(ChatCapability.ImageDescription).Select(static model => model.Name));
+        Assert.Equal(ChatProviderApi.Responses, Assert.Single(block.ModelsFor(ChatCapability.Agent)).Plan.Endpoint.Api);
+    }
+
     [Theory]
     [InlineData("{MainModel: model-a, Sections: [Discovery, SpamClassification]}")]
     [InlineData("{MainModel: model-a, sections: Discovery}")]
