@@ -24,7 +24,8 @@ set -euo pipefail
 # docs/operations/local-development.md, section Agent evaluations, lists every key and its default.
 # MainModel is the model every agent runs on and each agent may name its own under its Chat key; a role
 # takes one model or a list, and an evaluation runs once per model of the agent it measures. The block also
-# takes Repetitions, from 1 to 20, and EmbeddingModels and EmbeddingDimension for the retrieval scenario.
+# takes Repetitions, from 1 to 20, ConcurrentProviderCalls, the run's limit on calls in flight from 1 to 256,
+# and EmbeddingModels and EmbeddingDimension for the retrieval scenario.
 # Where it names no MainModel, MAILFATHOM_CHAT_MODEL is measured, and the run fails naming both when
 # neither is set; where it names no EmbeddingModels, MAILFATHOM_EMBEDDING_MODEL is. The retrieval scenario
 # reaches its models with MAILFATHOM_EMBEDDING_API_KEY, which a requested run cannot proceed without, and
@@ -293,6 +294,20 @@ if [[ -d "$execution_results" ]]; then
   if [[ -n "$judge_outcomes" ]]; then
     printf 'Judged ratings by escalation: %s.\n' "$judge_outcomes"
   fi
+fi
+
+# A case a provider or a judge left unanswered says so in its shortfall lines as `did not answer (<type>
+# <status>)` — EvaluationRepetitions for a provider that stayed busy past every retry, the judge panel for
+# a judge — so counting the failed results whose message carries it tells a provider's failures from the
+# model's without opening the TRX.
+if trx_files=("$output_directory"/results/*.trx) && [[ -f "${trx_files[0]}" ]]; then
+  unanswered_cases=$(
+    awk '
+      /<UnitTestResult / { failed = ($0 ~ /outcome="Failed"/); unanswered = 0 }
+      failed && /did not answer \(/ { unanswered = 1 }
+      /<\/UnitTestResult>/ { if (failed && unanswered) count++; failed = 0 }
+      END { print count + 0 }' "${trx_files[@]}")
+  printf 'Cases that failed because a provider or judge did not answer: %d.\n' "$unanswered_cases"
 fi
 
 # A model's answer varies between calls, so a few scenarios falling short is the measurement rather

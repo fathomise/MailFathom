@@ -16,7 +16,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace MailFathom.Evaluations.Providers;
 
-/// <summary>The run a dispatch declares in one YAML block: the models per agent, how often each case is asked, and the embedding models.</summary>
+/// <summary>The run a dispatch declares in one YAML block: the models per agent, how often each case is asked, how many provider calls it has in flight, and the embedding models.</summary>
 /// <remarks>
 /// <para>
 /// One block rather than a variable per setting, because a workflow dispatch carries few inputs and each is one line, so
@@ -61,6 +61,7 @@ internal sealed class EvaluationDeclaration
 
     private const string MainModelKey = "MainModel";
     private const string RepetitionsKey = "Repetitions";
+    private const string ConcurrentProviderCallsKey = "ConcurrentProviderCalls";
     private const string EmbeddingModelsKey = "EmbeddingModels";
     private const string EmbeddingDimensionKey = "EmbeddingDimension";
 
@@ -76,6 +77,7 @@ internal sealed class EvaluationDeclaration
             SectionsKey,
             MainModelKey,
             RepetitionsKey,
+            ConcurrentProviderCallsKey,
             EmbeddingModelsKey,
             EmbeddingDimensionKey,
             .. Enum.GetNames<ChatCapability>(),
@@ -92,6 +94,7 @@ internal sealed class EvaluationDeclaration
         Dictionary<ChatCapability, IReadOnlyList<ModelUnderTest>> capabilityModels,
         Dictionary<DecisionFunction, IReadOnlyList<DecisionModelPlan>> decisionModels,
         int repetitions,
+        int concurrentProviderCalls,
         IReadOnlyList<string> embeddingModels,
         int? embeddingDimension)
     {
@@ -99,12 +102,16 @@ internal sealed class EvaluationDeclaration
         this.capabilityModels = capabilityModels;
         this.decisionModels = decisionModels;
         this.Repetitions = repetitions;
+        this.ConcurrentProviderCalls = concurrentProviderCalls;
         this.EmbeddingModels = embeddingModels;
         this.EmbeddingDimension = embeddingDimension;
     }
 
     /// <summary>Gets how many times each case is asked of each model, which is one where the block declares none.</summary>
     public int Repetitions { get; }
+
+    /// <summary>Gets how many provider calls the run has in flight at once, which is <see cref="ProviderCallLimit.Default" /> where the block declares none.</summary>
+    public int ConcurrentProviderCalls { get; }
 
     /// <summary>Gets the embedding models the block names, empty where it names none.</summary>
     public IReadOnlyList<string> EmbeddingModels { get; }
@@ -171,6 +178,7 @@ internal sealed class EvaluationDeclaration
             capabilityModels,
             decisionModels,
             EvaluationRepetitions.Parse(run[RepetitionsKey]),
+            ProviderCallLimit.Parse(run[ConcurrentProviderCallsKey]),
             [.. NamesOf(run.GetSection(EmbeddingModelsKey))],
             EmbeddingModelsUnderTest.ParseDimension(run[EmbeddingDimensionKey]));
     }

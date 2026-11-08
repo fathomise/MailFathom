@@ -26,6 +26,7 @@ public sealed class EvaluationDeclarationTests
             Enum.GetValues<ChatCapability>(),
             capability => Assert.Equal("main-model", Assert.Single(declaration.ModelsFor(capability)).Name));
         Assert.Equal(1, declaration.Repetitions);
+        Assert.Equal(ProviderCallLimit.Default, declaration.ConcurrentProviderCalls);
         Assert.Empty(declaration.EmbeddingModels);
         Assert.Null(declaration.EmbeddingDimension);
     }
@@ -39,6 +40,30 @@ public sealed class EvaluationDeclarationTests
         // Assert
         Assert.Contains(EvaluationDeclaration.Variable, failure.Message, StringComparison.Ordinal);
         Assert.Contains(EvaluationDeclaration.MainModelVariable, failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_ALimitOnCallsInFlight_RunsUnderThatLimit()
+    {
+        // Act
+        var declaration = EvaluationDeclaration.Parse("{ConcurrentProviderCalls: 4}", "main-model", Address);
+
+        // Assert
+        Assert.Equal(4, declaration.ConcurrentProviderCalls);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("257")]
+    [InlineData("many")]
+    public void Parse_NoLimitOnCallsInFlightTheRunAccepts_FailsNamingTheVariable(string declared)
+    {
+        // Act
+        var failure = Assert.Throws<InvalidOperationException>(
+            () => EvaluationDeclaration.Parse($"{{ConcurrentProviderCalls: {declared}}}", "main-model", Address));
+
+        // Assert
+        Assert.Contains(EvaluationDeclaration.Variable, failure.Message, StringComparison.Ordinal);
     }
 
     [Fact]
