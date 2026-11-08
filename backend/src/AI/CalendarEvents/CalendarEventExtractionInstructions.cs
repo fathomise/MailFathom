@@ -80,14 +80,14 @@ internal static class CalendarEventExtractionInstructions
 
     /// <summary>Composes the turn one message is put to the agent as.</summary>
     /// <param name="subject">The subject, already guarded for anything the deployment withholds from a provider, or <see langword="null" /> where the message carried none.</param>
-    /// <param name="receivedAt">When the message arrived, which every relative day and hour in it is resolved against.</param>
+    /// <param name="datedAt">The instant the message is dated by — when it arrived, or when it was sent where no receiving hop dated it — which every relative day and hour in it is resolved against.</param>
     /// <param name="passages">The passages, already guarded, in the order they are positioned.</param>
     /// <param name="maximumCharacters">The most characters the turn may hold, which is the request bound of the model it is sent to.</param>
     /// <returns>The turn text.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="passages" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// <para>
-    /// The arrival instant is the message's own metadata rather than the current time, which is what makes the same
+    /// The dating instant is the message's own metadata rather than the current time, which is what makes the same
     /// message read again next month resolve <em>Friday</em> to the same day. It is stated by the anchor alone, as the wall
     /// clock without its offset, and never as an attribute of the message, which would hand the model the offset to copy
     /// back. Otherwise the message is written as the enrichment turn writes it, apart from the provenance attributes this
@@ -103,7 +103,7 @@ internal static class CalendarEventExtractionInstructions
     /// </remarks>
     internal static string ComposeMailTurn(
         string? subject,
-        DateTimeOffset receivedAt,
+        DateTimeOffset datedAt,
         IReadOnlyList<string> passages,
         int maximumCharacters = int.MaxValue)
     {
@@ -111,7 +111,7 @@ internal static class CalendarEventExtractionInstructions
 
         return AgentTurnDocument.Compose(maximumCharacters, document =>
         {
-            document.WriteStatement($"{AgentTimeAnchor.Stated(receivedAt)}\n\nA message from this mailbox.\n\n");
+            document.WriteStatement($"{AgentTimeAnchor.Stated(datedAt)}\n\nA message from this mailbox.\n\n");
             MessagePassages.Write(document, subject, arrivedAt: null, provenance: null, passages);
         });
     }

@@ -167,7 +167,7 @@ of its own.
 in the turn, so an agent that could look something up would be an agent able to reach mail beyond the message it was
 asked about.
 
-What leaves the deployment is the subject, the arrival instant, where the message came from, and the selected passages —
+What leaves the deployment is the subject, the instant the message is dated by, where the message came from, and the selected passages —
 nothing else, and every quoted one of them scanned first by whatever [sensitive-content scanning](sensitive-content-scanning.md) the deployment switched
 on. The passages are **numbered in the turn and cited by number**, and the model is shown no identifier at all, so a
 citation is a position in a list this deployment composed: an answer naming a passage it was not given names nothing,
