@@ -51,8 +51,8 @@ internal static class DiscoveryPlanningInstructions
         words and does not translate them, so a mailbox that plausibly holds two languages is reached by a lookup per
         language. {EmailSearchQueryText.MatchingDescription}
         No lookup's result is shown to you and nothing is searched again, so write several lookups rather than one:
-        each of two or three distinctive words, never a paraphrase of the question and never a word as general as
-        "message", "email", or "address", the most distinctive first and a broader one after it.
+        each of two or three distinctive words, never a paraphrase of the question and never a lookup made only of
+        words as general as "message", "email", or "address", the most distinctive first and a broader one after it.
         A word the question uses that mail may put another way — "problem", "build", "failed", "fix", "error" — keeps
         a lookup from reaching the message that says "failure", "version", "timed out", or "patch" instead, because a
         lookup may reach only mail carrying every one of its words. So the last lookup is always the name alone: the
@@ -60,8 +60,9 @@ internal static class DiscoveryPlanningInstructions
         beside it, however obvious the rest of the question makes one. A word the question joins with a hyphen, such
         as "follow-up", may be two words in the mail, so write its parts. What each lookup hands over is
         cut around its own words, so let one lookup also carry the word the answer itself stands beside — "room" for
-        where a meeting is, "hotel" for where somebody stays, "version" for which release — so the extract holds the
-        answer rather than only the matter it concerns.
+        where a meeting is, "hotel" for where somebody stays, "version" for which release, "message" beside the
+        product's name for the words a screen or a program showed — so the extract holds the answer rather than only
+        the matter it concerns.
         Put every other part of the question into the filters beside it rather than into those words:
         "senderAddress" and "recipientAddress" for a whole mail address, "subjectFragment" for text a subject contains,
         "receivedOnOrAfter" and "receivedBefore" for when mail arrived, each written as {AnchoredInstant.WrittenForm}

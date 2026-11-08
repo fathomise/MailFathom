@@ -5,6 +5,7 @@
 using System.Globalization;
 using System.Text.Json;
 using MailFathom.Application.Emails.ThreadStates;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.AI.ThreadStates;
 
@@ -44,7 +45,7 @@ internal static class ThreadStateReading
     /// <returns>
     /// A settled derivation of the statements that survived, in aspect order and empty where none did, beside the title
     /// the answer proposed — or one withheld as <see cref="ThreadStateWithholding.AnswerUnreadable" /> where the answer
-    /// carries no object this build reads, or a title it does not draw.
+    /// carries no object this build reads, or a title line that is not plain text.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="messages" /> is <see langword="null" />.</exception>
     internal static ThreadStateDerivation Read(
@@ -79,10 +80,12 @@ internal static class ThreadStateReading
     /// <summary>Reads the title the model wrote, or nothing where either of its lines is not one this build draws.</summary>
     /// <remarks>
     /// <para>
-    /// A refusal rather than a repair, unlike a statement that runs long. A title is the line a row is recognized by,
-    /// so a topic with markup, a link, or a second line in it is a model not answering what it was asked, and the
-    /// answer is withheld exactly as one that does not parse is. An answer carrying no title at all is the other case
-    /// and settles proposing none, which leaves the conversation the topic it already had.
+    /// A line that only runs long is repaired, as a statement that runs long is: it is cut at its bound and marked as
+    /// cut, because a topic two characters past the limit is still the line the row is recognized by, and withholding
+    /// the whole answer for it threw away every statement beside it. Anything else is a refusal. A topic with markup, a
+    /// link, or a second line in it is a model not answering what it was asked, and the answer is withheld exactly as
+    /// one that does not parse is. An answer carrying no title at all is the other case and settles proposing none,
+    /// which leaves the conversation the topic it already had.
     /// </para>
     /// <para>
     /// The standing is kept only beside a statement it can be reading: an open question or a commitment. A standing
@@ -92,7 +95,7 @@ internal static class ThreadStateReading
     /// </remarks>
     private static ThreadTitleProposal? ReadTitle(ThreadTitleDocument written, IReadOnlyList<ThreadStateEntry> entries)
     {
-        var standing = written.Standing?.Trim() ?? string.Empty;
+        var standing = Shortened(written.Standing?.Trim() ?? string.Empty, ThreadTitle.MaximumStandingLength);
 
         if (standing.Length > 0 && !ThreadTitle.IsPlainLine(standing, ThreadTitle.MaximumStandingLength))
         {
@@ -109,12 +112,20 @@ internal static class ThreadStateReading
             return new ThreadTitleProposal(Topic: null, StatesSubjectChange: false, standing);
         }
 
-        var topic = written.Topic?.Trim();
+        var topic = written.Topic is { } writtenTopic
+            ? Shortened(writtenTopic.Trim(), ThreadTitle.MaximumTopicLength)
+            : null;
 
         return ThreadTitle.IsPlainLine(topic, ThreadTitle.MaximumTopicLength)
             ? new ThreadTitleProposal(topic, written.SubjectChanged is true, standing)
             : null;
     }
+
+    /// <summary>Cuts a title line past its bound and marks it as cut, on a text-element boundary.</summary>
+    private static string Shortened(string line, int maximumLength) =>
+        line.Length <= maximumLength
+            ? line
+            : MailTextBounds.TruncateAtTextElementBoundary(line, maximumLength - 1).TrimEnd() + "…";
 
     /// <summary>Reads one array of written statements into the statements of one aspect.</summary>
     /// <remarks>

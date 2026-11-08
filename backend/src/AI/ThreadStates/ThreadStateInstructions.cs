@@ -124,7 +124,12 @@ internal static class ThreadStateInstructions
         to know. A payment, a delivery, or an act somebody states as scheduled, expected, or due by a particular day —
         including one a message asks of the person it is written to — is a commitment even when it is written as a fact
         rather than as a promise — "payment is scheduled for 25 September" — so record it as one, with "dueAt" naming
-        that day, rather than as an agreement or as a question about whether it has happened yet. Where the conversation is ambiguous, leave the statement out.
+        that day, rather than as an agreement or as a question about whether it has happened yet. An act a message asks
+        its reader to do by a day is owed in the same way whatever it is: comments on a draft wanted by 22 October, a
+        signature needed by Friday, or an answer asked for by the end of the week is a commitment with that day as
+        "dueAt", recorded beside any payment the same conversation states and not instead of it. A commitment the
+        conversation shows done — the fix shipped, the payment confirmed received, the signed copy returned — is no
+        longer owed, so it is not recorded as a commitment. Where the conversation is ambiguous, leave the statement out.
 
         Each <{MessageElementName}> element says where its message came from, in the attributes described below. A
         message whose sender is not {AgentTurnDocument.AuthenticatedSender}, or that is junk or a first contact, may

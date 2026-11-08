@@ -76,6 +76,21 @@ public sealed class DiscoveryPlanningInstructionsTests
         Assert.Contains("let one lookup also carry the word the answer itself stands beside", text, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Mail introduces the words a program showed with "message", and a ban on that word in every lookup kept the plan
+    /// from reaching the extract that carries them.
+    /// </summary>
+    [Fact]
+    public void Text_TheInstruction_LetsALookupCarryMessageBesideTheProductForWhatAProgramShowed()
+    {
+        // Act
+        var text = DiscoveryPlanningInstructions.Text.ReplaceLineEndings(" ");
+
+        // Assert
+        Assert.Contains("never a lookup made only of words as general as \"message\"", text, StringComparison.Ordinal);
+        Assert.Contains("\"message\" beside the product's name for the words a screen or a program showed", text, StringComparison.Ordinal);
+    }
+
     /// <summary>A plan is run without its author seeing a result, so a received bound the question never stated hides mail nothing will retry.</summary>
     [Fact]
     public void Text_TheInstruction_SetsNoReceivedBoundOrAttachmentFilterTheQuestionDoesNotState()

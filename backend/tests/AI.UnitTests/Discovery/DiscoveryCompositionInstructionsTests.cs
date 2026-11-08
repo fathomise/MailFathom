@@ -50,6 +50,17 @@ public sealed class DiscoveryCompositionInstructionsTests
         Assert.Contains("Leave it empty when the extracts do not answer", text, StringComparison.Ordinal);
     }
 
+    /// <summary>An answer saying the extracts do not answer rests on none of them, so a neighbouring extract is not its source.</summary>
+    [Fact]
+    public void Text_TheInstruction_SaysAnAnswerThatTheExtractsDoNotAnswerCitesNothing()
+    {
+        // Act
+        var text = DiscoveryCompositionInstructions.Text.ReplaceLineEndings(" ");
+
+        // Assert
+        Assert.Contains("An answer saying the extracts do not answer the question cites nothing", text, StringComparison.Ordinal);
+    }
+
     /// <summary>A correction replaces what it corrects, so reporting the two as a disagreement leaves the question unanswered.</summary>
     [Fact]
     public void Text_TheInstruction_AnswersWithACorrectionRatherThanReportingAConflict()
@@ -118,6 +129,35 @@ public sealed class DiscoveryCompositionInstructionsTests
 
         // Assert
         Assert.Contains("\"sources\"", turn, StringComparison.Ordinal);
+    }
+
+    /// <summary>A model that has just read extracts in another language drifts into it, so the turn says again which language answers.</summary>
+    [Theory]
+    [InlineData("findFact")]
+    [InlineData("trackChange")]
+    [InlineData("compareTerms")]
+    [InlineData("unclassified")]
+    public void ComposeCompositionTurn_AnyIntent_RestatesThatTheAnswerIsInTheQuestionsLanguage(string intentIdentity)
+    {
+        // Arrange
+        var intent = DiscoveryIntent.All.Single(candidate => candidate.Identity == intentIdentity);
+
+        // Act
+        var turn = DiscoveryCompositionInstructions.ComposeCompositionTurn("which quote", intent, [Source()]);
+
+        // Assert
+        Assert.Contains("in the language the question above is written in, whatever language the extracts are in", turn, StringComparison.Ordinal);
+    }
+
+    /// <summary>A question about how something changed is answered by every step of the change, not by where it ended.</summary>
+    [Fact]
+    public void ComposeCompositionTurn_AQuestionAboutAChangeOverTime_AsksForEveryStepInDateOrder()
+    {
+        // Act
+        var turn = DiscoveryCompositionInstructions.ComposeCompositionTurn("how did it change", DiscoveryIntent.TrackChange, [Source()]);
+
+        // Assert
+        Assert.Contains("Follow the change in date order across every extract you were given", turn, StringComparison.Ordinal);
     }
 
     /// <summary>Which of two messages came later is what tells a correction from the statement it corrects.</summary>

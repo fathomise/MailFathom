@@ -289,8 +289,9 @@ public sealed class ThreadStateReadingTests
         Assert.Equal(ThreadStateWithholding.AnswerUnreadable, derivation.Withheld);
     }
 
+    /// <summary>A topic a few characters past its bound is still the line its row is recognized by, so it is cut rather than costing the answer.</summary>
     [Fact]
-    public void Read_ATopicPastItsBound_IsWithheldAsUnreadable()
+    public void Read_ATopicPastItsBound_IsCutToItAndMarkedAsCut()
     {
         // Arrange
         var answer = $$"""{ "title": { "topic": "{{new string('a', ThreadTitle.MaximumTopicLength + 1)}}", "standing": "" } }""";
@@ -299,7 +300,35 @@ public sealed class ThreadStateReadingTests
         var derivation = ThreadStateReading.Read(answer, Messages());
 
         // Assert
-        Assert.Equal(ThreadStateWithholding.AnswerUnreadable, derivation.Withheld);
+        Assert.True(derivation.IsSettled);
+        Assert.Equal(new string('a', ThreadTitle.MaximumTopicLength - 1) + "…", derivation.Title?.Topic);
+    }
+
+    /// <summary>
+    /// The two answers gpt-6-luna wrote in the evaluation run that the reading withheld whole: one topic two characters
+    /// past its bound, one standing eight past it, every statement beside them readable.
+    /// </summary>
+    [Theory]
+    [InlineData(RecordedAnswerWithATopicPastItsBound)]
+    [InlineData(RecordedAnswerWithAStandingPastItsBound)]
+    public void Read_ARecordedAnswerWhoseTitleRanLong_SettlesWithEveryStatementAndATitleWithinBounds(string answer)
+    {
+        // Arrange
+        IReadOnlyList<DerivableThreadMessage> messages =
+        [
+            .. Messages(),
+            new(StoredEmailId.Create(Guid.CreateVersion7()), 2, "Frida", new DateTimeOffset(2026, 9, 8, 9, 0, 0, TimeSpan.Zero), "noted", StubEmailProvenanceReader.KnownCorrespondent),
+        ];
+
+        // Act
+        var derivation = ThreadStateReading.Read(answer, messages);
+
+        // Assert
+        Assert.True(derivation.IsSettled);
+        Assert.Equal(3, derivation.Entries.Count);
+        var title = Assert.IsType<ThreadTitleProposal>(derivation.Title);
+        Assert.True(ThreadTitle.IsPlainLine(title.Topic, ThreadTitle.MaximumTopicLength));
+        Assert.True(ThreadTitle.IsPlainLine(title.Standing, ThreadTitle.MaximumStandingLength));
     }
 
     [Fact]
@@ -312,6 +341,62 @@ public sealed class ThreadStateReadingTests
         Assert.True(derivation.IsSettled);
         Assert.Null(derivation.Title);
     }
+
+    private const string RecordedAnswerWithATopicPastItsBound = """
+        {
+          "agreements": [
+            {
+              "text": "They confirmed that INV-4821 for SEK 18,750 was received and that its billing address will be corrected to the address Frida provided.",
+              "messages": [1, 2]
+            }
+          ],
+          "openQuestions": [
+            {
+              "text": "Receipt of the SEK 9,860 payment for INV-4807 has not been confirmed; it had not yet appeared in the account.",
+              "messages": [1, 2]
+            }
+          ],
+          "commitments": [
+            {
+              "text": "Payment of SEK 12,400 for INV-4798 is scheduled for 10 September 2026; the INV-4821 billing address will be corrected, and receipt of the INV-4807 payment will be monitored and confirmed.",
+              "messages": [1, 2],
+              "dueAt": "2026-09-10"
+            }
+          ],
+          "title": {
+            "topic": "Invoice receipt, outstanding balance, billing correction, and payment confirmation",
+            "standing": "INV-4798 payment is scheduled for 10 September 2026; the INV-4821 address correction and confirmation of receipt of INV-4807 remain pending."
+          }
+        }
+        """;
+
+    private const string RecordedAnswerWithAStandingPastItsBound = """
+        {
+          "agreements": [
+            {
+              "text": "They confirmed INV-4821 should show Suite 4D instead of Suite 4B, with its total unchanged at €2,480.",
+              "messages": [0, 1, 2]
+            }
+          ],
+          "openQuestions": [
+            {
+              "text": "Rosalía proposed a 15-minute reconciliation check-in on 11 September 2026 at 10:30 CET and asked whether the time works; acceptance is unanswered.",
+              "messages": [2]
+            }
+          ],
+          "commitments": [
+            {
+              "text": "The €1,150 settlement for INV-4798 is scheduled for 10 September 2026; the corrected INV-4821 copy was also promised for 14 July, with confirmation to follow once its payment is applied.",
+              "messages": [1],
+              "dueAt": "2026-09-10"
+            }
+          ],
+          "title": {
+            "topic": "Invoice INV-4821 received — billing correction and payment update",
+            "standing": "INV-4798 settlement is due 10 September; the revised INV-4821 copy and application confirmation remain pending, as does an answer on the proposed 11 September check-in."
+          }
+        }
+        """;
 
     private static IReadOnlyList<DerivableThreadMessage> Messages() =>
     [
