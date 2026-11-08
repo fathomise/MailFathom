@@ -63,7 +63,9 @@ of a recurring send, and a draft promoted to a send alike — because the attemp
 its own instant, as [the message is dated when it leaves](../features/mail-delivery.md#a-message-is-dated-when-it-leaves)
 states, and `Date` is among the signed headers. The outbox stores the message unsigned; each attempt signs the dated
 form it transmits, with `t=` set to that same instant, and the sent copy is that form derived again, so it is byte for
-byte the message the recipients received, whether the account is mirrored, held, or restoring. Signing a message twice
+byte the message the recipients received, whether the account is mirrored, held, or restoring — as long as the key that
+signed the send is still the active one when the copy is filed. A copy filed after a rotation or a revocation is signed
+with the key active then, or not at all, while its date and body still match what was sent. Signing a message twice
 at one instant writes the same bytes, because Ed25519 signatures are deterministic, and a signature a message already
 carries is replaced rather than kept beside the new one. A draft that is only saved is never signed: it is not sent.
 The sender's [footer](../features/mail-footers.md) goes into the message before it is stored, so the signature covers

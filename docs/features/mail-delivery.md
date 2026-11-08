@@ -678,9 +678,11 @@ Each attempt records its instant on the outgoing record, as `TransmittedAt`, in 
 begun, before the message is offered.
 
 **The sent copy carries the same instant.** It is the transmitted form derived again from the stored bytes and the
-recorded instant, so it is byte for byte the message the recipients received, whether a held account files it locally
-or a mirrored or restoring account appends it to the source, and the stored message it becomes reads that instant as
-its `SentAt`. A send an earlier build transmitted recorded no instant, and its copy is the stored bytes, which is then
+recorded instant, so while the organization's signing key stands it is byte for byte the message the recipients
+received, whether a held account files it locally or a mirrored or restoring account appends it to the source, and the
+stored message it becomes reads that instant as its `SentAt`. A key rotated or revoked between the send and the filing
+gives a copy whose [organization signature](../operations/organization-signing-keys.md) differs or is absent; its date
+and body do not. A send an earlier build transmitted recorded no instant, and its copy is the stored bytes, which is then
 what it sent.
 
 **An attempt whose answer never came back is not repeated, and the instant it recorded stands.** The outbox does not

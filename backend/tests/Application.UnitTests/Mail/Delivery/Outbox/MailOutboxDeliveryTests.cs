@@ -903,6 +903,29 @@ public sealed class MailOutboxDeliveryTests
         Assert.Equal(OutgoingEmailStage.Refused, context.Store.Read(claimed.Record.Id).Stage);
     }
 
+    /// <summary>
+    /// What the server is asked to accept is the message as it leaves — dated and signed — rather than as it was stored,
+    /// so a stored message within the server's limit whose transmitted form is past it still ends before transmitting.
+    /// </summary>
+    [Fact]
+    public async Task DeliverAsync_TransmittedFormExceedsTheServersDeclaredSizeTheStoredMessageFits_EndsTheSendBeforeTransmitting()
+    {
+        // Arrange
+        var capabilities = new MailDeliveryCapabilities(MaxMessageBytes: RawMime.Length, true, true);
+        var context = new DeliveryContext(capabilities: capabilities, transmittedForm: TransmittedEmailForms.Dating());
+
+        var claimed = await context.ClaimAsync("anna@example.test");
+
+        // Act
+        var result = await context.DeliverAsync(claimed, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(capabilities.PermitsMessageOfSize(RawMime.Length));
+        Assert.Equal(MailOutboxDeliveryOutcome.Refused, result.Outcome);
+        Assert.Equal(MailFathomErrorCode.OutgoingEmailBoundExceeded, result.Failure);
+        Assert.Empty(context.Session.Transmitted);
+    }
+
     /// <summary>A record whose message is not there describes a send that can never happen rather than one still on its way.</summary>
     [Fact]
     public async Task DeliverAsync_StoredMessageIsMissing_EndsTheSend()

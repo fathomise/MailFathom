@@ -719,8 +719,8 @@ internal sealed class MimeKitAuthoredEmailComposer(
         format.International = !Ascii.IsValid(sender.Address.Address)
             || recipients.Any(static recipient => !Ascii.IsValid(recipient.Recipient.Address.Address));
 
-        // The bytes are stored and transmitted verbatim rather than re-serialized per attempt, so they carry the line
-        // ending SMTP requires rather than the platform's.
+        // Each attempt derives what it transmits from the stored bytes by rewriting header fields in place rather than
+        // re-serializing the message, so the stored bytes carry the line ending SMTP requires rather than the platform's.
         format.NewLineFormat = NewLineFormat.Dos;
         format.EnsureNewLine = true;
 

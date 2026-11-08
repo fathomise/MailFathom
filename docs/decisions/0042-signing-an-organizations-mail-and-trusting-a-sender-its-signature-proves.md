@@ -215,7 +215,7 @@ What a backfill cannot do is make a message `Trusted` by this source that was no
 
 ### Signing
 
-**A message is signed by every attempt that transmits it, and again when its sent copy is filed, never when it is stored.** Issue 3087 has each attempt date the message with its own instant, and `Date` is a signed header, so a signature made when the message was stored would fail the moment the attempt restamped it. `TransmittedEmailForm` derives what an attempt transmits from the stored bytes: it replaces the `Date`, then signs that form through a port in `Application`, implemented by a MimeKit adapter in `Infrastructure`. The outbox records the instant on the outgoing record, as `TransmittedAt`, in the commit that marks the transmission begun, and the sent copy is derived from the stored bytes and that instant through the same type, so it is byte for byte the transmitted message: Ed25519 is deterministic, and `t=` is the recorded instant rather than a clock reading.
+**A message is signed by every attempt that transmits it, and again when its sent copy is filed, never when it is stored.** Issue 3087 has each attempt date the message with its own instant, and `Date` is a signed header, so a signature made when the message was stored would fail the moment the attempt restamped it. `TransmittedEmailForm` derives what an attempt transmits from the stored bytes: it replaces the `Date`, then signs that form through a port in `Application`, implemented by a MimeKit adapter in `Infrastructure`. The outbox records the instant on the outgoing record, as `TransmittedAt`, in the commit that marks the transmission begun, and the sent copy is derived from the stored bytes and that instant through the same type, so while the organization's key stands it is byte for byte the transmitted message: Ed25519 is deterministic, and `t=` is the recorded instant rather than a clock reading. The copy is signed with the key active when it is filed, which on a mirrored or restoring account is after the send, so a key rotated or revoked in between, or an account moved to another organization, gives a copy whose signature differs from the transmitted message's or is absent; its date and its body do not differ.
 
 Every send reaches the outbox through one method, `MailOutbox.EnqueueAsync`, and is stored there unsigned:
 
@@ -296,7 +296,7 @@ That organization is also part of the receiving account's policy revision, so a 
 
 ### Custody phases
 
-**Signing is identical in `Mirrored`, `Held`, and `Restoring`.** The outbox stores the MIME and signs each transmitted form the same way in every phase, and the copy filed in the sent folder is the transmitted form, derived again from the stored bytes and the recorded instant, in each. A held account prepares it locally inside the delivery's commit, and a mirrored or restoring one appends it to the source.
+**Signing is identical in `Mirrored`, `Held`, and `Restoring`.** The outbox stores the MIME and signs each transmitted form the same way in every phase, and the copy filed in the sent folder is the transmitted form, derived again from the stored bytes and the recorded instant, in each, while the organization's key stands, as § *Signing* qualifies. A held account prepares it locally inside the delivery's commit, and a mirrored or restoring one appends it to the source.
 
 **Verification is identical in every phase.** It happens at extraction, and every phase extracts arrivals: ADR 0034 has a held source keep delivering new mail, which is extracted as an arrival before the drain takes it. A restore appends what MailFathom already holds back to the source and re-extracts nothing, so it re-evaluates nothing. Only an extraction backfill re-reads stored mail, in any phase, as *Mail already stored* states.
 
@@ -327,7 +327,7 @@ That organization is also part of the receiving account's policy revision, so a 
   - that the signature verifies against the organization's public key through the rename;
   - that a promoted draft is signed like a composed message, and a draft that is only stored is not;
   - that an account in no organization signs nothing;
-  - that the sent copy is byte-identical to the transmitted message in each custody phase;
+  - that the sent copy is byte-identical to the transmitted message in each custody phase while the organization's key stands;
   - that no composed message carries an `8bit` or `binary` part, even against a server advertising `8BITMIME`.
 - **Issue 2718** tests each of the three conditions failing alone, and each half of the third, a second `From` header field inserted above the signed one, a `Reply-To` inserted after signing, a key of another organization, a revoked key, a retired key, a message altered after signing (not trusted, no warning), a receiving account in no organization, a member whose IMAP user name is a bare login (still trusted through the sender identity), and an extraction backfill after a revocation (the stored verdict loses `OrganizationMember`).
 - Review holds a change to the header name, the tag set, the algorithm, or the trust conditions against this record. Changing any of them is a new ADR.

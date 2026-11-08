@@ -3,10 +3,12 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Text;
+using MailFathom.Application.Mail.Delivery.Signing;
 using MailFathom.Application.Mail.Delivery.Transmission;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.TestSupport;
+using NSubstitute;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Mail.Delivery.Transmission;
@@ -32,6 +34,36 @@ public sealed class TransmittedEmailFormTests
         // Assert
         Assert.Equal(new DateTimeOffset(2026, 11, 9, 9, 0, 5, TimeSpan.Zero), instant);
         Assert.Equal(TimeSpan.Zero, instant.Offset);
+    }
+
+    /// <summary>
+    /// The signature covers <c>Date</c>, so the signer is handed the message already dated and the same instant for its
+    /// <c>t=</c>, and what it answers is what leaves: signed before the dating, every organization-signed message would
+    /// fail verification.
+    /// </summary>
+    [Fact]
+    public async Task ComposeAsync_AnAccountWhoseOrganizationSigns_SignsTheDatedMessageAtTheInstantItWasDatedWith()
+    {
+        // Arrange
+        var transmittedAt = Recorded.AddHours(5);
+        var signed = Encoding.ASCII.GetBytes("Signature: s\r\n");
+        var signer = Substitute.For<IOrganizationMailSigner>();
+        signer.SignAsync(Arg.Any<MailAccountId>(), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ReadOnlyMemory<byte>>(signed));
+
+        // Act
+        var transmitted = await TransmittedEmailForms.Dating(signer).ComposeAsync(
+            Account,
+            StoredMime,
+            transmittedAt,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var signing = Assert.Single(signer.ReceivedCalls()).GetArguments();
+        Assert.Equal(Account, signing[0]);
+        Assert.Equal(TransmittedEmailForms.DatedAt(StoredMime, transmittedAt), ((ReadOnlyMemory<byte>)signing[1]!).ToArray());
+        Assert.Equal(transmittedAt, signing[2]);
+        Assert.Equal(signed, transmitted.ToArray());
     }
 
     /// <summary>A sent copy is dated with the instant the record kept for its latest transmission.</summary>

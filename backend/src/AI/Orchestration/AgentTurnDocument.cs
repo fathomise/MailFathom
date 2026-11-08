@@ -408,11 +408,8 @@ internal sealed class AgentTurnDocument : IDisposable
     /// <inheritdoc />
     public void Dispose() => this.writer.Dispose();
 
-    /// <summary>Maps a sender verdict onto the word this writer publishes for it.</summary>
-    /// <remarks>
-    /// A closed mapping rather than a lowercased name, so a verdict the domain grows without one fails here rather than
-    /// reaching a model as a word the clause never described.
-    /// </remarks>
+    /// <summary>Maps an unsent state onto the word this writer publishes for it.</summary>
+    /// <remarks>A closed mapping for the reason the sender verdict's below is one.</remarks>
     private static string Published(UnsentEmailState state) => state switch
     {
         UnsentEmailState.Draft => DraftUnsent,
@@ -422,6 +419,11 @@ internal sealed class AgentTurnDocument : IDisposable
         _ => throw new ArgumentOutOfRangeException(nameof(state), state, "The unsent state has no value this writer publishes."),
     };
 
+    /// <summary>Maps a sender verdict onto the word this writer publishes for it.</summary>
+    /// <remarks>
+    /// A closed mapping rather than a lowercased name, so a verdict the domain grows without one fails here rather than
+    /// reaching a model as a word the clause never described.
+    /// </remarks>
     private static string Published(AuthorAuthenticationOutcome outcome) => outcome switch
     {
         AuthorAuthenticationOutcome.Authenticated => AuthenticatedSender,
