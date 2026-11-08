@@ -19,6 +19,7 @@ using MailFathom.AI.Providers;
 using MailFathom.AI.SpamClassification;
 using MailFathom.AI.ThreadStates;
 using MailFathom.AI.UnitTests.TestDoubles;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Calendar.Extraction;
 using MailFathom.Application.Chat;
@@ -824,6 +825,7 @@ public sealed class AiServiceCollectionExtensionsTests
         services.AddSingleton(Substitute.For<IAiProviderHealthRecorder>());
         services.AddSingleton(SensitiveContentEgressGuards.Inactive());
         services.AddSingleton(Substitute.For<IMailAnsweringSpendLedger>());
+        services.AddSingleton<IMailAccountLanguages>(new SyntheticAccountLanguages());
         services.AddScoped<IEmailKnowledgeSearch, RecordingEmailKnowledgeSearch>();
 
         // Beside the adapter, as the composition root registers them: a run sends over the transport that call names.

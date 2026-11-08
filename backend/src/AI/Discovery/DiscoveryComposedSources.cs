@@ -17,13 +17,17 @@ namespace MailFathom.AI.Discovery;
 /// <param name="Relevance">Where the extract stood in the retrieval's own order, on the scale the contract states it on.</param>
 /// <param name="ReceivedAt">When the message arrived, or <see langword="null" /> where the store recorded no time.</param>
 /// <param name="Provenance">Where the message came from as this deployment recorded it, which the model is shown beside the extract.</param>
+/// <param name="SenderDisplayName">The name the message says its sender goes by, which the model is shown beside the extract, or <see langword="null" /> where it carried none.</param>
+/// <param name="SenderAddress">The address the message says it was sent from, shown the same way, or <see langword="null" /> where it carried none.</param>
 internal sealed record DiscoveryComposedSource(
     PresentationCitation Citation,
     MailAccountId AccountId,
     string Extract,
     double Relevance,
     DateTimeOffset? ReceivedAt,
-    EmailProvenance Provenance);
+    EmailProvenance Provenance,
+    string? SenderDisplayName = null,
+    string? SenderAddress = null);
 
 /// <summary>Declares the sources one run may cite, before a model is shown anything.</summary>
 /// <remarks>
@@ -79,7 +83,9 @@ internal static class DiscoveryComposedSources
                 string.Join('\n', message.Select(passage => passage.Text).Distinct(StringComparer.Ordinal)),
                 RelevanceOf(rank, ranked.Length),
                 message.First().ReceivedAt,
-                message.First().Provenance)),
+                message.First().Provenance,
+                message.First().SenderDisplayName,
+                message.First().SenderAddress)),
         ];
     }
 

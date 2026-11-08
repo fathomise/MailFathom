@@ -10,6 +10,7 @@ using MailFathom.AI.Orchestration;
 using MailFathom.AI.ProviderAdapters;
 using MailFathom.AI.Providers;
 using MailFathom.AI.UnitTests.TestDoubles;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Emails.Mailboxes;
@@ -219,6 +220,34 @@ public sealed class MailAnsweringAgentTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>A lookup matches words rather than translating them, so a run that is not told which languages its mailboxes are kept in searches only in the question's.</summary>
+    [Fact]
+    public async Task AnswerAsync_AScopeSpanningAccountsInTwoLanguages_NamesEachLanguageOnceOnTheTurn()
+    {
+        // Arrange
+        var primary = MailAccountId.Create("primary");
+        var shared = MailAccountId.Create("shared");
+        var office = MailAccountId.Create("office");
+        var languages = new SyntheticAccountLanguages()
+            .Reading(primary, MailAccountLanguage.Polish)
+            .Reading(shared, MailAccountLanguage.Polish)
+            .Reading(office, MailAccountLanguage.English);
+        using var provider = ScriptedTransport.Answering(Completion("Nothing arrived."));
+        var agent = provider.AgentOver(new RecordingEmailKnowledgeSearch(), accountLanguages: languages);
+
+        // Act
+        await agent.AnswerAsync(
+            Question with { Scope = MailboxScope.Create([primary, shared, office], []) },
+            Observation(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(
+            "The mailboxes you may search are kept in: English, Polish.",
+            Assert.Single(provider.RequestBodies),
+            StringComparison.Ordinal);
+    }
+
     /// <summary>Sending a prompt a scanner could not read would be the leak the switch was turned on to prevent.</summary>
     [Fact]
     public async Task AnswerAsync_ADetectorThatCannotAnswer_RefusesTheRunWithoutReachingTheProvider()
@@ -306,7 +335,8 @@ public sealed class MailAnsweringAgentTests
             IEmailKnowledgeSearch knowledgeSearch,
             ChatGenerationPlan? plan = null,
             MailAnsweringRunBounds? runBounds = null,
-            SensitiveContentEgressGuard? egressGuard = null)
+            SensitiveContentEgressGuard? egressGuard = null,
+            IMailAccountLanguages? accountLanguages = null)
         {
             var transportFactory = Substitute.For<IHttpClientFactory>();
             transportFactory
@@ -346,6 +376,7 @@ public sealed class MailAnsweringAgentTests
                 this.HealthRecorder,
                 this.SpendLedger,
                 egressGuard ?? SensitiveContentEgressGuards.Inactive(),
+                accountLanguages ?? new SyntheticAccountLanguages(),
                 new EmptyAgentInstructionEnvelope(),
                 NullLoggerFactory.Instance,
                 NullLogger<MailAnsweringAgent>.Instance);

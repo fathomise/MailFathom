@@ -377,6 +377,15 @@ internal sealed partial record MailAnsweringScenario(
     /// <summary>Gets the mailbox the question is asked over: the mixed one for a question holding its answer to a language, the English one otherwise.</summary>
     public IReadOnlyList<CorpusMessage> Mailbox => this.AnswersIn is null ? HostileMail.Mailbox : PolishCorpus.MixedMailbox;
 
+    /// <summary>Gets the languages a deployment would name on the turn for <see cref="Mailbox" />.</summary>
+    /// <remarks>
+    /// The mixed mailbox stands for a person's English account beside their Polish one, held in one inbox only so the
+    /// search reads one corpus; a deployment serving those two accounts names both languages, so the turn does too.
+    /// </remarks>
+    public IReadOnlyList<MailAccountLanguage> MailboxLanguages => this.AnswersIn is null
+        ? [MailAccountLanguage.English]
+        : PolishCorpus.MixedMailboxLanguages;
+
     /// <summary>Gets what this scenario is judged on: a rating for each threshold it records, and the tool calls always.</summary>
     public IReadOnlyList<IEvaluator> Evaluators =>
     [
@@ -435,7 +444,7 @@ internal sealed partial record MailAnsweringScenario(
             AskedAt);
 
         var question = new MailQuestion(MailQuestionText.Create(this.Question), CorpusKnowledgeSearch.Scope, AskedAt);
-        var turn = MailAnsweringAgent.ComposeTurn(question.AskedAt, question.Text.Value);
+        var turn = MailAnsweringAgent.ComposeTurn(question.AskedAt, this.MailboxLanguages, question.Text.Value);
 
         var answer = await AskAsync(cachedModel, plan, retrieval, runLedger, turn, cancellationToken);
         var searchTool = retrieval.CreateSearchTool();

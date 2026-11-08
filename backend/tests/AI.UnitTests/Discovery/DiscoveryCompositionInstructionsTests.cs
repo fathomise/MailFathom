@@ -181,6 +181,30 @@ public sealed class DiscoveryCompositionInstructionsTests
             (string?)Assert.Single(Sources(turn)).Attribute(DiscoveryCompositionInstructions.ArrivedAttributeName));
     }
 
+    /// <summary>A Discover answer about who promised what is drawn from the same author the answering run is shown.</summary>
+    [Fact]
+    public void ComposeCompositionTurn_ASourceCarryingItsSender_NamesTheAuthorOnTheSource()
+    {
+        // Arrange
+        var source = new DiscoveryTurnSource(
+            "s1",
+            "Network",
+            "I look after the network",
+            ReceivedAt: null,
+            StubEmailProvenanceReader.KnownCorrespondent,
+            SenderDisplayName: "Ewa Nowak",
+            SenderAddress: "ewa@example.org");
+
+        // Act
+        var turn = DiscoveryCompositionInstructions.ComposeCompositionTurn("who looks after the network", DiscoveryIntent.FindFact, [source]);
+
+        // Assert
+        var written = Assert.Single(Sources(turn));
+
+        Assert.Equal("Ewa Nowak", (string?)written.Attribute(AgentTurnDocument.FromNameAttributeName));
+        Assert.Equal("ewa@example.org", (string?)written.Attribute(AgentTurnDocument.FromAttributeName));
+    }
+
     /// <summary>Each source carries where its message came from, so a finding resting on an unverifiable sender is qualified.</summary>
     [Fact]
     public void ComposeCompositionTurn_ASourceFromAFirstContactInJunk_WritesItsProvenanceOnTheSource()

@@ -231,6 +231,44 @@ public sealed class RetrievedMailContextFormatterTests
         Assert.Equal("INBOX", Attribute(message, RetrievedMailContextFormatter.FolderAttributeName));
     }
 
+    /// <summary>An extract saying "I look after the network" answers who does what only beside the name of whoever wrote it.</summary>
+    [Fact]
+    public void Format_APassageCarryingItsSender_NamesTheAuthorOnTheMessageElement()
+    {
+        // Arrange
+        var passage = KnowledgePassages.Create("I look after the network.") with
+        {
+            SenderDisplayName = "Ewa \"Admin\" <Nowak>",
+            SenderAddress = "ewa@example.org",
+        };
+
+        // Act
+        var envelope = RetrievedMailContextFormatter.Format([passage], EmailSearchRetrievalMode.Hybrid, retrievalLimitReached: false);
+
+        // Assert
+        var message = Assert.Single(MessagesIn(envelope));
+
+        Assert.Equal("Ewa \"Admin\" <Nowak>", Attribute(message, AgentTurnDocument.FromNameAttributeName));
+        Assert.Equal("ewa@example.org", Attribute(message, AgentTurnDocument.FromAttributeName));
+        Assert.Equal("I look after the network.", Element(message, RetrievedMailContextFormatter.ExtractElementName));
+    }
+
+    [Fact]
+    public void Format_APassageWhoseMessageNamedNoSender_WritesNoBlankAuthor()
+    {
+        // Arrange
+        var passage = KnowledgePassages.Create("a message without a usable From header") with { SenderDisplayName = " " };
+
+        // Act
+        var envelope = RetrievedMailContextFormatter.Format([passage], EmailSearchRetrievalMode.Hybrid, retrievalLimitReached: false);
+
+        // Assert
+        var message = Assert.Single(MessagesIn(envelope));
+
+        Assert.Null(message.Attribute(AgentTurnDocument.FromNameAttributeName));
+        Assert.Null(message.Attribute(AgentTurnDocument.FromAttributeName));
+    }
+
     [Fact]
     public void Format_APassageWithoutASubjectOrAReceivedTime_WritesNeitherRatherThanABlankOne()
     {

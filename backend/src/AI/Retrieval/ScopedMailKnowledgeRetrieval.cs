@@ -77,7 +77,10 @@ internal sealed class ScopedMailKnowledgeRetrieval
         + $"and every result says which in the {RetrievedMailContextFormatter.RetrievalModeAttributeName} attribute of "
         + $"the <{RetrievedMailContextFormatter.RetrievalElementName}> element: lexical finds the words a query "
         + "contains rather than what they mean, while hybrid also finds mail whose meaning is close and combines the "
-        + "two rankings. A document attached to a message is searched on the same terms its body is, and an extract "
+        + "two rankings. Each <" + RetrievedMailContextFormatter.MessageElementName + "> element names the author the "
+        + $"message displays in its {AgentTurnDocument.FromNameAttributeName} and {AgentTurnDocument.FromAttributeName} "
+        + "attributes, so who wrote an extract — who \"I\" is in it — is read there rather than looked up again. "
+        + "A document attached to a message is searched on the same terms its body is, and an extract "
         + $"drawn from one arrives in an <{RetrievedMailContextFormatter.AttachmentExtractElementName}> element naming "
         + "the file and the page, slide, or sheet it was read from; cite those rather than the covering note. An "
         + $"<{RetrievedMailContextFormatter.ImageDescriptionElementName}> element is a model's account of a picture "
@@ -319,10 +322,11 @@ internal sealed class ScopedMailKnowledgeRetrieval
     /// inheriting this one.
     /// </para>
     /// <para>
-    /// The extract, the subject, and everything an attachment contributed are guarded, and the envelope is written
-    /// afterwards from the guarded values. Guarding the written envelope instead would let one detection cover the end
-    /// of an extract and the element that closes it, and replacing that region would take the document's structure with
-    /// it.
+    /// The extract, the subject, the sender's name and address, and everything an attachment contributed are guarded, and
+    /// the envelope is written afterwards from the guarded values. Guarding the written envelope instead would let one
+    /// detection cover the end of an extract and the element that closes it, and replacing that region would take the
+    /// document's structure with it. The sender adds two scans per passage, which the lookup's own passage count
+    /// already bounds.
     /// </para>
     /// <para>
     /// An attachment's extract and the name its sender gave it are guarded on the same terms the message's own extract
@@ -354,6 +358,14 @@ internal sealed class ScopedMailKnowledgeRetrieval
                 Subject = await this.egressGuard.GuardOptionalAsync(
                     SensitiveContentEgressPoint.ChatPrompt,
                     passage.Subject,
+                    cancellationToken),
+                SenderDisplayName = await this.egressGuard.GuardOptionalAsync(
+                    SensitiveContentEgressPoint.ChatPrompt,
+                    passage.SenderDisplayName,
+                    cancellationToken),
+                SenderAddress = await this.egressGuard.GuardOptionalAsync(
+                    SensitiveContentEgressPoint.ChatPrompt,
+                    passage.SenderAddress,
                     cancellationToken),
                 Text = await this.egressGuard.GuardAsync(
                     SensitiveContentEgressPoint.ChatPrompt,

@@ -7,6 +7,7 @@ using MailFathom.AI.Chat;
 using MailFathom.AI.Orchestration;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -46,6 +47,7 @@ internal static class AgentConversationComposition
     /// <param name="askedAt">When the question was asked, which is what a relative date in it is read against.</param>
     /// <param name="zone">The zone the person's own days are read in, which the anchor is stated in and a time they name is meant in.</param>
     /// <param name="accounts">The accounts the model is told of, by the deployment's own names for them and with which of them close a message with the person's footer, or none where no tool it is offered takes one.</param>
+    /// <param name="languages">The languages those accounts are kept in, each once, which the turn names so a search can try each.</param>
     /// <param name="scope">What the question was asked about, where it named something.</param>
     /// <param name="namedEmails">The messages a scope naming a merged arrival notification stands for, and none for any other scope.</param>
     /// <param name="question">The question, already guarded for egress.</param>
@@ -64,6 +66,7 @@ internal static class AgentConversationComposition
         DateTimeOffset askedAt,
         UserTimeZone zone,
         IReadOnlyList<AgentNamedAccount> accounts,
+        IReadOnlyList<MailAccountLanguage> languages,
         AgentMessageScope? scope,
         IReadOnlyList<StoredEmailId> namedEmails,
         string question)
@@ -91,7 +94,7 @@ internal static class AgentConversationComposition
 
         using var document = new AgentTurnDocument();
 
-        document.WriteStatement($"{AgentTimeAnchor.Stated(local)}\n{zoned}{holding}{closing}{looking}\n");
+        document.WriteStatement($"{AgentTimeAnchor.Stated(local)}\n{zoned}{holding}{MailboxLanguages.Stated(languages)}{closing}{looking}\n");
         document.WriteAsk(question);
 
         return document.Complete();

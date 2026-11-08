@@ -158,11 +158,21 @@ and report nothing about it.
 
 A mailbox holding mail in several languages is the ordinary case, and both halves of a question meet it. Both are
 settled by the instruction the run carries, because both are properties of how a run is worded rather than of the
-retrieval underneath it, and neither is anything an operator configures.
+retrieval underneath it.
+
+**The turn names the languages the mailboxes in scope are kept in**, each once: the language each account in the
+question's scope declares, read through the same per-account setting enrichment and thread states write their readings
+in, so a scope spanning a Polish account and an English one says `The mailboxes you may search are kept in: English,
+Polish.` It rides on the turn rather than in the instruction, because it changes per question and the instruction is
+recorded as the digest of a text that does not. An account whose language nobody set counts as English, which is what
+that setting answers for it everywhere else. The Agent's turn names the languages of the accounts it names in the same
+sentence, and its instruction asks for the same lookup per language; its `search_mail` is this page's search tool, so
+every message it returns carries the author described under [§ What a passage carries](#what-a-passage-carries).
 
 **A lookup is worded in the language the mail is likely to carry**, which need not be the language the question was
-asked in, and one that returns nothing useful is tried again — with fewer words, with the other forms an inflected word
-takes, or in another language the mailbox plausibly holds — before the run concludes that the mailbox does not answer.
+asked in, and the instruction asks for one in each language the turn names before the run concludes the mail is not
+there. One that returns nothing useful is tried again — with fewer words, with the other forms an inflected word
+takes, or in another of those languages — before the run concludes that the mailbox does not answer.
 The search tool's own description tells the model why: lexical matching stems no word, and requires every one wherever
 the search also ranks by meaning, so a
 language that inflects its words, Polish among them, writes one word in several forms, and a lookup offers the forms it
@@ -267,7 +277,8 @@ would be a second thing to keep in step with the first, and a client looping ove
 operator agreed to on the other.
 
 Three numbers because they fail in three different ways. The retrieved-character ceiling is the privacy one — the total
-amount of somebody's mail that may leave the process to answer one question, whatever the model asks for. The token
+amount of somebody's mail that may leave the process to answer one question, whatever the model asks for. It counts
+each passage's extract and the sender's name and address written beside it. The token
 ceiling is the cost one, and the only one stated in the unit a provider bills by. The call ceiling is the one that
 always works: a token count is what the provider *reported*, and an endpoint that reports none would leave the cost
 ceiling unreachable while a tool loop went round.
@@ -460,6 +471,9 @@ Each passage is a bounded extract plus the identity an answer is traced through:
 - the stable local message identifier, which is the same one every other read names an email by;
 - the account and the folder it was read from, by the folder's identity and its place in the account's hierarchy;
 - the subject and the received time, where the message carried them;
+- the author the message displays — the sender's display name and address, where its `From` header carried them — so a
+  question about who said or did something is answered from the extract rather than by asking the mailbox again who
+  wrote it;
 - where the message came from: what was established about the author the message displays and what this deployment
   made of them, whether it sits in its account's junk folder, and whether the sender is a first contact;
 - how much the message's own text read as machine written;
@@ -467,8 +481,10 @@ Each passage is a bounded extract plus the identity an answer is traced through:
 - what the message's own files contributed, where any of them matched: one extract per file, cut to the same bound
   applied per file rather than across them, beside the file's name and the page, slide, or sheet it was read from.
 
-Nothing else travels. The participants, the size, the flags, and the attachment summary that a listing publishes are
-dropped before a provider is reached, because an answer does not need them.
+Nothing else travels. The recipients, the size, the flags, and the attachment summary that a listing publishes are
+dropped before a provider is reached, because an answer does not need them. The sender is what the message *claims*:
+the provenance beside it is what says whether the claim held, and the instruction asks the model to read an "I" in an
+extract as that author.
 
 An attachment extract reaches the model as an element of its own inside the message's envelope, and a model's account of
 a picture reaches it under a different element name again — so a run can tell a document's own words from a sentence
@@ -505,12 +521,16 @@ Inside that tool result, each extract sits in an element of its own:
 
 ```xml
 <retrieved-mail retrieval-mode="hybrid">
-  <message id="019fe12f-a4a1-7759-8d95-21d0bb6eec90" account="work" folder="ARCHIVE" received="2026-08-01T09:14:22.0000000+02:00" sender-authentication="authenticated">
+  <message id="019fe12f-a4a1-7759-8d95-21d0bb6eec90" account="work" folder="ARCHIVE" received="2026-08-01T09:14:22.0000000+02:00" from-name="Ewa Nowak" from="ewa@example.org" sender-authentication="authenticated">
     <subject>Invoice 41</subject>
     <extract>the invoice is attached</extract>
   </message>
 </retrieved-mail>
 ```
+
+The `from-name` and `from` attributes carry the author the message displays, each left out where its `From` header
+carried none, and [Discover's composition](discovery-run.md) writes the same two on each `<source>`. They are what the
+message claims rather than who sent it, which is what the provenance attributes below say.
 
 The `retrieval-mode` attribute says which ranking answered *this* lookup — `lexical` or `hybrid` — because that is a
 fact about the instance at the moment of the call rather than about the build: an instance whose embedding provider is
@@ -526,7 +546,7 @@ person or the Agent wrote, the turn a compaction of an Agent conversation reads,
 conversation's state, contact relationships, calendar-event extraction, the day layout, Discover's composition, and body
 cleanup. Only the writer names elements and attributes, and it escapes every
 value wherever the value sits — the extract, the subject, a calendar title, and a task as text content, and the
-account alias, the folder path, an attachment's file name, and a sender's address as attributes — so none can end an
+account alias, the folder path, an attachment's file name, and a sender's name and address as attributes — so none can end an
 element or open one. A message whose text closes the envelope and opens a forged instruction arrives as that text:
 visible, attributed to the message that sent it, and inert. A character that has no place in a document — a lone half
 of a surrogate pair — is replaced rather than allowed to fail the turn. The writer also holds a turn's
@@ -675,7 +695,7 @@ generation is. [Chat generation § What a failing call is classified
 as](chat-generation.md#what-a-failing-call-is-classified-as) holds the table.
 
 Where a sensitive-content scanner is switched on, the answer and each citation's subject pass it before they are
-published, and the extracts pass it on their way to the model — two egress points rather than one, because text sent to
+published, and the extracts — with each message's subject and sender — pass it on their way to the model — two egress points rather than one, because text sent to
 a provider and text returned to a caller leave this deployment in different directions. The answer is guarded before
 what one response carries is cut, so it is bounded after every placeholder is in it, and a scanner that cannot answer
 refuses the question rather than serving a response nothing scanned.

@@ -4,6 +4,7 @@
 
 using System.Collections.Frozen;
 using System.Globalization;
+using MailFathom.AI.Orchestration;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Domain.Access;
 
@@ -59,9 +60,14 @@ internal static class AgentConversationInstructions
         no period gets no received bounds, and one that asks about no attachment gets no attachment filter — naming a
         document, such as an invoice, a contract, or a report, is not asking about an attachment. The turn's date and
         time tell you what a stated period means but are never a period on its own, and a filter nobody asked for hides
-        mail that could answer the question. A search that finds nothing is worth a few more: other words, the mail's
-        other language, the other forms an inflected word takes. After a few such lookups find nothing, say that the
-        mailbox does not answer rather than searching on.
+        mail that could answer the question. The turn names the languages the person's mailboxes are kept in, and a
+        search matches words rather than translating them, so search in each of those languages before concluding that
+        the mail is not there. A search that finds nothing is worth a few more: other words, another of those languages,
+        the other forms an inflected word takes. After a few such lookups find nothing, say that the mailbox does not
+        answer rather than searching on. Each message a search returns names the author it displays in its
+        {AgentTurnDocument.FromNameAttributeName} and {AgentTurnDocument.FromAttributeName} attributes: answer who wrote,
+        said, or promised what from them, and read an "I" or a "we" in an extract as that author, rather than searching
+        again to learn who wrote it.
 
         A detail the person settled earlier in this conversation, or that its summary records, is answered from the
         conversation: it needs no mail behind it, and not finding it in the mailbox is no reason to doubt it. When an
