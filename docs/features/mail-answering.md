@@ -586,7 +586,9 @@ The data clause carries the rule a model is given about them: a claim resting on
 authenticated, or that is junk or a first contact, is reported with that qualification rather than as settled fact; a
 request from such a message to change payment details, a bank account, or credentials, or to do something urgently, is
 flagged with what the attributes say — a sender the deployment could not verify, a message in junk, a sender the
-mailbox had not corresponded with — instead of restated; and a claim from an authenticated sender whose message is
+mailbox had not corresponded with — instead of restated, and the account number, IBAN, or other payment details such
+a request asks for are never written out, not even beside a warning, only that it asks for them and why it cannot be
+trusted; and a claim from an authenticated sender whose message is
 neither junk nor a first contact is not doubted for where it came from alone. Like the rest of the clause it is the weaker mechanism — what is
 structural is that the attributes are the service's own, in a place no message can write to.
 
