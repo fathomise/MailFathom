@@ -11,6 +11,7 @@ using MailFathom.Application.Retrieval;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using NSubstitute;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Discovery.Runs;
@@ -472,10 +473,10 @@ public sealed class PlannedMailRetrievalTests
     {
         // Arrange
         var planWords = new[] { "one", "two", "three", "four", "five" };
-        var search = planWords.Aggregate(
+        var followUpWords = new[] { "RX-58213", "RX-58214", "RX-58215" };
+        var search = planWords.Concat(followUpWords).Aggregate(
             new ScriptedEmailKnowledgeSearch(),
-            (scripted, word) => scripted.Returning(word, [.. Enumerable.Range(0, 4).Select(number => ScriptedEmailKnowledgeSearch.Passage($"{word} {number}"))]))
-            .Returning("RX-58213", [.. Enumerable.Range(0, 8).Select(number => ScriptedEmailKnowledgeSearch.Passage($"reference {number}"))]);
+            (scripted, word) => scripted.Returning(word, [.. Enumerable.Range(0, 8).Select(number => ScriptedEmailKnowledgeSearch.Passage($"{word} {number}"))]));
         var retrieval = new PlannedMailRetrieval(search, DiscoveryRuns.NewRunLedger());
         var plan = PlanOf(sufficientPassages: 20, planWords);
         var earlier = await retrieval.RetrieveAsync(Question(WholeMailbox), plan, progress: null, TestContext.Current.CancellationToken);
@@ -484,7 +485,7 @@ public sealed class PlannedMailRetrievalTests
         var evidence = await retrieval.RetrieveFollowUpAsync(
             Question(WholeMailbox),
             plan,
-            [EmailKnowledgeQuery.ForText("RX-58213")],
+            [.. followUpWords.Select(EmailKnowledgeQuery.ForText)],
             earlier,
             progress: null,
             TestContext.Current.CancellationToken);
@@ -518,6 +519,33 @@ public sealed class PlannedMailRetrievalTests
         // Assert
         Assert.Equal(["the invoice"], evidence.Passages.Select(passage => passage.Text));
         Assert.Equal((1, 1), (evidence.LookupsRun, evidence.LookupsRefused));
+    }
+
+    /// <summary>A round that added nothing, or a retrieval already at the run's ceiling, leaves the evidence as the plan left it and reads no mail.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RetrieveFollowUpAsync_NoLookupOrARetrievalAtTheCeiling_ReturnsWhatThePlanFoundWithoutSearching(bool truncated)
+    {
+        // Arrange
+        var search = Substitute.For<IEmailKnowledgeSearch>();
+        var retrieval = new PlannedMailRetrieval(search, DiscoveryRuns.NewRunLedger());
+        var plan = PlanOf(sufficientPassages: 5, "invoice");
+        var earlier = new DiscoveryEvidence([ScriptedEmailKnowledgeSearch.Passage("the invoice")], EmailSearchRetrievalMode.Lexical, 1, 0, truncated);
+        IReadOnlyList<EmailKnowledgeQuery> lookups = truncated ? [EmailKnowledgeQuery.ForText("RX-58213")] : [];
+
+        // Act
+        var evidence = await retrieval.RetrieveFollowUpAsync(
+            Question(WholeMailbox),
+            plan,
+            lookups,
+            earlier,
+            progress: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Same(earlier, evidence);
+        Assert.Empty(search.ReceivedCalls());
     }
 
     [Fact]

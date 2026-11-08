@@ -306,8 +306,9 @@ export type DiscoveryRunEvent =
 const longestRunAnswer = 512 * 1024;
 
 // Everything one run may publish, which is what a first read of a finished run answers with: its start, one report per
-// lookup its retrieval plan may hold, one citation per source it may declare, one event per block, and its ending.
-const mostEventsPerRead = 1 + 6 + 200 + 20 + 1;
+// lookup its retrieval plan and its follow-up round may hold, one citation per source it may declare, one event per
+// block, and its ending.
+const mostEventsPerRead = 1 + 6 + 3 + 200 + 20 + 1;
 
 // A type name the service assigned. Bounded because it is spelled onto a screen for a type this build cannot draw.
 const longestBlockType = 128;

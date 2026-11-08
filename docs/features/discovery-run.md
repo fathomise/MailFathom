@@ -200,7 +200,7 @@ back is logged as unreadable, with no question text in the record.
 
 ## Composing the answer, and what it may not say
 
-Once the plan has run, a second call puts the question and the extracts to a composing agent — its own instruction, its
+Once the plan and its follow-up have run, a third call puts the question and the extracts to a composing agent — its own instruction, its
 own name, no tools at all, and the same instruction envelope every agent here carries. It is shown a numbered set of
 extracts and nothing else about the mailbox.
 

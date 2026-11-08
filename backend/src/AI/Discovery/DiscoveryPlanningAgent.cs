@@ -315,7 +315,8 @@ internal sealed class DiscoveryPlanningAgent : IDiscoveryRunPlanner
 
         // Outside the resilience decorator rather than inside it, so a call this deployment's own ceiling refused
         // never reaches the endpoint's circuit, its concurrency budget, or its health record. The two ledgers are
-        // the run's and the period's: this call is the first of the two a Discover run makes, and both are charged.
+        // the run's and the period's: the plan and its follow-up are two of the at most three calls a Discover run
+        // makes, and both ledgers are charged for each.
         await using var chatClient = new BudgetedChatClient(resilientClient, this.runLedger, this.spendLedger);
 
         var agent = DiscoveryPlanningAgentComposition.Compose(

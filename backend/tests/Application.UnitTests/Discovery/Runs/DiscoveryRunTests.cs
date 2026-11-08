@@ -195,6 +195,31 @@ public sealed class DiscoveryRunTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>Nothing a further lookup found could be handed over once retrieval reached the run's ceiling, so no turn is paid for one.</summary>
+    [Fact]
+    public async Task RunAsync_ARetrievalThatReachedTheRunsCeiling_AsksForNoFollowUp()
+    {
+        // Arrange
+        var planner = DiscoveryRuns.PlannerDeriving(DiscoveryIntent.FindFact, SufficientPassages, "quotation");
+        var run = DiscoveryRuns.Composing(
+            planner,
+            new ScriptedEmailKnowledgeSearch().Returning(
+                "quotation",
+                ScriptedEmailKnowledgeSearch.Passage("first"),
+                ScriptedEmailKnowledgeSearch.Passage("second")),
+            ledger: DiscoveryRuns.NewRunLedger(retrievedCharacters: "first".Length));
+
+        // Act
+        await run.RunAsync(Question, progress: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        await planner.DidNotReceive().FollowUpAsync(
+            Arg.Any<MailQuestion>(),
+            Arg.Any<DiscoveryRunPlan>(),
+            Arg.Any<DiscoveryEvidence>(),
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>A ceiling the follow-up's call reaches ends the run as one the plan's call reaches does, rather than composing past it.</summary>
     [Fact]
     public async Task RunAsync_AFollowUpRefusedByASpendCeiling_EndsTheRunStatingIt()

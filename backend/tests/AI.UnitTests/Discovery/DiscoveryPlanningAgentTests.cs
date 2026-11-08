@@ -284,6 +284,22 @@ public sealed class DiscoveryPlanningAgentTests
         Assert.Empty(lookups);
     }
 
+    /// <summary>A follow-up turn past the model's bound is never sent, and adds nothing rather than failing a run that already holds what the plan found.</summary>
+    [Fact]
+    public async Task FollowUpAsync_ATurnTooLargeForOneRequest_AddsNoLookupWithoutReachingTheProvider()
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Completion("""{\"lookups\": [{\"queryText\": \"RX-58213\"}]}"""));
+        var planner = provider.PlannerOver(plan: ChatDeclarations.Plan(maximumRequestCharacters: 100));
+
+        // Act
+        var lookups = await planner.FollowUpAsync(Question(), PlanOf("invoice"), EvidenceOf(new string('x', 400)), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(lookups);
+        Assert.Equal(0, provider.RequestCount);
+    }
+
     /// <summary>A run that spent its calls on the plan and the composition's share is refused the follow-up before anything leaves.</summary>
     [Fact]
     public async Task FollowUpAsync_ARunThatHasSpentItsCallAllowance_RefusesBeforeReachingTheProvider()
