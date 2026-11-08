@@ -2,11 +2,14 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.AI.Chat;
 using MailFathom.AI.ContactRelationships;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.UnitTests.TestDoubles;
+using MailFathom.Application.Contacts.Correspondence;
 using MailFathom.Domain.Access;
 using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -83,13 +86,40 @@ public sealed class ContactRelationshipAgentCompositionTests
         Assert.NotEqual(MailAnsweringAgentComposition.AgentName, agent.Name);
     }
 
+    /// <summary>A model declaring structured outputs is handed the schema and the instruction that leaves the shape to it.</summary>
+    [Fact]
+    public async Task Compose_AModelDeclaringStructuredOutputs_AsksForTheSchemaAndDropsTheShapeFromTheInstruction()
+    {
+        // Arrange
+        using var chatClient = ScriptedChatClient.Answering(Answer);
+        var agent = AgentOver(chatClient, plan: ChatDeclarations.Plan(structuredOutputs: true));
+
+        // Act
+        await agent.RunAsync(
+            "0. Conversation: the addendum",
+            session: null,
+            options: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var call = Assert.Single(chatClient.Calls);
+        var format = Assert.IsType<ChatResponseFormatJson>(call.Options?.ResponseFormat);
+
+        Assert.Equal(ContactRelationshipSchema.Name, format.SchemaName);
+        Assert.Equal(
+            AgentComposition.InstructionFor(ContactRelationshipInstructions.TextFor(UserLanguage.English, constrainedBySchema: true)),
+            call.Options?.Instructions);
+    }
+
     private static ChatClientAgent AgentOver(
         ScriptedChatClient chatClient,
-        UserLanguage language = UserLanguage.English) =>
+        UserLanguage language = UserLanguage.English,
+        ChatGenerationPlan? plan = null) =>
         ContactRelationshipAgentComposition.Compose(
             chatClient,
-            ChatDeclarations.Plan(),
+            plan ?? ChatDeclarations.Plan(),
             language,
+            ContactCorrespondence.Nothing,
             new EmptyAgentInstructionEnvelope(),
             NullLoggerFactory.Instance);
 }

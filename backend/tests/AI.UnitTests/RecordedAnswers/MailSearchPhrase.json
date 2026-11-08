@@ -1,0 +1,118 @@
+[
+  {
+    "scenario": "MailSearchPhrase.Attachment",
+    "answer": "{\"filters\":{\"hasAttachments\":true},\"criteria\":[\"Q3 budget spreadsheet\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.AttachmentInMonth",
+    "answer": "{\"filters\":{\"receivedFrom\":\"2026-07-01\",\"receivedTo\":\"2026-07-31\",\"hasAttachments\":true},\"criteria\":[\"PDFs from the auditor\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.AttachmentInMonth",
+    "answer": "{\"filters\":{\"receivedFrom\":\"2026-07-01\",\"receivedTo\":\"2026-07-31\",\"hasAttachments\":true},\"criteria\":[\"PDFs\",\"auditor\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.Flagged",
+    "answer": "{\"filters\":{\"flagged\":true},\"criteria\":[\"office lease\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.ImportantReadsTwoWays",
+    "answer": "{\"filters\":{},\"criteria\":[\"important merger\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.ImportantReadsTwoWays",
+    "answer": "{\"filters\":{},\"criteria\":[\"important messages about the merger\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.OutstandingOrUnread",
+    "answer": "{\"filters\":{},\"criteria\":[\"invoices I still need to deal with\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.OutstandingOrUnread",
+    "answer": "{\"filters\":{},\"criteria\":[\"invoices\"],\"unaccounted\":\"I still need to deal with\"}"
+  },
+  {
+    "scenario": "MailSearchPhrase.Period",
+    "answer": "{\"filters\":{\"receivedFrom\":\"2026-08-01\",\"receivedTo\":\"2026-08-31\"},\"criteria\":[\"contract drafts\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.PersonWithoutAddress",
+    "answer": "{\"filters\":{},\"criteria\":[\"Ingrid\",\"travel budget\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.PersonWithoutAddress",
+    "answer": "{\"filters\":{},\"criteria\":[\"travel budget\",\"Ingrid\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.Polish.Period",
+    "answer": "{\"filters\":{\"receivedFrom\":\"2026-08-01\",\"receivedTo\":\"2026-08-31\"},\"criteria\":[\"projekty umów\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.Polish.Sender",
+    "answer": "{\"filters\":{\"senderAddress\":\"billing@northwind.example\"},\"criteria\":[\"faktury\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.Polish.Unread",
+    "answer": "{\"filters\":{\"unread\":true},\"criteria\":[\"awaria serwera\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.Polish.WordsOnly",
+    "answer": "{\"filters\":{},\"criteria\":[\"notatki o wycenie remontu kuchni\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.Polish.WordsOnly",
+    "answer": "{\"filters\":{},\"criteria\":[\"wycena remontu kuchni\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.Polish.Yesterday",
+    "answer": "{\"filters\":{\"receivedFrom\":\"2026-09-13\",\"receivedTo\":\"2026-09-13\"},\"criteria\":[\"dokumenty dostawy\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.Recipient",
+    "answer": "{\"filters\":{\"recipientAddress\":\"legal@fabrikam.example\"},\"criteria\":[\"NDA\"],\"unaccounted\":\"what I sent to\"}"
+  },
+  {
+    "scenario": "MailSearchPhrase.Recipient",
+    "answer": "{\"filters\":{\"recipientAddress\":\"legal@fabrikam.example\"},\"criteria\":[\"NDA\"],\"unaccounted\":\"what I sent\"}"
+  },
+  {
+    "scenario": "MailSearchPhrase.Sender",
+    "answer": "{\"filters\":{\"senderAddress\":\"billing@northwind.example\"},\"criteria\":[\"invoices\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.SenderAndWords",
+    "answer": "{\"filters\":{\"senderAddress\":\"support@contoso.example\",\"unread\":true},\"criteria\":[\"password reset\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.SinceStartOfMonth",
+    "answer": "{\"filters\":{\"receivedFrom\":\"2026-09-01\",\"receivedTo\":\"2026-09-14\"},\"criteria\":[\"office move\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.TwoSenders",
+    "answer": "{\"filters\":{},\"criteria\":[\"billing@northwind.example\",\"accounts@fabrikam.example\",\"renewal\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.TwoSenders",
+    "answer": "{\"filters\":{},\"criteria\":[\"renewal from billing@northwind.example or accounts@fabrikam.example\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.TwoSenders",
+    "answer": "{\"filters\":{},\"criteria\":[\"renewal\",\"billing@northwind.example\",\"accounts@fabrikam.example\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.Unread",
+    "answer": "{\"filters\":{\"unread\":true},\"criteria\":[\"server outage\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.WordsOnly",
+    "answer": "{\"filters\":{},\"criteria\":[\"kitchen renovation quote\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.WordsOnly",
+    "answer": "{\"filters\":{},\"criteria\":[\"notes about the kitchen renovation quote\"]}"
+  },
+  {
+    "scenario": "MailSearchPhrase.Yesterday",
+    "answer": "{\"filters\":{\"receivedFrom\":\"2026-09-13\",\"receivedTo\":\"2026-09-13\"},\"criteria\":[\"delivery notes\"]}"
+  }
+]

@@ -2,7 +2,6 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using System.Text.Json;
 using MailFathom.AI.Orchestration;
 using MailFathom.Application.Discovery.Planning;
 using MailFathom.Application.Emails.Search;
@@ -15,8 +14,9 @@ namespace MailFathom.AI.Discovery;
 /// <para>
 /// <strong>It never fails.</strong> A question is not unanswerable because a model wrapped its answer in prose, named
 /// an intent nobody defined, or proposed a lookup whose words are too long to search for. Each of those is read as far
-/// as it goes and the rest is replaced by <see cref="Fallback" />, which asks the question's own words over the whole
-/// scope — the plan a system with no model at all would run.
+/// as it goes and the rest is replaced: an answer that is no plan at all by <see cref="Fallback" />, which asks the
+/// question's own words over the whole scope — the plan a system with no model at all would run — and a plan left with
+/// no lookup by those same words beside the intent and the enough it did name.
 /// </para>
 /// <para>
 /// That is also what makes the derivation testable without a provider: every reading below is a pure function of the
@@ -45,7 +45,7 @@ internal static class DiscoveryPlanReading
             return new DiscoveryPlanReadingOutcome(Fallback(question, retrievalBounds), WasRead: false);
         }
 
-        IReadOnlyList<EmailKnowledgeQuery> lookups =
+        IReadOnlyList<EmailKnowledgeQuery> proposed =
         [
             .. (document.Lookups ?? [])
                 .Where(static lookup => lookup is not null)
@@ -54,10 +54,9 @@ internal static class DiscoveryPlanReading
                 .Take(RetrievalPlan.MaximumLookups),
         ];
 
-        if (lookups.Count is 0)
-        {
-            return new DiscoveryPlanReadingOutcome(Fallback(question, retrievalBounds), WasRead: false);
-        }
+        // A plan whose lookups all fell away still classified the question and judged its size, and a strict schema admits
+        // an empty array, so the question's own words stand in for the lookups rather than the whole plan being refused.
+        IReadOnlyList<EmailKnowledgeQuery> lookups = proposed.Count is 0 ? [QuestionWords(question)] : proposed;
 
         // An intent this catalogue does not hold is the ordinary case the product names rather than a defect: a question
         // that is none of the four named kinds is still answered, opening with an answer and the evidence behind it.
@@ -91,26 +90,15 @@ internal static class DiscoveryPlanReading
             DiscoveryIntent.Unclassified,
             RetrievalPlan.Create(
                 retrievalBounds,
-                [EmailKnowledgeQuery.ForText(Truncated(question.Value))],
+                [QuestionWords(question)],
                 retrievalBounds.MaximumPassages));
     }
 
-    private static DiscoveryPlanDocument? ReadDocument(string? answerText)
-    {
-        if (AgentJsonAnswer.Unfenced(answerText) is not { } json)
-        {
-            return null;
-        }
+    private static EmailKnowledgeQuery QuestionWords(MailQuestionText question) =>
+        EmailKnowledgeQuery.ForText(Truncated(question.Value));
 
-        try
-        {
-            return JsonSerializer.Deserialize(json, DiscoveryPlanJsonContext.Default.DiscoveryPlanDocument);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
+    private static DiscoveryPlanDocument? ReadDocument(string? answerText) =>
+        AgentJsonAnswer.Read(answerText, DiscoveryPlanJsonContext.Default.DiscoveryPlanDocument);
 
     /// <summary>Turns one proposed lookup into a query, or into nothing where its words could not be searched for.</summary>
     /// <remarks>

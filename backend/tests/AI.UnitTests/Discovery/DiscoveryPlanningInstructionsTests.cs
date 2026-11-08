@@ -184,6 +184,29 @@ public sealed class DiscoveryPlanningInstructionsTests
         Assert.DoesNotContain(email.Value.ToString(), turn, StringComparison.Ordinal);
     }
 
+    /// <summary>A schema writes every field of a lookup, so a filter prose tells a model to omit it is told to write null for instead.</summary>
+    [Fact]
+    public void TextFor_ARequestCarryingTheSchema_SaysToWriteNullForAFilterRatherThanOmitIt()
+    {
+        // Act
+        var text = string.Join(' ', DiscoveryPlanningInstructions.TextFor(constrainedBySchema: true).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains("Write null for a filter you have no reason to set", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("only required field", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>Without a schema the instruction is the prose every derivation was sent before.</summary>
+    [Fact]
+    public void TextFor_ARequestCarryingNoSchema_IsTheProseInstruction()
+    {
+        // Act
+        var text = DiscoveryPlanningInstructions.TextFor(constrainedBySchema: false);
+
+        // Assert
+        Assert.Same(DiscoveryPlanningInstructions.Text, text);
+    }
+
     private static MailboxScope Scope() =>
         MailboxScope.Create([Primary], []);
 

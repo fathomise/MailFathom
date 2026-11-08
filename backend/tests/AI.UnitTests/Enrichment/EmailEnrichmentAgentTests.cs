@@ -4,6 +4,7 @@
 
 using System.Net;
 using System.Text;
+using MailFathom.AI.Chat;
 using MailFathom.AI.Enrichment;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ProviderAdapters;
@@ -39,6 +40,9 @@ public sealed class EmailEnrichmentAgentTests
     private const string Marks = """
         {\"sense\": {\"text\": \"a racking quotation\", \"reason\": \"the passage attaches one\", \"passages\": [0]}}
         """;
+
+    private const string StructuredMarks =
+        """{"sense": {"text": "a racking quotation", "reason": "the passage attaches one", "passages": [0]}, "significance": null, "commitment": null, "tasks": []}""";
 
     /// <summary>This one is registered only where the switch is on, so the pass in front of it queries rather than stopping.</summary>
     [Fact]
@@ -222,6 +226,47 @@ public sealed class EmailEnrichmentAgentTests
         Assert.Equal(1, provider.RequestCount);
     }
 
+    /// <summary>A model whose server honours a strict schema is asked for one, limited to the message's own passage positions.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task DeriveAsync_AModelDeclaringStructuredOutputs_AsksForAStrictSchemaOfTheMessagesOwnPassages(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredMarks));
+        var agent = provider.EnricherOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api), structuredOutputs: true));
+
+        // Act
+        var derivation = await agent.DeriveAsync(Enrichable(), MailAccountLanguage.English, TestContext.Current.CancellationToken);
+
+        // Assert
+        var format = StructuredRequests.SchemaFormatOf(provider.RequestBodies[0], api);
+        var cited = format.Schema.GetProperty("$defs").GetProperty("reading").GetProperty("properties").GetProperty("passages").GetProperty("items");
+
+        Assert.Single(derivation.Marks);
+        Assert.Equal(("json_schema", EmailEnrichmentSchema.Name, true), (format.Type, format.Name, format.Strict));
+        Assert.Equal([0], cited.GetProperty("enum").EnumerateArray().Select(static position => position.GetInt32()).ToArray());
+        Assert.DoesNotContain("Each of the three is an object with three required fields", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>Without the declaration the request is the one every derivation sent before, the shape told in prose instead.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task DeriveAsync_AModelDeclaringNoStructuredOutputs_SendsNoResponseFormat(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredMarks));
+        var agent = provider.EnricherOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api)));
+
+        // Act
+        await agent.DeriveAsync(Enrichable(), MailAccountLanguage.English, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(StructuredRequests.CarriesResponseFormat(provider.RequestBodies[0]));
+        Assert.Contains("Each of the three is an object with three required fields", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
     private static EnrichableEmail Enrichable() =>
         new(
             StoredEmailId.Create(Guid.CreateVersion7()),
@@ -276,7 +321,8 @@ public sealed class EmailEnrichmentAgentTests
         public EmailEnrichmentAgent EnricherOver(
             SensitiveContentEgressGuard? egressGuard = null,
             Exception? credentialFailure = null,
-            IMailAnsweringSpendLedger? spendLedger = null)
+            IMailAnsweringSpendLedger? spendLedger = null,
+            ChatGenerationPlan? plan = null)
         {
             var transportFactory = Substitute.For<IHttpClientFactory>();
             transportFactory
@@ -307,7 +353,7 @@ public sealed class EmailEnrichmentAgentTests
                 });
 
             return new EmailEnrichmentAgent(
-                ChatDeclarations.Plan(),
+                plan ?? ChatDeclarations.Plan(),
                 MailAnsweringRunBounds.Default,
                 spendLedger ?? AdmittingSpendLedger(),
                 credentialSource,

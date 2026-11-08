@@ -37,6 +37,9 @@ public sealed class MailBodyCleanupAgentTests
     private const string Partition =
         """{\"segments\":[{\"from\":0,\"to\":0,\"action\":\"drop\"},{\"from\":1,\"to\":1,\"action\":\"keep\"}]}""";
 
+    private const string StructuredPartition =
+        """{"segments":[{"from":0,"to":0,"action":"drop"},{"from":1,"to":1,"action":"keep"}]}""";
+
     /// <summary>This one is registered only where the switch is on, so the pass in front of it composes an outline rather than stopping.</summary>
     [Fact]
     public void IsActive_ADeploymentThatTurnedTheCleaningOn_SaysSo()
@@ -307,6 +310,47 @@ public sealed class MailBodyCleanupAgentTests
         // Assert
         Assert.Equal(1, provider.RequestCount);
         Assert.Equal(MailBodyCleaningWithholding.ProviderUnavailable, proposal.Withholding);
+    }
+
+    /// <summary>A model whose server honours a strict schema is asked for one, numbering exactly the outline's blocks.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task ProposeAsync_AModelDeclaringStructuredOutputs_AsksForAStrictSchemaOfTheOutlinesOwnBlocks(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredPartition));
+        var cleaner = provider.CleanerOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api), structuredOutputs: true));
+
+        // Act
+        var proposal = await cleaner.ProposeAsync(Outline(), TestContext.Current.CancellationToken);
+
+        // Assert
+        var format = StructuredRequests.SchemaFormatOf(provider.RequestBodies[0], api);
+        var range = format.Schema.GetProperty("properties").GetProperty("segments").GetProperty("items").GetProperty("properties");
+
+        Assert.Equal(2, proposal.Segments.Count);
+        Assert.Equal(("json_schema", MailBodyCleanupSchema.Name, true), (format.Type, format.Name, format.Strict));
+        Assert.Equal([0, 1], range.GetProperty("from").GetProperty("enum").EnumerateArray().Select(static number => number.GetInt32()));
+        Assert.DoesNotContain("Write no other field anywhere in the answer", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>Without the declaration the request is the one every cleaning sent before, the shape told in prose instead.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task ProposeAsync_AModelDeclaringNoStructuredOutputs_SendsNoResponseFormat(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredPartition));
+        var cleaner = provider.CleanerOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api)));
+
+        // Act
+        await cleaner.ProposeAsync(Outline(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(StructuredRequests.CarriesResponseFormat(provider.RequestBodies[0]));
+        Assert.Contains("Write no other field anywhere in the answer", provider.RequestBodies[0], StringComparison.Ordinal);
     }
 
     private static CleanableMailBody Outline() => new(

@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Text.Json;
+using MailFathom.AI.Orchestration;
 using MailFathom.Application.Answers;
 using MailFathom.Application.Discovery.Planning;
 using MailFathom.Application.Discovery.Presentation;
@@ -38,8 +39,6 @@ namespace MailFathom.AI.Discovery;
 /// </remarks>
 internal static class DiscoveryCompositionReading
 {
-    private const string JsonFence = "```";
-
     /// <summary>Reads a result out of an agent's answer, falling back to a result saying the sources do not answer wherever the answer cannot be believed.</summary>
     /// <param name="answerText">What the agent wrote, which may be empty, fenced, or surrounded by prose.</param>
     /// <param name="plan">What the question was read as, which fixes what the result is composed of.</param>
@@ -439,40 +438,6 @@ internal static class DiscoveryCompositionReading
         Dictionary<string, DiscoveryComposedSource> restedOn) =>
         [.. Resolve(named, restedOn).Select(source => source.Citation.Id)];
 
-    private static DiscoveryResultDocument? ReadDocument(string? answerText)
-    {
-        if (Unfenced(answerText) is not { } json)
-        {
-            return null;
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize(json, DiscoveryResultJsonContext.Default.DiscoveryResultDocument);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>Finds the JSON object inside whatever the model wrote around it.</summary>
-    /// <remarks>
-    /// The same reading the planning answer gets, and for the same reason: a model told to answer with one object still
-    /// fences it, prefaces it, or writes a sentence after it often enough that treating any of those as no answer would
-    /// throw away a usable result.
-    /// </remarks>
-    private static string? Unfenced(string? answerText)
-    {
-        if (string.IsNullOrWhiteSpace(answerText))
-        {
-            return null;
-        }
-
-        var text = answerText.Replace(JsonFence, string.Empty, StringComparison.Ordinal);
-        var opening = text.IndexOf('{', StringComparison.Ordinal);
-        var closing = text.LastIndexOf('}');
-
-        return opening >= 0 && closing > opening ? text[opening..(closing + 1)] : null;
-    }
+    private static DiscoveryResultDocument? ReadDocument(string? answerText) =>
+        AgentJsonAnswer.Read(answerText, DiscoveryResultJsonContext.Default.DiscoveryResultDocument);
 }

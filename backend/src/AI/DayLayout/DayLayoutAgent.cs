@@ -149,7 +149,7 @@ internal sealed class DayLayoutAgent : IDayLayoutPlanner
             this.plan.MaximumRequestCharacters,
             this.plan.MaximumRequestImageOctets);
 
-        var answer = await this.AskAsync(turn, cancellationToken);
+        var answer = await this.AskAsync(turn, question, cancellationToken);
 
         if (answer is not { Text: { } answerText })
         {
@@ -212,7 +212,10 @@ internal sealed class DayLayoutAgent : IDayLayoutPlanner
     /// deployment's availability gate reads. A cancellation stays outside, being the person withdrawing the request
     /// rather than a provider failing to answer.
     /// </remarks>
-    private async Task<ChatModelAnswer?> AskAsync(string turn, CancellationToken cancellationToken)
+    private async Task<ChatModelAnswer?> AskAsync(
+        string turn,
+        DayLayoutQuestion question,
+        CancellationToken cancellationToken)
     {
         // One ledger for the whole chain, so an arrangement that falls through to the fallback spends the run's single
         // allowance across both attempts rather than opening a second one behind the first.
@@ -223,7 +226,7 @@ internal sealed class DayLayoutAgent : IDayLayoutPlanner
             return await ChatModelFallThrough.RunAsync(
                 this.plan,
                 this.logger,
-                (model, attemptToken) => this.AskModelAsync(model, turn, runLedger, attemptToken),
+                (model, attemptToken) => this.AskModelAsync(model, turn, question, runLedger, attemptToken),
                 cancellationToken);
         }
         catch (ChatGenerationFailedException failure)
@@ -245,6 +248,7 @@ internal sealed class DayLayoutAgent : IDayLayoutPlanner
     private async Task<ChatModelAnswer> AskModelAsync(
         ChatGenerationPlan model,
         string turn,
+        DayLayoutQuestion question,
         MailAnsweringRunLedger runLedger,
         CancellationToken cancellationToken)
     {
@@ -277,6 +281,7 @@ internal sealed class DayLayoutAgent : IDayLayoutPlanner
         var agent = DayLayoutAgentComposition.Compose(
             chatClient,
             model,
+            question,
             this.instructionEnvelope,
             this.loggerFactory);
 

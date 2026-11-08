@@ -336,6 +336,31 @@ public sealed class DiscoveryCompositionInstructionsTests
                 source.Element(DiscoveryCompositionInstructions.ExtractElementName)?.Value)));
     }
 
+    /// <summary>A schema writes every field, so what prose tells a model to leave out it is told to leave empty or null instead.</summary>
+    [Fact]
+    public void TextFor_ARequestCarryingTheSchema_SaysToLeaveAFieldEmptyRatherThanOut()
+    {
+        // Act
+        var text = string.Join(' ', DiscoveryCompositionInstructions.TextFor(constrainedBySchema: true).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains("Leave it empty where the extracts agree", text, StringComparison.Ordinal);
+        Assert.Contains("has a null \"value\" and an empty \"sources\"", text, StringComparison.Ordinal);
+        Assert.Contains("leave the rest empty", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("leave \"conflict\" out", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>Without a schema the instruction is the prose every composition was sent before.</summary>
+    [Fact]
+    public void TextFor_ARequestCarryingNoSchema_IsTheProseInstruction()
+    {
+        // Act
+        var text = DiscoveryCompositionInstructions.TextFor(constrainedBySchema: false);
+
+        // Assert
+        Assert.Same(DiscoveryCompositionInstructions.Text, text);
+    }
+
     private static IEnumerable<XElement> Sources(string turn) =>
         Parsed(turn).Descendants(DiscoveryCompositionInstructions.SourceElementName);
 

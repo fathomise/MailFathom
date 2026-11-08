@@ -60,8 +60,8 @@ withholding the answer for it would throw away every statement beside it. **An a
 link, or a line break is withheld as unreadable** rather than repaired, wherever in the line it sits — the whole line
 is judged before any cut, so one carried past the bound is not cut away — because a title is drawn where a sender's words
 are not, and a line carrying a tag or a link would be a sender's text reaching a place the deployment writes. An answer
-carrying no title at all settles
-proposing none: the conversation keeps the topic it had, with no standing beside it.
+carrying no title at all, or one whose every line is empty or `null`,
+settles proposing none: the conversation keeps the topic it had, with no standing beside it.
 
 **The standing is a reading of the statements beside it, never a sentence of its own.** It is kept only beside an open
 question or a commitment; written beside nothing still open, it is stored empty, because it would be stating something
@@ -69,10 +69,13 @@ no statement carries.
 
 **The topic is kept by rule rather than by trusting the model to repeat itself.** The turn quotes back the topic the
 conversation was given last time, and the model answers either that it stays or with a new one and a statement that the
-subject changed. Both answers sit inside the title; one written beside it is not read. **Keeping the topic is an answer
-only where the turn quoted one**: where it quoted none, there is nothing to keep, so the title stands on the topic
-written beside that answer, and an answer that wrote none is withheld as unreadable rather than settled untitled. The
-service then decides:
+subject changed. Both answers belong inside the title, and one written beside it instead is read inside it, as
+[every agent's reading](chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema) places a member
+written one level too high. **Keeping the topic is an answer only where the turn quoted one**: where it quoted none,
+there is nothing to keep, so the title stands on the topic written beside that answer, and an answer that wrote none is
+withheld as unreadable rather than settled untitled. Where the turn did quote one, a title naming no new topic keeps it
+whether or not it says so, because a model writing only a standing has proposed nothing to replace it. The service then
+decides:
 
 - A conversation with no topic yet takes the one proposed.
 - A **young** conversation — at most three messages, a constant rather than a setting — takes a new topic freely: the
@@ -82,6 +85,13 @@ service then decides:
 
 **Where threads merge, the surviving thread's topic is the one kept**, because the state hangs off the surviving thread
 and the merged conversation is derived again from its shape.
+
+**Where the model declares `StructuredOutputs`, the shape is asked for rather than described.** The request carries a
+strict schema in which every cited message is one of the conversation's own positions, and in which the title offers
+`keepTopic` only where the turn quoted a topic; where it quoted none, `topic` is required. The instruction then says
+only what each field means. The reading is the same either way, so a title line that runs long is still cut and one
+carrying markup still withheld. [Chat generation § An answer in one document can be constrained by a schema](chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema)
+says what the request carries.
 
 **Some conversations are given no title, and say so** rather than receiving a placeholder: one too long to read
 (`ThreadTooLarge`), one with no settled derivation yet, and one whose every message sits in junk — a spam conversation,

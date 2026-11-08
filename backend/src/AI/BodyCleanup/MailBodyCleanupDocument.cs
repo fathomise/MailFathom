@@ -27,9 +27,8 @@ internal sealed record MailBodyCleanupDocument
 /// </para>
 /// <para>
 /// <b>There is nowhere here to put message text, and that is load-bearing.</b> The three members are two numbers and a
-/// keyword, so the rendering this produces cannot carry a word a model wrote — and the reading of this document is strict
-/// about members nobody declared, so an answer that put a block's text beside its range is refused rather than quietly
-/// read for the part that fitted.
+/// keyword, so the rendering this produces cannot carry a word a model wrote. A block's text written beside its range is
+/// a member nothing here declares, ignored as every undeclared member is, so it has nowhere to be read into.
 /// </para>
 /// </remarks>
 internal sealed record MailBodyCleanupSegmentDocument

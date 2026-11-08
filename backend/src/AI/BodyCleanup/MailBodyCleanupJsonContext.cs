@@ -14,18 +14,17 @@ namespace MailFathom.AI.BodyCleanup;
 /// program — and about nothing else.
 /// </para>
 /// <para>
-/// <b>A member nothing here declares is refused rather than ignored</b>, which is the one place this disagrees with every
-/// other answer read in this product. Elsewhere an undeclared member is a later build's and is skipped; here it is the
-/// one observable sign that a model answered with something other than a partition of block numbers — a block's text
-/// beside its range, a reason, a rewritten line — and this rendering's whole promise is that no word of it came from a
-/// model. So the answer is discarded and the reader is shown the uncleaned message.
+/// A member nothing here declares is ignored, as it is in every other answer read in this product, which is what
+/// <see cref="Orchestration.AgentJsonAnswer" /> holds for all of them. That keeps this rendering's promise that no word of
+/// it came from a model, because the promise rests on what is read rather than on what is refused: a range carries two
+/// block numbers and a word from a fixed vocabulary, so a block's text written beside its range, a reason, or a rewritten
+/// line has nowhere to be read into and never reaches the reader.
 /// </para>
 /// </remarks>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     PropertyNameCaseInsensitive = true,
     ReadCommentHandling = JsonCommentHandling.Skip,
-    AllowTrailingCommas = true,
-    UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
+    AllowTrailingCommas = true)]
 [JsonSerializable(typeof(MailBodyCleanupDocument))]
 internal sealed partial class MailBodyCleanupJsonContext : JsonSerializerContext;

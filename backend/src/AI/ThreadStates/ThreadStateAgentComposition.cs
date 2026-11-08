@@ -4,6 +4,7 @@
 
 using MailFathom.AI.Chat;
 using MailFathom.AI.Orchestration;
+using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Domain.Accounts;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -27,17 +28,31 @@ internal static class ThreadStateAgentComposition
     /// <param name="chatClient">The client the one call is made through.</param>
     /// <param name="plan">The generation parameters this deployment configured.</param>
     /// <param name="language">The language the mailbox this derivation is of is read in, which its statements are written in.</param>
+    /// <param name="thread">The conversation the agent is put, whose messages and kept topic the response schema is built from.</param>
     /// <param name="instructionEnvelope">The preamble and postamble every agent here carries.</param>
     /// <param name="loggerFactory">The factory the agent logs through.</param>
     /// <returns>The composed agent.</returns>
+    /// <remarks>
+    /// The schema and the instruction are decided by the same declaration: a model whose server honours a strict schema is
+    /// sent one and told only what each field means, and any other model is sent none and told the shape in prose. A
+    /// fallback is composed for its own declaration, so a chain mixing the two asks each model the way it can answer.
+    /// </remarks>
     internal static ChatClientAgent Compose(
         IChatClient chatClient,
         ChatGenerationPlan plan,
         MailAccountLanguage language,
+        DerivableThread thread,
         IAgentInstructionEnvelope instructionEnvelope,
         ILoggerFactory loggerFactory)
     {
-        var operation = new AgentOperation(AgentName, ThreadStateInstructions.TextFor(language), []);
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(thread);
+
+        var operation = new AgentOperation(
+            AgentName,
+            ThreadStateInstructions.TextFor(language, plan.StructuredOutputs),
+            [],
+            plan.StructuredOutputs ? ThreadStateSchema.For(thread.Messages.Count, topicShown: thread.KeptTopic is not null) : null);
 
         return AgentComposition.Compose(chatClient, plan, operation, instructionEnvelope, loggerFactory);
     }

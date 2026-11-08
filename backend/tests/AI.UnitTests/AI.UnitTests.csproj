@@ -51,6 +51,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Answers models wrote to the agents in an evaluation run, replayed through each reader to show a change in how
+         answers are read never makes one that used to be read unreadable. Read as resources rather than files, which
+         keeps the suite off the file system. -->
+    <EmbeddedResource Include="RecordedAnswers\*.json" LogicalName="RecordedAnswers.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\AI\AI.csproj" />
   </ItemGroup>
 </Project>

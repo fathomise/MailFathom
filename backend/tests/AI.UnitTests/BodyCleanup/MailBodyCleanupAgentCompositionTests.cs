@@ -82,6 +82,7 @@ public sealed class MailBodyCleanupAgentCompositionTests
         MailBodyCleanupAgentComposition.Compose(
             chatClient,
             ChatDeclarations.Plan(),
+            blockCount: 3,
             new EmptyAgentInstructionEnvelope(),
             NullLoggerFactory.Instance);
 }

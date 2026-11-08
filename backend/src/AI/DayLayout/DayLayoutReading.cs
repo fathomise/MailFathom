@@ -3,7 +3,6 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Globalization;
-using System.Text.Json;
 using MailFathom.AI.Orchestration;
 using MailFathom.Application.Tasks;
 
@@ -112,20 +111,6 @@ internal static class DayLayoutReading
         var stated => stated.Value,
     });
 
-    private static DayLayoutDocument? ReadDocument(string? answerText)
-    {
-        if (AgentJsonAnswer.Unfenced(answerText) is not { } json)
-        {
-            return null;
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize(json, DayLayoutJsonContext.Default.DayLayoutDocument);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
+    private static DayLayoutDocument? ReadDocument(string? answerText) =>
+        AgentJsonAnswer.Read(answerText, DayLayoutJsonContext.Default.DayLayoutDocument);
 }

@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.BodyCleanup;
+using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.EmailContent.Cleaning;
 using Xunit;
 
@@ -53,11 +54,11 @@ public sealed class MailBodyCleanupReadingTests
     }
 
     /// <summary>
-    /// The answer carries no message text, and this is the mechanism rather than the instruction: a member nobody
-    /// declared fails the binding, so a range that arrived with the block's own words beside it is refused whole.
+    /// The answer carries no message text, and this is the mechanism rather than the instruction: a range reads into two
+    /// block numbers and a verdict, so the block's own words written beside it are ignored as every undeclared member is.
     /// </summary>
     [Fact]
-    public void Read_AnAnswerCarryingTheMessageTextBesideARange_IsRefusedWhole()
+    public void Read_AnAnswerCarryingTheMessageTextBesideARange_ReadsTheRangeAndNothingOfTheText()
     {
         // Arrange
         const string answer = """
@@ -68,7 +69,7 @@ public sealed class MailBodyCleanupReadingTests
         var segments = MailBodyCleanupReading.Read(answer);
 
         // Assert
-        Assert.Empty(segments);
+        Assert.Equal([new MailBodyCleaningSegment(0, 1, Keep: true)], segments);
     }
 
     /// <summary>A rewritten body is the failure this pass is shaped to make unreachable, so an answer that is one reads as nothing.</summary>
@@ -157,5 +158,22 @@ public sealed class MailBodyCleanupReadingTests
 
         // Assert
         Assert.Empty(segments);
+    }
+
+    /// <summary>Every answer a model wrote to a cleaning in the last evaluation run reads as the ranges it stated, which is what a stricter reading must keep doing.</summary>
+    [Fact]
+    public void Read_EveryRecordedAnswer_ReadsAsRanges()
+    {
+        // Arrange
+        var recorded = RecordedAnswers.Of("MailBodyCleanup");
+
+        // Act
+        var unread = recorded
+            .Where(static answer => MailBodyCleanupReading.Read(answer.Answer).Count == 0)
+            .Select(static answer => answer.Scenario);
+
+        // Assert
+        Assert.NotEmpty(recorded);
+        Assert.Empty(unread);
     }
 }

@@ -1,0 +1,258 @@
+[
+  {
+    "scenario": "DiscoveryPlanning.AmbiguousChangeOrFact",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Contoso renewal status\"},{\"queryText\":\"Contoso renewal\"},{\"queryText\":\"Contoso contract\"},{\"queryText\":\"Contoso\"}],\"sufficientPassages\":10}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.AmbiguousChangeOrFact",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Contoso renewal\"},{\"queryText\":\"Contoso contract\"},{\"queryText\":\"Contoso\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.AmbiguousChangeOrFact",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Contoso renewal\"},{\"queryText\":\"Contoso contract\"},{\"queryText\":\"Contoso\"}],\"sufficientPassages\":5}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.AmbiguousDocumentOrFact",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Q3 numbers folder\"},{\"queryText\":\"Q3 spreadsheet\"},{\"queryText\":\"Q3\"}],\"sufficientPassages\":1}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.AmbiguousDocumentOrFact",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Q3 numbers\"},{\"queryText\":\"Q3 report\"},{\"queryText\":\"Q3\"}],\"sufficientPassages\":1}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.AmbiguousDocumentOrFact",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Q3 spreadsheet\"},{\"queryText\":\"Q3 numbers\"},{\"queryText\":\"Q3\"}],\"sufficientPassages\":1}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.AsksForFlagAndReadState",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"movers estimate\",\"isRemotelySeen\":false,\"isRemotelyFlagged\":true},{\"queryText\":\"movers moving\",\"isRemotelySeen\":false,\"isRemotelyFlagged\":true},{\"queryText\":\"mover OR movers\",\"isRemotelySeen\":false,\"isRemotelyFlagged\":true}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.AsksForFlagAndReadState",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"movers estimate\",\"isRemotelySeen\":false,\"isRemotelyFlagged\":true},{\"queryText\":\"moving company\",\"isRemotelySeen\":false,\"isRemotelyFlagged\":true},{\"queryText\":\"movers\",\"isRemotelySeen\":false,\"isRemotelyFlagged\":true}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.AsksForFlagAndReadState",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"movers moving\",\"isRemotelyFlagged\":true,\"isRemotelySeen\":false},{\"queryText\":\"movers estimate\",\"isRemotelyFlagged\":true,\"isRemotelySeen\":false},{\"queryText\":\"movers\",\"isRemotelyFlagged\":true,\"isRemotelySeen\":false}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.ComparesOffers",
+    "answer": "{\"intent\":\"compareTerms\",\"lookups\":[{\"queryText\":\"removal quote office\"},{\"queryText\":\"moving price office\"},{\"queryText\":\"relocation quote cost\"},{\"queryText\":\"office move\"}],\"sufficientPassages\":6}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.ComparesOffers",
+    "answer": "{\"intent\":\"compareTerms\",\"lookups\":[{\"queryText\":\"removal quote office\"},{\"queryText\":\"office move price\"},{\"queryText\":\"removal\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.ComparesOffers",
+    "answer": "{\"intent\":\"compareTerms\",\"lookups\":[{\"queryText\":\"removal quote price\"},{\"queryText\":\"office move quote\"},{\"queryText\":\"office relocation quote\"},{\"queryText\":\"moving quotation cost\"},{\"queryText\":\"removal\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.ExplicitScope",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"invoice unpaid\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"invoice outstanding\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"invoice due\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"Northwind\",\"senderAddress\":\"billing@northwind.example\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.ExplicitScope",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"invoice unpaid\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"invoice outstanding\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"invoice overdue\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"invoice payment\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"Northwind\",\"senderAddress\":\"billing@northwind.example\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.LooksForFiles",
+    "answer": "{\"intent\":\"findDocuments\",\"lookups\":[{\"queryText\":\"facilities floor plan PDF\",\"hasAttachments\":true},{\"queryText\":\"facilities floor plan\",\"hasAttachments\":true},{\"queryText\":\"floor plan PDF\",\"hasAttachments\":true},{\"queryText\":\"floor plan\",\"hasAttachments\":true}],\"sufficientPassages\":1}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.LooksForFiles",
+    "answer": "{\"intent\":\"findDocuments\",\"lookups\":[{\"queryText\":\"floor plan PDF\",\"hasAttachments\":true},{\"queryText\":\"facilities floor plan\",\"hasAttachments\":true},{\"queryText\":\"facilities layout\",\"hasAttachments\":true},{\"queryText\":\"facilities\",\"hasAttachments\":true}],\"sufficientPassages\":1}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.LooksForFiles",
+    "answer": "{\"intent\":\"findDocuments\",\"lookups\":[{\"queryText\":\"floor plan PDF\",\"hasAttachments\":true},{\"queryText\":\"facilities floor plan\",\"hasAttachments\":true},{\"queryText\":\"facilities\",\"hasAttachments\":true}],\"sufficientPassages\":1}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesADateRange",
+    "answer": "{\"intent\":\"findDocuments\",\"lookups\":[{\"queryText\":\"Brightwater invoice\",\"receivedOnOrAfter\":\"2026-08-01T00:00\",\"receivedBefore\":\"2026-08-16T00:00\"},{\"queryText\":\"Brightwater invoices\",\"receivedOnOrAfter\":\"2026-08-01T00:00\",\"receivedBefore\":\"2026-08-16T00:00\"},{\"queryText\":\"Brightwater\",\"receivedOnOrAfter\":\"2026-08-01T00:00\",\"receivedBefore\":\"2026-08-16T00:00\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesADateRange",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Brightwater invoice OR invoices\",\"receivedOnOrAfter\":\"2026-08-01T00:00\",\"receivedBefore\":\"2026-08-16T00:00\"},{\"queryText\":\"Brightwater bill OR bills\",\"receivedOnOrAfter\":\"2026-08-01T00:00\",\"receivedBefore\":\"2026-08-16T00:00\"},{\"queryText\":\"Brightwater\",\"receivedOnOrAfter\":\"2026-08-01T00:00\",\"receivedBefore\":\"2026-08-16T00:00\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesADateRange",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Brightwater invoice\",\"receivedOnOrAfter\":\"2026-08-01T00:00\",\"receivedBefore\":\"2026-08-16T00:00\"},{\"queryText\":\"Brightwater invoices\",\"receivedOnOrAfter\":\"2026-08-01T00:00\",\"receivedBefore\":\"2026-08-16T00:00\"},{\"queryText\":\"Brightwater\",\"receivedOnOrAfter\":\"2026-08-01T00:00\",\"receivedBefore\":\"2026-08-16T00:00\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesAQuotedSpeaker",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Horváth goods lift\"},{\"queryText\":\"Horváth teherlift\"},{\"queryText\":\"Horváth elevator\"},{\"queryText\":\"Ingrid Horváth lift\"},{\"queryText\":\"Pál Horváth\"}],\"sufficientPassages\":2}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesAQuotedSpeaker",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Pál Horváth teherlift\"},{\"queryText\":\"Pál Horváth goods lift\"},{\"queryText\":\"Pál Horváth teherfelvonó\"},{\"queryText\":\"Pál Horváth\"}],\"sufficientPassages\":1}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesAQuotedSpeaker",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Pál Horváth teherlift\"},{\"queryText\":\"Pál Horváth árufelvonó\"},{\"queryText\":\"Ingrid teherlift\"},{\"queryText\":\"Pál Horváth lift\"},{\"queryText\":\"Pál Horváth\"}],\"sufficientPassages\":1}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesOneOfTwoSimilarPeople",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Ingrid Solheim archive boxes\"},{\"queryText\":\"Ingrid Solheim archive box\"},{\"queryText\":\"Ingrid Solheim arkivbokser\"},{\"queryText\":\"Ingrid Solheim arkiv bokser\"},{\"queryText\":\"Ingrid Solheim\"},{\"queryText\":\"Solheim\"}],\"sufficientPassages\":3}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesOneOfTwoSimilarPeople",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Ingrid Solheim archive boxes\"},{\"queryText\":\"Solheim archive boxes\"},{\"queryText\":\"Ingrid Solheim storage boxes\"},{\"queryText\":\"Solheim\"}],\"sufficientPassages\":10}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesOneOfTwoSimilarPeople",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Ingrid Solheim archive boxes\"},{\"queryText\":\"Solheim boxes archive\"},{\"queryText\":\"Ingrid Solheim boxes\"},{\"queryText\":\"Solheim\"}],\"sufficientPassages\":3}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesPeriod",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"landlord rent increase\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"rent increase March\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"rent\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"landlord\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"}],\"sufficientPassages\":1}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesPeriod",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"rent increase March\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"rent increase\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"landlord\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"}],\"sufficientPassages\":3}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesPeriod",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"rent increase\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"rent landlord\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"rent\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesPerson",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Priya Raman data migration\"},{\"queryText\":\"Priya Raman next quarter\"},{\"queryText\":\"Priya Raman migration quarter\"}],\"sufficientPassages\":3}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesPerson",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Priya Raman migration quarter\"},{\"queryText\":\"Priya Raman data migration\"},{\"queryText\":\"Priya Raman\"}],\"sufficientPassages\":3}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NamesPerson",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Priya Raman migration quarter\"},{\"queryText\":\"Priya Raman migration\"},{\"queryText\":\"Priya Raman\"}],\"sufficientPassages\":1}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NoScope",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"offsite venue\"},{\"queryText\":\"offsite confirmed\"},{\"queryText\":\"team location\"},{\"queryText\":\"offsite\"}],\"sufficientPassages\":3}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.NoScope",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"offsite venue\"},{\"queryText\":\"offsite confirmed\"},{\"queryText\":\"team offsite location\"},{\"queryText\":\"offsite\"}],\"sufficientPassages\":3}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.OutsideWhatARunCanDo",
+    "answer": "{\"intent\":\"unclassified\",\"lookups\":[{\"queryText\":\"Tomasz offer\"},{\"queryText\":\"Tomasz oferta\"},{\"queryText\":\"Tomasz proposal\"},{\"queryText\":\"Tomasz propozycja\"},{\"queryText\":\"Tomasz\"}],\"sufficientPassages\":5}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.OutsideWhatARunCanDo",
+    "answer": "{\"intent\":\"unclassified\",\"lookups\":[{\"queryText\":\"Tomasz offer\"},{\"queryText\":\"Tomasz oferta\"},{\"queryText\":\"Tomasz\"}],\"sufficientPassages\":3}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.OutsideWhatARunCanDo",
+    "answer": "{\"intent\":\"unclassified\",\"lookups\":[{\"queryText\":\"Tomasz offer\"},{\"queryText\":\"Tomasz proposal\"},{\"queryText\":\"Tomasz quotation\"},{\"queryText\":\"Tomasz oferta\"},{\"queryText\":\"Tomasz propozycja\"},{\"queryText\":\"Tomasz\"}],\"sufficientPassages\":5}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.ExplicitScope",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"invoice unpaid OR invoices unpaid\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"invoice outstanding OR invoices outstanding\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"invoice overdue OR invoices overdue\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"faktura niezapłacona OR faktury niezapłacone\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"invoice OR invoices\",\"senderAddress\":\"billing@northwind.example\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.ExplicitScope",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"invoice unpaid\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"invoice outstanding\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"invoice overdue\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"Northwind\",\"senderAddress\":\"billing@northwind.example\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.ExplicitScope",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"nieopłacona OR nieopłacone faktura OR faktury\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"unpaid OR outstanding invoice OR invoices\",\"senderAddress\":\"billing@northwind.example\"},{\"queryText\":\"faktura OR invoice\",\"senderAddress\":\"billing@northwind.example\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.LooksForFiles",
+    "answer": "{\"intent\":\"findDocuments\",\"lookups\":[{\"queryText\":\"PDF plan piętra\",\"hasAttachments\":true},{\"queryText\":\"rzut piętra administracja\",\"hasAttachments\":true},{\"queryText\":\"plan piętra\",\"hasAttachments\":true}],\"sufficientPassages\":1}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.LooksForFiles",
+    "answer": "{\"intent\":\"findDocuments\",\"lookups\":[{\"queryText\":\"plan OR planu piętra PDF\",\"hasAttachments\":true},{\"queryText\":\"rzut OR rzutu piętra PDF\",\"hasAttachments\":true},{\"queryText\":\"plan kondygnacji PDF\",\"hasAttachments\":true},{\"queryText\":\"floor plan PDF\",\"hasAttachments\":true},{\"queryText\":\"administracja\",\"hasAttachments\":true}],\"sufficientPassages\":1}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.LooksForFiles",
+    "answer": "{\"intent\":\"findDocuments\",\"lookups\":[{\"queryText\":\"plan piętra PDF\",\"hasAttachments\":true},{\"queryText\":\"rzut piętra\",\"hasAttachments\":true},{\"queryText\":\"rzut kondygnacji\",\"hasAttachments\":true},{\"queryText\":\"floor plan\",\"hasAttachments\":true},{\"queryText\":\"administracja\",\"hasAttachments\":true}],\"sufficientPassages\":1}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.NamesPeriod",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"podwyżce czynszu OR podwyżka czynszu OR podwyżkę czynszu\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"nowy czynsz OR wysokość czynszu OR stawka czynszu\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"czynsz\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"}],\"sufficientPassages\":5}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.NamesPeriod",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"podwyżka czynszu\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"nowy czynsz\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"czynsz\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"}],\"sufficientPassages\":3}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.NamesPeriod",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"podwyżka czynszu\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"podwyżki czynsz\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"wynajmujący czynsz\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"},{\"queryText\":\"czynsz\",\"receivedOnOrAfter\":\"2026-03-01T00:00\",\"receivedBefore\":\"2026-04-01T00:00\"}],\"sufficientPassages\":10}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.NamesPerson",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Agnieszka Dąbrowska eksport raportu błąd\"},{\"queryText\":\"Agnieszki Dąbrowskiej eksport raportu\"},{\"queryText\":\"Agnieszka Dąbrowska export report error\"},{\"queryText\":\"Agnieszka Dąbrowska OR Agnieszki Dąbrowskiej\"}],\"sufficientPassages\":3}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.NamesPerson",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Agnieszka Dąbrowska eksportu raportu\"},{\"queryText\":\"Agnieszka Dąbrowska błąd eksport\"},{\"queryText\":\"raportu eksport błąd\"},{\"queryText\":\"Agnieszka Dąbrowska\"}],\"sufficientPassages\":5}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.NamesPerson",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"Agnieszka Dąbrowska eksportu raportu\"},{\"queryText\":\"Dąbrowska błędu raportu eksportu OR eksportowanie\"},{\"queryText\":\"Agnieszka błąd raportu eksportu OR problem\"},{\"queryText\":\"Agnieszka Dąbrowska\"}],\"sufficientPassages\":3}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.NoScope",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"potwierdził miejsce wyjazdu\"},{\"queryText\":\"miejsce wyjazdu integracyjnego\"},{\"queryText\":\"lokalizacja wyjazd integracyjny\"},{\"queryText\":\"wyjazd integracyjny\"}],\"sufficientPassages\":3}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.NoScope",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"wyjazd integracyjny miejsce\"},{\"queryText\":\"wyjazd integracyjny hotel\"},{\"queryText\":\"integracyjny lokalizacja\"},{\"queryText\":\"team building location\"},{\"queryText\":\"integracyjny\"}],\"sufficientPassages\":5}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.NoScope",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"wyjazd integracyjny miejsce\"},{\"queryText\":\"wyjazdu integracyjnego lokalizacja\"},{\"queryText\":\"potwierdzam wyjazd integracyjny\"},{\"queryText\":\"wyjazd integracyjny hotel\"},{\"queryText\":\"integracyjny OR integracyjnego\"}],\"sufficientPassages\":3}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.OutsideWhatARunCanDo",
+    "answer": "{\"intent\":\"unclassified\",\"lookups\":[{\"queryText\":\"Tomasz oferta OR ofertę\"},{\"queryText\":\"Tomasz warunki\"},{\"queryText\":\"Tomasz przyjmujemy\"},{\"queryText\":\"Tomasz offer\"},{\"queryText\":\"Tomasz\"}],\"sufficientPassages\":5}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.OutsideWhatARunCanDo",
+    "answer": "{\"intent\":\"unclassified\",\"lookups\":[{\"queryText\":\"Tomasz oferta\"},{\"queryText\":\"Tomasz propozycja\"},{\"queryText\":\"Tomaszu oferta\"},{\"queryText\":\"Tomasz\"}],\"sufficientPassages\":5}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.OutsideWhatARunCanDo",
+    "answer": "{\"intent\":\"unclassified\",\"lookups\":[{\"queryText\":\"Tomasz ofertę\"},{\"queryText\":\"Tomasz oferta\"},{\"queryText\":\"Tomasz propozycję\"},{\"queryText\":\"Tomasz\"}],\"sufficientPassages\":2}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.TracksAChange",
+    "answer": "{\"intent\":\"trackChange\",\"lookups\":[{\"queryText\":\"biura przeprowadzki termin OR terminu OR terminy OR data OR daty\"},{\"queryText\":\"zmiana terminu przeprowadzki biura\"},{\"queryText\":\"nowa data przeprowadzki biura\"},{\"queryText\":\"nowy termin biuro przeprowadzka\"},{\"queryText\":\"biuro przeprowadzka termin\"},{\"queryText\":\"przeprowadzka OR przeprowadzki OR przeprowadzce OR przeprowadzkę\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.TracksAChange",
+    "answer": "{\"intent\":\"trackChange\",\"lookups\":[{\"queryText\":\"przeprowadzka biura termin\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"biuro przeprowadzka data\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"office move date\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"biuro\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.Polish.TracksAChange",
+    "answer": "{\"intent\":\"trackChange\",\"lookups\":[{\"queryText\":\"przeprowadzka biura termin\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"przeprowadzka biura data\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"relokacja biura termin\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"office move date\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"przeprowadzka\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.StatesARecipient",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"VPN certificate\",\"recipientAddress\":\"it-desk@tidewater.example\"},{\"queryText\":\"VPN cert\",\"recipientAddress\":\"it-desk@tidewater.example\"},{\"queryText\":\"VPN message\",\"recipientAddress\":\"it-desk@tidewater.example\"},{\"queryText\":\"VPN\",\"recipientAddress\":\"it-desk@tidewater.example\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.StatesARecipient",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"VPN certificate\",\"recipientAddress\":\"it-desk@tidewater.example\"},{\"queryText\":\"VPN cert\",\"recipientAddress\":\"it-desk@tidewater.example\"},{\"queryText\":\"VPN\",\"recipientAddress\":\"it-desk@tidewater.example\"}],\"sufficientPassages\":5}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.StatesARecipient",
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"VPN certificate\",\"recipientAddress\":\"it-desk@tidewater.example\"},{\"queryText\":\"certificate message\",\"recipientAddress\":\"it-desk@tidewater.example\"},{\"queryText\":\"VPN\",\"recipientAddress\":\"it-desk@tidewater.example\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.TracksAChange",
+    "answer": "{\"intent\":\"trackChange\",\"lookups\":[{\"queryText\":\"office move date\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"office move postponed\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"new office date\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"relocation date\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"office move\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"}],\"sufficientPassages\":6}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.TracksAChange",
+    "answer": "{\"intent\":\"trackChange\",\"lookups\":[{\"queryText\":\"office move date\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"office relocation date\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"move moved date office\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"office move\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"}],\"sufficientPassages\":20}"
+  },
+  {
+    "scenario": "DiscoveryPlanning.TracksAChange",
+    "answer": "{\"intent\":\"trackChange\",\"lookups\":[{\"queryText\":\"office move date\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"relocation date\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"postponed move\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"},{\"queryText\":\"office move\",\"receivedOnOrAfter\":\"2026-06-01T00:00\",\"receivedBefore\":\"2026-09-01T00:00\"}],\"sufficientPassages\":20}"
+  }
+]

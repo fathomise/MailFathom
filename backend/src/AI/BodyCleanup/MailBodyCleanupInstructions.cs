@@ -62,8 +62,38 @@ internal static class MailBodyCleanupInstructions
     /// <summary>Names the attribute carrying how many links the block holds.</summary>
     internal const string LinksAttributeName = "links";
 
-    /// <summary>Gets the instruction the agent is composed with.</summary>
-    internal static string Text { get; } = string.Create(
+    /// <summary>Gets the instruction the agent is composed with where no schema shapes its answer.</summary>
+    internal static string Text { get; } = Compose(constrainedBySchema: false);
+
+    /// <summary>Gets the instruction the agent is composed with where the request carries <see cref="MailBodyCleanupSchema" />.</summary>
+    private static string SchemaText { get; } = Compose(constrainedBySchema: true);
+
+    /// <summary>Gets the instruction for whether the request carries the strict schema.</summary>
+    /// <param name="constrainedBySchema">
+    /// Whether the request carries the strict schema <see cref="MailBodyCleanupSchema" /> builds, in which case the
+    /// instruction says only what each field means rather than describing the shape the schema already enforces.
+    /// </param>
+    /// <returns>The instruction text.</returns>
+    internal static string TextFor(bool constrainedBySchema) => constrainedBySchema ? SchemaText : Text;
+
+    /// <summary>Describes the answer's fields: in prose, shape and all, where no schema shapes it, and by what each means where one does.</summary>
+    private static string ShapeStatement(bool constrainedBySchema) => constrainedBySchema
+        ? string.Create(
+            CultureInfo.InvariantCulture,
+            $"""
+            Answer with one JSON object and nothing else — no prose around it, no code fence. "segments" holds the
+            ranges. In each, "from" and "to" are the first and the last block number it covers, and "action" is
+            "{KeepAction}" for blocks the reader is shown and "{DropAction}" for blocks left out.
+            """)
+        : string.Create(
+            CultureInfo.InvariantCulture,
+            $"""
+            Answer with one JSON object and nothing else — no prose around it, no code fence. It has one field, "segments",
+            an array of objects. Each object has exactly three fields: "from" and "to", which are block numbers, and
+            "action", which is "{KeepAction}" or "{DropAction}". Write no other field anywhere in the answer.
+            """);
+
+    private static string Compose(bool constrainedBySchema) => string.Create(
         CultureInfo.InvariantCulture,
         $"""
         You are given the outline of one email message from somebody's own mailbox, already reduced to a list of numbered
@@ -73,9 +103,7 @@ internal static class MailBodyCleanupInstructions
         its text. You decide which of those blocks a reader is shown. You never write, rewrite, summarise, translate, or
         quote any of the message: your whole answer is a list of block-number ranges.
 
-        Answer with one JSON object and nothing else — no prose around it, no code fence. It has one field, "segments",
-        an array of objects. Each object has exactly three fields: "from" and "to", which are block numbers, and
-        "action", which is "{KeepAction}" or "{DropAction}". Write no other field anywhere in the answer.
+        {ShapeStatement(constrainedBySchema)}
 
         The ranges partition the outline. The first starts at block 0, each one starts at the block after the previous
         one ends, and the last ends at the final block — so every block is named exactly once, in ascending order, with

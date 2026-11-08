@@ -10,9 +10,11 @@ using MailFathom.AI.Retrieval;
 using MailFathom.AI.ThreadStates;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.TestSupport;
 using Microsoft.Agents.AI;
@@ -286,6 +288,7 @@ public sealed class AgentCompositionTests
         ["discovery composition"] = static chatClient => DiscoveryCompositionAgentComposition.Compose(
             chatClient,
             ChatDeclarations.Plan(),
+            [],
             new EmptyAgentInstructionEnvelope(),
             NullLoggerFactory.Instance),
         ["reply draft"] = static chatClient => ReplyDraftAgentComposition.Compose(
@@ -299,6 +302,12 @@ public sealed class AgentCompositionTests
             chatClient,
             ChatDeclarations.Plan(),
             MailAccountLanguage.English,
+            new DerivableThread(
+                EmailThreadId.Create(Guid.CreateVersion7()),
+                Subject: null,
+                new ThreadStateRevision(1, DateTimeOffset.UnixEpoch),
+                [],
+                ExceedsBound: false),
             new EmptyAgentInstructionEnvelope(),
             NullLoggerFactory.Instance),
     };

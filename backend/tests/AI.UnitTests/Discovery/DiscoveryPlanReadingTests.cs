@@ -175,8 +175,6 @@ public sealed class DiscoveryPlanReadingTests
     [InlineData("")]
     [InlineData("I cannot help with that.")]
     [InlineData("{ not json at all ")]
-    [InlineData("""{"intent": "findFact", "lookups": []}""")]
-    [InlineData("""{"intent": "findFact", "lookups": [{"queryText": "   "}]}""")]
     public void Read_AnAnswerThisBuildCannotBelieve_FallsBackToTheQuestionsOwnWords(string? answer)
     {
         // Act
@@ -185,6 +183,25 @@ public sealed class DiscoveryPlanReadingTests
         // Assert
         Assert.False(outcome.WasRead);
         Assert.Equal(DiscoveryIntent.Unclassified, outcome.Plan.Intent);
+        Assert.Equal([Question.Value], outcome.Plan.Retrieval.Lookups.Select(lookup => lookup.QueryText));
+    }
+
+    /// <summary>
+    /// A plan whose lookups all fall away — none written, or none that could be searched for — still classified the
+    /// question and judged its size, so it keeps both and searches the question's own words.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"intent": "findFact", "sufficientPassages": 3, "lookups": []}""")]
+    [InlineData("""{"intent": "findFact", "sufficientPassages": 3, "lookups": [{"queryText": "   "}]}""")]
+    public void Read_APlanWhoseLookupsAllFallAway_KeepsItsIntentAndSearchesTheQuestionsOwnWords(string answer)
+    {
+        // Act
+        var outcome = DiscoveryPlanReading.Read(answer, Question, Bounds, AskedAt);
+
+        // Assert
+        Assert.True(outcome.WasRead);
+        Assert.Equal(DiscoveryIntent.FindFact, outcome.Plan.Intent);
+        Assert.Equal(3, outcome.Plan.Retrieval.SufficientPassages);
         Assert.Equal([Question.Value], outcome.Plan.Retrieval.Lookups.Select(lookup => lookup.QueryText));
     }
 

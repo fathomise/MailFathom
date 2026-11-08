@@ -142,7 +142,7 @@ internal sealed class MailBodyCleanupAgent : IMailBodyCleaner
             this.plan.MaximumRequestCharacters,
             this.plan.MaximumRequestImageOctets);
 
-        var answer = await this.AskAsync(turn, cancellationToken);
+        var answer = await this.AskAsync(turn, body.Blocks.Count, cancellationToken);
 
         if (answer is not { Text: { } answerText })
         {
@@ -230,7 +230,7 @@ internal sealed class MailBodyCleanupAgent : IMailBodyCleaner
     /// availability gate reads. A cancellation stays outside, being the reader withdrawing the wait rather than a provider
     /// failing to answer.
     /// </remarks>
-    private async Task<ChatModelAnswer?> AskAsync(string turn, CancellationToken cancellationToken)
+    private async Task<ChatModelAnswer?> AskAsync(string turn, int blockCount, CancellationToken cancellationToken)
     {
         // One ledger for the whole chain, so a proposal that falls through to the fallback spends the run's
         // single allowance across both attempts rather than opening a second one behind the first.
@@ -241,7 +241,7 @@ internal sealed class MailBodyCleanupAgent : IMailBodyCleaner
             return await ChatModelFallThrough.RunAsync(
                 this.plan,
                 this.logger,
-                (model, attemptToken) => this.AskModelAsync(model, turn, runLedger, attemptToken),
+                (model, attemptToken) => this.AskModelAsync(model, turn, blockCount, runLedger, attemptToken),
                 cancellationToken);
         }
         catch (ChatGenerationFailedException failure)
@@ -264,6 +264,7 @@ internal sealed class MailBodyCleanupAgent : IMailBodyCleaner
     private async Task<ChatModelAnswer> AskModelAsync(
         ChatGenerationPlan model,
         string turn,
+        int blockCount,
         MailAnsweringRunLedger runLedger,
         CancellationToken cancellationToken)
     {
@@ -296,6 +297,7 @@ internal sealed class MailBodyCleanupAgent : IMailBodyCleaner
         var agent = MailBodyCleanupAgentComposition.Compose(
             chatClient,
             model,
+            blockCount,
             this.instructionEnvelope,
             this.loggerFactory);
 

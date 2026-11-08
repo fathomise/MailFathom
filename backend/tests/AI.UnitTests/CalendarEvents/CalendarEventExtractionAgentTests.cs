@@ -41,6 +41,9 @@ public sealed class CalendarEventExtractionAgentTests
         {\"events\": [{\"title\": \"Racking survey\", \"start\": \"2026-09-24T10:00\", \"end\": \"2026-09-24T11:00\"}]}
         """;
 
+    private const string StructuredEvent =
+        """{"events": [{"title": "Racking survey", "start": "2026-09-24T10:00", "end": null}]}""";
+
     private static readonly DateTimeOffset ReceivedAt = new(2026, 9, 21, 9, 30, 0, TimeSpan.FromHours(2));
 
     /// <summary>This one is registered only where the switch is on, so the pass in front of it reads rather than stopping.</summary>
@@ -363,6 +366,45 @@ public sealed class CalendarEventExtractionAgentTests
 
         // Assert
         Assert.Equal(CalendarEventExtractionWithholding.ProviderUnavailable, extraction.Withheld);
+    }
+
+    /// <summary>A model whose server honours a strict schema is asked for one, and told what each field means rather than its shape.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task ProposeFromEmailAsync_AModelDeclaringStructuredOutputs_AsksForTheStrictSchema(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredEvent));
+        var agent = provider.ExtractorOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api), structuredOutputs: true));
+
+        // Act
+        var extraction = await agent.ProposeFromEmailAsync(Enrichable(), TestContext.Current.CancellationToken);
+
+        // Assert
+        var format = StructuredRequests.SchemaFormatOf(provider.RequestBodies[0], api);
+
+        Assert.Single(extraction.Events);
+        Assert.Equal(("json_schema", CalendarEventExtractionSchema.Name, true), (format.Type, format.Name, format.Strict));
+        Assert.Contains("It is null otherwise.", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>Without the declaration the request is the one every extraction sent before, the shape told in prose instead.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task ProposeFromEmailAsync_AModelDeclaringNoStructuredOutputs_SendsNoResponseFormat(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredEvent));
+        var agent = provider.ExtractorOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api)));
+
+        // Act
+        await agent.ProposeFromEmailAsync(Enrichable(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(StructuredRequests.CarriesResponseFormat(provider.RequestBodies[0]));
+        Assert.Contains("Omit it entirely otherwise.", provider.RequestBodies[0], StringComparison.Ordinal);
     }
 
     private static EnrichableEmail Enrichable() =>

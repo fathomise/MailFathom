@@ -33,7 +33,7 @@ internal static class AgentConversationSummaryScenario
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",
-            AgentConversationSummaryInstructions.Text,
+            static _ => AgentConversationSummaryInstructions.Text,
             (plan, _) =>
             {
                 // Refused rather than sent, as the deployment's summariser refuses a turn past the model's bound.
@@ -48,7 +48,7 @@ internal static class AgentConversationSummaryScenario
                 plan,
                 new EmptyAgentInstructionEnvelope(),
                 NullLoggerFactory.Instance),
-            answer => ShortfallOf(answer, scenario),
+            (answer, _) => ShortfallOf(answer, scenario),
             ExpectationMetricName,
             StructuredAnswerScenario.JudgedWhen(readsTwoWays: false));
     }

@@ -90,7 +90,7 @@ internal sealed class DiscoveryAgentsUnderTest(
         // composing agent hands it none.
         if (DiscoveryCompositionAgent.FitsOneRequest(turn, compositionGeneration))
         {
-            var agent = DiscoveryCompositionAgentComposition.Compose(compositionModel, compositionGeneration, new EmptyAgentInstructionEnvelope(), NullLoggerFactory.Instance);
+            var agent = DiscoveryCompositionAgentComposition.Compose(compositionModel, compositionGeneration, sources, new EmptyAgentInstructionEnvelope(), NullLoggerFactory.Instance);
             var answer = await agent.RunAsync(turn, session: null, options: null, cancellationToken);
 
             this.Composition = DiscoveryCompositionAgent.CompositionOf(answer.Text);

@@ -4,6 +4,7 @@
 
 using System.Net;
 using System.Text;
+using MailFathom.AI.Chat;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ProviderAdapters;
 using MailFathom.AI.Providers;
@@ -33,6 +34,9 @@ public sealed class MailSearchPhraseAgentTests
 {
     /// <summary>The literal the scanner in the guarded-egress test reports, standing in for a credential in a sentence.</summary>
     private const string Marker = "AKIAEXAMPLEKEY";
+
+    private const string StructuredReading =
+        """{"filters": {"senderAddress": null, "recipientAddress": null, "receivedFrom": null, "receivedTo": null, "unread": true, "flagged": false, "hasAttachments": false}, "criteria": ["racking quotation"], "unaccounted": null}""";
 
     private static readonly DateTimeOffset AskedAt = new(2026, 9, 9, 14, 30, 0, TimeSpan.FromHours(2));
 
@@ -214,6 +218,45 @@ public sealed class MailSearchPhraseAgentTests
             record => Assert.DoesNotContain("racking", record.Message, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>A model whose server honours a strict schema is asked for one.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task ReadAsync_AModelDeclaringStructuredOutputs_AsksForTheStrictSchema(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredReading));
+        var reader = provider.ReaderOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api), structuredOutputs: true));
+
+        // Act
+        var reading = await reader.ReadAsync(Phrase(), TestContext.Current.CancellationToken);
+
+        // Assert
+        var format = StructuredRequests.SchemaFormatOf(provider.RequestBodies[0], api);
+
+        Assert.True(reading.Filters.Unread);
+        Assert.Equal(("json_schema", MailSearchPhraseSchema.Name, true), (format.Type, format.Name, format.Strict));
+        Assert.DoesNotContain("omit that field altogether", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>Without the declaration the request is the one every reading sent before, the shape told in prose instead.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task ReadAsync_AModelDeclaringNoStructuredOutputs_SendsNoResponseFormat(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredReading));
+        var reader = provider.ReaderOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api)));
+
+        // Act
+        await reader.ReadAsync(Phrase(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(StructuredRequests.CarriesResponseFormat(provider.RequestBodies[0]));
+        Assert.Contains("omit that field altogether", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
     private static MailSearchPhrase Phrase() =>
         new(EmailSearchQueryText.Create("unread mail about the racking quotation since last week"), AskedAt);
 
@@ -266,7 +309,8 @@ public sealed class MailSearchPhraseAgentTests
             Exception? credentialFailure = null,
             MailAnsweringRunLedger? runLedger = null,
             IMailAnsweringSpendLedger? spendLedger = null,
-            RecordingLoggerProvider? logs = null)
+            RecordingLoggerProvider? logs = null,
+            ChatGenerationPlan? plan = null)
         {
             var transportFactory = Substitute.For<IHttpClientFactory>();
             transportFactory
@@ -304,7 +348,7 @@ public sealed class MailSearchPhraseAgentTests
             }
 
             return new MailSearchPhraseAgent(
-                ChatDeclarations.Plan(),
+                plan ?? ChatDeclarations.Plan(),
                 runLedger ?? new MailAnsweringRunLedger(MailAnsweringRunBounds.Default),
                 spendLedger ?? Substitute.For<IMailAnsweringSpendLedger>(),
                 credentialSource,
