@@ -10,13 +10,13 @@ namespace MailFathom.Application.Emails.Enrichment;
 /// <summary>One message as a derivation is shown it: what a reader would see at the top, and its passages.</summary>
 /// <param name="StoredEmailId">The message being derived from.</param>
 /// <param name="Subject">The subject, or <see langword="null" /> where the message carried none.</param>
-/// <param name="ReceivedAt">When the last receiving hop recorded the message, which is what a date in the text is read against.</param>
+/// <param name="DatedAt">The instant the message is dated by, which is what a date in the text is read against: when the last receiving hop recorded it, or when it was sent where no hop recorded one.</param>
 /// <param name="Passages">The message's own passages, in reading order and bounded by what one derivation may read.</param>
 /// <param name="Provenance">Where the message came from as this deployment recorded it, which the derivation qualifies its reading by.</param>
 /// <remarks>
 /// <para>
-/// Deliberately narrow. A derivation is shown the subject, the arrival instant, and the text — never the sender, the
-/// addressees, the folder's identity, or the account — because none of those is what a sentence about the message is derived from,
+/// Deliberately narrow. A derivation is shown the subject, the instant the message is dated by, and the text — never the
+/// sender, the addressees, the folder's identity, or the account — because none of those is what a sentence about the message is derived from,
 /// and every one of them is a participant this deployment would then be sending to a provider for no reading it buys.
 /// </para>
 /// <para>
@@ -29,14 +29,20 @@ namespace MailFathom.Application.Emails.Enrichment;
 /// folder it sits in.
 /// </para>
 /// <para>
-/// The arrival instant is here so that a relative date the text states can be resolved into one a row can show. It is
+/// The dating instant is here so that a relative date the text states can be resolved into one a row can show. It is
 /// the message's own metadata rather than the current time, which is what keeps a derivation reproducible: the same
 /// message derived again next month resolves *by Friday* to the same day.
+/// </para>
+/// <para>
+/// It is the arrival instant where a receiving hop recorded one and the sent instant otherwise. The fallback is for mail
+/// the person sent: the copy filed in Sent never passed a receiving server, so it carries no arrival instant, and
+/// without one their own *I'll send it before Monday* would resolve to nothing. That is the same order the provenance
+/// reader places an earlier Sent copy by. A message carrying neither instant is still undated.
 /// </para>
 /// </remarks>
 public sealed record EnrichableEmail(
     StoredEmailId StoredEmailId,
     string? Subject,
-    DateTimeOffset? ReceivedAt,
+    DateTimeOffset? DatedAt,
     IReadOnlyList<EnrichablePassage> Passages,
     EmailProvenance Provenance);

@@ -50,7 +50,7 @@ public sealed class InactiveEmailEnricherTests
         var withoutPassages = new EnrichableEmail(
             StoredEmailId.Create(Guid.CreateVersion7()),
             Subject: null,
-            ReceivedAt: null,
+            DatedAt: null,
             [],
             StubEmailProvenanceReader.KnownCorrespondent);
 

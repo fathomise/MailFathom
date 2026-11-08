@@ -174,7 +174,10 @@ citation is a position in a list this deployment composed: an answer naming a pa
 and its mark is dropped.
 
 The arrival instant is in the turn because a message saying "by Friday" is resolved against when it arrived rather than
-against now, which is what makes the same message derived again next month resolve to the same day.
+against now, which is what makes the same message derived again next month resolve to the same day. Mail the person
+sent has no arrival: the copy filed in Sent never passed a receiving server. Such a message is dated by when it was
+sent instead, so the person's own "I'll send it before Monday" still resolves to a day. A message carrying neither
+instant is handed over undated, and nothing relative in it is resolved.
 
 The message is data rather than an instruction, and the instruction says so. Mail is the most adversarial text this
 system reads: a message asking to be marked urgent is a sender writing on a row somebody else's triage depends on.

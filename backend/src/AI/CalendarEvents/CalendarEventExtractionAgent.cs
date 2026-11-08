@@ -143,7 +143,7 @@ internal sealed class CalendarEventExtractionAgent : ICalendarEventExtractor
         // Nothing relative in a message can be resolved without knowing when it was sent, and almost every date in
         // mail is relative. A message the store could not date is therefore settled as naming nothing rather than
         // read against the current time, which would put last spring's meeting in next week.
-        if (email.ReceivedAt is not { } receivedAt)
+        if (email.DatedAt is not { } datedAt)
         {
             CalendarEventExtractionEvents.LogMessageNotAnchored(this.logger);
 
@@ -155,7 +155,7 @@ internal sealed class CalendarEventExtractionAgent : ICalendarEventExtractor
             return this.Withhold(CalendarEventExtractionWithholding.AllowanceExhausted);
         }
 
-        var turn = await ComposeMailTurnAsync(email, receivedAt, this.egressGuard, this.plan, cancellationToken);
+        var turn = await ComposeMailTurnAsync(email, datedAt, this.egressGuard, this.plan, cancellationToken);
         var answer = await this.AskAsync(turn, cancellationToken);
 
         if (answer is not { Text: { } answerText })
@@ -165,7 +165,7 @@ internal sealed class CalendarEventExtractionAgent : ICalendarEventExtractor
 
         var events = CalendarEventExtractionReading.Read(
             answerText,
-            receivedAt,
+            datedAt,
             CalendarEventExtraction.MaximumEvents);
 
         CalendarEventExtractionEvents.LogProposedFromMail(this.logger, answer.Alias, events.Count);
@@ -205,14 +205,14 @@ internal sealed class CalendarEventExtractionAgent : ICalendarEventExtractor
 
     /// <summary>Composes the turn a reading of one message sends: its subject and passages, guarded and cut to what one call may carry.</summary>
     /// <param name="email">The message, with the passages the reading reads.</param>
-    /// <param name="receivedAt">When the message arrived, which every relative date in it is read against.</param>
+    /// <param name="datedAt">The instant the message is dated by, which every relative date in it is read against.</param>
     /// <param name="egressGuard">Scans the subject and every passage before either is composed.</param>
     /// <param name="plan">The model the turn is sent to, whose request bound the turn is cut to.</param>
     /// <param name="cancellationToken">Withdraws the scan.</param>
     /// <returns>The turn.</returns>
     internal static async Task<string> ComposeMailTurnAsync(
         EnrichableEmail email,
-        DateTimeOffset receivedAt,
+        DateTimeOffset datedAt,
         SensitiveContentEgressGuard egressGuard,
         ChatGenerationPlan plan,
         CancellationToken cancellationToken)
@@ -230,7 +230,7 @@ internal sealed class CalendarEventExtractionAgent : ICalendarEventExtractor
 
         return CalendarEventExtractionInstructions.ComposeMailTurn(
             subject,
-            receivedAt,
+            datedAt,
             passages,
             plan.MaximumRequestCharacters);
     }

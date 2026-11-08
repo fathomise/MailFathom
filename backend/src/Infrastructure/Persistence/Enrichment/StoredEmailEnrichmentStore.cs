@@ -77,7 +77,7 @@ internal sealed class StoredEmailEnrichmentStore(
             .Select(email => new EnrichableEmailRow(
                 email.Id,
                 email.Subject,
-                email.ReceivedAt,
+                email.ReceivedAt ?? email.SentAt,
                 email.Chunks
                     .OrderBy(chunk => chunk.AttachmentPosition == null ? 0 : 1)
                     .ThenBy(chunk => chunk.AttachmentPosition)
@@ -100,7 +100,7 @@ internal sealed class StoredEmailEnrichmentStore(
                 .Select(selected => new EnrichableEmail(
                     selected.Id,
                     selected.Row.Subject,
-                    selected.Row.ReceivedAt,
+                    selected.Row.DatedAt,
                     [
                         .. selected.Row.Passages.Select(static passage => new EnrichablePassage(
                             EmailChunkId.Create(passage.Id),
@@ -223,7 +223,7 @@ internal sealed class StoredEmailEnrichmentStore(
     private sealed record EnrichableEmailRow(
         Guid Id,
         string? Subject,
-        DateTimeOffset? ReceivedAt,
+        DateTimeOffset? DatedAt,
         IReadOnlyList<EnrichablePassageRow> Passages);
 
     private sealed record EnrichablePassageRow(Guid Id, int Ordinal, string Text);

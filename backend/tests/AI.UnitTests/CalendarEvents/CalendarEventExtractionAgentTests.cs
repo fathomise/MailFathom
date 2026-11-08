@@ -173,7 +173,7 @@ public sealed class CalendarEventExtractionAgentTests
         var undated = new EnrichableEmail(
             StoredEmailId.Create(Guid.CreateVersion7()),
             "The racking survey",
-            ReceivedAt: null,
+            DatedAt: null,
             [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "shall we say Thursday at ten")],
             StubEmailProvenanceReader.KnownCorrespondent);
 
