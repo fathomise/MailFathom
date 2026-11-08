@@ -16,9 +16,11 @@ namespace MailFathom.AI.Enrichment;
 /// <remarks>
 /// <para>
 /// The agent writes three short readings of one message and says which passage each rests on, and lists whatever the
-/// message asks the person who received it to do. It never decides what happens next: filing, replying, and reminding
-/// are acts this deployment takes elsewhere, and what it lists as a task is offered to the person rather than put on
-/// their list as something they owe — so the instruction describes no action and a model cannot take one.
+/// message asks the person who received it to do — or, for a message the mailbox wrote, what the person undertook in
+/// it, since the roles invert there and a request the person made of somebody else is that somebody's work. It never
+/// decides what happens next: filing, replying, and reminding are acts this deployment takes elsewhere, and what it
+/// lists as a task is offered to the person rather than put on their list as something they owe — so the instruction
+/// describes no action and a model cannot take one.
 /// </para>
 /// <para>
 /// Each passage carries a position in the turn and the answer cites those positions. A model is shown no identifier and can
@@ -115,9 +117,16 @@ internal static class EmailEnrichmentInstructions
         same arrival instant the same way "dueAt" is; omit it where the message names no day, and give a
         day rather than an hour even where the message names one.
 
+        Everything above reads a message the person received. Where the <{MessagePassages.MessageElementName}> element
+        carries {AgentTurnDocument.WrittenByMailboxAttributeName}="true", the person wrote the message themselves, so read
+        it from their side: "sense" and "significance" say what they sent and why it may matter to them, "commitment" is
+        what they undertook in it, with "dueAt" resolved the same way, and "tasks" lists only what they undertook to do.
+        What such a message asks its recipients to do is their work rather than the person's, so it is never a task and
+        never the commitment; it is context for what the person sent.
+
         The <{MessagePassages.MessageElementName}> element says where the message came from, in the attributes described
         below. Where it says the sender is not {AgentTurnDocument.AuthenticatedSender}, or the message is junk or a first
-        contact, and the message asks for payment details, a bank account, or credentials to change, for a payment or a
+        contact, and it does not say the mailbox wrote it, and the message asks for payment details, a bank account, or credentials to change, for a payment or a
         transfer to be made or approved, or for something to be done urgently, write "sense" as that claim, qualified the way those attributes qualify it, and write no
         commitment and no task that would carry the request out.
 

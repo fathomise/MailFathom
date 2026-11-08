@@ -20,9 +20,13 @@ namespace MailFathom.Application.Emails.Enrichment;
 /// and every one of them is a participant this deployment would then be sending to a provider for no reading it buys.
 /// </para>
 /// <para>
-/// The provenance is the one thing about the sender and the mailbox it is shown, and it names nobody: four facts the
+/// The provenance is the one thing about the sender and the mailbox it is shown, and it names nobody: five facts the
 /// deployment recorded — whether the author was authenticated, whether the deployment trusts them, whether the message
-/// sits in junk, and whether its sender is a first contact — which are what lets a derivation describe a request to change payment details as a claim rather than as a task.
+/// sits in junk, whether its sender is a first contact, and whether the mailbox itself wrote it. The first four are what
+/// lets a derivation describe a request to change payment details as a claim rather than as a task; the fifth is what
+/// lets it read a message the person sent from their side, so their own undertakings are the commitment and what they
+/// asked of somebody else is nobody's task of theirs. It says which way the message went without saying who, or which
+/// folder it sits in.
 /// </para>
 /// <para>
 /// The arrival instant is here so that a relative date the text states can be resolved into one a row can show. It is

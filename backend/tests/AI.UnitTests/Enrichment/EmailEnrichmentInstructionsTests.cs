@@ -112,6 +112,35 @@ public sealed class EmailEnrichmentInstructionsTests
         Assert.Contains("write no commitment and no task that would carry the request out", text, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// In a message the mailbox wrote the roles invert: the person's undertakings were read as somebody else's and what
+    /// they asked their recipient to do was offered to them as a task.
+    /// </summary>
+    [Fact]
+    public void TextFor_AMessageTheMailboxWrote_ReadsItsUndertakingsAsThePersonsAndItsRequestsAsNobodysTask()
+    {
+        // Act
+        var text = string.Join(' ', EmailEnrichmentInstructions.TextFor(MailAccountLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains($"carries {AgentTurnDocument.WrittenByMailboxAttributeName}=\"true\", the person wrote the message themselves", text, StringComparison.Ordinal);
+        Assert.Contains("\"sense\" and \"significance\" say what they sent and why it may matter to them", text, StringComparison.Ordinal);
+        Assert.Contains("\"commitment\" is what they undertook in it, with \"dueAt\" resolved the same way", text, StringComparison.Ordinal);
+        Assert.Contains("\"tasks\" lists only what they undertook to do", text, StringComparison.Ordinal);
+        Assert.Contains("What such a message asks its recipients to do is their work rather than the person's, so it is never a task and never the commitment", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>The person is not an unverified sender of their own mail, so its sender verdict does not withhold their commitments.</summary>
+    [Fact]
+    public void TextFor_AMessageTheMailboxWrote_IsNotHeldToTheUnverifiedSendersRule()
+    {
+        // Act
+        var text = string.Join(' ', EmailEnrichmentInstructions.TextFor(MailAccountLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains("or the message is junk or a first contact, and it does not say the mailbox wrote it, and the message asks", text, StringComparison.Ordinal);
+    }
+
     /// <summary>The organisation in a signature is often the only party a message names, which is not a reason to make it the one owing.</summary>
     [Fact]
     public void TextFor_TheInstruction_TakesNobodyAsOwingSomethingFromTheSignatureAlone()
@@ -210,6 +239,35 @@ public sealed class EmailEnrichmentInstructionsTests
                 (string?)message?.Attribute(AgentTurnDocument.SenderAuthenticationAttributeName),
                 (string?)message?.Attribute(AgentTurnDocument.JunkAttributeName),
                 (string?)message?.Attribute(AgentTurnDocument.FirstContactAttributeName)));
+    }
+
+    /// <summary>A message the mailbox wrote says so on its element, and says nothing else about the mailbox: no address and no folder.</summary>
+    [Fact]
+    public void ComposeEnrichmentTurn_AMessageTheMailboxWrote_SaysSoAndNamesNoAddressOrFolder()
+    {
+        // Arrange
+        var ownMail = StubEmailProvenanceReader.KnownCorrespondent with { IsWrittenByMailbox = true };
+
+        // Act
+        var turn = EmailEnrichmentInstructions.ComposeEnrichmentTurn("Revised checklist", ReceivedAt, ownMail, ["I will send it by Monday"]);
+
+        // Assert
+        var message = Parsed(turn).Element(MessagePassages.MessageElementName);
+        Assert.Equal("true", (string?)message?.Attribute(AgentTurnDocument.WrittenByMailboxAttributeName));
+        Assert.DoesNotContain("@", turn, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sent", turn, StringComparison.Ordinal);
+        Assert.Null(message?.Attribute(AgentTurnDocument.FromAttributeName));
+    }
+
+    /// <summary>A received message carries no such attribute, so it is read exactly as before.</summary>
+    [Fact]
+    public void ComposeEnrichmentTurn_AReceivedMessage_CarriesNoWrittenByMailboxAttribute()
+    {
+        // Act
+        var turn = EmailEnrichmentInstructions.ComposeEnrichmentTurn("The racking quotation", ReceivedAt, StubEmailProvenanceReader.KnownCorrespondent, ["see attached"]);
+
+        // Assert
+        Assert.Null(Parsed(turn).Element(MessagePassages.MessageElementName)?.Attribute(AgentTurnDocument.WrittenByMailboxAttributeName));
     }
 
     /// <summary>Absent rather than empty, so the model reads what the message carried instead of a blank it has to tell apart from an empty subject.</summary>

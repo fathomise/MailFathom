@@ -197,6 +197,25 @@ internal static class WrittenCorpus
             Kormoran Bank Inwestycyjny S.A.
             """))[0];
 
+    /// <summary>Gets a message the owner sent, asking its recipient for two things by a named day and undertaking nothing themselves.</summary>
+    /// <remarks>
+    /// The shape a reading once inverted: written from the owner's own mailbox, its requests were offered back to the
+    /// owner as tasks, because the instruction read every message as one its mailbox received. It is kept out of
+    /// <see cref="Exchanges" />, so the mailbox the Agent searches and every thread identifier derived from a position
+    /// after this one stay as they were; only its own enrichment case reads it.
+    /// </remarks>
+    public static CorpusMessage OwnersRequestOfTheRecipient { get; } = Exchange(
+        1110,
+        Mail(Owner, "Mara", ["emil.varga@birchline.test"], [], At(9, 14, 10, 5), "Corrected invoice and delivery note for order BL-5520", """
+            Hi Emil,
+
+            The invoice for order BL-5520 still names our old billing entity. Could you send a corrected copy made out to
+            Northstar Vale Operations Ltd., together with the signed delivery note, by Friday, 18 September 2026?
+
+            Best,
+            Mara
+            """))[0];
+
     /// <summary>Gets a monthly newsletter, which informs and asks nothing of the person it reaches.</summary>
     public static CorpusMessage Newsletter { get; } = Exchange(
         1050,

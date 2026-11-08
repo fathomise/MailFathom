@@ -593,6 +593,7 @@ turn carries the attributes. The attributes are these:
 | `sender-trusted` | Only as `true` | This deployment [recognizes that author](sender-authentication.md#whether-the-author-is-one-this-deployment-recognizes) |
 | `junk` | Only as `true` | The message sits in the folder its account maps as junk |
 | `first-contact` | Only as `true` | Nothing the mailbox held from before the message was written by its sender or addressed to them |
+| `written-by-mailbox` | Only as `true` | The mailbox itself wrote the message, so its author is the person the mailbox belongs to |
 
 The flags are written only where they hold, so the common message asks a model to read no negation. Every value is read
 from what the deployment recorded — the verdict the message was stored with, the configured role of the folder it sits
@@ -602,7 +603,13 @@ any other text. *First contact* reads earlier correspondence the way [contact co
 sender wrote the earlier mail, or it was addressed to them in `To` or `Cc` — within the same account, received strictly
 before the message (or, for a copy in Sent that carries no arrival instant, sent before it), outside the junk, trash,
 and drafts folders, and only among mail still part of the mailbox in a folder the mapping leaves visible to AI; a message
-with no usable sender address is a first contact. A signature verification recorded as the sender verdict later reaches every operation listed above through
+with no usable sender address is a first contact. *Written by the mailbox* holds for a message in the folder its account
+maps as sent mail, and for one whose `From` address is the address the account's own record holds where either the
+message reached no receiving server — a copy the person's own client filed outside the sent folder — or the receiving
+server authenticated that author; a received message that only displays the mailbox's address is neither, so a forged
+one keeps every qualification it earned. An account declared only in configuration has no record, so for it the sent
+folder is the one signal, and an alias or a sending address the record's settings name is not compared. Like every
+other attribute it names nobody: no address and no folder name reaches the model, only the fact. A signature verification recorded as the sender verdict later reaches every operation listed above through
 `sender-authentication` without anything here changing.
 
 The data clause carries the rule a model is given about them: a claim resting only on a message whose sender is not
@@ -612,7 +619,9 @@ flagged with what the attributes say — a sender the deployment could not verif
 mailbox had not corresponded with — instead of restated, and the account number or IBAN such a message asks money to
 be paid into is never written out, not even beside a warning, only that it asks for payment into an account it names and
 why it cannot be trusted. That ban covers that one message: its payee, amount, and reference may still be reported as
-what it claims. A claim from an authenticated sender whose message is neither junk nor a first contact is not doubted
+what it claims. A message written by the mailbox is the person's own words and none of this applies to it, whatever its
+other attributes say: a copy filed by their own client never passed a receiving server, so its sender verdict says
+nothing about them. A claim from an authenticated sender whose message is neither junk nor a first contact is not doubted
 for where it came from alone, so an account such a sender gave is stated in full where the question asks for it, even
 beside an unverified message that contradicts it. Like the rest of the clause it is the weaker mechanism — what is
 structural is that the attributes are the service's own, in a place no message can write to.

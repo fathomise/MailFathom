@@ -105,9 +105,24 @@ public sealed class DiscoveryCompositionInstructionsTests
 
         // Assert
         Assert.Contains(
-            $"An account an extract from an {AgentTurnDocument.AuthenticatedSender} sender gives, in a message that is neither junk nor a first contact, is written out in full in \"answer\" where the question asks for it.",
+            $"or one an extract from an {AgentTurnDocument.AuthenticatedSender} sender gives in a message that is neither junk nor a first contact, is written out in full in \"answer\" where the question asks for it.",
             text,
             StringComparison.Ordinal);
+    }
+
+    /// <summary>The person's own message is not an unverified sender's, so neither its claims are qualified nor an account it gives withheld.</summary>
+    [Fact]
+    public void Text_TheInstruction_DoesNotQualifyAnExtractTheMailboxWrote()
+    {
+        // Act
+        var text = string.Join(' ', DiscoveryCompositionInstructions.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains(
+            $"junk or a first contact, and that does not carry {AgentTurnDocument.WrittenByMailboxAttributeName}=\"true\", say so in \"answer\" beside the claim",
+            text,
+            StringComparison.Ordinal);
+        Assert.Contains("An account an extract the mailbox wrote gives,", text, StringComparison.Ordinal);
     }
 
     /// <summary>A quotation keeps the extract's language, so an answer that is only a quotation is not written in the question's.</summary>

@@ -117,13 +117,15 @@ public sealed partial class EmailEnrichmentScenarioTests : IDisposable
     [InlineData("DatedPaymentPromise", """{"commitment":{"text":"Pay invoice 7842.","reason":"It says so.","passages":[0],"dueAt":"2026-09-10"}}""", true)]
     [InlineData("DatedPaymentPromise", """{"commitment":{"text":"Pay invoice 7842.","reason":"It says so.","passages":[0],"dueAt":"2026-09-17"}}""", false)]
     [InlineData("DatedPaymentPromise", """{"commitment":{"text":"Pay invoice 7842.","reason":"It says so.","passages":[0]}}""", false)]
-    [InlineData("PaymentAheadOfDueDate", """{"commitment":{"text":"Pay INV-4827.","reason":"It is scheduled.","passages":[0],"dueAt":"2026-09-25"}}""", true)]
-    [InlineData("PaymentAheadOfDueDate", """{"commitment":{"text":"Pay INV-4827.","reason":"It is due.","passages":[0],"dueAt":"2026-09-27"}}""", true)]
+    [InlineData("PaymentAheadOfDueDate", """{"commitment":{"text":"Pay INV-4827.","reason":"It is scheduled.","passages":[0],"dueAt":"2026-09-25"}}""", false)]
+    [InlineData("PaymentAheadOfDueDate", """{"commitment":{"text":"Pay INV-4827.","reason":"It is due.","passages":[0],"dueAt":"2026-09-27"}}""", false)]
     [InlineData("PaymentAheadOfDueDate", """{"commitment":{"text":"Send the corrected invoice.","reason":"Today.","passages":[0],"dueAt":"2026-08-13"}}""", true)]
     [InlineData("PaymentAheadOfDueDate", """{"commitment":{"text":"Pay INV-4827.","reason":"It is scheduled.","passages":[0],"dueAt":"2026-09-26"}}""", false)]
     [InlineData("PaymentAheadOfDueDate", """{"sense":{"text":"A payment update.","reason":"It says so.","passages":[0]}}""", false)]
     [InlineData("SeveralAmountsAndDates", """{"sense":{"text":"Billing items.","reason":"It lists them.","passages":[0]},"commitment":{"text":"Circulate the checklist.","reason":"It says so.","passages":[0],"dueAt":"2026-10-12"}}""", true)]
-    [InlineData("SeveralAmountsAndDates", """{"sense":{"text":"Billing items.","reason":"It lists them.","passages":[0]},"commitment":{"text":"Say whether more documentation is needed.","reason":"Before Tuesday afternoon.","passages":[0],"dueAt":"2026-06-16"}}""", true)]
+    [InlineData("SeveralAmountsAndDates", """{"sense":{"text":"Billing items.","reason":"It lists them.","passages":[0]},"commitment":{"text":"Place the revised checklist in the shared workspace.","reason":"Before Monday.","passages":[0],"dueAt":"2026-06-15"}}""", true)]
+    [InlineData("SeveralAmountsAndDates", """{"sense":{"text":"Billing items.","reason":"It lists them.","passages":[0]},"commitment":{"text":"Say whether more documentation is needed.","reason":"Before Tuesday afternoon.","passages":[0],"dueAt":"2026-06-16"}}""", false)]
+    [InlineData("SeveralAmountsAndDates", """{"sense":{"text":"Billing items.","reason":"It lists them.","passages":[0]},"commitment":{"text":"Pay INV-ATLAS-1031.","reason":"It is due.","passages":[0],"dueAt":"2026-09-30"}}""", false)]
     [InlineData("SeveralAmountsAndDates", """{"sense":{"text":"Billing items.","reason":"It lists them.","passages":[0]},"commitment":{"text":"Circulate the checklist.","reason":"It says so.","passages":[0],"dueAt":"2026-10-20"}}""", false)]
     [InlineData("SeveralAmountsAndDates", """{"sense":{"text":"Billing items.","reason":"It lists them.","passages":[0]},"commitment":{"text":"Circulate the checklist.","reason":"It says so.","passages":[0],"dueAt":"2026-10-15"}}""", false)]
     [InlineData("SeveralOwnersAndDays", """{"sense":{"text":"Pilot tasks.","reason":"It lists them.","passages":[0]},"commitment":{"text":"Update the checklist.","reason":"It says so.","passages":[0],"dueAt":"2026-09-08"}}""", false)]
@@ -131,9 +133,12 @@ public sealed partial class EmailEnrichmentScenarioTests : IDisposable
     [InlineData("RelativeDeadlines", """{"commitment":{"text":"Circulate the agenda.","reason":"By Friday.","passages":[0],"dueAt":"2026-09-08"}}""", false)]
     [InlineData("RelativeDeadlines", """{"commitment":{"text":"Circulate the agenda.","reason":"By Friday.","passages":[0]}}""", false)]
     [InlineData("UndatedRequest", """{"sense":{"text":"The fix is in 4.8.3.","reason":"It says so.","passages":[0]},"commitment":{"text":"Verify the export.","reason":"It asks.","passages":[0]},"tasks":[{"title":"Verify the export and reply with the result"}]}""", true)]
-    [InlineData("UndatedRequest", """{"sense":{"text":"The fix is in 4.8.3.","reason":"It says so.","passages":[0]},"commitment":{"text":"Verify the export.","reason":"It asks.","passages":[0]}}""", false)]
+    [InlineData("UndatedRequest", """{"sense":{"text":"The fix is in 4.8.3.","reason":"It says so.","passages":[0]},"commitment":{"text":"Mark NS-4821 resolved once the export is verified.","reason":"It says so.","passages":[0]}}""", true)]
     [InlineData("UndatedRequest", """{"sense":{"text":"The fix is in 4.8.3.","reason":"It says so.","passages":[0]},"tasks":[{"title":"Verify the export","dueOn":"2026-06-15"}]}""", false)]
     [InlineData("UndatedRequest", """{"sense":{"text":"The fix is in 4.8.3.","reason":"It says so.","passages":[0]},"commitment":{"text":"Verify the export.","reason":"It asks.","passages":[0],"dueAt":"2026-06-15"}}""", false)]
+    [InlineData("OwnersRequestOfTheRecipient", """{"sense":{"text":"Mara asked Emil for a corrected BL-5520 invoice and the signed delivery note.","reason":"She asks.","passages":[0]}}""", true)]
+    [InlineData("OwnersRequestOfTheRecipient", """{"sense":{"text":"A request for a corrected invoice.","reason":"It asks.","passages":[0]},"tasks":[{"title":"Send the corrected BL-5520 invoice","dueOn":"2026-09-18"}]}""", false)]
+    [InlineData("OwnersRequestOfTheRecipient", """{"sense":{"text":"A request for a corrected invoice.","reason":"It asks.","passages":[0]},"commitment":{"text":"Send the corrected invoice and delivery note.","reason":"It asks.","passages":[0],"dueAt":"2026-09-18"}}""", false)]
     [InlineData("DatedRequestOfTheReader", """{"sense":{"text":"A request for the signed NDA.","reason":"It asks.","passages":[0]},"tasks":[{"title":"Send back the signed NDA","dueOn":"2026-09-15"}]}""", true)]
     [InlineData("DatedRequestOfTheReader", """{"sense":{"text":"A request for the signed NDA.","reason":"It asks.","passages":[0]},"tasks":[{"title":"Send back the signed NDA","dueOn":"2026-09-22"}]}""", false)]
     [InlineData("DatedRequestOfTheReader", """{"sense":{"text":"A request for the signed NDA.","reason":"It asks.","passages":[0]},"tasks":[{"title":"Send back the signed NDA"}]}""", false)]
@@ -207,6 +212,7 @@ public sealed partial class EmailEnrichmentScenarioTests : IDisposable
     [InlineData("ResolvedTicket", "Please close ticket AS-4827 as resolved.")]
     [InlineData("MarkupOnlyBody", "Export service timed out while preparing the task set.")]
     [InlineData("ItineraryConfirmation", "Please check that the passenger name and travel dates are correct.")]
+    [InlineData("OwnersRequestOfTheRecipient", "together with the signed delivery note, by Friday, 18 September 2026?")]
     [InlineData("DatedRequestOfTheReader", "send us back the signed NDA by Tuesday, 15 September 2026")]
     [InlineData("RequestAboveASignersPayment", "Please send me your comments by Thursday, 22 October.")]
     [InlineData("NothingWorthWriting", "Thanks, got them!")]
@@ -225,6 +231,22 @@ public sealed partial class EmailEnrichmentScenarioTests : IDisposable
 
         // Assert
         Assert.Contains(message.Passages, passage => passage.Text.Contains(evidence, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("SeveralAmountsAndDates", true)]
+    [InlineData("PaymentAheadOfDueDate", true)]
+    [InlineData("OwnersRequestOfTheRecipient", true)]
+    [InlineData("Mixed.EnglishMailUnderPolishAccount", true)]
+    [InlineData("ProgressUpdateByDate", false)]
+    [InlineData("DatedRequestOfTheReader", false)]
+    public void Message_ACase_SaysWhetherTheMailboxWroteItsMessage(string caseName, bool writtenByMailbox)
+    {
+        // Act
+        var message = EmailEnrichmentCase.Named(caseName).Message();
+
+        // Assert
+        Assert.Equal(writtenByMailbox, message.Enrichable.Provenance.IsWrittenByMailbox);
     }
 
     [Fact]

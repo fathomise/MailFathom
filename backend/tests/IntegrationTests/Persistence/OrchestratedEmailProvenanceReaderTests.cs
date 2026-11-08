@@ -21,7 +21,7 @@ using Xunit;
 
 namespace MailFathom.IntegrationTests.Persistence;
 
-/// <summary>Proves the provenance query PostgreSQL answers: the junk flag and whether a sender corresponded before.</summary>
+/// <summary>Proves the provenance query PostgreSQL answers: the junk flag, whether a sender corresponded before, and whether the mailbox wrote the email.</summary>
 /// <remarks>
 /// <para>
 /// Whether a sender is a first contact is one existence test per email, correlated on the email's own account, sender,
@@ -207,6 +207,61 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
     }
 
     /// <summary>
+    /// The mailbox wrote an email in its sent folder, and one whose author is the address its account record holds where
+    /// that email reached no receiving server or the server authenticated the author; a received message only displaying
+    /// that address, an ordinary received message, and a first contact were written by somebody else.
+    /// </summary>
+    [Fact]
+    public async Task ReadAsync_SentReceivedAndOwnAddressedMail_AnswersWhetherTheMailboxWroteEach()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var ownAddress = $"owner-{Guid.NewGuid():N}@provenance.test";
+        var mailbox = new SeededMailbox(ownAddress);
+        var withoutRecord = new SeededMailbox();
+
+        mailbox.Add(folder: null, "known@provenance.test", Earliest);
+
+        var inSent = mailbox.Add(MailFolderSpecialUse.Sent, "alias@provenance.test", receivedAt: null, sentAt: Earlier);
+        var filedElsewhere = mailbox.Add(folder: null, ownAddress, receivedAt: null, sentAt: Earlier);
+        var authenticatedToSelf = mailbox.Add(
+            MailFolderSpecialUse.Inbox,
+            ownAddress,
+            Latest,
+            authentication: AuthorAuthenticationOutcome.Authenticated);
+        var forged = mailbox.Add(MailFolderSpecialUse.Inbox, ownAddress, Latest);
+        var received = mailbox.Add(MailFolderSpecialUse.Inbox, "known@provenance.test", Latest);
+        var firstContact = mailbox.Add(MailFolderSpecialUse.Inbox, "stranger@provenance.test", Latest);
+        var sentWithoutRecord = withoutRecord.Add(MailFolderSpecialUse.Sent, ownAddress, receivedAt: null, sentAt: Earlier);
+        var ownAddressWithoutRecord = withoutRecord.Add(folder: null, ownAddress, receivedAt: null, sentAt: Earlier);
+
+        await SeedAsync(services, [mailbox, withoutRecord], cancellationToken);
+
+        // Act
+        var provenance = await ReadAsync(
+            services,
+            [mailbox, withoutRecord],
+            [inSent, filedElsewhere, authenticatedToSelf, forged, received, firstContact, sentWithoutRecord, ownAddressWithoutRecord],
+            cancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [true, true, true, false, false, false, true, false],
+            [
+                provenance[inSent].IsWrittenByMailbox,
+                provenance[filedElsewhere].IsWrittenByMailbox,
+                provenance[authenticatedToSelf].IsWrittenByMailbox,
+                provenance[forged].IsWrittenByMailbox,
+                provenance[received].IsWrittenByMailbox,
+                provenance[firstContact].IsWrittenByMailbox,
+                provenance[sentWithoutRecord].IsWrittenByMailbox,
+                provenance[ownAddressWithoutRecord].IsWrittenByMailbox,
+            ]);
+        Assert.Equal((false, true), (provenance[received].IsFirstContact, provenance[firstContact].IsFirstContact));
+    }
+
+    /// <summary>
     /// Each email answers the verdict recorded on its own row and whether its folder is the junk folder, and an email
     /// the store does not hold is absent from the answer rather than answered with a default.
     /// </summary>
@@ -320,6 +375,8 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
     {
         private readonly MailboxAccountEntity account = new() { Id = Guid.NewGuid().ToString() };
 
+        private readonly string? ownAddress;
+
         private readonly Dictionary<MailFolderSpecialUse, MailFolderEntity> folders = [];
 
         private readonly List<StoredEmailEntity> emails = [];
@@ -330,8 +387,11 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
 
         private readonly MailFolderBindingEntity binding;
 
-        public SeededMailbox()
+        /// <summary>Initializes a mailbox of a test's own, with its account's record where the account has one.</summary>
+        /// <param name="ownAddress">The address the account's own record holds, or <see langword="null" /> for an account declared without a record.</param>
+        public SeededMailbox(string? ownAddress = null)
         {
+            this.ownAddress = ownAddress;
             this.binding = new MailFolderBindingEntity
             {
                 MailboxAccountId = this.account.Id,
@@ -371,6 +431,7 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
                 RemoteExpungeObservedAt = expungedAt,
                 SenderAddress = sender,
                 SenderNormalizedAddress = sender is null ? null : Normalized(sender),
+                SenderTrustAddress = sender is null ? null : Normalized(sender),
                 ToAddresses = [.. (to ?? []).Select(Normalized)],
                 CcAddresses = [.. (cc ?? []).Select(Normalized)],
                 AuthorAuthenticationOutcome = authentication,
@@ -387,6 +448,22 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
         public void AddTo(MailFathomDbContext context)
         {
             context.MailboxAccounts.Add(this.account);
+
+            if (this.ownAddress is not null)
+            {
+                context.MailAccountRecords.Add(new MailAccountRecordEntity
+                {
+                    Id = Guid.Parse(this.account.Id),
+                    EmailAddress = this.ownAddress,
+                    NormalizedEmailAddress = Normalized(this.ownAddress),
+                    DisplayName = "Provenance account",
+                    Document = "{}",
+                    Version = 1,
+                    CreatedAt = Earliest,
+                    UpdatedAt = Earliest,
+                });
+            }
+
             context.MailFolderBindings.Add(this.binding);
             context.MailFolders.AddRange(this.folders.Values);
 
