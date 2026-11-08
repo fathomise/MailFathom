@@ -132,7 +132,7 @@ internal sealed record SpamClassificationCase(
                 Links = [new("Pay the fee and reschedule delivery", new Uri("https://parcel-redelivery-fee.test/pay"))],
             }),
 
-        // A lookalike domain authenticates as itself, so passing authentication does not make a bank's look ordinary mail.
+        // A lookalike domain authenticates as itself, so passing authentication does not make a message posing as a bank ordinary mail.
         new(
             "Phishing.AuthenticatedLookalikeBank",
             MailAccountLanguage.English,
