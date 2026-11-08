@@ -2,11 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using System.Reflection;
 using MailFathom.Infrastructure.Persistence;
 using MailFathom.Infrastructure.Persistence.Connections;
 using MailFathom.Infrastructure.Persistence.Entities;
-using MailFathom.Infrastructure.Persistence.Migrations;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
@@ -16,160 +14,124 @@ namespace MailFathom.Infrastructure.UnitTests.Persistence.Grants;
 
 /// <summary>Holds the seeded roles to the rule that they are written once and edited by no later release that was not decided to.</summary>
 /// <remarks>
+/// <para>
 /// A seeded role is an ordinary row an operator may have renamed, edited, or deleted, and a release that published a
 /// permission and wrote it into a seeded list would widen everybody holding that role on upgrade — the drift a list
-/// written out by name exists to prevent. So no migration after the one that seeds them may touch a role or its list
-/// unless it is named below with the decision that admits it.
+/// written out by name exists to prevent. So no statement in the migration chain may touch a role or its list unless it
+/// is one of the writers named below, with the decision that admits it.
+/// </para>
+/// <para>
+/// The rule reads the operations of the whole chain in order rather than migration by migration, and recognizes a
+/// writer by what its SQL does rather than by the class it was written in. A release folds its cycle's migrations into
+/// one, so a class name is something the next release removes, while the statements it carried run unchanged.
+/// </para>
 /// </remarks>
 public sealed class RoleSeedingMigrationTests
 {
-    private const string MailUserRoleId = "01a11deb-3808-7000-8000-000000000001";
+    private const string UserRoleId = "01a11deb-3808-7000-8000-000000000001";
 
     private const string OrganizationAdministratorRoleId = "01a11deb-3808-7000-8000-000000000002";
 
     private const string AdministratorRoleId = "01a11deb-3808-7000-8000-000000000003";
 
-    /// <summary>What every seeded role's identifier begins with.</summary>
-    private const string SeededRoleIdentifierPrefix = "01a11deb-3808-7000-8000-";
+    private static readonly string[] SeededRoleIds = [UserRoleId, OrganizationAdministratorRoleId, AdministratorRoleId];
 
-    /// <summary>The migrations allowed to write roles after the seeding one, each named rather than admitted by a looser rule.</summary>
+    /// <summary>Every statement allowed to write roles, each named with the decision that admits it and the number of statements it is.</summary>
     /// <remarks>
-    /// <see cref="HoldMailGrantsOnUsers" /> carries what each credential granted onto its user, so it creates roles of
-    /// its own and assigns them — and the seeded <c>Mail user</c> — to users who held no role before it. It widens no
-    /// seeded role's list and nobody who already held a role, which is the drift this rule exists to refuse.
-    /// <see cref="RewriteAdministratorRoleAsAPattern" /> is the one deliberate edit of a seeded list: ADR 0012 decides
-    /// that <c>Administrator</c> lists the pattern <c>*</c>, which reaches on the day it is written exactly the names
-    /// it replaces, and the test below holds it to that role alone.
-    /// <see cref="SplitUserFacingPermissionsByDomain" /> rewrites names rather than grants: the release that splits
-    /// the user-facing permissions by domain carries every role's list — seeded or written by an operator, alike — to
-    /// the names its holders already acted under, so a list gains entries and nobody gains an act. The test below
-    /// holds it to treating every role alike.
-    /// <see cref="ReduceSeededRolesToUserAndAdministrator" /> is the second deliberate edit: ADR 0012 decides that a
-    /// database is seeded with <c>User</c>, listing one pattern per user-facing domain, and <c>Administrator</c> alone,
-    /// so it renames and rewrites the role seeded as <c>Mail user</c> and removes <c>Organization administrator</c>. The
-    /// test below holds it to those two rows.
+    /// <para>
+    /// <c>Seeding</c> writes the built-in roles once, naming all three, as ordinary rows an operator may rename, edit,
+    /// or delete.
+    /// </para>
+    /// <para>
+    /// <c>Carried-over mail grants</c> carries what each credential granted onto its user, so it creates roles of its own
+    /// and assigns them — and the seeded <c>Mail user</c> — to users who held no role before it. It names no seeded role
+    /// and widens nobody who already held one, which is the drift this rule exists to refuse.
+    /// </para>
+    /// <para>
+    /// <c>Administrator as a pattern</c> is the one deliberate edit of a seeded list: ADR 0012 decides that
+    /// <c>Administrator</c> lists the pattern <c>*</c>, which reaches on the day it is written exactly the names it
+    /// replaces, and it names that role alone.
+    /// </para>
+    /// <para>
+    /// <c>Permissions split by domain</c> rewrites names rather than grants: the release that splits the user-facing
+    /// permissions by domain carries every role's list — seeded or written by an operator, alike — to the names its
+    /// holders already acted under, so a list gains entries and nobody gains an act. It singles out no seeded role.
+    /// </para>
+    /// <para>
+    /// <c>Reduction to User and Administrator</c> is the second deliberate edit: ADR 0012 decides that a database is
+    /// seeded with <c>User</c>, listing one pattern per user-facing domain, and <c>Administrator</c> alone, so it renames
+    /// and rewrites the role seeded as <c>Mail user</c> and removes <c>Organization administrator</c>. It names those two
+    /// rows and never <c>Administrator</c>, whose list is decided by the rewrite above alone.
+    /// </para>
     /// </remarks>
-    private static readonly Type[] RoleWritersAfterTheSeedingOne =
+    private static readonly AdmittedRoleWriter[] AdmittedRoleWriters =
     [
-        typeof(HoldMailGrantsOnUsers),
-        typeof(RewriteAdministratorRoleAsAPattern),
-        typeof(SplitUserFacingPermissionsByDomain),
-        typeof(ReduceSeededRolesToUserAndAdministrator),
+        new("Seeding", sql => NamesExactly(sql, SeededRoleIds), UpStatements: 1, DownStatements: 0),
+        new(
+            "Carried-over mail grants",
+            sql => NamesExactly(sql, [])
+                && (sql.Contains("carried_mail_roles", StringComparison.Ordinal)
+                    || sql.Contains("'Carried-over mail grant %'", StringComparison.Ordinal)),
+            UpStatements: 1,
+            DownStatements: 1),
+        new("Administrator as a pattern", sql => NamesExactly(sql, [AdministratorRoleId]), UpStatements: 1, DownStatements: 1),
+        new(
+            "Permissions split by domain",
+            sql => NamesExactly(sql, []) && sql.Contains("'mailfathom.assistant.use'", StringComparison.Ordinal),
+            UpStatements: 1,
+            DownStatements: 1),
+        new(
+            "Reduction to User and Administrator",
+            sql => NamesExactly(sql, [UserRoleId, OrganizationAdministratorRoleId]),
+            UpStatements: 1,
+            DownStatements: 1),
     ];
 
     [Fact]
-    public void Migrations_AfterTheSeedingOne_WriteNoRoleAndNoRolesPermissions()
+    public void Migrations_EveryStatementWritingARole_IsOneOfTheAdmittedWriters()
     {
         // Arrange
-        using var context = CreateContext();
-        var migrations = context.GetService<IMigrationsAssembly>();
-        var seeding = migrations.Migrations.Single(migration => migration.Value == typeof(AddRolesGroupsAndRoleAssignments));
+        var upOperations = ReadChainOperations(migration => migration.UpOperations);
 
         // Act
-        var writers = migrations.Migrations
-            .Where(migration => string.CompareOrdinal(migration.Key, seeding.Key) > 0)
-            .Where(migration => !RoleWritersAfterTheSeedingOne.Contains(migration.Value.AsType()))
-            .Where(migration => migrations
-                .CreateMigration(migration.Value, context.Database.ProviderName!)
-                .UpOperations
-                .Any(WritesARole))
-            .Select(migration => migration.Key)
+        var unadmitted = upOperations
+            .Where(WritesARole)
+            .Where(operation => !AdmittedRoleWriters.Any(writer => writer.Recognizes(operation)))
+            .Select(Describe)
             .ToArray();
 
         // Assert
-        Assert.Empty(writers);
-    }
-
-    /// <summary>The control: the seeding migration itself is recognized as writing roles, so the rule above is not passing over operations it cannot see.</summary>
-    [Fact]
-    public void Migrations_TheSeedingOne_IsRecognizedAsWritingRoles()
-    {
-        // Arrange
-        using var context = CreateContext();
-        var migrations = context.GetService<IMigrationsAssembly>();
-
-        // Act
-        var seeding = migrations.CreateMigration(
-            typeof(AddRolesGroupsAndRoleAssignments).GetTypeInfo(),
-            context.Database.ProviderName!);
-
-        // Assert
-        Assert.Contains(seeding.UpOperations, WritesARole);
-    }
-
-    /// <summary>The rewrite is admitted for one role, so it names neither of the other two the seeding migration wrote.</summary>
-    [Fact]
-    public void Migrations_TheAdministratorRewrite_NamesNoOtherSeededRole()
-    {
-        // Arrange
-        using var context = CreateContext();
-        var migrations = context.GetService<IMigrationsAssembly>();
-
-        // Act
-        var rewrite = migrations.CreateMigration(
-            typeof(RewriteAdministratorRoleAsAPattern).GetTypeInfo(),
-            context.Database.ProviderName!);
-        var statements = rewrite.UpOperations.Concat(rewrite.DownOperations).OfType<SqlOperation>().ToArray();
-
-        // Assert
-        Assert.Equal(2, statements.Length);
-        Assert.All(statements, statement =>
-        {
-            Assert.Contains(AdministratorRoleId, statement.Sql, StringComparison.Ordinal);
-            Assert.DoesNotContain(MailUserRoleId, statement.Sql, StringComparison.Ordinal);
-            Assert.DoesNotContain(OrganizationAdministratorRoleId, statement.Sql, StringComparison.Ordinal);
-        });
+        Assert.Empty(unadmitted);
     }
 
     /// <summary>
-    /// The reduction is admitted for the two rows ADR 0012 no longer seeds as they were, so it never names
-    /// <c>Administrator</c>, whose list is decided by the rewrite above alone.
+    /// Each admitted writer is recognized as exactly the statements it was decided as, in both directions, so a writer
+    /// the chain no longer carries fails here instead of admitting nothing, and a later statement that happens to match a
+    /// writer's shape fails as one statement too many instead of passing under that writer's decision.
     /// </summary>
     [Fact]
-    public void Migrations_TheReductionToUserAndAdministrator_NamesOnlyTheTwoRolesItReduces()
+    public void Migrations_EachAdmittedWriter_IsExactlyTheStatementsItWasDecidedAs()
     {
         // Arrange
-        using var context = CreateContext();
-        var migrations = context.GetService<IMigrationsAssembly>();
+        var upOperations = ReadChainOperations(migration => migration.UpOperations);
+        var downOperations = ReadChainOperations(migration => migration.DownOperations);
 
         // Act
-        var reduction = migrations.CreateMigration(
-            typeof(ReduceSeededRolesToUserAndAdministrator).GetTypeInfo(),
-            context.Database.ProviderName!);
-        var statements = reduction.UpOperations.Concat(reduction.DownOperations).OfType<SqlOperation>().ToArray();
+        var recognized = AdmittedRoleWriters
+            .Select(writer => (
+                writer.Name,
+                Up: upOperations.Count(writer.Recognizes),
+                Down: downOperations.Count(writer.Recognizes)))
+            .ToArray();
 
         // Assert
-        Assert.Equal(2, statements.Length);
-        Assert.All(statements, statement =>
-        {
-            Assert.Contains(MailUserRoleId, statement.Sql, StringComparison.Ordinal);
-            Assert.Contains(OrganizationAdministratorRoleId, statement.Sql, StringComparison.Ordinal);
-            Assert.DoesNotContain(AdministratorRoleId, statement.Sql, StringComparison.Ordinal);
-        });
+        Assert.Equal(
+            AdmittedRoleWriters.Select(writer => (writer.Name, Up: writer.UpStatements, Down: writer.DownStatements)),
+            recognized);
     }
 
-    /// <summary>
-    /// The split is admitted because it carries what a list already reached, which is a rule about names and so holds
-    /// for every role: it singles out no seeded role, whose list an operator may have rewritten since.
-    /// </summary>
-    [Fact]
-    public void Migrations_ThePermissionSplit_SinglesOutNoSeededRole()
-    {
-        // Arrange
-        using var context = CreateContext();
-        var migrations = context.GetService<IMigrationsAssembly>();
-
-        // Act
-        var split = migrations.CreateMigration(
-            typeof(SplitUserFacingPermissionsByDomain).GetTypeInfo(),
-            context.Database.ProviderName!);
-        var statements = split.UpOperations.Concat(split.DownOperations).OfType<SqlOperation>().ToArray();
-
-        // Assert
-        Assert.Contains(statements, statement => statement.Sql.Contains(RolePermissionEntity.TableName, StringComparison.Ordinal));
-        Assert.All(statements, statement =>
-            Assert.DoesNotContain(SeededRoleIdentifierPrefix, statement.Sql, StringComparison.Ordinal));
-    }
+    private static bool NamesExactly(string sql, string[] roleIds) =>
+        SeededRoleIds.All(roleId => sql.Contains(roleId, StringComparison.Ordinal) == roleIds.Contains(roleId));
 
     private static bool WritesARole(MigrationOperation operation) => operation switch
     {
@@ -186,9 +148,42 @@ public sealed class RoleSeedingMigrationTests
     private static bool IsRoleTable(string table) =>
         table is RoleEntity.TableName or RolePermissionEntity.TableName;
 
+    private static string Describe(MigrationOperation operation) => operation switch
+    {
+        SqlOperation sql => sql.Sql,
+        _ => operation.GetType().Name,
+    };
+
+    /// <summary>The operations of every migration in the order a database applies them, in one direction.</summary>
+    private static MigrationOperation[] ReadChainOperations(
+        Func<Migration, IReadOnlyList<MigrationOperation>> direction)
+    {
+        using var context = CreateContext();
+        var migrations = context.GetService<IMigrationsAssembly>();
+
+        return
+        [
+            .. migrations.Migrations
+                .OrderBy(migration => migration.Key, StringComparer.Ordinal)
+                .SelectMany(migration => direction(
+                    migrations.CreateMigration(migration.Value, context.Database.ProviderName!))),
+        ];
+    }
+
     private static MailFathomDbContext CreateContext() => new(
         MailFathomDbContextDesignTimeFactory.BuildOptions(
             orchestratedConnectionString: null,
             designTimeConnectionString: null),
         PostgresTextSearchConfiguration.Default);
+
+    /// <summary>One statement the rule admits, recognized by what its SQL names.</summary>
+    private sealed record AdmittedRoleWriter(
+        string Name,
+        Func<string, bool> RecognizesSql,
+        int UpStatements,
+        int DownStatements)
+    {
+        public bool Recognizes(MigrationOperation operation) =>
+            operation is SqlOperation sql && WritesARole(sql) && RecognizesSql(sql.Sql);
+    }
 }

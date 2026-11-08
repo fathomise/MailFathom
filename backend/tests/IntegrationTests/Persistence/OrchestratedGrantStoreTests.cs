@@ -2,14 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using System.Reflection;
 using MailFathom.Application.Access.Grants;
 using MailFathom.Application.Access.Organizations;
 using MailFathom.Application.Paging;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Access;
 using MailFathom.Infrastructure.Persistence;
-using MailFathom.Infrastructure.Persistence.Migrations;
 using MailFathom.Infrastructure.Persistence.Users;
 using MailFathom.IntegrationTests.Orchestration;
 using Microsoft.EntityFrameworkCore;
@@ -122,11 +120,9 @@ public sealed class OrchestratedGrantStoreTests(MailFathomOrchestrationFixture o
                 async (scope, token) =>
                 {
                     var dbContext = scope.GetRequiredService<MailFathomDbContext>();
-                    var reduction = dbContext.GetService<IMigrationsAssembly>().CreateMigration(
-                        typeof(ReduceSeededRolesToUserAndAdministrator).GetTypeInfo(),
-                        dbContext.Database.ProviderName!);
-                    var up = Assert.Single(reduction.UpOperations.OfType<SqlOperation>()).Sql;
-                    var down = Assert.Single(reduction.DownOperations.OfType<SqlOperation>()).Sql;
+                    var (up, down) = ReadSeededRoleStatements(
+                        dbContext,
+                        [SeededUserRoleId, SeededOrganizationAdministratorRoleId]);
 
                     async Task<SeededRoleRows> ReadAsync()
                     {
@@ -237,11 +233,7 @@ public sealed class OrchestratedGrantStoreTests(MailFathomOrchestrationFixture o
             {
                 var dbContext = scope.GetRequiredService<MailFathomDbContext>();
                 var administrator = PersistedDefaultAdministrator.AdministratorRoleId;
-                var rewrite = dbContext.GetService<IMigrationsAssembly>().CreateMigration(
-                    typeof(RewriteAdministratorRoleAsAPattern).GetTypeInfo(),
-                    dbContext.Database.ProviderName!);
-                var up = Assert.Single(rewrite.UpOperations.OfType<SqlOperation>()).Sql;
-                var down = Assert.Single(rewrite.DownOperations.OfType<SqlOperation>()).Sql;
+                var (up, down) = ReadSeededRoleStatements(dbContext, [administrator]);
 
                 Task<string[]> ListAsync() => dbContext.RolePermissions
                     .AsNoTracking()
@@ -1139,6 +1131,30 @@ public sealed class OrchestratedGrantStoreTests(MailFathomOrchestrationFixture o
             cancellationToken);
 
     private static IGrantStore Store(IServiceProvider scope) => scope.GetRequiredService<IGrantStore>();
+
+    /// <summary>
+    /// The one statement in each direction of the migration chain that names exactly these seeded roles and no other —
+    /// the way <c>RoleSeedingMigrationTests</c> recognizes the deliberate edits of a seeded list, and holds each to one
+    /// statement up and one down. A release folds its cycle's migrations into one, so the statement is found by what it
+    /// names rather than by the class it was written in.
+    /// </summary>
+    private static (string Up, string Down) ReadSeededRoleStatements(MailFathomDbContext dbContext, Guid[] roleIds)
+    {
+        Guid[] seededRoleIds = [SeededUserRoleId, SeededOrganizationAdministratorRoleId, PersistedDefaultAdministrator.AdministratorRoleId];
+        var migrations = dbContext.GetService<IMigrationsAssembly>();
+        var chain = migrations.Migrations
+            .OrderBy(migration => migration.Key, StringComparer.Ordinal)
+            .Select(migration => migrations.CreateMigration(migration.Value, dbContext.Database.ProviderName!))
+            .ToArray();
+
+        bool NamesExactly(SqlOperation statement) => seededRoleIds.All(roleId =>
+            statement.Sql.Contains(roleId.ToString(), StringComparison.Ordinal) == roleIds.Contains(roleId));
+
+        string Single(Func<Migration, IReadOnlyList<MigrationOperation>> direction) =>
+            Assert.Single(chain.SelectMany(direction).OfType<SqlOperation>().Where(NamesExactly)).Sql;
+
+        return (Single(migration => migration.UpOperations), Single(migration => migration.DownOperations));
+    }
 
     private static Task<bool> HoldsWideningRoleAsync(
         OrchestratedMailFathomServices services,
