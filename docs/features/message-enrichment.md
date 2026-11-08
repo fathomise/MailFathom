@@ -187,6 +187,17 @@ or a transfer, or to act urgently, becomes
 no commitment the person owes and no task on their list. A message whose provenance can no longer be read was erased
 since it was selected, and is not derived.
 
+**A message the person wrote is read from their side.** Mail they sent is enriched too, and in it the roles invert: what
+the message asks of its recipients is the recipients' work, and what the person undertook in it is the commitment worth
+reminding them of. The agent is shown no sender, no addressee, and no folder, so it cannot tell the two apart from the
+message alone; the service tells it instead, with the `written-by-mailbox` attribute
+[answering describes](mail-answering.md#where-a-message-came-from) — set from the account's sent folder and, where the
+account's record holds its address, from a `From` matching it — which names nobody. On such a message the commitment is
+what the person undertook, with its day resolved the same way, the tasks are only what they undertook to do and never
+what they asked somebody else to do, and the sense and significance say what they sent and why it may matter to them.
+The unverified-sender reading above does not apply to it: the person is not an unverified sender of their own mail. A
+message without the attribute is read as received mail, exactly as before.
+
 ## What it costs, and turning it on
 
 Enrichment is off unless a deployment turns it on:
@@ -224,6 +235,10 @@ A mark is a sentence derived from somebody's mail and inherits its classificatio
   it is.
 - **Deleting a message deletes its marks.** The record hangs off the stored message with a cascading delete, so an
   erasure removes the readings with the mail rather than leaving them behind.
+- **Whether the person wrote a message reaches the provider as one fact and nothing more.** The direction is derived
+  from the folder's role and the account's own address inside the deployment, and the turn carries only
+  `written-by-mailbox="true"`: no address, no folder name, and no participant leaves for a reading that does not need
+  one.
 - **The evidence is published as passage identifiers rather than as text**, because following one is a request of its
   own — a list page carrying the passages themselves would be publishing a body it had no reason to.
 - **A proposed task is not a mark and is not deleted with the message.** It is a row on somebody's own list, carrying a

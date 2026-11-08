@@ -7,6 +7,7 @@ using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Folders;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence.Contacts;
 using Microsoft.EntityFrameworkCore;
@@ -49,6 +50,7 @@ internal sealed class StoredEmailProvenanceReader(
                 },
                 IsInJunkFolder = pair.First.IsInJunkFolder,
                 IsFirstContact = !pair.First.HasEarlierCorrespondence,
+                IsWrittenByMailbox = pair.First.IsWrittenByMailbox,
             });
     }
 
@@ -77,6 +79,16 @@ internal sealed class StoredEmailProvenanceReader(
     /// an operator unmapped or a server expunged must not decide it — a sender whose only earlier message is hidden is a
     /// first contact, rather than a hint that the hidden mail exists. The account is already the email's own, which
     /// the caller read.
+    /// </para>
+    /// <para>
+    /// The mailbox wrote an email that sits in its account's sent folder, or whose <c>From</c> address is the comparison
+    /// address the account's own record holds — provided either the email reached no receiving server, which leaves its
+    /// arrival instant unknown and is how a copy the person's client filed elsewhere looks, or the receiving server
+    /// authenticated that author. A received message that only displays the mailbox's address is neither, so a forged
+    /// one keeps every qualification. The record is reached by its identifier written as the account identifier is, and
+    /// an account declared only in configuration has no record, so for it the sent folder is the one signal. Aliases
+    /// and sending addresses live in the record's document rather than in a column a query can compare, so a message
+    /// written under one of them and filed outside the sent folder is read as received.
     /// </para>
     /// </remarks>
     internal static IQueryable<StoredEmailProvenanceRow> ProvenanceOf(
@@ -140,6 +152,13 @@ internal sealed class StoredEmailProvenanceReader(
                     email.SignerPublicKeyAlgorithm,
                     email.SignerDigestAlgorithm),
                 email.Folder.Role == MailFolderSpecialUse.Junk,
+                email.Folder.Role == MailFolderSpecialUse.Sent
+                    || (email.SenderTrustAddress != null
+                        && (email.ReceivedAt == null
+                            || email.AuthorAuthenticationOutcome == AuthorAuthenticationOutcome.Authenticated)
+                        && context.MailAccountRecords.Any(record =>
+                            record.Id.ToString() == email.MailboxAccountId
+                            && record.NormalizedEmailAddress == email.SenderTrustAddress)),
                 email.SenderNormalizedAddress != null
                     && correspondence.Any(earlier =>
                         earlier.MailboxAccountId == email.MailboxAccountId
@@ -161,10 +180,12 @@ internal sealed class StoredEmailProvenanceReader(
 /// <param name="SenderTrust">The stored half of the trust verdict, beside what the receiving server established about the displayed author.</param>
 /// <param name="Signature">What verifying the email's own signature found.</param>
 /// <param name="IsInJunkFolder">Whether the email sits in its account's junk folder.</param>
+/// <param name="IsWrittenByMailbox">Whether the email sits in its account's sent folder or carries the account's own address as its author.</param>
 /// <param name="HasEarlierCorrespondence">Whether the mailbox held earlier mail written by or addressed to the sender.</param>
 internal sealed record StoredEmailProvenanceRow(
     Guid StoredEmailId,
     StoredSenderTrustRow SenderTrust,
     StoredEmailSignatureRow Signature,
     bool IsInJunkFolder,
+    bool IsWrittenByMailbox,
     bool HasEarlierCorrespondence);

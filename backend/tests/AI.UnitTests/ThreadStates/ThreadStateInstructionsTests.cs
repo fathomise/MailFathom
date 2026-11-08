@@ -75,6 +75,20 @@ public sealed class ThreadStateInstructionsTests
         Assert.Contains("write \"topic\" and never \"keepTopic\", because there is no topic to keep", text, StringComparison.Ordinal);
     }
 
+    /// <summary>The person's own message is not an unverified sender's, so what it undertakes is recorded as theirs rather than as a claim.</summary>
+    [Fact]
+    public void Text_TheInstruction_ExemptsAMessageTheMailboxWroteFromTheUnverifiedSendersRule()
+    {
+        // Act
+        var text = string.Join(' ', ThreadStateInstructions.TextFor(MailAccountLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains(
+            $"A message carrying {AgentTurnDocument.WrittenByMailboxAttributeName}=\"true\" was written by the person whose mailbox this is, so none of that applies to it, and what it undertakes is theirs to owe.",
+            text,
+            StringComparison.Ordinal);
+    }
+
     /// <summary>A commitment the conversation shows fulfilled is no longer owed, and recording it tells the reader something is still open.</summary>
     [Fact]
     public void Text_TheInstruction_LeavesOutACommitmentTheConversationShowsDone()

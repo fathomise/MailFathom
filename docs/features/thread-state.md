@@ -189,8 +189,9 @@ deployment takes elsewhere, so a model cannot propose one.
 
 Each message carries where it came from, written by the service on its `<message>` element as the attributes [answering writes](mail-answering.md#where-a-message-came-from). The instruction asks the model to read what
 a message from a sender nobody authenticated, or from junk or a first contact, asks of the person as that sender's
-claim: such a request is not recorded as something the person agreed to or owes. A message whose provenance can no
-longer be read was erased since the conversation was selected, and is left out of it.
+claim: such a request is not recorded as something the person agreed to or owes. A message carrying `written-by-mailbox`
+is the person's own, so none of that applies to it and what it undertakes is theirs to owe. A message whose provenance
+can no longer be read was erased since the conversation was selected, and is left out of it.
 
 ## What it costs, and turning it on
 

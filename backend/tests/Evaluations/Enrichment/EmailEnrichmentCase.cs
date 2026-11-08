@@ -52,31 +52,30 @@ internal sealed record EmailEnrichmentCase(
         // The owner undertakes to pay invoice 7842 by 10 September 2026.
         FromCorpus("DatedPaymentPromise", 82, DueOn(new DateOnly(2026, 9, 10))),
 
-        // Written on 13 August: the corrected invoice goes out "today", and payment of INV-4827 is scheduled for 25
-        // September 2026, two days ahead of its 27 September due date. Each of the three is an undertaking the message
-        // dates, so a commitment due on any of them is right and one due on another day is invented.
-        FromCorpus(
-            "PaymentAheadOfDueDate",
-            71,
-            Every(DueSomeday, DueOnlyOnNamedDays(new DateOnly(2026, 8, 13), new DateOnly(2026, 9, 25), new DateOnly(2026, 9, 27)))),
+        // The owner's own message, written on 13 August: the owner sends the corrected invoice "today", and the
+        // customer's payment of INV-4827 is scheduled for 25 September 2026, two days ahead of its 27 September due date.
+        // Read from the owner's side, the corrected invoice is what they undertook, so the commitment falls due on 13
+        // August and the customer's payment is context.
+        FromCorpus("PaymentAheadOfDueDate", 71, DueOn(new DateOnly(2026, 8, 13))),
 
         // Nimbus Support undertakes to share its next progress update by 10 September 2026.
         FromCorpus("ProgressUpdateByDate", 26, DueOn(new DateOnly(2026, 9, 10))),
 
-        // Two invoices, three amounts, and four dates, of which the owner's own undertaking falls on 12 October. The
-        // generated message is dated 14 June while its body speaks of October, so "before Tuesday afternoon" resolved
-        // against its arrival, as the instruction asks, is 16 June, and that day is accepted beside 13 October. The
-        // header stays as it is: the thread's later messages, and every answering scenario asking on 14 September, read
-        // the conversation as June mail, and a date moved to October would put it after every one of them.
+        // The owner's own message: two invoices, three amounts, and four dates, of which the owner undertakes to
+        // circulate the revised checklist by Monday, 12 October, to place it in the shared workspace "before Monday",
+        // and to join the meeting on 14 October. The generated message is dated Sunday, 14 June while its body speaks of
+        // October, so "before Monday" resolved against its arrival, as the instruction asks, is 15 June, and that day is
+        // accepted beside the two October ones. What the owner asks of Vasco — a payment date for the invoice due on 30
+        // September, a corrected bill-to detail, an answer before Tuesday afternoon — is his, so none of those days is
+        // the commitment's. The header stays as it is: the thread's later messages, and every answering scenario asking
+        // on 14 September, read the conversation as June mail, and a date moved to October would put it after every one
+        // of them.
         FromCorpus(
             "SeveralAmountsAndDates",
             5,
             Every(SaysWhatItIsAbout, DueOnlyOnNamedDays(
-                new DateOnly(2026, 6, 16),
-                new DateOnly(2026, 9, 30),
-                new DateOnly(2026, 10, 9),
+                new DateOnly(2026, 6, 15),
                 new DateOnly(2026, 10, 12),
-                new DateOnly(2026, 10, 13),
                 new DateOnly(2026, 10, 14)))),
 
         // Written on Sunday, 30 August: an agenda "by Friday", a reply "by Monday afternoon", and a meeting on 15 September.
@@ -103,8 +102,10 @@ internal sealed record EmailEnrichmentCase(
                 new DateOnly(2026, 9, 11),
                 new DateOnly(2026, 9, 15)))),
 
-        // A support reply asking for a verification, which names no day by which it is owed.
-        FromCorpus("UndatedRequest", 1, Every(SaysWhatItIsAbout, NothingFallsDue), AsksTheReaderFor(undated: true)),
+        // The owner's own support reply asking the customer for a verification, which names no day by which it is owed.
+        // The verification is the customer's to do, so whatever is offered to the owner — marking the ticket resolved once
+        // it succeeds — carries no day either.
+        FromCorpus("UndatedRequest", 1, Every(SaysWhatItIsAbout, NothingFallsDue), NoTaskCarriesADay),
 
         // A customer confirming a fix and asking for the ticket to be closed, with no day anything is owed by.
         FromCorpus("ResolvedTicket", 44, Every(SaysWhatItIsAbout, NothingFallsDue)),
@@ -114,6 +115,14 @@ internal sealed record EmailEnrichmentCase(
 
         // A travel coordinator confirming a revised itinerary and asking for the details to be checked.
         FromCorpus("ItineraryConfirmation", 72, Every(SaysWhatItIsAbout, NothingFallsDue), AsksTheReaderFor(undated: true)),
+
+        // The owner asking a supplier for a corrected invoice and a signed delivery note by Friday, 18 September 2026,
+        // and undertaking nothing: the requests are the supplier's work, so neither is the owner's commitment or task.
+        new(
+            "OwnersRequestOfTheRecipient",
+            static () => AsWrittenByTheMailboxWhereItIs(WrittenCorpus.OwnersRequestOfTheRecipient),
+            Every(SaysWhatItIsAbout, NoCommitment),
+            TaskExpectation: NoTask),
 
         // A request made of the reader outright, by Tuesday, 15 September 2026.
         new(
@@ -209,7 +218,11 @@ internal sealed record EmailEnrichmentCase(
             TaskDueOn(new DateOnly(2026, 10, 22))),
 
         // English mail read for a Polish mailbox: the undertaking to pay invoice 7842 by 10 September, marked in Polish.
-        new("Mixed.EnglishMailUnderPolishAccount", static () => CorpusMessage.At(82), DueOn(new DateOnly(2026, 9, 10)), MailAccountLanguage.Polish),
+        new(
+            "Mixed.EnglishMailUnderPolishAccount",
+            static () => AsWrittenByTheMailboxWhereItIs(CorpusMessage.At(82)),
+            DueOn(new DateOnly(2026, 9, 10)),
+            MailAccountLanguage.Polish),
 
         // Polish mail read for an English mailbox: the undertaking to pay by 4 September, marked in English.
         new("Mixed.PolishMailUnderEnglishAccount", static () => PolishCorpus.At(1), DueOn(new DateOnly(2026, 9, 4)), MailAccountLanguage.English),
@@ -229,7 +242,18 @@ internal sealed record EmailEnrichmentCase(
         int position,
         Func<IReadOnlyList<EmailEnrichmentMark>, string?> expectation,
         Func<IReadOnlyList<EmailTaskProposal>, string?>? taskExpectation = null) =>
-        new(name, () => CorpusMessage.At(position), expectation, Language: null, taskExpectation);
+        new(name, () => AsWrittenByTheMailboxWhereItIs(CorpusMessage.At(position)), expectation, Language: null, taskExpectation);
+
+    /// <summary>Records that the mailbox wrote a message it sent, as a deployment reading its sent folder would.</summary>
+    /// <remarks>
+    /// The corpus is one mailbox's correspondence, and every message its owner wrote reaches the agent the way a
+    /// deployment hands over the owner's own mail: carrying the fact, so the case measures the reading from the owner's
+    /// side rather than as mail the owner received.
+    /// </remarks>
+    private static CorpusMessage AsWrittenByTheMailboxWhereItIs(CorpusMessage message) =>
+        string.Equals(message.Sender, CorpusMailbox.OwnerAddress, StringComparison.OrdinalIgnoreCase)
+            ? message with { Provenance = message.Provenance with { IsWrittenByMailbox = true } }
+            : message;
 
     /// <summary>Holds the marks to every expectation, naming the first one they fail.</summary>
     private static Func<IReadOnlyList<EmailEnrichmentMark>, string?> Every(
@@ -301,6 +325,12 @@ internal sealed record EmailEnrichmentCase(
         tasks.Count is 0
             ? null
             : $"a request from a sender nobody verified offered the task \"{tasks[0].Title}\", which would carry it out.";
+
+    /// <summary>Refuses a task carrying a day, read out of a message that names no day anything is owed by.</summary>
+    private static string? NoTaskCarriesADay(IReadOnlyList<EmailTaskProposal> tasks) =>
+        tasks.FirstOrDefault(static task => task.DueOn is not null) is { DueOn: { } invented } dated
+            ? $"the task \"{dated.Title}\" is due on {invented:yyyy-MM-dd}, though the message names no day."
+            : null;
 
     /// <summary>Refuses a task read out of a message that asks its reader for nothing.</summary>
     private static string? NoTask(IReadOnlyList<EmailTaskProposal> tasks) =>

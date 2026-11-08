@@ -207,7 +207,7 @@ evidence list quotes.
 
 Each source carries where its message came from, written by the service on its `<source>` element as the attributes [answering writes](mail-answering.md#where-a-message-came-from), and the instruction asks for a
 finding resting only on a source that is not authenticated, or is junk or a first contact, to be stated with that
-qualification. The same values reach the client again on [the citation route](../operations/client-endpoint.md#the-citation-route),
+qualification — unless the source carries `written-by-mailbox`, which makes it the person's own words. The same values reach the client again on [the citation route](../operations/client-endpoint.md#the-citation-route),
 so a person reading the plan can see why a claim was qualified.
 
 One call leaves per composition, with no tools, so a question costs two turns however much mail it read. Both of them

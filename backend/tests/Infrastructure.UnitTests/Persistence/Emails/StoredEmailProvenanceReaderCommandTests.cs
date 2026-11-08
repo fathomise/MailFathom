@@ -95,6 +95,27 @@ public sealed class StoredEmailProvenanceReaderCommandTests
         Assert.Contains($"\"{nameof(MailFolderEntity.Role)}\"", projection, StringComparison.Ordinal);
     }
 
+    /// <summary>Whether the mailbox wrote an email is answered in the same statement, against the account's own record rather than a set read back here.</summary>
+    /// <remarks>
+    /// Nothing else in the command reads the account records, so their table and comparison address appearing in it is
+    /// what proves the account's own address is a signal at all, and generating the command proves it translates.
+    /// </remarks>
+    [Fact]
+    public void ProvenanceOf_TheWrittenByMailboxFlag_ComparesTheAuthorWithTheAccountRecordsAddress()
+    {
+        // Arrange
+        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
+        var recordTable = context.Model.FindEntityType(typeof(MailAccountRecordEntity))!.GetTableName();
+
+        // Act
+        var command = CommandFor(Emails);
+
+        // Assert
+        Assert.Contains(recordTable!, command, StringComparison.Ordinal);
+        Assert.Contains($"\"{nameof(MailAccountRecordEntity.NormalizedEmailAddress)}\"", command, StringComparison.Ordinal);
+        Assert.Contains($"\"{nameof(StoredEmailEntity.SenderTrustAddress)}\"", command, StringComparison.Ordinal);
+    }
+
     /// <summary>Generates the whole command without opening a connection.</summary>
     private static string CommandFor(IReadOnlyCollection<StoredEmailId> emails)
     {
