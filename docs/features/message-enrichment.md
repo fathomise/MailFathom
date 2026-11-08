@@ -167,14 +167,20 @@ of its own.
 in the turn, so an agent that could look something up would be an agent able to reach mail beyond the message it was
 asked about.
 
-What leaves the deployment is the subject, the arrival instant, where the message came from, and the selected passages —
+What leaves the deployment is the subject, the instant the message is dated by, where the message came from, and the selected passages —
 nothing else, and every quoted one of them scanned first by whatever [sensitive-content scanning](sensitive-content-scanning.md) the deployment switched
 on. The passages are **numbered in the turn and cited by number**, and the model is shown no identifier at all, so a
 citation is a position in a list this deployment composed: an answer naming a passage it was not given names nothing,
 and its mark is dropped.
 
-The arrival instant is in the turn because a message saying "by Friday" is resolved against when it arrived rather than
-against now, which is what makes the same message derived again next month resolve to the same day.
+The dating instant is in the turn because a message saying "by Friday" is resolved against when it was dated rather
+than against now, which is what makes the same message derived again next month resolve to the same day. Mail somebody
+else wrote is dated by its arrival, a server's own clock, and by its `Date` header only where no receiving hop recorded
+one. Mail the mailbox wrote is dated by when it was sent, because that is what the person's own "I'll send it before
+Monday" is relative to — and because whether the copy filed in Sent carries an arrival at all depends on the provider,
+so preferring one would date the same message differently from one provider to the next. Its arrival stands in only
+where its `Date` header is missing or unreadable. A message carrying neither instant is handed over undated, and
+nothing relative in it is resolved.
 
 The message is data rather than an instruction, and the instruction says so. Mail is the most adversarial text this
 system reads: a message asking to be marked urgent is a sender writing on a row somebody else's triage depends on.

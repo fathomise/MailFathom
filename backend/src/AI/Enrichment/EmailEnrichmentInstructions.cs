@@ -137,7 +137,7 @@ internal static class EmailEnrichmentInstructions
 
     /// <summary>Composes the one turn a message is put to the agent as.</summary>
     /// <param name="subject">The subject, already guarded for anything the deployment withholds from a provider, or <see langword="null" /> where the message carried none.</param>
-    /// <param name="receivedAt">When the message arrived, which is what a relative date in its text is resolved against.</param>
+    /// <param name="datedAt">The instant the message is dated by — when it arrived, or when it was sent where no receiving hop dated it — which is what a relative date in its text is resolved against.</param>
     /// <param name="provenance">Where the message came from, which the turn states on the message's element.</param>
     /// <param name="passages">The passages, already guarded, in the order they are positioned.</param>
     /// <param name="maximumCharacters">The most characters the turn may hold, which is the request bound of the model it is sent to.</param>
@@ -146,7 +146,7 @@ internal static class EmailEnrichmentInstructions
     /// <remarks>
     /// <para>
     /// The positions are the turn's own and start at zero, so a reading cites a position rather than anything this
-    /// deployment stored. The arrival instant is the message's own metadata rather than the current time, which is what
+    /// deployment stored. The dating instant is the message's own metadata rather than the current time, which is what
     /// makes the same message derived again next month resolve a relative date to the same day.
     /// </para>
     /// <para>
@@ -158,7 +158,7 @@ internal static class EmailEnrichmentInstructions
     /// </remarks>
     internal static string ComposeEnrichmentTurn(
         string? subject,
-        DateTimeOffset? receivedAt,
+        DateTimeOffset? datedAt,
         EmailProvenance provenance,
         IReadOnlyList<string> passages,
         int maximumCharacters = int.MaxValue)
@@ -168,6 +168,6 @@ internal static class EmailEnrichmentInstructions
 
         return AgentTurnDocument.Compose(
             maximumCharacters,
-            document => MessagePassages.Write(document, subject, receivedAt, provenance, passages));
+            document => MessagePassages.Write(document, subject, datedAt, provenance, passages));
     }
 }

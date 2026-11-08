@@ -275,7 +275,7 @@ public sealed class EmailEnrichmentInstructionsTests
     public void ComposeEnrichmentTurn_AMessageWithNoSubjectAndNoArrival_WritesNeither()
     {
         // Act
-        var message = Parsed(EmailEnrichmentInstructions.ComposeEnrichmentTurn(subject: null, receivedAt: null, StubEmailProvenanceReader.KnownCorrespondent, []))
+        var message = Parsed(EmailEnrichmentInstructions.ComposeEnrichmentTurn(subject: null, datedAt: null, StubEmailProvenanceReader.KnownCorrespondent, []))
             .Element(MessagePassages.MessageElementName);
 
         // Assert

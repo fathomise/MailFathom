@@ -18,7 +18,7 @@ internal static class MessagePassages
     /// <summary>Names the element the message is written in.</summary>
     internal const string MessageElementName = "message";
 
-    /// <summary>Names the attribute carrying when the message arrived.</summary>
+    /// <summary>Names the attribute carrying the instant the message is dated by, which for received mail is when it arrived.</summary>
     internal const string ArrivedAttributeName = "arrived";
 
     /// <summary>Names the element carrying the message's subject, absent where it carried none.</summary>
@@ -33,7 +33,7 @@ internal static class MessagePassages
     /// <summary>Writes the message, stopping at the passage the document's budget ran out in.</summary>
     /// <param name="document">The document the message is written into.</param>
     /// <param name="subject">The guarded subject, or <see langword="null" /> where the message carried none.</param>
-    /// <param name="arrivedAt">When the message arrived, or <see langword="null" /> where that is unknown.</param>
+    /// <param name="arrivedAt">The instant the message is dated by — when it arrived, or when it was sent where the caller dates it so — or <see langword="null" /> where that is unknown.</param>
     /// <param name="provenance">Where the message came from, written on its element, or <see langword="null" /> for a derivation whose turn does not carry it yet.</param>
     /// <param name="passages">The guarded passages, positioned from zero in the order given.</param>
     internal static void Write(
