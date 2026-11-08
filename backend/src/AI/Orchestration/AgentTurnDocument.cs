@@ -84,6 +84,25 @@ internal sealed class AgentTurnDocument : IDisposable
     /// <summary>Names the attribute saying the mailbox itself wrote a message, so its author is the person the mailbox belongs to.</summary>
     internal const string WrittenByMailboxAttributeName = "written-by-mailbox";
 
+    /// <summary>Names the attribute saying the mailbox has not sent a message, valued by where it stands.</summary>
+    internal const string UnsentAttributeName = "unsent";
+
+    /// <summary>The value of <see cref="UnsentAttributeName" /> for a working copy nobody has asked to send.</summary>
+    internal const string DraftUnsent = "draft";
+
+    /// <summary>The value of <see cref="UnsentAttributeName" /> for a send held until a due instant still ahead.</summary>
+    internal const string ScheduledUnsent = "scheduled";
+
+    /// <summary>
+    /// The value of <see cref="UnsentAttributeName" /> for a send asked to leave that nobody is known to have received:
+    /// one waiting for its attempt, one a server put off, and one whose attempt was never answered, which may have
+    /// arrived and is not offered again.
+    /// </summary>
+    internal const string SendingUnsent = "sending";
+
+    /// <summary>The value of <see cref="UnsentAttributeName" /> for a send refused and not offered again.</summary>
+    internal const string FailedUnsent = "failed";
+
     /// <summary>The rule every composed instruction carries about the text a turn or a tool result quotes.</summary>
     /// <remarks>
     /// Owned here rather than by the composition, because what it describes is what this writer produces: the element
@@ -300,12 +319,12 @@ internal sealed class AgentTurnDocument : IDisposable
     /// <summary>Writes where one message came from as attributes of the element just opened, before anything is written inside it.</summary>
     /// <param name="provenance">What this deployment recorded about the message.</param>
     /// <remarks>
-    /// The sender verdict is always written, because its absence would read as nothing being known. The other four are
+    /// The sender verdict is always written, because its absence would read as nothing being known. The others are
     /// written only where they hold, for the reason the retrieval envelope's own limit flag is: a model reading the common
     /// case is not asked to parse a negation on every message.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="provenance" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when the sender verdict has no value this writer publishes.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the sender verdict or the unsent state has no value this writer publishes.</exception>
     internal void WriteProvenance(EmailProvenance provenance)
     {
         ArgumentNullException.ThrowIfNull(provenance);
@@ -325,6 +344,11 @@ internal sealed class AgentTurnDocument : IDisposable
         if (provenance.IsWrittenByMailbox)
         {
             this.writer.WriteAttributeString(WrittenByMailboxAttributeName, TrueValue);
+        }
+
+        if (provenance.Unsent is { } unsent)
+        {
+            this.writer.WriteAttributeString(UnsentAttributeName, Published(unsent));
         }
     }
 
@@ -387,6 +411,17 @@ internal sealed class AgentTurnDocument : IDisposable
 
     /// <inheritdoc />
     public void Dispose() => this.writer.Dispose();
+
+    /// <summary>Maps an unsent state onto the word this writer publishes for it.</summary>
+    /// <remarks>A closed mapping for the reason the sender verdict's below is one.</remarks>
+    private static string Published(UnsentEmailState state) => state switch
+    {
+        UnsentEmailState.Draft => DraftUnsent,
+        UnsentEmailState.Scheduled => ScheduledUnsent,
+        UnsentEmailState.Sending => SendingUnsent,
+        UnsentEmailState.Failed => FailedUnsent,
+        _ => throw new ArgumentOutOfRangeException(nameof(state), state, "The unsent state has no value this writer publishes."),
+    };
 
     /// <summary>Maps a sender verdict onto the word this writer publishes for it.</summary>
     /// <remarks>

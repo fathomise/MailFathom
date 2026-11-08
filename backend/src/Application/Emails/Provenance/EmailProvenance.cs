@@ -61,4 +61,12 @@ public sealed record EmailProvenance
     /// </para>
     /// </remarks>
     public bool IsWrittenByMailbox { get; init; }
+
+    /// <summary>Gets where the email stands when the mailbox has not sent it, or <see langword="null" /> for mail that left or arrived.</summary>
+    /// <remarks>
+    /// Read from where the deployment filed the message and from the send its draft was promoted to, never from the text.
+    /// Only the person's own Agent is ever shown such a message — every other operation is kept from unsent mail — so it
+    /// is the one reader this reaches, and it is told the message reached nobody.
+    /// </remarks>
+    public UnsentEmailState? Unsent { get; init; }
 }

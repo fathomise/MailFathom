@@ -50,7 +50,9 @@ namespace MailFathom.Evaluations.AgentConversations;
 /// authoring of an answer — so what a tool hands the model is what a deployment's would: a message rendered from its MIME
 /// by the deployment's renderer, a conversation assembled and ordered by the deployment's reader, a state led by its own
 /// rule. What stands in for the database is only the port beneath each of them, holding every corpus message in one inbox
-/// of one account, each conversation as one thread, and the agenda <see cref="PersonalAgenda" /> writes.
+/// of one account, each conversation as one thread, and the agenda <see cref="PersonalAgenda" /> writes. A reply the person
+/// has not sent carries <c>\Draft</c> as a deployment's would, which is what leaves it to the person's own Agent and no
+/// other reader.
 /// </para>
 /// <para>
 /// Nothing is ever written here: every port refuses a write, because the Agent proposes and a proposal is the conversation's
@@ -62,7 +64,7 @@ internal static class CorpusReaders
     private static readonly OutgoingEmailBounds DeploymentBounds = new MailDeliveryOptions().ToOutgoingEmailBounds();
 
     private static readonly Lazy<IReadOnlyList<IReadOnlyList<CorpusMessage>>> Exchanges = new(static () =>
-        [.. CorpusMessage.Exchanges, .. HostileMail.Exchanges, .. FalseClaimMail.Exchanges, .. PolishCorpus.Exchanges]);
+        [.. CorpusMessage.Exchanges, .. HostileMail.Exchanges, .. FalseClaimMail.Exchanges, .. PolishCorpus.Exchanges, .. UnsentMail.Exchanges]);
 
     private static readonly Lazy<StubEmailProvenanceReader> Provenance = new(static () => StubEmailProvenanceReader.Answering(
         Exchanges.Value.SelectMany(static exchange => exchange).ToDictionary(static message => message.Id, static message => message.Provenance)));
@@ -178,7 +180,9 @@ internal static class CorpusReaders
             MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
             Attachments = StoredEmailAttachmentSummary.None,
             ContentAvailability = StoredEmailContentAvailability.Available,
-            RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved,
+            RemoteFlags = message.Provenance.Unsent is null
+                ? RemoteEmailFlagSnapshot.NeverObserved
+                : RemoteEmailFlagSnapshot.NeverObserved with { IsDraft = true },
             Receipts = message.Receipts,
         };
 

@@ -251,7 +251,6 @@ public sealed class RecurringSendOccurrenceHandlerTests
                 OutgoingMailGovernors.Permitting(),
                 MailFootings.SendingNone(),
                 OutgoingMailScreenings.Inactive(),
-                OrganizationMailSigners.SigningNothing(),
                 this.clock,
                 ClientSignalPublishers.ReachingNobody);
 

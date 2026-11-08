@@ -210,6 +210,24 @@ public sealed class StoredEmailAttachmentTextSelectionTests
         Assert.Empty(selected);
     }
 
+    /// <summary>A draft, or a send still waiting in or refused by the outbox, is a word nobody received, so nothing is derived from it.</summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Selecting_MailTheMailboxHasNotSent_LeavesItOut(bool flaggedDraft, bool inDraftsFolder)
+    {
+        // Arrange
+        var email = Email("work", "INBOX");
+        email.IsRemotelyDraft = flaggedDraft;
+        email.Folder.Role = inDraftsFolder ? MailFolderSpecialUse.Drafts : null;
+
+        // Act
+        var selected = Selecting(email, [WorkInbox], ClassificationOff);
+
+        // Assert
+        Assert.Empty(selected);
+    }
+
     /// <summary>A message a deletion left behind as a marker carries nothing to open.</summary>
     [Fact]
     public void Selecting_ATombstonedMessage_LeavesItOut()

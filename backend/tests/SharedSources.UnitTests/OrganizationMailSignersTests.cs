@@ -14,9 +14,11 @@ public sealed class OrganizationMailSignersTests
 {
     private static readonly MailAccountId Account = MailAccountId.Create("work");
 
+    private static readonly DateTimeOffset SignedAt = new(2026, 11, 9, 9, 0, 0, TimeSpan.Zero);
+
     private static readonly byte[] RawMime = Encoding.ASCII.GetBytes("Subject: synthetic\r\n\r\nbody\r\n");
 
-    /// <summary>Most tests of a send are about something else, so the default shape has to store the message as composed.</summary>
+    /// <summary>Most tests of a send are about something else, so the default shape has to send the message as dated.</summary>
     [Fact]
     public async Task SigningNothing_AMessage_ComesBackUnchanged()
     {
@@ -24,13 +26,13 @@ public sealed class OrganizationMailSignersTests
         var signer = OrganizationMailSigners.SigningNothing();
 
         // Act
-        var signed = await signer.SignAsync(Account, RawMime, TestContext.Current.CancellationToken);
+        var signed = await signer.SignAsync(Account, RawMime, SignedAt, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(RawMime, signed.ToArray());
     }
 
-    /// <summary>A test asserting what the outbox stored needs the header above the message and the request it answered.</summary>
+    /// <summary>A test asserting what was transmitted needs the header above the message and the request it answered.</summary>
     [Fact]
     public async Task Adding_AMessage_WritesTheHeaderAboveItAndRecordsTheRequest()
     {
@@ -40,12 +42,13 @@ public sealed class OrganizationMailSignersTests
         byte[] expected = [.. Encoding.ASCII.GetBytes(header), .. RawMime];
 
         // Act
-        var signed = await signer.SignAsync(Account, RawMime, TestContext.Current.CancellationToken);
+        var signed = await signer.SignAsync(Account, RawMime, SignedAt, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(expected, signed.ToArray());
-        var (account, handedOver) = Assert.Single(signer.Requests);
+        var (account, handedOver, signedAt) = Assert.Single(signer.Requests);
         Assert.Equal(Account, account);
         Assert.Equal(RawMime, handedOver);
+        Assert.Equal(SignedAt, signedAt);
     }
 }

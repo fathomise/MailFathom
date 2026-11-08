@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Globalization;
 using System.Text;
 using MailFathom.Application.Access.Organizations.SigningKeys;
 using MailFathom.Application.Mail.Delivery.Composition;
@@ -33,6 +34,8 @@ public sealed class OrganizationMailSignerTests
 
     private const string AuthorDomain = "organization.example.test";
 
+    private static readonly DateTimeOffset SignedAt = new(2026, 11, 9, 9, 0, 0, TimeSpan.Zero);
+
     private static readonly MailAccountId Account = MailAccountId.Create("0199a0c0-0000-7000-8000-0000000000b1");
 
     private static readonly Guid KeyId = new("0199a0c0-0000-7000-8000-0000000000a1");
@@ -56,7 +59,7 @@ public sealed class OrganizationMailSignerTests
         var rawMime = ComposeMessage();
 
         // Act
-        var signed = await this.CreateSigner().SignAsync(Account, rawMime, TestContext.Current.CancellationToken);
+        var signed = await this.CreateSigner().SignAsync(Account, rawMime, SignedAt, TestContext.Current.CancellationToken);
 
         // Assert
         using var message = Parse(signed);
@@ -74,7 +77,7 @@ public sealed class OrganizationMailSignerTests
         await this.HoldActiveKeyAsync();
 
         // Act
-        var signed = await this.CreateSigner().SignAsync(Account, ComposeMessage(), TestContext.Current.CancellationToken);
+        var signed = await this.CreateSigner().SignAsync(Account, ComposeMessage(), SignedAt, TestContext.Current.CancellationToken);
 
         // Assert
         using var message = Parse(signed);
@@ -93,6 +96,51 @@ public sealed class OrganizationMailSignerTests
         Assert.False(tags.ContainsKey("l"));
     }
 
+    /// <summary>
+    /// The signature names the instant it is handed as its time, so signing one dated message twice under one key yields
+    /// the same bytes, which is what makes a sent copy filed later the message that was transmitted.
+    /// </summary>
+    [Fact]
+    public async Task SignAsync_TheSameMessageAtTheSameInstantTwice_WritesThatInstantAndTheSameBytes()
+    {
+        // Arrange
+        await this.HoldActiveKeyAsync();
+        var rawMime = ComposeMessage();
+
+        // Act
+        var first = await this.CreateSigner().SignAsync(Account, rawMime, SignedAt, TestContext.Current.CancellationToken);
+        var second = await this.CreateSigner().SignAsync(Account, rawMime, SignedAt, TestContext.Current.CancellationToken);
+
+        // Assert
+        using var message = Parse(first);
+        var signature = message.Headers[OrganizationMailSigner.SignatureHeaderName];
+        Assert.NotNull(signature);
+        Assert.Equal(SignedAt.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), TagsOf(signature)["t"]);
+        Assert.Equal(first.ToArray(), second.ToArray());
+    }
+
+    /// <summary>A message already carrying a signature of this signer is signed afresh, so it carries one signature that covers its current headers.</summary>
+    [Fact]
+    public async Task SignAsync_AMessageSignedBefore_ReplacesTheEarlierSignature()
+    {
+        // Arrange
+        await this.HoldActiveKeyAsync();
+        var signedOnce = await this.CreateSigner().SignAsync(Account, ComposeMessage(), SignedAt, TestContext.Current.CancellationToken);
+
+        // Act
+        var signedAgain = await this.CreateSigner().SignAsync(
+            Account,
+            signedOnce,
+            SignedAt.AddDays(1),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        using var message = Parse(signedAgain);
+        var signature = Assert.Single(message.Headers, header => header.Field == OrganizationMailSigner.SignatureHeaderName);
+        Assert.True(this.Verifies(message, signature));
+        Assert.Equal(SignedAt.AddDays(1).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), TagsOf(signature.Value)["t"]);
+    }
+
     /// <summary>An author on an internationalized domain is signed for in the domain's ASCII form, which is how <c>d=</c> writes a domain.</summary>
     [Fact]
     public async Task SignAsync_AnAuthorOnAnInternationalizedDomain_SignsForTheDomainsAsciiForm()
@@ -105,6 +153,7 @@ public sealed class OrganizationMailSignerTests
         var signed = await this.CreateSigner().SignAsync(
             Account,
             ComposeMessage("anna@bücher.example.test"),
+            SignedAt,
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -127,7 +176,7 @@ public sealed class OrganizationMailSignerTests
         byte[] rawMime = [.. foreignSignature, .. ComposeMessage()];
 
         // Act
-        var signed = (await this.CreateSigner().SignAsync(Account, rawMime, TestContext.Current.CancellationToken)).ToArray();
+        var signed = (await this.CreateSigner().SignAsync(Account, rawMime, SignedAt, TestContext.Current.CancellationToken)).ToArray();
 
         // Assert
         Assert.StartsWith(OrganizationMailSigner.SignatureHeaderName + ":", Encoding.ASCII.GetString(signed), StringComparison.Ordinal);
@@ -142,7 +191,7 @@ public sealed class OrganizationMailSignerTests
     {
         // Arrange
         await this.HoldActiveKeyAsync();
-        var signed = await this.CreateSigner().SignAsync(Account, ComposeMessage(), TestContext.Current.CancellationToken);
+        var signed = await this.CreateSigner().SignAsync(Account, ComposeMessage(), SignedAt, TestContext.Current.CancellationToken);
         using var message = Parse(signed);
         var signature = message.Headers[message.Headers.IndexOf(OrganizationMailSigner.SignatureHeaderName)];
 
@@ -159,7 +208,7 @@ public sealed class OrganizationMailSignerTests
     {
         // Arrange
         await this.HoldActiveKeyAsync();
-        var signed = await this.CreateSigner().SignAsync(Account, ComposeMessage(), TestContext.Current.CancellationToken);
+        var signed = await this.CreateSigner().SignAsync(Account, ComposeMessage(), SignedAt, TestContext.Current.CancellationToken);
         using var message = Parse(signed);
         var signature = message.Headers[message.Headers.IndexOf(OrganizationMailSigner.SignatureHeaderName)];
 
@@ -178,7 +227,7 @@ public sealed class OrganizationMailSignerTests
         var rawMime = ComposeMessage();
 
         // Act
-        var signed = await this.CreateSigner().SignAsync(Account, rawMime, TestContext.Current.CancellationToken);
+        var signed = await this.CreateSigner().SignAsync(Account, rawMime, SignedAt, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(rawMime, signed.ToArray());
@@ -194,7 +243,7 @@ public sealed class OrganizationMailSignerTests
         var rawMime = ComposeMessage();
 
         // Act
-        var signed = await this.CreateSigner().SignAsync(Account, rawMime, TestContext.Current.CancellationToken);
+        var signed = await this.CreateSigner().SignAsync(Account, rawMime, SignedAt, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(rawMime, signed.ToArray());
@@ -214,7 +263,7 @@ public sealed class OrganizationMailSignerTests
         var rawMime = ComposeMessage();
 
         // Act
-        var signed = await this.CreateSigner().SignAsync(Account, rawMime, TestContext.Current.CancellationToken);
+        var signed = await this.CreateSigner().SignAsync(Account, rawMime, SignedAt, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(rawMime, signed.ToArray());
@@ -234,7 +283,7 @@ public sealed class OrganizationMailSignerTests
         var rawMime = ComposeMessage();
 
         // Act
-        var signed = await this.CreateSigner().SignAsync(Account, rawMime, TestContext.Current.CancellationToken);
+        var signed = await this.CreateSigner().SignAsync(Account, rawMime, SignedAt, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(rawMime, signed.ToArray());
@@ -251,7 +300,7 @@ public sealed class OrganizationMailSignerTests
         var withinOnlyUnsigned = rawMime.Length + 16;
 
         // Act
-        var signed = await this.CreateSigner(withinOnlyUnsigned).SignAsync(Account, rawMime, TestContext.Current.CancellationToken);
+        var signed = await this.CreateSigner(withinOnlyUnsigned).SignAsync(Account, rawMime, SignedAt, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(rawMime, signed.ToArray());
@@ -267,7 +316,7 @@ public sealed class OrganizationMailSignerTests
         var rawMime = Encoding.ASCII.GetBytes("To: bob@example.test\r\nSubject: synthetic\r\n\r\nbody\r\n");
 
         // Act
-        var signed = await this.CreateSigner().SignAsync(Account, rawMime, TestContext.Current.CancellationToken);
+        var signed = await this.CreateSigner().SignAsync(Account, rawMime, SignedAt, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(rawMime, signed.ToArray());

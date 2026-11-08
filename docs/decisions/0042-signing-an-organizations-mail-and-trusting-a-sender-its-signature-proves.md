@@ -9,7 +9,7 @@ informed:
 
 # Sign every message an organization's account sends with an Ed25519 key the organization holds, write the signature in a header of MailFathom's own, and trust a sender only where the signature, its key, its author, and its recipient all belong to the receiving account's organization
 
-<!-- describes: backend/src/Domain/Emails/Authentication/SenderTrust*.cs, backend/src/Application/Mail/Delivery/MailOutbox.cs, backend/src/Infrastructure/Mail/Dkim/** -->
+<!-- describes: backend/src/Domain/Emails/Authentication/SenderTrust*.cs, backend/src/Application/Mail/Delivery/MailOutbox.cs, backend/src/Application/Mail/Delivery/Transmission/**, backend/src/Infrastructure/Mail/Dkim/** -->
 
 ## Context and Problem Statement
 
@@ -98,7 +98,7 @@ A header of MailFathom's own costs none of that. Every server and every filter i
 
 The name has no `X-` prefix, following RFC 6648. It names the organization because the signature is the organization's. A later signature of another kind would take a name of its own rather than share this one.
 
-**Signing produces a `DKIM-Signature`, which is renamed before the message is stored.** Verification takes the header's value, builds a `DKIM-Signature` header from it in memory, and hands that to `DkimVerifier`. The message itself is never modified. The spike shows the round trip verifies, and that the direct path is refused.
+**Signing produces a `DKIM-Signature`, which is renamed before the message is transmitted.** Verification takes the header's value, builds a `DKIM-Signature` header from it in memory, and hands that to `DkimVerifier`. The message itself is never modified. The spike shows the round trip verifies, and that the direct path is refused.
 
 The rename is the one place this design leaves the beaten track of DKIM, so it stays inside the adapter that owns MimeKit, beside `backend/src/Infrastructure/Mail/Dkim/`.
 
@@ -123,7 +123,7 @@ A key is generated from BouncyCastle's `SecureRandom`, which is the cryptographi
 | `d` | the domain of the sending account's address | The format requires it and MimeKit parses it. It grants nothing: the verifier never reads it, locates the key by `s=` alone, and checks the signed `From` instead. |
 | `s` | the key's identifier | Below. |
 | `h` | `from:from:reply-to:reply-to:to:to:cc:cc:subject:subject:date:date:message-id:message-id:in-reply-to:in-reply-to:references:references` | Each of the nine names twice. Below. |
-| `t` | written by MimeKit | Harmless and never read: a timestamp the signer writes proves nothing about when a forger wrote it. |
+| `t` | the instant the transmitting attempt dated the message with | Never read: a timestamp the signer writes proves nothing about when a forger wrote it. It is the attempt's instant rather than MimeKit's own clock reading so that the sent copy, signed again from the same instant, carries the same bytes. |
 | `x` | **never** | An expiring signature would stop mail already delivered from verifying, which is exactly what keeping a retired key's public half exists to prevent. |
 | `l` | **never** | A body-length limit lets anybody append to a signed body and keep the signature. |
 | `i`, `q`, `z` | never | Nothing reads them. |
@@ -215,9 +215,9 @@ What a backfill cannot do is make a message `Trusted` by this source that was no
 
 ### Signing
 
-**A message is signed once, where its MIME is first stored as a send:** in `MailOutbox.EnqueueAsync`, after the outgoing screen and before the content is placed. Signing goes through a port in `Application`, implemented by a MimeKit adapter in `Infrastructure`.
+**A message is signed by every attempt that transmits it, and again when its sent copy is filed, never when it is stored.** Issue 3087 has each attempt date the message with its own instant, and `Date` is a signed header, so a signature made when the message was stored would fail the moment the attempt restamped it. `TransmittedEmailForm` derives what an attempt transmits from the stored bytes: it replaces the `Date`, then signs that form through a port in `Application`, implemented by a MimeKit adapter in `Infrastructure`. The outbox records the instant on the outgoing record, as `TransmittedAt`, in the commit that marks the transmission begun, and the sent copy is derived from the stored bytes and that instant through the same type, so while the organization's key stands it is byte for byte the transmitted message: Ed25519 is deterministic, and `t=` is the recorded instant rather than a clock reading. The copy is signed with the key active when it is filed, which on a mirrored or restoring account is after the send, so a key rotated or revoked in between, or an account moved to another organization, gives a copy whose signature differs from the transmitted message's or is absent; its date and its body do not differ. The record keeps the latest attempt's instant, so the copy of a send partly accepted and offered again to its remaining recipients is the message the last attempt transmitted, and a recipient an earlier attempt reached holds a message with an earlier `Date` and signature.
 
-Every send reaches the outbox through that one method:
+Every send reaches the outbox through one method, `MailOutbox.EnqueueAsync`, and is stored there unsigned:
 
 - a composed message (`AuthoredMailSubmission`);
 - a response (`AuthoredResponseSubmission`);
@@ -226,19 +226,15 @@ Every send reaches the outbox through that one method:
 
 The composer would miss that last path, which is why signing does not sit there.
 
-The bytes stored there are what every later step uses:
+The bytes stored there are never rewritten, which is the content store's contract: the stored byte length and the content digest stay those of the composed message. Every attempt and every sent copy derives its form from them instead, and an attempt checks the size bound against the form it is about to transmit, signature included.
 
-- every submission attempt sends them;
-- every filing into the sent folder appends them;
-- the outbox reads them.
+A signature the stored bytes already carry — a message an earlier build stored signed — is removed before the new one is written, so a message never carries two. A draft is never signed: it is not sent, and the copy in the drafts folder is not the message that leaves.
 
-This corrects issue 2717's *immediately before submission over SMTP*. Signing at submission would mean either rewriting the stored MIME on every attempt, or sending bytes nothing stored.
+Every occasion of a recurring send is composed on its own, with its own `Message-ID`, so it is signed on its own. A scheduled send is signed when it leaves, not when it is enqueued, so a key revoked in between signs nothing more and the active key at the time of sending is the one used.
 
-A request that already has a record keeps the bytes it stored, as `EnqueueAsync` already guarantees. Its repeated signature is computed and discarded. A draft is never signed: it is not sent, and the copy in the drafts folder is not the message that leaves.
+A send whose attempt was never answered is not offered again, so its recorded instant and the signature made at it are what a recipient may hold. A send an earlier build transmitted recorded no instant, and its sent copy is its stored bytes, which are then what it sent.
 
-Every occasion of a recurring send is composed on its own, with its own `Date` and `Message-ID`, so it is signed on its own. A scheduled send is signed when it is enqueued, not when it leaves. If the key rotates in between, the message still verifies; if the key is revoked in between, it does not, which is what revocation is for.
-
-**The organization is the sending account's organization at enqueue time.** An account in no organization signs nothing.
+**The organization is the sending account's organization when the message leaves.** An account in no organization signs nothing.
 
 **A send is never refused for want of a signature.** An organization with no active key — no ring, or a mint that has not run yet — sends unsigned, and a counter says so. A signature is evidence for the recipient, not a condition of delivery.
 
@@ -300,7 +296,7 @@ That organization is also part of the receiving account's policy revision, so a 
 
 ### Custody phases
 
-**Signing is identical in `Mirrored`, `Held`, and `Restoring`.** The outbox signs and stores the MIME the same way in every phase, and the copy filed in the sent folder is the stored, signed bytes in each. A held account files it locally, and a mirrored or restoring one appends it to the source.
+**Signing is identical in `Mirrored`, `Held`, and `Restoring`.** The outbox stores the MIME and signs each transmitted form the same way in every phase, and the copy filed in the sent folder is the transmitted form, derived again from the stored bytes and the recorded instant, in each, while the organization's key stands, as § *Signing* qualifies. A held account prepares it locally inside the delivery's commit, and a mirrored or restoring one appends it to the source.
 
 **Verification is identical in every phase.** It happens at extraction, and every phase extracts arrivals: ADR 0034 has a held source keep delivering new mail, which is extracted as an arrival before the drain takes it. A restore appends what MailFathom already holds back to the source and re-extracts nothing, so it re-evaluates nothing. Only an extraction backfill re-reads stored mail, in any phase, as *Mail already stored* states.
 
@@ -309,7 +305,7 @@ That organization is also part of the receiving account's policy revision, so a 
 - **One active key per organization** is a database constraint, not a check before a write.
 - **Rotation runs once per organization**, under a leased scope.
 - **Signing reads the active key inside its own short transaction**, and holds nothing across the SMTP submission that follows.
-- **During a rolling upgrade**, a replica of the older build composes unsigned mail and verifies nothing. Its arrivals are judged as they are today until an extraction backfill re-reads them. That window is the cost of the upgrade, and nothing about it is unsafe.
+- **During a rolling upgrade**, a replica of the older build composes unsigned mail and verifies nothing. Its arrivals are judged as they are today until an extraction backfill re-reads them. A message the newer build stored unsigned and an older replica transmits leaves unsigned and dated when it was composed, and its sent copy is the stored bytes. That window is the cost of the upgrade, and nothing about it is unsafe.
 
 ### Consequences
 
@@ -331,7 +327,7 @@ That organization is also part of the receiving account's policy revision, so a 
   - that the signature verifies against the organization's public key through the rename;
   - that a promoted draft is signed like a composed message, and a draft that is only stored is not;
   - that an account in no organization signs nothing;
-  - that the sent copy is byte-identical to the stored MIME in each custody phase;
+  - that the sent copy is byte-identical to the message its latest attempt transmitted in each custody phase while the organization's key stands;
   - that no composed message carries an `8bit` or `binary` part, even against a server advertising `8BITMIME`.
 - **Issue 2718** tests each of the three conditions failing alone, and each half of the third, a second `From` header field inserted above the signed one, a `Reply-To` inserted after signing, a key of another organization, a revoked key, a retired key, a message altered after signing (not trusted, no warning), a receiving account in no organization, a member whose IMAP user name is a bare login (still trusted through the sender identity), and an extraction backfill after a revocation (the stored verdict loses `OrganizationMember`).
 - Review holds a change to the header name, the tag set, the algorithm, or the trust conditions against this record. Changing any of them is a new ADR.

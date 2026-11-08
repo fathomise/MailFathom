@@ -218,6 +218,7 @@ public interface IOutgoingEmailStore
     /// <param name="lease">The lease the attempt holds the record under.</param>
     /// <param name="outgoingEmailId">The record to advance.</param>
     /// <param name="deliveryNotificationCarried">Whether this transmission carries the delivery-notification request, or <see langword="null" /> where the send asked for none.</param>
+    /// <param name="transmittedAt">The instant the attempt dates the message with, kept as <see cref="OutgoingEmailRecord.TransmittedAt" /> so the sent copy is dated with it too.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>A task that completes when the stage is written.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> or <paramref name="lease" /> is <see langword="null" />.</exception>
@@ -233,6 +234,7 @@ public interface IOutgoingEmailStore
         OutgoingEmailLease lease,
         OutgoingEmailId outgoingEmailId,
         bool? deliveryNotificationCarried,
+        DateTimeOffset transmittedAt,
         CancellationToken cancellationToken);
 
     /// <summary>Moves the record to a terminal stage, recording the reply the server answered the transmission with.</summary>

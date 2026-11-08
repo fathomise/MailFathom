@@ -23,4 +23,13 @@ public enum MailboxReaderKind
 
     /// <summary>The person reading their own mail through the client: every folder MailFathom mirrors.</summary>
     Person = 1,
+
+    /// <summary>The Agent the person converses with: the folders visible to AI, and in them the mail the mailbox has not sent yet.</summary>
+    /// <remarks>
+    /// A draft, a send waiting in the outbox, and one a server refused are words that never reached anybody, so every
+    /// other reader whose answer reaches a model is kept from them — a commitment, a thread state, or an answer resting
+    /// on such words would rest on nothing a recipient read. The person asks their Agent about exactly that mail, though,
+    /// so this reader is admitted to it, and every turn showing it one tells it the message is unsent and in which state.
+    /// </remarks>
+    ConversationAgent = 2,
 }

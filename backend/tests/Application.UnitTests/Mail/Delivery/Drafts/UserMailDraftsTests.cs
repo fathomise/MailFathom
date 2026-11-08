@@ -173,7 +173,6 @@ public sealed class UserMailDraftsTests
             OutgoingMailGovernors.Permitting(),
             MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
-            OrganizationMailSigners.SigningNothing(),
             new FakeTimeProvider(Moment),
             ClientSignalPublishers.ReachingNobody);
 

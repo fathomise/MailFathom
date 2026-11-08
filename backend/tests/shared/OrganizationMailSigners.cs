@@ -11,8 +11,8 @@ namespace MailFathom.TestSupport;
 /// <summary>Builds the organization signer the outbox is exercised against.</summary>
 /// <remarks>
 /// Most tests of a send are about something other than its signature, so the default shape is the deployment where the
-/// sending account belongs to no organization: the message is stored exactly as it was composed. The recording shape is
-/// for the tests that assert what reached the signer and what the outbox stored in its place.
+/// sending account belongs to no organization: the message is transmitted exactly as it was dated. The recording shape is
+/// for the tests that assert what reached the signer and what was transmitted or filed in its place.
 /// </remarks>
 internal static class OrganizationMailSigners
 {
@@ -28,16 +28,17 @@ internal static class OrganizationMailSigners
     /// <summary>A signer that records each message it was handed and answers with a fixed header written above it.</summary>
     internal sealed class RecordingOrganizationMailSigner(string? header) : IOrganizationMailSigner
     {
-        /// <summary>Gets every request, in order: the account and the bytes it was asked to sign.</summary>
-        internal List<(MailAccountId Account, byte[] RawMime)> Requests { get; } = [];
+        /// <summary>Gets every request, in order: the account, the bytes it was asked to sign, and the instant the signature names.</summary>
+        internal List<(MailAccountId Account, byte[] RawMime, DateTimeOffset SignedAt)> Requests { get; } = [];
 
         /// <inheritdoc />
         public Task<ReadOnlyMemory<byte>> SignAsync(
             MailAccountId account,
             ReadOnlyMemory<byte> rawMime,
+            DateTimeOffset signedAt,
             CancellationToken cancellationToken)
         {
-            this.Requests.Add((account, rawMime.ToArray()));
+            this.Requests.Add((account, rawMime.ToArray(), signedAt));
 
             if (header is null)
             {

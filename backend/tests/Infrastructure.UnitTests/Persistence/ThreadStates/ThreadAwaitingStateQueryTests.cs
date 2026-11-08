@@ -76,6 +76,9 @@ public sealed class ThreadAwaitingStateQueryTests
 
         // A report counts towards nothing either, so one arriving in a conversation whose state is current leaves it current.
         Assert.Contains("\"ReportKind\" IS NULL", sql, StringComparison.Ordinal);
+
+        // A draft or a send that has not left counts towards nothing, because nobody received it.
+        Assert.Contains("\"IsRemotelyDraft\"", sql, StringComparison.Ordinal);
     }
 
     /// <summary>

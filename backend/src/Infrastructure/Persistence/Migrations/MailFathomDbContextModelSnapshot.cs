@@ -3591,6 +3591,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<string>("Subject")
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset?>("TransmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("UserId")
                         .HasColumnType("uuid");
 

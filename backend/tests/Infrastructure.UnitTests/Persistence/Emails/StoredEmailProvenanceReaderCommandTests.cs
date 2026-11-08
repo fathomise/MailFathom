@@ -2,7 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence;
@@ -114,6 +116,55 @@ public sealed class StoredEmailProvenanceReaderCommandTests
         Assert.Contains(recordTable!, command, StringComparison.Ordinal);
         Assert.Contains($"\"{nameof(MailAccountRecordEntity.NormalizedEmailAddress)}\"", command, StringComparison.Ordinal);
         Assert.Contains($"\"{nameof(StoredEmailEntity.SenderTrustAddress)}\"", command, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An unsent message's state is read from the send its draft was promoted to, so the command joins the drafts by the
+    /// copy they filed and reads the send's stage and due instant, narrowed to the emails a caller already holds.
+    /// </summary>
+    [Fact]
+    public void UnsentOf_SeveralEmails_ReadsTheStageOfTheSendEachFiledDraftWasPromotedTo()
+    {
+        // Arrange
+        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
+
+        // Act
+        var command = StoredEmailProvenanceReader.UnsentOf(context, Emails).ToQueryString();
+
+        // Assert
+        Assert.Contains($"\"{nameof(MailDraftEntity.FiledStoredEmailId)}\"", command, StringComparison.Ordinal);
+        Assert.Contains($"\"{nameof(MailDraftEntity.PromotedToOutgoingEmailId)}\"", command, StringComparison.Ordinal);
+        Assert.Contains($"\"{nameof(OutgoingEmailEntity.Stage)}\"", command, StringComparison.Ordinal);
+        Assert.Contains($"\"{nameof(OutgoingEmailEntity.DueAt)}\"", command, StringComparison.Ordinal);
+        Assert.Contains($"\"{nameof(StoredEmailEntity.Id)}\" = ANY", NarrowingIn(command), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// What the Agent is told about a message it may read and nobody received: a draft nobody sent, or whose send was
+    /// withdrawn; a send held for a later instant; one the outbox refused; and one it is carrying now.
+    /// </summary>
+    [Theory]
+    [InlineData(null, null, UnsentEmailState.Draft)]
+    [InlineData(OutgoingEmailStage.Cancelled, null, UnsentEmailState.Draft)]
+    [InlineData(OutgoingEmailStage.Recorded, 60, UnsentEmailState.Scheduled)]
+    [InlineData(OutgoingEmailStage.Recorded, -60, UnsentEmailState.Sending)]
+    [InlineData(OutgoingEmailStage.Recorded, null, UnsentEmailState.Sending)]
+    [InlineData(OutgoingEmailStage.TransmissionBegun, null, UnsentEmailState.Sending)]
+    [InlineData(OutgoingEmailStage.Refused, null, UnsentEmailState.Failed)]
+    public void StateOf_EachStageOfTheSend_NamesTheStateTheAgentIsTold(
+        OutgoingEmailStage? stage,
+        int? dueInSeconds,
+        UnsentEmailState expected)
+    {
+        // Arrange
+        var now = new DateTimeOffset(2026, 11, 9, 9, 0, 0, TimeSpan.Zero);
+        DateTimeOffset? dueAt = dueInSeconds is { } seconds ? now.AddSeconds(seconds) : null;
+
+        // Act
+        var state = StoredEmailProvenanceReader.StateOf(stage, dueAt, now);
+
+        // Assert
+        Assert.Equal(expected, state);
     }
 
     /// <summary>Generates the whole command without opening a connection.</summary>

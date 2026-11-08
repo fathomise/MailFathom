@@ -1101,20 +1101,20 @@ It is a counter and it is additive: each replica counts the organizations its ow
 deployment of several replicas rises by up to one per organization per replica each hour, and a panel sums it across
 them. No organization identity, name, or key reaches the instrument or the log.
 
-The same absence reaches the mail itself. `mailfathom.organization.mail.unsigned` counts each send an organization's
-account asked the outbox to queue [without the organization's signature](organization-signing-keys.md#what-is-signed-and-when),
+The same absence reaches the mail itself. `mailfathom.organization.mail.unsigned` counts each time an organization's
+send is composed to leave [without the organization's signature](organization-signing-keys.md#what-is-signed-and-when),
 in `{message}`, with no dimension: the organization held no active key, its active key's private half did not open under
 the key ring — a ring key removed while a signing key was still sealed under it — the message named no author whose
 domain the signature could carry, or the signature would have carried a message already near
 [`MailDelivery:MaxMessageBytes`](configuration-mail.md#maildelivery) past it. The message is sent all the same,
-because a signature is never a condition of delivery, so this counter is the only place the gap shows. It counts when
-the outbox is asked, before it knows whether the request is new, so a send asked for again with the same identity — a
-retried call, a rule that ran twice — counts again though only one message leaves, and so does an enqueue that then
-fails to commit. A sustained rise is mail colleagues will not be able to verify, and it is usually the key ring or the
+because a signature is never a condition of delivery, so this counter is the only place the gap shows. A send is signed
+each time it is transmitted and again when its sent copy is derived for filing, and the counter moves each of those
+times, so a send deferred and attempted again counts again and a delivered send counts once more for its copy: it
+rises with unsigned mail rather than counting messages. A sustained rise is mail colleagues will not be able to verify, and it is usually the key ring or the
 key: an organization without an active key, or one sealed under a ring key since removed. A message composed near
 `MailDelivery:MaxMessageBytes` and one naming no signable author are counted too and need no key change, so a
 deployment whose every organization holds an openable key reads close to zero rather than exactly zero when it sends
-messages that large. It is additive like the counter above — each replica counts the sends it was asked to queue — and mail from an
+messages that large. It is additive like the counter above — each replica counts the attempts and copies it composed — and mail from an
 account in no organization never moves it. Nothing identifying the account, the organization, the message, or the key
 reaches it.
 

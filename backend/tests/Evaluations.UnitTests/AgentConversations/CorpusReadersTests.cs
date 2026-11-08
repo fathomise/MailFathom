@@ -4,6 +4,7 @@
 
 using MailFathom.AI.AgentConversations;
 using MailFathom.Application.Emails.GetEmailContent;
+using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Folders;
@@ -44,6 +45,51 @@ public sealed class CorpusReadersTests
 
         Assert.Equal(PersonalAgenda.ArchiveBoxes.Count, bodies.Length);
         Assert.Contains(bodies, static body => body.Contains("Emil", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A reply the person has not sent is the person's own Agent's to read and no other agent's, as in a deployment, so
+    /// a case about one measures the Agent rather than a harness that would show it to any reader.
+    /// </summary>
+    [Theory]
+    [InlineData(MailboxReaderKind.ConversationAgent, true)]
+    [InlineData(MailboxReaderKind.Agent, false)]
+    public async Task ContentReader_AReplyNotSent_IsReadByThePersonsOwnAgentAlone(MailboxReaderKind reader, bool readable)
+    {
+        // Arrange
+        var reply = UnsentMail.ScheduledConfirmation.Message;
+
+        // Act
+        var read = await Readers().ContentReader.ReadContentAsync(
+            GetEmailContentRequest.Create([reply.Id]) with { Reader = reader },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(readable, read.Emails.Single().Content is not null);
+    }
+
+    /// <summary>Each reply not sent is read back with the state its case is about, which is what the turn marks it with.</summary>
+    [Fact]
+    public async Task ProvenanceReader_EveryReplyNotSent_CarriesItsState()
+    {
+        // Arrange
+        UnsentMessage[] replies =
+        [
+            UnsentMail.ScheduledConfirmation,
+            UnsentMail.DraftedPromise,
+            UnsentMail.ReplyBeingSent,
+            UnsentMail.FailedAcceptance,
+        ];
+
+        // Act
+        var provenance = await Readers().ProvenanceReader.ReadAsync(
+            [.. replies.Select(static reply => reply.Message.Id)],
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            [UnsentEmailState.Scheduled, UnsentEmailState.Draft, UnsentEmailState.Sending, UnsentEmailState.Failed],
+            replies.Select(reply => provenance[reply.Message.Id].Unsent));
     }
 
     [Fact]

@@ -771,7 +771,6 @@ public sealed class AuthoredMailSubmissionTests
                 OutgoingMailGovernors.Permitting(),
                 MailFootings.SendingNone(),
                 OutgoingMailScreenings.Inactive(),
-                OrganizationMailSigners.SigningNothing(),
                 new FakeTimeProvider(Recorded),
                 ClientSignalPublishers.ReachingNobody),
             governor ?? AuthoredSendGovernors.Permitting(granted),

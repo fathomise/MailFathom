@@ -355,14 +355,15 @@ internal sealed class EmailChunkWriter(
         this.Insert(dbContext, storedEmail, attachmentPosition, chunks);
     }
 
-    /// <summary>Reports whether the folder this message was read from is one an operator asked to have embedded.</summary>
+    /// <summary>Reports whether the folder this message was read from is one an operator asked to have embedded, and the message one that left or arrived.</summary>
     /// <remarks>
     /// The question is which folders a mapping admits rather than which ones it withheld, so a message stored under an
     /// alias configuration does not name is not embedded — the answer an exclusion could never give, since no list of
     /// names carries a folder nobody named. That is also why the alias is always resolved rather than skipped where a
     /// deployment withholds nothing: there is no longer a set whose emptiness means everything. The binding is read from
     /// the message's own row, since the live path arrives with it loaded while both backfills reach a message through
-    /// its primary key alone.
+    /// its primary key alone. A draft and a send that has not left are cut by no path, wherever they sit, because their
+    /// words reached nobody: <see cref="UnsentStoredEmails" /> says which mail that is.
     /// </remarks>
     private async Task<bool> FolderGeneratesEmbeddingsAsync(
         MailFathomDbContext dbContext,
@@ -379,9 +380,14 @@ internal sealed class EmailChunkWriter(
         }
 
         // Found rather than queried, because the folder may be the inbox the same session created for this message.
-        var folderAlias = (storedEmail.Folder ?? await dbContext.MailFolders.FindAsync([storedEmail.FolderId], cancellationToken))?.Alias;
+        var folder = storedEmail.Folder ?? await dbContext.MailFolders.FindAsync([storedEmail.FolderId], cancellationToken);
 
-        return folderAlias is null || AccountScopedMailFolders.Contains(admitted, storedEmail.MailboxAccountId, folderAlias);
+        if (UnsentStoredEmails.Holds(storedEmail, folder))
+        {
+            return false;
+        }
+
+        return folder?.Alias is not { } folderAlias || AccountScopedMailFolders.Contains(admitted, storedEmail.MailboxAccountId, folderAlias);
     }
 
     private static EmailChunkEntity[] FindStaged(

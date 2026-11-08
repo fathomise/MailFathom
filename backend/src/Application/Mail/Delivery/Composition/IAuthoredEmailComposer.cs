@@ -118,4 +118,16 @@ public interface IAuthoredEmailComposer
         MailAccountId account,
         AuthoredEmail authored,
         MailDeliveryCapabilities capabilities);
+
+    /// <summary>Dates a composed message with the instant it is transmitted at, leaving every other byte as it was.</summary>
+    /// <param name="rawMime">The message as the outbox stored it.</param>
+    /// <param name="transmittedAt">The instant to write into <c>Date</c>, in whole seconds, because the header carries no finer part.</param>
+    /// <returns>The same message with its <c>Date</c> header replaced by one naming <paramref name="transmittedAt" />.</returns>
+    /// <remarks>
+    /// A message is composed when a send is asked for and may leave much later — on its due instant, or after a refusal
+    /// that cleared. Its <c>Date</c> is the moment it was written down until then, and this is what makes it the moment
+    /// it left, for the transmission and for the copy filed in the sent folder alike. Only the header is rewritten, so
+    /// the stored message stays the one record of what was asked for and every attempt derives its bytes from it.
+    /// </remarks>
+    ReadOnlyMemory<byte> DateAt(ReadOnlyMemory<byte> rawMime, DateTimeOffset transmittedAt);
 }

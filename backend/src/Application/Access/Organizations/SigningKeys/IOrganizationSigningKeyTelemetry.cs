@@ -17,9 +17,9 @@ public interface IOrganizationSigningKeyTelemetry
     /// past the deployment's size bound.
     /// </summary>
     /// <remarks>
-    /// Counted once per send the outbox is asked to queue, before it knows whether the request is new: a repeat of a
-    /// request already queued, and an enqueue that then fails to commit, count again although no further message
-    /// leaves. It rises with the mail an organization sends for as long as nothing signs it.
+    /// Counted each time a send's transmitted form is composed unsigned: once per transmission attempt, so a send
+    /// deferred and attempted again counts again, and once more each time its sent copy is derived for filing. It
+    /// rises with the mail an organization sends for as long as nothing signs it, and is not a count of messages.
     /// </remarks>
     void MessageSentUnsigned();
 }

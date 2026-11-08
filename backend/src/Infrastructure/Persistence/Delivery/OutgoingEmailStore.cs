@@ -342,6 +342,7 @@ internal sealed class OutgoingEmailStore(MailFathomDbContext readContext, TimePr
         OutgoingEmailLease lease,
         OutgoingEmailId outgoingEmailId,
         bool? deliveryNotificationCarried,
+        DateTimeOffset transmittedAt,
         CancellationToken cancellationToken)
     {
         var entity = await RequireLeasedEntityAsync(session, lease, outgoingEmailId, cancellationToken);
@@ -355,6 +356,7 @@ internal sealed class OutgoingEmailStore(MailFathomDbContext readContext, TimePr
         entity.Stage = OutgoingEmailStage.TransmissionBegun;
         entity.StageChangedAt = timeProvider.GetUtcNow();
         entity.DeliveryNotificationCarried = deliveryNotificationCarried;
+        entity.TransmittedAt = transmittedAt;
     }
 
     /// <inheritdoc />

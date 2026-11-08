@@ -78,6 +78,9 @@ internal sealed class OutgoingEmailEntity
     /// </remarks>
     public DateTimeOffset? FirstFailedAt { get; set; }
 
+    /// <summary>Gets or sets the instant the latest transmission attempt began at, which the message is dated with, and <see langword="null" /> while none has.</summary>
+    public DateTimeOffset? TransmittedAt { get; set; }
+
     /// <summary>Gets or sets the instant the author asked the message to leave at, and <see langword="null" /> when they asked for it to leave at once.</summary>
     /// <remarks>
     /// It is a column of its own rather than the available instant read differently, because a failed attempt moves

@@ -118,7 +118,9 @@ internal static class StoredEmailSelectionPredicate
     /// <para>
     /// The folder decisions follow: the folders a mapping admits to the reader the scope was resolved for, which no caller can widen, and the junk
     /// folder unless the caller asked for it. An agent's read is answered by the spam verdict instead of by that request,
-    /// which no caller can widen either.
+    /// which no caller can widen either. An agent's read leaves out mail the mailbox has not sent as well — a draft, and a
+    /// send waiting in or refused by the outbox — and only the person's own Agent, which is told what such a message is,
+    /// reads it; <see cref="UnsentStoredEmails" /> says which mail that is.
     /// </para>
     /// <para>
     /// Naming one account replaces the scope's containment with an equality and changes nothing else, because the named
@@ -157,6 +159,16 @@ internal static class StoredEmailSelectionPredicate
         emails = scope.Reader is MailboxReaderKind.Person
             ? AccountScopedMailFolders.Excluding(emails, scope.WithheldJunkFolders)
             : WithoutReports(WithoutMailJudgedSpam(emails, scope.JunkFolders));
+
+        // Every reader whose answer reaches a model but the person's own Agent is kept from mail nobody received. The
+        // folder half reads the folder row the admitted folders above already joined; a scope admitting no folder
+        // returns nothing, so it is not asked there and costs that read no join of its own.
+        if (scope.Reader is MailboxReaderKind.Agent)
+        {
+            emails = scope.ReadableFolders.Count > 0
+                ? emails.Where(UnsentStoredEmails.IsSentOrReceived)
+                : emails.Where(email => !email.IsRemotelyDraft);
+        }
 
         return NarrowedToWhatWasAskedAbout(emails, scope);
     }

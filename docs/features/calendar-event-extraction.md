@@ -17,6 +17,9 @@ was merely offered, and what accepting or dismissing a proposal does — is [Cal
 | Mail | One arriving message, as the [enrichment pass](message-enrichment.md) already holds it | Up to four events | Stored as proposals on the calendar of every user the account is assigned to |
 | A typed sentence | Up to 500 characters somebody typed, with the instant they typed it at | One event | Answered to the client, stored nowhere |
 
+The mail half reads only what the enrichment pass selects, so a draft or a send that has not left proposes nothing:
+[mail nobody received](mailbox-queries.md#mail-nobody-received-read-by-the-persons-own-agent-alone) states why.
+
 Neither half puts anything on anybody's calendar. A proposal is a row a person still has to accept, and a drafted
 event is fields answered to whoever asked, which they submit themselves over a route of their own — so the worst a
 wrong reading costs is something to dismiss, never an appointment somebody finds they are committed to.

@@ -141,7 +141,7 @@ public sealed class StoredEmailSearchIndexReaderCommandTests
         var command = CommandBody(GeneratedCommand(QueryTextFor("water damage").MatchedUnder(EmailSearchRetrievalMode.Lexical)));
 
         // Assert
-        Assert.DoesNotContain("NOT (", command, StringComparison.Ordinal);
+        Assert.DoesNotMatch(@"NOT \([^()]*@@", command);
     }
 
     /// <summary>The ranking query reads no body at all: it decides an order, and an order needs no extract.</summary>

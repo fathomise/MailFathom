@@ -594,6 +594,7 @@ turn carries the attributes. The attributes are these:
 | `junk` | Only as `true` | The message sits in the folder its account maps as junk |
 | `first-contact` | Only as `true` | Nothing the mailbox held from before the message was written by its sender or addressed to them |
 | `written-by-mailbox` | Only as `true` | The mailbox itself wrote the message, so its author is the person the mailbox belongs to |
+| `unsent` | Only to the Agent, only on mail nobody received | `draft`, `scheduled`, `sending`, or `failed`: the message is the mailbox's own and has not left, as [mail nobody received](mailbox-queries.md#mail-nobody-received-read-by-the-persons-own-agent-alone) describes |
 
 The flags are written only where they hold, so the common message asks a model to read no negation. Every value is read
 from what the deployment recorded — the verdict the message was stored with, the configured role of the folder it sits
@@ -625,6 +626,16 @@ nothing about them. A claim from an authenticated sender whose message is neithe
 for where it came from alone, so an account such a sender gave is stated in full where the question asks for it, even
 beside an unverified message that contradicts it. Like the rest of the clause it is the weaker mechanism — what is
 structural is that the attributes are the service's own, in a place no message can write to.
+
+`unsent` reaches the Agent alone, because no other operation is ever handed mail nobody received. Its value is read
+from the send a draft was promoted to: `draft` for a working copy nobody asked to send, or whose send was withdrawn;
+`scheduled` for a send held until a due instant still ahead; `sending` for one asked to leave that nobody is known to
+have received — waiting for its attempt, put off by a server's temporary refusal, or an attempt whose answer never came
+back, which may have arrived and is not offered again; and `failed` for one the outbox refused and will not offer
+again. The
+Agent's own instruction, rather than the shared data clause, explains it: none of these is mail anybody is known to have received, so
+a promise in one is never read as made, a question in one as asked, or a conversation as answered by one, and the
+Agent says which state a message is in whenever it speaks of one.
 
 The provenance is personal data: whether somebody has written to a mailbox before is a fact about who its owner
 corresponds with. It inherits the classification of the mail it describes, travels only with a message the run already

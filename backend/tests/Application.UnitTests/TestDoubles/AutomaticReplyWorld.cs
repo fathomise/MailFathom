@@ -215,7 +215,6 @@ internal sealed class AutomaticReplyWorld
             OutgoingMailGovernors.Governing(sendRefusal),
             MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
-            OrganizationMailSigners.SigningNothing(),
             this.Clock,
             ClientSignalPublishers.ReachingNobody);
     }

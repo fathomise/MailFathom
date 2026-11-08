@@ -287,7 +287,7 @@ public sealed class MailboxScopeResolver
     {
         if (!Enum.IsDefined(reader))
         {
-            throw new ArgumentOutOfRangeException(nameof(reader), reader, "A read answers either for an agent or for the person.");
+            throw new ArgumentOutOfRangeException(nameof(reader), reader, "A read answers for an agent, the person's own Agent, or the person.");
         }
 
         return assignedAccounts.Contains(accountId)
@@ -313,14 +313,15 @@ public sealed class MailboxScopeResolver
     /// <param name="assignedAccounts">The accounts <see cref="ReadAssignedAccountsAsync" /> answered.</param>
     /// <param name="email">The email, as its summary was read.</param>
     /// <returns>
-    /// <see langword="true" /> when the account and the folder admit <paramref name="reader" /> and, for an agent, the
-    /// email is not withheld as spam.
+    /// <see langword="true" /> when the account and the folder admit <paramref name="reader" />, for an agent or the
+    /// person's own Agent the email is not withheld as spam, and for an agent it is not mail the mailbox has not sent.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="reader" /> is not a defined member.</exception>
     /// <remarks>
     /// This is what a read of an email's content by its identifier asks, and it is the rule a scope applies to a query,
     /// asked about one email: an agent never reads a message whose verdict is spam, and never reads the junk folder's
-    /// mail unless the person marked the message not spam, and never reads a delivery report or a read receipt. A
+    /// mail unless the person marked the message not spam, and never reads a delivery report or a read receipt. An agent
+    /// other than the person's own Agent never reads a draft or a send that has not left either. A
     /// message withheld that way is answered exactly as one that does not exist, so asking about an identifier tells an
     /// agent nothing about what is there. The acts that reach an
     /// email by its identifier ask <see cref="IsReadable(MailboxReaderKind, IReadOnlyList{MailAccountId}, MailAccountId, MailFolderAlias?)" />
@@ -334,7 +335,8 @@ public sealed class MailboxScopeResolver
         ArgumentNullException.ThrowIfNull(email);
 
         return this.IsReadable(reader, assignedAccounts, email.Account, email.Folder.Alias)
-            && (reader is MailboxReaderKind.Person || (!this.IsWithheldAsSpam(email) && email.Report is null));
+            && (reader is MailboxReaderKind.Person || (!this.IsWithheldAsSpam(email) && email.Report is null))
+            && (reader is not MailboxReaderKind.Agent || !this.IsUnsent(email));
     }
 
     /// <summary>Reports whether an agent's read withholds one email as spam.</summary>
@@ -352,13 +354,24 @@ public sealed class MailboxScopeResolver
         email.Folder.Alias is { } alias
         && this.folderReferences.TryResolve(email.Account, MailFolderReference.ToRole(MailFolderSpecialUse.Junk))?.Alias == alias;
 
+    /// <summary>Reports whether one email is mail the mailbox has not sent: a draft, or a send waiting in or refused by the outbox.</summary>
+    /// <remarks>
+    /// The in-process statement of the rule the stored-email predicate applies to an agent's scope, so the two change
+    /// together: the message carries <c>\Draft</c>, or sits in the folder its account maps as drafts, where a send waiting
+    /// to leave is filed beside the drafts the person is writing.
+    /// </remarks>
+    private bool IsUnsent(EmailSummary email) =>
+        email.RemoteFlags.IsDraft
+        || (email.Folder.Alias is { } alias
+            && this.folderReferences.TryResolve(email.Account, MailFolderReference.ToRole(MailFolderSpecialUse.Drafts))?.Alias == alias);
+
     /// <summary>Names the folders a scope answering for one kind of reader is restricted to.</summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="reader" /> is not a defined member.</exception>
     private static MailFolderSelection ReadableFoldersFor(MailboxReaderKind reader) => reader switch
     {
-        MailboxReaderKind.Agent => MailFolderSelection.VisibleToAI,
+        MailboxReaderKind.Agent or MailboxReaderKind.ConversationAgent => MailFolderSelection.VisibleToAI,
         MailboxReaderKind.Person => MailFolderSelection.Synchronized,
-        _ => throw new ArgumentOutOfRangeException(nameof(reader), reader, "A read answers either for an agent or for the person."),
+        _ => throw new ArgumentOutOfRangeException(nameof(reader), reader, "A read answers for an agent, the person's own Agent, or the person."),
     };
 
     /// <summary>Reads the roles a request named folders by, refusing one no account in scope plays.</summary>

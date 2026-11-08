@@ -31,7 +31,7 @@ public sealed class OrganizationSigningKeyTelemetry : IOrganizationSigningKeyTel
         this.unsignedMessages = Telemetry.Meter.CreateCounter<long>(
             "mailfathom.organization.mail.unsigned",
             unit: "{message}",
-            description: "Sends an organization's mail account asked to queue without the organization's signature: no active signing key, a private half that did not open, no signable author domain, or a signature that would carry the message past MailDelivery:MaxMessageBytes.");
+            description: "Transmission attempts and sent copies of an organization's mail composed without the organization's signature: no active signing key, a private half that did not open, no signable author domain, or a signature that would carry the message past MailDelivery:MaxMessageBytes.");
     }
 
     /// <inheritdoc />

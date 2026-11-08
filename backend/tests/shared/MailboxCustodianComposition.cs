@@ -16,6 +16,7 @@ using MailFathom.Application.Mail.Delivery;
 using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Application.Mail.Delivery.Filing;
 using MailFathom.Application.Mail.Delivery.Outbox;
+using MailFathom.Application.Mail.Delivery.Transmission;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Destinations;
@@ -316,6 +317,7 @@ internal sealed class MailboxCustodianComposition
         this.Custodians,
         this.Emails,
         this.Contents,
+        this.TransmittedForm,
         this.MimeReader,
         this.Mappings,
         this.FolderResolutions,
@@ -324,6 +326,9 @@ internal sealed class MailboxCustodianComposition
         this.Capabilities,
         this.Signals,
         this.Clock);
+
+    /// <summary>Gets what dates and signs a send's sent copy, which leaves every message as it was stored unless a test states otherwise.</summary>
+    internal TransmittedEmailForm TransmittedForm { get; init; } = TransmittedEmailForms.Unchanged();
 
     /// <summary>Gets what each account's server last advertised, which is never observed unless a test states it.</summary>
     internal IMailboxServerCapabilityStore Capabilities { get; init; } = NeverObservedCapabilities();
@@ -346,6 +351,7 @@ internal sealed class MailboxCustodianComposition
         this.WriteSessions,
         this.Destinations,
         this.Contents,
+        this.TransmittedForm,
         this.TransportPolicies,
         this.Clock);
 

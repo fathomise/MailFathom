@@ -847,6 +847,7 @@ public sealed class OutgoingMailFilingPassTests
                     lease,
                     outgoingEmailId,
                     deliveryNotificationCarried: null,
+                    transmittedAt: DateTimeOffset.UnixEpoch,
                     TestContext.Current.CancellationToken);
             }
 

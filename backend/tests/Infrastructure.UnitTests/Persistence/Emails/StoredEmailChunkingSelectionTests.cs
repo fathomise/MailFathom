@@ -212,6 +212,27 @@ public sealed class StoredEmailChunkingSelectionTests
         Assert.Empty(selected.AsEnumerable());
     }
 
+    /// <summary>
+    /// A draft, or a send still waiting in or refused by the outbox, is a word nobody received, so no passage of it is
+    /// cut and no vector of it answers a question about the mailbox.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Selecting_MailTheMailboxHasNotSent_LeavesItOut(bool flaggedDraft, bool inDraftsFolder)
+    {
+        // Arrange
+        var email = Email("work", "INBOX");
+        email.IsRemotelyDraft = flaggedDraft;
+        email.Folder.Role = inDraftsFolder ? MailFolderSpecialUse.Drafts : null;
+
+        // Act
+        var selected = StoredEmailChunkingStore.Selecting(Emails(email), "work", [WorkInbox], ClassificationOff);
+
+        // Assert
+        Assert.Empty(selected.AsEnumerable());
+    }
+
     /// <summary>A row the local mailbox no longer holds is not worth a passage.</summary>
     [Fact]
     public void Selecting_TombstonedMail_LeavesItOut()

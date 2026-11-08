@@ -156,7 +156,6 @@ internal sealed class DraftedMailDeployment
                 OutgoingMailGovernors.Permitting(),
                 MailFootings.SendingNone(),
                 screening,
-                OrganizationMailSigners.SigningNothing(),
                 this.clock,
                 ClientSignalPublishers.ReachingNobody),
             this.OutgoingEmails,

@@ -1389,9 +1389,9 @@ reconciliation resolves what the invalidation leaves behind. There is no branch 
 from a newly mapped one.
 
 The AI switch is applied in exactly one place. `MailboxScopeResolver` resolves the scope every read model is expressed
-in for the reader the read answers for — a `MailboxReaderKind` of `Agent` or `Person` — and attaches to it the folders
-that reader may see: for an agent, the folders a mapping both names and leaves visible to AI; for the person, every
-folder a mapping mirrors. It answers the same question for the reads that name an email by its identifier, so an AI
+in for the reader the read answers for — a `MailboxReaderKind` of `Agent`, `ConversationAgent`, or `Person` — and
+attaches to it the folders that reader may see: for an agent and for the person's own Agent alike, the folders a
+mapping both names and leaves visible to AI; for the person, every folder a mapping mirrors. It answers the same question for the reads that name an email by its identifier, so an AI
 function added later inherits the whole rule — the withheld folder and the unmapped one alike — instead of having to
 remember either. What it attaches is the list of what may be read rather than a list of what may not, which is what
 makes an account with no mapped folder read as nothing rather than as everything.

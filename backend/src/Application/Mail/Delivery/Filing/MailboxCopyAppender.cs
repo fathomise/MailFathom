@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.EmailContent.Storage;
+using MailFathom.Application.Mail.Delivery.Transmission;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Domain.Accounts;
@@ -42,6 +43,7 @@ public sealed class MailboxCopyAppender
     private readonly IMailboxWriteSessionFactory writeSessions;
     private readonly MailboxDestinationResolver destinations;
     private readonly IEmailContentStore contentStore;
+    private readonly TransmittedEmailForm transmittedForm;
     private readonly IMailTransportSecurityPolicyReader transportSecurityPolicies;
     private readonly TimeProvider timeProvider;
 
@@ -49,6 +51,7 @@ public sealed class MailboxCopyAppender
     /// <param name="writeSessions">Opens the one session able to change a mailbox.</param>
     /// <param name="destinations">Turns the role a filing names into the folder of the account it means.</param>
     /// <param name="contentStore">Holds the stored MIME the copy is appended from.</param>
+    /// <param name="transmittedForm">Dates a sent copy as its transmission left.</param>
     /// <param name="transportSecurityPolicies">Supplies the connection and authentication policy the append obeys.</param>
     /// <param name="timeProvider">Stamps the copy's internal date.</param>
     /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
@@ -56,18 +59,21 @@ public sealed class MailboxCopyAppender
         IMailboxWriteSessionFactory writeSessions,
         MailboxDestinationResolver destinations,
         IEmailContentStore contentStore,
+        TransmittedEmailForm transmittedForm,
         IMailTransportSecurityPolicyReader transportSecurityPolicies,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(writeSessions);
         ArgumentNullException.ThrowIfNull(destinations);
         ArgumentNullException.ThrowIfNull(contentStore);
+        ArgumentNullException.ThrowIfNull(transmittedForm);
         ArgumentNullException.ThrowIfNull(transportSecurityPolicies);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         this.writeSessions = writeSessions;
         this.destinations = destinations;
         this.contentStore = contentStore;
+        this.transmittedForm = transmittedForm;
         this.transportSecurityPolicies = transportSecurityPolicies;
         this.timeProvider = timeProvider;
     }
@@ -131,7 +137,7 @@ public sealed class MailboxCopyAppender
             return MailboxCopyAppendResult.DestinationUnavailable();
         }
 
-        var content = await source.FindContentAsync(this.contentStore, cancellationToken);
+        var content = await source.FindContentAsync(this.contentStore, this.transmittedForm, cancellationToken);
 
         if (content is null || content.RawMime.IsEmpty)
         {

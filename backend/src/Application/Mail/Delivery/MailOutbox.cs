@@ -12,7 +12,6 @@ using MailFathom.Application.Mail.Delivery.Governance;
 using MailFathom.Application.Mail.Delivery.Operations;
 using MailFathom.Application.Mail.Delivery.Outbox;
 using MailFathom.Application.Mail.Delivery.Screening;
-using MailFathom.Application.Mail.Delivery.Signing;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.Signals;
@@ -82,7 +81,6 @@ namespace MailFathom.Application.Mail.Delivery;
 /// <param name="governor">Answers whether this deployment may send this message at all, whoever is asking.</param>
 /// <param name="footers">Appends the footer in force for whoever asked, sent from the request's account.</param>
 /// <param name="screening">Answers whether what the message says is something this deployment lets leave.</param>
-/// <param name="signer">Signs the message for the organization the sending account belongs to, before it is stored.</param>
 /// <param name="timeProvider">Says whether a recorded send is due now or is being held for later.</param>
 /// <param name="clientSignals">Tells an open client that the account's outbox now holds the send.</param>
 public sealed class MailOutbox(
@@ -96,7 +94,6 @@ public sealed class MailOutbox(
     OutgoingMailGovernor governor,
     MailFootersInForce footers,
     OutgoingMailScreening screening,
-    IOrganizationMailSigner signer,
     TimeProvider timeProvider,
     ClientSignals clientSignals)
 {
@@ -105,7 +102,7 @@ public sealed class MailOutbox(
 
     /// <summary>Writes down a message to be sent, or answers with the record an identical request already left.</summary>
     /// <param name="request">The send that was asked for.</param>
-    /// <param name="rawMime">The composed RFC 822 bytes to transmit, stored once — carrying the sender's footer, and signed for the account's organization where it belongs to one — and read back for every attempt.</param>
+    /// <param name="rawMime">The composed RFC 822 bytes to transmit, stored once carrying the sender's footer and read back for every attempt, which dates them with the instant it begins and signs them for the account's organization.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The durable record for this request, and whether this call is what wrote it down.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="request" /> is <see langword="null" />.</exception>
@@ -141,9 +138,9 @@ public sealed class MailOutbox(
         // an idempotency key a way to carry a permission forward.
         await governor.RequirePermittedAsync(request, cancellationToken);
 
-        // Before the screening and the signature, because both are about the message that leaves and the footer is part
-        // of it: a signature over the bytes without it would not verify, and a screen that never read it would let a
-        // footer carry what the message itself may not. Here rather than where a message is composed, because a draft
+        // Before the screening, because it is about the message that leaves and the footer is part of it: a screen that
+        // never read it would let a footer carry what the message itself may not, and the signature each attempt adds
+        // would not verify over bytes without it. Here rather than where a message is composed, because a draft
         // and a recurring declaration reach this as stored MIME that must never carry one.
         var footedMime = await footers.AppendAsync(request, rawMime, cancellationToken);
 
@@ -159,16 +156,11 @@ public sealed class MailOutbox(
             throw OutgoingMailRefusedException.ContentRefused(screened);
         }
 
-        // Here and nowhere later, because the bytes stored below are what every attempt sends and every filing appends.
-        // A request that already has a record discards this signature with the rest of the bytes, which is the cost of
-        // not reading the record before signing.
-        var signedMime = await signer.SignAsync(request.Account, footedMime, cancellationToken);
-
         // Before the unit of work rather than inside it. Under the object backend this reaches the endpoint, and no
         // database transaction may be held open across that — the record below opens one the moment it is written.
         var placedContent = await contentStore.PlaceContentAsync(
             EmailContentKind.OutgoingMessage,
-            signedMime,
+            footedMime,
             cancellationToken);
 
         var committed = await retryPolicy.CommitAsync(
@@ -178,7 +170,7 @@ public sealed class MailOutbox(
                     session,
                     request,
                     principal,
-                    signedMime,
+                    footedMime,
                     attemptCancellationToken);
 
                 await contentStore.SaveOutgoingContentAsync(

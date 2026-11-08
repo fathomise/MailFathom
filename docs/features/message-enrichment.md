@@ -72,7 +72,9 @@ exist.
 message reached while its body was still uncut, or while an attachment it names was still unread, would be recorded for
 good as a reading of the half that happened to exist. Such a message waits here instead, and the next run takes it once
 the stage in front has finished with it. A deployment that reads no attachments waits for none. A delivery report or a
-read receipt is never selected at all: it is shown to no agent, so nothing is derived from one.
+read receipt is never selected at all: it is shown to no agent, so nothing is derived from one. Neither is mail
+nobody received — a draft, or a send waiting in or refused by the outbox — so no mark, task, or calendar proposal is
+read out of a reply the person has not sent; [mail nobody received](mailbox-queries.md#mail-nobody-received-read-by-the-persons-own-agent-alone) states which mail that is.
 
 It is a step of the account's synchronization run rather than a schedule of its own, for the reason every other pass is
 one: that run already has per-account isolation, a slot count, a jittered backoff, and a failure path that defers the
