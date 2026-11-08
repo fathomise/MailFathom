@@ -115,5 +115,25 @@ public sealed class DiscoveryPlanningScenarioTests : IDisposable
         Assert.Empty(StructuredAnswerScenario.ShortfallsOf(outcome));
     }
 
+    [Theory]
+    [InlineData(3, false)]
+    [InlineData(2, true)]
+    public async Task RunAsync_AnAmbiguousQuestionRatedNearTheThreshold_FilesTheRatingAsTheScenarioHoldsIt(int score, bool fallsShort)
+    {
+        // Arrange
+        using var judgedRun = new ScriptedStructuredAnswerRun(resolutionScore: score);
+        using var model = ScriptedStructuredAnswerRun.Model("""{"intent":"findDocuments","sufficientPassages":4,"lookups":[{"queryText":"Q3 figures","hasAttachments":true}]}""");
+
+        // Act
+        var outcome = await judgedRun.RunAsync(
+            DiscoveryPlanningScenario.RequestFor(DiscoveryPlanningCase.Named("AmbiguousDocumentOrFact")),
+            model);
+
+        // Assert
+        var resolution = outcome.Verdict.Get<NumericMetric>(StructuredAnswerScenario.IntentResolutionMetricName);
+
+        Assert.Equal((fallsShort, fallsShort), (resolution.Interpretation!.Failed, StructuredAnswerScenario.ShortfallsOf(outcome).Any()));
+    }
+
     public void Dispose() => this.run.Dispose();
 }

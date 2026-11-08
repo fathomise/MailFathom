@@ -21,16 +21,13 @@ namespace MailFathom.Evaluations.UnitTests.StructuredAnswers;
 /// temporary directory and read back for the reason <see cref="EmailEnrichmentScenarioTests" /> gives, since the verdict a
 /// case reports is what the store files.
 /// </remarks>
-internal sealed class ScriptedStructuredAnswerRun : IDisposable
+/// <param name="resolutionScore">The intent resolution score the scripted judge rates every answer, from one to five.</param>
+internal sealed class ScriptedStructuredAnswerRun(int resolutionScore = 5) : IDisposable
 {
     /// <summary>The routed name every scripted model answers under.</summary>
     public const string ModelUnderTest = "model-under-test";
 
     private const string ExecutionName = "only";
-
-    /// <summary>A verdict in the shape the intent resolution evaluator reads, rating the answer five.</summary>
-    private const string JudgeAnswer =
-        """{"explanation":"A reasonable reading.","conversation_has_intent":true,"agent_perceived_intent":"find mail","actual_user_intent":"find mail","correct_intent_detected":true,"intent_resolved":true,"resolution_score":5}""";
 
     private static readonly Uri JudgeAddress = new("https://judge.invalid/v1/");
 
@@ -38,7 +35,9 @@ internal sealed class ScriptedStructuredAnswerRun : IDisposable
 
     /// <summary>Gets the scripted judge, which counts what it was asked.</summary>
     public ScriptedChatClient Judge { get; } =
-        new(JudgeAnswer, new ChatClientMetadata("scripted-judge", JudgeAddress, "judge-model"));
+        new(
+            $$"""{"explanation":"A reasonable reading.","conversation_has_intent":true,"agent_perceived_intent":"find mail","actual_user_intent":"find mail","correct_intent_detected":true,"intent_resolved":true,"resolution_score":{{resolutionScore}}}""",
+            new ChatClientMetadata("scripted-judge", JudgeAddress, "judge-model"));
 
     /// <summary>Opens a scripted model answering every call with one text.</summary>
     /// <param name="answer">What the model answers.</param>

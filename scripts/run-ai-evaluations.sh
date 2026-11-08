@@ -210,6 +210,23 @@ retain_newest_results() {
   find "$results" -mindepth 1 -maxdepth 1 -type d -empty -delete
 }
 
+# A repetition whose own answer passed files its case's `Passing share` as passed, rated inconclusive where the case fell
+# short, so the report's pass rate counts repetitions as the gate does; an earlier run filed the case's verdict in every
+# repetition. So the copy the report is rendered from re-reads a failed share as EvaluationRepetitions files it now
+# wherever no other metric of that repetition failed, after reread_passing_shares has applied the current rule. A
+# result already filed this way is left as it is, and the store keeps what each run filed.
+reread_passing_repetitions() {
+  local results="$1"
+
+  { find "$results" -name '*.json' -exec grep -lZ '"Passing share"' {} + || true; } |
+    xargs -0 -r jq -r '
+      select(.evaluationResult.metrics["Passing share"].interpretation.failed == true
+        and ([.evaluationResult.metrics | to_entries[] | select(.key != "Passing share") | .value.interpretation.failed // false] | any | not))
+      | .evaluationResult.metrics["Passing share"].interpretation |= (.rating = "inconclusive" | .failed = false)
+      | input_filename + "\t" + tojson' |
+    awk -F '\t' '{ file = $1; sub(/^[^\t]*\t/, ""); print > file; close(file) }'
+}
+
 # The report reads runs newest first by when their directory was created, so the copy creates the
 # earlier runs in the order they ran and this run last. A run that wrote nothing carries nothing, so
 # its report opens on the newest run that did. A scenario the suite no longer has is carried as well,
@@ -291,6 +308,7 @@ if [[ -d "$MAILFATHOM_AI_EVALUATIONS_STORE/results" ]]; then
   report_store="$output_directory/report-store"
   compose_report_results "$MAILFATHOM_AI_EVALUATIONS_STORE/results" "$MAILFATHOM_AI_EVALUATIONS_EXECUTION" "$report_store/results"
   reread_passing_shares "$report_store/results"
+  reread_passing_repetitions "$report_store/results"
   dotnet tool run aieval report --path "$report_store" --output "$output_directory/report.html"
   rm -rf "$report_store"
 else
@@ -355,7 +373,7 @@ if [[ -d "$execution_results" ]]; then
         def percent($passed; $count): if $count > 0 then ($passed * 1000 / $count | round) / 10 else 0 end;
         (map(.passed) | add // 0 | round) as $passed
         | length as $count
-        | (group_by(.case) | map(.[0])) as $cases
+        | (group_by(.case) | map(.[0] + {held: (map(.held) | all)})) as $cases
         | ($cases | map(select(.reason != null and .passed > 0 and .passed < 1))) as $unstable
         | "\($passed) \($count)",
           "Repetitions that passed: \($passed) of \($count) (\(percent($passed; $count))%); the run fails under \($floor)%.",
@@ -386,22 +404,12 @@ if trx_files=("$output_directory"/results/*.trx) && [[ -f "${trx_files[0]}" ]]; 
   printf 'Cases that failed because a provider or judge did not answer: %d.\n' "$unanswered_cases"
 fi
 
-# A model's answer varies between calls, so cases falling short is the measurement rather than a
-# defect, and only a repetition share under the floor fails the run. Exit code 2 is the test
-# platform's "at least one test failed"; every other code is carried as it is. A test can also fail
-# without falling short — an exception the scenario did not turn into a shortfall — and such a test
-# filed nothing the share could count, so it keeps the run red. Every scenario ends on
-# AiEvaluationRun.AssertNoShortfalls, whose frame each shortfall failure's stack trace carries once.
+# Only a repetition share under the floor, or a failure that is not a shortfall, fails a run whose tests failed;
+# scripts/decide-ai-evaluation-run.sh says how the two are told apart.
 if [[ "$test_exit_code" -eq 2 ]] && trx_files=("$output_directory"/results/*.trx) && [[ -f "${trx_files[0]}" ]]; then
-  failed_tests=$({ grep -ho '<UnitTestResult [^>]*outcome="Failed"' "${trx_files[@]}" || true; } | wc -l)
-  shortfall_failures=$({ grep -ho 'AiEvaluationRun\.AssertNoShortfalls(' "${trx_files[@]}" || true; } | wc -l)
-
-  if (( failed_tests > shortfall_failures )); then
-    printf '%d failed test(s) ended other than on their shortfalls, which the repetition share cannot count, so the run fails.\n' \
-      "$((failed_tests - shortfall_failures))"
-  elif (( repetition_count > 0 && repetitions_passed * 100 >= required_repetition_percentage * repetition_count )); then
-    test_exit_code=0
-  fi
+  test_exit_code=0
+  bash scripts/decide-ai-evaluation-run.sh 2 "$repetitions_passed" "$repetition_count" "$required_repetition_percentage" \
+    "${trx_files[@]}" || test_exit_code=$?
 fi
 
 exit "$test_exit_code"

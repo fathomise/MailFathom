@@ -12810,6 +12810,103 @@ None'
   (( failures == 0 ))
 }
 
+# `scripts/decide-ai-evaluation-run.sh` is what ends a paid evaluation run, so it is driven over TRX results written
+# the way the test platform writes them: several results to a line, a message running over several, and a stack trace
+# that may or may not carry `AiEvaluationRun.AssertNoShortfalls`, which the runtime has inlined away before.
+evaluation_result() {
+  local outcome="$1" message="${2:-}" stack="${3:-}"
+
+  printf '<UnitTestResult testName="MailFathom.Evaluations.Case(caseName: &quot;%s&quot;)" outcome="%s">' "$RANDOM" "$outcome"
+  if [[ "$outcome" == 'Failed' ]]; then
+    printf '<Output><ErrorInfo><Message>%s</Message><StackTrace>%s</StackTrace></ErrorInfo></Output>' "$message" "$stack"
+  fi
+  printf '</UnitTestResult>'
+}
+
+write_evaluation_trx() {
+  local file="$1"
+  shift
+
+  {
+    printf '<?xml version="1.0" encoding="utf-8"?><TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010"><Results>'
+    printf '%s' "$@"
+    printf '</Results><ResultSummary outcome="Failed" /></TestRun>\n'
+  } > "$file"
+}
+
+evaluation_shortfall_message=$'2 shortfall(s):\nCase under vendor/model: 3 of 3 repetition(s) fell short; 0 of its 3 answer(s) were replayed from an earlier run.\n  repetition 1: missed the point'
+evaluation_method_frame='   at MailFathom.Evaluations.Answering.MailAnsweringEvaluations.Answer_AQuestion(String caseName) in /_/backend/tests/Evaluations/Answering/MailAnsweringEvaluations.cs:line 40'
+evaluation_assertion_frame='   at MailFathom.Evaluations.AiEvaluationRun.AssertNoShortfalls(IEnumerable`1 shortfalls) in /_/backend/tests/Evaluations/AiEvaluationRun.cs:line 60'
+
+the_evaluation_gate_counts_a_shortfall_failure_by_its_message() {
+  local trx="$test_directory/evaluation-inlined.trx" output="$test_directory/evaluation-inlined.out" exit_code=0
+
+  write_evaluation_trx "$trx" \
+    "$(evaluation_result Passed)" \
+    "$(evaluation_result Failed "$evaluation_shortfall_message" "$evaluation_method_frame")"
+
+  bash "$source_repository_root/scripts/decide-ai-evaluation-run.sh" 2 95 100 90 "$trx" > "$output" || exit_code=$?
+
+  [[ "$exit_code" -eq 0 ]]
+  assert_contains 'Every one of the 1 failed test(s) fell short' "$output"
+}
+
+the_evaluation_gate_fails_a_failure_that_is_not_a_shortfall() {
+  local trx="$test_directory/evaluation-exception.trx" output="$test_directory/evaluation-exception.out" exit_code=0
+
+  # The exception's trace carries the assertion's frame as well, which a count of frames would have read as a shortfall.
+  write_evaluation_trx "$trx" \
+    "$(evaluation_result Failed "$evaluation_shortfall_message" "$evaluation_assertion_frame")" \
+    "$(evaluation_result Failed 'System.InvalidOperationException : MAILFATHOM_JUDGE_MODELS is not set.' \
+      "$evaluation_assertion_frame"$'\n'"$evaluation_method_frame")"
+
+  bash "$source_repository_root/scripts/decide-ai-evaluation-run.sh" 2 100 100 90 "$trx" > "$output" || exit_code=$?
+
+  [[ "$exit_code" -eq 2 ]]
+  assert_contains '1 of 2 failed test(s) ended other than on their shortfalls' "$output"
+}
+
+the_evaluation_gate_holds_a_run_of_shortfall_failures_to_the_floor() {
+  local first="$test_directory/evaluation-first.trx" second="$test_directory/evaluation-second.trx"
+  local output="$test_directory/evaluation-floor.out" at_floor=0 under_floor=0 other_exit=0
+
+  write_evaluation_trx "$first" \
+    "$(evaluation_result Failed "$evaluation_shortfall_message" "$evaluation_method_frame")" \
+    "$(evaluation_result Passed)" \
+    "$(evaluation_result Failed "$evaluation_shortfall_message" "$evaluation_assertion_frame"$'\n'"$evaluation_method_frame")"
+  write_evaluation_trx "$second" \
+    "$(evaluation_result NotExecuted)" \
+    "$(evaluation_result Failed "$evaluation_shortfall_message" "$evaluation_method_frame")"
+
+  bash "$source_repository_root/scripts/decide-ai-evaluation-run.sh" 2 90 100 90 "$first" "$second" > "$output" || at_floor=$?
+  bash "$source_repository_root/scripts/decide-ai-evaluation-run.sh" 2 89 100 90 "$first" "$second" >> "$output" || under_floor=$?
+  bash "$source_repository_root/scripts/decide-ai-evaluation-run.sh" 8 100 100 90 "$first" > /dev/null || other_exit=$?
+
+  [[ "$at_floor" -eq 0 && "$under_floor" -eq 2 && "$other_exit" -eq 8 ]]
+  assert_contains 'Every one of the 3 failed test(s) fell short, and 90 of 100 repetitions passed' "$output"
+  assert_contains '89 of 100 repetitions passed, under 90%, so the run fails.' "$output"
+}
+
+# The header is written in C# and read in shell, so the message is built from the format string the suite itself
+# carries: a header reworded on one side and not the other fails here rather than turning every shortfall red.
+the_shortfall_header_the_suite_writes_is_the_one_the_gate_reads() {
+  local trx="$test_directory/evaluation-header.trx" header exit_code=0
+
+  header=$(sed -nE 's/.*Assert\.Fail\(\$"\{named\.Count\}( shortfall\(s\):)\\n.*/3\1/p' \
+    "$source_repository_root/backend/tests/Evaluations/AiEvaluationRun.cs")
+
+  if [[ -z "$header" ]]; then
+    printf 'AiEvaluationRun.AssertNoShortfalls no longer writes Assert.Fail($"{named.Count} shortfall(s):\\n..."); scripts/decide-ai-evaluation-run.sh reads that header.\n' >&2
+    return 1
+  fi
+
+  write_evaluation_trx "$trx" "$(evaluation_result Failed "$header"$'\n''Case under vendor/model: fell short.' "$evaluation_method_frame")"
+
+  bash "$source_repository_root/scripts/decide-ai-evaluation-run.sh" 2 100 100 90 "$trx" > /dev/null || exit_code=$?
+
+  [[ "$exit_code" -eq 0 ]]
+}
+
 run_test verify_fast_runs_restore_build_tests_and_formatting
 run_test verify_fast_stops_when_head_is_behind_origin_main
 run_test verify_fast_accepts_a_branch_behind_origin_main_when_told_to
@@ -13208,6 +13305,10 @@ run_test every_workflow_parses_as_yaml
 run_test no_two_tracked_paths_differ_only_by_case
 run_test the_client_corpus_states_what_the_contract_records
 run_test the_corpus_comparison_names_the_route_the_field_and_both_spellings
+run_test the_evaluation_gate_counts_a_shortfall_failure_by_its_message
+run_test the_evaluation_gate_fails_a_failure_that_is_not_a_shortfall
+run_test the_evaluation_gate_holds_a_run_of_shortfall_failures_to_the_floor
+run_test the_shortfall_header_the_suite_writes_is_the_one_the_gate_reads
 
 printf '%s passed, %s failed\n' "$passed_count" "$failed_count"
 
