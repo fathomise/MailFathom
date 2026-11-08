@@ -15,7 +15,8 @@ public sealed class AnonymousJudgeChatClientTests
     public async Task GetResponseAsync_ATransportTimeoutUnderALiveToken_IsAJudgeThatDidNotAnswer()
     {
         // Arrange
-        using var judge = new AnonymousJudgeChatClient(new FailingJudge(new TaskCanceledException("planted-model timed out")), "juror 1");
+        using var provider = new FailingJudge(new TaskCanceledException("planted-model timed out"));
+        using var judge = new AnonymousJudgeChatClient(provider, "juror 1");
 
         // Act
         var failure = await Assert.ThrowsAsync<JudgeDidNotAnswerException>(
@@ -31,7 +32,8 @@ public sealed class AnonymousJudgeChatClientTests
         // Arrange
         using var cancellation = new CancellationTokenSource();
         await cancellation.CancelAsync();
-        using var judge = new AnonymousJudgeChatClient(new FailingJudge(new OperationCanceledException(cancellation.Token)), "juror 1");
+        using var provider = new FailingJudge(new OperationCanceledException(cancellation.Token));
+        using var judge = new AnonymousJudgeChatClient(provider, "juror 1");
 
         // Act
         var failure = await Record.ExceptionAsync(() => judge.GetResponseAsync("Rate.", cancellationToken: cancellation.Token));
