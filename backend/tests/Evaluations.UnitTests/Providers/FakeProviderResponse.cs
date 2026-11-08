@@ -4,6 +4,7 @@
 
 using System.ClientModel;
 using System.ClientModel.Primitives;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MailFathom.Evaluations.UnitTests.Providers;
 
@@ -26,6 +27,10 @@ internal sealed class FakeProviderResponse(int status, params (string Name, stri
     /// <param name="status">The HTTP status the provider answered with.</param>
     /// <param name="headers">The headers the provider answered with.</param>
     /// <returns>The failure.</returns>
+    [SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "The failure keeps the response as its raw response for as long as it lives, as a client library's does, and this response holds nothing to release.")]
     public static ClientResultException Refusal(int status, params (string Name, string Value)[] headers) =>
         new(new FakeProviderResponse(status, headers));
 
