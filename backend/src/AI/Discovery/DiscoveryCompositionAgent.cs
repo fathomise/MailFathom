@@ -200,7 +200,7 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
     /// the user's own mail going back to the user, and redacting it there would hide from somebody what they already
     /// have. A guard that is inactive returns the same text, so a deployment scanning nothing pays nothing here.
     /// </remarks>
-    private static async Task<IReadOnlyList<DiscoveryTurnSource>> GuardAsync(
+    internal static async Task<IReadOnlyList<DiscoveryTurnSource>> GuardAsync(
         IReadOnlyList<DiscoveryComposedSource> sources,
         SensitiveContentEgressGuard egressGuard,
         CancellationToken cancellationToken)

@@ -9,6 +9,7 @@ using MailFathom.AI.Providers;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Discovery.Planning;
+using MailFathom.Application.Discovery.Runs;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
@@ -23,7 +24,9 @@ namespace MailFathom.AI.Discovery;
 /// <para>
 /// One call, no tools, no mail. What leaves this deployment is the person's own question and a count describing the
 /// scope, so the derivation costs a single short exchange and cannot be talked into retrieving anything by what it is
-/// planning over.
+/// planning over. The follow-up is a second call to the same agent, made once the plan's lookups have run and shown the
+/// subjects and short extracts they found; whatever a message writes there can at most propose a few lookups inside the
+/// same scope and bounds, which is the whole of what that answer is read for.
 /// </para>
 /// <para>
 /// A provider that fails, times out, or answers with something unreadable does not end the run: the reading falls back
@@ -147,6 +150,81 @@ internal sealed class DiscoveryPlanningAgent : IDiscoveryRunPlanner
         }
 
         return outcome.Plan;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The same agent as the plan, composed the same way and charged to the same two ledgers before the call leaves, so
+    /// the follow-up is the second of at most three calls a run makes rather than a call of a different kind. It is the
+    /// one planning call that is shown mail, which is why its turn is guarded like the composition's and why
+    /// what it answers with is read for lookups and nothing else.
+    /// </remarks>
+    public async Task<IReadOnlyList<EmailKnowledgeQuery>> FollowUpAsync(
+        MailQuestion question,
+        DiscoveryRunPlan plan,
+        DiscoveryEvidence evidence,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(question);
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(evidence);
+
+        var endpoint = this.plan.Endpoint;
+        var turn = await ComposeFollowUpTurnAsync(question, plan, evidence, this.egressGuard, cancellationToken);
+
+        // Too large to send is an answer of no further lookup rather than a failed run: the run already holds what the plan
+        // found, and every later model of the chain is held to its own bound when it is asked.
+        if (!DiscoveryCompositionAgent.FitsOneRequest(turn, this.plan))
+        {
+            DiscoveryPlanningEvents.LogFollowUpTooLarge(this.logger, endpoint.Alias);
+
+            return [];
+        }
+
+        var answer = await this.AskAsync(turn, cancellationToken);
+        var lookups = DiscoveryPlanReading.ReadFollowUp(answer?.Text, plan, question.AskedAt);
+
+        DiscoveryPlanningEvents.LogFollowUpRead(this.logger, answer?.Alias ?? endpoint.Alias, lookups.Count);
+
+        return lookups;
+    }
+
+    /// <summary>Composes the follow-up turn: the question, guarded, the lookups the plan ran, and what they found, guarded and cut short.</summary>
+    /// <param name="question">The question and the scope it was asked over.</param>
+    /// <param name="plan">The plan whose lookups ran.</param>
+    /// <param name="evidence">What they found.</param>
+    /// <param name="egressGuard">Scans the question and every subject and extract before any of it is composed.</param>
+    /// <param name="cancellationToken">Withdraws the scan.</param>
+    /// <returns>The turn.</returns>
+    /// <remarks>
+    /// The messages are the ones the composition would be offered, declared the same way, so the follow-up is never shown
+    /// more of the mailbox than the composition already is, and is shown less of each message.
+    /// </remarks>
+    internal static async Task<string> ComposeFollowUpTurnAsync(
+        MailQuestion question,
+        DiscoveryRunPlan plan,
+        DiscoveryEvidence evidence,
+        SensitiveContentEgressGuard egressGuard,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(question);
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(evidence);
+        ArgumentNullException.ThrowIfNull(egressGuard);
+
+        var questionText = await egressGuard.GuardAsync(
+            SensitiveContentEgressPoint.ChatPrompt,
+            question.Text.Value,
+            cancellationToken);
+        var found = await DiscoveryCompositionAgent.GuardAsync(
+            DiscoveryComposedSources.Declare(evidence.Passages),
+            egressGuard,
+            cancellationToken);
+
+        return DiscoveryPlanningInstructions.ComposeFollowUpTurn(
+            questionText,
+            [.. plan.Retrieval.Lookups.Select(static lookup => lookup.QueryText)],
+            found);
     }
 
     /// <summary>Composes the turn one derivation sends: the question, guarded, with its scope, its instant, and the retrieval bounds a plan may name.</summary>

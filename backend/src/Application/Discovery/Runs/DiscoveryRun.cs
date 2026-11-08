@@ -158,7 +158,7 @@ public sealed class DiscoveryRun
             cancellationToken);
     }
 
-    /// <summary>Joins the three stages of a run that has already been admitted: the plan, the retrieval it asks for, and the composition of what it found.</summary>
+    /// <summary>Joins the stages of a run that has already been admitted: the plan, the retrieval it asks for, the follow-up round over what that found, and the composition.</summary>
     /// <param name="question">The question and the scope bounding what may be read to answer it.</param>
     /// <param name="planner">The derivation the question is read into a plan through.</param>
     /// <param name="retrieval">The retrieval the plan is run through.</param>
@@ -169,9 +169,18 @@ public sealed class DiscoveryRun
     /// <param name="cancellationToken">Cancels the derivation, the retrieval, and the composition.</param>
     /// <returns>What the run decided, what it found, and what it composed out of it.</returns>
     /// <remarks>
+    /// <para>
     /// Apart from <see cref="RunAsync" /> so the agent evaluations join the stages through this code rather than a copy of
     /// it, while leaving out what decides whether a run happens at all — the grant, the capability, the period's
     /// allowance, and the posture the egress guard acts for — which is <see cref="RunAsync" />'s alone.
+    /// </para>
+    /// <para>
+    /// A run makes at most three calls: the plan, one follow-up, and the composition. The follow-up is the only call that
+    /// is shown mail before the composition, and what it can do with it is bounded here rather than trusted: it adds at
+    /// most <see cref="RetrievalPlan.MaximumFollowUpLookups" /> lookups, which run inside the question's scope, each
+    /// assured a few messages of its own within the sources one result may declare, and the plan it hands on to the composition is the one it was given, so the intent, and with it
+    /// the presentation, stays what the question was first read as.
+    /// </para>
     /// </remarks>
     internal static async Task<DiscoveryRunResult> AnswerAsync(
         MailQuestion question,
@@ -185,6 +194,22 @@ public sealed class DiscoveryRun
     {
         var plan = await planner.DerivePlanAsync(question, cancellationToken);
         var evidence = await retrieval.RetrieveAsync(question, plan.Retrieval, progress, cancellationToken);
+
+        // A run whose retrieval already reached its ceiling could hand over nothing a further lookup found, so it asks
+        // for none rather than paying a turn for lookups that cannot be admitted.
+        if (!evidence.RetrievalTruncated)
+        {
+            var followUpLookups = await planner.FollowUpAsync(question, plan, evidence, cancellationToken);
+
+            evidence = await retrieval.RetrieveFollowUpAsync(
+                question,
+                plan.Retrieval,
+                [.. followUpLookups.Take(RetrievalPlan.MaximumFollowUpLookups)],
+                evidence,
+                progress,
+                cancellationToken);
+        }
+
         var coverage = await coverageReader.ReadAsync(question.Scope, evidence.Passages, cancellationToken);
 
         return new DiscoveryRunResult(

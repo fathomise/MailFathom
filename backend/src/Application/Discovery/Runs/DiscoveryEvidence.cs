@@ -10,7 +10,7 @@ namespace MailFathom.Application.Discovery.Runs;
 /// <summary>What a run's retrieval plan actually found, and how much of the plan it took to find it.</summary>
 /// <param name="Passages">The distinct passages the run may answer from, best-ranked first within the lookup that found them.</param>
 /// <param name="RetrievalMode">How the deployment ranked them, which is its own configuration rather than the plan's choice.</param>
-/// <param name="LookupsRun">How many of the plan's lookups were run before enough was found or the plan ran out.</param>
+/// <param name="LookupsRun">How many lookups were run before enough was found or the plan ran out, the follow-up round's included.</param>
 /// <param name="LookupsRefused">How many lookups the deployment refused because a filter on them was not usable.</param>
 /// <param name="RetrievalTruncated">Whether a lookup found mail the run's own ceiling on retrieved characters would not let it send.</param>
 /// <remarks>
@@ -24,4 +24,8 @@ public sealed record DiscoveryEvidence(
     EmailSearchRetrievalMode RetrievalMode,
     int LookupsRun,
     int LookupsRefused,
-    bool RetrievalTruncated);
+    bool RetrievalTruncated)
+{
+    /// <summary>Gets the lookups the follow-up round added once the plan's own had run, empty where it added none.</summary>
+    public IReadOnlyList<EmailKnowledgeQuery> FollowUpLookups { get; init; } = [];
+}

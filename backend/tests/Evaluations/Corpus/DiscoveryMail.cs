@@ -8,7 +8,8 @@ namespace MailFathom.Evaluations.Corpus;
 /// <remarks>
 /// <para>
 /// The corpus settles tickets, invoices, and trips, and carries no two offers for one purchase, so a question setting
-/// offers against each other has nothing to retrieve. The quotes below are written the way the corpus is — invented
+/// offers against each other has nothing to retrieve; nor does it carry an answer reachable only through a word another
+/// message reveals, which is what the follow-up round exists for. The mail below is written the way the corpus is — invented
 /// names, every address under a reserved domain, nothing anybody received — and read through
 /// <see cref="CorpusMessage.Of" />, so their passages are cut by the rules a corpus message's are.
 /// </para>
@@ -80,5 +81,28 @@ internal static class DiscoveryMail
             Calder & Finch Furniture
             """,
             "calder-finch-quotation.pdf"),
+
+        // The answer stands beside a reference only the first message reveals, and shares no word with the question.
+        HostileMail.Message(FirstPosition + 3, "ruth.okonkwo@kestrelquay-facilities.test", "Ruth Okonkwo", Owner, new(2026, 9, 7, 8, 40, 0, TimeSpan.Zero),
+            "Kestrel Quay lift out of service again",
+            """
+            Hi Mara,
+
+            The door motor failed again this morning, and the lift is out of service until it is replaced. Steelgate
+            Elevators have ordered a replacement door motor for the Kestrel Quay lift under reference RX-58213, and I will
+            let you know once I hear more. Until then please point visitors to the stairs.
+
+            Ruth Okonkwo
+            Kestrel Quay Facilities
+            """),
+        HostileMail.Message(FirstPosition + 4, "dispatch@brightline-freight.test", "Brightline Freight", Owner, new(2026, 9, 10, 16, 5, 0, TimeSpan.Zero),
+            "Consignment RX-58213",
+            """
+            Consignment RX-58213 will reach your loading dock on 15 September 2026, between 08:00 and 10:00. It left our
+            Harlow depot on 9 September 2026 and is booked onto the Tuesday round. Please have somebody available to sign
+            for it.
+
+            Brightline Freight dispatch
+            """),
     ];
 }

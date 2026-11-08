@@ -306,4 +306,50 @@ public sealed class DiscoveryPlanReadingTests
         // Assert
         Assert.Equal(EmailSearchQueryText.MaximumLength, plan.Retrieval.Lookups[0].QueryText.Length);
     }
+
+    /// <summary>A follow-up may only add searching, so a lookup the plan already ran, a repeat, or one past the bound is dropped.</summary>
+    [Fact]
+    public void ReadFollowUp_AnAnswerRepeatingAndOverrunningLookups_AddsOnlyTheNewOnesUpToTheBound()
+    {
+        // Arrange
+        const string answer = """
+            {
+              "intent": "compareTerms",
+              "lookups": [
+                { "queryText": "Quotation Racking" },
+                { "queryText": "RX-58213" },
+                { "queryText": "rx-58213" },
+                { "queryText": "loading dock" },
+                { "queryText": "consignment" },
+                { "queryText": "delivery date" }
+              ]
+            }
+            """;
+        var plan = DiscoveryRunPlan.Compose(
+            DiscoveryIntent.FindFact,
+            RetrievalPlan.Create(Bounds, [EmailKnowledgeQuery.ForText("quotation racking")], sufficientPassages: 5));
+
+        // Act
+        var lookups = DiscoveryPlanReading.ReadFollowUp(answer, plan, AskedAt);
+
+        // Assert
+        Assert.Equal(["RX-58213", "loading dock", "consignment"], lookups.Select(lookup => lookup.QueryText));
+    }
+
+    /// <summary>The run already holds what the plan found, so an answer that is no plan adds nothing rather than falling back to the question.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("Search for the delivery date next.")]
+    public void ReadFollowUp_AnAnswerThatIsNoPlan_AddsNoLookup(string? answer)
+    {
+        // Arrange
+        var plan = DiscoveryPlanReading.Fallback(Question, Bounds);
+
+        // Act
+        var lookups = DiscoveryPlanReading.ReadFollowUp(answer, plan, AskedAt);
+
+        // Assert
+        Assert.Empty(lookups);
+    }
 }
