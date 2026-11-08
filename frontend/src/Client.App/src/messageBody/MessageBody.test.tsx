@@ -5,8 +5,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type {
-    CleanedMailBody,
-    ClientResult,
     MailBody,
     MailBodyText,
     MailDocument,
@@ -488,13 +486,7 @@ describe('MessageBody', () => {
             worthWarningAbout: false,
         };
 
-        function readOnly(
-            body: MailBody,
-            {
-                embeddedHtml = false,
-                cleaned = null,
-            }: { embeddedHtml?: boolean; cleaned?: ClientResult<CleanedMailBody> | null } = {},
-        ) {
+        function readOnly(body: MailBody, { embeddedHtml = false }: { embeddedHtml?: boolean } = {}) {
             return render(
                 <LocalizationProvider>
                     <LinkOpenerContext value={() => Promise.resolve()}>
@@ -502,7 +494,6 @@ describe('MessageBody', () => {
                             body={body}
                             asking={false}
                             embeddedHtml={embeddedHtml}
-                            cleaned={cleaned}
                             readOnly
                             onShowRemotePictures={() => undefined}
                         />
@@ -543,22 +534,6 @@ describe('MessageBody', () => {
 
             expect(screen.queryByRole('button', { name: 'Load images from the sender' })).toBeNull();
             expect(screen.queryByText('Removed references: 3')).toBeNull();
-        });
-
-        it('draws the reduced tree rather than a cleaning that arrived for it', () => {
-            readOnly(readable, {
-                cleaned: {
-                    outcome: 'read',
-                    value: {
-                        storedEmailId: 'a-message',
-                        cleaning: 'Cleaned',
-                        document: { ...drawnDocument, blocks: [written('The cleaned words.')] },
-                    },
-                },
-            });
-
-            expect(screen.getByText('A drawn message.')).toBeDefined();
-            expect(screen.queryByText('The cleaned words.')).toBeNull();
         });
 
         it('draws the reduced tree where the reader chose the sender’s own markup', () => {

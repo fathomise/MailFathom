@@ -122,8 +122,6 @@ const read: MessageBodyRead = {
     askingForPictures: false,
     askedForPictures: false,
     embeddedHtml: false,
-    cleaned: null,
-    cleaning: false,
     readAgain: () => undefined,
     showRemotePictures: () => undefined,
     showWithoutRemotePictures: () => undefined,
@@ -250,14 +248,6 @@ describe('OpenedMessage', () => {
         drawing(described, read, nothingMarkedRead, 'embeddedHtml');
 
         expect(screen.queryByRole('button', { name: 'Show the original message' })).toBeNull();
-    });
-
-    // The cleaned rendering is the reduced tree with blocks dropped, so the sender's own version is still somewhere the
-    // reader has not been: the control turns on the embedded view alone rather than on "not the reduced one".
-    it('offers the way to the markup to a reader on the cleaned rendering', () => {
-        drawing(described, read, nothingMarkedRead, 'cleaned');
-
-        expect(screen.getByRole('button', { name: 'Show the original message' })).toBeDefined();
     });
 
     it('counts the files the message carries on the line naming its author', () => {

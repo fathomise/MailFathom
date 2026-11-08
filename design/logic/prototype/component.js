@@ -8429,17 +8429,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           else this.setState({ htmlDoc: ask.doc, htmlSrcMode: false, htmlLoading: true });
           this.loadHtml();
         },
-        setViewAi: () => this.setState({ msgView: "ai" }),
         setViewSimple: () => this.setState({ msgView: "simple" }),
         setViewHtml: () => this.setState({ msgView: "html", htmlDoc: null }),
-        viewAiStyle: segStyle(st.msgView === "ai"),
-        viewSimpleStyle: segStyle(st.msgView !== "ai" && st.msgView !== "html"),
+        viewSimpleStyle: segStyle(st.msgView !== "html"),
         viewHtmlStyle: segStyle(st.msgView === "html"),
         viewHint: st.msgView === "html"
           ? "Messages show the original as its sender wrote it, inline; the control on the message head goes."
-          : st.msgView === "ai"
-            ? "The same deterministic cleanup as Simplified, with AI deciding only what to keep and what to drop - it never rewrites a word, so the text stays exactly as the sender wrote it; only the presentation changes. Usually cleaner than plain Simplified, especially on newsletters and long reply chains."
-            : "Messages are shown as cleaned-up text; the original is one control away on the message head.",
+          : "Messages are shown as cleaned-up text; the original is one control away on the message head.",
         telemetryOptOut: !!st.telemetryOptOut,
         telemetrySwitchStyle: "flex:0 0 auto;margin-top:2px;width:30px;height:17px;border-radius:8px;display:flex;align-items:center;padding:2px;background:var(" + (st.telemetryOptOut ? "--accent" : "--border2") + ");justify-content:" + (st.telemetryOptOut ? "flex-end" : "flex-start"),
         toggleTelemetry: () => this.setState(s => ({ telemetryOptOut: !s.telemetryOptOut })),

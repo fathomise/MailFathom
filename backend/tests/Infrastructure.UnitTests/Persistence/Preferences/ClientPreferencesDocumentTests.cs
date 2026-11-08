@@ -22,11 +22,11 @@ public sealed class ClientPreferencesDocumentTests
     {
         // Act
         var document = ClientPreferencesDocument.Render(
-            new ClientPreferences(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.Cleaned, false, 12, [], ClientMailListMode.Threads));
+            new ClientPreferences(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.EmbeddedHtml, false, 12, [], ClientMailListMode.Threads));
 
         // Assert
         Assert.Equal(
-            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":false,"expandWholeThread":true,"messageView":"cleaned","aiFiltersShown":false,"notificationSeconds":12,"trustedLinkDomains":[],"listMode":"threads"}""",
+            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":false,"expandWholeThread":true,"messageView":"embeddedHtml","aiFiltersShown":false,"notificationSeconds":12,"trustedLinkDomains":[],"listMode":"threads"}""",
             document);
     }
 
@@ -168,10 +168,8 @@ public sealed class ClientPreferencesDocumentTests
     }
 
     /// <summary>
-    /// The preference that decided between two renderings is gone and the one naming three has replaced it, so a row
-    /// written under the old key reads as the reduced document: a person who had chosen the sender's own markup chooses
-    /// it again. It is the break this change takes, and it is taken here rather than translated, because a switch that
-    /// was on says nothing about which of the two other renderings it now means.
+    /// A row written under a key this build does not bind reads as the reduced document: a person who had chosen the
+    /// sender's own markup under that key chooses it again, because nothing here translates a key it does not publish.
     /// </summary>
     [Fact]
     public void Parse_ARowCarryingTheKeyTheMessageViewReplaced_AnswersItAsTheReducedDocument()
@@ -185,6 +183,21 @@ public sealed class ClientPreferencesDocumentTests
     }
 
     /// <summary>
+    /// A row may name a rendering an earlier build published and this one withdrew, so it reads as the reduced document
+    /// rather than refusing the whole row and every other preference in it.
+    /// </summary>
+    [Fact]
+    public void Parse_ARowNamingARenderingThisBuildDoesNotPublish_AnswersItAsTheReducedDocument()
+    {
+        // Act
+        var read = ClientPreferencesDocument.Parse("""{"theme":"dark","messageView":"cleaned"}""");
+
+        // Assert
+        Assert.Equal(ClientMessageView.Reduced, read.MessageView);
+        Assert.Equal(ClientThemeChoice.Dark, read.Theme);
+    }
+
+    /// <summary>
     /// The standing views are a section of the tree somebody turns off rather than one they go looking for, so a row
     /// written before the section existed draws them rather than leaving the tree short of what the design shows.
     /// </summary>
@@ -193,7 +206,7 @@ public sealed class ClientPreferencesDocumentTests
     {
         // Act
         var read = ClientPreferencesDocument.Parse(
-            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":true,"expandWholeThread":true,"messageView":"cleaned"}""");
+            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":true,"expandWholeThread":true,"messageView":"embeddedHtml"}""");
 
         // Assert
         Assert.True(read.AiFiltersShown);

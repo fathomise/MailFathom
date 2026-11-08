@@ -13,7 +13,7 @@ namespace MailFathom.AI.Orchestration;
 /// nine</em> are the same judgement about the same kind of words wherever they are read, and two wordings are two sets
 /// of rules that come to differ in whichever one nobody is currently looking at. What is shared is the format and the
 /// source; the insertion is not. An operation that wants an anchor states one on its own turn, and an operation that
-/// has nothing to do with time — body cleanup, image description, passage relevance — receives none at all, because an
+/// has nothing to do with time — image description, passage relevance — receives none at all, because an
 /// anchor in its prompt is tokens, noise, and a reading that stops being the same from one day to the next.
 /// </para>
 /// <para>

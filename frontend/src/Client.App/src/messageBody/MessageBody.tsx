@@ -4,11 +4,8 @@
 
 import { useEffect, useRef, type ReactNode } from 'react';
 import type {
-    CleanedMailBody,
-    ClientResult,
     MailBody,
     MailBodyAvailability,
-    MailBodyCleaning,
     MailBodyTruncation,
     MailDocument,
     MailDocumentBlock,
@@ -26,8 +23,7 @@ import { MessageBlocks } from './MessageBlocks';
 import { splitQuotedHistory } from './quotedHistory';
 
 // One message's body, drawn from the closed document tree the service reduced it to — or, where the reader chose the
-// cleaned view, from that same tree with the blocks a model decided were the sender's wrapper dropped, or, where they
-// chose the embedded HTML view, from the self-contained representation the same read carries. What this component owns is
+// embedded HTML view, from the self-contained representation the same read carries. What this component owns is
 // everything around either: whether there is a body at all, whether the reduction refused it and the words are what is
 // read instead, what the message asked to load from somebody else's server, and what a bound left out. None of it is
 // silent — a fallback nobody is told about reads as a message the sender wrote badly.
@@ -48,19 +44,6 @@ const refusalMessages: Readonly<Record<Exclude<MailDocumentRefusal, 'None'>, Mes
     NoHtmlPart: 'body.refusedNoHtmlPart',
     ReductionFailed: 'body.refusedReductionFailed',
     NothingRenderable: 'body.refusedNothingRenderable',
-};
-
-// Why the cleaned view is drawing the ordinary reduced document, said in every case a reader could otherwise read as
-// the cleaning having silently stopped working. Two of the seven say nothing: a cleaning that happened needs no sentence,
-// and one that found nothing to drop has already drawn the document it would have composed.
-const cleaningFellBack: Readonly<Record<MailBodyCleaning, MessageKey | null>> = {
-    Cleaned: null,
-    NothingToClean: null,
-    NotActivated: 'body.cleaningNotActivated',
-    AllowanceExhausted: 'body.cleaningAllowanceExhausted',
-    ProviderUnavailable: 'body.cleaningProviderUnavailable',
-    AnswerRejected: 'body.cleaningAnswerRejected',
-    WithheldFromAI: 'body.cleaningWithheldFromAI',
 };
 
 // Why the embedded view fell back to the reduced tree, which is said in every case rather than in some of them: a
@@ -95,8 +78,6 @@ export function MessageBody({
     body,
     asking,
     embeddedHtml = false,
-    cleaned = null,
-    cleaning = false,
     quotedHistoryOnRequest = false,
     readOnly = false,
     answer = null,
@@ -114,19 +95,6 @@ export function MessageBody({
     readonly embeddedHtml?: boolean;
 
     /**
-     * The cleaning the deployment derived for this message, or `null` where the view in force asked for none.
-     *
-     * A cleaning that happened replaces the blocks drawn and says nothing about itself. Everything else — a cleaning
-     * this deployment does not offer, an allowance spent, a model that did not answer, an answer that could not be
-     * used, and a read that failed outright — is a sentence over the ordinary reduced document, because a message
-     * quietly drawn unchanged under a setting that promised a cleaning reads as the setting having stopped working.
-     */
-    readonly cleaned?: ClientResult<CleanedMailBody> | null;
-
-    /** Whether the cleaning is still being derived, which is a wait this component says out loud rather than hiding. */
-    readonly cleaning?: boolean;
-
-    /**
      * Whether the conversation this message quoted is folded away until a reader asks for it.
      *
      * Off where one message is what is being read, because there the quotation is the only context on the screen. On in
@@ -136,8 +104,8 @@ export function MessageBody({
     readonly quotedHistoryOnRequest?: boolean;
 
     /**
-     * Whether the message is marked spam, which reads it in the reduced view whatever view is chosen, uncleaned, with
-     * no offer of its remote content, and with links that open nothing.
+     * Whether the message is marked spam, which reads it in the reduced view whatever view is chosen, with no offer of
+     * its remote content, and with links that open nothing.
      */
     readonly readOnly?: boolean;
 
@@ -163,15 +131,6 @@ export function MessageBody({
     const markup = embedded?.markup ?? null;
     const insteadBecause = embedded?.insteadBecause ?? null;
 
-    // The cleaned document where one was derived, and otherwise the reduced one. The pane is never empty and never
-    // waits in silence: what is drawn below is the document this client already holds, and the line above it says
-    // whether a cleaning is still coming, arrived, or is not going to.
-    const cleanedDocument =
-        !readOnly && cleaned?.outcome === 'read' && cleaned.value.cleaning === 'Cleaned'
-            ? cleaned.value.document
-            : null;
-    const written = cleanedDocument ?? drawn;
-
     // What the message asked to load from somebody else's server stands above either rendering rather than only above
     // the reduced one. The ask is part of the read, so it reaches the representation exactly as it reaches the tree —
     // and this is the only place in the client it can be made, which is what would have made a message opened in the
@@ -179,8 +138,6 @@ export function MessageBody({
     return (
         <div className="flex flex-col gap-4">
             {insteadBecause === null ? null : <p className="text-sm text-muted">{translate(insteadBecause)}</p>}
-
-            {readOnly ? null : <Cleaning cleaned={cleaned} cleaning={cleaning} />}
 
             {body.document === null || readOnly ? null : (
                 <RemoteContent
@@ -195,64 +152,21 @@ export function MessageBody({
 
             {markup !== null ? (
                 <EmbeddedMessageMarkup markup={markup} />
-            ) : written === null ? (
+            ) : drawn === null ? (
                 <ReadAsWords body={body} />
             ) : (
                 <article className={writtenWords}>
                     <LinksNotOpened value={readOnly}>
                         <Written
-                            blocks={written.blocks}
-                            footer={written.footer}
+                            blocks={drawn.blocks}
+                            footer={drawn.footer}
                             quotedHistoryOnRequest={quotedHistoryOnRequest}
                         />
                     </LinksNotOpened>
-                    {written.truncated ? <p className="text-sm text-muted">{translate('body.truncated')}</p> : null}
+                    {drawn.truncated ? <p className="text-sm text-muted">{translate('body.truncated')}</p> : null}
                 </article>
             )}
         </div>
-    );
-}
-
-// What the cleaned view is saying about itself over the document below it: that a derivation is running, or the reason
-// one is not what is being drawn. Nothing is said while a cleaning that happened is on the screen, which is the case
-// a reader needs no sentence about.
-//
-// It is a live region rather than a line that only appears, because it arrives after the document did: somebody reading
-// with a screen reader is already past the top of the message when it changes, and a note nobody is told about is a wait
-// in silence. That holds for the sentence that replaces the wait exactly as it holds for the wait, so the region is one
-// element whose text changes rather than two that swap.
-//
-// The slot is held open for as long as the cleaned view is in force, whatever it currently says. The reduced document is
-// already drawn and being read while the derivation runs, so a line that appeared, changed length and then vanished
-// would move the message under the cursor of somebody who is reading it — three times, for a rendering whose whole
-// promise is that the pane never goes empty.
-function Cleaning({
-    cleaned,
-    cleaning,
-}: {
-    readonly cleaned: ClientResult<CleanedMailBody> | null;
-    readonly cleaning: boolean;
-}) {
-    const { translate } = useLocalization();
-
-    // A read that failed outright is one sentence rather than five: the four reasons a body read separates matter
-    // because each has a different way out, and the way out of a cleaning that did not arrive is the document already
-    // on the screen.
-    const settled =
-        cleaned === null
-            ? null
-            : cleaned.outcome === 'read'
-              ? cleaningFellBack[cleaned.value.cleaning]
-              : 'body.cleaningNotRead';
-
-    if (!cleaning && cleaned === null) {
-        return null;
-    }
-
-    return (
-        <p className="min-h-5 text-sm text-muted" role="status">
-            {cleaning ? translate('body.cleaning') : settled === null ? '' : translate(settled)}
-        </p>
     );
 }
 

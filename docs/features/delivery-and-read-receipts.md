@@ -158,7 +158,7 @@ sent, which is the cost taken knowingly.
 
 A report is shown to no agent. Every reader that selects mail for an agent leaves reports out — the thread-state agent
 and the count and newest arrival that tell it a conversation changed, the reply drafter, the Agent in the agent view,
-enrichment, calendar extraction, contact relationships, body cleanup, the day layout, discovery, and the agent behind
+enrichment, calendar extraction, contact relationships, the day layout, discovery, and the agent behind
 `ask_mail` — so a report arriving in a conversation whose state is current leaves it current.
 
 What an agent is given instead is what was recorded. A message the account sent that an agent reads — in a search's

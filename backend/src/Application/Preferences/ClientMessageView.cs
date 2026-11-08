@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 
 namespace MailFathom.Application.Preferences;
 
-/// <summary>Which of the three renderings a message opens on.</summary>
+/// <summary>Which of the two renderings a message opens on.</summary>
 /// <remarks>
 /// <para>
 /// A closed enumeration rather than a C# <see langword="enum" />, for the reason <see cref="ClientThemeChoice" /> is one:
@@ -15,12 +15,9 @@ namespace MailFathom.Application.Preferences;
 /// of the three and an ordinal would mean nothing to the client reading the response.
 /// </para>
 /// <para>
-/// Three members rather than the two this preference carried before. The reduced document and the sender's own markup are
-/// what
+/// The two members are the reduced document and the sender's own markup that
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0024-rendering-mail-in-the-client-as-a-closed-document-tree.md">ADR 0024</see>
-/// named; the cleaned one is the reduced document with what the sender wrapped it in dropped, derived per open by a model
-/// that answers in block indices and never in text. It is a choice beside the other two rather than a switch on top of one,
-/// because a reader picks one rendering and the screen draws it.
+/// names.
 /// </para>
 /// <para>
 /// Being a struct, <see langword="default" /> is reachable and is not a choice. It reports itself through
@@ -39,15 +36,12 @@ public readonly record struct ClientMessageView
     /// <remarks>What an unset preference reads as, because it is what this client has always drawn and costs no provider call.</remarks>
     public static ClientMessageView Reduced { get; } = new("reduced");
 
-    /// <summary>Gets the choice to draw that same tree with the blocks a cleaning dropped absent.</summary>
-    public static ClientMessageView Cleaned { get; } = new("cleaned");
-
     /// <summary>Gets the choice to draw the sender's own markup inline, with everything that runs or reports removed.</summary>
     public static ClientMessageView EmbeddedHtml { get; } = new("embeddedHtml");
 
     /// <summary>Gets every choice this build publishes.</summary>
     /// <remarks>Declared last so the members it lists are already initialized when this initializer runs.</remarks>
-    public static IReadOnlyList<ClientMessageView> All { get; } = [Reduced, Cleaned, EmbeddedHtml];
+    public static IReadOnlyList<ClientMessageView> All { get; } = [Reduced, EmbeddedHtml];
 
     /// <summary>Gets whether this value names a published choice rather than the unusable struct default.</summary>
     public bool IsSpecified => this.name is not null;

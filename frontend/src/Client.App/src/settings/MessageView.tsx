@@ -9,7 +9,7 @@ import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import type { ClientPreferencesInForce } from '../preferences/useClientPreferences';
 
-// Which of the three reading surfaces a message opens on, as the design draws it: three segments, the chosen
+// Which of the two reading surfaces a message opens on, as the design draws it: two segments, the chosen
 // one carrying the accent, and a line beneath saying what the choice does — which is a different sentence per choice
 // rather than one sentence describing the control.
 //
@@ -18,23 +18,19 @@ import type { ClientPreferencesInForce } from '../preferences/useClientPreferenc
 //
 // The warning is the design's and belongs to the HTML choice alone. It says what the reduced view is
 // protecting somebody from, and it is careful about the same distinction the confirmation on the message head is: the
-// markup is drawn in isolation, and a message drawn at all can still tell its sender it was opened. The cleaned
-// rendering reveals none of it — it is the same closed document tree with blocks dropped, so nothing a sender wrote
-// reaches the screen that the reduced view would not have drawn. It is exported
+// markup is drawn in isolation, and a message drawn at all can still tell its sender it was opened. It is exported
 // separately because the design closes the section with it, below the thread-expansion switch rather than between that
 // switch and the control it is about — a caution reads as the section's last word rather than as a line inside it.
 
-/** Which of the three the segment stands for, in the order the design puts them in. */
-const views: readonly ClientMessageView[] = ['cleaned', 'reduced', 'embeddedHtml'];
+/** Which of the two the segment stands for, in the order the design puts them in. */
+const views: readonly ClientMessageView[] = ['reduced', 'embeddedHtml'];
 
 const viewNames: Readonly<Record<ClientMessageView, MessageKey>> = {
-    cleaned: 'settings.messageViewCleaned',
     reduced: 'settings.messageViewReduced',
     embeddedHtml: 'settings.messageViewHtml',
 };
 
 const viewExplanations: Readonly<Record<ClientMessageView, MessageKey>> = {
-    cleaned: 'settings.messageViewCleanedExplanation',
     reduced: 'settings.messageViewReducedExplanation',
     embeddedHtml: 'settings.messageViewHtmlExplanation',
 };

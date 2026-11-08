@@ -124,7 +124,7 @@ public sealed class ChatGenerationPlanSourceTests
         var published = new StubSettingsSnapshot<ChatModelOptions>(Declaring("a-refused-model"));
         var source = new ChatGenerationPlanSource(published);
 
-        _ = source.PlanFor(ChatCapability.BodyCleanup);
+        _ = source.PlanFor(ChatCapability.DayLayout);
 
         // Act
         published.Current = Declaring("a-corrected-model");
@@ -132,7 +132,7 @@ public sealed class ChatGenerationPlanSourceTests
         // Assert
         Assert.Equal(
             "a-corrected-model",
-            source.PlanFor(ChatCapability.BodyCleanup).Endpoint.RoutedModelName);
+            source.PlanFor(ChatCapability.DayLayout).Endpoint.RoutedModelName);
     }
 
     private static ChatModelOptions Declaring(string model) =>

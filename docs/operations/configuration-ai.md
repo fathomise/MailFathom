@@ -671,7 +671,7 @@ was found to serve.
 | `…:ApiKey` | secret block | *(absent)* | the provider key. Exactly one of this, `EntraCredential`, and `Unauthenticated` is declared | reload, value read per request |
 | `…:Unauthenticated` | bool | `false` | that this model asks for no credential, so a request presents none — the shape of a model server you run yourself. Written rather than inferred from the other two being absent, because that is what a forgotten key reference looks like | reload |
 | `…:StickySessions` | bool | `false` | that every request of one Agent conversation asks the gateway to stay on the upstream provider whose prompt cache already holds that conversation. **Honoured by OpenRouter alone today**: it is sent only when `…:Address` is an `openrouter.ai` host, and on any other address nothing is sent and startup logs a warning naming the model. No other operation sends a session. [Chat generation § A conversation can stay on one provider](../features/chat-generation.md#a-conversation-can-stay-on-one-provider) says what is grouped and why | reload |
-| `…:StructuredOutputs` | bool | `false` | that this model's server honours a strict JSON schema, so every agent answering in one JSON document asks for one when it runs on this model: reply drafts, thread states, message enrichment, contact relationships, Discover planning and composition, calendar-event extraction, the day layout, body cleanup, and the search phrase. Each sends a strict schema built for its turn, and a request reaching an `openrouter.ai` host also requires every parameter to be honoured, so the router never picks a provider that would drop the schema. **Declare it only for a server you know honours `json_schema`**: one that refuses the parameter fails every one of those calls, and one that ignores it answers under an instruction that no longer describes the shape. Off, every request is what it is without the key. [Chat generation § An answer in one document can be constrained by a schema](../features/chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema) says what the schema holds | reload |
+| `…:StructuredOutputs` | bool | `false` | that this model's server honours a strict JSON schema, so every agent answering in one JSON document asks for one when it runs on this model: reply drafts, thread states, message enrichment, contact relationships, Discover planning and composition, calendar-event extraction, the day layout, and the search phrase. Each sends a strict schema built for its turn, and a request reaching an `openrouter.ai` host also requires every parameter to be honoured, so the router never picks a provider that would drop the schema. **Declare it only for a server you know honours `json_schema`**: one that refuses the parameter fails every one of those calls, and one that ignores it answers under an instruction that no longer describes the shape. Off, every request is what it is without the key. [Chat generation § An answer in one document can be constrained by a schema](../features/chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema) says what the schema holds | reload |
 
 ### An extra header — `Chat:Models:<n>:ExtraHeaders:<n>`
 
@@ -744,7 +744,6 @@ its own. Every one of them may, and each takes the same two keys as `Chat:MainMo
 | `Chat:SearchPhrasing:Model` | [Reading a typed sentence into filters](#reading-a-typed-sentence-into-filters--chatsearchphrasing) |
 | `Chat:RelevanceFilter:Model` | [Judging a retrieval's candidates](#relevance-filter--chatrelevancefilter) |
 | `Chat:ImageDescription:Model` | Describing an image attachment, which `Embeddings:ImageDescription:Enabled` turns on |
-| `Chat:BodyCleanup:Model` | [Cleaning a message body](#cleaning-a-message-body--chatbodycleanup) |
 | `Chat:CalendarEventExtraction:Model` | [Reading a calendar event out of text](#reading-a-calendar-event-out-of-text--chatcalendareventextraction) |
 | `Chat:DayLayout:Model` | [Arranging a day](#arranging-a-day--chatdaylayout) |
 | `Chat:ConversationCompaction:Model` | Summarising the earlier part of an Agent conversation that has outgrown [`MailAnswering:MaxConversationContextTokens`](#mailanswering), so a turn sends the summary in its place |
@@ -779,9 +778,7 @@ removal of the last — whether `Chat:RelevanceFilter:Enabled` turns the second 
 derivation on, whether `Chat:SearchPhrasing:Enabled` turns the reading of a typed sentence on, whether
 `Chat:ReplyDrafting:Enabled` turns the drafting of a reply on, whether `Chat:ContactRelationship:Enabled` turns the
 relationship card on, and whether `Chat:CalendarEventExtraction:Enabled` turns the reading of text into calendar
-events on. The third rendering of a message body is not among them
-because it has no switch of its own: a declared model is the whole of what registers it, and which readers want it is
-their own preference rather than a key an operator writes. `Chat:ReplyDrafting:StyleFromSentMail` is a restart for a
+events on. `Chat:ReplyDrafting:StyleFromSentMail` is a restart for a
 reason of its own: it decides nothing about which services exist and is instead read once as the drafting is
 registered, so a reload that changed it would go on reading the mail the composed deployment reads rather than the mail
 the operator has just said it may.
@@ -982,52 +979,13 @@ the reader's own calendar day, with no tool and no mail, so a search costs the s
 | `Chat:SearchPhrasing:Enabled` | bool | `true` | reading a sentence requires a declared model; written off, or with none declared, the client is told this deployment reads none | restart |
 | `Chat:SearchPhrasing:Model` | block | *(empty)* | which declared model reads a typed sentence, as [any capability's reference](#which-model-a-capability-runs-on--chatmainmodel-and-the-references-beside-it). Unwritten reads it with `Chat:MainModel`; somebody is waiting in front of this one | reload |
 
-### Cleaning a message body — `Chat:BodyCleanup`
-
-Deciding which blocks of a message are what the sender wrote and which are the frame they wrapped it in, so that a
-reading pane can draw a third rendering: the same reduced document with the navigation, the legal footer, the tracking
-row and the repeated header absent. A block inside `Chat` for the reason the blocks above are: it decides with that
-endpoint and has nowhere to send an outline without one.
-
-**It carries no switch, which is what separates it from every block above.** A declared model is the whole of
-what turns this on, because whether a body is cleaned is the reader's own preference — an answer the client already holds
-per person and this deployment already serves — and a key beside it would be an operator's copy of a decision that is not
-theirs. A deployment that declares no chat endpoint cleans nothing, and a reader who chose the rendering there is shown
-the ordinary reduced document with a sentence saying so.
-
-What an operator is left deciding is the spend, and it is of a shape none of the blocks above has — **the derivation
-runs per open rather than per message**. Nothing is derived when mail arrives, nothing is stored, and opening the same
-message twice asks twice; a reader scrolling a folder therefore spends one call per message they actually open, and
-none at all for the ones they pass over.
-
-**The model is never sent the message.** What leaves the deployment is an outline of the document — each block's kind,
-how many links it carries, and the opening of its text — beside the envelope sender and the subject, and the answer comes
-back as block indices rather than as text. That is what makes the rendering incapable of rewriting a word: the blocks a
-reader sees are the ones the reduction already produced, and the model decided only which of them to leave out. An
-answer whose ranges overlap, leave a gap, reach past the last block, or carry any message text at all is refused, asked
-for once more, and on a second refusal the reader is served the ordinary reduced document with a sentence saying the
-cleaning did not happen.
-
-**It competes with questions for one allowance**, exactly as the blocks above do: each cleaning is admitted against and
-charged to the same `MailAnswering` period ceilings a question is. A period the readers of a deployment exhausted serves
-the ordinary reduced document rather than failing the read, because somebody is in front of a message.
-
-**Every outline passes the egress guard the arrival derivation's prompt passes**, under the posture of the person whose
-message it is, so a deployment that scans what leaves it for secrets scans this too.
-
-| Key | Type | Default | Constraint | Change |
-| --- | --- | --- | --- | --- |
-| `Chat:BodyCleanup:Model:Alias` | string | *(empty)* | an alias `Chat:Models` declares, which this pass alone is routed to. Empty routes it to `Chat:MainModel`. A model named here is a declaration of its own, so the cheap model this pass runs on may sit at another address, under another credential, with bounds and a timeout of its own — which is what makes it worth naming, this being the one pass a reader waits for in front of a message | reload |
-| `Chat:BodyCleanup:Model:Fallback` | string | *(empty)* | an alias attempted where the model above could not answer, under the rules [`Chat:MainModel:Fallback`](#which-model-a-capability-runs-on--chatmainmodel-and-the-references-beside-it) states. A pass somebody is waiting in front of is exactly the one worth answering from a second model rather than not at all | reload |
-
 ### Arranging a day — `Chat:DayLayout`
 
 Putting the tasks somebody owes today into the gaps between what they are already committed to, when they press the
 control that asks for it. A block inside `Chat` for the reason the blocks above are: it decides with that endpoint and
 has nowhere to send a day without one.
 
-**It carries no switch either**, for the same reason cleaning a body carries none: a declared model is the whole of what
-turns it on, and whether a day is arranged is the person's own act rather than an operator's setting. A deployment that
+**It carries no switch**: a declared model is the whole of what turns it on, and whether a day is arranged is the person's own act rather than an operator's setting. A deployment that
 declares no chat endpoint tells the client it arranges no day, and the control is not offered.
 
 **The derivation runs per press.** Nothing schedules it, no pass reaches it, and opening a screen does not run it — so

@@ -194,8 +194,8 @@ function OpenMessage({
     // the description has answered.
     //
     // A message drawn spam is read as words alone. Its verdict is the row's where a list drew it, which is known before
-    // anything is read, and the description's once that answers. A message opened from no list has its markup and its
-    // cleaning asked for until the description says it is spam, and neither is drawn.
+    // anything is read, and the description's once that answers. A message opened from no list has its markup asked
+    // for until the description says it is spam, and it is not drawn.
     const acts = useMailboxActs();
     const listedSpam = useListedMail().placeOf(storedEmailId)?.spam ?? null;
     const describedSpam =

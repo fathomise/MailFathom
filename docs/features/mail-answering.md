@@ -555,7 +555,7 @@ visible, attributed to the message that sent it, and inert. A character that has
 of a surrogate pair — is replaced rather than allowed to fail the turn. The writer also holds a turn's
 character budget: a quoted value it has to shorten is cut at a text-element boundary, its element says so in a
 `cut="true"` attribute, and every element it opened is closed however much was cut. Enrichment, a conversation's state,
-contact relationships, calendar-event extraction, the day layout, and body cleanup hand their agent's request bound to
+contact relationships, calendar-event extraction, and the day layout hand their agent's request bound to
 the writer, and a turn whose structure still outgrows it is written again under a smaller budget, so the request is cut
 to fit rather than refused. Discover's composition is written with no budget, and a turn past its request bound is
 still refused. A lookup that found nothing writes
@@ -583,8 +583,8 @@ A message does not need to give an order to do harm. It only has to state someth
 bank account changed, that a colleague needs a payment approved today — and an answer that restates it hands the claim to
 the person in the assistant's voice. So the operations that quote a message to a model write where the message came
 from as attributes of the element the writer wrote for it: `ask_mail`, the Agent's `search_mail` and `read_thread`,
-enrichment, a conversation's state, and Discover. Reply drafting, contact relationships, calendar-event extraction, and
-body cleanup quote mail too and carry no provenance yet; their turns carry the clause below, which applies only where a
+enrichment, a conversation's state, and Discover. Reply drafting, contact relationships, and calendar-event extraction
+quote mail too and carry no provenance yet; their turns carry the clause below, which applies only where a
 turn carries the attributes. The attributes are these:
 
 | Attribute | Written | What it says |

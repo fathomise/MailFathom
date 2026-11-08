@@ -50,18 +50,15 @@ public enum ChatCapability
     /// <summary>Describing an image attachment so its content can be searched.</summary>
     ImageDescription = 9,
 
-    /// <summary>Deciding which blocks of a message body the third rendering keeps.</summary>
-    BodyCleanup = 10,
-
     /// <summary>Reading text into the calendar events it names, whether a message named them or somebody typed one.</summary>
-    CalendarEventExtraction = 11,
+    CalendarEventExtraction = 10,
 
     /// <summary>Arranging one person's day around what is already committed during it.</summary>
-    DayLayout = 12,
+    DayLayout = 11,
 
     /// <summary>Answering a person in a conversation with the Agent, reading their mail, calendar, and tasks and proposing what to do.</summary>
-    Agent = 13,
+    Agent = 12,
 
     /// <summary>Summarising the earlier part of an Agent conversation, so a turn can send the summary in its place.</summary>
-    ConversationCompaction = 14,
+    ConversationCompaction = 13,
 }

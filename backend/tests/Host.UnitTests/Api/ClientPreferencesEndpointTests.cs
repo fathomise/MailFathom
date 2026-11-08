@@ -31,7 +31,7 @@ public sealed class ClientPreferencesEndpointTests
     private const string ForcingOff = """{"Users":{"Forced":{"ClientPreferences":{"TelemetryEnabled":false}}}}""";
 
     private static readonly ClientPreferences Chosen =
-        new(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.Cleaned, false, 12, [], ClientMailListMode.Threads);
+        new(false, ClientThemeChoice.Dark, true, false, true, ClientMessageView.EmbeddedHtml, false, 12, [], ClientMailListMode.Threads);
 
     [Fact]
     public async Task ReadAsync_APersonWhoHasSetSomething_HandsThemWhatTheySet()
@@ -55,7 +55,7 @@ public sealed class ClientPreferencesEndpointTests
         Assert.True(preferences.OpenMailInTabs);
         Assert.False(preferences.MarkReadOnOpen);
         Assert.True(preferences.ExpandWholeThread);
-        Assert.Equal("cleaned", preferences.MessageView);
+        Assert.Equal("embeddedHtml", preferences.MessageView);
         Assert.False(preferences.AiFiltersShown);
     }
 
@@ -122,7 +122,7 @@ public sealed class ClientPreferencesEndpointTests
             SignedIn(store),
             Acting(),
             Serving(),
-            new ClientPreferencesRequest(false, "dark", true, false, true, "cleaned", false, 12, ListMode: "threads"),
+            new ClientPreferencesRequest(false, "dark", true, false, true, "embeddedHtml", false, 12, ListMode: "threads"),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -223,7 +223,7 @@ public sealed class ClientPreferencesEndpointTests
     {
         // Act
         var request = JsonSerializer.Deserialize<ClientPreferencesRequest>(
-            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":false,"expandWholeThread":true,"messageView":"cleaned","aiFiltersShown":false,"notificationSeconds":12,"listMode":"threads"}""",
+            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":false,"expandWholeThread":true,"messageView":"embeddedHtml","aiFiltersShown":false,"notificationSeconds":12,"listMode":"threads"}""",
             WebFormat);
 
         // Assert
@@ -388,7 +388,7 @@ public sealed class ClientPreferencesEndpointTests
     {
         // Act
         var request = JsonSerializer.Deserialize<ClientPreferencesRequest>(
-            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":false,"expandWholeThread":true,"messageView":"cleaned"}""",
+            """{"telemetryEnabled":false,"theme":"dark","openMailInTabs":true,"markReadOnOpen":false,"expandWholeThread":true,"messageView":"embeddedHtml"}""",
             WebFormat);
 
         // Assert
@@ -424,7 +424,7 @@ public sealed class ClientPreferencesEndpointTests
         var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
 
         Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
-        Assert.Contains("reduced, cleaned, embeddedHtml", refusal.ProblemDetails.Detail!, StringComparison.Ordinal);
+        Assert.Contains("reduced, embeddedHtml", refusal.ProblemDetails.Detail!, StringComparison.Ordinal);
 
         await store.DidNotReceive()
             .SaveAsync(Arg.Any<UserId>(), Arg.Any<ClientPreferences>(), Arg.Any<CancellationToken>());
@@ -662,7 +662,7 @@ public sealed class ClientPreferencesEndpointTests
             SignedIn(store),
             Acting(),
             Serving(Governed(deployment: ForcingOn)),
-            new ClientPreferencesRequest(true, "light", true, false, true, "cleaned", false, 12, ListMode: "threads"),
+            new ClientPreferencesRequest(true, "light", true, false, true, "embeddedHtml", false, 12, ListMode: "threads"),
             TestContext.Current.CancellationToken);
 
         // Assert

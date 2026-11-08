@@ -2640,33 +2640,6 @@
         ],
         "type": "object"
       },
-      "ClientMailCleanedBodyResponse": {
-        "properties": {
-          "cleaning": {
-            "type": "string"
-          },
-          "document": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/MailDocument"
-              }
-            ]
-          },
-          "storedEmailId": {
-            "format": "uuid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "storedEmailId",
-          "cleaning",
-          "document"
-        ],
-        "type": "object"
-      },
       "ClientMailContactAdditionResponse": {
         "properties": {
           "restatedContactId": {
@@ -23679,51 +23652,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientMailBodyResponse"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "tags": [
-          "Client"
-        ]
-      }
-    },
-    "/api/client/messages/{storedEmailId}/body/cleaned": {
-      "get": {
-        "parameters": [
-          {
-            "in": "path",
-            "name": "storedEmailId",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "remoteImages",
-            "schema": {
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClientMailCleanedBodyResponse"
                 }
               }
             },

@@ -655,7 +655,7 @@ conversation's state, and Discover — write the conclusion beside each message 
 `sender-authentication` attribute, with
 `sender-trusted="true"` where this deployment trusts the author — never for a known one, since a model must not be told
 a header anybody can write is trusted — and asks the model to qualify a claim resting on
-an author nobody established. Reply drafting, contact relationships, calendar-event extraction, and body cleanup quote
+an author nobody established. Reply drafting, contact relationships, and calendar-event extraction quote
 mail without it so far. The evidence never travels there. [Mail
 answering](mail-answering.md#where-a-message-came-from) holds the attributes, the two qualifications written beside
 them, and the rule a model is given. A citation a client resolves carries the same values back, so the person sees

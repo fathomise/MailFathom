@@ -14,7 +14,7 @@ namespace MailFathom.Infrastructure.Persistence.Preferences;
 /// <param name="OpenMailInTabs">What they said about tabs, or nothing where they never said.</param>
 /// <param name="MarkReadOnOpen">What they said about opening a message marking it read, or nothing where they never said.</param>
 /// <param name="ExpandWholeThread">What they said about a conversation opening expanded, or nothing where they never said.</param>
-/// <param name="MessageView">Which of the three renderings they chose a message to open on, or nothing where they never chose.</param>
+/// <param name="MessageView">The name of the rendering they chose a message to open on, or nothing where they never chose.</param>
 /// <param name="AiFiltersShown">What they said about the tree carrying the standing views, or nothing where they never said.</param>
 /// <param name="NotificationSeconds">How long they asked a notification to stand for, or nothing where they never asked.</param>
 /// <param name="TrustedLinkDomains">The domains they trust the links to, as normalized names, or nothing where they never listed any.</param>
@@ -43,7 +43,7 @@ internal sealed record ClientPreferencesDocument(
     bool? OpenMailInTabs,
     bool? MarkReadOnOpen,
     bool? ExpandWholeThread,
-    ClientMessageView? MessageView,
+    string? MessageView,
     bool? AiFiltersShown,
     int? NotificationSeconds,
     IReadOnlyList<string>? TrustedLinkDomains,
@@ -76,7 +76,7 @@ internal sealed record ClientPreferencesDocument(
             preferences.OpenMailInTabs,
             preferences.MarkReadOnOpen,
             preferences.ExpandWholeThread,
-            preferences.MessageView,
+            preferences.MessageView.Name,
             preferences.AiFiltersShown,
             preferences.NotificationSeconds,
             [.. preferences.TrustedLinkDomains.Select(static domain => domain.Name)],
@@ -103,7 +103,11 @@ internal sealed record ClientPreferencesDocument(
             document.OpenMailInTabs ?? ClientPreferences.Unset.OpenMailInTabs,
             document.MarkReadOnOpen ?? ClientPreferences.Unset.MarkReadOnOpen,
             document.ExpandWholeThread ?? ClientPreferences.Unset.ExpandWholeThread,
-            document.MessageView ?? ClientPreferences.Unset.MessageView,
+            // Read by name and answered by the unset choice where this build publishes no such rendering, for the reason
+            // the notification time below is bounded: a row an earlier build wrote may name one this build withdrew.
+            ClientMessageView.TryParse(document.MessageView, out var messageView)
+                ? messageView
+                : ClientPreferences.Unset.MessageView,
             document.AiFiltersShown ?? ClientPreferences.Unset.AiFiltersShown,
             // Bounded on the way out as well as at the boundary a person writes through, because a row written by an
             // earlier build or edited by hand is not one this build has checked: a stored value outside the bound is

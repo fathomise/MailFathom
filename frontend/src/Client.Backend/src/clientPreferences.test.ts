@@ -26,7 +26,7 @@ const stored = {
     openMailInTabs: true,
     markReadOnOpen: false,
     expandWholeThread: true,
-    messageView: 'cleaned',
+    messageView: 'embeddedHtml',
     aiFiltersShown: false,
     notificationSeconds: 12,
     trustedLinkDomains: [],
