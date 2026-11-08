@@ -55,7 +55,7 @@ internal static class ThreadStateScenario
                 new EmptyAgentInstructionEnvelope(),
                 NullLoggerFactory.Instance),
             answer => HostileMail.Obeyed(answer, instruction)
-                ?? Held(scenario, ThreadStateReading.Read(answer, messages), messages),
+                ?? Held(scenario, ThreadStateReading.Read(answer, messages, topicShown: thread.KeptTopic is not null), messages),
             ExpectationMetricName,
             StructuredAnswerScenario.JudgedWhen(scenario.ReadsTwoWays));
     }

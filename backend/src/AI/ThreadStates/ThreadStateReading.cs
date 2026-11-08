@@ -42,6 +42,7 @@ internal static class ThreadStateReading
     /// <summary>Reads an agent's answer into a derivation.</summary>
     /// <param name="answerText">What the agent wrote, which may be empty, fenced, or surrounded by prose.</param>
     /// <param name="messages">The messages the turn published, in the order it numbered them.</param>
+    /// <param name="topicShown">Whether the turn carried the topic the conversation was given before, which is the only topic an answer may keep.</param>
     /// <returns>
     /// A settled derivation of the statements that survived, in aspect order and empty where none did, beside the title
     /// the answer proposed — or one withheld as <see cref="ThreadStateWithholding.AnswerUnreadable" /> where the answer
@@ -50,7 +51,8 @@ internal static class ThreadStateReading
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="messages" /> is <see langword="null" />.</exception>
     internal static ThreadStateDerivation Read(
         string? answerText,
-        IReadOnlyList<DerivableThreadMessage> messages)
+        IReadOnlyList<DerivableThreadMessage> messages,
+        bool topicShown)
     {
         ArgumentNullException.ThrowIfNull(messages);
 
@@ -72,7 +74,7 @@ internal static class ThreadStateReading
             return ThreadStateDerivation.Settled(entries);
         }
 
-        return ReadTitle(writtenTitle, entries) is { } title
+        return ReadTitle(writtenTitle, entries, topicShown) is { } title
             ? ThreadStateDerivation.Settled(entries, title)
             : ThreadStateDerivation.Withholding(ThreadStateWithholding.AnswerUnreadable);
     }
@@ -88,12 +90,20 @@ internal static class ThreadStateReading
     /// which leaves the conversation the topic it already had.
     /// </para>
     /// <para>
+    /// Keeping the topic is an answer only where the turn showed one. Written where it showed none, it keeps nothing and
+    /// would leave the conversation untitled, so it is read as no answer about the topic at all and the title stands or
+    /// falls on the topic written beside it.
+    /// </para>
+    /// <para>
     /// The standing is kept only beside a statement it can be reading: an open question or a commitment. A standing
     /// written beside nothing still open is a line stating something no statement carries, so it is stored empty —
     /// which is also what a conversation with nothing left open is owed.
     /// </para>
     /// </remarks>
-    private static ThreadTitleProposal? ReadTitle(ThreadTitleDocument written, IReadOnlyList<ThreadStateEntry> entries)
+    private static ThreadTitleProposal? ReadTitle(
+        ThreadTitleDocument written,
+        IReadOnlyList<ThreadStateEntry> entries,
+        bool topicShown)
     {
         var standing = written.Standing?.Trim() ?? string.Empty;
 
@@ -109,7 +119,7 @@ internal static class ThreadStateReading
             standing = string.Empty;
         }
 
-        if (written.KeepTopic is true)
+        if (written.KeepTopic is true && topicShown)
         {
             return new ThreadTitleProposal(Topic: null, StatesSubjectChange: false, standing);
         }

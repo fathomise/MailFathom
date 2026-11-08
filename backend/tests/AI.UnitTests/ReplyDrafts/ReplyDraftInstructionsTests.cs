@@ -405,7 +405,8 @@ public sealed class ReplyDraftInstructionsTests
 
         // Assert
         Assert.Contains("The reply answers the chosen messages first", text, StringComparison.Ordinal);
-        Assert.Contains("answer it rather than the latest", text, StringComparison.Ordinal);
+        Assert.Contains("answer it rather than the latest, even where a later message already answered it", text, StringComparison.Ordinal);
+        Assert.Contains("read \"this\" or \"it\" in what the person typed as that chosen message", text, StringComparison.Ordinal);
     }
 
     /// <summary>A person may write in their own language about a conversation held in another, and its recipients read the other.</summary>
@@ -522,6 +523,32 @@ public sealed class ReplyDraftInstructionsTests
         Assert.Contains("only to a number the turn gave you", text, StringComparison.Ordinal);
     }
 
+    /// <summary>A long reply of separate points stayed plain because the person's own samples were plain.</summary>
+    [Fact]
+    public void TextFor_TheInstruction_LetsPlainSamplesSetTheVoiceButNotWhetherALongReplyIsStructured()
+    {
+        // Act
+        var text = Normalized(ReplyDraftInstructions.TextFor(UserLanguage.English));
+
+        // Assert
+        Assert.Contains("A short reply and a personal note stay plain", text, StringComparison.Ordinal);
+        Assert.Contains("set the voice of the reply, not whether a long reply of separate points is structured", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("may carry it", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A linked run with empty words was dropped by the reading, and its link with it.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TextFor_EitherShape_SaysALinkedRunCarriesTheWordsItLinks(bool constrainedBySchema)
+    {
+        // Act
+        var text = Normalized(ReplyDraftInstructions.TextFor(UserLanguage.English, constrainedBySchema));
+
+        // Assert
+        Assert.Contains("a linked run carries the words it links, never empty text", text, StringComparison.Ordinal);
+    }
+
     /// <summary>A model told the shape in prose wrote blocks as strings, links as Markdown, and lists as paragraphs, so the prose names each and shows one block whole.</summary>
     [Fact]
     public void TextFor_WithoutASchema_SaysEachBlockIsAJsonValueAndShowsAWorkedLinkedParagraph()
@@ -547,6 +574,7 @@ public sealed class ReplyDraftInstructionsTests
         Assert.Contains("in the blocks the response schema allows", text, StringComparison.Ordinal);
         Assert.Contains("Most replies are plain", text, StringComparison.Ordinal);
         Assert.Contains("A run links its words to one by carrying \"link\"", text, StringComparison.Ordinal);
+        Assert.Contains("never a string holding JSON", text, StringComparison.Ordinal);
         Assert.DoesNotContain(ReplyDraftInstructions.WorkedLinkedParagraph, text, StringComparison.Ordinal);
         Assert.DoesNotContain("[run, ...]", text, StringComparison.Ordinal);
     }

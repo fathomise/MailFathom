@@ -296,5 +296,64 @@ public sealed class AgentConversationInstructionsTests
         Assert.Contains("Copy an amount with its currency, a code, or a version exactly as the mail writes it", text, StringComparison.Ordinal);
     }
 
+    /// <summary>Every lookup found something unrelated, so the rule that fires only after empty lookups never stopped the run.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_StopsSearchingAfterThreeLookupsBringNothingNew()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains(
+            "Once three lookups in a row bring back nothing new about what was asked — no mail, mail you have already seen, or mail about something else — stop searching and answer from what you have.",
+            text,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>A proposal the person dictated was held back for a question about a detail the mail added.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_ProposesWhatThePersonDictatedAsTheySaidIt()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("When the person says who to write to and what to say, propose it as they said it: a detail the mail adds is mentioned beside the proposal, never asked about first.", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>"The same message" to the other Ingrid was proposed as a reply to her mail rather than as a new message to her.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_KeepsTheActOfAProposalItCorrects()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("Correcting an earlier proposal keeps its act: \"the same message\" to somebody else is a new message to them, not a reply to their mail.", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A Polish answer keeping English task titles unquoted read as mixed language, though the titles were kept as the instruction asks.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_QuotesWordsKeptInAnotherLanguage()
+    {
+        // Act
+        var text = Flattened(UserLanguage.Polish);
+
+        // Assert
+        Assert.Contains("Put a title, a subject, or any other words you keep in a language other than", text, StringComparison.Ordinal);
+        Assert.Contains("in quotation marks.", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>"See you on Sunday" was answered without the date an earlier message of the thread fixed for that Sunday.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_DatesADayAMessageNamesOnlyByItsWeekday()
+    {
+        // Act
+        var text = Flattened(UserLanguage.English);
+
+        // Assert
+        Assert.Contains("Where a message names a day only by its weekday or relatively — \"on Sunday\", \"next week\" — give the date its conversation fixes for it.", text, StringComparison.Ordinal);
+    }
+
     private static string Flattened(UserLanguage language) => AgentConversationInstructions.TextFor(language).ReplaceLineEndings(" ");
 }

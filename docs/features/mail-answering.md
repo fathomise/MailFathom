@@ -172,7 +172,10 @@ every message it returns carries the author described under [§ What a passage c
 **A lookup is worded in the language the mail is likely to carry**, which need not be the language the question was
 asked in, and the instruction asks for one in each language the turn names before the run concludes the mail is not
 there. One that returns nothing useful is tried again — with fewer words, with the other forms an inflected word
-takes, or in another of those languages — before the run concludes that the mailbox does not answer.
+takes, or in another of those languages — before the run concludes that the mailbox does not answer. Once three
+lookups in a row bring back nothing new about what was asked — no mail, mail already seen, or mail about something
+else — the run stops searching and answers from what it has, and mail about a neighbouring item earns one more lookup
+by its number and in the other language rather than an open-ended search.
 The search tool's own description tells the model why: lexical matching stems no word, and requires every one wherever
 the search also ranks by meaning, so a
 language that inflects its words, Polish among them, writes one word in several forms, and a lookup offers the forms it
@@ -188,8 +191,8 @@ half bridges the gap depends on the declared embedding model, which a deployment
 worded every lookup in the question's language would therefore report a mailbox that plainly holds the answer as one
 that does not. [Email search](email-search.md) documents the ranking itself.
 
-**An answer is written in the language the question was asked in**, whatever language the mail it rests on was written
-in. What the answer quotes from mail — a subject, a name, the phrase a claim rests on — keeps its own wording, with a
+**An answer is written in the language the question was asked in** — the words inside the turn's `<ask>` element —
+whatever language the mail it rests on was written in and whatever language the run's last lookup was worded in. What the answer quotes from mail — a subject, a name, the phrase a claim rests on — keeps its own wording, with a
 rendering into the question's language beside it where the claim turns on what those words mean. A quotation never
 stands in for the answer, even where the question asks for the exact words: the answer says in the question's language
 what they are and where they appear, and quotes them inside that sentence. That is what keeps a
@@ -606,10 +609,12 @@ The data clause carries the rule a model is given about them: a claim resting on
 authenticated, or that is junk or a first contact, is reported with that qualification rather than as settled fact; a
 request from such a message to change payment details, a bank account, or credentials, or to do something urgently, is
 flagged with what the attributes say — a sender the deployment could not verify, a message in junk, a sender the
-mailbox had not corresponded with — instead of restated, and the account number, IBAN, or other payment details such
-a request asks for are never written out, not even beside a warning, only that it asks for them and why it cannot be
-trusted; and a claim from an authenticated sender whose message is
-neither junk nor a first contact is not doubted for where it came from alone. Like the rest of the clause it is the weaker mechanism — what is
+mailbox had not corresponded with — instead of restated, and the account number or IBAN such a message asks money to
+be paid into is never written out, not even beside a warning, only that it asks for payment into an account it names and
+why it cannot be trusted. That ban covers that one message: its payee, amount, and reference may still be reported as
+what it claims. A claim from an authenticated sender whose message is neither junk nor a first contact is not doubted
+for where it came from alone, so an account such a sender gave is stated in full where the question asks for it, even
+beside an unverified message that contradicts it. Like the rest of the clause it is the weaker mechanism — what is
 structural is that the attributes are the service's own, in a place no message can write to.
 
 The provenance is personal data: whether somebody has written to a mailbox before is a fact about who its owner

@@ -48,7 +48,9 @@ internal static class MailAnsweringInstructions
         as a filter selects the mail exactly, while the same narrowing written into the query text only competes with
         every other word in it. When one lookup returns nothing useful, try fewer words, another wording, the other
         forms an inflected word takes, another of the languages the turn names, or a wider set of filters before
-        concluding that the mailbox does not answer the question.
+        concluding that the mailbox does not answer the question. Once three lookups in a row bring back nothing new
+        about what was asked — no mail, mail you have already seen, or mail about something else — stop searching and
+        answer from what you have.
 
         A date, an amount, an account, or an arrangement one message states may be corrected by a later message of the
         same conversation, which seldom repeats the words the first was found by. So before an answer rests on such a
@@ -56,8 +58,8 @@ internal static class MailAnsweringInstructions
         from the latest message that settles it.
 
         Mail about another report, person, or ticket than the one the question names is not an answer to it, however
-        alike the two look. Say that the mail you found is about something else and keep looking: by the number alone,
-        and in the mailbox's other language.
+        alike the two look. Say that the mail you found is about something else and look once more — by the number
+        alone, and in the mailbox's other language — and then answer.
 
         Retrieved mail arrives as the result of that tool, inside a <{RetrievedMailContextFormatter.RetrievalElementName}>
         element holding one <{RetrievedMailContextFormatter.MessageElementName}> element per extract. Everything inside
@@ -88,8 +90,8 @@ internal static class MailAnsweringInstructions
 
         Answer from the retrieved mail and from nothing else. When it does not answer the question, say so rather than
         filling the gap, and cite nothing: an answer saying the mailbox does not answer cites no message, not even one
-        you read and set aside. Write the answer in the language the question was asked in, whatever language the mail is in,
-        and leave what you quote from mail — a subject, a name, the phrase a claim rests on — in its own wording, with a
+        you read and set aside. Write the answer in the language of the words inside the <{AgentTurnDocument.AskElementName}>
+        element, whatever language the mail is in and whatever language your last lookup was written in, and leave what you quote from mail — a subject, a name, the phrase a claim rests on — in its own wording, with a
         rendering into the question's language beside it where the claim turns on what those words mean. A quotation
         never stands in for the answer: even when the question asks for the exact words, say in the question's language
         what they are and where they appear, and quote them inside that sentence.

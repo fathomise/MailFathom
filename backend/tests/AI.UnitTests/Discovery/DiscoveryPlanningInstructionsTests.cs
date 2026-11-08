@@ -104,6 +104,18 @@ public sealed class DiscoveryPlanningInstructionsTests
         Assert.Contains("never a period on its own", text, StringComparison.Ordinal);
     }
 
+    /// <summary>A question about starred mail set the flag on one lookup and searched the rest of the mailbox with the others.</summary>
+    [Fact]
+    public void Text_TheInstruction_SetsTheReadOrStarredStateOnEveryLookupOfAQuestionAboutIt()
+    {
+        // Act
+        var text = string.Join(' ', DiscoveryPlanningInstructions.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains("set on every lookup where the question asks about starred, unread, or read mail", text, StringComparison.Ordinal);
+        Assert.Contains("\"March 2026\"", text, StringComparison.Ordinal);
+    }
+
     /// <summary>The agent is never asked for a block type, because the composition is derived from the intent in code.</summary>
     [Fact]
     public void Text_TheInstruction_AsksForNoPresentation()

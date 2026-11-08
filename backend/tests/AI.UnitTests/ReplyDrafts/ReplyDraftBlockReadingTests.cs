@@ -132,6 +132,26 @@ public sealed class ReplyDraftBlockReadingTests
         Assert.Equal("Thanks", Assert.Single(paragraphs[2].Content).Text);
     }
 
+    /// <summary>A strict schema has every run carry "link", so an unlinked run arrives with it as null and keeps its words unlinked.</summary>
+    [Fact]
+    public void Read_ARunCarryingANullLink_IsReadAsAnUnlinkedRunWithItsWords()
+    {
+        // Arrange
+        const string body = """
+            [
+              { "type": "paragraph", "runs": [{ "text": "Thanks for confirming.", "bold": false, "italic": false, "colour": null, "link": null }], "align": null }
+            ]
+            """;
+
+        // Act
+        var paragraph = Assert.IsType<MailParagraphBlock>(Assert.Single(Read(body).Blocks));
+
+        // Assert
+        var run = Assert.Single(paragraph.Content);
+        Assert.Equal("Thanks for confirming.", run.Text);
+        Assert.Null(run.Link);
+    }
+
     [Theory]
     [InlineData("""["You can file the [archived copy](link 0)."]""")]
     [InlineData("""["You can file the [archived copy](0)."]""")]

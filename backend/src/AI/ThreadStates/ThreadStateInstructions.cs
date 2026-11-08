@@ -99,7 +99,12 @@ internal static class ThreadStateInstructions
         Where the turn carries a <{TopicElementName}> element, that is the topic this conversation was given before.
         Keep it: write "keepTopic": true and no "topic". Only where the conversation has moved on to another subject
         write the new "topic" and "subjectChanged": true; a reply, a new detail, a new date, or a new person joining
-        is not another subject. Where the turn carries no <{TopicElementName}>, write "topic".
+        is not another subject. Where the turn carries no <{TopicElementName}>, write "topic" and never "keepTopic",
+        because there is no topic to keep.
+
+        "title" holds all of these: "standing", either "topic" or "keepTopic", and "subjectChanged" where you write it.
+        None of them is ever written at the top level of the object, beside "title" — a "keepTopic" or a "topic" written
+        there is not read, and the answer is withheld as unreadable.
 
         Every entry is an object with two required fields. "text" is the statement itself, at most
         {ThreadStateEntry.MaximumTextLength} characters, written as one plain sentence. "messages" is an array of at most
@@ -127,7 +132,9 @@ internal static class ThreadStateInstructions
         that day, rather than as an agreement or as a question about whether it has happened yet. An act a message asks
         its reader to do by a day is owed in the same way whatever it is: comments on a draft wanted by 22 October, a
         signature needed by Friday, or an answer asked for by the end of the week is a commitment with that day as
-        "dueAt", recorded beside any payment the same conversation states and not instead of it. A commitment the
+        "dueAt". It is an entry of its own in "commitments", never folded into the entry for a payment or any other act
+        the same conversation states: each entry carries one "dueAt", so a request written into another entry's sentence
+        loses its own day. A commitment the
         conversation shows done — the fix shipped, the payment confirmed received, the signed copy returned — is no
         longer owed, so it is not recorded as a commitment. Where the conversation is ambiguous, leave the statement out.
 

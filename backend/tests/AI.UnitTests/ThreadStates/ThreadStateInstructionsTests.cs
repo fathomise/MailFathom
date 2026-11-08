@@ -49,16 +49,30 @@ public sealed class ThreadStateInstructionsTests
         Assert.Contains("not a reply to it", text, StringComparison.Ordinal);
     }
 
-    /// <summary>A request for comments by a day is owed exactly as a payment is, and read as covering payments alone it disappears.</summary>
+    /// <summary>A request for comments by a day is owed exactly as a payment is, and folded into the payment's entry it loses its own day.</summary>
     [Fact]
-    public void Text_TheInstruction_RecordsAnActAskedOfTheReaderByADayBesideAPayment()
+    public void Text_TheInstruction_RecordsAnActAskedOfTheReaderByADayAsAnEntryOfItsOwn()
     {
         // Act
         var text = string.Join(' ', ThreadStateInstructions.TextFor(MailAccountLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
         // Assert
         Assert.Contains("comments on a draft wanted by 22 October, a signature needed by Friday, or an answer asked for by the end of the week is a commitment", text, StringComparison.Ordinal);
-        Assert.Contains("recorded beside any payment the same conversation states and not instead of it", text, StringComparison.Ordinal);
+        Assert.Contains("It is an entry of its own in \"commitments\", never folded into the entry for a payment or any other act", text, StringComparison.Ordinal);
+        Assert.Contains("each entry carries one \"dueAt\"", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A "keepTopic" written beside "title" is never read, and one written where no topic was shown keeps nothing.</summary>
+    [Fact]
+    public void Text_TheInstruction_PlacesEveryTitleFieldInsideTheTitleAndKeepsOnlyAShownTopic()
+    {
+        // Act
+        var text = string.Join(' ', ThreadStateInstructions.TextFor(MailAccountLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains("\"title\" holds all of these: \"standing\", either \"topic\" or \"keepTopic\", and \"subjectChanged\"", text, StringComparison.Ordinal);
+        Assert.Contains("None of them is ever written at the top level of the object", text, StringComparison.Ordinal);
+        Assert.Contains("write \"topic\" and never \"keepTopic\", because there is no topic to keep", text, StringComparison.Ordinal);
     }
 
     /// <summary>A commitment the conversation shows fulfilled is no longer owed, and recording it tells the reader something is still open.</summary>

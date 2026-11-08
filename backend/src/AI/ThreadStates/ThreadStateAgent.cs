@@ -169,7 +169,7 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
             return this.Withhold(ThreadStateWithholding.ProviderUnavailable, answer?.Alias);
         }
 
-        var derivation = ThreadStateReading.Read(answerText, thread.Messages);
+        var derivation = ThreadStateReading.Read(answerText, thread.Messages, topicShown: thread.KeptTopic is not null);
 
         if (derivation.IsSettled)
         {

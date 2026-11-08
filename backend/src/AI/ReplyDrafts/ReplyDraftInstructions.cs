@@ -168,7 +168,8 @@ internal static class ReplyDraftInstructions
             true where its first row names the columns. A run is plain words, or words that are bold, italic, coloured, or
             linked, with "bold" and "italic" false and "colour" null where they do not apply. A line break inside a
             paragraph is "\n"; a new paragraph is a new block. There are no headings: a section opens with a short bold run
-            at the start of its first paragraph.
+            at the start of its first paragraph. Each block is a JSON value written in the array itself, never a string
+            holding JSON.
             """)
         : string.Create(
             CultureInfo.InvariantCulture,
@@ -223,8 +224,9 @@ internal static class ReplyDraftInstructions
         A message marked {ChosenAttributeName}="{ChosenAttributeValue}" is one the person chose to write from: the message
         they are replying to, or one they picked out. The reply answers the chosen messages first. Every other message is
         there to explain them — what was asked before, what was agreed, who said what — and is answered only where a
-        chosen message turns on it. Where a chosen message is not the latest one, answer it rather than the latest. Where
-        no message is marked, answer where the conversation got to.
+        chosen message turns on it. Where a chosen message is not the latest one, answer it rather than the latest, even
+        where a later message already answered it, and read "this" or "it" in what the person typed as that chosen
+        message. Where no message is marked, answer where the conversation got to.
 
         A message may carry the words its attachments yielded, each in an <{AttachmentElementName}> element naming the
         file. They are part of that message: ground the reply in them as in the message's own text, and cite the message
@@ -243,15 +245,17 @@ internal static class ReplyDraftInstructions
         person asked for it in what they typed — a table, a list, bullet points, emphasis, or formatting in general — and
         then write what they asked for. Or the reply is long and structure clearly helps the person reading it — several
         separate points, figures that compare, steps in order — and then a list, a table, or a short bold lead-in to a
-        section may carry it, and nothing decorative. Otherwise write plain paragraphs. A short reply, a personal note,
-        and a reply from somebody whose own messages in <{UnrelatedSentMailElementName}> are plain stay plain, however
-        much the person asks for the reply to be polished.
+        section carries it, and nothing decorative. Otherwise write plain paragraphs. A short reply and a personal note
+        stay plain, however much the person asks for the reply to be polished. The person's own messages in
+        <{UnrelatedSentMailElementName}> set the voice of the reply, not whether a long reply of separate points is
+        structured: plain samples are no reason to leave such a reply plain.
 
         {ColourAndAlignmentStatement(constrainedBySchema)}
 
         The turn may carry a <{LinksElementName}> element numbering what the reply may link to: each <{LinkElementName}>
         names the <{HostElementName}> it goes to and the <{WordsElementName}> it was linked from, where there were any. A
-        run links its words to one by carrying "link", that number. Link only words that name the thing the link is, and
+        run links its words to one by carrying "link", that number, and a linked run carries the words it links, never
+        empty text. Link only words that name the thing the link is, and
         only to a number the turn gave you; never write a web address in the body, because an address is not something
         the reply may link to and the words around it stay plain.
 
