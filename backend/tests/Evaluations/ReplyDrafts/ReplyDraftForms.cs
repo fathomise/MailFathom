@@ -40,7 +40,7 @@ internal static class ReplyDraftForms
         {
             ReplyDraftForm.Plain => IsPlain(blocks) ? null : "A reply the case holds to plain paragraphs carries formatting.",
             ReplyDraftForm.TableAndList when !hasTable || !hasList => $"The person asked for a table and a list, and the draft carries {(hasTable ? "a table" : "no table")} and {(hasList ? "a list" : "no list")}.",
-            ReplyDraftForm.Structured when !hasTable && !hasList && !hasBold => "A long reply of several separate points carries no list, table, or bold lead-in.",
+            ReplyDraftForm.Structured when !hasTable && !hasList && !hasBold => "A reply asked for a list, or holding several separate points, carries no list, table, or bold lead-in.",
             _ => null,
         };
     }
@@ -128,7 +128,10 @@ internal static class ReplyDraftForms
             case JsonValueKind.Object:
                 foreach (var property in element.EnumerateObject())
                 {
-                    if (property.Name is "link" or "href" or "url" && !Cites(property, publishedLinks))
+                    // A strict schema has every run carry "link", so an unlinked run writes it as null.
+                    if (property.Name is "link" or "href" or "url"
+                        && property.Value.ValueKind is not JsonValueKind.Null
+                        && !Cites(property, publishedLinks))
                     {
                         found.Add(property.Value.GetRawText());
                     }

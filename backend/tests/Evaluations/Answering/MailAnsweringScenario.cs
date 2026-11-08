@@ -446,7 +446,7 @@ internal sealed partial record MailAnsweringScenario(
         var question = new MailQuestion(MailQuestionText.Create(this.Question), CorpusKnowledgeSearch.Scope, AskedAt);
         var turn = MailAnsweringAgent.ComposeTurn(question.AskedAt, this.MailboxLanguages, question.Text.Value);
 
-        var answer = await AskAsync(cachedModel, plan, retrieval, runLedger, turn, cancellationToken);
+        var (answer, atLastCallStart) = await AskAsync(cachedModel, plan, retrieval, runLedger, turn, cancellationToken);
         var searchTool = retrieval.CreateSearchTool();
 
         var verdict = await scenarioRun.EvaluateAsync(
@@ -470,7 +470,7 @@ internal sealed partial record MailAnsweringScenario(
             MailAnswerBounds.Default.MaximumAnswerCharacters,
             cancellationToken);
 
-        this.Check(verdict, answer, search.Queries, retrieval.Report, runLedger.Read(), published);
+        this.Check(verdict, answer, search.Queries, retrieval.Report, runLedger.Read(), atLastCallStart, published);
         EvaluationCost.Record(verdict, modelName, modelSpend.Take(), judgeSpend.Take());
 
         return verdict;
@@ -484,13 +484,13 @@ internal sealed partial record MailAnsweringScenario(
     /// <summary>Runs the agent over the deployment's composition, inside the run bounds a deployment applies.</summary>
     /// <returns>
     /// The agent's response as the conversation it held — every lookup, what came back, and the answer — or
-    /// <see langword="null" /> where the run reached its bounds before it answered.
+    /// <see langword="null" /> where the run reached its bounds before it answered; and the ledger as its last call started.
     /// </returns>
     [SuppressMessage(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "Disposing the budgeting wrapper would dispose the caller's model client beneath it; what its disposal settles is a period's spend, which a scenario has none of.")]
-    private static async Task<ChatResponse?> AskAsync(
+    private static async Task<(ChatResponse? Answer, MailAnsweringRunSpend? AtLastCallStart)> AskAsync(
         IChatClient model,
         ChatGenerationPlan plan,
         ScopedMailKnowledgeRetrieval retrieval,
@@ -498,8 +498,9 @@ internal sealed partial record MailAnsweringScenario(
         string turn,
         CancellationToken cancellationToken)
     {
+        var calls = new CallStartRecordingChatClient(model, runLedger);
         var agent = MailAnsweringAgentComposition.Compose(
-            new BudgetedChatClient(model, runLedger, new NoPeriodSpendLedger()),
+            new BudgetedChatClient(calls, runLedger, new NoPeriodSpendLedger()),
             plan,
             retrieval,
             new EmptyAgentInstructionEnvelope(),
@@ -509,11 +510,11 @@ internal sealed partial record MailAnsweringScenario(
         {
             var response = await agent.RunAsync(turn, session: null, options: null, cancellationToken);
 
-            return response.AsChatResponse();
+            return (response.AsChatResponse(), calls.AtLastCallStart);
         }
         catch (MailAnsweringBudgetExhaustedException)
         {
-            return null;
+            return (null, calls.AtLastCallStart);
         }
     }
 
@@ -541,6 +542,7 @@ internal sealed partial record MailAnsweringScenario(
         IReadOnlyList<string> lookups,
         MailAnsweringRetrievalReport retrieved,
         MailAnsweringRunSpend spend,
+        MailAnsweringRunSpend? atLastCallStart,
         (string Text, bool WasCut, IReadOnlyList<AnswerLink> Links) published)
     {
         var corpus = this.Mailbox.ToDictionary(static message => message.Id.Value);
@@ -601,7 +603,7 @@ internal sealed partial record MailAnsweringScenario(
                 unsupported.Count is 0 ? "Every piece of evidence is in a message the answer cites." : $"No cited message carries: {string.Join("; ", unsupported)}.");
         }
 
-        EvaluationRunBounds.RecordWithinDefault(verdict, WithinBoundsMetricName, answer, spend);
+        EvaluationRunBounds.RecordWithinDefault(verdict, WithinBoundsMetricName, answer, atLastCallStart);
         EvaluationMetrics.Record(
             verdict,
             LooksUpOnlyTheQuestionMetricName,

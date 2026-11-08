@@ -1419,7 +1419,7 @@ internal sealed record AgentConversationScenario(
         ChatRequestBounds.RequireForAttempt(composed, plan);
 
         var messages = ChatConversationMapping.ToProviderConversation(composed);
-        var answer = await this.AskAsync(cachedModel, plan, offered, journal, runLedger, messages, cancellationToken);
+        var (answer, atLastCallStart) = await this.AskAsync(cachedModel, plan, offered, journal, runLedger, messages, cancellationToken);
         var presented = AgentConversationAgent.Presentable(answer?.Text);
 
         var verdict = await scenarioRun.EvaluateAsync(
@@ -1436,7 +1436,7 @@ internal sealed record AgentConversationScenario(
 
         EvaluationMetrics.HoldToThreshold(verdict, IntentResolutionEvaluator.IntentResolutionMetricName, this.MinimumIntentResolution);
         EvaluationMetrics.HoldToThreshold(verdict, TaskAdherenceEvaluator.TaskAdherenceMetricName, this.MinimumTaskAdherence);
-        this.Check(verdict, answer, presented, runLedger.Read(), [.. called], store.Written);
+        this.Check(verdict, answer, presented, atLastCallStart, [.. called], store.Written);
         CheckPublished(verdict, presented, tools);
         this.CheckRemembered(verdict, presented?.Value ?? string.Empty, summarizer.Summary);
         this.CheckFollowUps(verdict, tools.FollowUps);
@@ -1562,12 +1562,12 @@ internal sealed record AgentConversationScenario(
             AskedAt);
 
     /// <summary>Runs the Agent over the deployment's composition, inside the run bounds a deployment applies.</summary>
-    /// <returns>The Agent's response, or <see langword="null" /> where the run reached its bounds before it answered.</returns>
+    /// <returns>The Agent's response, or <see langword="null" /> where the run reached its bounds before it answered; and the ledger as its last call started.</returns>
     [SuppressMessage(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "Disposing the budgeting and steering wrappers would dispose the caller's model client beneath them.")]
-    private async Task<ChatResponse?> AskAsync(
+    private async Task<(ChatResponse? Answer, MailAnsweringRunSpend? AtLastCallStart)> AskAsync(
         IChatClient model,
         ChatGenerationPlan plan,
         IReadOnlyList<AITool> tools,
@@ -1576,8 +1576,9 @@ internal sealed record AgentConversationScenario(
         IReadOnlyList<ChatMessage> messages,
         CancellationToken cancellationToken)
     {
+        var calls = new CallStartRecordingChatClient(model, runLedger);
         var client = new SteeredChatClient(
-            new BudgetedChatClient(model, runLedger, new NoPeriodSpendLedger()),
+            new BudgetedChatClient(calls, runLedger, new NoPeriodSpendLedger()),
             journal,
             SensitiveContentEgressGuards.Inactive());
         var agent = AgentConversationComposition.Compose(
@@ -1592,11 +1593,11 @@ internal sealed record AgentConversationScenario(
         {
             var response = await agent.RunAsync(messages, session: null, options: null, cancellationToken);
 
-            return response.AsChatResponse();
+            return (response.AsChatResponse(), calls.AtLastCallStart);
         }
         catch (MailAnsweringBudgetExhaustedException)
         {
-            return null;
+            return (null, calls.AtLastCallStart);
         }
     }
 
@@ -1605,7 +1606,7 @@ internal sealed record AgentConversationScenario(
         EvaluationResult verdict,
         ChatResponse? answer,
         PresentationText? presented,
-        MailAnsweringRunSpend spend,
+        MailAnsweringRunSpend? atLastCallStart,
         IReadOnlyList<string> called,
         IReadOnlyList<AgentConversationEntry> written)
     {
@@ -1718,7 +1719,7 @@ internal sealed record AgentConversationScenario(
             answer is null || presented is not null
                 ? "The run ended with an answer a block can carry, or reached its bounds first."
                 : "The run ended with no answer text, which a deployment fails as an empty answer.");
-        EvaluationRunBounds.RecordWithinDefault(verdict, WithinBoundsMetricName, answer, spend);
+        EvaluationRunBounds.RecordWithinDefault(verdict, WithinBoundsMetricName, answer, atLastCallStart);
         EvaluationMetrics.Record(
             verdict,
             HostileMail.ObeysNoMailMetricName,

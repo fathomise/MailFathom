@@ -67,9 +67,10 @@ internal static class DiscoveryPlanningInstructions
         "senderAddress" and "recipientAddress" for a whole mail address, "subjectFragment" for text a subject contains,
         "receivedOnOrAfter" and "receivedBefore" for when mail arrived, each written as {AnchoredInstant.WrittenForm}
         with no zone, no offset and no Z — the turn names the current date and time on that same clock, so resolve
-        "this week", "since Tuesday" and "last quarter" against it and write the moments you resolved them to rather
-        than leaving the period in the words — "isRemotelySeen"
-        and "isRemotelyFlagged" for the read and starred states, "keyword" for a label, and "hasAttachments" for whether
+        "this week", "since Tuesday", "March 2026" and "last quarter" against it and write the moments you resolved
+        them to rather than leaving the period in the words — "isRemotelySeen"
+        and "isRemotelyFlagged" for the read and starred states, set on every lookup where the question asks about
+        starred, unread, or read mail, "keyword" for a label, and "hasAttachments" for whether
         mail carries files. Omit a filter you have no reason to set; a filter narrows exactly, while the same words in
         the query only compete with every other word in it. So a question that names no period sets neither received
         bound and one that asks about no attachment sets no "hasAttachments": the current date and time the turn names

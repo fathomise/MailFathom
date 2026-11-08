@@ -172,7 +172,7 @@ internal static class WrittenCorpus
             Attached is the calculation for September – the tax comes to 1,918,300. This time I reconciled total assets
             with the month-end balance sheet. Payment is due on 26 October, as 25 October falls on a Sunday.
 
-            I would be grateful for any comments by Thursday, 22 October.
+            Please send me your comments by Thursday, 22 October.
 
             Kind regards
             Halina Wrona
@@ -189,7 +189,7 @@ internal static class WrittenCorpus
             przesyłam w załączniku wyliczenie za wrzesień – podatek 1 918 300 zł. Tym razem uzgodniłam sumę aktywów
             z bilansem na koniec miesiąca. Termin płatności: 26 października, bo 25 października wypada w niedzielę.
 
-            Proszę o ewentualne uwagi do czwartku, 22 października.
+            Proszę przesłać mi uwagi do czwartku, 22 października.
 
             Z poważaniem
             Halina Wrona

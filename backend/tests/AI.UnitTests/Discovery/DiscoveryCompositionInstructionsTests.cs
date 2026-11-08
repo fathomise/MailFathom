@@ -83,6 +83,33 @@ public sealed class DiscoveryCompositionInstructionsTests
         Assert.Contains("Give an event even where only one point in the change carries a date", text, StringComparison.Ordinal);
     }
 
+    /// <summary>An answer one step of inference away was given with a disclaimer that the extracts do not say it, and judged as not answering.</summary>
+    [Fact]
+    public void Text_TheInstruction_GivesAnAnswerOneStepOfInferenceAwayAtModerateConfidenceWithoutADisclaimer()
+    {
+        // Act
+        var text = string.Join(' ', DiscoveryCompositionInstructions.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains("Where the answer follows from an extract by one step of inference", text, StringComparison.Ordinal);
+        Assert.Contains("give it at \"moderate\" and without a disclaimer", text, StringComparison.Ordinal);
+        Assert.Contains("that step never supplies a fact no extract states", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>The account an authenticated sender gave was withheld beside the unverified message contradicting it.</summary>
+    [Fact]
+    public void Text_TheInstruction_WritesOutAnAccountAnAuthenticatedSenderGave()
+    {
+        // Act
+        var text = string.Join(' ', DiscoveryCompositionInstructions.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains(
+            $"An account an extract from an {AgentTurnDocument.AuthenticatedSender} sender gives, in a message that is neither junk nor a first contact, is written out in full in \"answer\" where the question asks for it.",
+            text,
+            StringComparison.Ordinal);
+    }
+
     /// <summary>A quotation keeps the extract's language, so an answer that is only a quotation is not written in the question's.</summary>
     [Fact]
     public void Text_TheInstruction_FramesAQuotationInTheQuestionsLanguage()
@@ -158,6 +185,7 @@ public sealed class DiscoveryCompositionInstructionsTests
 
         // Assert
         Assert.Contains("Follow the change in date order across every extract you were given", turn, StringComparison.Ordinal);
+        Assert.Contains("A workaround, an interim measure, and what was still to be verified are steps too.", turn, StringComparison.Ordinal);
     }
 
     /// <summary>Which of two messages came later is what tells a correction from the statement it corrects.</summary>

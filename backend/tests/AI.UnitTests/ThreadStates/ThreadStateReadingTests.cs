@@ -38,7 +38,7 @@ public sealed class ThreadStateReadingTests
             """;
 
         // Act
-        var entries = ThreadStateReading.Read(answer, Messages()).Entries;
+        var entries = ThreadStateReading.Read(answer, Messages(), topicShown: false).Entries;
 
         // Assert
         Assert.Equal(
@@ -66,7 +66,7 @@ public sealed class ThreadStateReadingTests
         var answer = $$"""{ "agreements": [{ "text": "They settled the price.", "messages": {{messages}} }] }""";
 
         // Act
-        var derivation = ThreadStateReading.Read(answer, Messages());
+        var derivation = ThreadStateReading.Read(answer, Messages(), topicShown: false);
 
         // Assert
         Assert.True(derivation.IsSettled);
@@ -82,7 +82,7 @@ public sealed class ThreadStateReadingTests
             """{ "agreements": [{ "text": "They settled the price.", "messages": [9, 1] }] }""";
 
         // Act
-        var entries = ThreadStateReading.Read(answer, Messages()).Entries;
+        var entries = ThreadStateReading.Read(answer, Messages(), topicShown: false).Entries;
 
         // Assert
         Assert.Equal([Second], Assert.Single(entries).Sources);
@@ -96,7 +96,7 @@ public sealed class ThreadStateReadingTests
             """{ "agreements": [{ "text": "They settled the price.", "messages": [0, 0, 0] }] }""";
 
         // Act
-        var entries = ThreadStateReading.Read(answer, Messages()).Entries;
+        var entries = ThreadStateReading.Read(answer, Messages(), topicShown: false).Entries;
 
         // Assert
         Assert.Equal([First], Assert.Single(entries).Sources);
@@ -115,7 +115,7 @@ public sealed class ThreadStateReadingTests
         var answer = $$"""{ "agreements": [{{written}}] }""";
 
         // Act
-        var entries = ThreadStateReading.Read(answer, Messages()).Entries;
+        var entries = ThreadStateReading.Read(answer, Messages(), topicShown: false).Entries;
 
         // Assert
         Assert.Equal("Agreement 0.", Assert.Single(entries).Text);
@@ -133,7 +133,7 @@ public sealed class ThreadStateReadingTests
             """;
 
         // Act
-        var entry = Assert.Single(ThreadStateReading.Read(answer, Messages()).Entries);
+        var entry = Assert.Single(ThreadStateReading.Read(answer, Messages(), topicShown: false).Entries);
 
         // Assert
         Assert.Null(entry.OwedBy);
@@ -153,7 +153,7 @@ public sealed class ThreadStateReadingTests
             """;
 
         // Act
-        var entry = Assert.Single(ThreadStateReading.Read(answer, Messages()).Entries);
+        var entry = Assert.Single(ThreadStateReading.Read(answer, Messages(), topicShown: false).Entries);
 
         // Assert
         Assert.Equal(ThreadStateAspect.Commitment, entry.Aspect);
@@ -167,7 +167,7 @@ public sealed class ThreadStateReadingTests
     public void Read_AnObjectWrittenInsideProseOrAFence_IsStillRead(string answer)
     {
         // Act
-        var entry = Assert.Single(ThreadStateReading.Read(answer, Messages()).Entries);
+        var entry = Assert.Single(ThreadStateReading.Read(answer, Messages(), topicShown: false).Entries);
 
         // Assert
         Assert.Equal("They settled.", entry.Text);
@@ -188,7 +188,7 @@ public sealed class ThreadStateReadingTests
     public void Read_AnAnswerNothingCanBeReadOutOf_WithholdsItAsUnreadable(string? answer)
     {
         // Act
-        var derivation = ThreadStateReading.Read(answer, Messages());
+        var derivation = ThreadStateReading.Read(answer, Messages(), topicShown: false);
 
         // Assert
         Assert.Equal(ThreadStateWithholding.AnswerUnreadable, derivation.Withheld);
@@ -202,7 +202,7 @@ public sealed class ThreadStateReadingTests
     public void Read_AnObjectCarryingNoStatements_SettlesAsNothingToSay(string answer)
     {
         // Act
-        var derivation = ThreadStateReading.Read(answer, Messages());
+        var derivation = ThreadStateReading.Read(answer, Messages(), topicShown: false);
 
         // Assert
         Assert.True(derivation.IsSettled);
@@ -216,7 +216,7 @@ public sealed class ThreadStateReadingTests
     public void Read_AStatementSayingNothing_IsDroppedAndTheAnswerSettles(string answer)
     {
         // Act
-        var derivation = ThreadStateReading.Read(answer, Messages());
+        var derivation = ThreadStateReading.Read(answer, Messages(), topicShown: false);
 
         // Assert
         Assert.True(derivation.IsSettled);
@@ -235,23 +235,68 @@ public sealed class ThreadStateReadingTests
             """;
 
         // Act
-        var title = ThreadStateReading.Read(answer, Messages()).Title;
+        var title = ThreadStateReading.Read(answer, Messages(), topicShown: false).Title;
 
         // Assert
         Assert.Equal(new ThreadTitleProposal("Racking quotation", StatesSubjectChange: true, "Upper limit still open"), title);
     }
 
     [Fact]
-    public void Read_AnAnswerKeepingTheTopic_ProposesNoNewTopic()
+    public void Read_AnAnswerKeepingTheTopicItWasShown_ProposesNoNewTopic()
     {
         // Arrange
         const string answer = """{ "title": { "keepTopic": true, "topic": "Something else", "standing": "" } }""";
 
         // Act
-        var title = ThreadStateReading.Read(answer, Messages()).Title;
+        var title = ThreadStateReading.Read(answer, Messages(), topicShown: true).Title;
 
         // Assert
         Assert.Equal(new ThreadTitleProposal(Topic: null, StatesSubjectChange: false, string.Empty), title);
+    }
+
+    /// <summary>Keeping a topic the turn never showed would leave the conversation untitled, so it is no answer about the topic.</summary>
+    [Fact]
+    public void Read_AnAnswerKeepingATopicItWasNotShown_IsWithheldAsUnreadable()
+    {
+        // Arrange
+        const string answer = """{ "title": { "keepTopic": true, "standing": "" } }""";
+
+        // Act
+        var derivation = ThreadStateReading.Read(answer, Messages(), topicShown: false);
+
+        // Assert
+        Assert.Equal(ThreadStateWithholding.AnswerUnreadable, derivation.Withheld);
+    }
+
+    [Fact]
+    public void Read_AnAnswerKeepingATopicItWasNotShownBesideANewOne_ProposesTheNewTopic()
+    {
+        // Arrange
+        const string answer = """{ "title": { "keepTopic": true, "topic": "Racking quotation", "standing": "" } }""";
+
+        // Act
+        var title = ThreadStateReading.Read(answer, Messages(), topicShown: false).Title;
+
+        // Assert
+        Assert.Equal(new ThreadTitleProposal("Racking quotation", StatesSubjectChange: false, string.Empty), title);
+    }
+
+    /// <summary>
+    /// Two answers gpt-6-luna wrote in the evaluation run that put "keepTopic" beside "title" rather than inside it, one
+    /// where the turn showed a topic and one where it showed none. The reading does not move a field into the object it
+    /// belongs to, so each title carries neither a topic nor a kept one and the answer is withheld; the instruction
+    /// saying where the field goes is what answers this.
+    /// </summary>
+    [Theory]
+    [InlineData(RecordedAnswerKeepingTheTopicOutsideTheTitle, true)]
+    [InlineData(RecordedPolishAnswerKeepingATopicOutsideTheTitle, false)]
+    public void Read_ARecordedAnswerKeepingTheTopicOutsideTheTitle_IsWithheldAsUnreadable(string answer, bool topicShown)
+    {
+        // Act
+        var derivation = ThreadStateReading.Read(answer, Messages(), topicShown);
+
+        // Assert
+        Assert.Equal(ThreadStateWithholding.AnswerUnreadable, derivation.Withheld);
     }
 
     /// <summary>A standing is a reading of what is still open, so one written beside nothing open says nothing the statements carry.</summary>
@@ -267,7 +312,7 @@ public sealed class ThreadStateReadingTests
             """;
 
         // Act
-        var title = ThreadStateReading.Read(answer, Messages()).Title;
+        var title = ThreadStateReading.Read(answer, Messages(), topicShown: false).Title;
 
         // Assert
         Assert.NotNull(title);
@@ -283,7 +328,7 @@ public sealed class ThreadStateReadingTests
     public void Read_ATitleThatIsNotOnePlainLine_IsWithheldAsUnreadable(string answer)
     {
         // Act
-        var derivation = ThreadStateReading.Read(answer, Messages());
+        var derivation = ThreadStateReading.Read(answer, Messages(), topicShown: false);
 
         // Assert
         Assert.Equal(ThreadStateWithholding.AnswerUnreadable, derivation.Withheld);
@@ -297,7 +342,7 @@ public sealed class ThreadStateReadingTests
         var answer = $$"""{ "title": { "topic": "{{new string('a', ThreadTitle.MaximumTopicLength + 1)}}", "standing": "" } }""";
 
         // Act
-        var derivation = ThreadStateReading.Read(answer, Messages());
+        var derivation = ThreadStateReading.Read(answer, Messages(), topicShown: false);
 
         // Assert
         Assert.True(derivation.IsSettled);
@@ -320,7 +365,7 @@ public sealed class ThreadStateReadingTests
         };
 
         // Act
-        var derivations = answers.Select(answer => ThreadStateReading.Read(answer, Messages())).ToArray();
+        var derivations = answers.Select(answer => ThreadStateReading.Read(answer, Messages(), topicShown: false)).ToArray();
 
         // Assert
         Assert.All(derivations, derivation => Assert.Equal(ThreadStateWithholding.AnswerUnreadable, derivation.Withheld));
@@ -343,7 +388,7 @@ public sealed class ThreadStateReadingTests
         ];
 
         // Act
-        var derivation = ThreadStateReading.Read(answer, messages);
+        var derivation = ThreadStateReading.Read(answer, messages, topicShown: false);
 
         // Assert
         Assert.True(derivation.IsSettled);
@@ -357,12 +402,63 @@ public sealed class ThreadStateReadingTests
     public void Read_AnAnswerCarryingNoTitle_SettlesWithoutOne()
     {
         // Act
-        var derivation = ThreadStateReading.Read("""{ "agreements": [] }""", Messages());
+        var derivation = ThreadStateReading.Read("""{ "agreements": [] }""", Messages(), topicShown: false);
 
         // Assert
         Assert.True(derivation.IsSettled);
         Assert.Null(derivation.Title);
     }
+
+    private const string RecordedAnswerKeepingTheTopicOutsideTheTitle = """
+        {
+          "keepTopic": true,
+          "agreements": [
+            {
+              "text": "Invoice 7819 is fully settled: the €1,150.00 payment was received and the remaining balance is €0.00.",
+              "messages": [1, 2, 3]
+            }
+          ],
+          "openQuestions": [
+            {
+              "text": "The revised copy of invoice 7842 and confirmation that its payment was made are still awaited.",
+              "messages": [2, 3]
+            }
+          ],
+          "commitments": [
+            {
+              "text": "Northstar Ledgerworks undertook to pay the outstanding €2,480.00 on invoice 7842 by 10 September 2026.",
+              "messages": [1, 3],
+              "owedBy": "Northstar Ledgerworks",
+              "dueAt": "2026-09-10"
+            }
+          ],
+          "title": {
+            "standing": "The invoice 7842 payment is due by 10 September 2026; the revised invoice copy and payment confirmation are awaited."
+          }
+        }
+        """;
+
+    private const string RecordedPolishAnswerKeepingATopicOutsideTheTitle = """
+        {
+          "keepTopic": true,
+          "title": {
+            "standing": "Oczekiwana jest wycena przed 18 września; nie wiadomo, czy jest już gotowa."
+          },
+          "openQuestions": [
+            {
+              "text": "Mara pyta, czy wycena 30 krzeseł jest już gotowa, ale nie otrzymała odpowiedzi.",
+              "messages": [2]
+            }
+          ],
+          "commitments": [
+            {
+              "text": "Wycena 30 krzeseł ma zostać przesłana przed 18 września, o co poprosiła Mara.",
+              "messages": [2],
+              "dueAt": "2026-09-17"
+            }
+          ]
+        }
+        """;
 
     private const string RecordedAnswerWithATopicPastItsBound = """
         {

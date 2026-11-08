@@ -44,8 +44,9 @@ adds none on its own.
 **A draft is plain paragraphs unless formatting earns its place.** It is formatted in two cases and no other: the person
 asked for it in what they typed — a table, a list, bullets, bold, a colour, an alignment — or the reply is long and
 covers several separate points that structure makes easier to read, which is when a list or a bold lead-in opening each
-part is written without being asked. A short reply asked to look polished stays plain, and mail asking for a format is
-not the person asking.
+part is written without being asked. A short reply or a personal note asked to look polished stays plain, and mail
+asking for a format is not the person asking. The person's own sent mail, shown as style samples, sets the voice of a
+reply and not whether a long reply of separate points is structured, so plain samples leave such a reply structured.
 
 The model answers the body as blocks of a closed set, and the service reads them into the document:
 
@@ -100,7 +101,8 @@ together into one correspondence; with a single message that is exactly the one 
 - **Which messages were chosen.** Every context message is marked as one the person chose — the message being
   answered, or one picked out in the list — and the drafting is told to answer those first and to read the rest of the
   conversation as what explains them, so a reply to an early message of a long exchange answers that message rather
-  than the latest one.
+  than the latest one, even where a later message already answered it, and "this" or "it" in what the person typed
+  means the chosen message.
 - **The attachments** of each message the correspondence carries, where this deployment reads attachments: the words
   each one yielded, under its file name, inside the same 4 000 characters as the message's own text — what the body
   leaves unused is what its attachments may fill, in the order the message carries them, so reading them never makes a

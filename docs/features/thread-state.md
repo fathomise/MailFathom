@@ -69,7 +69,10 @@ no statement carries.
 
 **The topic is kept by rule rather than by trusting the model to repeat itself.** The turn quotes back the topic the
 conversation was given last time, and the model answers either that it stays or with a new one and a statement that the
-subject changed. The service then decides:
+subject changed. Both answers sit inside the title; one written beside it is not read. **Keeping the topic is an answer
+only where the turn quoted one**: where it quoted none, there is nothing to keep, so the title stands on the topic
+written beside that answer, and an answer that wrote none is withheld as unreadable rather than settled untitled. The
+service then decides:
 
 - A conversation with no topic yet takes the one proposed.
 - A **young** conversation — at most three messages, a constant rather than a setting — takes a new topic freely: the

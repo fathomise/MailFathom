@@ -86,6 +86,32 @@ public sealed class EmailEnrichmentInstructionsTests
         Assert.Contains("that request and its day are what make it pressing", text, StringComparison.Ordinal);
     }
 
+    /// <summary>A message asking its reader for nothing still states a dated undertaking, and leaving it out drops the one date the row was worth.</summary>
+    [Fact]
+    public void TextFor_AMessageAskingItsReaderForNothing_TakesADatedUndertakingItStatesAsTheCommitment()
+    {
+        // Act
+        var text = string.Join(' ', EmailEnrichmentInstructions.TextFor(MailAccountLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains(
+            "Where the message asks its reader for nothing, a dated undertaking it states — a payment scheduled, an update or a document promised by a day — is the commitment, even where it does not say who owes it",
+            text,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>An unverified message asking for a transfer to be approved was offered as a task to approve it.</summary>
+    [Fact]
+    public void TextFor_AnUnverifiedMessage_NamesAPaymentToBeMadeOrApprovedAmongWhatItWritesNoTaskFor()
+    {
+        // Act
+        var text = string.Join(' ', EmailEnrichmentInstructions.TextFor(MailAccountLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains("for a payment or a transfer to be made or approved", text, StringComparison.Ordinal);
+        Assert.Contains("write no commitment and no task that would carry the request out", text, StringComparison.Ordinal);
+    }
+
     /// <summary>The organisation in a signature is often the only party a message names, which is not a reason to make it the one owing.</summary>
     [Fact]
     public void TextFor_TheInstruction_TakesNobodyAsOwingSomethingFromTheSignatureAlone()

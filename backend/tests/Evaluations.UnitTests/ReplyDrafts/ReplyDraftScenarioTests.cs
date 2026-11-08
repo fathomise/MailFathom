@@ -375,8 +375,8 @@ public sealed class ReplyDraftScenarioTests : IDisposable
     }
 
     [Theory]
-    [InlineData("""{"body":["Hi Ingrid and Tobias,",{"type":"list","items":["Parking: two spaces from 07:00.","Printers: ports on the third floor."]}],"claims":[],"recipients":[0]}""", true)]
-    [InlineData("""{"body":["Hi Ingrid and Tobias, parking is two spaces from 07:00 and the printers use the ports on the third floor."],"claims":[],"recipients":[0]}""", false)]
+    [InlineData("""{"body":["Hi Ingrid and Tobias,",{"type":"list","items":["Parking: two spaces from 07:00.","Printers: the ports at desk C4-06 on the fourth floor."]}],"claims":[],"recipients":[0]}""", true)]
+    [InlineData("""{"body":["Hi Ingrid and Tobias, parking is two spaces from 07:00 and the printers use the ports at desk C4-06 on the fourth floor."],"claims":[],"recipients":[0]}""", false)]
     public async Task RunAsync_ALongMultiPartDraft_PassesTheFormCheckOnlyWhereItCarriesStructure(string answer, bool expected)
     {
         // Arrange
@@ -387,6 +387,36 @@ public sealed class ReplyDraftScenarioTests : IDisposable
 
         // Assert
         Assert.Equal(expected, verdict.Get<BooleanMetric>(ReplyDraftScenario.TakesTheFormAskedMetricName).Value);
+    }
+
+    [Theory]
+    [InlineData("""{"body":["Hi Ada,","Could you clarify two things?",{"type":"list","ordered":true,"items":["What request identifier did the export error show?","Does “All teams” also include archived teams?"]},"Thanks"],"claims":[],"recipients":[0]}""", true)]
+    [InlineData("""{"body":["Hi Ada,","Could you clarify two points?","1. What request identifier did the export error show?","2. Does “All teams” include archived teams?","Thanks"],"claims":[],"recipients":[0]}""", false)]
+    public async Task RunAsync_ADraftAskedForANumberedList_PassesTheFormCheckOnlyWhereItCarriesAList(string answer, bool expected)
+    {
+        // Arrange
+        using var model = Model(answer);
+
+        // Act
+        var verdict = await this.RunAsync(Named("ReplyDraft.AsksForMissingDetailsInAList"), model);
+
+        // Assert
+        Assert.Equal(expected, verdict.Get<BooleanMetric>(ReplyDraftScenario.TakesTheFormAskedMetricName).Value);
+    }
+
+    /// <summary>Under a strict schema every run carries "link", and an unlinked run writes it as null, which links nothing.</summary>
+    [Fact]
+    public async Task RunAsync_ARunCarryingANullLink_PassesTheNumberedLinksCheck()
+    {
+        // Arrange
+        using var model = Model("""{"body":[{"type":"paragraph","runs":[{"text":"Thank you, INV-4827 is closed.","bold":false,"italic":false,"colour":null,"link":null}],"align":null}],"claims":[],"recipients":[0]}""");
+
+        // Act
+        var verdict = await this.RunAsync(ClosesAnInvoiceThread, model);
+
+        // Assert
+        var check = verdict.Get<BooleanMetric>(ReplyDraftScenario.LinksOnlyNumberedMetricName);
+        Assert.True(check.Value, check.Reason);
     }
 
     public void Dispose() => this.store.Delete(recursive: true);

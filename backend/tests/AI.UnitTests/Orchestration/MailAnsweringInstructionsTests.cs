@@ -20,13 +20,16 @@ public sealed class MailAnsweringInstructionsTests
     /// <summary>The instruction as one line, so an assertion is about what it says rather than about where it wraps.</summary>
     private static readonly string Instruction = MailAnsweringInstructions.Text.ReplaceLineEndings(" ");
 
-    /// <summary>The language of an answer follows the question, because that is the one thing the caller did ask for.</summary>
+    /// <summary>
+    /// The language of an answer follows the question, because that is the one thing the caller did ask for; an answer
+    /// written after a Polish lookup drifted into Polish, so the instruction names the element and the query it is not.
+    /// </summary>
     [Fact]
-    public void Text_TheInstruction_StatesThatAnAnswerIsWrittenInTheLanguageOfTheQuestion()
+    public void Text_TheInstruction_StatesThatAnAnswerIsWrittenInTheLanguageOfTheAsk()
     {
         // Assert
         Assert.Contains(
-            "in the language the question was asked in, whatever language the mail is in",
+            $"in the language of the words inside the <{AgentTurnDocument.AskElementName}> element, whatever language the mail is in and whatever language your last lookup was written in",
             Instruction,
             StringComparison.Ordinal);
     }
@@ -149,7 +152,18 @@ public sealed class MailAnsweringInstructionsTests
     {
         // Assert
         Assert.Contains("Mail about another report, person, or ticket than the one the question names is not an answer to it", Instruction, StringComparison.Ordinal);
-        Assert.Contains("by the number alone, and in the mailbox's other language", Instruction, StringComparison.Ordinal);
+        Assert.Contains("look once more — by the number alone, and in the mailbox's other language — and then answer", Instruction, StringComparison.Ordinal);
+    }
+
+    /// <summary>Every lookup found something unrelated, so a rule firing only after empty lookups never stopped a run of nine to fourteen.</summary>
+    [Fact]
+    public void Text_TheInstruction_StopsSearchingAfterThreeLookupsBringNothingNew()
+    {
+        // Assert
+        Assert.Contains(
+            "Once three lookups in a row bring back nothing new about what was asked — no mail, mail you have already seen, or mail about something else — stop searching and answer from what you have.",
+            Instruction,
+            StringComparison.Ordinal);
     }
 
     /// <summary>A nothing-found answer cited the neighbouring mail it set aside, and any citation fails such an answer.</summary>

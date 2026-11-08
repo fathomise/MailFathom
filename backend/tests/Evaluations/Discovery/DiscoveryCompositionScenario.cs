@@ -476,12 +476,15 @@ internal sealed record DiscoveryCompositionScenario(
         // The judge is shown the result a person would read, against the question they asked and the extracts it was
         // composed from, so it grades what the reading kept rather than a source name the reading dropped. The extracts
         // are the turn's own, each source's day included: the model is told to date an event by the day its message
-        // arrived, and a judge shown the bare extracts reads that year as a detail nothing supports.
+        // arrived, and a judge shown the bare extracts reads that year as a detail nothing supports. Relevance takes no
+        // context of its own and reads only the request, so the extracts ride in it: rated against the question alone,
+        // the honest "the extracts do not say" the composition instruction asks for reads as an answer that missed.
         var firstSource = turn.IndexOf($"<{DiscoveryCompositionInstructions.SourcesElementName}>", StringComparison.Ordinal);
+        var extracts = firstSource < 0 ? turn : turn[firstSource..];
         var verdict = await scenarioRun.EvaluateAsync(
-            [new ChatMessage(ChatRole.User, this.Question)],
+            [new ChatMessage(ChatRole.User, $"{this.Question}\n\nAnswer only from these extracts:\n{extracts}")],
             new ChatResponse(new ChatMessage(ChatRole.Assistant, Rendered(result.Blocks[0]))) { ModelId = modelName },
-            [new GroundednessEvaluatorContext(firstSource < 0 ? turn : turn[firstSource..]), this.Thresholds()],
+            [new GroundednessEvaluatorContext(extracts), this.Thresholds()],
             cancellationToken);
 
         this.HoldRatings(verdict);

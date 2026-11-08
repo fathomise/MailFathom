@@ -30,8 +30,9 @@ A mark is never a sentence on its own. Each one carries:
 
 A message carries at most one mark of each aspect, so a row drawing the sense has one candidate rather than a choice
 between two answers to one question. Where the message asks its reader for something, its commitment is that request
-rather than whatever the sender or a third party owes, so the row a reader skims names their own deadline; and a
-signature names who wrote the message, never who owes what it describes. A reading with no evidence is refused rather than stored: it would read on a
+rather than whatever the sender or a third party owes, so the row a reader skims names their own deadline; where it
+asks its reader for nothing, a dated undertaking it states — a payment scheduled, a document promised by a day — is the
+commitment even where the message does not say who owes it; and a signature names who wrote the message, never who owes what it describes. A reading with no evidence is refused rather than stored: it would read on a
 screen exactly like one a passage supports, and no reader could tell them apart.
 
 The evidence names passages in the same terms the Discover run's citations name them, so the same reader resolves both
@@ -181,7 +182,8 @@ system reads: a message asking to be marked urgent is a sender writing on a row 
 Where it came from is written by the service on the message's `<message>` element, as the same attributes
 [answering writes](mail-answering.md#where-a-message-came-from) — the sender verdict always, and the junk and first-contact
 flags where they hold. The instruction asks the model to read a request from a sender nobody authenticated, or from junk
-or a first contact, as a claim: a request there to change payment details or credentials, or to act urgently, becomes
+or a first contact, as a claim: a request there to change payment details or credentials, to make or approve a payment
+or a transfer, or to act urgently, becomes
 no commitment the person owes and no task on their list. A message whose provenance can no longer be read was erased
 since it was selected, and is not derived.
 

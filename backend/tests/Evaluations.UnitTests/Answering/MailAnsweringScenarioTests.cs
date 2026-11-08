@@ -55,7 +55,7 @@ public sealed class MailAnsweringScenarioTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_AModelThatAnswersPastTheDefaultTokenCeiling_StillAnswersAndFailsTheBoundsCheckNamingTheTokens()
+    public async Task RunAsync_AModelWhoseLastCallAloneCrossesTheDefaultTokenCeiling_PassesTheBoundsCheck()
     {
         // Arrange
         using var model = new ScriptedAnsweringChatClient(
@@ -68,9 +68,26 @@ public sealed class MailAnsweringScenarioTests : IDisposable
 
         // Assert
         var withinBounds = verdict.Get<BooleanMetric>(MailAnsweringScenario.WithinBoundsMetricName);
+        Assert.True(withinBounds.Value, withinBounds.Reason);
+    }
+
+    [Fact]
+    public async Task RunAsync_AModelWhoseCallStartsPastTheDefaultTokenCeiling_StillAnswersAndFailsTheBoundsCheckNamingTheTokens()
+    {
+        // Arrange
+        using var model = new ScriptedAnsweringChatClient(
+            LumenfieldLookup,
+            $"It needed 42 Lantern Way [{LumenfieldInvoice.Id}].",
+            inputTokensPerReply: 90_000);
+
+        // Act
+        var verdict = await this.RunAsync(KeywordTrap, model, executionName: "only");
+
+        // Assert
+        var withinBounds = verdict.Get<BooleanMetric>(MailAnsweringScenario.WithinBoundsMetricName);
         Assert.True(verdict.Get<BooleanMetric>(MailAnsweringScenario.AnsweredMetricName).Value);
         Assert.False(withinBounds.Value);
-        Assert.Contains("100010 tokens", withinBounds.Reason, StringComparison.Ordinal);
+        Assert.Contains("started at 90005 tokens", withinBounds.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
