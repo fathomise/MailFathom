@@ -1154,7 +1154,7 @@ internal sealed record AgentConversationScenario(
             "Did I confirm the filing cabinet delivery slot to Hollis Supplies?",
             UserLanguage.English,
             ["17 September"],
-            ["filing", "cabinet", "Hollis", "Greta", "Halloran", "delivery", "slot", "September", "confirm", "Quarry", "schedul", "send"])
+            ["filing", "cabinet", "Hollis", "Greta", "Halloran", "delivery", "slot", "September", "confirm", "Quarry", "schedule", "send"])
         {
             Unsent = UnsentMail.ScheduledConfirmation,
         },
