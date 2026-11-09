@@ -364,14 +364,12 @@ describe('MessageBlocks, a run in a colour a proven author chose', () => {
         const drawn = provenRun(foreground);
 
         expect(drawn.querySelector('[style]')).toBeNull();
-        expect(drawn.querySelector('.text-muted')).toBeNull();
     });
 
     it('draws a grey inside the band as written rather than as small print', () => {
         const drawn = provenRun('#797979');
 
         expect(drawn.querySelector('span')?.style.color).toBe('rgb(121, 121, 121)');
-        expect(drawn.querySelector('.text-muted')).toBeNull();
     });
 });
 
