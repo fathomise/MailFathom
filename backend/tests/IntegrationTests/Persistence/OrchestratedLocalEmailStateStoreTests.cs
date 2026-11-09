@@ -289,6 +289,52 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
         Assert.Equal(0, sourceRemovals);
     }
 
+    /// <summary>A message the drain already took off the source has no position left to protect, so nothing of it stays behind.</summary>
+    [Fact]
+    public async Task ForgetAsync_AMessageHoldingNoOccurrence_ErasesTheRowAndRemembersNothing()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, FolderAlias, cancellationToken);
+        var occurrenceId = SyntheticEmail.OccurrenceIn(binding, ForgottenUid);
+        var storedEmailId = await StoreAsync(
+            services,
+            occurrenceId,
+            "local-email-state-drained",
+            SyntheticEmail.RawMimeOf("local-email-state-drained", PayloadByteCount),
+            cancellationToken);
+        await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().StoredEmails
+                .Where(stored => stored.Id == storedEmailId.Value)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(stored => stored.UidValidity, (uint?)null)
+                        .SetProperty(stored => stored.Uid, (uint?)null),
+                    token),
+            cancellationToken);
+
+        // Act
+        await services.CommitProducingAsync(
+            (scope, session, token) => scope.GetRequiredService<ILocalEmailStateStore>().ForgetAsync(
+                session,
+                SyntheticMailAccount.Account,
+                storedEmailId,
+                occurrenceId,
+                token),
+            cancellationToken);
+
+        // Assert
+        var remembered = await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().MailboxForgottenOccurrences
+                .AsNoTracking()
+                .CountAsync(occurrence => occurrence.Uid == ForgottenUid, token),
+            cancellationToken);
+
+        Assert.Equal(0, await CountStoredEmailRowsAsync(services, storedEmailId, cancellationToken));
+        Assert.Equal(0, remembered);
+    }
+
     /// <summary>Reads through the store inside a session of its own, which is the only way the port reads.</summary>
     private static Task<LocalEmailState?> ReadAsync(
         OrchestratedMailFathomServices services,

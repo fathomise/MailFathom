@@ -77,7 +77,11 @@ internal sealed class InMemoryLocalEmailStateStore(MailAccountId account) : ILoc
         }
 
         this.Forgotten.Add(email);
-        this.ForgottenOccurrences.Add(occurrence);
+
+        if (state.HoldsSourceOccurrence)
+        {
+            this.ForgottenOccurrences.Add(occurrence);
+        }
 
         return Task.FromResult(state.Folder);
     }

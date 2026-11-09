@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.IO.Compression;
+using System.Text.Json;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Payloads;
@@ -44,7 +45,13 @@ public sealed class MailboxExportHandlerTests
 
         // Assert
         using var archive = new ZipArchive(new MemoryStream(archives.Read(store.Find(queued.Id)!.ObjectLocator!)!), ZipArchiveMode.Read);
-        Assert.NotNull(archive.GetEntry(MaildirArchiveLayout.ForgottenOccurrencesDocumentPath));
+        var entry = archive.GetEntry(MaildirArchiveLayout.ForgottenOccurrencesDocumentPath);
+        Assert.NotNull(entry);
+
+        await using var content = await entry.OpenAsync(TestContext.Current.CancellationToken);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, document.RootElement.GetProperty("count").GetInt64());
     }
 
     [Fact]

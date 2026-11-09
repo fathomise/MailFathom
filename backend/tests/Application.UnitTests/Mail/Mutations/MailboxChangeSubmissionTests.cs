@@ -638,6 +638,22 @@ public sealed class MailboxChangeSubmissionTests
         Assert.Empty(this.states.Erased);
     }
 
+    /// <summary>A message the drain already took off the source has no position left to protect, so nothing of it stays behind.</summary>
+    [Fact]
+    public async Task EraseAsync_ADeleteOfAMessageTheSourceNoLongerHolds_RemembersNoOccurrence()
+    {
+        // Arrange
+        this.Store(holdsSourceOccurrence: false);
+        var record = await this.records.OpenAsync(this.session, LeaveOnServerRequest(), heldUntil: null, MailboxMutationLocalChange.Erasure, Token);
+
+        // Act
+        await this.Submission().EraseAsync(this.session, record, Token);
+
+        // Assert
+        Assert.Equal(Email, Assert.Single(this.states.Forgotten));
+        Assert.Empty(this.states.ForgottenOccurrences);
+    }
+
     /// <summary>The audit trail names the record a person could have withdrawn, and the message goes with nothing asked of the server.</summary>
     [Fact]
     public async Task ForgetAsync_AnAuditedDelete_ForgetsTheMessageAndAppendsItsCompletion()
