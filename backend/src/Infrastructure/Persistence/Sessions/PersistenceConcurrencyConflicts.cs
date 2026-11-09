@@ -7,7 +7,7 @@ using Npgsql;
 
 namespace MailFathom.Infrastructure.Persistence.Sessions;
 
-/// <summary>Decides which unique violations are a race a retry can resolve.</summary>
+/// <summary>Decides which unique and foreign-key violations are a race a retry can resolve.</summary>
 /// <remarks>
 /// This is a pure function over the exception a commit raised, deliberately separate from the session that observes it:
 /// the list below is the whole of what makes a lost race retryable, and a constraint missing from it fails a deployment
@@ -234,13 +234,20 @@ internal static class PersistenceConcurrencyConflicts
     /// issues it.
     /// </para>
     /// <para>
-    /// The last is one imported calendar entry offered twice at once — a double click, a second tab, a client retrying
+    /// The next is one imported calendar entry offered twice at once — a double click, a second tab, a client retrying
     /// after a dropped answer. Each import reads which of the file's identifiers this calendar already holds inside its
     /// own transaction, so both read nothing and both insert, and the loser violates the partial index. That index's
     /// own documentation says it is the whole of what closes that window, which is only true while this list names it:
     /// unrecognized, the loser would leave the import an unhandled failure rather than the count the summary promises.
     /// The retry re-reads, finds the winner's events under those identifiers, and writes none of them again — which is
     /// the same <c>AlreadyOnTheCalendar</c> answer importing the file twice in sequence already gives.
+    /// </para>
+    /// <para>
+    /// The foreign keys are the one case that is not a unique violation: a conversation removed under a writer holding
+    /// its identity. A message placed, an identifier bound, a state derived, or a merge recorded against a conversation
+    /// the nightly removal has just taken refers to a row that is gone. The retry reads again, finds nothing bound, and
+    /// a reply starts a new conversation, so the arrival is neither lost nor charged against its run. Every other
+    /// foreign-key violation stays a failure.
     /// </para>
     /// </remarks>
     internal static bool IsConcurrencyConflict(DbUpdateException exception) =>
@@ -290,5 +297,14 @@ internal static class PersistenceConcurrencyConflicts
                 or PersistenceConstraintNames.ContactPhoneNumberPrimaryKeyConstraintName
                 or PersistenceConstraintNames.PersonalTaskReminderPrimaryKeyConstraintName
                 or PersistenceConstraintNames.CalendarEventImportedUidUniqueIndexName,
+        }
+        or PostgresException
+        {
+            SqlState: PostgresErrorCodes.ForeignKeyViolation,
+            ConstraintName: PersistenceConstraintNames.StoredEmailThreadForeignKeyName
+                or PersistenceConstraintNames.EmailThreadIdentifierThreadForeignKeyName
+                or PersistenceConstraintNames.EmailThreadStateThreadForeignKeyName
+                or PersistenceConstraintNames.EmailThreadStateEntryForeignKeyName
+                or PersistenceConstraintNames.EmailThreadMergedIntoForeignKeyName,
         };
 }

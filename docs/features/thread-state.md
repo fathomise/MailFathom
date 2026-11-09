@@ -114,8 +114,10 @@ storing it is what stops the same nothing being paid for again.
 A message in Trash is somebody's deletion rather than part of where the conversation stands, so it is in no count and
 in no turn, and moving one there puts the conversation back in front of the derivation without it. A folder beneath
 Trash counts as Trash, because deleting a folder the account keeps moves it there. A conversation whose every message
-has gone is never derived again, so the state it kept is served as not current rather than as a reading of mail nobody
-reads it from any more.
+has gone is never derived again, so until it is removed the state it kept is served as not current rather than as a
+reading of mail nobody reads it from any more. [The nightly retention run](../operations/configuration-runtime.md#the-nightly-retention-walk)
+removes a conversation once no stored row is left in it, a tombstone counting as one, and its state, statements, and
+title go with it. A later reply to mail nobody holds any more starts a new conversation.
 
 A conversation longer than one derivation may take in is the other case, and it is stored as a coverage of its own
 rather than as an absence:

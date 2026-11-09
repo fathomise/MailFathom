@@ -100,6 +100,7 @@ public sealed class TelemetrySurfaceContractTests
 
     private static readonly ContactCollectionTelemetry ContactCollection = new();
     private static readonly ContentObjectReclamationTelemetry ContentObjectReclamation = new();
+    private static readonly MailRetentionTelemetry MailRetention = new();
     private static readonly DerivedWorkGateTelemetry DerivedWorkGate = new();
     private static readonly EmailEmbeddingBackfillTelemetry EmbeddingBackfill = new();
     private static readonly EmailEmbeddingTelemetry Embedding = new();
@@ -163,6 +164,7 @@ public sealed class TelemetrySurfaceContractTests
         typeof(BoundedEmailEmbeddingBacklog),
         typeof(ContactCollectionTelemetry),
         typeof(ContentObjectReclamationTelemetry),
+        typeof(MailRetentionTelemetry),
         typeof(DerivedWorkGateTelemetry),
         typeof(EmailEmbeddingBackfillTelemetry),
         typeof(EmailEmbeddingTelemetry),
@@ -873,6 +875,7 @@ public sealed class TelemetrySurfaceContractTests
         ContentObjectReclamation.RecordErased(reclaimedCount: 3, failedCount: 1);
         ContentObjectReclamation.RecordSwept(reclaimedCount: 7, reclaimedBytes: 61_051, failedCount: 2);
         ContentObjectReclamation.RecordOldestOrphanAge(TimeSpan.FromHours(37));
+        MailRetention.RecordAccountRun(removedConversations: 3, TimeSpan.FromSeconds(2));
     }
 
     private static void DriveObjectStorage()

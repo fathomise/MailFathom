@@ -64,6 +64,10 @@ internal static class JobPayloadDocument
                 JsonSerializer.Serialize(recurringSend, JobPayloadJsonContext.Default.RecurringSendJobPayload),
             ReclaimContentObjectsJobPayload segment =>
                 JsonSerializer.Serialize(segment, JobPayloadJsonContext.Default.ReclaimContentObjectsJobPayload),
+            WalkMailRetentionJobPayload walk =>
+                JsonSerializer.Serialize(walk, JobPayloadJsonContext.Default.WalkMailRetentionJobPayload),
+            RetainMailAccountJobPayload retain =>
+                JsonSerializer.Serialize(retain, JobPayloadJsonContext.Default.RetainMailAccountJobPayload),
             EraseLocalMailFolderMailJobPayload erasure =>
                 JsonSerializer.Serialize(erasure, JobPayloadJsonContext.Default.EraseLocalMailFolderMailJobPayload),
             EraseWithdrawnMailFolderMailJobPayload withdrawn =>
@@ -130,6 +134,14 @@ internal static class JobPayloadDocument
                             $"A '{jobType}' job carries a document that describes no payload."),
                 _ when jobType == JobType.SendRecurringOccurrence =>
                     JsonSerializer.Deserialize(document, JobPayloadJsonContext.Default.RecurringSendJobPayload)
+                        ?? throw new InvalidOperationException(
+                            $"A '{jobType}' job carries a document that describes no payload."),
+                _ when jobType == JobType.WalkMailRetention =>
+                    JsonSerializer.Deserialize(document, JobPayloadJsonContext.Default.WalkMailRetentionJobPayload)
+                        ?? throw new InvalidOperationException(
+                            $"A '{jobType}' job carries a document that describes no payload."),
+                _ when jobType == JobType.RetainMailAccount =>
+                    JsonSerializer.Deserialize(document, JobPayloadJsonContext.Default.RetainMailAccountJobPayload)
                         ?? throw new InvalidOperationException(
                             $"A '{jobType}' job carries a document that describes no payload."),
                 _ when jobType == JobType.ReclaimContentObjects =>

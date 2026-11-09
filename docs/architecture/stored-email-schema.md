@@ -2054,7 +2054,10 @@ Nothing in either table is derived from what a message said: rule identifiers an
 ## The conversation a message belongs to
 
 `email_threads` holds one row per conversation, and `email_thread_identifiers` one row per message identifier that
-conversation answers to. Both are owned by exactly one mailbox account and cascade with it. On `stored_emails` two
+conversation answers to. Both are owned by exactly one mailbox account and cascade with it. Erasing a stored message
+sets its `EmailThreadId` aside and leaves the conversation where it was; [the nightly retention run](../operations/configuration-runtime.md#the-nightly-retention-walk)
+removes a conversation no stored row is left in, tombstones counting, together with its state, its statements, its
+identifiers, and the conversations folded into it. On `stored_emails` two
 nullable `uuid` columns carry the result: `EmailThreadId` names the conversation the message was placed in, and
 `ParentStoredEmailId` names the stored message it answers.
 
@@ -2063,7 +2066,7 @@ nullable `uuid` columns carry the result: `EmailThreadId` names the conversation
 | `email_threads.Id` | The conversation's identity, a version-7 identifier, and the value every tool publishes. Minted when a message reaches no existing conversation |
 | `email_threads.MailboxAccountId` | The account the conversation belongs to. Membership never spans two accounts, because a message identifier is only unique in the sense the sender's own system gave it, and one account's correspondence must not be assembled out of another's |
 | `email_threads.AssembledAt` | When the conversation was started. It is what decides a merge: a message naming two conversations folds the later one into the earlier, so which of them survives is a fact about the mailbox rather than about the order somebody re-derived it in |
-| `email_threads.MergedIntoEmailThreadId` | The conversation this one was folded into, null while it is its own. The row is kept rather than deleted, so an identifier a tool published before the merge still resolves — a read follows the chain to the survivor instead of answering that the conversation is gone |
+| `email_threads.MergedIntoEmailThreadId` | The conversation this one was folded into, null while it is its own. The row is kept rather than deleted, so an identifier a tool published before the merge still resolves — a read follows the chain to the survivor instead of answering that the conversation is gone. It goes with its survivor once no stored row is left in that survivor |
 | `email_threads.ConcurrencyVersion` | The `xmin` token, because the column above is amended in place and two arrivals can reach one row at once. Each reads a conversation, decides which of the two survives, and writes the merge; without the token the second write would settle a merge against a survivor that had already been folded into a third, and the chain a read follows would end at a row that is no longer anybody's survivor |
 | `email_thread_identifiers.MailboxAccountId`, `IdentifierHash` | The primary key, the account named by its identifier alone: it is what two messages binding one identifier collide on, and an identifier is scoped to one account rather than to the name one goes by. The hash is the lower-case hexadecimal SHA-256 digest of the identifier as it was stored, `character varying(64)` |
 | `email_thread_identifiers.EmailThreadId` | The conversation the identifier belongs to. Repointed rather than duplicated when two conversations merge |

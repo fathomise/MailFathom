@@ -74,6 +74,22 @@ public interface IEmailThreadStore
         EmailThreadId survivingThreadId,
         CancellationToken cancellationToken);
 
+    /// <summary>Removes conversations of one account no stored row belongs to any more, each with what was folded into it.</summary>
+    /// <param name="session">The transaction the removal is part of.</param>
+    /// <param name="account">The account whose conversations are removed.</param>
+    /// <param name="limit">The most conversations this call removes.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>How many conversations were removed, which is below the limit when no more could be taken now.</returns>
+    /// <remarks>
+    /// A tombstone is a stored row, so a conversation of tombstones stays. A conversation a placement is still writing
+    /// to is passed by, and one that gains a message as it goes makes that placement retry from a fresh read.
+    /// </remarks>
+    Task<int> RemoveEmptiedAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        int limit,
+        CancellationToken cancellationToken);
+
     /// <summary>Reads the messages of one conversation that carry a given message identifier.</summary>
     /// <param name="session">The transaction the reading is part of.</param>
     /// <param name="threadId">The conversation to search.</param>

@@ -154,6 +154,12 @@ internal sealed class FakeEmailThreadStore
             return Task.CompletedTask;
         }
 
+        public Task<int> RemoveEmptiedAsync(
+            IPersistenceSession session,
+            MailAccountId account,
+            int limit,
+            CancellationToken cancellationToken) => Task.FromResult(0);
+
         public Task<IReadOnlyList<ThreadedEmail>> FindByMessageIdentifierAsync(
             IPersistenceSession session,
             EmailThreadId threadId,

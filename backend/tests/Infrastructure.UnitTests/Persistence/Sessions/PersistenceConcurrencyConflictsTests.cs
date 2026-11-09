@@ -112,6 +112,50 @@ public sealed class PersistenceConcurrencyConflictsTests
         Assert.False(isConflict);
     }
 
+    /// <summary>Every key a writer can lose when the nightly removal takes the conversation under it.</summary>
+    public static TheoryData<string> ConversationForeignKeys =>
+    [
+        PersistenceConstraintNames.StoredEmailThreadForeignKeyName,
+        PersistenceConstraintNames.EmailThreadIdentifierThreadForeignKeyName,
+        PersistenceConstraintNames.EmailThreadStateThreadForeignKeyName,
+        PersistenceConstraintNames.EmailThreadStateEntryForeignKeyName,
+        PersistenceConstraintNames.EmailThreadMergedIntoForeignKeyName,
+    ];
+
+    /// <summary>The retry finds nothing bound and starts a new conversation, so the arrival is neither lost nor charged against its run.</summary>
+    [Theory]
+    [MemberData(nameof(ConversationForeignKeys))]
+    public void IsConcurrencyConflict_ForeignKeyViolationOnAConversationKey_IsAConflict(string constraintName)
+    {
+        // Arrange
+        var exception = new DbUpdateException(
+            "save failed",
+            CreatePostgresException(PostgresErrorCodes.ForeignKeyViolation, constraintName));
+
+        // Act
+        var isConflict = PersistenceConcurrencyConflicts.IsConcurrencyConflict(exception);
+
+        // Assert
+        Assert.True(isConflict);
+    }
+
+    /// <summary>The names are not declared on the mapping, so a test is what keeps them agreeing with it.</summary>
+    [Theory]
+    [MemberData(nameof(ConversationForeignKeys))]
+    public void ConversationForeignKeys_TheModel_HoldsEachUnderThatName(string constraintName)
+    {
+        // Arrange
+        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
+
+        // Act
+        var names = context.Model.GetEntityTypes()
+            .SelectMany(static entityType => entityType.GetForeignKeys())
+            .Select(static foreignKey => foreignKey.GetConstraintName());
+
+        // Assert
+        Assert.Contains(constraintName, names);
+    }
+
     /// <summary>A failure that never reached PostgreSQL carries no constraint to classify.</summary>
     [Fact]
     public void IsConcurrencyConflict_InnerExceptionIsNotAProviderFailure_IsNotAConflict()

@@ -186,6 +186,31 @@ internal sealed class EmailThreadStore(TimeProvider timeProvider) : IEmailThread
     }
 
     /// <inheritdoc />
+    public async Task<int> RemoveEmptiedAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var dbContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+
+        var emptied = await dbContext.Database
+            .SqlQueryRaw<Guid>(EmptiedEmailThreadStatements.LockEmptied(dbContext.Model), account.Value, limit)
+            .ToListAsync(cancellationToken);
+
+        if (emptied.Count == 0)
+        {
+            return 0;
+        }
+
+        var removed = await dbContext.Database
+            .SqlQueryRaw<int>(EmptiedEmailThreadStatements.RemoveWithFolded(dbContext.Model), [emptied.ToArray()])
+            .ToListAsync(cancellationToken);
+
+        return removed.Single();
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<ThreadedEmail>> FindByMessageIdentifierAsync(
         IPersistenceSession session,
         EmailThreadId threadId,

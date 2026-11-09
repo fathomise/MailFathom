@@ -47,6 +47,9 @@ public sealed class JobPayloadDocumentTests
             Account,
             RecurringSendId.Create(Guid.Parse("6f9619ff-8b86-d011-b42d-00c04fc964ff"))),
         ReclaimContentObjectsJobPayload.FromTheStart("sweep-of-the-occasion"),
+        WalkMailRetentionJobPayload.FromTheStart("walk-of-the-occasion")
+            .ContinuingAfter(Guid.Parse("0199a0c0-0000-7000-8000-000000000004")),
+        RetainMailAccountJobPayload.For("walk-of-the-occasion", Account),
         EraseLocalMailFolderMailJobPayload.For(
             Account,
             MailFolderId.Create(Guid.Parse("0199a0c0-0000-7000-8000-000000000002"))).Next(),

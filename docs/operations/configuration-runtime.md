@@ -380,6 +380,25 @@ instant.
 | `Jobs:PollInterval` | TimeSpan | `00:00:10` | 1 s – 10 min; how long an idle worker waits before looking again, and how often at most it measures the queue depth it publishes and asks whether a rule's schedule has come due. A schedule is therefore noticed within one interval of its occasion rather than at it. A pass that filled its batch looks again at once | restart |
 
 
+### The nightly retention walk
+
+One schedule for the deployment, `MailSynchronization:Retention:Schedule` in [the mail settings](configuration-mail.md),
+dispatches one walk per occasion however many replicas are running. The walk reads the accounts this deployment serves
+in leased segments, each handing the rest on to a successor, so a crash resumes where the last segment stopped. It
+hands each account a job of its own, so an account being erased is excluded by the queue on every replica and a failing
+account fails alone. An account nobody is served, one withheld on this replica, and one an erasure has taken are not
+reached.
+
+Each account's run removes the conversations no stored row is left in, a tombstone counting as one, with their state,
+statements, title, identifiers, and whatever was folded into them. It runs for every account whatever its retention
+says, because every kind of erasure leaves emptied conversations behind, and it reaches no mail server, so it is the
+same on a mirrored and a held account. Each night takes at most a fixed number of conversations per account and what
+is left waits for the next occasion. A message arriving into a conversation as it is removed is not lost and does not
+fail its run: the write retries and a reply with no conversation left starts a new one.
+
+[Telemetry](telemetry.md#mail-retention) publishes what each night did as counts and durations, and nothing about the
+mail.
+
 ## `Resilience`
 
 Retry, timeout, circuit-breaker, and concurrency budgets for the non-HTTP outbound dependencies, one subsection per
