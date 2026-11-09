@@ -10,7 +10,8 @@ derived data, and nothing about a message waits for it.
 It is the account's own decision, off until the account's record switches it on, and it needs a decision model declared
 under [`Decisions`](../operations/configuration-ai.md#decisions). [Sorting this account's mail into
 categories](../operations/configuration-mail.md#sorting-this-accounts-mail-into-categories--categorization) holds the
-keys.
+keys. What a read does with what is recorded here is [mailbox
+queries](mailbox-queries.md).
 
 ## What a message is asked
 
