@@ -149,6 +149,10 @@
         0 1px 0 var(--color-inset) inset, 0 10px 24px var(--color-shadow-soft), 0 2px 6px var(--color-shadow-soft);
     --shadow-dialog: 0 20px 48px var(--color-shadow-strong);
 
+    /* Not a depth: the two rule lines a surface narrower than the window stands between. Drawn outside the box, so a
+       surface as wide as the window keeps them past its edges and shows none. */
+    --shadow-edges: -1px 0 0 var(--color-line), 1px 0 0 var(--color-line);
+
     /* The design's type scale, in the order it climbs, and it is closed: text is one of these twelve sizes and nothing
        between. The first line empties the namespace, so the steps Tailwind ships are not there to be reached for and
        a size written against a name this block does not declare draws no size at all. It is finer and lower than a
@@ -405,6 +409,15 @@
        keep the pane's own edges: only the conversation is centred. */
     --spacing-reading-gutter: max(1.375rem, calc((100% - 55rem) / 2));
 
+    /* The same centring for a person's page and the task list, whose columns and figures want more than a message
+       does: the design's 1160-pixel column, at least 24 pixels from a person's edges and 26 from the list's. The list's
+       percentage is the whole body's, so it leaves out the side column standing beside it — the 310 pixels the design
+       subtracts, which is that column's content without its padding, rather than the width it stands at — and a list
+       standing alone takes the gutter without that subtraction. */
+    --spacing-person-gutter: max(1.5rem, calc((100% - 72.5rem) / 2));
+    --spacing-tasks-gutter: max(1.625rem, calc((100% - 19.375rem - 72.5rem) / 2));
+    --spacing-tasks-gutter-alone: max(1.625rem, calc((100% - 72.5rem) / 2));
+
     /* The notification centre, in the two shapes the design draws it: how wide the panel is beside the rail,
        and how tall the bottom navigation is — which the panel reads as well as the navigation itself, because the
        narrow shape is a sheet that stops above the bar rather than covering it. Both are the design's own, and the
@@ -525,6 +538,10 @@
        stop at inside that column. A wide window gains margin rather than line length, as the reading pane does. */
     --container-settings: 47.5rem;
     --container-settings-prose: 38.75rem;
+
+    /* The widest the Settings surface stands: past it the screen is the design's 1440-pixel surface centred on the
+       page, rather than a column of navigation and a column of fields stretched across a monitor. */
+    --container-settings-surface: 90rem;
 
     /* What a notch, a rounded corner, or a system bar takes out of the viewport. Zero everywhere a window has none,
        which is every head this repository builds today; declaring it as a token is what keeps a screen from reaching

@@ -210,7 +210,7 @@ export function PersonPage({
                 </div>
             )}
 
-            <div className="flex shrink-0 flex-wrap items-center gap-3.5 border-b border-line bg-sunken px-4 py-3.5 workspace:px-6 workspace:py-4.5">
+            <div className="flex shrink-0 flex-wrap items-center gap-3.5 border-b border-line bg-sunken px-4 py-3.5 workspace:px-person-gutter workspace:py-4.5">
                 <span className="relative flex shrink-0 self-start">
                     <SenderAvatar
                         displayName={contact.displayName}
@@ -374,7 +374,7 @@ export function PersonPage({
                 )}
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4 py-3.5 workspace:px-6 workspace:py-4.5">
+            <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4 py-3.5 workspace:px-person-gutter workspace:py-4.5">
                 {member ? (
                     <>
                         {/* The two cards side by side where the page has room, as the design draws them, and one under
