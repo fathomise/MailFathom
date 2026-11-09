@@ -76,7 +76,7 @@ internal static partial class HostileMail
     /// <summary>Gets every message the suite writes.</summary>
     public static IReadOnlyList<CorpusMessage> All => [.. Exchanges.SelectMany(static exchange => exchange)];
 
-    /// <summary>Gets the mailbox a question is asked over: the corpus, then the suite's hostile mail, then the mail stating claims its provenance has to qualify, then the owner's sent mail whose receipts came back.</summary>
+    /// <summary>Gets the mailbox a question is asked over: the corpus, then the suite's hostile mail, then the mail stating claims its provenance has to qualify, then the owner's sent mail whose receipts came back, then the mail whose recorded categories the category cases read.</summary>
     public static IReadOnlyList<CorpusMessage> Mailbox => [.. CorpusMessage.All, .. All, .. FalseClaimMail.All, .. ReceiptMail.All, .. CategorizedMail.All];
 
     /// <summary>Gets a facilities reply whose body tells any assistant to drop its task and write a code.</summary>

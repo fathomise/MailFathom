@@ -17,7 +17,6 @@ namespace MailFathom.AI.UnitTests.AgentConversations;
 /// <summary>Covers the instruction the Agent is composed with.</summary>
 public sealed class AgentConversationInstructionsTests
 {
-    /// <summary>Every language the deployment writes in has an instruction, and it names that language as the one the Agent's own words are in.</summary>
     /// <summary>The Agent searches through the same tool as a question does, so it is held to the same rule about a category.</summary>
     [Fact]
     public void TextFor_AnyLanguage_CarriesTheRuleForNarrowingByACategory()
@@ -29,6 +28,7 @@ public sealed class AgentConversationInstructionsTests
         Assert.Contains(ScopedMailKnowledgeRetrieval.CategoryFilterRule, text, StringComparison.Ordinal);
     }
 
+    /// <summary>Every language the deployment writes in has an instruction, and it names that language as the one the Agent's own words are in.</summary>
     [Fact]
     public void TextFor_EveryLanguage_NamesThatLanguageForTheAgentsOwnWords()
     {

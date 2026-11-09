@@ -1218,7 +1218,7 @@ internal sealed record AgentConversationScenario(
             "Which category were the Driftwood Deals autumn offers sorted into?",
             UserLanguage.English,
             [],
-            ["Driftwood", "offer", "categor", "furniture", "garden", "subscription", "newsletter", "autumn"])
+            ["Driftwood", "offer", "category", "categories", "furniture", "garden", "subscription", "newsletter", "autumn"])
         {
             Calls = ["search_mail"],
             Category = CategoryReading.Names("subscriptions"),
