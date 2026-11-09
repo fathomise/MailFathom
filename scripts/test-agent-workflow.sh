@@ -12456,6 +12456,7 @@ mail.ts conversation GET /api/client/threads/{threadId}
 mail.ts conversationEmail GET /api/client/threads/{threadId}
 mail.ts conversationContent GET /api/client/threads/{threadId}
 mail.ts conversationBody GET /api/client/messages/{storedEmailId}/body
+mail.ts signedReplyBody GET /api/client/messages/{storedEmailId}/body
 mail.ts forwardingBody GET /api/client/messages/{storedEmailId}/body
 mail.ts forwardedHeaders - -
 mail.ts answeredReplyCounted GET /api/client/threads/{threadId}
