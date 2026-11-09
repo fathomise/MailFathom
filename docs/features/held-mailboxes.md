@@ -147,6 +147,18 @@ has answered. A process that dies in between leaves the occurrence standing, the
 and synchronization meeting that UID in the meantime recognizes the row it already has rather than storing the message
 twice. The same property is what makes two replicas overlapping across a lease handover safe.
 
+### What happens on the source while a message waits
+
+Nothing that changes on the source is imported. Another client marking a message read, starring it, labelling it, or
+flagging it deleted changes nothing here, and a window reading such a message writes only the moment it read it, which
+keeps the row moving through the reconciliation queue. The one exception is a message's first reading, which is its initial state and is taken from the source except for whatever a
+person has already done to it.
+
+A message another client removes before its content was stored was never held, so its row goes. A message another
+client *moves* before the drain reaches it arrives as new mail in the folder it went to, beside the row that stays
+where it was: nothing safely says the two are one message, so it is stored twice and the second copy carries none of
+what was done to the first.
+
 ### Mail erased before the drain reached it
 
 Erasing a message on a held account deletes the local row, which is the only record of where that message was on the

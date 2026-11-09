@@ -369,7 +369,7 @@ public sealed class OrchestratedSpamVerdictFloorTests(MailFathomOrchestrationFix
                         Disappeared: [],
                         RemovedByOwnMutation: [],
                         RemotelyDeletedEmailDisposition.RetainTombstone,
-                        AppliesRemoteDeletions: true,
+                        SourceIsTheTruth: true,
                         EvaluatedAt),
                     token),
             cancellationToken);

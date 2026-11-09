@@ -1025,6 +1025,54 @@ public sealed class MailboxSynchronizerTests
             Overlay = new MailboxMutationOverlay(null, null, null, null, localCopy),
         };
         mutationStore.Add(record);
+
+        // Act
+        var readThroughAt = await ReadInboxThroughAsync(accountId, uidValidity, occurrence, mutationStore);
+
+        // Assert
+        Assert.Equal(readThroughAt, mutationStore.RecordOf(record.Id).PlacementObservedAt);
+        Assert.Equal([localCopy], mutationStore.RetiredPlacements);
+        Assert.Equal(1, mutationStore.RetirementCount);
+    }
+
+    /// <summary>
+    /// A move the server named no placement for is what the destination's pass discovers, so the row left at the old
+    /// occurrence goes; the second move is the control, whose message a later change has already carried elsewhere.
+    /// </summary>
+    [Fact]
+    public async Task SynchronizeAsync_AFolderReadThroughAfterAMoveTheServerNamedNoPlacementFor_RetiresOnlyTheRowStillAtItsOccurrence()
+    {
+        // Arrange
+        var accountId = MailAccountId.Create("primary");
+        var uidValidity = ImapUidValidity.Create(5);
+        var occurrence = EmailOccurrenceId.Create(accountId, InboxFolder.Id, uidValidity, ImapUid.Create(10));
+        var strandedEmail = StoredEmailId.Create(Guid.CreateVersion7());
+        var carriedEmail = StoredEmailId.Create(Guid.CreateVersion7());
+        var mutationStore = new InMemoryMailboxMutationReconciliationStore();
+        mutationStore.Add(RelocationPlacedInInbox(accountId, strandedEmail, uidValidity, ImapUid.Create(10)) with
+        {
+            Placement = RemoteEmailPlacement.NotReported(),
+        });
+        mutationStore.Add(RelocationPlacedInInbox(accountId, carriedEmail, uidValidity, ImapUid.Create(11)) with
+        {
+            Placement = RemoteEmailPlacement.NotReported(),
+        });
+        mutationStore.RecordCarriedElsewhere(carriedEmail);
+
+        // Act
+        await ReadInboxThroughAsync(accountId, uidValidity, occurrence, mutationStore);
+
+        // Assert
+        Assert.Equal([strandedEmail], mutationStore.RetiredPlacements);
+    }
+
+    /// <summary>Runs one pass that discovers one message and reaches the end of the inbox, and answers when it ran.</summary>
+    private static async Task<DateTimeOffset> ReadInboxThroughAsync(
+        MailAccountId accountId,
+        ImapUidValidity uidValidity,
+        EmailOccurrenceId occurrence,
+        InMemoryMailboxMutationReconciliationStore mutationStore)
+    {
         var persistenceSession = Substitute.For<IPersistenceSession>();
         persistenceSession.CommitAsync(Arg.Any<CancellationToken>()).Returns(PersistenceCommitResult.Committed);
         var sessionScopeFactory = Substitute.For<IPersistenceSessionFactory>();
@@ -1045,13 +1093,9 @@ public sealed class MailboxSynchronizerTests
             new MailboxSynchronizationOptions(),
             mutationStore: mutationStore);
 
-        // Act
         await synchronizer.SynchronizeAsync(accountId, InboxMapping, CancellationToken.None);
 
-        // Assert
-        Assert.Equal(clock.GetUtcNow(), mutationStore.RecordOf(record.Id).PlacementObservedAt);
-        Assert.Equal([localCopy], mutationStore.RetiredLocalCopies);
-        Assert.Equal(1, mutationStore.RetirementCount);
+        return clock.GetUtcNow();
     }
 
     /// <summary>
@@ -1292,7 +1336,8 @@ public sealed class MailboxSynchronizerTests
             Arg.Any<ExtractedEmailMetadata?>(),
             StoredEmailContentAvailability.Available,
             Arg.Any<CancellationToken>());
-        Assert.Null(mutationStore.RecordOf(record.Id).PlacementObservedAt);
+        Assert.Equal(clock.GetUtcNow(), mutationStore.RecordOf(record.Id).PlacementObservedAt);
+        Assert.Equal([record.Request.StoredEmailId], mutationStore.RetiredPlacements);
     }
 
     [Fact]

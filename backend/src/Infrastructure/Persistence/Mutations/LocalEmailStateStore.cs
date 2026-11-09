@@ -74,6 +74,12 @@ internal sealed class LocalEmailStateStore(TimeProvider timeProvider) : ILocalEm
                 row.LocalMailFolderId = folder.Value;
             }
         }
+
+        if (row.FlagsObservedAt is null)
+        {
+            row.FieldsSetBeforeFirstObservation |= FieldsChangedBy(row, state);
+        }
+
         row.IsMarkedSeen = state.IsSeen;
         row.IsFlagged = state.IsFlagged;
         row.Keywords = [.. state.Keywords.Values];
@@ -107,6 +113,11 @@ internal sealed class LocalEmailStateStore(TimeProvider timeProvider) : ILocalEm
         await ReleasedContentObjects.ReleaseForStoredEmailsAsync(session, removedIds, cancellationToken);
         sessionContext.StoredEmails.Remove(row);
     }
+
+    private static EmailFieldsSetBeforeFirstObservation FieldsChangedBy(StoredEmailEntity row, LocalEmailState state) =>
+        (row.IsMarkedSeen != state.IsSeen ? EmailFieldsSetBeforeFirstObservation.Seen : EmailFieldsSetBeforeFirstObservation.None)
+        | (row.IsFlagged != state.IsFlagged ? EmailFieldsSetBeforeFirstObservation.Flagged : EmailFieldsSetBeforeFirstObservation.None)
+        | (EmailKeywords.Create(row.Keywords) != state.Keywords ? EmailFieldsSetBeforeFirstObservation.Keywords : EmailFieldsSetBeforeFirstObservation.None);
 
     private static async Task<StoredEmailEntity?> FindAsync(
         IPersistenceSession session,

@@ -466,12 +466,12 @@ public sealed class MailboxSynchronizer
             discovery.Completed();
         }
 
-        // A copy the server took without naming where it put it is among this pass's discoveries once the pass has read
-        // the folder through, so the row its local commit wrote gives way to the one discovered.
-        if (!hasMore && await this.mutationStore.HasUnboundLocalCopiesAsync(account, folder.RemotePath, openedAt, cancellationToken))
+        // A copy or a move the server took without naming where it put the message is among this pass's discoveries once
+        // the pass has read the folder through, so the row standing for it gives way to the one discovered.
+        if (!hasMore && await this.mutationStore.HasUnboundPlacementsAsync(account, folder.RemotePath, openedAt, cancellationToken))
         {
             await this.concurrencyRetryPolicy.CommitAsync(
-                (persistenceSession, attemptCancellationToken) => this.mutationStore.RetireUnboundLocalCopiesAsync(
+                (persistenceSession, attemptCancellationToken) => this.mutationStore.RetireUnboundPlacementsAsync(
                     persistenceSession,
                     account,
                     folder.RemotePath,

@@ -203,6 +203,8 @@ internal sealed class MailKitImapWriteSession : IMailboxWriteSession
                     MailboxMutation.Copy,
                     attemptToken);
 
+                await this.RequireMessageAtItsUidAsync(client, openFolder, occurrenceId.Uid, scope, attemptToken);
+
                 // A copy owes no source removal: leaving the source exactly where it is *is* the operation.
                 await journal.PlacementIssuedAsync(requiresSourceRemoval: false, attemptToken);
 
@@ -968,6 +970,7 @@ internal sealed class MailKitImapWriteSession : IMailboxWriteSession
         {
             scope.ProtocolPathChosen(NativeProtocolPath);
 
+            await this.RequireMessageAtItsUidAsync(client, openFolder, occurrenceId.Uid, scope, cancellationToken);
             await journal.PlacementIssuedAsync(requiresSourceRemoval: false, cancellationToken);
 
             scope.CommandIssued("UID MOVE");
@@ -992,6 +995,7 @@ internal sealed class MailKitImapWriteSession : IMailboxWriteSession
             this.SessionAccountId,
             this.folder.Alias);
 
+        await this.RequireMessageAtItsUidAsync(client, openFolder, occurrenceId.Uid, scope, cancellationToken);
         await journal.PlacementIssuedAsync(requiresSourceRemoval: true, cancellationToken);
 
         scope.CommandIssued("UID COPY");
@@ -1003,6 +1007,42 @@ internal sealed class MailKitImapWriteSession : IMailboxWriteSession
         await RemoveSourceAsync(openFolder, occurrenceId.Uid, journal, scope, cancellationToken);
 
         return placement;
+    }
+
+    /// <summary>Refuses a placement whose message has already left the UID it names.</summary>
+    /// <remarks>
+    /// <para>
+    /// A server answers <c>OK</c> to a <c>UID MOVE</c> or a <c>UID COPY</c> naming a UID that has gone, and does nothing.
+    /// Dovecot then names no placement, which is also what a real move on a <c>UIDNOTSTICKY</c> folder answers, so nothing
+    /// after the command can tell the two apart; only the state before it can. A UID is its own version, so another client
+    /// having moved the message is an ending rather than a conflict to retry.
+    /// </para>
+    /// <para>
+    /// The <c>NOOP</c> comes first because a selection opened before another client took the message still answers a
+    /// <c>FETCH</c> for it on Dovecot, until the server has been given a command during which it may report the expunge.
+    /// The message can still leave between this reading and the command; that window is one round trip wide, and a move
+    /// or a copy falling inside it completes as it always did.
+    /// </para>
+    /// </remarks>
+    private async Task RequireMessageAtItsUidAsync(
+        IImapClient client,
+        IMailFolder openFolder,
+        ImapUid uid,
+        MailboxMutationScope scope,
+        CancellationToken cancellationToken)
+    {
+        scope.CommandIssued("NOOP");
+        await client.NoOpAsync(cancellationToken);
+
+        scope.CommandIssued("UID FETCH (UID)");
+        var held = await openFolder.FetchAsync([new UniqueId(uid.Value)], MessageSummaryItems.UniqueId, cancellationToken);
+
+        if (held.Count == 0)
+        {
+            throw this.Declined(
+                MailboxMutationRefusalClass.Permanent,
+                new InvalidOperationException("The folder no longer holds a message at the UID the change names."));
+        }
     }
 
     /// <summary>Marks one email deleted and removes exactly that email from the folder.</summary>

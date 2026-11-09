@@ -8,12 +8,14 @@ using MailFathom.Infrastructure.Persistence.Emails;
 
 namespace MailFathom.Infrastructure.Persistence.Mutations;
 
-/// <summary>Erases a stored message a local commit wrote ahead of the server, where the server will never hold it as that row.</summary>
+/// <summary>Erases a stored message the server will never hold as that row.</summary>
 /// <remarks>
 /// A copy, or the destination of a move across accounts, is written as a second stored message before the server is
 /// told to make it, so a change given up, or one whose occurrence the server never named, leaves a row the mailbox does
-/// not hold as such. That row holds no source occurrence, so no source removal is owed for it; the cascade every stored
-/// message's erasure runs takes its derived rows, and its content objects are released in the same transaction.
+/// not hold as such. A move the server finished without naming where it put the message leaves one too, at an occurrence
+/// the message has already left, with the destination's own discovery standing for it. Neither row answers for anything
+/// still on the source, so no source removal is owed for it; the cascade every stored message's erasure runs takes its
+/// derived rows, and its content objects are released in the same transaction.
 /// </remarks>
 [RequiresIntegrationCoverage]
 internal static class LocalCopyErasure

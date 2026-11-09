@@ -765,7 +765,8 @@ the operation is called.
 - **The server took it.** The record completes.
 - **The server answered and did not take it — a refusal.** A *permanent* refusal ends the change at once: a `BAD`, a
   destination folder the server reports gone, a folder held open read-only, an occurrence under a `UIDVALIDITY` the
-  folder no longer has, and a server that advertises no safe way to carry the change have each already given the answer
+  folder no longer has, a move or a copy whose message has already left its UID, and a server that advertises no safe
+  way to carry the change have each already given the answer
   every later attempt would receive. Any other `NO` is *transient*: the change is asked again on later runs and given up
   no later than `MutationRefusalWindow` — fifteen minutes by default — after the server first refused it. The window is
   read between runs as well, without a connection, so neither the account's backoff nor an outage that follows the
@@ -1850,7 +1851,13 @@ is what tells the two apart, and both halves are joined to it by a recorded fact
 A relocation or a copy whose server named no placement is joined to no discovery at all. Searching the destination
 folder for something that looks like the message would replace a fact the server gave with a guess, and guessing by
 `Message-ID` or a content hash is wrong in both directions — a message legitimately appears twice with one `Message-ID`,
-and a provider may rewrite headers on copy. The record then stays visibly unjoined instead.
+and a provider may rewrite headers on copy. Once the destination's forward pass has read the folder through, the row
+standing for the change gives way to what that pass discovered — a copy's second row, or a moved message still at the
+occurrence it left — so the message ends as one row under a new identity rather than as two.
+
+A server answers `OK` to a move or a copy naming a UID that has gone and does nothing, so whether the message is at its
+UID is read immediately before the command. A flag, a keyword, or a delete aimed at such a UID completes having done
+nothing: no command there can tell, nothing is reverted, and nobody is told.
 
 The order the two halves arrive in is not fixed, because the destination folder is not necessarily one MailFathom
 synchronizes on the same schedule. A source disappearance seen first settles that half and leaves the row where it is

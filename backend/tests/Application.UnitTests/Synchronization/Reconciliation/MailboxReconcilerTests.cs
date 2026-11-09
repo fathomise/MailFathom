@@ -120,10 +120,59 @@ public sealed class MailboxReconcilerTests
         // Assert
         Assert.Equal(0, result.RemotelyDeletedEmailCount);
         Assert.Equal(1, result.DrainCompletedEmailCount);
-        Assert.False(Assert.Single(store.AppliedOutcomes).AppliesRemoteDeletions);
+        Assert.False(Assert.Single(store.AppliedOutcomes).SourceIsTheTruth);
         Assert.Equal([11U], store.ClearedOccurrenceUids);
         Assert.Empty(store.RemovedUids);
         Assert.Empty(store.TombstonedUids);
+    }
+
+    /// <summary>A held account's flags differ from the source because a person acted, so the difference is neither their other client's change nor news to a client.</summary>
+    [Theory]
+    [InlineData(MailAccountCustodyPhase.Held)]
+    [InlineData(MailAccountCustodyPhase.Restoring)]
+    public async Task ReconcileAsync_MailFathomIsTheTruthAndTheSourceDiffers_NeitherCountsNorAnnouncesTheDifference(
+        MailAccountCustodyPhase phase)
+    {
+        // Arrange
+        var store = new FakeReconciliationStore(ObservedOccurrence(10, isSeen: false));
+        var mutationStore = new InMemoryMailboxMutationReconciliationStore();
+        await using var mailboxSession = CreateSessionReportingFlags(
+            isSeen: true,
+            isFlagged: true,
+            EmailKeywords.Create(["$Waiting"]),
+            10);
+        var channel = new RecordingClientSignalChannel();
+        var clock = new FakeTimeProvider(RunInstant);
+        await using var signals = new ClientSignals([channel], clock);
+        var reconciler = CreateReconciler(
+            store,
+            RemotelyDeletedEmailDisposition.RetainTombstone,
+            mutationStore: mutationStore,
+            timeProvider: clock,
+            signals: signals,
+            custodyStore: InMemoryMailAccountCustodyStore.With(
+                Account,
+                new MailAccountCustodyState(RequestedIn(phase), phase)));
+
+        // Act
+        var result = await reconciler.ReconcileAsync(
+            mailboxSession,
+            Account,
+            InboxFolder,
+            SelectedUidValidity,
+            reconciledThroughModSeq: null,
+            CancellationToken.None);
+
+        clock.Advance(ClientSignals.FoldingWindow);
+        await signals.DrainAsync();
+
+        // Assert
+        Assert.Equal(0, result.SeenStateChangedEmailCount);
+        Assert.Equal(0, result.FlaggedStateChangedEmailCount);
+        Assert.Equal(0, result.KeywordsChangedEmailCount);
+        Assert.Equal(0, mutationStore.FlagChangeReadCount);
+        Assert.Empty(channel.Published);
+        Assert.False(Assert.Single(store.AppliedOutcomes).SourceIsTheTruth);
     }
 
     /// <summary>The mirrored account is the control, so the reading above cannot pass by never applying anything.</summary>
@@ -148,7 +197,7 @@ public sealed class MailboxReconcilerTests
             CancellationToken.None);
 
         // Assert
-        Assert.True(Assert.Single(store.AppliedOutcomes).AppliesRemoteDeletions);
+        Assert.True(Assert.Single(store.AppliedOutcomes).SourceIsTheTruth);
         Assert.Equal(1, result.RemotelyDeletedEmailCount);
         Assert.Equal(0, result.DrainCompletedEmailCount);
         Assert.Equal([11U], store.RemovedUids);
@@ -2144,7 +2193,7 @@ public sealed class MailboxReconcilerTests
                     continue;
                 }
 
-                if (!outcome.AppliesRemoteDeletions)
+                if (!outcome.SourceIsTheTruth)
                 {
                     this.clearedOccurrenceUids.Add(row.Uid);
 

@@ -28,7 +28,8 @@ namespace MailFathom.Application.UnitTests.TestDoubles;
 internal sealed class InMemoryMailboxMutationReconciliationStore : IMailboxMutationReconciliationStore
 {
     private readonly Dictionary<MailboxMutationRecordId, MailboxMutationRecord> recordsById = [];
-    private readonly List<StoredEmailId> retiredLocalCopies = [];
+    private readonly List<StoredEmailId> retiredPlacements = [];
+    private readonly HashSet<StoredEmailId> carriedElsewhere = [];
 
     /// <summary>The mutations whose whole effect is a value a <c>FLAGS</c> response reports back.</summary>
     /// <remarks>Written out rather than shared with the real store, for the reason this whole double exists: a fake that reached into the implementation would pass whatever that implementation did.</remarks>
@@ -61,15 +62,19 @@ internal sealed class InMemoryMailboxMutationReconciliationStore : IMailboxMutat
     /// <summary>Puts a record into the state a completed mutation would have left.</summary>
     internal void Add(MailboxMutationRecord record) => this.recordsById[record.Id] = record;
 
-    /// <summary>Gets how many times a caller asked the store to retire unbound local copies.</summary>
+    /// <summary>States that a later change carried this message off the occurrence its move left it at.</summary>
+    /// <remarks>This double holds no rows, so the fact the real query reads off the stored message is told to it instead.</remarks>
+    internal void RecordCarriedElsewhere(StoredEmailId email) => this.carriedElsewhere.Add(email);
+
+    /// <summary>Gets how many times a caller asked the store to retire unbound placements.</summary>
     /// <remarks>
     /// Retiring takes a transaction of its own, which a folder pass owes only when it read the folder through and an
-    /// unbound copy waits there. An empty answer looks the same whether or not the call was made, so the call is counted.
+    /// unbound placement waits there. An empty answer looks the same whether or not the call was made, so the call is counted.
     /// </remarks>
     internal int RetirementCount { get; private set; }
 
-    /// <summary>Gets the rows a local copy wrote that the store was asked to retire, in the order it retired them.</summary>
-    internal IReadOnlyList<StoredEmailId> RetiredLocalCopies => this.retiredLocalCopies;
+    /// <summary>Gets the rows the store was asked to retire, in the order it retired them.</summary>
+    internal IReadOnlyList<StoredEmailId> RetiredPlacements => this.retiredPlacements;
 
     /// <summary>Reads back one record as a test asserts against it.</summary>
     internal MailboxMutationRecord RecordOf(MailboxMutationRecordId recordId) => this.recordsById[recordId];
@@ -189,15 +194,15 @@ internal sealed class InMemoryMailboxMutationReconciliationStore : IMailboxMutat
     }
 
     /// <inheritdoc />
-    public Task<bool> HasUnboundLocalCopiesAsync(
+    public Task<bool> HasUnboundPlacementsAsync(
         MailAccountId account,
         RemoteFolderPath destinationPath,
         DateTimeOffset completedBefore,
         CancellationToken cancellationToken) =>
-        Task.FromResult(this.UnboundCopies(account, destinationPath, completedBefore).Any());
+        Task.FromResult(this.UnboundPlacements(account, destinationPath, completedBefore).Any());
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<StoredEmailId>> RetireUnboundLocalCopiesAsync(
+    public Task<IReadOnlyList<StoredEmailId>> RetireUnboundPlacementsAsync(
         IPersistenceSession session,
         MailAccountId account,
         RemoteFolderPath destinationPath,
@@ -205,15 +210,15 @@ internal sealed class InMemoryMailboxMutationReconciliationStore : IMailboxMutat
         CancellationToken cancellationToken)
     {
         this.RetirementCount++;
-        MailboxMutationRecord[] unbound = [.. this.UnboundCopies(account, destinationPath, completedBefore)];
+        MailboxMutationRecord[] unbound = [.. this.UnboundPlacements(account, destinationPath, completedBefore)];
 
         foreach (var record in unbound)
         {
             this.recordsById[record.Id] = record with { PlacementObservedAt = completedBefore };
-            this.retiredLocalCopies.Add(record.Overlay!.LocalCopy!.Value);
+            this.retiredPlacements.Add(RowRetiredBy(record));
         }
 
-        return Task.FromResult<IReadOnlyList<StoredEmailId>>([.. unbound.Select(record => record.Overlay!.LocalCopy!.Value)]);
+        return Task.FromResult<IReadOnlyList<StoredEmailId>>([.. unbound.Select(RowRetiredBy)]);
     }
 
     /// <inheritdoc />
@@ -282,16 +287,20 @@ internal sealed class InMemoryMailboxMutationReconciliationStore : IMailboxMutat
             ? record
             : throw new InvalidOperationException($"No mailbox mutation record carries the identifier {recordId}.");
 
-    private IEnumerable<MailboxMutationRecord> UnboundCopies(
+    private static StoredEmailId RowRetiredBy(MailboxMutationRecord record) =>
+        record.Overlay?.LocalCopy ?? record.Request.StoredEmailId;
+
+    private IEnumerable<MailboxMutationRecord> UnboundPlacements(
         MailAccountId account,
         RemoteFolderPath destinationPath,
         DateTimeOffset completedBefore) =>
         this.recordsById.Values.Where(record => record.Request.Account == account
-            && record.Request.Mutation == MailboxMutation.Copy
             && record.Request.DestinationPath == destinationPath
             && record.Stage == MailboxMutationStage.Completed
             && record.StageChangedAt < completedBefore
             && !record.Placement.IsReported
             && record.PlacementObservedAt is null
-            && record.Overlay?.LocalCopy is not null);
+            && ((record.Request.Mutation == MailboxMutation.Copy && record.Overlay?.LocalCopy is not null)
+                || (record.Request.Mutation == MailboxMutation.Relocate
+                    && !this.carriedElsewhere.Contains(record.Request.StoredEmailId))));
 }

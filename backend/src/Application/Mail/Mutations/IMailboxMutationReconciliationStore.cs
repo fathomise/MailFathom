@@ -186,34 +186,34 @@ public interface IMailboxMutationReconciliationStore
         DateTimeOffset observedAt,
         CancellationToken cancellationToken);
 
-    /// <summary>Reads whether any copy committed locally first still waits to be retired from one destination folder.</summary>
-    /// <param name="account">The account whose copies are read.</param>
+    /// <summary>Reads whether any copy or move a server took without naming its placement still has a row to retire for one destination folder.</summary>
+    /// <param name="account">The account whose records are read.</param>
     /// <param name="destinationPath">The remote folder whose forward pass has just read it through to its end.</param>
-    /// <param name="completedBefore">When that pass opened the folder; only a copy the server had taken by then counts.</param>
+    /// <param name="completedBefore">When that pass opened the folder; only a change the server had taken by then counts.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns><see langword="true" /> where <see cref="RetireUnboundLocalCopiesAsync" /> would retire something.</returns>
+    /// <returns><see langword="true" /> where <see cref="RetireUnboundPlacementsAsync" /> would retire something.</returns>
     /// <remarks>It joins no transaction, so a forward pass asks it every time and opens one only where there is work.</remarks>
-    Task<bool> HasUnboundLocalCopiesAsync(
+    Task<bool> HasUnboundPlacementsAsync(
         MailAccountId account,
         RemoteFolderPath destinationPath,
         DateTimeOffset completedBefore,
         CancellationToken cancellationToken);
 
-    /// <summary>Retires the second stored message a copy committed locally first wrote, where the server took the copy and named no placement for it.</summary>
+    /// <summary>Retires the row a copy or a move left behind, where the server took the change and named no placement for it.</summary>
     /// <param name="session">The session the erasures and the observations join.</param>
-    /// <param name="account">The account whose copies are read.</param>
+    /// <param name="account">The account whose records are read.</param>
     /// <param name="destinationPath">The remote folder whose forward pass has just read it through to its end.</param>
-    /// <param name="completedBefore">When that pass opened the folder; only a copy the server had taken by then is retired.</param>
+    /// <param name="completedBefore">When that pass opened the folder; only a change the server had taken by then is retired.</param>
     /// <param name="cancellationToken">Cancels the read and the writes.</param>
     /// <returns>The stored messages retired, which may be none.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> is <see langword="null" />.</exception>
     /// <remarks>
     /// <para>
-    /// A server answering a copy with no <c>COPYUID</c> says it made the copy and not where, so nothing can bind the
-    /// occurrence to the row the commit wrote. The destination's forward pass stores what it discovers there as
-    /// ordinary discoveries, and once it has read the folder through, every copy completed before it opened the folder
-    /// is among them — so the commit's own row gives way to the discovered one here, and nothing tries to say which
-    /// discovery it was. See
+    /// A server answering with no <c>COPYUID</c> says it made the change and not where, so nothing can bind the
+    /// occurrence to the row that stands for it: the second stored message a copy's local commit wrote, or the moved
+    /// message itself. The destination's forward pass stores what it discovers there as ordinary discoveries, and once
+    /// it has read the folder through, every change completed before it opened the folder is among them — so that row
+    /// gives way to the discovered one here, and nothing tries to say which discovery it was. See
     /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>
     /// axis F.
     /// </para>
@@ -222,7 +222,7 @@ public interface IMailboxMutationReconciliationStore
     /// retiring anything for it again.
     /// </para>
     /// </remarks>
-    Task<IReadOnlyList<StoredEmailId>> RetireUnboundLocalCopiesAsync(
+    Task<IReadOnlyList<StoredEmailId>> RetireUnboundPlacementsAsync(
         IPersistenceSession session,
         MailAccountId account,
         RemoteFolderPath destinationPath,

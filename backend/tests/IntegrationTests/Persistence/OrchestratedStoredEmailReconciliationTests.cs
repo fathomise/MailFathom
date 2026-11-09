@@ -8,6 +8,7 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Mail.Mutations;
+using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Reconciliation;
@@ -125,7 +126,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
                 Disappeared: [],
                 RemovedByOwnMutation: [],
                 RemotelyDeletedEmailDisposition.RetainTombstone,
-                AppliesRemoteDeletions: true,
+                SourceIsTheTruth: true,
                 EarlierObservation),
             cancellationToken);
 
@@ -138,7 +139,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
                 Disappeared: [storedEmailIds[DisappearedUid]],
                 RemovedByOwnMutation: [],
                 RemotelyDeletedEmailDisposition.RetainTombstone,
-                AppliesRemoteDeletions: true,
+                SourceIsTheTruth: true,
                 LaterObservation),
             cancellationToken);
 
@@ -225,7 +226,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
                 Disappeared: [],
                 RemovedByOwnMutation: [],
                 RemotelyDeletedEmailDisposition.RetainTombstone,
-                AppliesRemoteDeletions: true,
+                SourceIsTheTruth: true,
                 EarlierObservation),
             cancellationToken);
 
@@ -307,7 +308,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
                 Disappeared: [erasedId, storedEmailIds[SparedUid]],
                 RemovedByOwnMutation: [],
                 RemotelyDeletedEmailDisposition.EraseLocalCopy,
-                AppliesRemoteDeletions: true,
+                SourceIsTheTruth: true,
                 EarlierObservation),
             cancellationToken);
 
@@ -364,7 +365,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
                 Disappeared: [],
                 RemovedByOwnMutation: [],
                 RemotelyDeletedEmailDisposition.RetainTombstone,
-                AppliesRemoteDeletions: true,
+                SourceIsTheTruth: true,
                 LaterObservation),
             cancellationToken);
 
@@ -419,7 +420,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
                 Disappeared: [],
                 RemovedByOwnMutation: [],
                 RemotelyDeletedEmailDisposition.RetainTombstone,
-                AppliesRemoteDeletions: true,
+                SourceIsTheTruth: true,
                 LaterObservation),
             cancellationToken);
 
@@ -487,7 +488,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
                 Disappeared: [],
                 RemovedByOwnMutation: [],
                 RemotelyDeletedEmailDisposition.RetainTombstone,
-                AppliesRemoteDeletions: true,
+                SourceIsTheTruth: true,
                 LaterObservation),
             cancellationToken);
 
@@ -567,6 +568,186 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
         CancellationToken cancellationToken) => services.InScopeAsync(
             (scope, token) => scope.GetRequiredService<IStoredEmailSummaryReader>().FindAsync(storedEmailId, token),
             cancellationToken);
+
+    /// <summary>A window describing a held message after a person acted on it leaves their act standing and still moves the row through the queue.</summary>
+    [Fact]
+    public async Task ApplyReconciliationOutcomeAsync_MailFathomIsTheTruthAndTheRowWasObservedBefore_KeepsTheValueAHeldActWrote()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, "reconciliation-held-act", cancellationToken);
+        const uint HeldUid = 900;
+        var storedEmailIds = await StoreEmailsAsync(services, binding, [HeldUid], cancellationToken);
+        var email = storedEmailIds[HeldUid];
+
+        await ApplyOutcomeAsync(services, HeldWindow(email, FlaggedAt(EarlierObservation), EarlierObservation), cancellationToken);
+        await WriteActAsync(services, email, state => state with { IsSeen = true, IsFlagged = false }, cancellationToken);
+
+        // Act
+        await ApplyOutcomeAsync(services, HeldWindow(email, FlaggedAt(LaterObservation), LaterObservation), cancellationToken);
+
+        // Assert
+        var row = (await ReadRowsAsync(services, binding, cancellationToken))[HeldUid];
+        Assert.True(row.IsMarkedSeen);
+        Assert.False(row.IsFlagged);
+        Assert.Equal(LaterObservation, row.FlagsObservedAt);
+    }
+
+    /// <summary>A new arrival's flags have no other writer, so its first reading is written, around whatever a person had already decided.</summary>
+    /// <remarks>Read and then unread leaves the column where it began, so only the record of the act tells it from a message nobody touched.</remarks>
+    [Fact]
+    public async Task ApplyReconciliationOutcomeAsync_FirstObservationAfterAHeldAct_WritesTheRestAndDoesNotUndoTheAct()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, "reconciliation-held-first", cancellationToken);
+        const uint HeldUid = 910;
+        var storedEmailIds = await StoreEmailsAsync(services, binding, [HeldUid], cancellationToken);
+        var email = storedEmailIds[HeldUid];
+
+        await WriteActAsync(services, email, state => state with { IsSeen = true }, cancellationToken);
+        await WriteActAsync(services, email, state => state with { IsSeen = false }, cancellationToken);
+
+        var sourceReading = new RemoteEmailFlagSnapshot(
+            LaterObservation,
+            IsSeen: true,
+            IsAnswered: true,
+            IsFlagged: true,
+            IsDraft: false,
+            IsDeleted: true,
+            EmailKeywords.None);
+
+        // Act
+        await ApplyOutcomeAsync(services, HeldWindow(email, sourceReading, LaterObservation), cancellationToken);
+
+        // Assert
+        var row = (await ReadRowsAsync(services, binding, cancellationToken))[HeldUid];
+        Assert.False(row.IsMarkedSeen);
+        Assert.True(row.IsFlagged);
+        Assert.True(row.IsRemotelyAnswered);
+        Assert.False(row.IsRemotelyDeleted);
+        Assert.Equal(LaterObservation, row.FlagsObservedAt);
+    }
+
+    /// <summary>A move carried to its destination clears the observation, and the window there is still not the message's first reading.</summary>
+    [Fact]
+    public async Task ApplyReconciliationOutcomeAsync_MailFathomIsTheTruthAndTheRowWasCarriedToANewOccurrence_KeepsWhatTheRowHeld()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, "reconciliation-held-carried", cancellationToken);
+        const uint HeldUid = 930;
+        var storedEmailIds = await StoreEmailsAsync(services, binding, [HeldUid], cancellationToken);
+        var email = storedEmailIds[HeldUid];
+
+        await ApplyOutcomeAsync(services, HeldWindow(email, FlaggedAt(EarlierObservation), EarlierObservation), cancellationToken);
+        await WriteActAsync(services, email, state => state with { IsFlagged = false }, cancellationToken);
+        await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IEmailMetadataRepository>().TryCarryToOccurrenceAsync(
+                session,
+                email,
+                SyntheticEmail.OccurrenceIn(binding, uid: 931),
+                token),
+            cancellationToken);
+
+        // Act
+        await ApplyOutcomeAsync(services, HeldWindow(email, FlaggedAt(LaterObservation), LaterObservation), cancellationToken);
+
+        // Assert
+        var row = await ReadRowByIdAsync(services, email, cancellationToken);
+        Assert.NotNull(row);
+        Assert.False(row.IsFlagged);
+        Assert.Equal(LaterObservation, row.FlagsObservedAt);
+    }
+
+    /// <summary>A message gone from a held account's source keeps its row, unless its content was never stored and MailFathom therefore never held it.</summary>
+    [Fact]
+    public async Task ApplyReconciliationOutcomeAsync_MailFathomIsTheTruthAndMessagesDisappear_ClearsAHeldRowAndErasesOneWithNoContent()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, "reconciliation-held-gone", cancellationToken);
+        const uint StoredUid = 920;
+        var stored = (await StoreEmailsAsync(services, binding, [StoredUid], cancellationToken))[StoredUid];
+        var neverHeld = await StoredSyntheticEmail.MetadataOnlyAsync(
+            services,
+            SyntheticEmail.OccurrenceIn(binding, uid: 921),
+            "never-held",
+            cancellationToken);
+
+        // Act
+        await ApplyOutcomeAsync(
+            services,
+            new ReconciledFolderOutcome(
+                StillPresent: [],
+                ConfirmedUnchanged: [],
+                Disappeared: [stored, neverHeld],
+                RemovedByOwnMutation: [],
+                RemotelyDeletedEmailDisposition.EraseLocalCopy,
+                SourceIsTheTruth: false,
+                LaterObservation),
+            cancellationToken);
+
+        // Assert
+        var keptRow = await ReadRowByIdAsync(services, stored, cancellationToken);
+        Assert.NotNull(keptRow);
+        Assert.Null(keptRow.Uid);
+        Assert.Null(keptRow.UidValidity);
+        Assert.Null(await ReadRowByIdAsync(services, neverHeld, cancellationToken));
+    }
+
+    private static ReconciledFolderOutcome HeldWindow(
+        StoredEmailId email,
+        RemoteEmailFlagSnapshot snapshot,
+        DateTimeOffset observedAt) => new(
+            [new ObservedEmailFlags(email, snapshot)],
+            ConfirmedUnchanged: [],
+            Disappeared: [],
+            RemovedByOwnMutation: [],
+            RemotelyDeletedEmailDisposition.RetainTombstone,
+            SourceIsTheTruth: false,
+            observedAt);
+
+    /// <summary>Commits an act on a stored message the way a held account's local change does.</summary>
+    private static async Task WriteActAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId email,
+        Func<LocalEmailState, LocalEmailState> act,
+        CancellationToken cancellationToken)
+    {
+        var commitResult = await services.CommitAsync(
+            async (scope, session, token) =>
+            {
+                var states = scope.GetRequiredService<ILocalEmailStateStore>();
+                var state = await states.ReadAsync(session, SyntheticMailAccount.Account, email, token);
+
+                Assert.NotNull(state);
+                await states.WriteAsync(session, SyntheticMailAccount.Account, email, act(state), isHeldFolder: true, token);
+            },
+            cancellationToken);
+
+        Assert.Equal(PersistenceCommitResult.Committed, commitResult);
+    }
+
+    private static Task<StoredEmailEntity?> ReadRowByIdAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId email,
+        CancellationToken cancellationToken)
+    {
+        var id = email.Value;
+
+        return services.InScopeAsync(
+            (scope, token) => scope
+                .GetRequiredService<MailFathomDbContext>()
+                .StoredEmails
+                .AsNoTracking()
+                .SingleOrDefaultAsync(row => row.Id == id, token),
+            cancellationToken);
+    }
 
     private static RemoteEmailFlagSnapshot SeenAt(DateTimeOffset observedAt) => new(
         observedAt,
@@ -666,7 +847,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
                     Disappeared: [],
                     RemovedByOwnMutation: [],
                     RemotelyDeletedEmailDisposition.RetainTombstone,
-                    AppliesRemoteDeletions: true,
+                    SourceIsTheTruth: true,
                     recordedAt),
                 cancellationToken);
         }

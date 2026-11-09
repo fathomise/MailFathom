@@ -493,6 +493,16 @@ internal sealed class StoredEmailEntity
     /// </remarks>
     public DateTimeOffset? FlagsObservedAt { get; set; }
 
+    /// <summary>Gets or sets which flags stay as they are while <see cref="FlagsObservedAt" /> is empty.</summary>
+    /// <remarks>
+    /// A new arrival's flags have no writer but the first observation, so an account MailFathom is the truth for still
+    /// takes that one from the source. A flag's value cannot say whether a person chose it — read and then unread looks
+    /// exactly like never opened — so the first observation asks here which fields are the person's to keep. A move
+    /// carried to its destination clears the observation too, and marks all three here so that clearing it does not
+    /// read as a message nobody has observed.
+    /// </remarks>
+    public EmailFieldsSetBeforeFirstObservation FieldsSetBeforeFirstObservation { get; set; }
+
     /// <summary>
     /// Gets or sets when reconciliation found this occurrence gone from its remote folder, or <see langword="null" />
     /// while the server still holds it. A row carrying a value is a tombstone that every mailbox query excludes.
