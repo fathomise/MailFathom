@@ -51,9 +51,9 @@ public sealed class MirroredMailFolderEditorTests
         // Arrange
         await using var deployment = new EditorDeployment();
         deployment.Declares(
-            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
-            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("Trash"), RemoteFolderPath.Create("Trash", '/'), specialUse: MailFolderSpecialUse.Trash),
-            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("shared"), RemoteFolderPath.Create("Shared", '/')));
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")),
+            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("Trash"), RemoteFolderPath.Create("Trash"), specialUse: MailFolderSpecialUse.Trash),
+            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("shared"), RemoteFolderPath.Create("Shared")));
         deployment.Declarations.Declared.Add(Projects);
 
         // Act
@@ -101,7 +101,7 @@ public sealed class MirroredMailFolderEditorTests
     {
         // Arrange
         await using var deployment = new EditorDeployment();
-        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')));
+        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")));
         deployment.Declarations.DeclarationRefusal = MailFolderActRefusal.FoldersHeldByPolicy;
 
         // Act
@@ -118,7 +118,7 @@ public sealed class MirroredMailFolderEditorTests
     {
         // Arrange
         await using var deployment = new EditorDeployment();
-        deployment.Declares(MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive", '/')));
+        deployment.Declares(MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive")));
         deployment.CreatesAt("Projects");
 
         // Act
@@ -175,7 +175,7 @@ public sealed class MirroredMailFolderEditorTests
     {
         // Arrange
         await using var deployment = new EditorDeployment();
-        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')));
+        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")));
         deployment.Declarations.Declared.Add(Projects);
 
         // Act
@@ -237,7 +237,7 @@ public sealed class MirroredMailFolderEditorTests
         await using var deployment = new EditorDeployment();
         deployment.Declares(MailFolderMapping.ToRemotePath(
             MailFolderAlias.Create("Trash"),
-            RemoteFolderPath.Create("Discarded", '/')));
+            RemoteFolderPath.Create("Discarded")));
 
         // Act
         var outcome = await deployment.Editor.CreateAsync(
@@ -260,7 +260,7 @@ public sealed class MirroredMailFolderEditorTests
     {
         // Arrange
         await using var deployment = new EditorDeployment();
-        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')));
+        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")));
         deployment.Declarations.Declared.Add(Projects);
         deployment.RenamesTo("Plans");
 
@@ -281,8 +281,8 @@ public sealed class MirroredMailFolderEditorTests
         // Arrange
         await using var deployment = new EditorDeployment();
         deployment.Declares(
-            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
-            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive", '/')));
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive")));
         deployment.Declarations.Declared.Add(Projects);
         deployment.RenamesTo("Archive/Projects");
 
@@ -299,7 +299,7 @@ public sealed class MirroredMailFolderEditorTests
     {
         // Arrange
         await using var deployment = new EditorDeployment();
-        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')));
+        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")));
         deployment.Declarations.Declared.Add(Projects);
 
         // Act
@@ -315,8 +315,8 @@ public sealed class MirroredMailFolderEditorTests
         // Arrange
         await using var deployment = new EditorDeployment();
         deployment.Declares(
-            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
-            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive", '/')));
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive")));
         deployment.Declarations.Declared.Add(Projects);
         deployment.RenamesTo("Archive/Projects");
 
@@ -335,8 +335,9 @@ public sealed class MirroredMailFolderEditorTests
         // Arrange
         await using var deployment = new EditorDeployment();
         deployment.Declares(
-            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
-            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Projects/Archive", '/')));
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Projects/Archive")));
+        deployment.Bindings.Bind(Account, Projects, "Projects", '/');
         deployment.Declarations.Declared.Add(Projects);
 
         // Act
@@ -402,13 +403,13 @@ public sealed class MirroredMailFolderEditorTests
         await using var deployment = new EditorDeployment();
         deployment.Declares(
             MailFolderMapping.ToSpecialUse(drafts, MailFolderSpecialUse.Drafts),
-            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("sent"), RemoteFolderPath.Create("Sent", '/'), specialUse: MailFolderSpecialUse.Sent),
-            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("trash"), RemoteFolderPath.Create("Trash", '/'), specialUse: MailFolderSpecialUse.Trash),
-            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')),
-            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive", '/')),
-            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("drafts-clients"), RemoteFolderPath.Create("Drafts/Clients", '/')),
-            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("drafts-old"), RemoteFolderPath.Create("Drafts/Old", '/')),
-            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("sent-clients"), RemoteFolderPath.Create("Sent/Clients", '/')));
+            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("sent"), RemoteFolderPath.Create("Sent"), specialUse: MailFolderSpecialUse.Sent),
+            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("trash"), RemoteFolderPath.Create("Trash"), specialUse: MailFolderSpecialUse.Trash),
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive")),
+            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("drafts-clients"), RemoteFolderPath.Create("Drafts/Clients")),
+            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("drafts-old"), RemoteFolderPath.Create("Drafts/Old")),
+            MailFolderMapping.ToRemotePath(MailFolderAlias.Create("sent-clients"), RemoteFolderPath.Create("Sent/Clients")));
         deployment.Bindings.Bind(Account, drafts, "Drafts", '/');
         deployment.Declarations.Declared.Add(MailFolderAlias.Create(moving));
         deployment.RenamesTo("Moved");
@@ -435,8 +436,9 @@ public sealed class MirroredMailFolderEditorTests
         // Arrange
         await using var deployment = new EditorDeployment();
         deployment.Declares(
-            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Team/Notes", '.')),
-            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive", '.')));
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Team/Notes")),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive")));
+        deployment.Bindings.Bind(Account, Archive, "Archive", '.');
         deployment.Declarations.Declared.Add(Projects);
 
         // Act
@@ -447,13 +449,130 @@ public sealed class MirroredMailFolderEditorTests
         Assert.Empty(deployment.Log);
     }
 
+    /// <summary>
+    /// A declared path carries no delimiter, so the one the account's bindings recorded is what places a folder nobody
+    /// has bound yet beneath the folder it sits in.
+    /// </summary>
+    [Fact]
+    public async Task ReadAsync_ANestedFolderNoRunHasBound_IsDescribedBeneathItsParentByItsOwnName()
+    {
+        // Arrange
+        var suppliers = MailFolderAlias.Create("suppliers");
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive")),
+            MailFolderMapping.ToRemotePath(suppliers, RemoteFolderPath.Create("Archive/Suppliers")));
+        deployment.Bindings.Bind(Account, Archive, "Archive", '/');
+
+        // Act
+        var management = await deployment.Editor.ReadAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        var described = Assert.Single(management.Folders, folder => folder.Id == suppliers.Value);
+        Assert.Equal((Archive.Value, "Suppliers"), (described.ParentId, described.Name));
+    }
+
+    /// <summary>A rename changes the last level and nothing above it, so the server is asked to keep the folder under its parent.</summary>
+    [Fact]
+    public async Task RenameAsync_ANestedFolderTheAccountDeclares_RenamesItBeneathTheParentItSitsUnder()
+    {
+        // Arrange
+        var suppliers = MailFolderAlias.Create("suppliers");
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive")),
+            MailFolderMapping.ToRemotePath(suppliers, RemoteFolderPath.Create("Archive/Suppliers")));
+        deployment.Bindings.Bind(Account, suppliers, "Archive/Suppliers", '/');
+        deployment.Declarations.Declared.Add(suppliers);
+        deployment.RenamesTo("Archive/Vendors");
+
+        // Act
+        var outcome = await deployment.Editor.RenameAsync(Account, suppliers, "Vendors", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal((Archive.Value, "Vendors"), (outcome.Folder!.ParentId, outcome.Folder.Name));
+        await deployment.RemoteEditor.Received(1).RenameFolderAsync(
+            Account,
+            suppliers,
+            Arg.Is<RemoteFolderPath>(path => path.Value == "Archive/Suppliers"),
+            Arg.Is<RemoteFolderPath?>(parent => parent != null && parent.Value.Value == "Archive"),
+            "Vendors",
+            Arg.Any<MailTransportSecurityPolicy>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A move changes where a folder sits and never what it is called, whichever character its server nests with.</summary>
+    [Theory]
+    [InlineData('/')]
+    [InlineData('.')]
+    public async Task MoveAsync_ANestedFolderTheAccountDeclares_KeepsItsOwnLastLevelAsItsName(char delimiter)
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create($"Team{delimiter}Projects")),
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive")));
+        deployment.Bindings.Bind(Account, Archive, "Archive", delimiter);
+        deployment.Declarations.Declared.Add(Projects);
+        deployment.RenamesTo("Archive/Projects");
+
+        // Act
+        var outcome = await deployment.Editor.MoveAsync(Account, Projects, Archive, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal((MailFolderChangeKind.Moved, "Projects"), (outcome.Change, outcome.Folder!.Name));
+        Assert.Equal("renamed PROJECTS to Projects", deployment.Log[0]);
+    }
+
+    /// <summary>Two folders under one parent may not share a name, and the parent is read through the account's delimiter.</summary>
+    [Fact]
+    public async Task CreateAsync_ANameAnotherFolderBeneathTheSameParentHolds_IsRefusedAndReachesNoServer()
+    {
+        // Arrange
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive")),
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Archive/Projects")));
+        deployment.Bindings.Bind(Account, Archive, "Archive", '/');
+
+        // Act
+        var outcome = await deployment.Editor.CreateAsync(Account, Archive, "Projects", role: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MailFolderActRefusal.NameTaken, outcome.Refusal);
+        Assert.Empty(deployment.Log);
+    }
+
+    /// <summary>A name is taken only among the folders under one parent, so the same name beneath another parent goes ahead.</summary>
+    [Fact]
+    public async Task RenameAsync_ToANameAFolderBeneathAnotherParentHolds_RenamesIt()
+    {
+        // Arrange
+        var suppliers = MailFolderAlias.Create("suppliers");
+        await using var deployment = new EditorDeployment();
+        deployment.Declares(
+            MailFolderMapping.ToRemotePath(Archive, RemoteFolderPath.Create("Archive")),
+            MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")),
+            MailFolderMapping.ToRemotePath(suppliers, RemoteFolderPath.Create("Archive/Suppliers")));
+        deployment.Bindings.Bind(Account, Archive, "Archive", '/');
+        deployment.Declarations.Declared.Add(suppliers);
+        deployment.RenamesTo("Archive/Projects");
+
+        // Act
+        var outcome = await deployment.Editor.RenameAsync(Account, suppliers, "Projects", TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(outcome.Refusal);
+        Assert.Equal(MailFolderChangeKind.Renamed, outcome.Change);
+    }
+
     /// <summary>Deleting on the server takes the folder away on both sides, and the mail stored from it goes with it.</summary>
     [Fact]
     public async Task DeleteAsync_TheAccountDeletesOnTheServer_DeletesItThereWithdrawsItAndQueuesItsMail()
     {
         // Arrange
         await using var deployment = new EditorDeployment();
-        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')));
+        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")));
         deployment.Declarations.Declared.Add(Projects);
 
         // Act
@@ -471,7 +590,7 @@ public sealed class MirroredMailFolderEditorTests
     {
         // Arrange
         await using var deployment = new EditorDeployment(AuthoredFolderDeleteDisposition.MarkDeletedLocally);
-        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')));
+        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")));
         deployment.Declarations.Declared.Add(Projects);
 
         // Act
@@ -489,7 +608,7 @@ public sealed class MirroredMailFolderEditorTests
     {
         // Arrange
         await using var deployment = new EditorDeployment();
-        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')));
+        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")));
         deployment.Declarations.Declared.Add(Projects);
         deployment.RemoteEditor
             .DeleteFolderAsync(
@@ -514,7 +633,7 @@ public sealed class MirroredMailFolderEditorTests
     {
         // Arrange
         await using var deployment = new EditorDeployment();
-        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')));
+        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")));
         deployment.Declarations.Declared.Add(Projects);
         deployment.RemoteEditor
             .RenameFolderAsync(
@@ -543,7 +662,7 @@ public sealed class MirroredMailFolderEditorTests
         await using var deployment = new EditorDeployment();
         deployment.Declares(MailFolderMapping.ToRemotePath(
             MailFolderAlias.Create("Trash"),
-            RemoteFolderPath.Create("Trash", '/'),
+            RemoteFolderPath.Create("Trash"),
             specialUse: MailFolderSpecialUse.Trash));
         deployment.Declarations.Declared.Add(MailFolderAlias.Create("Trash"));
 
@@ -561,7 +680,7 @@ public sealed class MirroredMailFolderEditorTests
     {
         // Arrange
         await using var deployment = new EditorDeployment();
-        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects", '/')));
+        deployment.Declares(MailFolderMapping.ToRemotePath(Projects, RemoteFolderPath.Create("Projects")));
 
         // Act
         var outcome = await deployment.Editor.RenameAsync(Account, Projects, "Plans", TestContext.Current.CancellationToken);

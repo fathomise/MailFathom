@@ -789,7 +789,11 @@ such an account's first read already lists all five and `creatableRoles` is empt
 **On a mirrored account**, each act runs on the mail server: `CREATE` for a creation and `RENAME` for both a rename and
 a move, over the one write connection an account holds, which selects no folder. A created folder joins what the
 account synchronizes in the same act and appears in the next read without waiting for a synchronization pass, and a
-renamed or moved folder stays synchronized under its new place and keeps its `id` — only the path behind it moves. What a deletion does there is [the account's own setting](configuration-mail.md):
+renamed or moved folder stays synchronized under its new place and keeps its `id` — only the path behind it moves. A
+rename leaves a folder under the parent it sits in and a move keeps its own name, and both read where a folder sits
+through the hierarchy delimiter the account's synchronization recorded, since a path the account's record declares is
+text and carries none; on an account no synchronization pass has reached yet, every declared folder reads as sitting at
+the top until one does. What a deletion does there is [the account's own setting](configuration-mail.md):
 *Delete on the server* issues `DELETE`, takes the folder out of what the account synchronizes, and removes the mail
 stored from it, answering `Deleted`; *Mark deleted only* reaches the server not at all and marks the folder deleted in
 MailFathom, which takes it out of the tree and out of every mailbox query while the mail stays stored, answering

@@ -585,32 +585,59 @@ public sealed class MirroredMailFolderEditor
 
     /// <summary>Reads the account's folders, each at the place it currently is on the mail server.</summary>
     /// <remarks>
+    /// <para>
     /// A folder found by the role it plays names no path in its declaration, so its place is read from the binding its
     /// synchronization run recorded — whichever role it plays. Without it no folder found that way could take a
     /// subfolder, the drafts folder and the sent folder among them, and a subfolder made beneath one would be described
     /// as having no parent. One never bound keeps no path and so still takes none.
+    /// </para>
+    /// <para>
+    /// A declared path is text somebody wrote, configuration or an earlier act, and carries no hierarchy delimiter, so
+    /// it is given the one the folder's own binding recorded and otherwise the one the account's other bindings did.
+    /// Without it every declared folder would read as sitting at the top: a nested folder renamed would be moved out of
+    /// its parent, and one moved would take its whole path as its name. An account no run has bound yet has no
+    /// delimiter to give, and its declared folders stay flat until one does.
+    /// </para>
     /// </remarks>
     private async Task<IReadOnlyList<MailFolderMapping>> FoldersOfAsync(
         MailAccountId account,
         CancellationToken cancellationToken)
     {
         var folders = this.mappings.FoldersOf(account);
-        var placed = new List<MailFolderMapping>(folders.Count);
+        var bound = new List<(MailFolderMapping Folder, MailFolderResolution? Binding)>(folders.Count);
 
         foreach (var folder in folders)
         {
-            placed.Add(folder.RemotePath is null
-                && await this.bindings.GetCurrentResolutionAsync(account, folder.Alias, cancellationToken) is { } binding
-                    ? MailFolderMapping.ToRemotePath(
-                        folder.Alias,
-                        binding.RemotePath,
-                        folder.Participation,
-                        specialUse: folder.SpecialUse)
-                    : folder);
+            bound.Add((folder, await this.bindings.GetCurrentResolutionAsync(account, folder.Alias, cancellationToken)));
         }
 
-        return placed;
+        var accountDelimiter = bound
+            .Select(static pair => pair.Binding?.RemotePath.HierarchyDelimiter)
+            .FirstOrDefault(static delimiter => delimiter is not null);
+
+        return [.. bound.Select(pair => Placed(pair.Folder, pair.Binding, accountDelimiter))];
     }
+
+    private static MailFolderMapping Placed(
+        MailFolderMapping folder,
+        MailFolderResolution? binding,
+        char? accountDelimiter) => folder.RemotePath switch
+        {
+            null when binding is not null => MailFolderMapping.ToRemotePath(
+                folder.Alias,
+                binding.RemotePath,
+                folder.Participation,
+                specialUse: folder.SpecialUse),
+            { HierarchyDelimiter: null } declared
+                when (binding?.RemotePath.HierarchyDelimiter ?? accountDelimiter) is { } delimiter
+                && RemoteFolderPath.TryCreate(declared.Value, delimiter, out var nested) => MailFolderMapping.ToRemotePath(
+                    folder.Alias,
+                    nested,
+                    folder.Participation,
+                    folder.MayCreateMissingFolder,
+                    folder.SpecialUse),
+            _ => folder,
+        };
 
     /// <summary>Whether moving a folder beneath that parent would take it across the edge of the drafts or the sent folder's tree.</summary>
     /// <remarks>
