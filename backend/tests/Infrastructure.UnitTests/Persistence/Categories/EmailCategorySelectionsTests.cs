@@ -3,8 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Categories;
+using MailFathom.Infrastructure.Persistence;
 using MailFathom.Infrastructure.Persistence.Categories;
 using MailFathom.Infrastructure.Persistence.Entities;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace MailFathom.Infrastructure.UnitTests.Persistence.Categories;
@@ -65,6 +67,29 @@ public sealed class EmailCategorySelectionsTests
 
         // Assert
         Assert.Empty(selected);
+    }
+
+    /// <summary>
+    /// The cases above run as LINQ to objects, which translates nothing. Generating the command proves the selection
+    /// reaches SQL, with a list of declared names of any length, and that all three of its conditions are in it.
+    /// </summary>
+    [Fact]
+    public void OfWithdrawnOwnCategories_AgainstTheDatabaseProvider_TranslatesEveryCondition()
+    {
+        // Arrange
+        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
+
+        // Act
+        var command = context.EmailCategories
+            .AsNoTracking()
+            .OfWithdrawnOwnCategories("work", ["Contracts"])
+            .ToQueryString();
+
+        // Assert
+        var narrowing = command[command.IndexOf("WHERE", StringComparison.Ordinal)..];
+        Assert.Contains("\"Kind\" = 'Own'", narrowing, StringComparison.Ordinal);
+        Assert.Contains("\"MailboxAccountId\"", narrowing, StringComparison.Ordinal);
+        Assert.Contains("\"Category\"", narrowing, StringComparison.Ordinal);
     }
 
     private static List<EmailCategoryEntity> Select(
