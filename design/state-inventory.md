@@ -575,7 +575,7 @@ A message judged spam carries its verdict (`spamOf`): who judged it — a model,
 where one was named, its **spam subcategory** (`SPAM_KINDS`): *Phishing*, *Business email compromise* and *Malware
 lure*, the three dangerous ones, then *Scam*, *Extortion* and *Marketing*. The mail server names none. The person's
 own word, spam with a subcategory or not spam, outranks what the message arrived with. Nothing here is named
-*category* on its own: that word is kept for a later feature that sorts all mail by topic. The sample is the eight
+*category* on its own: that word is what § *Categories* draws. The sample is the eight
 `spam…` threads at the end of `data/prototype/threads.js` — four in the work account's Spam folder (`box: "spam"`),
 phishing, business email compromise, malware lure and extortion; two in the personal account's, a scam and the
 server's with no kind; and two folded into every other list, a phishing message and a marketing one.
@@ -605,6 +605,25 @@ whatever the setting says, and a move out of Spam never lifts the mark.
 | Landed in the Inbox | `confirmNotSpam` / `markNotSpam` | the confirmation accepted: the kind goes, the person's *not spam* is recorded, and every message that sat in Spam on an account that moves spam leaves the Spam list and lands in the Inbox as an ordinary row — unfolded, its unread weight back, the *AI summary* control back, and *Inbox* under it as any moved row names its folder. A message already outside Spam stays where it is and stops folding. A success toast says *Marked not spam - N threads* over *It is in the Inbox now.* — nothing more to do, so it carries no action |
 | *Not spam* where nothing moves | `markNotSpam` | *Not spam* pressed where it moves nothing — a message outside Spam, or one in Spam on an account that does not move spam: no confirmation, it applies at once as *Spam* does. The mark goes, a folded row unfolds where it stands with an edit's wash, and a success toast says *Marked not spam - N threads* over *It stays where it is and no longer folds away.* |
 | Left in Spam, not spam | `markNotSpam` | a message marked not spam inside the Spam folder of an account that does not move spam: it stays in that Spam list as an ordinary row — no badge, unread weight and *AI summary* back — until the person moves it, and the toast says *It stays in Spam until you move it, because this account does not move spam.* Reached from the personal account's Spam folder, *Not spam* on *Unclaimed funds held in your name* |
+
+### Categories
+
+What sort of mail a message is: a model's reading of it, never a change to it (`data/prototype/categories.js`). A
+message holds exactly one default category, one of *Correspondence*, *Subscriptions*, *Finance*, *Shopping*, *Travel*,
+*Notifications* and *Other*, and any of the mailbox's own, which are subjects it names and which can overlap. A
+conversation has none of its own: it holds the set its messages hold. Categories are only shown: no press here filters
+by one or changes one, and spam has none. A name is drawn as the reader's language says for a default, and as somebody
+wrote it for a mailbox's own, defaults first and then the mailbox's own in the order the mailbox lists them.
+
+| State | Flag | Reveal |
+|---|---|---|
+| The label | `c.name` / `categoryLabel` | a square label in the form of a quiet spam kind and the *AI* tag: 12 px in `--muted`, a 4 px radius, a hairline `--border2` border, no pill and no glyph. One tone whatever the category, because none of them is a warning |
+| On a message row | `t.catsShown` / `t.cats` | the row's third line ends in the newest received message's categories, flush right after the *AI* tag and its reading, on the row of any message that holds one. The reading gives way before a label does, and the labels together stop at 62% of the line (50% in the narrow row, `listCompact`), so the *AI* tag and the start of its reading are always there. The sender and the subject are on the lines above and untouched. A row with no AI line (`t.showAi` false: a message with no reading, or `aiHints` off) draws the line with the labels alone, at its start, where a spam kind stands (`t.thirdLineShown`). A label adds no line a row did not already have room for: every row of the list is one height |
+| On a conversation row | `t.convShown` + `t.catsShown` | the end of the topic's line, inside the AI frame where there is one, over every category any of the conversation's messages holds, each once. The topic's line is the one every variant of the row draws, so a row with categories stands exactly as tall as the same row without them. The labels stop at 42% of that line, so the topic stays the thing the row is recognized by. Where no title was written it ends the subject's line, which stands in the same place |
+| At most two | `t.cats` / `t.catsMore` / `t.catsRest` | a row draws two names, one in the narrow row, and then `+N` in the same label, never shrinking; a default before an own category, as listed. `+N`'s `title` names the rest (`data-tip-hover`), and every category of the row is said again under the row's hold menu header (`ctxMenuDetail`), because the hold a finger would ask with opens that menu; that header wraps there (`ctxMenuDetailFit`) rather than ending in an ellipsis, so a long name cannot hide the ones after it. The opened message draws all of them |
+| The longest own name | `categoryLabel` | a name the service accepts at its full length ends in an ellipsis at 132 px on a row and 240 px on the opened message, and is the label that gives way first: a short name beside it stays whole (`contracts` in the sample, on *Contract addendum - signatures*). Its whole name is the label's `title` under a mouse and a finger's hold on the opened message; on a row a finger reads it under the hold menu's header |
+| On the opened message | `m.catsShown` / `m.cats` | every one of the message's categories, no `+N`, on the header's first line straight after the sender's mark and before who it was sent to, wrapping with that line where it runs out (`m.catsStyle`). Each message of an opened conversation carries its own, so the one that is the invoice says so, a folded message among them. Spam draws none; a message of the user's own draws what it holds like any other, and the sample gives none of them a category. Search results draw the same labels on a result's third line (`mail-search.html`) |
+| Drawing nothing | no entry, or a name of `null` | *Correspondence* and *Other*; a message nothing has categorized yet; one the model gave no answer about; a default the mailbox switched off and every category of a mailbox that does not categorize, which the service does not publish. None of those draws a label, a placeholder or a line of its own, and the row is the row it would have been |
 
 ### The sender mark
 
@@ -1510,6 +1529,9 @@ clicking a preview.
   context and draws nothing in the application at all, so the only evidence of the path is that no question
   appeared; the meeting link of *Rollout status with Piotr* and the materials folder in *Trade show materials
   24.09* take it.
+- **A category that draws nothing** (§ *Categories*). A message nothing has categorized yet and one the model gave no
+  answer about are drawn only by what is absent, and a default a mailbox switched off and a mailbox that does not
+  categorize have no sample at all: the rows look as a row with neither would.
 - **A rejected profile photo** (`photoError`). Set only by choosing a file over 1 MB; no control in
   the prototype can produce one.
 - **Every tab state** (`tabsBarShown`, `noTabsOpen`, `convBarShown`, `closeAllAsk`). Two conditions at
