@@ -88,6 +88,76 @@ public sealed class DecisionModelOptionsTests
         Assert.Contains(refusal.Errors, error => error.StartsWith("Decisions:DefaultModel — ", StringComparison.Ordinal));
     }
 
+    /// <summary>Routing one function leaves the other falling through, so several models still need a default.</summary>
+    [Fact]
+    public void FindProviderRefusals_TwoModelsRoutingOnlySpamClassification_IsRefusedNamingTheDefault()
+    {
+        // Arrange
+        var keys = Merged(ModelBlock(0, "first"), ModelBlock(1, "second"));
+        keys["Decisions:SpamClassification:Model:Alias"] = "first";
+
+        // Act
+        var refusal = Assert.Single(ComposedSettings.FindProviderRefusals(Configuration(keys)));
+
+        // Assert
+        var error = Assert.Single(refusal.Errors);
+        Assert.StartsWith("Decisions:DefaultModel — ", error, StringComparison.Ordinal);
+    }
+
+    /// <summary>A default is required only where a function falls through to it.</summary>
+    [Fact]
+    public void FindProviderRefusals_TwoModelsRoutingEveryFunction_NeedsNoDefault()
+    {
+        // Arrange
+        var keys = Merged(ModelBlock(0, "first"), ModelBlock(1, "second"));
+        keys["Decisions:SpamClassification:Model:Alias"] = "first";
+        keys["Decisions:EmailCategorization:Model:Alias"] = "second";
+
+        // Act
+        var refusals = ComposedSettings.FindProviderRefusals(Configuration(keys));
+
+        // Assert
+        Assert.Empty(refusals);
+    }
+
+    [Fact]
+    public void FindProviderRefusals_CategorizationNamingAnUndeclaredAlias_IsRefusedNamingTheKey()
+    {
+        // Arrange
+        var configuration = Configuration(new Dictionary<string, string?>(ModelBlock(0, "decider"))
+        {
+            ["Decisions:EmailCategorization:Model:Alias"] = "missing",
+        });
+
+        // Act
+        var refusal = Assert.Single(ComposedSettings.FindProviderRefusals(configuration));
+
+        // Assert
+        Assert.Contains(refusal.Errors, error => error.StartsWith("Decisions:EmailCategorization:Model", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void FindProviderRefusals_CategorizationNamingAChatModel_IsRefusedAsAChatModel()
+    {
+        // Arrange
+        var configuration = Configuration(new Dictionary<string, string?>(ModelBlock(0, "decider"))
+        {
+            ["Chat:Models:0:Alias"] = "answering",
+            ["Chat:Models:0:Model"] = "a-chat-model",
+            ["Chat:Models:0:Unauthenticated"] = "true",
+            ["Decisions:EmailCategorization:Model:Alias"] = "answering",
+        });
+
+        // Act
+        var refusal = Assert.Single(ComposedSettings.FindProviderRefusals(configuration));
+
+        // Assert
+        Assert.Contains(
+            refusal.Errors,
+            error => error.StartsWith("Decisions:EmailCategorization:Model", StringComparison.Ordinal)
+                && error.Contains("which is a chat model", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void FindProviderRefusals_AReferenceToAnUndeclaredAlias_IsRefusedNamingTheKey()
     {
