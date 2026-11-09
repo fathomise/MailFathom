@@ -385,7 +385,7 @@ name `mfctl rules show` and `GET /rules` report it by:
 **A change a rule does not declare is one it does not ask for**, which is why `set-seen` carries a state rather than
 being a switch: a rule declaring `set-seen` to unread asks for mail to be marked *unread*, and a rule declaring no
 `set-seen` does not touch the flag at all. `set-flagged` reads the same way. The distinction is sharpest on
-`set-keywords`: an empty list is a rule asking for every keyword to be cleared, which is the one thing the other two
+`set-keywords`: an empty list is a rule asking for every keyword MailFathom knows the message to carry to be cleared, which is the one thing the other two
 keyword changes cannot say however many keywords they name, while declaring none of the three is a rule that does not
 touch keywords at all.
 
@@ -454,7 +454,7 @@ admits nothing beside it. Beyond that, a rule may declare any mixture of flag an
 | `set-flagged` alone | permitted | |
 | `set-seen` and `set-flagged` | permitted | Two different flags, so neither decides anything about the other |
 | `add-keywords` and `remove-keywords` | permitted | The removal is issued first, so a keyword named by both ends up on the message |
-| `set-keywords` alone, including `[]` | permitted | An empty list is what clears every keyword |
+| `set-keywords` alone, including `[]` | permitted | An empty list is what clears every keyword MailFathom knows the message to carry |
 | `relocate` and `set-seen` | permitted | The flag is written first, on the occurrence the condition matched |
 | `copy` and `set-seen` | permitted | The same: the flag is written before the copy is placed |
 | `relocate`, `set-flagged`, and `add-keywords` | permitted | Every flag and keyword change is written before the message is filed |
