@@ -283,76 +283,87 @@ internal sealed class PersistedMailAccountRecordStore(
         long expectedUserVersion,
         CancellationToken cancellationToken)
     {
-        var userId = RequireNamed(user);
-        var now = timeProvider.GetUtcNow();
-
         try
         {
-            return await commitPolicy.CommitAsync(
-                async (session, token) =>
-                {
-                    var context = await EfCorePersistenceSessionAccessor.JoinAsync(session, token);
-
-                    // The account is held against a move of its own and the user against a move of theirs until this
-                    // transaction commits, so the organizations compared here are the ones the assignment is written
-                    // under: a move that commits first is read here, and a move that comes after waits and then counts
-                    // this assignment. The account is taken first, which is the order a save takes it in, and exclusively
-                    // against another assignment, so two assignments of one account count its users one after the other
-                    // and neither takes it past the bound its organization sets.
-                    var accountOrganization = await LockAccountAsync(context, accountId, token);
-                    var userOrganization = await LockUserAsync(context, userId, token);
-
-                    if (accountOrganization is [var ofAccount] && userOrganization is [var ofUser] && ofAccount != ofUser)
-                    {
-                        return new MailAccountWrite(
-                            MailAccountWriteResult.OrganizationsDiffer,
-                            0,
-                            new StraddledOrganizations(ofAccount, ofUser));
-                    }
-
-                    // An account that is gone reads as one in no organization here, and the insert below settles it.
-                    var organization = accountOrganization.FirstOrDefault();
-                    var mostUsers = MailAccountRecord.MaximumUsersAssignedIn(organization);
-
-                    var assigned = await context.Database.ExecuteSqlAsync(
-                        $"""
-                         INSERT INTO mail_account_assignments ("UserId", "MailAccountId", "AssignedAt")
-                         SELECT {userId}, {accountId}, {now}
-                         WHERE EXISTS (SELECT 1 FROM settings_mail_accounts WHERE "Id" = {accountId})
-                           AND EXISTS (SELECT 1 FROM settings_accounts WHERE "Id" = {userId})
-                           AND (SELECT count(*) FROM mail_account_assignments WHERE "MailAccountId" = {accountId}) < {mostUsers}
-                         ON CONFLICT DO NOTHING
-                         """,
-                        token);
-
-                    // Nothing inserted: the account or the user is gone, the conflict clause met this user's own
-                    // assignment already standing, or the account is assigned to as many users as it may be where it
-                    // belongs. Inside an organization somebody else's assignment is not a conflict — the key is the pair —
-                    // so an account several members are assigned takes each of them without the others being consulted.
-                    if (assigned == 0)
-                    {
-                        return new MailAccountWrite(await WhyNotAssignedAsync(context, accountId, userId, organization, token), 0);
-                    }
-
-                    if (!await StepUserVersionAsync(context, userId, expectedUserVersion, now, token))
-                    {
-                        await context.Database.ExecuteSqlAsync(
-                            $"""DELETE FROM mail_account_assignments WHERE "UserId" = {userId} AND "MailAccountId" = {accountId}""",
-                            token);
-
-                        return new MailAccountWrite(MailAccountWriteResult.VersionSuperseded, 0);
-                    }
-
-                    return new MailAccountWrite(MailAccountWriteResult.Committed, 0);
-                },
-                cancellationToken);
+            return await AssignCountedAsync(accountId, user, expectedUserVersion, cancellationToken);
         }
         catch (Exception failure) when (Violates(failure, PersistenceConstraintNames.MailAccountAssignmentSoleUserIndexName))
         {
-            // A second user for an account in no organization written past the count above — by something that took
-            // no lock on the account — is refused by the index, and answered as the count would have answered it.
+            // The count below runs under the account's lock, which the index's own trigger waits on as well, so a store
+            // does not reach this; a refusal by the index is still answered as the count answers it rather than as a
+            // provider failure.
             return new MailAccountWrite(MailAccountWriteResult.SharedOnlyInOrganization, 0);
         }
+    }
+
+    /// <summary>Assigns the account within the bound its organization sets, counted under the account's lock.</summary>
+    private Task<MailAccountWrite> AssignCountedAsync(
+        Guid accountId,
+        UserId user,
+        long expectedUserVersion,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireNamed(user);
+        var now = timeProvider.GetUtcNow();
+
+        return commitPolicy.CommitAsync(
+            async (session, token) =>
+            {
+                var context = await EfCorePersistenceSessionAccessor.JoinAsync(session, token);
+
+                // The account is held against a move of its own and the user against a move of theirs until this
+                // transaction commits, so the organizations compared here are the ones the assignment is written
+                // under: a move that commits first is read here, and a move that comes after waits and then counts
+                // this assignment. The account is taken first, which is the order a save takes it in, and exclusively
+                // against another assignment, so two assignments of one account count its users one after the other
+                // and neither takes it past the bound its organization sets.
+                var accountOrganization = await LockAccountAsync(context, accountId, token);
+                var userOrganization = await LockUserAsync(context, userId, token);
+
+                if (accountOrganization is [var ofAccount] && userOrganization is [var ofUser] && ofAccount != ofUser)
+                {
+                    return new MailAccountWrite(
+                        MailAccountWriteResult.OrganizationsDiffer,
+                        0,
+                        new StraddledOrganizations(ofAccount, ofUser));
+                }
+
+                // An account that is gone reads as one in no organization here, and the insert below settles it.
+                var organization = accountOrganization.FirstOrDefault();
+                var mostUsers = MailAccountRecord.MaximumUsersAssignedIn(organization);
+
+                var assigned = await context.Database.ExecuteSqlAsync(
+                    $"""
+                     INSERT INTO mail_account_assignments ("UserId", "MailAccountId", "AssignedAt")
+                     SELECT {userId}, {accountId}, {now}
+                     WHERE EXISTS (SELECT 1 FROM settings_mail_accounts WHERE "Id" = {accountId})
+                       AND EXISTS (SELECT 1 FROM settings_accounts WHERE "Id" = {userId})
+                       AND (SELECT count(*) FROM mail_account_assignments WHERE "MailAccountId" = {accountId}) < {mostUsers}
+                     ON CONFLICT DO NOTHING
+                     """,
+                    token);
+
+                // Nothing inserted: the account or the user is gone, the conflict clause met this user's own
+                // assignment already standing, or the account is assigned to as many users as it may be where it
+                // belongs. Inside an organization somebody else's assignment is not a conflict — the key is the pair —
+                // so an account several members are assigned takes each of them without the others being consulted.
+                if (assigned == 0)
+                {
+                    return new MailAccountWrite(await WhyNotAssignedAsync(context, accountId, userId, organization, token), 0);
+                }
+
+                if (!await StepUserVersionAsync(context, userId, expectedUserVersion, now, token))
+                {
+                    await context.Database.ExecuteSqlAsync(
+                        $"""DELETE FROM mail_account_assignments WHERE "UserId" = {userId} AND "MailAccountId" = {accountId}""",
+                        token);
+
+                    return new MailAccountWrite(MailAccountWriteResult.VersionSuperseded, 0);
+                }
+
+                return new MailAccountWrite(MailAccountWriteResult.Committed, 0);
+            },
+            cancellationToken);
     }
 
     /// <inheritdoc />
