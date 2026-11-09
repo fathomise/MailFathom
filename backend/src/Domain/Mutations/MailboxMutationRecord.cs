@@ -161,7 +161,7 @@ public sealed record MailboxMutationRecord
     public DateTimeOffset? DeleteFlagSettledAt { get; init; }
 
     /// <summary>Gets whether this is a delete that flagged its message <c>\Deleted</c> and left expunging to somebody else.</summary>
-    public bool LeavesMessageOnServer =>
+    public bool LeavesMessageFlaggedOnServer =>
         this.Request.ServerDisposition is AuthoredDeleteServerDisposition.FlagDeleted;
 
     /// <summary>Gets whether the record has reached a stage nothing moves it out of.</summary>
@@ -267,7 +267,7 @@ public sealed record MailboxMutationRecord
         (!this.ExpectsPlacementObservation || this.PlacementObservedAt is not null)
         && (!this.ExpectsSourceRemovalObservation
             || this.SourceRemovalObservedAt is not null
-            || (this.LeavesMessageOnServer && this.DeleteFlagSettledAt is not null));
+            || (this.LeavesMessageFlaggedOnServer && this.DeleteFlagSettledAt is not null));
 
     /// <summary>Reports whether a newly discovered occurrence is one this mutation put there.</summary>
     /// <param name="discoveredFolderPath">The remote path of the folder the occurrence was discovered in.</param>

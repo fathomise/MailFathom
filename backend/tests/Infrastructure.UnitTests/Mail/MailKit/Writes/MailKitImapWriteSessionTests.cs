@@ -713,6 +713,33 @@ public sealed class MailKitImapWriteSessionTests
         await openFolder.DidNotReceive().ExpungeAsync(Arg.Any<CancellationToken>());
     }
 
+    /// <summary>Everything past this guard expunges, so a delete meant to reach no server is refused before a command can be issued for it.</summary>
+    [Fact]
+    public async Task DeleteAsync_LeavingTheServerUntouched_IssuesNoCommand()
+    {
+        // Arrange
+        using var resilience = CreateSingleAttemptResilience();
+        var client = new FakeImapClient { Capabilities = ImapCapabilities.UidPlus };
+        var openFolder = CreateWritableFolder();
+        await using var harness = CreateHarness(resilience, client, openFolder);
+        await using var session = await harness.OpenSessionAsync();
+
+        // Act
+        var deleting = session.DeleteAsync(
+            CreateOccurrenceId(42U),
+            AuthoredDeleteServerDisposition.LeaveOnServer,
+            new RecordingMailboxMutationJournal(),
+            CancellationToken.None);
+
+        // Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => deleting);
+        await openFolder.DidNotReceive().StoreAsync(
+            Arg.Any<IList<UniqueId>>(),
+            Arg.Any<IStoreFlagsRequest>(),
+            Arg.Any<CancellationToken>());
+        await openFolder.DidNotReceive().ExpungeAsync(Arg.Any<IList<UniqueId>>(), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>An account that only flags its deletes leaves the expunge to the server, so the one command issued is the flag.</summary>
     [Fact]
     public async Task DeleteAsync_FlagOnly_FlagsDeletedAndIssuesNoExpunge()

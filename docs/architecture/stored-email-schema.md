@@ -634,6 +634,23 @@ readable, and the reconciliation window skips it; the marker is cleared when the
 first, before any server has removed it; withdrawing or giving up that delete clears it, and so does the server being
 seen to have restored the message.
 
+## Where a delete left a message untouched
+
+`mailbox_forgotten_occurrences` holds one row per occurrence a `LeaveOnServer` delete left on its server, written in the
+transaction that erases the local copy. Every batch the forward pass reads is checked against it, and an occurrence
+found here is not mirrored.
+
+| Column of `mailbox_forgotten_occurrences` | What it records |
+|---|---|
+| `Id` | The row's own identity |
+| `MailboxAccountId`, `MailFolderId` | The account and the folder binding. The binding's foreign key cascades, so a folder or an account that is gone takes its rows with it |
+| `UidValidity`, `Uid` | The occurrence on the server. `ix_mailbox_forgotten_occurrences_occurrence` is unique over the folder and the two |
+
+A row holds no part of the message: a position in a mailbox. No retention ages it out, because it is all that keeps the
+message from being mirrored again. A run removes a folder's rows under any `UIDVALIDITY` but the one the folder reports,
+when it finds the folder's checkpoint under another or none, and an erasure of the folder removes them under every
+binding its alias has had.
+
 ## What a person set about their own client
 
 `client_preferences` holds one row per user, carrying what that person set about
@@ -1568,7 +1585,7 @@ mid-flight govern the deletes authored after the change and leave one already be
 column is missing from is refused on the way back rather than read as some fallback, because every value destroys
 something a different one keeps.
 
-`ServerDisposition` is the other, and only a delete carries it: `Expunge` or `FlagDeleted`, stored by name and written
+`ServerDisposition` is the other, and only a delete carries it: `Expunge`, `FlagDeleted`, or `LeaveOnServer`, stored by name and written
 with the row for the same reason `LocalDisposition` is. Every delete recorded before the column existed was written as
 `Expunge`, which is what each of them did, and a delete row without it is read as `Expunge`: only a build that knows no
 other value writes one.

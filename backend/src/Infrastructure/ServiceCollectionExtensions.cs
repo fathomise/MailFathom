@@ -885,6 +885,7 @@ public static class ServiceCollectionExtensions
         // instance, and a gauge answering per scope would report whichever scope last ran a pass.
         services.AddSingleton<MailExtractionBackfillTelemetry>();
         services.AddScoped<IStoredEmailReconciliationStore, StoredEmailReconciliationStore>();
+        services.AddScoped<IForgottenOccurrenceStore, ForgottenOccurrenceStore>();
     }
 
     /// <summary>Registers what a rule evaluation writes down and what the administrative surface reads back out of it.</summary>

@@ -148,6 +148,112 @@ public sealed class MailboxSynchronizerTests
         await checkpointStore.Received(1).SaveCheckpointAsync(persistenceSession, accountId, folder.Id, Arg.Any<SynchronizationCheckpoint?>(), Arg.Is<SynchronizationCheckpoint>(checkpoint => checkpoint!.LastSeenUid == uid), CancellationToken.None);
     }
 
+    /// <summary>An occurrence a delete left on the server is not stored again, and the checkpoint moves past it so no later run asks.</summary>
+    [Fact]
+    public async Task SynchronizeAsync_AnOccurrenceADeleteLeftOnTheServer_IsNotMirroredAndTheCheckpointMovesPastIt()
+    {
+        // Arrange
+        var accountId = MailAccountId.Create("primary");
+        var folder = InboxFolder;
+        var uidValidity = ImapUidValidity.Create(5);
+        var uid = ImapUid.Create(10);
+        var occurrence = EmailOccurrenceId.Create(accountId, folder.Id, uidValidity, uid);
+        var checkpointStore = Substitute.For<ISynchronizationCheckpointStore>();
+        var metadataRepository = Substitute.For<IEmailMetadataRepository>();
+        var sessionScopeFactory = Substitute.For<IPersistenceSessionFactory>();
+        var persistenceSession = Substitute.For<IPersistenceSession>();
+        sessionScopeFactory.BeginSessionAsync(CancellationToken.None).Returns(persistenceSession);
+        var sessionFactory = Substitute.For<IMailboxSessionFactory>();
+        var session = Substitute.For<IMailboxSession>();
+        var forgottenOccurrences = Substitute.For<IForgottenOccurrenceStore>();
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 7, 24, 12, 0, 0, TimeSpan.Zero));
+        var options = new MailboxSynchronizationOptions { MaxMetadataBatchSize = 25, MaxRawMimeBytes = 1024 };
+        var synchronizer = CreateSynchronizer(
+            sessionFactory,
+            checkpointStore,
+            sessionScopeFactory,
+            metadataRepository,
+            ContentStores.Substituted(),
+            clock,
+            options,
+            forgottenOccurrences: forgottenOccurrences);
+        var metadata = new RemoteEmailMetadata(occurrence, "message-1@example.test", "Subject", new DateTimeOffset(2026, 7, 24, 8, 0, 0, TimeSpan.Zero), 3, IsRemotelySeen: false);
+        checkpointStore.GetCheckpointAsync(accountId, folder.Id, CancellationToken.None).Returns(SynchronizationCheckpoint.None(uidValidity));
+        sessionFactory.OpenReadOnlyAsync(accountId, folder, Arg.Any<MailTransportSecurityPolicy>(), CancellationToken.None).Returns(session);
+        session.GetUidValidityAsync(CancellationToken.None).Returns(uidValidity);
+        session.GetEmailBatchAfterAsync(null, 25, MailSynchronizationWindow.Unbounded, CancellationToken.None).Returns(new RemoteEmailMetadataBatch([metadata], uid, false));
+        forgottenOccurrences
+            .ReadForgottenUidsAsync(accountId, folder.Id, uidValidity, Arg.Any<IReadOnlyCollection<ImapUid>>(), Arg.Any<CancellationToken>())
+            .Returns(new HashSet<ImapUid> { uid });
+
+        // Act
+        var result = await synchronizer.SynchronizeAsync(accountId, InboxMapping, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(0, result.StoredEmailCount);
+        await session.DidNotReceive().FetchEmailContentWithoutSettingSeenAsync(occurrence, Arg.Any<long>(), Arg.Any<CancellationToken>());
+        await metadataRepository.DidNotReceive().UpsertMetadataAsync(
+            Arg.Any<IPersistenceSession>(),
+            metadata,
+            Arg.Any<ExtractedEmailMetadata?>(),
+            Arg.Any<StoredEmailContentAvailability>(),
+            Arg.Any<CancellationToken>());
+        await checkpointStore.Received(1).SaveCheckpointAsync(
+            persistenceSession,
+            accountId,
+            folder.Id,
+            Arg.Any<SynchronizationCheckpoint?>(),
+            Arg.Is<SynchronizationCheckpoint>(saved => saved != null && saved.LastSeenUid == uid),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A UID means nothing under a new UIDVALIDITY, so what the folder remembered under the old one is retired with the rest of it.</summary>
+    [Theory]
+    [InlineData(5U, 1)]
+    [InlineData(6U, 0)]
+    public async Task SynchronizeAsync_TheFolderReportsAUidValidity_RetiresForgottenOccurrencesOnlyWhenItChanged(uint persistedUidValidity, int retirements)
+    {
+        // Arrange
+        var accountId = MailAccountId.Create("primary");
+        var folder = InboxFolder;
+        var uidValidity = ImapUidValidity.Create(6);
+        var checkpointStore = Substitute.For<ISynchronizationCheckpointStore>();
+        var sessionScopeFactory = Substitute.For<IPersistenceSessionFactory>();
+        var persistenceSession = Substitute.For<IPersistenceSession>();
+        persistenceSession.CommitAsync(Arg.Any<CancellationToken>()).Returns(PersistenceCommitResult.Committed);
+        sessionScopeFactory.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(persistenceSession);
+        var sessionFactory = Substitute.For<IMailboxSessionFactory>();
+        var session = Substitute.For<IMailboxSession>();
+        var forgottenOccurrences = Substitute.For<IForgottenOccurrenceStore>();
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 7, 24, 12, 0, 0, TimeSpan.Zero));
+        var options = new MailboxSynchronizationOptions { MaxMetadataBatchSize = 25, MaxRawMimeBytes = 1024 };
+        var synchronizer = CreateSynchronizer(
+            sessionFactory,
+            checkpointStore,
+            sessionScopeFactory,
+            Substitute.For<IEmailMetadataRepository>(),
+            ContentStores.Substituted(),
+            clock,
+            options,
+            forgottenOccurrences: forgottenOccurrences);
+        checkpointStore.GetCheckpointAsync(accountId, folder.Id, CancellationToken.None)
+            .Returns(SynchronizationCheckpoint.None(ImapUidValidity.Create(persistedUidValidity)));
+        sessionFactory.OpenReadOnlyAsync(accountId, folder, Arg.Any<MailTransportSecurityPolicy>(), CancellationToken.None).Returns(session);
+        session.GetUidValidityAsync(CancellationToken.None).Returns(uidValidity);
+        session.GetEmailBatchAfterAsync(null, 25, MailSynchronizationWindow.Unbounded, CancellationToken.None).Returns(new RemoteEmailMetadataBatch([], null, false));
+
+        // Act
+        await synchronizer.SynchronizeAsync(accountId, InboxMapping, CancellationToken.None);
+
+        // Assert
+        await forgottenOccurrences.Received(retirements).RetireOtherUidValiditiesAsync(
+            Arg.Any<IPersistenceSession>(),
+            accountId,
+            folder.Id,
+            uidValidity,
+            Arg.Any<CancellationToken>());
+    }
+
     /// <summary>
     /// On a held account a stored message lands in the local folder its source corresponds to, and the source is what
     /// the run resolved: its alias to match it by, its role to decide whether a protected folder takes it, and the last
@@ -3642,7 +3748,8 @@ public sealed class MailboxSynchronizerTests
         LocalMailFolderArrivals? localFolderArrivals = null,
         InMemoryMailAccountCustodyStore? custodyStore = null,
         ReceiptArrivals? receiptArrivals = null,
-        IMailboxServerCapabilityStore? serverCapabilities = null)
+        IMailboxServerCapabilityStore? serverCapabilities = null,
+        IForgottenOccurrenceStore? forgottenOccurrences = null)
     {
         var concurrencyRetryPolicy = new OptimisticConcurrencyRetryPolicy(
             persistenceSessionFactory,
@@ -3669,6 +3776,7 @@ public sealed class MailboxSynchronizerTests
             SenderTrustJudges.Over(),
             mutations,
             filingStore ?? CreateFilingStoreWithNothingFiled(),
+            forgottenOccurrences ?? Substitute.For<IForgottenOccurrenceStore>(),
             new FlaggedDeleteFollower(
                 reconciliation,
                 mutations,

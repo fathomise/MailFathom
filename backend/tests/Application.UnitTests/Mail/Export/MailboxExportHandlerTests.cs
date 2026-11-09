@@ -27,6 +27,26 @@ public sealed class MailboxExportHandlerTests
 
     private static readonly MailboxExportFolder Inbox = new("INBOX", ["INBOX"], IsInbox: true);
 
+    /// <summary>An export answers for what is held, and the record of a delete that left its message on the server is held.</summary>
+    [Fact]
+    public async Task RunAsync_AnAccountRememberingOccurrences_ReportsThemInTheArchive()
+    {
+        // Arrange
+        var queued = Queued();
+        var store = new InMemoryMailboxExportStore().Holding(queued);
+        var archives = new InMemoryMailboxExportArchiveStore();
+        var reader = ReaderHolding();
+        reader.ForgottenOccurrenceCount = 2;
+        var handler = HandlerOver(store, reader, archives);
+
+        // Act
+        await handler.RunAsync(PayloadFor(queued), TestContext.Current.CancellationToken);
+
+        // Assert
+        using var archive = new ZipArchive(new MemoryStream(archives.Read(store.Find(queued.Id)!.ObjectLocator!)!), ZipArchiveMode.Read);
+        Assert.NotNull(archive.GetEntry(MaildirArchiveLayout.ForgottenOccurrencesDocumentPath));
+    }
+
     [Fact]
     public async Task RunAsync_AQueuedExport_WritesTheArchiveAndRecordsWhereItIsAndWhenItGoes()
     {
@@ -78,7 +98,7 @@ public sealed class MailboxExportHandlerTests
             ZipArchiveMode.Read);
 
         Assert.Equal(
-            ["cur/", "keywords.json", "new/", "tmp/"],
+            ["cur/", "forgotten-occurrences.json", "keywords.json", "new/", "tmp/"],
             archive.Entries
                 .Select(entry => entry.FullName)
                 .Where(name => name.EndsWith('/') || !name.Contains('/', StringComparison.Ordinal))

@@ -34,4 +34,21 @@ public enum AuthoredDeleteServerDisposition
     /// brings the message back.
     /// </remarks>
     FlagDeleted = 1,
+
+    /// <summary>Sends the mail server nothing at all, and erases the message from MailFathom alone.</summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="FlagDeleted" /> reads as the safe answer and is not one: IMAP leaves expunging to clients, so the first
+    /// client that expunges or closes the folder removes a flagged message for good, and a server such as Gmail with its
+    /// IMAP Auto-Expunge on removes it the moment the flag is set. Only a delete that touches nothing on the server keeps
+    /// the message there whatever else reads the mailbox.
+    /// </para>
+    /// <para>
+    /// The local copy is erased whatever <see cref="AuthoredDeleteEmailDisposition" /> says, because keeping it would make
+    /// this a delete that changes nothing anywhere. What stays is the occurrence's identity alone — the account, the
+    /// folder, UIDVALIDITY, and the UID — so synchronization never mirrors that occurrence again. A copy of the message
+    /// reaching another folder, or the same folder under another UID, is a different occurrence and is new mail.
+    /// </para>
+    /// </remarks>
+    LeaveOnServer = 2,
 }

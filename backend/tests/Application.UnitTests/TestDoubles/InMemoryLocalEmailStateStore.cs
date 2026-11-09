@@ -6,6 +6,7 @@ using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.UnitTests.TestDoubles;
 
@@ -17,6 +18,10 @@ internal sealed class InMemoryLocalEmailStateStore(MailAccountId account) : ILoc
     internal IReadOnlyDictionary<StoredEmailId, LocalEmailState> States => this.states;
 
     internal List<StoredEmailId> Erased { get; } = [];
+
+    internal List<StoredEmailId> Forgotten { get; } = [];
+
+    internal List<EmailOccurrenceId> ForgottenOccurrences { get; } = [];
 
     internal void Store(StoredEmailId email, LocalEmailState state) => this.states[email] = state;
 
@@ -57,5 +62,23 @@ internal sealed class InMemoryLocalEmailStateStore(MailAccountId account) : ILoc
         }
 
         return Task.CompletedTask;
+    }
+
+    public Task<MailFolderId?> ForgetAsync(
+        IPersistenceSession session,
+        MailAccountId account1,
+        StoredEmailId email,
+        EmailOccurrenceId occurrence,
+        CancellationToken cancellationToken)
+    {
+        if (account1 != account || !this.states.Remove(email, out var state))
+        {
+            return Task.FromResult<MailFolderId?>(null);
+        }
+
+        this.Forgotten.Add(email);
+        this.ForgottenOccurrences.Add(occurrence);
+
+        return Task.FromResult(state.Folder);
     }
 }

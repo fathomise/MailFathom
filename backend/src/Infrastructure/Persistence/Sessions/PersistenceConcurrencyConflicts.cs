@@ -302,6 +302,7 @@ internal static class PersistenceConcurrencyConflicts
                 or PersistenceConstraintNames.EmailThreadStatePrimaryKeyConstraintName
                 or PersistenceConstraintNames.MailboxSourceRemovalOccurrenceUniqueIndexName
                 or PersistenceConstraintNames.MailboxFlaggedDeleteOccurrenceUniqueIndexName
+                or PersistenceConstraintNames.MailboxForgottenOccurrenceUniqueIndexName
                 or PersistenceConstraintNames.CalendarEventReminderPrimaryKeyConstraintName
                 or PersistenceConstraintNames.ContactPhoneNumberPrimaryKeyConstraintName
                 or PersistenceConstraintNames.PersonalTaskReminderPrimaryKeyConstraintName

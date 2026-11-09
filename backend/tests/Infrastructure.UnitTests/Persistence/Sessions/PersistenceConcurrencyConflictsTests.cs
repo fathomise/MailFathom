@@ -50,6 +50,7 @@ public sealed class PersistenceConcurrencyConflictsTests
         PersistenceConstraintNames.EmailThreadStatePrimaryKeyConstraintName,
         PersistenceConstraintNames.MailboxSourceRemovalOccurrenceUniqueIndexName,
         PersistenceConstraintNames.MailboxFlaggedDeleteOccurrenceUniqueIndexName,
+        PersistenceConstraintNames.MailboxForgottenOccurrenceUniqueIndexName,
         PersistenceConstraintNames.CalendarEventReminderPrimaryKeyConstraintName,
         PersistenceConstraintNames.PersonalTaskReminderPrimaryKeyConstraintName,
         PersistenceConstraintNames.CalendarEventImportedUidUniqueIndexName,

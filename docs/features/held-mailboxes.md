@@ -166,6 +166,9 @@ source. So the erasing transaction writes a **source removal record** — a fold
 nothing from the message — and the drain expunges from it afterwards. The request that asked for the erasure never
 waits on a mail server and never fails because one is unreachable.
 
+A delete under `AuthoredDeleteServerDisposition` `LeaveOnServer` writes no such record: what the drain had not reached
+stays on the source, and only [its position](imap-synchronization.md#a-delete-that-leaves-the-server-untouched) is kept.
+
 A record is written for a folder the source keeps messages in, and for no other. Erasing what is stored of a folder
 playing a virtual role writes none, because the UIDs such a folder presents are occurrences of messages the source
 keeps in other folders and expunging one would take mail out of a folder nobody asked about; an alias no mapping names

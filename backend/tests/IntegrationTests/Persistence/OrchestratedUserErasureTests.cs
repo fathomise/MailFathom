@@ -735,6 +735,14 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
             StoredEmailId = storedEmail.Id,
             LastObservedAt = now,
         });
+        context.MailboxForgottenOccurrences.Add(new MailboxForgottenOccurrenceEntity
+        {
+            Id = Guid.CreateVersion7(),
+            MailboxAccountId = account.Id,
+            MailFolderBindingId = folder.Id,
+            UidValidity = 1,
+            Uid = 3,
+        });
         context.MailboxSourceRemovals.Add(new MailboxSourceRemovalEntity
         {
             Id = Guid.CreateVersion7(),

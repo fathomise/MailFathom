@@ -1979,7 +1979,7 @@ destinations are which.
 `AuthoredDeleteServerDisposition` decides what a delete MailFathom performs does on the server. `Expunge`, the default,
 issues `UID STORE +FLAGS (\Deleted)` and then `UID EXPUNGE` for that one UID. `FlagDeleted` issues the `STORE` and
 nothing else, so the message stays in its folder marked deleted until another client, a server policy, or a person
-expunges it. Both require `UIDPLUS`. The value is resolved when the delete is recorded and travels on the mutation record,
+expunges it. Both require `UIDPLUS`; `LeaveOnServer`, [below](#a-delete-that-leaves-the-server-untouched), asks the server for nothing and requires nothing of it. The value is resolved when the delete is recorded and travels on the mutation record,
 exactly as the local disposition does, and a resumed attempt that finds the flag already set issues nothing again.
 
 The local copy still follows `AuthoredDeleteEmailDisposition`, and it is disposed of as soon as a run reads the flag on
@@ -2006,6 +2006,37 @@ Moving a message and withdrawing a filed copy always expunge, whatever this sett
 somewhere else, and a copy left flagged behind would be a second one. An account whose mailbox MailFathom holds deletes
 locally and never reaches the server with a delete, so the setting decides nothing there, and asking to hold the mailbox
 of an account set to `FlagDeleted` is refused.
+
+### A delete that leaves the server untouched
+
+`LeaveOnServer` sends the mail server nothing at all: no `\Deleted`, no expunge, not even a connection for it. The
+message leaves MailFathom and stays on the server unflagged, for the other clients and the server's own retention.
+
+`FlagDeleted` is not the safe version of this. IMAP leaves expunging to clients, so the first client that expunges or
+closes the folder removes a flagged message for good, and Gmail's IMAP *Auto-Expunge*, on by default, removes it the
+moment the flag is set. On such a server `FlagDeleted` is `Expunge` under another name.
+
+On a mirrored account the delete is hidden from every reader when it commits, whatever the server last advertised. The
+window a person has to take it back runs as for any delete, and when it has passed the account's next convergence pass
+erases the row, its MIME, its attachments' text, its chunks, its embeddings, and its enrichment, in one transaction with
+the record of what stays. `AuthoredDeleteEmailDisposition` decides nothing here: keeping the local copy would make this
+a delete that changes nothing anywhere.
+
+What stays is the occurrence's identity alone — the account, the folder, `UIDVALIDITY`, and the UID — in
+`mailbox_forgotten_occurrences`. The forward pass reads each batch against it and moves its checkpoint past what it
+finds, so that occurrence is never mirrored again, whatever later resets the pass. No retention ages the record out,
+because it is all that keeps the message away. It goes when the folder reports a new `UIDVALIDITY`, under which the UID
+names nothing; with an erasure of the folder, after which the folder mirrors afresh; and with the account. A
+[mailbox export](../operations/mailbox-export.md#what-is-inside-the-archive) reports how many the account holds.
+
+**The record names an occurrence, not a message.** A copy of the same message reaching another folder, or the same
+folder under another UID — another client moving it out and back, say — is a different occurrence and is new mail, so it
+is mirrored. Nothing about the deleted message is kept to recognize it by, which is the point of keeping only a position.
+
+An account whose mailbox MailFathom holds moves a deleted message to its local trash and erases it on a second delete,
+as ever, and the source is owed no removal for a message so erased: what the drain had not reached yet stays on the
+source and is not mirrored again. A restoring account does the same and carries no delete to its source. Asking to hold
+an account set to `LeaveOnServer` is not refused, since unlike a flag it leaves nothing for the source to follow.
 
 ### What a message MailFathom copied becomes locally
 

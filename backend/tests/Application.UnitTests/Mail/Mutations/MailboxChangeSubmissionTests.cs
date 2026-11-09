@@ -621,6 +621,79 @@ public sealed class MailboxChangeSubmissionTests
         Assert.Contains(Email, this.states.States.Keys);
     }
 
+    /// <summary>A delete that leaves its server untouched owes the source no removal when it is the second delete of a held message.</summary>
+    [Fact]
+    public async Task EraseAsync_ADeleteThatLeavesTheServerUntouched_ForgetsTheMessageInsteadOfOwingTheSourceARemoval()
+    {
+        // Arrange
+        this.Store();
+        var record = await this.records.OpenAsync(this.session, LeaveOnServerRequest(), heldUntil: null, MailboxMutationLocalChange.Erasure, Token);
+
+        // Act
+        var erased = await this.Submission().EraseAsync(this.session, record, Token);
+
+        // Assert
+        Assert.NotNull(erased);
+        Assert.Equal(Email, Assert.Single(this.states.Forgotten));
+        Assert.Empty(this.states.Erased);
+    }
+
+    /// <summary>The audit trail names the record a person could have withdrawn, and the message goes with nothing asked of the server.</summary>
+    [Fact]
+    public async Task ForgetAsync_AnAuditedDelete_ForgetsTheMessageAndAppendsItsCompletion()
+    {
+        // Arrange
+        this.Store(folder: InboxRow);
+        this.records.AuditsMutations = true;
+        var record = await this.records.OpenAsync(this.session, LeaveOnServerRequest(), heldUntil: null, MailboxMutationLocalChange.AlreadyCommitted, Token);
+
+        // Act
+        var forgotten = await this.Submission().ForgetAsync(this.session, new OutstandingMailboxMutation(record, Inbox), Token);
+
+        // Assert
+        Assert.Equal(InboxRow, forgotten?.Folder);
+        Assert.Equal(Email, Assert.Single(this.states.Forgotten));
+        await this.auditEntries.Received(1).AppendAsync(
+            this.session,
+            Arg.Is<MailboxMutationAuditEntry>(entry =>
+                entry != null && entry.MutationRecordId == record.Id && entry.Outcome == MailboxMutationAuditOutcome.Performed),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A person who withdrew the delete after the pass read its record keeps the message, for the reason an erasure does.</summary>
+    [Fact]
+    public async Task ForgetAsync_ARecordWithdrawnAfterThePassReadIt_ForgetsNothing()
+    {
+        // Arrange
+        this.Store();
+        var submission = this.Submission();
+        var readByThePass = await this.records.OpenAsync(this.session, LeaveOnServerRequest(), Now.AddSeconds(30), MailboxMutationLocalChange.None, Token);
+        await this.records.WithdrawAsync(this.session, [Account], [readByThePass.Id], Token);
+
+        // Act
+        var forgetting = submission.ForgetAsync(this.session, new OutstandingMailboxMutation(readByThePass, Inbox), Token);
+
+        // Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => forgetting);
+        Assert.Contains(Email, this.states.States.Keys);
+    }
+
+    /// <summary>A restoring account's source is owed every act on a message it holds, except a delete that asks the source for nothing.</summary>
+    [Fact]
+    public async Task SubmitAsync_ADeleteThatLeavesTheServerUntouchedOnARestoringAccount_CommitsLocallyAndOpensNoRecord()
+    {
+        // Arrange
+        this.Store();
+        this.folders.Phase = MailAccountCustodyPhase.Restoring;
+
+        // Act
+        var submitted = await this.Submission().SubmitAsync(this.session, LeaveOnServerRequest(), null, null, Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Applied, submitted.Outcome);
+        Assert.Null(submitted.Record);
+    }
+
     /// <summary>A committed flag change reaches the clients watching the account as a flag change, which they apply without a re-read.</summary>
     [Fact]
     public async Task Announce_ACommittedFlagChange_PublishesItToTheAccountsClients()
@@ -863,6 +936,13 @@ public sealed class MailboxChangeSubmissionTests
     private static MailboxMutationRequest MoveRequest(RemoteFolderPath destination) =>
         MailboxMutationRequest.Relocate(Email, Occurrence, Requester, destination);
 
+    private static MailboxMutationRequest LeaveOnServerRequest() => MailboxMutationRequest.Delete(
+        Email,
+        Occurrence,
+        Requester,
+        AuthoredDeleteEmailDisposition.EraseLocalCopy,
+        AuthoredDeleteServerDisposition.LeaveOnServer);
+
     private static MailboxMutationRequest DeleteRequest() => MailboxMutationRequest.Delete(
         Email,
         Occurrence,
@@ -950,12 +1030,12 @@ public sealed class MailboxChangeSubmissionTests
         this.copies,
         MimeReadingNothing());
 
-    private void Store(IEnumerable<string>? keywords = null, bool holdsSourceOccurrence = true) => this.states.Store(
+    private void Store(IEnumerable<string>? keywords = null, bool holdsSourceOccurrence = true, MailFolderId? folder = null) => this.states.Store(
         Email,
         new LocalEmailState(
             Inbox,
             holdsSourceOccurrence,
-            Folder: null,
+            folder,
             IsSeen: false,
             IsFlagged: false,
             EmailKeywords.Create(keywords ?? [])));

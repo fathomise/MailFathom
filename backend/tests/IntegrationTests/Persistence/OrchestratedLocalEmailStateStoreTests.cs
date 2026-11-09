@@ -7,6 +7,7 @@ using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Drain;
+using MailFathom.Application.Synchronization.Reconciliation;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Infrastructure.Persistence;
@@ -44,6 +45,8 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
     private const uint RoundTrippedUid = 812;
 
     private const uint DrainedUid = 813;
+
+    private const uint ForgottenUid = 814;
 
     /// <summary>Past the payload PostgreSQL keeps in a heap page, so the figure moves by a length no rounding could produce.</summary>
     private const int PayloadByteCount = 64 * 1024;
@@ -232,6 +235,58 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
 
         Assert.NotNull(afterTheDrain);
         Assert.False(afterTheDrain.HoldsSourceOccurrence);
+    }
+
+    /// <summary>
+    /// What a delete that leaves its server untouched keeps is a position and nothing else: the row and its payload go,
+    /// no removal is owed to the source, and the position is what the forward pass is then told not to mirror.
+    /// </summary>
+    [Fact]
+    public async Task ForgetAsync_AMessageTheServerKeeps_ErasesTheRowAndRemembersOnlyItsOccurrence()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, FolderAlias, cancellationToken);
+        var occurrenceId = SyntheticEmail.OccurrenceIn(binding, ForgottenUid);
+        var storedEmailId = await StoreAsync(
+            services,
+            occurrenceId,
+            "local-email-state-forgotten",
+            SyntheticEmail.RawMimeOf("local-email-state-forgotten", PayloadByteCount),
+            cancellationToken);
+
+        // Act
+        var folder = await services.CommitProducingAsync(
+            (scope, session, token) => scope.GetRequiredService<ILocalEmailStateStore>().ForgetAsync(
+                session,
+                SyntheticMailAccount.Account,
+                storedEmailId,
+                occurrenceId,
+                token),
+            cancellationToken);
+
+        // Assert
+        Assert.NotNull(folder);
+        Assert.Equal(0, await CountStoredEmailRowsAsync(services, storedEmailId, cancellationToken));
+        Assert.Equal(0, await CountContentRowsAsync(services, storedEmailId, cancellationToken));
+
+        var forgotten = await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IForgottenOccurrenceStore>().ReadForgottenUidsAsync(
+                SyntheticMailAccount.Account,
+                binding.Id,
+                occurrenceId.UidValidity,
+                [occurrenceId.Uid],
+                token),
+            cancellationToken);
+        var sourceRemovals = await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().MailboxSourceRemovals
+                .AsNoTracking()
+                .CountAsync(removal => removal.Uid == ForgottenUid, token),
+            cancellationToken);
+
+        Assert.Contains(occurrenceId.Uid, forgotten);
+        Assert.Equal(0, sourceRemovals);
     }
 
     /// <summary>Reads through the store inside a session of its own, which is the only way the port reads.</summary>

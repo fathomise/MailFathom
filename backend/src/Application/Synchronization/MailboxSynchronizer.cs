@@ -51,6 +51,7 @@ public sealed class MailboxSynchronizer
     private readonly SenderTrustJudge senderTrust;
     private readonly IMailboxMutationReconciliationStore mutationStore;
     private readonly IOutgoingMailFilingStore filingStore;
+    private readonly IForgottenOccurrenceStore forgottenOccurrences;
     private readonly FlaggedDeleteFollower flaggedDeleteFollower;
     private readonly MailboxReconciler reconciler;
     private readonly DerivedWorkGate derivedWorkGate;
@@ -87,6 +88,7 @@ public sealed class MailboxSynchronizer
         SenderTrustJudge senderTrust,
         IMailboxMutationReconciliationStore mutationStore,
         IOutgoingMailFilingStore filingStore,
+        IForgottenOccurrenceStore forgottenOccurrences,
         FlaggedDeleteFollower flaggedDeleteFollower,
         MailboxReconciler reconciler,
         DerivedWorkGate derivedWorkGate,
@@ -118,6 +120,7 @@ public sealed class MailboxSynchronizer
         this.senderTrust = senderTrust;
         this.mutationStore = mutationStore;
         this.filingStore = filingStore;
+        this.forgottenOccurrences = forgottenOccurrences;
         this.flaggedDeleteFollower = flaggedDeleteFollower;
         this.reconciler = reconciler;
         this.derivedWorkGate = derivedWorkGate;
@@ -234,6 +237,19 @@ public sealed class MailboxSynchronizer
             ? persistedCheckpoint
             : SynchronizationCheckpoint.None(uidValidity);
 
+        // Asked before the checkpoint can move to the new UIDVALIDITY, so a run that stops halfway asks again.
+        if (persistedCheckpoint?.UidValidity != uidValidity)
+        {
+            await this.concurrencyRetryPolicy.CommitAsync(
+                (persistenceSession, attemptCancellationToken) => this.forgottenOccurrences.RetireOtherUidValiditiesAsync(
+                    persistenceSession,
+                    account,
+                    folder.Id,
+                    uidValidity,
+                    attemptCancellationToken),
+                cancellationToken);
+        }
+
         // Neither population is measured here any more: what a claim is admitted against is read inside the statement
         // that takes it, so every replica claims against one reading rather than against its own. What this still owes
         // is the account's counter row where nothing has ever written one — a deployment upgraded before this mailbox
@@ -286,6 +302,12 @@ public sealed class MailboxSynchronizer
                     checkpoint.LastSeenUid,
                     synchronizationWindow,
                     cancellationToken);
+                var forgotten = await this.forgottenOccurrences.ReadForgottenUidsAsync(
+                    account,
+                    folder.Id,
+                    uidValidity,
+                    [.. batch.Emails.Select(static email => email.OccurrenceId.Uid)],
+                    cancellationToken);
                 var placements = await this.ReadPlacementsInBatchAsync(
                     account,
                     folder,
@@ -315,6 +337,15 @@ public sealed class MailboxSynchronizer
 
                 foreach (var metadata in batch.Emails.OrderBy(email => email.OccurrenceId.Uid.Value))
                 {
+                    // A delete left this occurrence on the server and took it out of MailFathom for good, so the only
+                    // thing owed to it is that the checkpoint moves past it.
+                    if (forgotten.Contains(metadata.OccurrenceId.Uid))
+                    {
+                        processedThroughUid = metadata.OccurrenceId.Uid;
+
+                        continue;
+                    }
+
                     var placement = FindPlacementOf(placements, folder, metadata.OccurrenceId);
 
                     // A copy committed locally first already has its second stored message, so the occurrence its

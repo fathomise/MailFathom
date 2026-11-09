@@ -349,6 +349,9 @@ internal static class PersistenceConstraintNames
     /// <summary>The order a folder's run asks about the occurrences its deletes left flagged.</summary>
     internal const string MailboxFlaggedDeleteQueueIndexName = "ix_mailbox_flagged_deletes_queue";
 
+    /// <summary>The occurrence a delete left on its server and took out of MailFathom, which is remembered once.</summary>
+    internal const string MailboxForgottenOccurrenceUniqueIndexName = "ix_mailbox_forgotten_occurrences_occurrence";
+
     /// <summary>The occurrence one erased message still occupies on its source, which is recorded once however often the erasure is attempted.</summary>
     internal const string MailboxSourceRemovalOccurrenceUniqueIndexName = "ix_mailbox_source_removals_occurrence";
 

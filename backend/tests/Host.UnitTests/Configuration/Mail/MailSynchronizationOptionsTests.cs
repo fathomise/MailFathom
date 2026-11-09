@@ -1127,6 +1127,7 @@ public sealed class MailSynchronizationOptionsTests
     [Theory]
     [InlineData("Expunge", AuthoredDeleteServerDisposition.Expunge)]
     [InlineData("FlagDeleted", AuthoredDeleteServerDisposition.FlagDeleted)]
+    [InlineData("LeaveOnServer", AuthoredDeleteServerDisposition.LeaveOnServer)]
     public void Bind_AuthoredDeleteServerDisposition_ReadsItByName(string name, AuthoredDeleteServerDisposition expected)
     {
         // Arrange
@@ -1179,7 +1180,7 @@ public sealed class MailSynchronizationOptionsTests
                 ["MailAccounts:0:Host"] = "imap.example.test",
                 ["MailAccounts:0:UserName"] = "mailfathom@example.test",
                 ["MailAccounts:0:Secrets:Password:SecretReference"] = "systemd-credential:imap-primary-password",
-                ["MailAccounts:0:AuthoredDeleteServerDisposition"] = "2",
+                ["MailAccounts:0:AuthoredDeleteServerDisposition"] = "3",
             })
             .Build();
         var user = configuration.Get<UserAccountOptions>()!;
@@ -1191,6 +1192,7 @@ public sealed class MailSynchronizationOptionsTests
         var result = Assert.Single(results);
         Assert.Contains("Expunge", result.ErrorMessage, StringComparison.Ordinal);
         Assert.Contains("FlagDeleted", result.ErrorMessage, StringComparison.Ordinal);
+        Assert.Contains("LeaveOnServer", result.ErrorMessage, StringComparison.Ordinal);
     }
 
     /// <summary>Deleting a folder means deleting it, so an account that says nothing deletes on both sides.</summary>

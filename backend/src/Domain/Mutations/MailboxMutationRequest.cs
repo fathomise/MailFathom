@@ -113,6 +113,9 @@ public sealed record MailboxMutationRequest
     /// </remarks>
     public AuthoredDeleteServerDisposition? ServerDisposition { get; }
 
+    /// <summary>Gets whether this is a delete that sends the mail server nothing and leaves the message there unflagged.</summary>
+    public bool LeavesServerUntouched => this.ServerDisposition is AuthoredDeleteServerDisposition.LeaveOnServer;
+
     /// <summary>Asks for one email to be moved out of its folder and into another.</summary>
     /// <param name="storedEmailId">The local email being moved.</param>
     /// <param name="occurrence">Where the email is now.</param>
@@ -153,14 +156,16 @@ public sealed record MailboxMutationRequest
     /// <param name="occurrence">Where the email is now.</param>
     /// <param name="requester">The authored act asking.</param>
     /// <param name="localDisposition">What becomes of the local copy once the server no longer serves the message as live.</param>
-    /// <param name="serverDisposition">Whether the delete expunges the message or only flags it <c>\Deleted</c>.</param>
+    /// <param name="serverDisposition">Whether the delete expunges the message, only flags it <c>\Deleted</c>, or sends the server nothing.</param>
     /// <returns>The request to write down.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="occurrence" /> or <paramref name="requester" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when either disposition names no declared value.</exception>
     /// <remarks>
     /// Both dispositions are parameters rather than something read where the delete completes, because completion happens
     /// in a later synchronization run that would read whatever the configuration says by then. Taking it here is what
-    /// makes the answer the one that was true when the user asked.
+    /// makes the answer the one that was true when the user asked. A delete that leaves the server untouched erases the
+    /// local copy whatever <paramref name="localDisposition" /> says, and the request says so itself, so everything that
+    /// reads the record later reads what will happen.
     /// </remarks>
     public static MailboxMutationRequest Delete(
         StoredEmailId storedEmailId,
@@ -176,7 +181,9 @@ public sealed record MailboxMutationRequest
             desiredSeenState: null,
             desiredFlaggedState: null,
             keywords: null,
-            localDisposition,
+            serverDisposition is AuthoredDeleteServerDisposition.LeaveOnServer
+                ? AuthoredDeleteEmailDisposition.EraseLocalCopy
+                : localDisposition,
             serverDisposition);
 
     /// <summary>Asks for the remote <c>\Seen</c> flag of one email to be set or cleared.</summary>
