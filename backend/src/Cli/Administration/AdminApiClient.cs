@@ -8,6 +8,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using MailFathom.Cli.Administration.Accounts;
+using MailFathom.Cli.Administration.Classification;
 using MailFathom.Cli.Administration.Configuration;
 using MailFathom.Cli.Administration.Contacts;
 using MailFathom.Cli.Administration.Content;
@@ -970,20 +971,20 @@ internal sealed class AdminApiClient
     /// synchronization runs, so this command is never what keeps a walk of a mailbox alive and closing the terminal
     /// cannot cancel one — including a run that was asked to act on the mailbox.
     /// </remarks>
-    internal Task<SpamClassificationRunStart> StartSpamClassificationRunAsync(
+    internal Task<ClassificationRunStart> StartClassificationRunAsync(
         string token,
-        SpamClassificationRunRequest request,
+        ClassificationRunRequest request,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
         return this.RequestAsync(
             HttpMethod.Post,
-            AdminEndpointRoutes.SpamClassificationRunsPath,
+            AdminEndpointRoutes.ClassificationRunsPath,
             token,
-            CliJsonContext.Default.SpamClassificationRunStart,
+            CliJsonContext.Default.ClassificationRunStart,
             cancellationToken,
-            JsonContent.Create(request, CliJsonContext.Default.SpamClassificationRunRequest));
+            JsonContent.Create(request, CliJsonContext.Default.ClassificationRunRequest));
     }
 
     /// <summary>Asks the deployment where one account's whole-mailbox classification run has got to.</summary>
@@ -993,7 +994,7 @@ internal sealed class AdminApiClient
     /// <returns>The run, which is absent where the account has never been asked for one.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
     /// <exception cref="CliFailure">Thrown when the deployment refused the request or the credential, could not be reached, or answered with something that is not a run.</exception>
-    internal Task<SpamClassificationRunState> ReadSpamClassificationRunAsync(
+    internal Task<ClassificationRunState> ReadClassificationRunAsync(
         string token,
         string account,
         CancellationToken cancellationToken)
@@ -1002,9 +1003,9 @@ internal sealed class AdminApiClient
 
         return this.RequestAsync(
             HttpMethod.Get,
-            $"{AdminEndpointRoutes.SpamClassificationRunsPath}?account={Uri.EscapeDataString(account)}",
+            $"{AdminEndpointRoutes.ClassificationRunsPath}?account={Uri.EscapeDataString(account)}",
             token,
-            CliJsonContext.Default.SpamClassificationRunState,
+            CliJsonContext.Default.ClassificationRunState,
             cancellationToken);
     }
 

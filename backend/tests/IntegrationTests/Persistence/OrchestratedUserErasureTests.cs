@@ -669,11 +669,12 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
             MailboxAccountId = account.Id,
             RequestedAt = now,
         });
-        context.SpamClassificationRuns.Add(new SpamClassificationRunEntity
+        context.ClassificationRuns.Add(new ClassificationRunEntity
         {
             MailboxAccountId = account.Id,
             RequestedAt = now,
-            FolderAliases = ["inbox"],
+            SpamFolderAliases = ["inbox"],
+            CategoryFolderAliases = [],
         });
 
         // The four tables a mailbox acquired after the rest of this arrangement was written: what its stored payloads

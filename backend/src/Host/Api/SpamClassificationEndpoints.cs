@@ -4,188 +4,49 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
-using MailFathom.Application.Spam;
-using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Spam.History;
-using MailFathom.Application.Spam.Runs;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
-using MailFathom.Domain.Folders;
 using MailFathom.Domain.Spam;
-using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Security.Endpoints;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MailFathom.Host.Api;
 
-/// <summary>Serves the two things an operator does about spam classification over a mailbox that is already stored.</summary>
+/// <summary>Serves what spam classification concluded about a mailbox that is already stored.</summary>
 /// <remarks>
 /// <para>
-/// Asking for a whole mailbox to be classified, and reading back what was concluded and what it asked for. Nothing here
-/// switches classification on, widens the folders it covers, or names a junk folder: those are configuration, which
+/// Reading back what was concluded and what it asked for; asking for a whole mailbox to be gone over is
+/// <see cref="ClassificationRunEndpoints" />. Nothing here switches classification on, widens the folders it covers, or names a junk folder: those are configuration, which
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0002-configuration-reading-mapping-and-reload-boundary.md">ADR 0002</see>
 /// keeps read-only so that what an instance will do to a mailbox is reviewable in a diff before it runs.
 /// </para>
 /// <para>
-/// They are here rather than on the MCP surface because neither is anything a model reasons over, and because what bounds
-/// administrative access is what should bound the ability to start a pass over a whole mailbox — and, with acting asked
-/// for, to move a thousand messages. Asking for a run is therefore <c>mailfathom.admin.operate</c> and reading where one
-/// got to is <c>mailfathom.admin.read</c>, while the classifications themselves are <c>mailfathom.admin.audit.read</c>:
-/// a verdict about a message is derived from that message rather than a report of the deployment's own state.
+/// It is here rather than on the MCP surface because none of it is anything a model reasons over, and the classifications
+/// themselves are <c>mailfathom.admin.audit.read</c>: a verdict about a message is derived from that message rather than a
+/// report of the deployment's own state.
 /// </para>
 /// <para>
-/// Nothing either of them answers with is mail. Counts, verdicts, scores, signal names, folder aliases, mutation names,
+/// Nothing it answers with is mail. Counts, verdicts, scores, signal names, folder aliases, mutation names,
 /// instants, and identifiers are the whole of it — a signal's observed value never leaves the database, because it is
 /// text a mail server wrote and can carry a sending domain.
 /// </para>
 /// </remarks>
 internal static class SpamClassificationEndpoints
 {
-    /// <summary>The route a whole-mailbox run is asked for and read from, relative to the administrative prefix.</summary>
-    /// <remarks>
-    /// One path and two verbs, because they are one operation performed and then watched: what the reading reports is the
-    /// run the write asked for, and an operator who started a pass over their mailbox comes back to the same place to
-    /// find out where it got to.
-    /// </remarks>
-    internal const string RunsRoute = "/spam/runs";
-
     /// <summary>The route the recorded classifications are read from, relative to the administrative prefix.</summary>
     internal const string ClassificationsRoute = "/spam/classifications";
 
-    /// <summary>The greatest request body the run route reads before refusing it.</summary>
-    /// <remarks>
-    /// The body names one account, a handful of folder aliases, and two switches, so a few kilobytes is the whole of
-    /// anything it could mean. Stated because the server's own default is measured in tens of megabytes, which for this
-    /// route would let an authenticated client make the process buffer a body four orders of magnitude larger than the
-    /// request it is sending.
-    /// </remarks>
-    internal const int MaxRunRequestBytes = 8 * 1024;
-
-    /// <summary>Maps the classification routes into the administrative group, so they inherit its authorization.</summary>
+    /// <summary>Maps the classification route into the administrative group, so it inherits its authorization.</summary>
     /// <param name="api">The administrative route group.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="api" /> is <see langword="null" />.</exception>
     internal static void MapSpamClassification(this RouteGroupBuilder api)
     {
         ArgumentNullException.ThrowIfNull(api);
 
-        // The attribute is reached for its metadata rather than as an MVC filter, exactly as the rule run route does: it
-        // implements IRequestSizeLimitMetadata, which the routing pipeline applies to the request body feature, so a body
-        // over the bound is answered 413 before the handler is reached.
-        api.MapPost(RunsRoute, StartRunAsync)
-            .WithMetadata(new RequestSizeLimitAttribute(MaxRunRequestBytes))
-            .RequirePermissionOverTarget(MailFathomPermission.AdminOperate);
-
-        api.MapGet(RunsRoute, ReadRunAsync)
-            .RequirePermissionOverTarget(MailFathomPermission.AdminRead);
-
         api.MapGet(ClassificationsRoute, ReadClassificationsAsync)
             .RequirePermissionOverTarget(MailFathomPermission.AdminAuditRead);
-    }
-
-    /// <summary>Asks for every message stored for one account to be classified on the terms the caller named.</summary>
-    /// <param name="request">The account, the scope, and the two switches.</param>
-    /// <param name="accounts">Reports whether this deployment serves the named account.</param>
-    /// <param name="mailSettings">Holds the account settings the scope is read from, which this route prepares for the named account.</param>
-    /// <param name="requests">Records the request, or reports the run already in front of the account.</param>
-    /// <param name="context">The request being answered, whose services the account's classification settings are resolved through once they are prepared.</param>
-    /// <param name="authorization">Answers whether the caller's scope covers the account the request names.</param>
-    /// <param name="cancellationToken">Cancels the write when the client disconnects.</param>
-    /// <returns><c>200</c> with the run, or <c>400</c> naming what was wrong with the request.</returns>
-    /// <remarks>
-    /// It records that the run is wanted and classifies nothing. The pass is a step of the account's synchronization run,
-    /// so the request neither performs the work nor keeps it alive — which is what stops an operator's terminal closing
-    /// from cancelling a walk of their mailbox, and what makes this answer immediately however large the mailbox is.
-    /// <para>
-    /// A second request while one is outstanding is answered with the run already under way rather than refused, and the
-    /// terms this request carried are not applied to it: a walk that has scored half a mailbox as a dry run cannot become
-    /// one that acts halfway through. The answer says which of the two happened and reports the terms the outstanding run
-    /// is actually walking under.
-    /// </para>
-    /// <para>
-    /// An administrative caller acts for no user, so the scope the account classifies over — the default and the bound —
-    /// is read only after the named account's settings are prepared.
-    /// </para>
-    /// </remarks>
-    internal static async Task<Results<Ok<SpamClassificationRunStartResponse>, ProblemHttpResult>> StartRunAsync(
-        [FromBody] SpamClassificationRunRequestBody? request,
-        [FromServices] IDeploymentMailAccountCatalog accounts,
-        [FromServices] ScopedMailSynchronizationSettings mailSettings,
-        [FromServices] SpamClassificationRunRequests requests,
-        HttpContext context,
-        [FromServices] AccessAuthorization authorization,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(accounts);
-        ArgumentNullException.ThrowIfNull(mailSettings);
-        ArgumentNullException.ThrowIfNull(requests);
-        ArgumentNullException.ThrowIfNull(context);
-
-        if (await AdminAccountRequest.ResolveCoveredAsync(request?.Account, MailFathomPermission.AdminOperate, accounts, authorization, cancellationToken) is not { } servedAccount)
-        {
-            return AdminAccountRequest.Refuse(request?.Account);
-        }
-
-        if (!await mailSettings.UseAccountSettingsAsync(servedAccount, cancellationToken))
-        {
-            return AdminAccountRequest.Unknown(servedAccount.Value);
-        }
-
-        var configuredScope = context.RequestServices
-            .GetRequiredService<ISpamClassificationSettingsReader>()
-            .SettingsFor(servedAccount)
-            .ScannedFolderAliases;
-        var scope = ResolveScope(request?.Folders, configuredScope);
-
-        if (scope.Refusal is { } refusal)
-        {
-            return TypedResults.Problem(refusal, statusCode: StatusCodes.Status400BadRequest);
-        }
-
-        var terms = SpamClassificationRunTerms.Create(
-            scope.FolderAliases,
-            request?.Apply is true ? SpamActionPosture.Acting : SpamActionPosture.DryRun,
-            request?.Rescore is true);
-
-        var submitted = await requests.SubmitAsync(servedAccount, terms, cancellationToken);
-
-        return TypedResults.Ok(new SpamClassificationRunStartResponse(
-            submitted.Accepted,
-            SpamClassificationRunResponse.For(submitted.Run)));
-    }
-
-    /// <summary>Reports where one account's whole-mailbox classification run has got to, or how the last one ended.</summary>
-    /// <param name="account">The identifier the deployment generated for the account whose run is read.</param>
-    /// <param name="accounts">Reports whether this deployment serves the named account.</param>
-    /// <param name="runs">Reads the one run an account may have outstanding, for a caller the read's own grant admits.</param>
-    /// <param name="authorization">Answers whether the caller's scope covers the account the request names.</param>
-    /// <param name="cancellationToken">Cancels the read when the client disconnects.</param>
-    /// <returns><c>200</c> with the run, <c>200</c> with none where the account has never been asked for one, or <c>400</c>.</returns>
-    /// <remarks>
-    /// An account that has never been asked for a run is an outcome rather than a refusal, so the answer carries no run
-    /// instead of a <c>404</c>: the caller asked a question this deployment can answer, and the answer is that nothing
-    /// has been asked for.
-    /// </remarks>
-    internal static async Task<Results<Ok<SpamClassificationRunStateResponse>, ProblemHttpResult>> ReadRunAsync(
-        [FromQuery] string? account,
-        [FromServices] IDeploymentMailAccountCatalog accounts,
-        [FromServices] SpamClassificationRunReader runs,
-        [FromServices] AccessAuthorization authorization,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(accounts);
-        ArgumentNullException.ThrowIfNull(runs);
-
-        if (await AdminAccountRequest.ResolveCoveredAsync(account, MailFathomPermission.AdminRead, accounts, authorization, cancellationToken) is not { } servedAccount)
-        {
-            return AdminAccountRequest.Refuse(account);
-        }
-
-        var run = await runs.FindLatestAsync(servedAccount, cancellationToken);
-
-        return TypedResults.Ok(new SpamClassificationRunStateResponse(
-            servedAccount.Value,
-            run is null ? null : SpamClassificationRunResponse.For(run)));
     }
 
     /// <summary>Serves one page of what classification concluded about an account's mail.</summary>
@@ -269,53 +130,6 @@ internal static class SpamClassificationEndpoints
 
         return TypedResults.Ok(SpamClassificationPageResponse.For(page));
     }
-
-    /// <summary>Resolves the folders a run walks, defaulting to and bounded by the scope classification is configured over.</summary>
-    /// <remarks>
-    /// A folder outside the configured scope is refused rather than walked, because the classifier declines an occurrence
-    /// outside that scope message by message: walking one would produce a run that read a whole folder and recorded
-    /// nothing, and reported it as mail it could reach no verdict about. Refusing names the remedy, which is an edit to
-    /// the configured scope rather than a different argument.
-    /// </remarks>
-    private static (IReadOnlyList<MailFolderAlias> FolderAliases, string? Refusal) ResolveScope(
-        IReadOnlyList<string>? requested,
-        IReadOnlyList<MailFolderAlias> configuredScope)
-    {
-        if (requested is null)
-        {
-            return configuredScope.Count > 0
-                ? (configuredScope, null)
-                : ([], "The user of this account classifies no folder, so a run over one would read nothing. Name the folders in their classification settings first.");
-        }
-
-        var named = requested.Where(static alias => !string.IsNullOrWhiteSpace(alias)).ToArray();
-
-        if (named.Length == 0)
-        {
-            return ([], "The request named no folder to classify. Leave the folders out to walk the configured scope.");
-        }
-
-        var unusable = named.FirstOrDefault(static alias => !IsUsableAlias(alias));
-
-        if (unusable is not null)
-        {
-            return ([], $"'{unusable}' is not a usable folder alias.");
-        }
-
-        MailFolderAlias[] aliases = [.. named.Select(MailFolderAlias.Create)];
-        var outsideScope = aliases.FirstOrDefault(alias => !configuredScope.Contains(alias));
-
-        return outsideScope == default
-            ? (aliases, null)
-            : ([], $"The user of this account does not classify folder '{outsideScope.Value}', so a run over it would record nothing. Add it to their classification scope first.");
-    }
-
-    /// <summary>Reports whether text a caller sent is a value this system could have issued as an alias.</summary>
-    /// <remarks>
-    /// Asked before the value object is built rather than by catching what it throws, because a caller's text is
-    /// untrusted input at the boundary and a refusal is what a <c>400</c> is made of.
-    /// </remarks>
-    private static bool IsUsableAlias(string alias) => !alias.Any(char.IsControl);
 
     /// <summary>Reads the verdict a filter named, keeping "no filter" apart from "a name nothing answers to".</summary>
     private static bool TryReadVerdict(string? verdict, out SpamVerdict? namedVerdict)

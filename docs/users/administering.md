@@ -423,15 +423,20 @@ widening the folders it covers does nothing about the existing mailbox until you
 
 | What you want | Command |
 | --- | --- |
-| Find out what classification would do to the mail you have | `mfctl spam run --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
-| Carry that out | `mfctl spam run --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 --apply` |
-| Watch the run | `mfctl spam run-status --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
+| Find out what classification would do to the mail you have | `mfctl classification run --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
+| Carry that out | `mfctl classification run --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 --apply` |
+| Apply one category you just added to old mail | `mfctl classification run --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 --category "<name>"` |
+| Watch the run | `mfctl classification run-status --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10` |
 | Find out why a message was filed as junk | `mfctl spam classifications --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10 --email <id>` |
 
 **The run is a dry run unless you add `--apply`**, and that is the order to do it in: run it, read what it found with
 `run-status`, and only then run it again with `--apply`. With filing switched on, a run over an inbox is the largest
 single thing MailFathom does to your mail, and the dry run tells you how much of it would move before any of it does.
-The verdicts are recorded either way — what `--apply` adds is the mail server being written to.
+Verdicts and categories are recorded either way — what `--apply` adds is the mail server being written to.
+
+**One run does both, in one order**: spam first, then [the categories](../features/email-categorization.md#going-over-mail-you-already-have)
+of what is not spam, so nothing is spent on a message about to be called junk. An account with only one of the two
+switched on gets that one, and an account with neither is refused.
 
 A second run while one is going does not start a second walk; you are told the first is still under way, on the terms
 it was started with. None of these three writes a setting, and none ever will: they apply the settings your deployment

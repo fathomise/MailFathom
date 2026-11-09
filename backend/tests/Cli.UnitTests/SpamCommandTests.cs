@@ -8,17 +8,10 @@ using Xunit;
 
 namespace MailFathom.Cli.UnitTests;
 
-/// <summary>Covers what the spam commands ask for, what they report, and the operation none of them has.</summary>
+/// <summary>Covers what reading the recorded verdicts asks for and reports, and the operation no spam command has.</summary>
 /// <remarks>
-/// <para>
-/// The dry run is the subject of most of it. A run over an inbox with filing switched on is the largest single thing
-/// this feature does to somebody's mail, so what is asserted is that acting is something an operator says rather than
-/// something they fail to switch off, and that a run reporting what it would do says how to ask for the other one.
-/// </para>
-/// <para>
-/// The other half is what never reaches the terminal. A classification prints its signals by name and never by value,
-/// so a sending domain or an authentication result cannot arrive in a shell's scrollback through a command about spam.
-/// </para>
+/// What never reaches the terminal is the subject of most of it. A classification prints its signals by name and never by
+/// value, so a sending domain or an authentication result cannot arrive in a shell's scrollback through a command about spam.
 /// </remarks>
 public sealed class SpamCommandTests : IDisposable
 {
@@ -28,204 +21,6 @@ public sealed class SpamCommandTests : IDisposable
     private const string EmptyPage = """{"classifications":[],"nextCursor":null}""";
 
     private readonly CliCommandHarness harness = new(new DateTimeOffset(2026, 8, 12, 12, 0, 0, TimeSpan.Zero));
-
-    /// <summary>Without <c>--apply</c> the command asks for a run that changes nothing, and says how to ask for one that does.</summary>
-    [Fact]
-    public async Task Run_NoApplyAsked_AsksForADryRunAndSaysHowToCarryItOut()
-    {
-        // Arrange
-        using var deployment = FakeSpamRoutes.Answering(
-            runStart: (HttpStatusCode.OK, RunStart(started: true, acting: false)));
-
-        // Act
-        var exitCode = await this.RunAsync(deployment, "spam", "run", "--account", Account, "--endpoint", Endpoint);
-
-        // Assert
-        Assert.Equal(CliExitCode.Success, exitCode);
-        Assert.Equal(1, deployment.ClassificationRunRequestCount());
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("has been asked for", StringComparison.Ordinal));
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("dry run", StringComparison.Ordinal));
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("--apply", StringComparison.Ordinal));
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("spam run-status", StringComparison.Ordinal));
-    }
-
-    /// <summary>Naming no folder is sent as naming none, because the deployment refuses an empty list as a request that named nothing.</summary>
-    [Fact]
-    public async Task Run_NoFolderNamed_SendsNoFoldersSoTheDeploymentWalksItsConfiguredScope()
-    {
-        // Arrange
-        using var deployment = FakeSpamRoutes.Answering(
-            runStart: (HttpStatusCode.OK, RunStart(started: true, acting: false)));
-
-        // Act
-        var exitCode = await this.RunAsync(deployment, "spam", "run", "--account", Account, "--endpoint", Endpoint);
-
-        // Assert
-        Assert.Equal(CliExitCode.Success, exitCode);
-
-        var body = deployment.RecordedRequests
-            .Single(request => request.Method == HttpMethod.Post)
-            .ContentAsUtf8String();
-
-        Assert.Contains("\"folders\": null", body, StringComparison.Ordinal);
-    }
-
-    /// <summary>What the terminal asked for reaches the deployment as the request body, which is the whole agreement.</summary>
-    [Fact]
-    public async Task Run_ApplyAndFoldersNamed_SendsThemAsTheTermsOfTheRun()
-    {
-        // Arrange
-        using var deployment = FakeSpamRoutes.Answering(
-            runStart: (HttpStatusCode.OK, RunStart(started: true, acting: true)));
-
-        // Act
-        var exitCode = await this.RunAsync(
-            deployment,
-            "spam",
-            "run",
-            "--account",
-            Account,
-            "--folder",
-            "INBOX",
-            "--folder",
-            "ARCHIVE",
-            "--apply",
-            "--rescore",
-            "--endpoint",
-            Endpoint);
-
-        // Assert
-        Assert.Equal(CliExitCode.Success, exitCode);
-
-        var body = deployment.RecordedRequests
-            .Single(request => request.Method == HttpMethod.Post)
-            .ContentAsUtf8String();
-
-        Assert.Contains("\"apply\": true", body, StringComparison.Ordinal);
-        Assert.Contains("\"rescore\": true", body, StringComparison.Ordinal);
-        Assert.Contains("\"INBOX\"", body, StringComparison.Ordinal);
-        Assert.Contains("\"ARCHIVE\"", body, StringComparison.Ordinal);
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("yes —", StringComparison.Ordinal));
-    }
-
-    /// <summary>Asking twice is asking once, and the operator is told the terms they sent were not applied.</summary>
-    [Fact]
-    public async Task Run_ARunAlreadyUnderWay_SaysNothingWasStartedAndThatItsOwnTermsStand()
-    {
-        // Arrange
-        using var deployment = FakeSpamRoutes.Answering(
-            runStart: (HttpStatusCode.OK, RunStart(started: false, acting: false)));
-
-        // Act
-        var exitCode = await this.RunAsync(
-            deployment,
-            "spam",
-            "run",
-            "--account",
-            Account,
-            "--apply",
-            "--endpoint",
-            Endpoint);
-
-        // Assert
-        Assert.Equal(CliExitCode.Success, exitCode);
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("already under way", StringComparison.Ordinal));
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("were not applied", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task Run_NoAccountNamed_IsRefusedWithoutAskingTheDeploymentForAnything()
-    {
-        // Arrange
-        using var deployment = FakeSpamRoutes.Answering(
-            runStart: (HttpStatusCode.OK, RunStart(started: true, acting: false)));
-
-        // Act
-        var exitCode = await this.RunAsync(deployment, "spam", "run", "--endpoint", Endpoint);
-
-        // Assert
-        Assert.NotEqual(CliExitCode.Success, exitCode);
-        Assert.Equal(0, deployment.ClassificationRunRequestCount());
-    }
-
-    /// <summary>A reading starts nothing, which is what makes it safe to ask repeatedly while a mailbox is walked.</summary>
-    [Fact]
-    public async Task RunStatus_ARunUnderWay_ReportsItsProgressWithoutStartingAnything()
-    {
-        // Arrange
-        using var deployment = FakeSpamRoutes.Answering(runState: $$"""
-            {"account":"{{Account}}","run":{{Run(ended: false, acting: false)}}}
-            """);
-
-        // Act
-        var exitCode = await this.RunAsync(
-            deployment,
-            "spam",
-            "run-status",
-            "--account",
-            Account,
-            "--endpoint",
-            Endpoint);
-
-        // Assert
-        Assert.Equal(CliExitCode.Success, exitCode);
-        Assert.Equal(0, deployment.ClassificationRunRequestCount());
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("under way", StringComparison.Ordinal));
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("120 scored", StringComparison.Ordinal));
-    }
-
-    /// <summary>What a dry run found is the decision an operator is about to make, so the report names how to make it.</summary>
-    [Fact]
-    public async Task RunStatus_ADryRunThatFoundJunk_SaysNothingChangedAndHowToCarryItOut()
-    {
-        // Arrange
-        using var deployment = FakeSpamRoutes.Answering(runState: $$"""
-            {"account":"{{Account}}","run":{{Run(ended: true, acting: false)}}}
-            """);
-
-        // Act
-        var exitCode = await this.RunAsync(
-            deployment,
-            "spam",
-            "run-status",
-            "--account",
-            Account,
-            "--endpoint",
-            Endpoint);
-
-        // Assert
-        Assert.Equal(CliExitCode.Success, exitCode);
-        Assert.Contains(
-            this.harness.Console.Lines,
-            line => line.Contains("would be acted on", StringComparison.Ordinal));
-        Assert.Contains(
-            this.harness.Console.Lines,
-            line => line.Contains("Nothing has been changed on the mail server", StringComparison.Ordinal));
-    }
-
-    /// <summary>An account nobody has asked for a run is an answer rather than an error, and names the command that asks.</summary>
-    [Fact]
-    public async Task RunStatus_AnAccountNobodyHasAskedForARun_SaysSoAndNamesTheCommandThatStartsOne()
-    {
-        // Arrange
-        using var deployment = FakeSpamRoutes.Answering(runState: $$"""
-            {"account":"{{Account}}","run":null}
-            """);
-
-        // Act
-        var exitCode = await this.RunAsync(
-            deployment,
-            "spam",
-            "run-status",
-            "--account",
-            Account,
-            "--endpoint",
-            Endpoint);
-
-        // Assert
-        Assert.Equal(CliExitCode.Success, exitCode);
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("spam run --account work", StringComparison.Ordinal));
-    }
 
     /// <summary>The signals print by name, which is how they are recorded and the whole reason the record is safe to read, and the spam subcategory beside them names who named it.</summary>
     [Fact]
@@ -367,7 +162,7 @@ public sealed class SpamCommandTests : IDisposable
 
         // Assert
         Assert.Equal(CliExitCode.Success, exitCode);
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("spam run --account work", StringComparison.Ordinal));
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains("classification run --account work", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -414,28 +209,6 @@ public sealed class SpamCommandTests : IDisposable
         // Assert
         Assert.NotEqual(CliExitCode.Success, exitCode);
     }
-
-    private static string RunStart(bool started, bool acting) => $$"""
-        {"started":{{(started ? "true" : "false")}},"run":{{Run(ended: false, acting)}}}
-        """;
-
-    private static string Run(bool ended, bool acting) => $$"""
-        {
-          "requestedAt": "2026-08-12T11:00:00+00:00",
-          "folders": ["INBOX"],
-          "posture": "{{(acting ? "Acting" : "DryRun")}}",
-          "rescores": false,
-          "profile": "a1b2c3d4e5f6",
-          "classifiedEmailCount": 120,
-          "spamEmailCount": 7,
-          "undeterminedEmailCount": 2,
-          "skippedEmailCount": 4,
-          "unclassifiableEmailCount": 1,
-          "actedEmailCount": 7,
-          "endedAt": {{(ended ? "\"2026-08-12T11:30:00+00:00\"" : "null")}},
-          "ending": {{(ended ? "\"Completed\"" : "null")}}
-        }
-        """;
 
     private Task<int> RunAsync(FakeHttpMessageHandler deployment, params string[] args) =>
         this.harness.RunAsync(deployment, args);

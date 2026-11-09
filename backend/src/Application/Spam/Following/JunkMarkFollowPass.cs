@@ -3,9 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Globalization;
+using MailFathom.Application.Classification;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Payloads;
-using MailFathom.Application.Spam.Runs;
 using MailFathom.Domain.Accounts;
 
 namespace MailFathom.Application.Spam.Following;
@@ -30,7 +30,7 @@ public sealed class JunkMarkFollowPass
 
     private readonly IJunkMarkFollowStore store;
     private readonly IJobStore jobs;
-    private readonly SpamClassificationRunOptions options;
+    private readonly ClassificationRunOptions options;
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the pass over what it reads and the queue it writes to.</summary>
@@ -42,7 +42,7 @@ public sealed class JunkMarkFollowPass
     public JunkMarkFollowPass(
         IJunkMarkFollowStore store,
         IJobStore jobs,
-        SpamClassificationRunOptions options,
+        ClassificationRunOptions options,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(store);

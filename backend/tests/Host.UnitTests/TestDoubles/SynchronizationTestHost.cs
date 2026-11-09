@@ -7,6 +7,7 @@ using MailFathom.Application.Accounts;
 using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Categories;
+using MailFathom.Application.Classification;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.Coordination;
@@ -54,7 +55,6 @@ using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Following;
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.Model;
-using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Application.Synchronization;
@@ -162,7 +162,7 @@ internal static class SynchronizationTestHost
         IMailboxMutationRecordStore? mutationRecordStore = null,
         IStoredMailFolderMirrorStore? folderMirrorStore = null,
         IMailRuleEvaluationStore? ruleEvaluationStore = null,
-        ISpamClassificationRunStore? classificationRunStore = null,
+        IClassificationRunStore? classificationRunStore = null,
         IStoredEmailChunkingStore? chunkingStore = null,
         IStoredEmailAttachmentTextStore? attachmentTextStore = null,
         IWorkLeaseStore? workLeaseStore = null,
@@ -370,7 +370,7 @@ internal static class SynchronizationTestHost
         services.AddSingleton<IJunkMailFolderCatalog>(StubJunkMailFolderCatalog.None);
         services.AddSingleton<IDeploymentMailFolders>(StubDeploymentMailFolders.None);
         services.AddSingleton(Substitute.For<ISpamActionOccurrenceReader>());
-        services.AddScoped(_ => new SpamClassificationRunOptions());
+        services.AddScoped(_ => new ClassificationRunOptions());
         services.AddScoped(_ => CreateClassificationSettingsReader());
         services.AddScoped(_ => CreateSpamActionSettingsReader());
         // The language a derivation writes in is still stated per user while the mail it is derived from is the
@@ -390,7 +390,7 @@ internal static class SynchronizationTestHost
             Substitute.For<ISpamModelStageTelemetry>()));
         services.AddScoped<EmailSpamClassifier>();
         services.AddScoped<SpamActionRecorder>();
-        services.AddScoped<SpamClassificationPass>();
+        services.AddScoped<ClassificationRunPass>();
         // Categorization rides the same run. No account these tests configure sorts its mail, so the pass answers before
         // it reads anything.
         services.AddSingleton(Substitute.For<IEmailCategoryStore>());
@@ -402,9 +402,11 @@ internal static class SynchronizationTestHost
             Substitute.For<IEmailContentRenderer>(),
             Substitute.For<IEmailProvenanceReader>(),
             SpamModelStageBounds.Default));
+        services.AddScoped<EmailCategorizationConsultation>();
         services.AddScoped<EmailCategorizationPass>();
         services.AddSingleton(StubMailCategories.OfferingNothing);
         services.AddScoped<MailRuleCategories>();
+        services.AddScoped<StoredEmailCategorization>();
         // The spam floor rides the same run, one step before the classification walk, whatever classification says. No
         // mail these tests store sits below it, so the default reader answers with nothing and the pass writes nothing.
         services.AddSingleton(floorCandidateReader ?? CreateFloorCandidateReaderWithNothingBelowTheFloor());
@@ -583,12 +585,12 @@ internal static class SynchronizationTestHost
     }
 
     /// <summary>Answers that the account has never been asked to have its whole mailbox classified.</summary>
-    private static ISpamClassificationRunStore CreateClassificationRunStoreWithNothingOutstanding()
+    private static IClassificationRunStore CreateClassificationRunStoreWithNothingOutstanding()
     {
-        var runStore = Substitute.For<ISpamClassificationRunStore>();
+        var runStore = Substitute.For<IClassificationRunStore>();
 
         runStore.FindOutstandingAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<SpamClassificationRun?>(null));
+            .Returns(Task.FromResult<ClassificationRun?>(null));
 
         return runStore;
     }

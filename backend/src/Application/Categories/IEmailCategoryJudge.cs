@@ -25,4 +25,20 @@ public interface IEmailCategoryJudge
         EmailCategoryEvidence evidence,
         IReadOnlyList<OwnMailCategory> ownCategories,
         CancellationToken cancellationToken);
+
+    /// <summary>Asks about one own category alone, in one request of one question.</summary>
+    /// <param name="evidence">What the model reads, already minimised.</param>
+    /// <param name="category">The category.</param>
+    /// <param name="cancellationToken">Withdraws the call.</param>
+    /// <returns>That category where the message holds it, nothing where it does not, or the reason there is no answer.</returns>
+    /// <exception cref="OperationCanceledException">Thrown when the caller withdrew the call.</exception>
+    Task<EmailCategoryJudgement> JudgeOwnCategoryAsync(
+        EmailCategoryEvidence evidence,
+        OwnMailCategory category,
+        CancellationToken cancellationToken);
+
+    /// <summary>Gets the revision each question would be asked under now.</summary>
+    /// <param name="ownCategories">The mailbox's own categories.</param>
+    /// <returns>The revisions; nothing of a question's wording crosses this port.</returns>
+    EmailCategoryQuestionRevisions RevisionsOf(IReadOnlyList<OwnMailCategory> ownCategories);
 }

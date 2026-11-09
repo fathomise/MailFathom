@@ -3,11 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Decisions;
-using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.SensitiveContent.Egress;
-using MailFathom.Application.Spam.Model;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 
@@ -47,8 +45,7 @@ public sealed class EmailCategorizationPass
     private readonly IEmailCategoryStore store;
     private readonly IEmailCategoryJudge judge;
     private readonly IEmailCategorizationSettingsReader settingsReader;
-    private readonly IEmailContentStore contentStore;
-    private readonly SpamModelEvidenceReader evidenceReader;
+    private readonly EmailCategorizationConsultation consultation;
     private readonly SensitiveContentEgressGuard egressGuard;
     private readonly IEmailCategorizationTelemetry telemetry;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
@@ -58,8 +55,7 @@ public sealed class EmailCategorizationPass
     /// <param name="store">Reads the mail awaiting categories and writes down what the model said.</param>
     /// <param name="judge">Asks the model.</param>
     /// <param name="settingsReader">Answers what the account decided.</param>
-    /// <param name="contentStore">Reads the stored message.</param>
-    /// <param name="evidenceReader">Reads what the model is shown.</param>
+    /// <param name="consultation">Reads a message and asks about it.</param>
     /// <param name="egressGuard">Holds the posture the input is scanned under while the pass runs.</param>
     /// <param name="telemetry">Counts how each consultation ended.</param>
     /// <param name="commitPolicy">Commits one message's categories, retrying a conflict with a competing writer.</param>
@@ -70,8 +66,7 @@ public sealed class EmailCategorizationPass
         IEmailCategoryStore store,
         IEmailCategoryJudge judge,
         IEmailCategorizationSettingsReader settingsReader,
-        IEmailContentStore contentStore,
-        SpamModelEvidenceReader evidenceReader,
+        EmailCategorizationConsultation consultation,
         SensitiveContentEgressGuard egressGuard,
         IEmailCategorizationTelemetry telemetry,
         OptimisticConcurrencyRetryPolicy commitPolicy,
@@ -80,8 +75,7 @@ public sealed class EmailCategorizationPass
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(judge);
         ArgumentNullException.ThrowIfNull(settingsReader);
-        ArgumentNullException.ThrowIfNull(contentStore);
-        ArgumentNullException.ThrowIfNull(evidenceReader);
+        ArgumentNullException.ThrowIfNull(consultation);
         ArgumentNullException.ThrowIfNull(egressGuard);
         ArgumentNullException.ThrowIfNull(telemetry);
         ArgumentNullException.ThrowIfNull(commitPolicy);
@@ -92,8 +86,7 @@ public sealed class EmailCategorizationPass
         this.store = store;
         this.judge = judge;
         this.settingsReader = settingsReader;
-        this.contentStore = contentStore;
-        this.evidenceReader = evidenceReader;
+        this.consultation = consultation;
         this.egressGuard = egressGuard;
         this.telemetry = telemetry;
         this.commitPolicy = commitPolicy;
@@ -152,7 +145,7 @@ public sealed class EmailCategorizationPass
 
                 unansweredCount++;
 
-                if (EndsThePass(outcome))
+                if (EmailCategorizationConsultation.ReachesEveryMessage(outcome))
                 {
                     return new EmailCategorizationPassReport(categorizedCount, unansweredCount, outcome, EmailsRemain: true);
                 }
@@ -169,37 +162,13 @@ public sealed class EmailCategorizationPass
         return new EmailCategorizationPassReport(categorizedCount, unansweredCount, StoppedBy: null, EmailsRemain: true);
     }
 
-    /// <summary>Answers whether a failure says something about every message behind this one rather than about this one.</summary>
-    private static bool EndsThePass(DecisionModelOutcome outcome) => outcome
-        is DecisionModelOutcome.BudgetExhausted
-        or DecisionModelOutcome.ProviderUnavailable
-        or DecisionModelOutcome.ScannerUnavailable
-        or DecisionModelOutcome.NotActivated;
-
     /// <summary>Asks about one message and commits what came back, reporting how the consultation ended.</summary>
     private async Task<DecisionModelOutcome> CategorizeAsync(
         EmailAwaitingCategorization email,
         EmailCategorizationSettings settings,
         CancellationToken cancellationToken)
     {
-        var content = await this.contentStore.FindStoredContentAsync(email.Id, cancellationToken);
-        var message = content is null
-            ? null
-            : await this.evidenceReader.ReadAsync(email.Id, content, cancellationToken);
-
-        if (message is null)
-        {
-            this.telemetry.RecordConsultation(DecisionModelOutcome.ContentUnavailable);
-
-            return DecisionModelOutcome.ContentUnavailable;
-        }
-
-        var judgement = await this.judge.JudgeAsync(
-            new EmailCategoryEvidence(message, email.ConversationOpening),
-            settings.OwnCategories,
-            cancellationToken);
-
-        this.telemetry.RecordConsultation(judgement.Outcome);
+        var judgement = await this.consultation.AskAsync(email, settings.OwnCategories, cancellationToken);
 
         if (judgement.Outcome is DecisionModelOutcome.Answered)
         {

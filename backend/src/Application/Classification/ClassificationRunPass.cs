@@ -1,0 +1,479 @@
+// Copyright © 2026 Krzysztof Kasprowicz
+// Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
+// Project repository: https://github.com/fathomise/MailFathom
+
+using MailFathom.Application.Categories;
+using MailFathom.Application.Decisions;
+using MailFathom.Application.Persistence;
+using MailFathom.Application.Spam;
+using MailFathom.Application.Spam.Actions;
+using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
+using MailFathom.Domain.Spam;
+
+namespace MailFathom.Application.Classification;
+
+/// <summary>Carries an account's whole-mailbox classification run as far as one pass's batch budget reaches.</summary>
+/// <remarks>
+/// <para>
+/// A step of the account's synchronization run rather than a schedule of its own, exactly as rule evaluation is. That
+/// run already has per-account isolation, a jittered backoff, a slot count that stops one account starving another, and
+/// a failure path that defers the account instead of the process; a classification walk needs every one of those and
+/// none of them differently. It follows that only one pass per account is ever in flight, structurally rather than by a
+/// lock of its own — which is the other half of what makes one outstanding run per account mean one walk of one mailbox.
+/// That holds across replicas as well, because an account's run happens only on the replica holding the account's
+/// synchronization lease and a lost hold cancels the pass with the rest of that run: whichever replica an operator's
+/// request reached only wrote the run down, and a second lease for the run would be a second mechanism for one scope.
+/// </para>
+/// <para>
+/// <b>Every message goes through one order inside one walk: spam first, then the categories of what is not spam.</b> A
+/// second run beside this one would leave that order to whoever started them, and a model asked for the categories of mail
+/// the other run was about to call junk. The spam half of a batch finishes before its categories are looked at, so the
+/// verdict the category half reads is the one this walk left, whichever stage reached it.
+/// </para>
+/// <para>
+/// It reaches no mail server for the mail it reads. Every message it scores was committed by an earlier run and is read
+/// through the local content store, so the MCP-reads-are-local invariant and the remote <c>\Seen</c> flag are both
+/// untouched however long a walk takes. What it can reach the network for is — where the run acts and a filing has to
+/// find its folder — the destination resolution every author of a mutation goes through.
+/// </para>
+/// <para>
+/// The run's terms are read from the run rather than from configuration. A walk that spans hours must mean the same
+/// thing at its end as at its start, so the scope, the posture, and whether it rescores are what the operator asked for
+/// and not what the file says now. Which functions it covers is one of those terms, so switching off one of them while it
+/// is outstanding ends it. The profile is not configuration either: the release fixes it, so a run bound to an
+/// earlier release's profile ends as superseded rather than being applied to the half of the mailbox that is left.
+/// </para>
+/// <para>
+/// A replica that loses the account's lease has this pass cancelled between messages, and commits no position for the batch
+/// it was in; the replica that takes the account resumes from the last committed one. Nothing outstanding is known to an
+/// older build during a rolling upgrade, because a run lives in a table that build does not read: it leaves the run alone,
+/// and a replica of this build carries it once one holds the account's lease.
+/// </para>
+/// <para>
+/// Each batch commits the position it reached, so a restart resumes at the message nobody scored. The classification of
+/// one message is committed by the use case that reaches it rather than in the batch's own transaction, which is a
+/// deliberate difference from the rule pass and costs exactly one thing: a crash inside a batch re-reaches that batch's
+/// messages, whose records are upserts of the same verdict and whose mutation requests are refused as already asked for,
+/// so nothing is duplicated in the database or on the mail server and only the run's own counts can double-count what
+/// the lost attempt did.
+/// </para>
+/// </remarks>
+public sealed class ClassificationRunPass
+{
+    private readonly IClassificationRunStore runStore;
+    private readonly IClassifiableEmailReader emails;
+    private readonly IEmailSpamClassificationStore classifications;
+    private readonly EmailSpamClassifier classifier;
+    private readonly SpamActionRecorder actionRecorder;
+    private readonly ISpamClassificationSettingsReader settingsReader;
+    private readonly IEmailCategorizationSettingsReader categorizationSettingsReader;
+    private readonly StoredEmailCategorization categorization;
+    private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
+    private readonly ClassificationRunOptions options;
+    private readonly TimeProvider timeProvider;
+
+    /// <summary>Initializes the pass from the run it carries and the local state it walks.</summary>
+    /// <param name="runStore">Reads the requested run and records how far it has been carried.</param>
+    /// <param name="emails">Reads the account's stored occurrences in the run's scope, in identity order.</param>
+    /// <param name="classifications">Answers what an occurrence was already decided as, and under which terms.</param>
+    /// <param name="classifier">Scores an occurrence and records the verdict.</param>
+    /// <param name="actionRecorder">Applies the run's posture to a verdict, writing the changes down or only working them out.</param>
+    /// <param name="settingsReader">Answers whether the account classifies and what profile the mail in it runs under.</param>
+    /// <param name="categorizationSettingsReader">Answers whether the account categorizes and which own categories it names.</param>
+    /// <param name="categorization">Carries the category half of a batch.</param>
+    /// <param name="commitPolicy">Commits the run's position and counts.</param>
+    /// <param name="options">Bounds one pass.</param>
+    /// <param name="timeProvider">Stamps the instant a run ends.</param>
+    /// <exception cref="ArgumentNullException">Thrown when a collaborator is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when a configured bound is below one.</exception>
+    public ClassificationRunPass(
+        IClassificationRunStore runStore,
+        IClassifiableEmailReader emails,
+        IEmailSpamClassificationStore classifications,
+        EmailSpamClassifier classifier,
+        SpamActionRecorder actionRecorder,
+        ISpamClassificationSettingsReader settingsReader,
+        IEmailCategorizationSettingsReader categorizationSettingsReader,
+        StoredEmailCategorization categorization,
+        OptimisticConcurrencyRetryPolicy commitPolicy,
+        ClassificationRunOptions options,
+        TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(runStore);
+        ArgumentNullException.ThrowIfNull(emails);
+        ArgumentNullException.ThrowIfNull(classifications);
+        ArgumentNullException.ThrowIfNull(classifier);
+        ArgumentNullException.ThrowIfNull(actionRecorder);
+        ArgumentNullException.ThrowIfNull(settingsReader);
+        ArgumentNullException.ThrowIfNull(categorizationSettingsReader);
+        ArgumentNullException.ThrowIfNull(categorization);
+        ArgumentNullException.ThrowIfNull(commitPolicy);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.BatchSize, 1, nameof(options));
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxBatchesPerPass, 1, nameof(options));
+
+        this.runStore = runStore;
+        this.emails = emails;
+        this.classifications = classifications;
+        this.classifier = classifier;
+        this.actionRecorder = actionRecorder;
+        this.settingsReader = settingsReader;
+        this.categorizationSettingsReader = categorizationSettingsReader;
+        this.categorization = categorization;
+        this.commitPolicy = commitPolicy;
+        this.options = options;
+        this.timeProvider = timeProvider;
+    }
+
+    /// <summary>Takes one bounded pass over the account's requested run, where it has one.</summary>
+    /// <param name="account">The account whose run is carried, by its generated identifier.</param>
+    /// <param name="cancellationToken">Cancels the pass between messages and between batches; committed batches stay durable.</param>
+    /// <returns>What the pass did, and how the run ended where this pass ended it.</returns>
+    /// <exception cref="PersistenceConcurrencyConflictException">
+    /// Thrown when a competing writer wins a race the bounded retries could not resolve. Batches already committed stay
+    /// durable and the next account run resumes from them.
+    /// </exception>
+    /// <exception cref="OperationCanceledException">Thrown when the caller cancels. Committed batches stay durable.</exception>
+    /// <remarks>
+    /// The two ways a run ends without reaching the end of its mail are both decided here and before any message is
+    /// read, because both are statements about the whole run rather than about one message: a function it covers switched
+    /// off, and a profile that has moved under a walk already half done.
+    /// </remarks>
+    public async Task<ClassificationRunReport> RunAsync(
+        MailAccountId account,
+        CancellationToken cancellationToken)
+    {
+        var run = await this.runStore.FindOutstandingAsync(account, cancellationToken);
+
+        if (run is null)
+        {
+            return ClassificationRunReport.NoRun;
+        }
+
+        var settings = this.settingsReader.SettingsFor(account);
+        var categorizationSettings = this.categorizationSettingsReader.SettingsFor(account);
+
+        if (!StillCovered(run.Terms, settings, categorizationSettings))
+        {
+            await this.EndRunAsync(run, ClassificationRunEnding.Disabled, cancellationToken);
+
+            return new ClassificationRunReport(
+                run.Profile,
+                ClassificationWalk.Empty,
+                ClassificationRunEnding.Disabled);
+        }
+
+        if (run.Terms.CoversSpam && run.Profile.IsSpecified && run.Profile != settings.Profile)
+        {
+            await this.EndRunAsync(run, ClassificationRunEnding.Superseded, cancellationToken);
+
+            return new ClassificationRunReport(
+                run.Profile,
+                ClassificationWalk.Empty,
+                ClassificationRunEnding.Superseded);
+        }
+
+        if (run.Terms.CoversSpam && !run.Profile.IsSpecified)
+        {
+            run = run with { Profile = settings.Profile };
+        }
+
+        var tally = new ClassificationTally();
+
+        for (var batchNumber = 1; batchNumber <= this.options.MaxBatchesPerPass && run.IsOutstanding; batchNumber++)
+        {
+            run = await this.CarryBatchAsync(run, categorizationSettings, tally, cancellationToken);
+        }
+
+        return new ClassificationRunReport(run.Profile, tally.ToWalk(run.IsOutstanding), run.Ending);
+    }
+
+    /// <summary>Answers whether every function the run covers is still on, and the one own category it applies is still there.</summary>
+    private static bool StillCovered(
+        ClassificationRunTerms terms,
+        SpamClassificationSettings settings,
+        EmailCategorizationSettings categorizationSettings) =>
+        (!terms.CoversSpam || settings.IsEnabled)
+        && (!terms.CoversCategories || categorizationSettings.IsEnabled)
+        && (terms.OwnCategory is null || categorizationSettings.OwnCategoryNamed(terms.OwnCategory) is not null);
+
+    /// <summary>Classifies one batch of the run and commits the position and counts it reached.</summary>
+    /// <remarks>
+    /// A batch shorter than the budget is the end of the scope rather than a batch that happened to be small, because the
+    /// read is a keyset walk that stops only when the mail does. Ending the run on it rather than on the next empty read
+    /// saves the account a whole run's wait for an answer it already has.
+    /// </remarks>
+    private async Task<ClassificationRun> CarryBatchAsync(
+        ClassificationRun run,
+        EmailCategorizationSettings categorizationSettings,
+        ClassificationTally tally,
+        CancellationToken cancellationToken)
+    {
+        var batch = await this.emails.GetStoredEmailsAsync(
+            run.Account,
+            run.Terms.FolderAliases,
+            run.Position,
+            this.options.BatchSize,
+            cancellationToken);
+
+        if (batch.Count == 0)
+        {
+            var finished = this.Ended(run, ClassificationRunEnding.Completed);
+
+            await this.CommitRunAsync(finished, cancellationToken);
+
+            return finished;
+        }
+
+        var batchTally = new ClassificationTally();
+
+        foreach (var candidate in batch)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (run.Terms.SpamFolderAliases.Contains(candidate.FolderAlias))
+            {
+                await this.ClassifyAsync(run, candidate, batchTally, cancellationToken);
+            }
+        }
+
+        await this.CategorizeAsync(run, batch, categorizationSettings, tally, batchTally, cancellationToken);
+
+        var reachedTheEnd = batch.Count < this.options.BatchSize;
+        var walk = batchTally.ToWalk(emailsRemain: !reachedTheEnd);
+
+        var carried = run with
+        {
+            Position = batch[^1].Id,
+            ClassifiedEmailCount = run.ClassifiedEmailCount + walk.ClassifiedEmailCount,
+            SpamEmailCount = run.SpamEmailCount + walk.SpamEmailCount,
+            UndeterminedEmailCount = run.UndeterminedEmailCount + walk.UndeterminedEmailCount,
+            SkippedEmailCount = run.SkippedEmailCount + walk.SkippedEmailCount,
+            UnclassifiableEmailCount = run.UnclassifiableEmailCount + walk.UnclassifiableEmailCount,
+            ActedEmailCount = run.ActedEmailCount + walk.ActedEmailCount,
+            CategorizedEmailCount = run.CategorizedEmailCount + walk.CategorizedEmailCount,
+            CategoriesCurrentEmailCount = run.CategoriesCurrentEmailCount + walk.CategoriesCurrentEmailCount,
+            CategoriesUnansweredEmailCount = run.CategoriesUnansweredEmailCount + walk.CategoriesUnansweredEmailCount,
+            CategoriesClearedEmailCount = run.CategoriesClearedEmailCount + walk.CategoriesClearedEmailCount,
+        };
+
+        if (reachedTheEnd)
+        {
+            carried = this.Ended(carried, ClassificationRunEnding.Completed);
+        }
+
+        await this.CommitRunAsync(carried, cancellationToken);
+
+        tally.Add(batchTally);
+
+        return carried;
+    }
+
+    /// <summary>Reaches a verdict about one occurrence, or reuses the one it already carries, and applies the posture.</summary>
+    /// <remarks>
+    /// The existing record is read first and only where the run does not rescore, which is what makes a run over a
+    /// mailbox that has already been scored cost one lookup per message instead of a read of each message. It is reused only
+    /// where it names the profile the run is bound to: a record from before the profile was part of one, or from before
+    /// the profile last changed, was decided under a profile the run cannot compare and is therefore reached again. The
+    /// person's own verdict is the exception the classifier keeps: it stands under every profile and is counted as skipped.
+    /// <para>
+    /// A reused verdict is still put to the recorder. Skipping the scoring is a saving; skipping the action would make
+    /// switching filing on a run that files nothing, which is one of the two reasons this run exists.
+    /// </para>
+    /// </remarks>
+    private async Task ClassifyAsync(
+        ClassificationRun run,
+        ClassifiableEmail candidate,
+        ClassificationTally tally,
+        CancellationToken cancellationToken)
+    {
+        var existing = run.Terms.Rescores
+            ? null
+            : await this.classifications.FindAsync(candidate.Id, cancellationToken);
+
+        SpamClassification classification;
+
+        if (existing is not null && existing.Profile.IsSpecified && existing.Profile == run.Profile)
+        {
+            classification = existing;
+            tally.Skipped(existing.Verdict);
+        }
+        else
+        {
+            var result = await this.classifier.ClassifyAsync(
+                run.Account,
+                candidate.Id,
+                SpamClassificationMode.Reclassify,
+                cancellationToken);
+
+            if (result.Classification is not { } scored)
+            {
+                tally.Unclassifiable();
+
+                return;
+            }
+
+            classification = scored;
+
+            if (result.Outcome is SpamClassificationOutcome.PersonsVerdictKept)
+            {
+                tally.Skipped(scored.Verdict);
+            }
+            else
+            {
+                tally.Classified(scored.Verdict);
+            }
+        }
+
+        var action = await this.actionRecorder.RecordAsync(
+            classification,
+            run.Terms.Posture,
+            cancellationToken);
+
+        if (action.Outcome is SpamActionOutcome.Requested or SpamActionOutcome.WouldRequest or SpamActionOutcome.Applied)
+        {
+            tally.Acted();
+        }
+    }
+
+    /// <summary>Carries the batch's category half, which reads the verdicts the spam half just left.</summary>
+    private async Task CategorizeAsync(
+        ClassificationRun run,
+        IReadOnlyList<ClassifiableEmail> batch,
+        EmailCategorizationSettings categorizationSettings,
+        ClassificationTally passTally,
+        ClassificationTally batchTally,
+        CancellationToken cancellationToken)
+    {
+        StoredEmailId[] covered = [.. batch
+            .Where(candidate => run.Terms.CategoryFolderAliases.Contains(candidate.FolderAlias))
+            .Select(static candidate => candidate.Id)];
+
+        if (covered.Length == 0)
+        {
+            return;
+        }
+
+        var report = await this.categorization.CarryAsync(
+            run.Account,
+            covered,
+            new StoredEmailCategorizationTerms(
+                categorizationSettings,
+                run.Terms.OwnCategory,
+                run.Terms.Rescores,
+                passTally.AskingStoppedBy),
+            cancellationToken);
+
+        batchTally.Categorized(report);
+        passTally.AskingStoppedBy = report.AskingStoppedBy;
+    }
+
+    private ClassificationRun Ended(ClassificationRun run, ClassificationRunEnding ending) => run with
+    {
+        EndedAt = this.timeProvider.GetUtcNow(),
+        Ending = ending,
+    };
+
+    private Task EndRunAsync(
+        ClassificationRun run,
+        ClassificationRunEnding ending,
+        CancellationToken cancellationToken) =>
+        this.CommitRunAsync(this.Ended(run, ending), cancellationToken);
+
+    private Task CommitRunAsync(ClassificationRun run, CancellationToken cancellationToken) =>
+        this.commitPolicy.CommitAsync(
+            (session, attemptCancellationToken) => this.runStore.SaveAsync(session, run, attemptCancellationToken),
+            cancellationToken);
+
+    /// <summary>Adds up what a batch, and then a whole pass, did to the mail it reached.</summary>
+    private sealed class ClassificationTally
+    {
+        private int classifiedEmailCount;
+        private int spamEmailCount;
+        private int undeterminedEmailCount;
+        private int skippedEmailCount;
+        private int unclassifiableEmailCount;
+        private int actedEmailCount;
+        private int categorizedEmailCount;
+        private int categoriesCurrentEmailCount;
+        private int categoriesUnansweredEmailCount;
+        private int categoriesClearedEmailCount;
+
+        /// <summary>Gets or sets what stopped the category half asking for the rest of this pass, where something did.</summary>
+        internal DecisionModelOutcome? AskingStoppedBy { get; set; }
+
+        internal void Classified(SpamVerdict verdict)
+        {
+            this.classifiedEmailCount++;
+            this.CountVerdict(verdict);
+        }
+
+        internal void Skipped(SpamVerdict verdict)
+        {
+            this.skippedEmailCount++;
+            this.CountVerdict(verdict);
+        }
+
+        internal void Unclassifiable() => this.unclassifiableEmailCount++;
+
+        internal void Acted() => this.actedEmailCount++;
+
+        internal void Categorized(StoredEmailCategorizationReport report)
+        {
+            this.categorizedEmailCount += report.CategorizedEmailCount;
+            this.categoriesCurrentEmailCount += report.CurrentEmailCount;
+            this.categoriesUnansweredEmailCount += report.UnansweredEmailCount;
+            this.categoriesClearedEmailCount += report.ClearedEmailCount;
+        }
+
+        internal void Add(ClassificationWalk walk)
+        {
+            this.classifiedEmailCount += walk.ClassifiedEmailCount;
+            this.spamEmailCount += walk.SpamEmailCount;
+            this.undeterminedEmailCount += walk.UndeterminedEmailCount;
+            this.skippedEmailCount += walk.SkippedEmailCount;
+            this.unclassifiableEmailCount += walk.UnclassifiableEmailCount;
+            this.actedEmailCount += walk.ActedEmailCount;
+            this.categorizedEmailCount += walk.CategorizedEmailCount;
+            this.categoriesCurrentEmailCount += walk.CategoriesCurrentEmailCount;
+            this.categoriesUnansweredEmailCount += walk.CategoriesUnansweredEmailCount;
+            this.categoriesClearedEmailCount += walk.CategoriesClearedEmailCount;
+        }
+
+        internal void Add(ClassificationTally batch) => this.Add(batch.ToWalk(emailsRemain: false));
+
+        internal ClassificationWalk ToWalk(bool emailsRemain) => new()
+        {
+            ClassifiedEmailCount = this.classifiedEmailCount,
+            SpamEmailCount = this.spamEmailCount,
+            UndeterminedEmailCount = this.undeterminedEmailCount,
+            SkippedEmailCount = this.skippedEmailCount,
+            UnclassifiableEmailCount = this.unclassifiableEmailCount,
+            ActedEmailCount = this.actedEmailCount,
+            CategorizedEmailCount = this.categorizedEmailCount,
+            CategoriesCurrentEmailCount = this.categoriesCurrentEmailCount,
+            CategoriesUnansweredEmailCount = this.categoriesUnansweredEmailCount,
+            CategoriesClearedEmailCount = this.categoriesClearedEmailCount,
+            EmailsRemain = emailsRemain,
+        };
+
+        private void CountVerdict(SpamVerdict verdict)
+        {
+            switch (verdict)
+            {
+                case SpamVerdict.Spam:
+                    this.spamEmailCount++;
+
+                    break;
+                case SpamVerdict.Undetermined:
+                    this.undeterminedEmailCount++;
+
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+}

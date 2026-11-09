@@ -20,7 +20,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Categories;
 
-/// <summary>Reads the arriving mail still owed a category, and writes down what a model said about it.</summary>
+/// <summary>Reads the mail a model may be asked about, and writes down what it said.</summary>
 [RequiresIntegrationCoverage]
 internal sealed class EmailCategoryStore(
     MailFathomDbContext dbContext,
@@ -104,18 +104,103 @@ internal sealed class EmailCategoryStore(
             return false;
         }
 
-        context.EmailCategories.AddRange(assignments.Select(assignment => new EmailCategoryEntity
-        {
-            StoredEmailId = storedEmailId,
-            Kind = assignment.Kind,
-            Category = assignment.Category,
-            Probability = assignment.Probability,
-            Source = EmailCategorySource.Model,
-            Origin = assignment.ModelBuild,
-            QuestionRevision = assignment.QuestionRevision,
-        }));
+        context.EmailCategories.AddRange(assignments.Select(assignment => ToRecord(storedEmailId, assignment)));
 
         return true;
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<StoredEmailToCategorize>> GetStoredEmailsToCategorizeAsync(
+        MailAccountId account,
+        IReadOnlyList<StoredEmailId> emails,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(emails);
+
+        Guid[] named = [.. emails.Select(static email => email.Value)];
+        var visibleFolders = await deploymentFolders.ReadAsync(MailFolderSelection.VisibleToAI, [account], cancellationToken);
+        var junkFolders = await deploymentFolders.ReadAsync(MailFolderSelection.Junk, [account], cancellationToken);
+        var terms = await derivedWorkGate.ReadTermsAsync(cancellationToken);
+
+        var candidates = await SelectingStored(dbContext.StoredEmails.AsNoTracking(), account.Value, named, visibleFolders, junkFolders, terms)
+            .OrderBy(email => email.Id)
+            .Select(email => new StoredCandidateRow(
+                new CandidateRow(email.Id, email.EmailThreadId, email.ParentStoredEmailId),
+                email.Categories.Select(record => new EmailCategoryRecord(record.Kind, record.Category, record.QuestionRevision)).ToArray()))
+            .ToArrayAsync(cancellationToken);
+
+        var openings = await this.ReadOpeningsAsync(
+            account,
+            [.. candidates.Select(static candidate => candidate.Candidate)],
+            visibleFolders,
+            junkFolders,
+            terms,
+            cancellationToken);
+
+        return
+        [
+            .. candidates.Select(candidate => new StoredEmailToCategorize(
+                new EmailAwaitingCategorization(
+                    StoredEmailId.Create(candidate.Candidate.Id),
+                    OpeningFor(candidate.Candidate, openings)),
+                candidate.Records)),
+        ];
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Removing and adding rather than updating in place, because a message's records are a set and an answer can hold fewer
+    /// than it did. A crash or a second replica reaching the message writes the same set; one inserting beside this one
+    /// violates a key the retry resolves from a fresh delete.
+    /// </remarks>
+    public async Task<bool> ReplaceAsync(
+        IPersistenceSession session,
+        StoredEmailId email,
+        IReadOnlyList<EmailCategoryAssignment> assignments,
+        string? ownCategory,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(assignments);
+
+        var context = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        var storedEmailId = email.Value;
+
+        if (!await context.StoredEmails.AnyAsync(stored => stored.Id == storedEmailId, cancellationToken))
+        {
+            return false;
+        }
+
+        await Narrowed(context.EmailCategories.Where(record => record.StoredEmailId == storedEmailId), ownCategory)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        context.EmailCategories.AddRange(assignments.Select(assignment => ToRecord(storedEmailId, assignment)));
+
+        return true;
+    }
+
+    /// <inheritdoc />
+    public async Task<int> ClearCategoriesOfSpamAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        IReadOnlyList<StoredEmailId> emails,
+        string? ownCategory,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(emails);
+
+        var context = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        Guid[] named = [.. emails.Select(static email => email.Value)];
+        var visibleFolders = await deploymentFolders.ReadAsync(MailFolderSelection.VisibleToAI, [account], cancellationToken);
+        var spam = SpamInVisibleFolders(context.StoredEmails, account.Value, named, visibleFolders).Select(email => email.Id);
+        var records = Narrowed(context.EmailCategories.Where(record => spam.Contains(record.StoredEmailId)), ownCategory);
+        var clearedEmailCount = await records.Select(record => record.StoredEmailId).Distinct().CountAsync(cancellationToken);
+
+        if (clearedEmailCount > 0)
+        {
+            await records.ExecuteDeleteAsync(cancellationToken);
+        }
+
+        return clearedEmailCount;
     }
 
     /// <summary>Narrows stored mail to the arriving messages a model is still owed a question about.</summary>
@@ -142,13 +227,8 @@ internal sealed class EmailCategoryStore(
         IReadOnlyList<MailFolderIdentity> visibleFolders,
         IReadOnlyList<MailFolderIdentity> junkFolders,
         DerivedWorkAdmissionTerms terms) => ShowableToAModel(
-        emails
-            .Where(UnsentStoredEmails.IsSentOrReceived)
-            .Where(email => email.MailboxAccountId == mailboxAccountId
-                && email.ReportKind == null
-                && email.ContentAvailability == StoredEmailContentAvailability.Available
-                && email.RulesEvaluatedAt == null
-                && email.FiledFromOutgoingEmailId == null
+        OfAccountAndAskable(emails, mailboxAccountId)
+            .Where(email => email.RulesEvaluatedAt == null
                 && !email.Categories.Any(record => record.Kind == EmailCategoryKind.Default)),
         visibleFolders,
         junkFolders,
@@ -175,6 +255,73 @@ internal sealed class EmailCategoryStore(
         DerivedWorkAdmissionTerms terms) =>
         Selecting(emails.Where(email => identifiers.Contains(email.Id)), mailboxAccountId, visibleFolders, junkFolders, terms)
             .Where(email => email.StoredAt > terms.ReleasedWhenStoredBefore);
+
+    /// <summary>Narrows the named stored messages to the ones a run may ask about.</summary>
+    /// <param name="emails">The emails to narrow.</param>
+    /// <param name="mailboxAccountId">The account.</param>
+    /// <param name="named">The messages a batch reached.</param>
+    /// <param name="visibleFolders">The folders visible to AI.</param>
+    /// <param name="junkFolders">The folders the account maps to the junk role.</param>
+    /// <param name="terms">The terms the spam gate decides under.</param>
+    /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
+    /// <remarks>
+    /// The same mail the arrival stage may be shown, except that a message still arriving is left to it: that stage asks
+    /// about it in this same account run, and asking here as well would ask twice for one message.
+    /// </remarks>
+    internal static IQueryable<StoredEmailEntity> SelectingStored(
+        IQueryable<StoredEmailEntity> emails,
+        string mailboxAccountId,
+        Guid[] named,
+        IReadOnlyList<MailFolderIdentity> visibleFolders,
+        IReadOnlyList<MailFolderIdentity> junkFolders,
+        DerivedWorkAdmissionTerms terms) => ShowableToAModel(
+        OfAccountAndAskable(emails, mailboxAccountId)
+            .Where(email => named.Contains(email.Id) && email.RulesEvaluatedAt != null),
+        visibleFolders,
+        junkFolders,
+        terms);
+
+    /// <summary>Narrows the named stored messages to the ones whose categories spam takes away.</summary>
+    /// <param name="emails">The emails to narrow.</param>
+    /// <param name="mailboxAccountId">The account.</param>
+    /// <param name="named">The messages a batch reached.</param>
+    /// <param name="visibleFolders">The folders visible to AI, outside which a message's categories stay untouched.</param>
+    /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
+    internal static IQueryable<StoredEmailEntity> SpamInVisibleFolders(
+        IQueryable<StoredEmailEntity> emails,
+        string mailboxAccountId,
+        Guid[] named,
+        IReadOnlyList<MailFolderIdentity> visibleFolders) => AccountScopedMailFolders.Admitting(
+        emails.Where(email => email.MailboxAccountId == mailboxAccountId
+            && named.Contains(email.Id)
+            && email.SpamClassification != null
+            && email.SpamClassification.Verdict == SpamVerdict.Spam),
+        visibleFolders);
+
+    private static IQueryable<StoredEmailEntity> OfAccountAndAskable(
+        IQueryable<StoredEmailEntity> emails,
+        string mailboxAccountId) => emails
+        .Where(UnsentStoredEmails.IsSentOrReceived)
+        .Where(email => email.MailboxAccountId == mailboxAccountId
+            && email.ReportKind == null
+            && email.ContentAvailability == StoredEmailContentAvailability.Available
+            && email.FiledFromOutgoingEmailId == null);
+
+    private static IQueryable<EmailCategoryEntity> Narrowed(IQueryable<EmailCategoryEntity> records, string? ownCategory) =>
+        ownCategory is null
+            ? records
+            : records.Where(record => record.Kind == EmailCategoryKind.Own && record.Category == ownCategory);
+
+    private static EmailCategoryEntity ToRecord(Guid storedEmailId, EmailCategoryAssignment assignment) => new()
+    {
+        StoredEmailId = storedEmailId,
+        Kind = assignment.Kind,
+        Category = assignment.Category,
+        Probability = assignment.Probability,
+        Source = EmailCategorySource.Model,
+        Origin = assignment.ModelBuild,
+        QuestionRevision = assignment.QuestionRevision,
+    };
 
     /// <summary>Narrows stored mail to what a model may be shown: nothing junk, nothing erased, and nothing in a folder withheld from AI.</summary>
     /// <remarks>
@@ -284,6 +431,8 @@ internal sealed class EmailCategoryStore(
     }
 
     private sealed record CandidateRow(Guid Id, Guid? EmailThreadId, Guid? ParentStoredEmailId);
+
+    private sealed record StoredCandidateRow(CandidateRow Candidate, EmailCategoryRecord[] Records);
 
     /// <summary>The bounded text of the message that opened a conversation.</summary>
     /// <param name="Id">The message.</param>

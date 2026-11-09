@@ -382,6 +382,92 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("calendar_event_reminders", (string)null);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.ClassificationRunEntity", b =>
+                {
+                    b.Property<string>("MailboxAccountId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("ActedEmailCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CategoriesClearedEmailCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CategoriesCurrentEmailCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CategoriesUnansweredEmailCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CategorizedEmailCount")
+                        .HasColumnType("integer");
+
+                    b.PrimitiveCollection<string[]>("CategoryFolderAliases")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<int>("ClassifiedEmailCount")
+                        .HasColumnType("integer");
+
+                    b.Property<uint>("ConcurrencyVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Ending")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("OwnCategory")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid?>("Position")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Posture")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Profile")
+                        .HasMaxLength(12)
+                        .HasColumnType("character(12)")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("RequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Rescores")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("SkippedEmailCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SpamEmailCount")
+                        .HasColumnType("integer");
+
+                    b.PrimitiveCollection<string[]>("SpamFolderAliases")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<int>("UnclassifiableEmailCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UndeterminedEmailCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("MailboxAccountId")
+                        .HasName("pk_classification_runs");
+
+                    b.ToTable("classification_runs", (string)null);
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.ClientPreferencesEntity", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -4247,72 +4333,6 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("OrganizationId"), false);
 
                     b.ToTable("settings_policies", (string)null);
-                });
-
-            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.SpamClassificationRunEntity", b =>
-                {
-                    b.Property<string>("MailboxAccountId")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<int>("ActedEmailCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ClassifiedEmailCount")
-                        .HasColumnType("integer");
-
-                    b.Property<uint>("ConcurrencyVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
-                    b.Property<DateTimeOffset?>("EndedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Ending")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.PrimitiveCollection<string[]>("FolderAliases")
-                        .IsRequired()
-                        .HasColumnType("text[]");
-
-                    b.Property<Guid?>("Position")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Posture")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("Profile")
-                        .HasMaxLength(12)
-                        .HasColumnType("character(12)")
-                        .IsFixedLength();
-
-                    b.Property<DateTimeOffset>("RequestedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("Rescores")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("SkippedEmailCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SpamEmailCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UnclassifiableEmailCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UndeterminedEmailCount")
-                        .HasColumnType("integer");
-
-                    b.HasKey("MailboxAccountId")
-                        .HasName("pk_spam_classification_runs");
-
-                    b.ToTable("spam_classification_runs", (string)null);
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.SpentClientAssertionEntity", b =>

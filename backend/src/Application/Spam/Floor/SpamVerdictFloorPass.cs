@@ -2,12 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Classification;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam.Gating;
-using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -50,7 +50,7 @@ public sealed class SpamVerdictFloorPass
     private readonly IStoredEmailAttachmentTextStore attachmentTextStore;
     private readonly IDerivedWorkGateTelemetry gateTelemetry;
     private readonly OptimisticConcurrencyRetryPolicy retryPolicy;
-    private readonly SpamClassificationRunOptions options;
+    private readonly ClassificationRunOptions options;
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the pass over the mail it reads and the record it raises.</summary>
@@ -78,7 +78,7 @@ public sealed class SpamVerdictFloorPass
         IStoredEmailAttachmentTextStore attachmentTextStore,
         IDerivedWorkGateTelemetry gateTelemetry,
         OptimisticConcurrencyRetryPolicy retryPolicy,
-        SpamClassificationRunOptions options,
+        ClassificationRunOptions options,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(candidates);

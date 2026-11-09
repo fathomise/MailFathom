@@ -1,6 +1,6 @@
 # Spam classification
 
-<!-- describes: backend/src/Domain/Spam/**, backend/src/Application/Spam/**, backend/src/Application/Folders/IJunkMailFolderCatalog.cs, backend/src/Infrastructure/Persistence/Spam/**, backend/src/Infrastructure/Observability/DerivedWorkGateTelemetry.cs, backend/src/Infrastructure/Observability/SpamModelStageTelemetry.cs, backend/src/AI/SpamClassification/**, backend/src/Infrastructure/Mail/Mime/MimeKitEmailSpamHeaderReader.cs, backend/src/Host/Configuration/Spam/** -->
+<!-- describes: backend/src/Domain/Spam/**, backend/src/Application/Spam/**, backend/src/Application/Classification/**, backend/src/Application/Folders/IJunkMailFolderCatalog.cs, backend/src/Infrastructure/Persistence/Spam/**, backend/src/Infrastructure/Observability/DerivedWorkGateTelemetry.cs, backend/src/Infrastructure/Observability/SpamModelStageTelemetry.cs, backend/src/AI/SpamClassification/**, backend/src/Infrastructure/Mail/Mime/MimeKitEmailSpamHeaderReader.cs, backend/src/Host/Configuration/Spam/** -->
 
 A mailbox that an assistant reads is a mailbox somebody else can write to. Mail written to deceive a reader is
 indistinguishable from correspondence once it is a row in a timeline, and the receiving mail server has usually already
@@ -832,7 +832,7 @@ decision, and every switch is still off by default.
 The trigger above reaches mail as it arrives, so a **classification run** is what reaches the mail a deployment already
 holds: everything stored before this existed, everything stored while the feature was off, and everything a stalled
 job or a full queue left without a verdict. It is also what switching classification on or switching filing on is
-applied to an existing mailbox with. `mfctl spam run --account <id>` asks for one, and
+applied to an existing mailbox with. `mfctl classification run --account <id>` asks for one, and
 [administering a deployment](../operations/admin-endpoint.md#classifying-the-mail-you-already-have-and-reading-what-was-concluded)
 is the command reference.
 
@@ -842,6 +842,10 @@ is read last, after every refusal above it, so what a dry run reports is the dec
 than a guess at it: a message already filed reports that, a destination that resolves to nothing reports that, and only
 a message the switches genuinely reach is counted as one the run would act on. The verdicts are recorded under either
 posture, because a classification is derived data rather than a change to a mailbox.
+
+**The same run goes on to [the categories](email-categorization.md#going-over-mail-you-already-have) of what is not
+spam**, where the account categorizes, so the order on arrival is the order here too. Where it does not classify spam the
+run reads only the verdict already recorded, which the floor for the junk folder and `$Junk` supplies without that switch.
 
 The run's terms — the folders, the posture, and whether it rescores — are fixed when it is asked for. A walk spans as
 many account runs as its batch budget needs, so reading configuration again on each pass would let a folder added
@@ -856,10 +860,10 @@ than the current one, was decided under terms the run cannot compare and is reac
 everything in scope afresh, which is the one form of the run that reads every message's content however recently the
 message was decided.
 
-The scope defaults to the folders classification is configured over, and is bounded by them: `--folder` narrows within
-that scope and a folder outside it is refused, naming the configured scope as the thing to edit. A run over a folder
-nobody classifies would read the whole of it and record nothing, because the classifier declines an occurrence outside
-the scope message by message.
+The scope defaults to every folder the run's functions cover, and is bounded by them. `--folder` narrows within that, a
+folder only categories reach gets no spam half, and a folder neither reaches is refused: a run over a folder nobody
+classifies would read the whole of it and record nothing, because the classifier declines an occurrence outside the scope
+message by message.
 
 One run per account is outstanding at a time. Asking twice is asking once — the second request is answered with the run
 already under way, on the terms it was asked for rather than the ones the second request carried, because a walk that
@@ -884,13 +888,14 @@ account next resumes past the position the last committed batch reached.
 
 A run ends in one of three ways. **Completed** is the walk reaching the end of its scope. **Superseded** is the profile
 having moved while the run was outstanding — a run cannot finish under terms it did not start with, and half a mailbox
-decided each way is worse than a run an operator asks for again. **Disabled** is classification having been switched
-off under it. All three are reported, and the run is readable after it has ended: *it completed an hour ago* and *you
+decided each way is worse than a run an operator asks for again. **Disabled** is a function the run covers having been switched
+off under it, or the own category it applies having been removed. All three are reported, and the run is readable after it has ended: *it completed an hour ago* and *you
 never asked* are different answers.
 
-What a run reports is counts and nothing derived from a message: how many it scored, how many were already decided,
+What a run reports is counts and nothing derived from a message, each half's of its own: how many it scored, how many were already decided,
 how many it could reach no verdict about, how many are junk, how many nothing decided either way, and how many the
-switches reach. That last one is the whole of what an operator is deciding on when they read a dry run.
+switches reach. That last one is the whole of what an operator is deciding on when they read a dry run. A failed spam
+model leaves the deterministic verdict in place, exactly as on arrival.
 
 ## What it costs when it is off
 

@@ -31,9 +31,7 @@ internal static class EmailCategoryReading
     {
         ArgumentNullException.ThrowIfNull(response);
 
-        var modelBuild = SpamClassificationReading.UsableBuild(response.ModelId)
-            ?? SpamClassificationReading.UsableBuild(requestedModel)
-            ?? "unnamed";
+        var modelBuild = ModelBuildOf(response, requestedModel);
 
         if (Find(response, EmailCategoryQuestions.DefaultQuestionId) is not { IsAnswered: true } defaultAnswer
             || MostProbableDefault(defaultAnswer) is not { } chosen)
@@ -64,6 +62,37 @@ internal static class EmailCategoryReading
             .. held,
         ];
     }
+
+    /// <summary>Reads the answer to one own category's question, asked alone.</summary>
+    /// <param name="response">What the model answered.</param>
+    /// <param name="category">The category.</param>
+    /// <param name="question">The question asked about it.</param>
+    /// <param name="requestedModel">The model the request asked for.</param>
+    /// <returns>That category where the message holds it, nothing where it does not, or <see langword="null" /> where the answer cannot be read.</returns>
+    internal static IReadOnlyList<EmailCategoryAssignment>? ReadOwn(
+        DecisionResponse response,
+        OwnMailCategory category,
+        DecisionQuestion question,
+        string requestedModel)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+
+        if (Find(response, question.Id) is not { IsAnswered: true } answer)
+        {
+            return null;
+        }
+
+        var yes = answer.Probabilities.GetValueOrDefault(DecisionQuestion.Yes);
+
+        return yes >= EmailCategoryQuestions.OwnCategoryThreshold
+            ? [new EmailCategoryAssignment(EmailCategoryKind.Own, category.Name, yes, ModelBuildOf(response, requestedModel), DecisionQuestionSet.RevisionOf([question]))]
+            : [];
+    }
+
+    private static string ModelBuildOf(DecisionResponse response, string requestedModel) =>
+        SpamClassificationReading.UsableBuild(response.ModelId)
+        ?? SpamClassificationReading.UsableBuild(requestedModel)
+        ?? "unnamed";
 
     private static DecisionAnswer? Find(DecisionResponse response, string questionId) =>
         response.Answers.FirstOrDefault(answer => string.Equals(answer.QuestionId, questionId, StringComparison.Ordinal));

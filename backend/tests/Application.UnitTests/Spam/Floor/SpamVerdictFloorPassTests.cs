@@ -2,13 +2,13 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Classification;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Floor;
-using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
@@ -295,7 +295,7 @@ public sealed class SpamVerdictFloorPassTests
         StoredEmailId[] stored = [.. Enumerable.Range(0, 5).Select(_ => this.Store(Junk))];
         var pass = this.Pass(
             SpamClassificationSettings.Disabled,
-            options: new SpamClassificationRunOptions { BatchSize = 2, MaxBatchesPerPass = 2 });
+            options: new ClassificationRunOptions { BatchSize = 2, MaxBatchesPerPass = 2 });
 
         // Act
         var raised = await pass.RunAsync(Account, TestContext.Current.CancellationToken);
@@ -349,7 +349,7 @@ public sealed class SpamVerdictFloorPassTests
     private SpamVerdictFloorPass Pass(
         SpamClassificationSettings settings,
         SpamClassificationScope? scope = null,
-        SpamClassificationRunOptions? options = null)
+        ClassificationRunOptions? options = null)
     {
         var settingsReader = Substitute.For<ISpamClassificationSettingsReader>();
         settingsReader.SettingsFor(Account).Returns(settings);
@@ -368,7 +368,7 @@ public sealed class SpamVerdictFloorPassTests
             this.attachmentTextStore,
             this.gateTelemetry,
             this.harness.CommitPolicyOver(this.harness.CommittingSessions()),
-            options ?? new SpamClassificationRunOptions(),
+            options ?? new ClassificationRunOptions(),
             this.harness.Clock);
     }
 

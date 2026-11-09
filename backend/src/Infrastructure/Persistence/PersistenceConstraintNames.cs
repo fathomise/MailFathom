@@ -302,7 +302,7 @@ internal static class PersistenceConstraintNames
     /// one of them violates this key, and the retry reads back the run the winner asked for — which is how asking twice
     /// produces one walk of one mailbox rather than two.
     /// </remarks>
-    internal const string SpamClassificationRunPrimaryKeyConstraintName = "pk_spam_classification_runs";
+    internal const string ClassificationRunPrimaryKeyConstraintName = "pk_classification_runs";
 
     /// <summary>The key that keeps one re-derivation cursor per scope, and which a second walk of it is recognized by.</summary>
     /// <remarks>

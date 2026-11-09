@@ -86,6 +86,16 @@ internal static class EmailCategoryQuestions
         yesMeans: category.Description,
         noMeans: "The message is not about that subject.");
 
+    /// <summary>Gets the revision each question is asked under now.</summary>
+    /// <param name="ownCategories">The mailbox's own categories.</param>
+    /// <returns>The revisions.</returns>
+    internal static EmailCategoryQuestionRevisions RevisionsOf(IReadOnlyList<OwnMailCategory> ownCategories) => new(
+        DefaultRevision,
+        ownCategories.ToDictionary(
+            static category => category.Name,
+            static category => DecisionQuestionSet.RevisionOf([For(category)]),
+            StringComparer.Ordinal));
+
     /// <summary>Gets the option values of the default choice, in the order they are offered.</summary>
     internal static IEnumerable<string> DefaultOptionValues => DefaultOptions.Select(static option => option.Value);
 }

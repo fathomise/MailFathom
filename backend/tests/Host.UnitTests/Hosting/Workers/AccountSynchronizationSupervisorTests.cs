@@ -5,6 +5,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using MailFathom.Application.Classification;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Folders;
@@ -15,7 +16,6 @@ using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Following;
-using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Administration;
 using MailFathom.Application.Synchronization.Restore;
@@ -1365,14 +1365,14 @@ public sealed class AccountSynchronizationSupervisorTests
 
                 return Task.FromResult<IReadOnlyList<SpamVerdictFloorCandidate>>([]);
             });
-        var classificationRunStore = Substitute.For<ISpamClassificationRunStore>();
+        var classificationRunStore = Substitute.For<IClassificationRunStore>();
         classificationRunStore
             .FindOutstandingAsync(Arg.Any<MailAccountId>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 localSteps.Enqueue("classification");
 
-                return Task.FromResult<SpamClassificationRun?>(null);
+                return Task.FromResult<ClassificationRun?>(null);
             });
         var ruleStore = Substitute.For<IMailRuleEvaluationStore>();
         ruleStore
@@ -1813,7 +1813,7 @@ public sealed class AccountSynchronizationSupervisorTests
         IMailboxMutationRecordStore? mutationRecordStore = null,
         IStoredMailFolderMirrorStore? folderMirrorStore = null,
         IMailRuleEvaluationStore? ruleEvaluationStore = null,
-        ISpamClassificationRunStore? classificationRunStore = null,
+        IClassificationRunStore? classificationRunStore = null,
         IStoredEmailChunkingStore? chunkingStore = null,
         IStoredEmailAttachmentTextStore? attachmentTextStore = null,
         ISpamVerdictFloorCandidateReader? floorCandidateReader = null,

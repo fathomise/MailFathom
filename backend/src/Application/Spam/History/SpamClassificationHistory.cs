@@ -11,7 +11,7 @@ namespace MailFathom.Application.Spam.History;
 /// <remarks>
 /// A verdict, a score, and the signals behind them are derived from the message they are about, so this is published
 /// under the audit grant rather than the one covering reports of the deployment's own state. Where a run has got to is
-/// the other question and the other grant, which <see cref="Runs.SpamClassificationRunReader" /> answers.
+/// the other question and the other grant, which <see cref="Classification.ClassificationRunReader" /> answers.
 /// </remarks>
 public sealed class SpamClassificationHistory
 {

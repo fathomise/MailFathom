@@ -154,7 +154,7 @@ internal static class AdminEndpointRoutes
 
     /// <summary>Where a whole-mailbox classification run is asked for, and where the one an account has is read.</summary>
     /// <remarks>One path read with <c>GET</c> and asked for with <c>POST</c>, for the reason the rule runs path is.</remarks>
-    internal const string SpamClassificationRunsPath = $"{Prefix}/spam/runs";
+    internal const string ClassificationRunsPath = $"{Prefix}/classification/runs";
 
     /// <summary>Where a deployment reports what classification concluded about an account's mail.</summary>
     internal const string SpamClassificationsPath = $"{Prefix}/spam/classifications";
