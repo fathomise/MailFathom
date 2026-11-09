@@ -5050,8 +5050,10 @@ Content-Type: application/json
 { "decision": "accepted" }
 ```
 
-The answer is `200` with the place the decision was written at, `400` for any decision but `accepted` or `declined`, and
-`409` where there is no proposal at that place this person can answer that way — none offered, or already decided —
+The answer is `200` with the place the decision was written at, `400` for any decision but `accepted` or `declined` or
+for an edited body that cannot be sent, and `409` where there is no proposal at that place this person can answer that
+way — none offered, already decided, or one sending no message offered an edited body, as the paragraph on an edited
+body below states —
 which is also what a second press gets, so an act is never carried out twice. Accepting is recorded first and the act
 carried out after it — a message sent, or an answer to a message sent, through the same drafting and sending a person
 composing it by hand goes through — and an act this deployment refuses ends the proposal as `failed`, which is what the
@@ -5093,8 +5095,10 @@ of the proposed one:
 ```
 
 A resolution sent as proposed carries no `editedBody`, and one recorded before resolutions said when carries no
-`answeredAt` either. `DELETE /api/client/agent/conversations/{conversationId}` removes
-the conversation and everything said in it, `204`, and `404` once there is nothing to remove.
+`answeredAt` either.
+
+**Deleting a conversation removes everything said in it:** `DELETE /api/client/agent/conversations/{conversationId}`
+answers `204`, and `404` once there is nothing to remove.
 
 **Archiving puts a conversation away without losing any of it:**
 
