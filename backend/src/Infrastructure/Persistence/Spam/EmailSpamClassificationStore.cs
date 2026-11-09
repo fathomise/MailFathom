@@ -52,6 +52,22 @@ internal sealed class EmailSpamClassificationStore(MailFathomDbContext dbContext
     }
 
     /// <inheritdoc />
+    public Task<bool> FollowSourceAsync(
+        IPersistenceSession session,
+        SpamClassification classification,
+        DateTimeOffset changeObservedAt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(classification);
+
+        return this.SaveUnlessRefusedAsync(
+            session,
+            classification,
+            stored => SpamClassification.GivesWayToSourceChange(stored.DecidedBy, stored.EvaluatedAt, changeObservedAt),
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<bool> LiftToSpamAsync(
         IPersistenceSession session,
         SpamClassification classification,

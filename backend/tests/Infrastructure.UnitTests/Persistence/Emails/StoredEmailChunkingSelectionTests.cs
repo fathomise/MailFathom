@@ -110,6 +110,26 @@ public sealed class StoredEmailChunkingSelectionTests
         Assert.Empty(selected.AsEnumerable());
     }
 
+    /// <summary>A junk verdict removed the passages, so a message whose verdict is lifted is one this query reaches again with no flag to clear.</summary>
+    [Fact]
+    public void Selecting_AMessageLiftedFromSpamWhosePassagesWereRemoved_SelectsItAgain()
+    {
+        // Arrange
+        var email = Email("work", "INBOX");
+        email.SpamClassification = new EmailSpamClassificationEntity
+        {
+            StoredEmailId = email.Id,
+            Verdict = SpamVerdict.NotSpam,
+            DecidedBy = SpamClassificationStage.Deterministic,
+        };
+
+        // Act
+        var selected = StoredEmailChunkingStore.Selecting(Emails(email), "work", [WorkInbox], ClassificationOff);
+
+        // Assert
+        Assert.Single(selected.AsEnumerable());
+    }
+
     /// <summary>A message nobody could extract text from has nothing to cut, and no later run will produce any.</summary>
     [Fact]
     public void Selecting_MailWithNoExtractedBody_LeavesItOut()

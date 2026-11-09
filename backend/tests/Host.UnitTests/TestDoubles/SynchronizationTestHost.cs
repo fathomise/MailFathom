@@ -51,6 +51,7 @@ using MailFathom.Application.SensitiveContent.Derivation;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Spam.Floor;
+using MailFathom.Application.Spam.Following;
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.Model;
 using MailFathom.Application.Spam.Runs;
@@ -141,6 +142,7 @@ internal static class SynchronizationTestHost
     /// <param name="ruleEvaluationStore">Replaces the store a rule pass reads its candidates from; one with nothing to evaluate is the default.</param>
     /// <param name="classificationRunStore">Replaces the store the classification pass reads its outstanding run from; one with nothing outstanding is the default.</param>
     /// <param name="floorCandidateReader">Replaces the reader the spam floor finds mail below it through; one finding nothing is the default.</param>
+    /// <param name="junkMarkFollowStore">Replaces the store the pass following junk marks reads what is owed from; one owing nothing is the default.</param>
     /// <param name="chunkingStore">Replaces the store the cut reads its candidates from; one with nothing awaiting passages is the default.</param>
     /// <param name="attachmentTextStore">
     /// Replaces the store the attachment reading reads its candidates from. Supplying one also turns attachment reading
@@ -165,6 +167,7 @@ internal static class SynchronizationTestHost
         IStoredEmailAttachmentTextStore? attachmentTextStore = null,
         IWorkLeaseStore? workLeaseStore = null,
         ISpamVerdictFloorCandidateReader? floorCandidateReader = null,
+        IJunkMarkFollowStore? junkMarkFollowStore = null,
         params string[] unadvertisedAliases)
     {
         var services = new ServiceCollection();
@@ -406,6 +409,8 @@ internal static class SynchronizationTestHost
         // mail these tests store sits below it, so the default reader answers with nothing and the pass writes nothing.
         services.AddSingleton(floorCandidateReader ?? CreateFloorCandidateReaderWithNothingBelowTheFloor());
         services.AddScoped<SpamVerdictFloorPass>();
+        services.AddSingleton(junkMarkFollowStore ?? Substitute.For<IJunkMarkFollowStore>());
+        services.AddScoped<JunkMarkFollowPass>();
         // The arrival trigger the run reaches after each message it commits, and the queue it writes through. Every
         // account these tests configure runs with classification off, so the trigger reads one property per stored
         // message and the substituted queue is never asked for anything.

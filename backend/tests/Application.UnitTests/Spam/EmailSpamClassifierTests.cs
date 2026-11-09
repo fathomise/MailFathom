@@ -766,6 +766,217 @@ public sealed class EmailSpamClassifierTests
         Assert.Equal(SpamVerdict.Spam, Assert.Single(this.store.Saved).Verdict);
     }
 
+    /// <summary>Each row of what a change another client made on a mirrored account does to the verdict.</summary>
+    [Theory]
+    [InlineData(SpamVerdict.Spam, new[] { JunkKeywords.NotJunk }, false, false, SpamVerdict.NotSpam)]
+    [InlineData(SpamVerdict.Spam, new[] { JunkKeywords.NotJunk, JunkKeywords.Junk }, true, false, SpamVerdict.NotSpam)]
+    [InlineData(SpamVerdict.NotSpam, new[] { JunkKeywords.Junk }, false, false, SpamVerdict.Spam)]
+    [InlineData(SpamVerdict.NotSpam, new[] { JunkKeywords.Phishing }, false, false, SpamVerdict.Spam)]
+    [InlineData(SpamVerdict.Spam, new[] { JunkKeywords.Junk, JunkKeywords.NotJunk }, false, false, SpamVerdict.Undetermined)]
+    [InlineData(SpamVerdict.NotSpam, new[] { JunkKeywords.Junk, JunkKeywords.NotJunk }, false, true, SpamVerdict.Spam)]
+    [InlineData(SpamVerdict.Spam, new string[0], false, false, SpamVerdict.Undetermined)]
+    [InlineData(SpamVerdict.Spam, new string[0], false, true, SpamVerdict.Spam)]
+    [InlineData(SpamVerdict.NotSpam, new string[0], false, false, SpamVerdict.Undetermined)]
+    public async Task FollowSourceAsync_TheMarksTheSourceNowCarries_DecidesTheVerdictTheyCallFor(
+        SpamVerdict before,
+        string[] keywords,
+        bool ownJunkMark,
+        bool contentSaysSpam,
+        SpamVerdict expected)
+    {
+        // Arrange
+        this.store.Hold(Recorded(before));
+
+        if (ownJunkMark)
+        {
+            this.verdictActs.With(Occurrence, SpamVerdictAct.MarkedJunk);
+        }
+
+        var classifier = this.Classifier(
+            SettingsCovering(Inbox),
+            contentSaysSpam ? FactsSaying("X-Spam-Flag", "YES") : SpamHeaderFacts.None,
+            new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, EmailKeywords.Create(keywords), IsSettled: true));
+
+        // Act
+        var result = await classifier.FollowSourceAsync(
+            Account,
+            Occurrence,
+            EvaluatedAt,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamClassificationOutcome.Classified, result.Outcome);
+        Assert.Equal(expected, Assert.Single(this.store.Saved).Verdict);
+    }
+
+    /// <summary>A later, different mark set in another client is the newer statement, even over the person.</summary>
+    [Fact]
+    public async Task FollowSourceAsync_ADifferentMarkObservedAfterThePersonsVerdict_ReplacesIt()
+    {
+        // Arrange
+        this.store.Hold(PersonsVerdict(SpamVerdict.Spam, EvaluatedAt.AddHours(-1)));
+        var classifier = this.Classifier(
+            SettingsCovering(Inbox),
+            SpamHeaderFacts.None,
+            new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, EmailKeywords.Create([JunkKeywords.NotJunk]), IsSettled: true));
+
+        // Act
+        await classifier.FollowSourceAsync(Account, Occurrence, EvaluatedAt, TestContext.Current.CancellationToken);
+
+        // Assert
+        var saved = Assert.Single(this.store.Saved);
+        Assert.Equal(SpamVerdict.NotSpam, saved.Verdict);
+        Assert.Equal(SpamClassificationStage.Deterministic, saved.DecidedBy);
+    }
+
+    /// <summary>The person's verdict is the newest statement, so a change seen before it, or the arrival state, reads nothing.</summary>
+    [Fact]
+    public async Task FollowSourceAsync_APersonsVerdictNewerThanTheChange_KeepsItAndReadsNoMail()
+    {
+        // Arrange
+        var personsVerdict = PersonsVerdict(SpamVerdict.NotSpam, EvaluatedAt.AddHours(1));
+        this.store.Hold(personsVerdict);
+        var classifier = this.Classifier(SettingsCovering(Inbox), FactsSaying("X-Spam-Flag", "YES"));
+
+        // Act
+        var result = await classifier.FollowSourceAsync(Account, Occurrence, EvaluatedAt, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamClassificationOutcome.PersonsVerdictKept, result.Outcome);
+        Assert.Empty(this.store.Saved);
+        await this.contentStore.DidNotReceive()
+            .FindStoredContentAsync(Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Lost to the person only at the conditional write, which is the second replica's view of the same race.</summary>
+    [Fact]
+    public async Task FollowSourceAsync_APersonsVerdictRecordedDuringTheEvaluation_KeepsIt()
+    {
+        // Arrange
+        var personsVerdict = PersonsVerdict(SpamVerdict.Spam, EvaluatedAt.AddHours(1));
+        this.store.HoldAfterTheNextRead(personsVerdict);
+        var classifier = this.Classifier(
+            SettingsCovering(Inbox),
+            SpamHeaderFacts.None,
+            new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, EmailKeywords.Create([JunkKeywords.NotJunk]), IsSettled: true));
+
+        // Act
+        var result = await classifier.FollowSourceAsync(Account, Occurrence, EvaluatedAt, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamClassificationOutcome.PersonsVerdictKept, result.Outcome);
+        Assert.Empty(this.store.Saved);
+    }
+
+    /// <summary>A mark saying what the person already said changes nothing, so the record goes on naming the person.</summary>
+    [Fact]
+    public async Task FollowSourceAsync_TheMarkSaysWhatThePersonSaid_KeepsThePersonsRecord()
+    {
+        // Arrange
+        this.store.Hold(PersonsVerdict(SpamVerdict.NotSpam, EvaluatedAt.AddHours(-1)));
+        var classifier = this.Classifier(
+            SettingsCovering(Inbox),
+            SpamHeaderFacts.None,
+            new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, EmailKeywords.Create([JunkKeywords.NotJunk]), IsSettled: true));
+
+        // Act
+        var result = await classifier.FollowSourceAsync(Account, Occurrence, EvaluatedAt, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamClassificationOutcome.PersonsVerdictKept, result.Outcome);
+        Assert.Empty(this.store.Saved);
+    }
+
+    /// <summary>A verdict the floor raised on an account that does not classify still follows the mark, and nothing is removed for a cut nobody gates.</summary>
+    [Fact]
+    public async Task FollowSourceAsync_AnAccountThatDoesNotClassifyHoldingAVerdict_DecidesItAndDiscardsNothing()
+    {
+        // Arrange
+        this.store.Hold(Recorded(SpamVerdict.NotSpam));
+        var classifier = this.Classifier(
+            SpamClassificationSettings.Disabled,
+            SpamHeaderFacts.None,
+            new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, EmailKeywords.Create([JunkKeywords.Junk]), IsSettled: true));
+
+        // Act
+        await classifier.FollowSourceAsync(Account, Occurrence, EvaluatedAt, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamVerdict.Spam, Assert.Single(this.store.Saved).Verdict);
+        await this.chunkStore.DidNotReceive().DiscardChunksAsync(
+            Arg.Any<IPersistenceSession>(),
+            Arg.Any<StoredEmailId>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Mail nobody decided anything about stays undecided where the account does not classify it.</summary>
+    [Fact]
+    public async Task FollowSourceAsync_AnAccountThatDoesNotClassifyHoldingNoVerdict_RecordsNothing()
+    {
+        // Arrange
+        var classifier = this.Classifier(
+            SpamClassificationSettings.Disabled,
+            SpamHeaderFacts.None,
+            new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, EmailKeywords.Create([JunkKeywords.NotJunk]), IsSettled: true));
+
+        // Act
+        var result = await classifier.FollowSourceAsync(Account, Occurrence, EvaluatedAt, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamClassificationOutcome.OutsideConfiguredScope, result.Outcome);
+        Assert.Empty(this.store.Saved);
+    }
+
+    /// <summary>A verdict that turned to spam removes what a spam verdict removes, on an account that classifies.</summary>
+    [Fact]
+    public async Task FollowSourceAsync_TheVerdictBecomesSpam_DiscardsWhatWasDerived()
+    {
+        // Arrange
+        this.store.Hold(Recorded(SpamVerdict.NotSpam));
+        var classifier = this.Classifier(
+            SettingsCovering(Inbox),
+            SpamHeaderFacts.None,
+            new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, EmailKeywords.Create([JunkKeywords.Junk]), IsSettled: true));
+
+        // Act
+        await classifier.FollowSourceAsync(Account, Occurrence, EvaluatedAt, TestContext.Current.CancellationToken);
+
+        // Assert
+        await this.chunkStore.Received(1).DiscardChunksAsync(
+            Arg.Any<IPersistenceSession>(),
+            Occurrence,
+            Arg.Any<CancellationToken>());
+        await this.attachmentTextStore.Received(1).DiscardAttachmentTextAsync(
+            Arg.Any<IPersistenceSession>(),
+            Occurrence,
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>The verdict rests on the headers as well as on the marks, so a message whose content is not stored stands.</summary>
+    [Fact]
+    public async Task FollowSourceAsync_ContentNotStored_LeavesTheVerdictAlone()
+    {
+        // Arrange
+        this.store.Hold(Recorded(SpamVerdict.Spam));
+        var classifier = this.Classifier(SettingsCovering(Inbox), SpamHeaderFacts.None, withContent: false);
+
+        // Act
+        var result = await classifier.FollowSourceAsync(Account, Occurrence, EvaluatedAt, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamClassificationOutcome.ContentUnavailable, result.Outcome);
+        Assert.Empty(this.store.Saved);
+    }
+
+    private static SpamClassification PersonsVerdict(SpamVerdict verdict, DateTimeOffset markedAt) => SpamClassification.Create(
+        Occurrence,
+        verdict,
+        SpamClassificationStage.Person,
+        assessment: null,
+        SpamClassificationProfile.Create(),
+        [],
+        markedAt);
+
     private static SpamHeaderFacts FactsSaying(string fieldName, string value) =>
         SpamHeaderFacts.Create([], [new ProviderSpamHeaderValue(fieldName, value)]);
 

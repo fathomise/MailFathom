@@ -127,6 +127,7 @@ using MailFathom.Application.Signals;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Spam.Floor;
+using MailFathom.Application.Spam.Following;
 using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.History;
 using MailFathom.Application.Spam.Marking;
@@ -944,6 +945,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISpamActionOccurrenceReader, SpamActionOccurrenceReader>();
         services.AddScoped<ISpamVerdictActStore, EmailSpamVerdictActStore>();
         services.AddScoped<ISpamVerdictFloorCandidateReader, SpamVerdictFloorCandidateReader>();
+        services.AddScoped<IJunkMarkFollowStore, JunkMarkFollowStore>();
         services.AddScoped<ISpamClassificationRunStore, SpamClassificationRunStore>();
         services.AddScoped<ISpamClassificationHistoryReader, SpamClassificationHistoryReader>();
         services.AddScoped<SpamClassificationRunReader>();

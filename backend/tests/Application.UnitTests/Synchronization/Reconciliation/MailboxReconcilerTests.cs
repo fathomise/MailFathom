@@ -171,6 +171,7 @@ public sealed class MailboxReconcilerTests
         Assert.Equal(0, result.FlaggedStateChangedEmailCount);
         Assert.Equal(0, result.KeywordsChangedEmailCount);
         Assert.Equal(0, mutationStore.FlagChangeReadCount);
+        Assert.Empty(Assert.Single(store.AppliedOutcomes).KeywordsChangedElsewhere);
         Assert.Empty(channel.Published);
         Assert.False(Assert.Single(store.AppliedOutcomes).SourceIsTheTruth);
     }
@@ -1850,6 +1851,96 @@ public sealed class MailboxReconcilerTests
         Assert.Empty(channel.Published);
     }
 
+    /// <summary>A keyword change nothing MailFathom did accounts for is what a change to a junk mark may be read from.</summary>
+    [Fact]
+    public async Task ReconcileAsync_AnotherClientChangedTheKeywords_NamesTheEmail()
+    {
+        // Arrange
+        var store = new FakeReconciliationStore(ObservedOccurrence(10, isSeen: true, isFlagged: false, "$Invoice"));
+        await using var mailboxSession = CreateSessionReportingFlags(
+            isSeen: true,
+            isFlagged: false,
+            EmailKeywords.Create(["$NotJunk"]),
+            10);
+        var reconciler = CreateReconciler(store, RemotelyDeletedEmailDisposition.RetainTombstone);
+
+        // Act
+        await reconciler.ReconcileAsync(
+            mailboxSession,
+            Account,
+            InboxFolder,
+            SelectedUidValidity,
+            reconciledThroughModSeq: null,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal([store.StoredEmailIdOf(10)], Assert.Single(store.AppliedOutcomes).KeywordsChangedElsewhere);
+    }
+
+    /// <summary>MailFathom's own change moves no verdict, so an accounted change is never named.</summary>
+    [Fact]
+    public async Task ReconcileAsync_AKeywordChangeARecordAccountsFor_NamesNothing()
+    {
+        // Arrange
+        var store = new FakeReconciliationStore(ObservedOccurrence(10, isSeen: true, isFlagged: false));
+        var mutationStore = new InMemoryMailboxMutationReconciliationStore();
+        mutationStore.Add(MutationAddingKeywords(store.StoredEmailIdOf(10), uid: 10, "$Junk"));
+        await using var mailboxSession = CreateSessionReportingFlags(
+            isSeen: true,
+            isFlagged: false,
+            EmailKeywords.Create(["$Junk"]),
+            10);
+        var reconciler = CreateReconciler(
+            store,
+            RemotelyDeletedEmailDisposition.RetainTombstone,
+            mutationStore: mutationStore);
+
+        // Act
+        await reconciler.ReconcileAsync(
+            mailboxSession,
+            Account,
+            InboxFolder,
+            SelectedUidValidity,
+            reconciledThroughModSeq: null,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Empty(Assert.Single(store.AppliedOutcomes).KeywordsChangedElsewhere);
+    }
+
+    /// <summary>A disappearance from the junk folder is what another client's move out of it looks like from here.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ReconcileAsync_TheFolderIsOrIsNotTheJunkFolder_SaysWhichItIs(bool isJunkFolder)
+    {
+        // Arrange
+        var store = new FakeReconciliationStore(ObservedOccurrence(10, isSeen: false));
+        await using var mailboxSession = CreateSessionReportingFlags(
+            isSeen: false,
+            isFlagged: false,
+            EmailKeywords.None,
+            10);
+        var reconciler = CreateReconciler(
+            store,
+            RemotelyDeletedEmailDisposition.RetainTombstone,
+            junkFolders: isJunkFolder
+                ? StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, InboxFolder.Id.Alias))
+                : StubJunkMailFolderCatalog.None);
+
+        // Act
+        await reconciler.ReconcileAsync(
+            mailboxSession,
+            Account,
+            InboxFolder,
+            SelectedUidValidity,
+            reconciledThroughModSeq: null,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(isJunkFolder, Assert.Single(store.AppliedOutcomes).IsJunkFolder);
+    }
+
     /// <summary>Names the custody an account in this phase was asked for, which is what the phase is on its way to.</summary>
     private static MailAccountCustody RequestedIn(MailAccountCustodyPhase phase) =>
         phase == MailAccountCustodyPhase.Restoring
@@ -1863,7 +1954,8 @@ public sealed class MailboxReconcilerTests
         FakeTimeProvider? timeProvider = null,
         InMemoryMailboxMutationReconciliationStore? mutationStore = null,
         ClientSignals? signals = null,
-        InMemoryMailAccountCustodyStore? custodyStore = null)
+        InMemoryMailAccountCustodyStore? custodyStore = null,
+        StubJunkMailFolderCatalog? junkFolders = null)
     {
         var clock = timeProvider ?? new FakeTimeProvider(RunInstant);
         var sessionFactory = Substitute.For<IPersistenceSessionFactory>();
@@ -1877,6 +1969,7 @@ public sealed class MailboxReconcilerTests
             mutationStore ?? new InMemoryMailboxMutationReconciliationStore(),
             dispositionReader,
             custodyStore ?? InMemoryMailAccountCustodyStore.Mirroring(Account),
+            junkFolders ?? StubJunkMailFolderCatalog.None,
             new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), clock),
             signals ?? ClientSignalPublishers.ReachingNobody,
             clock,

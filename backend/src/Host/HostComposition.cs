@@ -56,6 +56,7 @@ using MailFathom.Application.Signals;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Spam.Floor;
+using MailFathom.Application.Spam.Following;
 using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Application.Synchronization;
@@ -454,6 +455,7 @@ internal static class HostComposition
             .ToBounds());
         builder.Services.AddScoped<SpamClassificationPass>();
         builder.Services.AddScoped<SpamVerdictFloorPass>();
+        builder.Services.AddScoped<JunkMarkFollowPass>();
         builder.Services.AddScoped<SpamClassificationRunRequests>();
     }
 
@@ -776,6 +778,7 @@ internal static class HostComposition
         builder.Services.AddScoped<EmailSpamClassificationHandler>();
         builder.Services.AddScoped<IJobHandler>(services => services.GetRequiredService<EmailSpamClassificationHandler>());
         builder.Services.AddScoped<IJobHandler, OccurrenceSpamClassificationHandler>();
+        builder.Services.AddScoped<IJobHandler, FollowJunkMarksHandler>();
         // The re-derivation is the long one: an attempt runs bounded passes over stored mail for as long as the
         // execution timeout allows, and hands what it did not reach to a segment of its own rather than holding a
         // worker for as long as a mailbox takes.

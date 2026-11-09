@@ -107,6 +107,8 @@ message's own sender display name is in front of them. Only the model names eith
 **The person's verdict outranks every stage.** It is spam, with or without a subcategory, or not spam — and its not spam
 is a statement the person made rather than a check that found nothing. Neither a reclassification nor a
 [classification run](#classifying-the-mail-you-already-have) under any profile replaces it; a run counts it as skipped.
+Only [a different mark set in another mail client](#a-mark-set-in-another-client-moves-the-verdict), on an account whose
+source is the truth, is a newer statement.
 
 This build fills the record from the deterministic stage, from the [model stage](#the-model-stage) where an account
 consults it, and from [the person's own verdict](#the-persons-own-verdict), so a subcategory this build records is the
@@ -197,8 +199,9 @@ message, no junk folder placement of it counts again, and once a verdict has wri
 keyword was asked for and a folder that keeps no such keyword refused it. A `$NotJunk` is never one of them: beside a
 `$Junk` this deployment wrote it is the person correcting it, and it decides as it would anywhere.
 
-**Leaving the junk folder is not a correction.** Nothing re-decides a message because it moved, so a message moved out
-of junk, in MailFathom or in another client, keeps its verdict until something classifies it again. Then what stands
+**Leaving the junk folder is not a correction.** A message moved out of junk keeps its verdict until something
+classifies it again, and a move is not that something: only a [change to its junk marks](#a-mark-set-in-another-client-moves-the-verdict)
+or a run is. A message another client moved arrives as a new stored message, classified from nothing. Then what stands
 depends on what the verdict rested on. The deployment's own filing and keywords are no signal either way, so a verdict
 resting on what the message itself carries — a provider's spam header — stands again and turns only on `$NotJunk`. A
 verdict resting on somebody else's placement or keyword — the receiving
@@ -264,6 +267,58 @@ A second replica finding the work done is the ordinary case. The write is condit
 nor the person's verdict when it is read, and a record written after that read conflicts and is read again, so two
 replicas reaching one message leave one verdict. A run that raised anything logs how many messages it raised, and
 nothing about any of them.
+
+### A mark set in another client moves the verdict
+
+**On a `Mirrored` account the source is the truth, so the verdict reflects the junk marks on the source.** A change
+another mail client makes is observed by the account's synchronization, and the message is decided again with no
+operator asking:
+
+| Observed on the source | The verdict |
+| --- | --- |
+| `$NotJunk` appears, with no `$Junk` somebody else set beside it | Not spam. A `$Junk` this deployment's verdict wrote does not count, because the `$NotJunk` is the person correcting that verdict |
+| `$Junk` or `$Phishing` appears, with no `$NotJunk` beside it | Spam |
+| A `$Junk` somebody else set and a `$NotJunk` stand together | Decided again as if neither were there, as RFC 9051 reads the pair |
+| The last mark saying spam is taken off | Decided again without it, so a verdict resting on the message's own content stands |
+| `$NotJunk` is taken off | Decided again without it |
+| The message is moved into the junk folder | Spam, by [the floor](#junk-mail-is-never-below-spam) |
+| The message is moved out of the junk folder | The verdict of its new stored message is its own, and it is [not filed back](#a-message-the-user-moved-back-is-never-filed-again) |
+
+**The trigger is a change, not a comparison.** An absent mark says nothing, so a verdict with no mark on the source
+stands: a classifier's verdict on mail nobody touched is not undone by there being no `$Junk`. A change a mutation record
+accounts for is this deployment's own and moves no verdict, and neither does a keyword MailFathom's own change still
+overlays, because the race with that change is MailFathom's to win. So a person who marks a message not spam on an
+account that does not permit writing keywords keeps that verdict over a `$Junk` nobody touched.
+
+**It reaches the person's verdict too.** The person's mark reaches the source as keywords, so a later, different mark set
+in another client is the newer statement. It replaces the person's verdict only where the change was observed after that
+verdict, and a mark saying what the person already said leaves the record naming the person. Within MailFathom the
+person's verdict still outranks every stage and every run.
+
+**A message that arrives already carrying a mark ends with the verdict that mark calls for.** The forward pass stores
+no keywords, so classification can run before they are known, and the message's first reading asks for it to be decided
+again. A mark read that way predates anything the person said, so it never replaces their verdict. This one case holds
+on a `Held` and a `Restoring` account as well, because a new arrival's marks are its initial state there.
+
+**The decision goes through the queue.** It may call the model, so the change is written on the message in the
+transaction that observed it, the account's next step carries it to the durable queue as a `follow-junk-marks` job — one
+run's reach is `SpamClassification:RunBatchSize` × `SpamClassification:MaxRunBatchesPerPass`, and a full queue leaves the
+rest for the next run — and only mail the account classifies can reach the model. Mail the account does not classify is
+decided by the deterministic stage alone where it already carries a verdict, and left with none where it has none. A
+message whose content is not stored keeps its verdict, because a verdict rests on its headers too.
+
+**Following the source writes nothing back, with one exception.** It files nothing, marks nothing read, and adds no
+keyword, or the two sides would argue over the message. The exception is the removal
+[`MarkWithJunkKeywords`](#what-an-operator-can-let-a-verdict-do) already makes: a `$Junk` this deployment wrote is taken
+off beside a `$NotJunk`, and a pair somebody else set is cleared whole, once per message. Its own record accounts for
+that change, so it moves no verdict.
+
+**On a `Held` or a `Restoring` account only MailFathom's state counts.** The source serves only to bring new mail in, so a
+later change on it reaches no verdict. A mark or a placement MailFathom's own local acts make works through the floor as
+everywhere.
+
+A message lifted from spam comes back by itself: [eligibility is derived](#eligibility-is-derived-and-there-is-no-flag-to-clear),
+and the passages and attachment readings a junk verdict removed are what the next sweep finds missing.
 
 ## The model stage
 
@@ -502,6 +557,12 @@ The two readings are deliberately not told apart. Doing so would mean treating a
 licence to file afresh — and a message that sat there failing to move is precisely the one somebody is most likely to
 have moved by hand.
 
+**A message another client moved out of a mirrored junk folder is recognized by its `Message-ID`.** Such a move creates a
+new stored message with no record of the old one, and under the default `RemotelyDeletedEmailDisposition` the old row is
+erased before the arrival is even stored. So when a message leaves the junk folder and no change of MailFathom's accounts
+for it, a SHA-256 digest of its `Message-ID` is kept for seven days, and a verdict on a message with that identifier is
+left alone exactly as above. A message carrying no `Message-ID` cannot be recognized and is treated as new.
+
 The protection reaches as far as the mirror does. A junk folder MailFathom does not mirror is one it stops seeing into,
 so a message moved back out of *that* folder arrives as new mail and is classified afresh — which is the trade an
 unmirrored destination makes, and the reason a deployment that expects to correct verdicts often may prefer a mirrored
@@ -535,7 +596,9 @@ The person marks a batch of messages **spam**, naming one subcategory for the wh
 through `POST /api/client/mutations/spam` — [the client endpoint](../operations/client-endpoint.md#marking-mail-spam-or-not-spam)
 holds the request, the batch bound, and the answers. What it records is a verdict decided by the person, which no stage
 replaces: a reclassification, a [classification run](#classifying-the-mail-you-already-have) under any profile, and a
-change of profile all leave it standing and count it as skipped. **Marking not spam is the one way a spam verdict is
+change of profile all leave it standing and count it as skipped. On a mirrored account
+[a different mark set in another client](#a-mark-set-in-another-client-moves-the-verdict) afterwards is the newer
+statement. **Within MailFathom, marking not spam is the one way a spam verdict is
 lifted** — moving a message out of the junk folder is not a correction, as above. Marking a message again is the same
 act: the verdict is replaced with the one just stated, so marking spam with another subcategory changes the subcategory
 rather than adding a second verdict. Each mark asks for every keyword below rather than for what the server last reported
@@ -693,7 +756,9 @@ what the same inputs produce. Two callers asking together resolve to one record 
 write conflicts on the record's own optimistic-concurrency token and is retried from a fresh read.
 
 Replacing an existing verdict is an explicit operation. Nothing sets it off — not a reload, not a configuration change,
-and not a message being read again. The person's own verdict is the one thing it never replaces.
+and not a message being read again. The person's own verdict is the one thing it never replaces. The one thing that
+re-decides a message by itself is [another client changing its junk marks](#a-mark-set-in-another-client-moves-the-verdict)
+on an account whose source is the truth, which is a change to what the verdict rests on rather than a reclassification.
 
 Content comes from the local content store, which already holds it, so no classification path opens an IMAP session and
 none can affect a remote `\Seen` flag. A message stored without content — one that exceeded the size limit — is

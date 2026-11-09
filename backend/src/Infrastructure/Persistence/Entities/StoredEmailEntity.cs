@@ -503,6 +503,13 @@ internal sealed class StoredEmailEntity
     /// </remarks>
     public EmailFieldsSetBeforeFirstObservation FieldsSetBeforeFirstObservation { get; set; }
 
+    /// <summary>Gets or sets when a change to this message's junk marks was observed, while that change has not reached the classification queue.</summary>
+    /// <remarks>
+    /// On the row so the change commits with the observation of it, which the queue cannot join. Where the marks are the
+    /// ones the message arrived with this holds <see cref="StoredAt" />, earlier than any verdict a person can have given it.
+    /// </remarks>
+    public DateTimeOffset? JunkMarksChangedAt { get; set; }
+
     /// <summary>
     /// Gets or sets when reconciliation found this occurrence gone from its remote folder, or <see langword="null" />
     /// while the server still holds it. A row carrying a value is a tombstone that every mailbox query excludes.

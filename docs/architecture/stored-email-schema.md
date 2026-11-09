@@ -1514,6 +1514,18 @@ the action recorder reads it so a message moved back out of junk, a keyword some
 It is a table of its own rather than a reading of the mutation records because a held account's act opens none. It
 holds no folder, no keyword text, and nothing from the message, and it is deleted with the email it describes.
 
+`stored_emails.JunkMarksChangedAt` says that another client changed a message's junk marks and the change has not reached
+the classification queue yet, written in the transaction that observed it because the queue joins none, and cleared once
+the job exists; a message's first reading that brings a mark writes `StoredAt` there, earlier than any verdict a person
+can have given it. `ix_stored_emails_junk_marks_changed` covers only the rows carrying it, so a mailbox nobody is changing
+costs one lookup in an empty index per run.
+
+`email_junk_folder_departures` remembers that a message left its account's junk folder with no change of MailFathom's
+accounting for it: one row per `(MailboxAccountId, MessageIdDigest)`, with the `DepartedAt` it was last seen leaving,
+forgotten after seven days by the account's own run. Another client's move creates a new stored message with no link to
+the old row, and under the default disposition that row is erased before the arrival is stored, so a row hanging off the
+stored email could not answer. The action recorder reads it so such an arrival is not filed back.
+
 ## What sort of mail a message is
 
 `email_categories` holds one row per message and category. `Kind` says which question the row answers: `Default` for the
@@ -2959,6 +2971,8 @@ deployment filed somebody's message as junk or marked it so, and when. It inheri
 access, export, and erasure obligations whole, and the cascade from `stored_emails` is what makes that structural. It
 holds the act and its instant and nothing else — no folder, no keyword text, nothing the message supplied — and neither
 column reaches a log, a metric, a trace, or an error message beyond the message's generated identifier.
+
+`email_junk_folder_departures` holds a SHA-256 digest rather than the `Message-ID`, because it outlives the erasure of the local copy, and an instant. A digest of an identifier is still a statement about one person's message, so it is bounded to seven days, it cascades from `mailbox_accounts` so erasing a mailbox erases it, and neither column reaches a log, a metric, a trace, or an error message.
 
 `jobs` is derived personal data by the same reading as a chunk or a classification: a row says that something is to be done about somebody's message, and it points at that message by its stored identity. What keeps it a pointer rather than a copy is the payload contract — a document of references with no property a subject, an address, or a body could go in, bounded in size at the enqueue boundary so a payload that grew into a copy is refused instead of stored. The account column and the cascade from `mailbox_accounts` are what erasure reaches queued work by. The message the payload names is not a foreign key, because it is a value inside a `jsonb` document rather than a column a constraint can reach: a job whose message was erased before it ran finds nothing under that identity and ends without acting.
 

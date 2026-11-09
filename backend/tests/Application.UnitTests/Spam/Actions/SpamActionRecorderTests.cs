@@ -10,6 +10,7 @@ using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Rules.Actions;
 using MailFathom.Application.Spam.Actions;
+using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
@@ -1017,6 +1018,64 @@ public sealed class SpamActionRecorderTests
         Assert.Equal(SpamActionOutcome.WouldRequest, result.Outcome);
         Assert.Equal(0, this.records.OpenedRecordCount);
         Assert.Empty(this.verdictActs.Of(Email));
+    }
+
+    /// <summary>Another client's move out of junk is a new stored email with no record of its own, so what the move left behind is what stops it going back.</summary>
+    [Fact]
+    public async Task RecordAsync_AMessageAnotherClientMovedOutOfTheJunkFolder_IsNotFiledBack()
+    {
+        // Arrange
+        this.MapMirroredJunk("Junk");
+        var occurrences = ReaderOf(OccurrenceIn(Inbox, isMarkedSeen: false));
+        occurrences.HasLeftJunkFolderAsync(Email, Arg.Any<CancellationToken>()).Returns(true);
+        var recorder = this.Recorder(FilingAndMarkingRead(), occurrences);
+
+        // Act
+        var result = await recorder.RecordAsync(
+            SpamVerdictOf(SpamVerdict.Spam),
+            SpamActionPosture.Acting,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.PreviouslyFiled, result.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>The cleanup is the one change following the source makes, and it files nothing however the account's switches stand.</summary>
+    [Fact]
+    public async Task ClearJunkMarksAsync_APairSomebodyElseSet_TakesItOffAndAsksForNothingElse()
+    {
+        // Arrange
+        this.MapMirroredJunk("Junk");
+        var recorder = this.Recorder(
+            SpamActionSettings.Create(filesJunk: true, marksJunkRead: true, marksJunkWithKeywords: true),
+            ReaderOf(OccurrenceIn(Inbox, isMarkedSeen: false, keywords: [JunkKeywords.Junk, JunkKeywords.NotJunk])));
+
+        // Act
+        var result = await recorder.ClearJunkMarksAsync(CorrectedVerdict(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.Requested, result.Outcome);
+        Assert.Equal(1, this.records.OpenedRecordCount);
+        Assert.Equal([SpamVerdictAct.ClearedJunkMarks], this.verdictActs.Of(Email));
+    }
+
+    /// <summary>Asked once per message, so a pair somebody sets again is theirs.</summary>
+    [Fact]
+    public async Task ClearJunkMarksAsync_ThePairWasClearedOnce_AsksForNothing()
+    {
+        // Arrange
+        this.verdictActs.With(Email, SpamVerdictAct.ClearedJunkMarks);
+        var recorder = this.Recorder(
+            MarkingWithKeywords(),
+            ReaderOf(OccurrenceIn(Inbox, isMarkedSeen: false, keywords: [JunkKeywords.Junk, JunkKeywords.NotJunk])));
+
+        // Act
+        var result = await recorder.ClearJunkMarksAsync(CorrectedVerdict(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(SpamActionOutcome.NothingToChange, result.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
     }
 
     private static SpamActionSettings MarkingWithKeywords() =>

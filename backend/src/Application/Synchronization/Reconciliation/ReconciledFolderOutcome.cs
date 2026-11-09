@@ -90,4 +90,15 @@ public sealed record ReconciledFolderOutcome(
     IReadOnlyList<MutationAttributedDisappearance> RemovedByOwnMutation,
     RemotelyDeletedEmailDisposition Disposition,
     bool SourceIsTheTruth,
-    DateTimeOffset ObservedAt);
+    DateTimeOffset ObservedAt)
+{
+    /// <summary>Gets the emails whose keywords moved on the source with no mutation record accounting for the move.</summary>
+    /// <remarks>
+    /// They are what a change to a message's junk marks may be read from, and which marks stand where is decided against
+    /// the row, where a field MailFathom's own change still overlays is known.
+    /// </remarks>
+    public IReadOnlyCollection<StoredEmailId> KeywordsChangedElsewhere { get; init; } = [];
+
+    /// <summary>Gets whether the folder reconciled is its account's junk folder, which makes a disappearance from it a departure worth remembering.</summary>
+    public bool IsJunkFolder { get; init; }
+}

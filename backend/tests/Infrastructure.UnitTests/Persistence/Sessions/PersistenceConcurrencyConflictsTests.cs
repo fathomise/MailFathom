@@ -29,6 +29,7 @@ public sealed class PersistenceConcurrencyConflictsTests
         PersistenceConstraintNames.SpamClassificationRunPrimaryKeyConstraintName,
         PersistenceConstraintNames.EmailSpamClassificationPrimaryKeyConstraintName,
         PersistenceConstraintNames.EmailSpamVerdictActPrimaryKeyConstraintName,
+        PersistenceConstraintNames.EmailJunkFolderDeparturePrimaryKeyConstraintName,
         PersistenceConstraintNames.EmailChunkOrdinalUniqueIndexName,
         PersistenceConstraintNames.StoredEmailSignerKeyPrimaryKeyConstraintName,
         PersistenceConstraintNames.EmailCategoryPrimaryKeyConstraintName,
