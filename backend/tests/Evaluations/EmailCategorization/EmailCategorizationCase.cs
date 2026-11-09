@@ -70,7 +70,7 @@ internal sealed record EmailCategorizationCase(
 
         new("Subscriptions.Newsletter", MailAccountLanguage.English, DefaultMailCategory.Subscriptions, "The Weekly Harbour", "editor@weeklyharbour.test", "This week: tides, trade, and a new ferry", "Welcome to this week's issue. You are receiving this because you subscribed. Top stories inside. Unsubscribe at any time."),
         new("Subscriptions.ShopOffer", MailAccountLanguage.English, DefaultMailCategory.Subscriptions, "Northern Outfitters", "offers@northernoutfitters.test", "20% off for members this weekend", "As a member you get 20% off all jackets until Sunday. You signed up for offers from us at checkout."),
-        new("Subscriptions.Polish", MailAccountLanguage.Polish, DefaultMailCategory.Subscriptions, "Księgarnia Pod Dębem", "biuletyn@poddebem.test", "Nowości w listopadzie", "Oto listopadowy biuletyn. Otrzymujesz go, ponieważ zapisałeś się na naszej stronie. W tym miesiącu polecamy trzy nowe powieści."),
+        new("Subscriptions.Polish", MailAccountLanguage.Polish, DefaultMailCategory.Subscriptions, "Księgarnia Pod Dębem", "biuletyn@poddebem.test", "Nowości w listopadzie", "Oto listopadowy biuletyn. Otrzymujesz go, ponieważ zapisałeś się na naszej stronie. W tym miesiącu polecamy trzy świeże powieści."),
 
         new("Finance.Invoice", MailAccountLanguage.English, DefaultMailCategory.Finance, "Brightline Energy", "billing@brightline.test", "Your October invoice 44817", "Your invoice for October is ready. Amount due: 84.20. Payment is due by 20 November."),
         new("Finance.Statement", MailAccountLanguage.English, DefaultMailCategory.Finance, "First Quay Bank", "statements@firstquay.test", "Your monthly statement is available", "Your statement for the account ending 0042 is now available in online banking."),
@@ -79,7 +79,7 @@ internal sealed record EmailCategorizationCase(
 
         new("Shopping.OrderConfirmation", MailAccountLanguage.English, DefaultMailCategory.Shopping, "Maple & Co", "orders@mapleandco.test", "Order 77231 confirmed", "Thanks for your order of a walnut desk lamp. We will let you know when it ships."),
         new("Shopping.Delivery", MailAccountLanguage.English, DefaultMailCategory.Shopping, "Parcel Hop", "tracking@parcelhop.test", "Your parcel arrives tomorrow", "Your parcel from Maple & Co will be delivered tomorrow between 9 and 12."),
-        new("Shopping.Polish", MailAccountLanguage.Polish, DefaultMailCategory.Shopping, "Sklep Ogrodowy", "zamowienia@ogrodowy.test", "Zamówienie zostało wysłane", "Twoje zamówienie numer 5512 zostało przekazane kurierowi. Przesyłka dotrze w ciągu dwóch dni."),
+        new("Shopping.Polish", MailAccountLanguage.Polish, DefaultMailCategory.Shopping, "Sklep Ogrodowy", "zamowienia@ogrodowy.test", "Zamówienie zostało wysłane", "Twoje zamówienie 5512 zostało przekazane kurierowi. Przesyłka dotrze w ciągu dwóch dni."),
 
         new("Travel.Flight", MailAccountLanguage.English, DefaultMailCategory.Travel, "Skylark Air", "bookings@skylarkair.test", "Your booking ABC123 to Lisbon", "Your flight to Lisbon on 12 December is confirmed. Check in opens 24 hours before departure."),
         new("Travel.Hotel", MailAccountLanguage.English, DefaultMailCategory.Travel, "Harbour View Hotel", "reservations@harbourview.test", "Reservation confirmed for two nights", "We look forward to welcoming you for two nights from 12 December. Breakfast is included."),
