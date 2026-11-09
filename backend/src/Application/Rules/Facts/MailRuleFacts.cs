@@ -71,6 +71,7 @@ public sealed class MailRuleFacts
             [MailRuleFact.Keywords] = facts => facts.email.Keywords,
             [MailRuleFact.MachineAuthorship] = facts => AuthoringName(facts.email.MachineAuthorship),
             [MailRuleFact.HasExtractedContent] = facts => facts.email.HasExtractedContent,
+            [MailRuleFact.Category] = facts => facts.email.Categories,
         }.ToFrozenDictionary();
 
     private readonly MailRuleEmailFacts email;

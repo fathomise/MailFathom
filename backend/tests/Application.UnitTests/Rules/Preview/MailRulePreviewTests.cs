@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Rules;
 using MailFathom.Application.Rules.Actions;
 using MailFathom.Application.Rules.Conditions;
@@ -36,6 +37,7 @@ public sealed class MailRulePreviewTests
     private readonly IMailRuleActionPermissionReader permissions = Substitute.For<IMailRuleActionPermissionReader>();
     private readonly StubMailFolderMappings folderMappings = StubMailFolderMappings.Nothing;
     private readonly FakeTimeProvider timeProvider = new(Now);
+    private OfferedMailCategories categories = StubMailCategories.OfferingNothing;
 
     public MailRulePreviewTests()
     {
@@ -68,6 +70,31 @@ public sealed class MailRulePreviewTests
         Assert.Equal(0, result.FailedEmailCount);
         Assert.Null(result.ContinueAfter);
         Assert.Empty(result.Errors);
+    }
+
+    /// <summary>A preview answers what the rule would do, so it reads the categories a pass would.</summary>
+    [Fact]
+    public async Task PreviewAsync_ACandidateNamingTheCategory_MatchesTheMessagesShowingIt()
+    {
+        // Arrange
+        var holding = this.mail.Add(FactsFor(Account));
+        var hidden = this.mail.Add(FactsFor(Account));
+        this.mail.Add(FactsFor(Account));
+        this.categories = StubMailCategories.Offering(new StubMailCategories(
+            new Dictionary<MailAccountId, MailCategoryOffer> { [Account] = MailCategoryOffer.Of(["shopping"], ["Contracts"]) },
+            new Dictionary<StoredEmailId, IReadOnlyList<string>> { [holding] = ["Contracts"], [hidden] = ["shopping"] }));
+
+        // Act
+        var contracts = await this.CreatePreview().PreviewAsync(
+            MailRulePreviewRequest.OfCandidate(Account, Candidate($"{ScriptedMailRuleConditionCompiler.HoldsCategory}contracts")),
+            TestContext.Current.CancellationToken);
+        var switchedOff = await this.CreatePreview().PreviewAsync(
+            MailRulePreviewRequest.OfCandidate(Account, Candidate($"{ScriptedMailRuleConditionCompiler.HoldsCategory}shopping")),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([holding], contracts.Matches);
+        Assert.Empty(switchedOff.Matches);
     }
 
     [Fact]
@@ -304,6 +331,7 @@ public sealed class MailRulePreviewTests
         this.compiler,
         new MailRuleSetEvaluator(this.timeProvider),
         this.folderMappings,
+        this.categories,
         MailRuleConditionBounds.Default,
         authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.AdminAuditRead),
         this.timeProvider);

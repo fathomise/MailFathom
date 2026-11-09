@@ -175,6 +175,18 @@ public readonly record struct MailRuleFact
 
     #endregion
 
+    #region What a model made of it
+
+    /// <summary>Gets the categories a decision model recorded on the email, as far as its account shows them.</summary>
+    /// <remarks>
+    /// A default the account switched off stays recorded and is left out here, exactly as it is left out of every read.
+    /// A message the model gave no answer about holds nothing, so an author writing <c>not contains(category, 'finance')</c>
+    /// has written a rule that also matches a message nobody could read.
+    /// </remarks>
+    public static MailRuleFact Category { get; } = new("category", MailRuleFactType.TextSet);
+
+    #endregion
+
     /// <summary>Gets every declared fact.</summary>
     /// <remarks>Declared last so the members it lists are already initialized when this initializer runs.</remarks>
     public static IReadOnlyList<MailRuleFact> All { get; } =
@@ -205,6 +217,7 @@ public readonly record struct MailRuleFact
         HasExtractedContent,
         BodyText,
         MachineAuthorship,
+        Category,
     ];
 
     /// <summary>Gets whether this value names a declared fact rather than the unusable struct default.</summary>

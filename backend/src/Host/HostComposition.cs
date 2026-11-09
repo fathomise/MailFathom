@@ -46,6 +46,7 @@ using MailFathom.Application.Rules.Actions;
 using MailFathom.Application.Rules.Conditions;
 using MailFathom.Application.Rules.Editing;
 using MailFathom.Application.Rules.Evaluation;
+using MailFathom.Application.Rules.Facts;
 using MailFathom.Application.Rules.History;
 using MailFathom.Application.Rules.Preview;
 using MailFathom.Application.Rules.Sets;
@@ -490,6 +491,7 @@ internal static class HostComposition
         // Scoped beside the pass rather than transient, because it remembers the folder a destination alias resolved to for
         // the length of the pass; a batch of mail matching one filing rule would otherwise re-read one binding per message.
         builder.Services.AddScoped<MailRuleActionRecorder>();
+        builder.Services.AddScoped<MailRuleCategories>();
         builder.Services.AddScoped<MailRuleEvaluationPass>();
         builder.Services.AddScoped<MailRuleEvaluationRunRequests>();
         // The history's retention reads the same published snapshot the pass's bounds do, so shortening the window reaches

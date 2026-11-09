@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Rules.Conditions;
 using MailFathom.Application.Rules.Editing;
@@ -47,6 +48,7 @@ public sealed class MailRulePreview
     private readonly IMailRuleConditionCompiler compiler;
     private readonly MailRuleSetEvaluator evaluator;
     private readonly IMailFolderMappingReader folderMappings;
+    private readonly OfferedMailCategories categories;
     private readonly MailRuleConditionBounds bounds;
     private readonly AccessAuthorization authorization;
     private readonly TimeProvider timeProvider;
@@ -58,6 +60,7 @@ public sealed class MailRulePreview
     /// <param name="compiler">Reads the rule's condition.</param>
     /// <param name="evaluator">Evaluates the rule over one message.</param>
     /// <param name="folderMappings">Answers what the folder a message is in is configured for.</param>
+    /// <param name="categories">Reads the categories each message shows, where the rule names the fact.</param>
     /// <param name="bounds">The condition bounds in force.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
     /// <param name="timeProvider">Supplies the instant each message is evaluated at.</param>
@@ -69,6 +72,7 @@ public sealed class MailRulePreview
         IMailRuleConditionCompiler compiler,
         MailRuleSetEvaluator evaluator,
         IMailFolderMappingReader folderMappings,
+        OfferedMailCategories categories,
         MailRuleConditionBounds bounds,
         AccessAuthorization authorization,
         TimeProvider timeProvider)
@@ -79,6 +83,7 @@ public sealed class MailRulePreview
         ArgumentNullException.ThrowIfNull(compiler);
         ArgumentNullException.ThrowIfNull(evaluator);
         ArgumentNullException.ThrowIfNull(folderMappings);
+        ArgumentNullException.ThrowIfNull(categories);
         ArgumentNullException.ThrowIfNull(bounds);
         ArgumentNullException.ThrowIfNull(authorization);
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -89,6 +94,7 @@ public sealed class MailRulePreview
         this.compiler = compiler;
         this.evaluator = evaluator;
         this.folderMappings = folderMappings;
+        this.categories = categories;
         this.bounds = bounds;
         this.authorization = authorization;
         this.timeProvider = timeProvider;
@@ -152,18 +158,25 @@ public sealed class MailRulePreview
         var failed = 0;
         var position = request.After;
         var mailRemains = true;
+        var namesCategories = ruleSet.Rules.Any(static rule => rule.Condition.ReferencedFacts.Contains(MailRuleFact.Category));
 
         while (mailRemains && examined < MaximumExaminedEmails && matches.Count < MaximumReportedMatches)
         {
             var requested = Math.Min(BatchSize, MaximumExaminedEmails - examined);
             var batch = await this.mail.GetStoredEmailsAsync(request.Account, position, requested, cancellationToken);
+            var shownCategories = namesCategories
+                ? await this.categories.ReadShownAsync([.. batch.Select(candidate => (candidate.StoredEmailId, request.Account))], cancellationToken)
+                : new Dictionary<StoredEmailId, IReadOnlyList<string>>();
             var reachedMatchBound = false;
 
             foreach (var candidate in batch)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var evaluation = await this.EvaluateAsync(ruleSet, candidate, cancellationToken);
+                var evaluation = await this.EvaluateAsync(
+                    ruleSet,
+                    candidate with { Facts = candidate.Facts with { Categories = shownCategories.GetValueOrDefault(candidate.StoredEmailId, []) } },
+                    cancellationToken);
 
                 examined++;
                 position = candidate.StoredEmailId;

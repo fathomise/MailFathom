@@ -43,6 +43,7 @@ using MailFathom.Application.Rules;
 using MailFathom.Application.Rules.Actions;
 using MailFathom.Application.Rules.Conditions;
 using MailFathom.Application.Rules.Evaluation;
+using MailFathom.Application.Rules.Facts;
 using MailFathom.Application.Rules.History;
 using MailFathom.Application.Rules.Sets;
 using MailFathom.Application.SensitiveContent;
@@ -399,6 +400,8 @@ internal static class SynchronizationTestHost
             Substitute.For<IEmailProvenanceReader>(),
             SpamModelStageBounds.Default));
         services.AddScoped<EmailCategorizationPass>();
+        services.AddSingleton(StubMailCategories.OfferingNothing);
+        services.AddScoped<MailRuleCategories>();
         // The spam floor rides the same run, one step before the classification walk, whatever classification says. No
         // mail these tests store sits below it, so the default reader answers with nothing and the pass writes nothing.
         services.AddSingleton(floorCandidateReader ?? CreateFloorCandidateReaderWithNothingBelowTheFloor());

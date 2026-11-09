@@ -5,7 +5,7 @@
 A mailbox is easier to read when a message arrives already saying what sort of mail it is. Categorization asks a
 decision model about each arriving message, once, and records two things beside it: which one of seven default
 categories it is, and which of the subjects the mailbox named for itself it is about. It is an opinion recorded as
-derived data, and nothing about a message waits for it.
+derived data, and the one thing that ever waits for it is [a rule naming it](mail-rules.md#the-facts-a-condition-can-read).
 
 It is the account's own decision, off until the account's record switches it on, and it needs a decision model declared
 under [`Decisions`](../operations/configuration-ai.md#decisions). [Sorting this account's mail into
@@ -61,7 +61,8 @@ about. Two things follow:
 
 - **Switching it on re-reads nothing.** Mail the rules have already evaluated is not arriving mail.
 - **A message is asked about at most while it is arriving.** One that got no answer simply has no category once the
-  rules have evaluated it.
+  rules have evaluated it. Each run until then asks again, which on an account with a rule naming `category` can be
+  several runs inside that rule's wait.
 
 Never asked about: anything with a spam verdict, anything in the junk folder, anything in a folder that is not visible to
 AI, a message spam classification has not yet admitted, a tombstoned message, a delivery or read report, a message whose
@@ -69,8 +70,10 @@ content is not stored, and the copy MailFathom filed of the person's own outgoin
 
 ## When it fails
 
-**It fails open.** No later stage and no settlement waits for a category, so a provider that is down leaves mail arriving
-exactly as it would have. What is recorded for a failure is its reason alone, as a count, with nothing from the message.
+**It fails open.** On an account with no rule naming the `category` fact, no later stage and no settlement waits for a
+category, so a provider that is down leaves mail arriving exactly as it would have. Where a rule does name it, [the rule
+pass waits a bounded time](mail-rules.md#when-rules-run) and then goes on with the fact empty. What is
+recorded for a failure is its reason alone, as a count, with nothing from the message.
 
 | Outcome | What it did |
 | --- | --- |

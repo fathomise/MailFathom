@@ -75,6 +75,7 @@ public sealed class MailRuleEvaluationPass
     private readonly MailboxDestinationResolver destinationResolver;
     private readonly IMailRuleExecutionStore executionStore;
     private readonly IMailFolderMappingReader folderMappings;
+    private readonly MailRuleCategories categories;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly MailRuleEvaluationOptions options;
     private readonly TimeProvider timeProvider;
@@ -88,6 +89,7 @@ public sealed class MailRuleEvaluationPass
     /// <param name="destinationResolver">Finds the folders those changes file into, before the batch's transaction opens.</param>
     /// <param name="executionStore">Keeps the record of what each rule concluded and what became of what it asked for.</param>
     /// <param name="folderMappings">Answers what the folder an email is in is configured for, which a condition naming the role reads.</param>
+    /// <param name="categories">Reads a batch's categories, and which of its messages to wait for, where a rule names the fact.</param>
     /// <param name="commitPolicy">Commits a batch's evaluations together with the position they account for.</param>
     /// <param name="options">Bounds one walk.</param>
     /// <param name="timeProvider">Supplies the instant each email is evaluated at and each record is stamped with.</param>
@@ -102,6 +104,7 @@ public sealed class MailRuleEvaluationPass
         MailboxDestinationResolver destinationResolver,
         IMailRuleExecutionStore executionStore,
         IMailFolderMappingReader folderMappings,
+        MailRuleCategories categories,
         OptimisticConcurrencyRetryPolicy commitPolicy,
         MailRuleEvaluationOptions options,
         TimeProvider timeProvider)
@@ -114,6 +117,7 @@ public sealed class MailRuleEvaluationPass
         ArgumentNullException.ThrowIfNull(destinationResolver);
         ArgumentNullException.ThrowIfNull(executionStore);
         ArgumentNullException.ThrowIfNull(folderMappings);
+        ArgumentNullException.ThrowIfNull(categories);
         ArgumentNullException.ThrowIfNull(commitPolicy);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -128,6 +132,7 @@ public sealed class MailRuleEvaluationPass
         this.destinationResolver = destinationResolver;
         this.executionStore = executionStore;
         this.folderMappings = folderMappings;
+        this.categories = categories;
         this.commitPolicy = commitPolicy;
         this.options = options;
         this.timeProvider = timeProvider;
@@ -204,7 +209,7 @@ public sealed class MailRuleEvaluationPass
                 break;
             }
 
-            var outcome = await this.EvaluateBatchAsync(boundRuleSet, batch, cancellationToken);
+            var outcome = await this.EvaluateBatchAsync(account, boundRuleSet, batch, cancellationToken);
 
             if (outcome.EvaluatedEmailIds.Count > 0)
             {
@@ -333,7 +338,7 @@ public sealed class MailRuleEvaluationPass
             return finished;
         }
 
-        var outcome = await this.EvaluateBatchAsync(boundRuleSet, batch, cancellationToken);
+        var outcome = await this.EvaluateBatchAsync(run.Account, boundRuleSet, batch, cancellationToken);
         var destinations = await this.ResolveDestinationsAsync(run.Account, outcome, cancellationToken);
         var copies = await this.PrepareCopiesAsync(run.Account, outcome, cancellationToken);
         var reachedTheEnd = batch.Count < this.options.BatchSize;
@@ -498,21 +503,26 @@ public sealed class MailRuleEvaluationPass
     /// time it reaches this tally and the emails behind it are unaffected.
     /// </remarks>
     private async Task<MailRuleEvaluationBatch> EvaluateBatchAsync(
+        MailAccountId account,
         BoundRuleSet boundRuleSet,
         IReadOnlyList<StoredEmailAwaitingRuleEvaluation> batch,
         CancellationToken cancellationToken)
     {
         var outcome = new MailRuleEvaluationBatch(batch.Count, boundRuleSet);
+        var batchCategories = boundRuleSet.ReadsCategories
+            ? await this.categories.ReadAsync(account, [.. batch.Select(static candidate => candidate.StoredEmailId)], cancellationToken)
+            : MailRuleCategoryReading.None;
 
         foreach (var candidate in batch)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // An email whose text is still expected is left in the queue rather than evaluated against a fact that
-            // would answer absent and then never be reconsidered. One whose content will never yield text is evaluated
-            // now, because waiting for it would stall this account's queue behind a message that can never become
-            // eligible.
-            if (boundRuleSet.RequiresExtractedBodyText && candidate.AwaitsExtraction)
+            // An email whose text or category is still expected is left in the queue rather than evaluated against a
+            // fact that would answer empty and then never be reconsidered, because evaluating it is what ends its time
+            // as an arrival. One that will never have either is evaluated now, because waiting for it would stall this
+            // account's queue behind a message that can never become eligible.
+            if ((boundRuleSet.RequiresExtractedBodyText && candidate.AwaitsExtraction)
+                || batchCategories.Awaited.Contains(candidate.StoredEmailId))
             {
                 outcome.Skipped();
 
@@ -521,7 +531,7 @@ public sealed class MailRuleEvaluationPass
 
             var evaluatedAt = this.timeProvider.GetUtcNow();
             var facts = new MailRuleFacts(
-                candidate.Facts,
+                candidate.Facts with { Categories = batchCategories.ShownOn(candidate.StoredEmailId) },
                 new StoredEmailBodyTextReader(this.store, candidate.StoredEmailId),
                 this.folderMappings,
                 evaluatedAt);
@@ -543,33 +553,38 @@ public sealed class MailRuleEvaluationPass
     /// <param name="Trigger">Which walk this is, which is both what an execution records and what decides the reach.</param>
     /// <param name="Reach">Which of its rules the walk runs, derived from the walk rather than chosen beside it.</param>
     /// <param name="RequiresExtractedBodyText">Whether any rule the walk runs for this account names the body text.</param>
+    /// <param name="ReadsCategories">Whether any rule the walk runs for this account names the category fact.</param>
     private sealed record BoundRuleSet(
         MailRuleSet RuleSet,
         MailRuleExecutionTrigger Trigger,
         MailRuleReach Reach,
-        bool RequiresExtractedBodyText)
+        bool RequiresExtractedBodyText,
+        bool ReadsCategories)
     {
         /// <summary>Binds a rule set to one walk, answering what the walk needs to know before it reads an email.</summary>
         /// <remarks>
         /// The walk is named once and everything else about it is derived, because the trigger an execution is recorded
         /// under and the rules the walk runs are two readings of one fact: a value chosen twice could disagree, and a
         /// history recording an arrival for a walk that ran every rule would be wrong about what it was.
-        /// The body-text question is answered per walk rather than per pass, because it is a property of the rules the
-        /// walk actually runs. It decides whether an email still awaiting extraction is one to wait for or one to
-        /// evaluate now with the fact absent, so answering it over rules this walk never reaches would hold arriving
+        /// The body-text and category questions are answered per walk rather than per pass, because each is a property
+        /// of the rules the walk actually runs. Each decides whether an email still awaiting that fact is one to wait for
+        /// or one to evaluate now without it, so answering it over rules this walk never reaches would hold arriving
         /// mail behind a manual-only rule that was never going to be asked about it.
         /// </remarks>
         internal static BoundRuleSet For(MailRuleSet ruleSet, MailRuleExecutionTrigger trigger)
         {
             var reach = ReachOf(trigger);
+            var namedFacts = ruleSet.Rules
+                .Where(reach.Reaches)
+                .SelectMany(static rule => rule.Condition.ReferencedFacts)
+                .ToHashSet();
 
             return new BoundRuleSet(
                 ruleSet,
                 trigger,
                 reach,
-                ruleSet.Rules
-                    .Where(reach.Reaches)
-                    .Any(rule => rule.Condition.ReferencedFacts.Contains(MailRuleFact.BodyText)));
+                namedFacts.Contains(MailRuleFact.BodyText),
+                namedFacts.Contains(MailRuleFact.Category));
         }
 
         /// <summary>Reads the identifier of a rule of this set from the name it carried when the set was read.</summary>

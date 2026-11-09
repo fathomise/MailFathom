@@ -60,6 +60,26 @@ internal sealed class EmailCategoryStore(
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlySet<StoredEmailId>> ReadAwaitedAsync(
+        MailAccountId account,
+        IReadOnlyCollection<StoredEmailId> emails,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(emails);
+
+        var identifiers = emails.Select(static email => email.Value).ToArray();
+        var visibleFolders = await deploymentFolders.ReadAsync(MailFolderSelection.VisibleToAI, [account], cancellationToken);
+        var junkFolders = await deploymentFolders.ReadAsync(MailFolderSelection.Junk, [account], cancellationToken);
+        var terms = await derivedWorkGate.ReadTermsAsync(cancellationToken);
+
+        var awaited = await Awaited(dbContext.StoredEmails.AsNoTracking(), account.Value, identifiers, visibleFolders, junkFolders, terms)
+            .Select(static email => email.Id)
+            .ToArrayAsync(cancellationToken);
+
+        return awaited.Select(StoredEmailId.Create).ToHashSet();
+    }
+
+    /// <inheritdoc />
     /// <remarks>
     /// A message holds one set of answers, so the default category already recorded is what says it was asked about. A
     /// second replica inserting beside this one violates that row's index, and the retry reads the winner and stages
@@ -133,6 +153,28 @@ internal sealed class EmailCategoryStore(
         visibleFolders,
         junkFolders,
         terms);
+
+    /// <summary>Narrows the named messages to those a rule naming the category fact should still wait for.</summary>
+    /// <param name="emails">The emails to narrow.</param>
+    /// <param name="mailboxAccountId">The account.</param>
+    /// <param name="identifiers">The messages to ask about.</param>
+    /// <param name="visibleFolders">The folders visible to AI.</param>
+    /// <param name="junkFolders">The folders the account maps to the junk role.</param>
+    /// <param name="terms">The terms the spam gate decides under, whose release instant bounds this wait as well.</param>
+    /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
+    /// <remarks>
+    /// The bound is the verdict's own, which is what leaves the settlement's fifteen further minutes for the rule pass and
+    /// the move it asks for: past it the message is evaluated with no category rather than held any longer.
+    /// </remarks>
+    internal static IQueryable<StoredEmailEntity> Awaited(
+        IQueryable<StoredEmailEntity> emails,
+        string mailboxAccountId,
+        Guid[] identifiers,
+        IReadOnlyList<MailFolderIdentity> visibleFolders,
+        IReadOnlyList<MailFolderIdentity> junkFolders,
+        DerivedWorkAdmissionTerms terms) =>
+        Selecting(emails.Where(email => identifiers.Contains(email.Id)), mailboxAccountId, visibleFolders, junkFolders, terms)
+            .Where(email => email.StoredAt >= terms.ReleasedWhenStoredBefore);
 
     /// <summary>Narrows stored mail to what a model may be shown: nothing junk, nothing erased, and nothing in a folder withheld from AI.</summary>
     /// <remarks>

@@ -57,6 +57,16 @@ public sealed class MailRuleFactsTests
         Assert.Equal(expected, value);
     }
 
+    [Fact]
+    public async Task ResolveAsync_Category_AnswersWithWhatTheEmailShows()
+    {
+        // Act
+        var value = await CreateFacts().ResolveAsync(MailRuleFact.Category, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["finance", "Contracts"], Assert.IsAssignableFrom<IReadOnlyList<string>>(value));
+    }
+
     /// <summary>A domain is derived from its address rather than stored, so the two can never disagree.</summary>
     [Fact]
     public async Task ResolveAsync_RecipientDomains_AreDerivedFromTheAddressesWithoutRepeats()
@@ -382,6 +392,7 @@ public sealed class MailRuleFactsTests
             AttachmentCount = 2,
             AttachmentTotalBytes = 200_000,
             Keywords = ["$Invoice", "$Todo"],
+            Categories = ["finance", "Contracts"],
             AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
             SenderTrust = SenderTrustLevel.Trusted,
             MachineAuthorship = MachineAuthorshipBand.Possible,

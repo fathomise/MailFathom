@@ -18,13 +18,15 @@ internal sealed class ScriptedMailRuleCondition : IMailRuleCondition
     private readonly bool matches;
     private readonly Exception? failure;
     private readonly bool neverAnswers;
+    private readonly string? requiredCategory;
     private readonly TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    private ScriptedMailRuleCondition(bool matches, Exception? failure, bool neverAnswers)
+    private ScriptedMailRuleCondition(bool matches, Exception? failure, bool neverAnswers, string? requiredCategory = null)
     {
         this.matches = matches;
         this.failure = failure;
         this.neverAnswers = neverAnswers;
+        this.requiredCategory = requiredCategory;
     }
 
     /// <summary>Gets how often the condition has been asked about an email.</summary>
@@ -45,6 +47,10 @@ internal sealed class ScriptedMailRuleCondition : IMailRuleCondition
     public static ScriptedMailRuleCondition Answering(bool matches, params MailRuleFact[] referencedFacts) =>
         new(matches, failure: null, neverAnswers: false) { ReferencedFacts = referencedFacts };
 
+    /// <summary>Creates a condition that matches the emails holding one category, which is what reading the fact amounts to.</summary>
+    public static ScriptedMailRuleCondition MatchingCategory(string category) =>
+        new(matches: false, failure: null, neverAnswers: false, category) { ReferencedFacts = [MailRuleFact.Category] };
+
     /// <summary>Creates a condition that raises instead of answering.</summary>
     public static ScriptedMailRuleCondition Raising(Exception failure) => new(matches: false, failure, neverAnswers: false);
 
@@ -60,6 +66,13 @@ internal sealed class ScriptedMailRuleCondition : IMailRuleCondition
         foreach (var fact in this.ReferencedFacts)
         {
             await facts.ResolveAsync(fact, cancellationToken);
+        }
+
+        if (this.requiredCategory is { } category)
+        {
+            var held = (IReadOnlyList<string>?)await facts.ResolveAsync(MailRuleFact.Category, cancellationToken);
+
+            return held?.Contains(category, StringComparer.OrdinalIgnoreCase) ?? false;
         }
 
         if (this.failure is { } raised)
