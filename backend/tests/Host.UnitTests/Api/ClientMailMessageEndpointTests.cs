@@ -601,6 +601,20 @@ public sealed class ClientMailMessageEndpointTests
         Assert.Equal(new ClientMailSpamVerdictResponse("Spam", "Person", "Scam", "Person", null, null), response.Spam);
     }
 
+    /// <summary>A read message carries what its account shows, which a pane draws without a second request.</summary>
+    [Fact]
+    public void For_AMessageShowingACategory_CarriesIt()
+    {
+        // Arrange
+        var message = MessageWith() with { Categories = ["Legal"] };
+
+        // Act
+        var response = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, NoPhotos);
+
+        // Assert
+        Assert.Equal([new ClientMailCategoryResponse("Legal", "Legal")], response.Categories);
+    }
+
     /// <summary>A message names the photo its author — its first <c>From</c> mailbox, not any other participant — is drawn by.</summary>
     [Fact]
     public void For_AMessageWhoseAuthorHasAPhoto_NamesTheAuthorsPhoto()

@@ -2553,6 +2553,24 @@
         ],
         "type": "object"
       },
+      "ClientMailCategoryResponse": {
+        "properties": {
+          "identity": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "identity",
+          "name"
+        ],
+        "type": "object"
+      },
       "ClientMailChangeStateResponse": {
         "properties": {
           "attemptCount": {
@@ -3231,6 +3249,12 @@
               }
             ]
           },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailCategoryResponse"
+            },
+            "type": "array"
+          },
           "flagged": {
             "type": "boolean"
           },
@@ -3338,7 +3362,8 @@
           "senderPhoto",
           "report",
           "receipts",
-          "readReceiptRequest"
+          "readReceiptRequest",
+          "categories"
         ],
         "type": "object"
       },
@@ -3862,6 +3887,12 @@
             },
             "type": "array"
           },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailCategoryResponse"
+            },
+            "type": "array"
+          },
           "flagged": {
             "type": "boolean"
           },
@@ -4019,7 +4050,8 @@
           "sender",
           "senderPhoto",
           "report",
-          "receipts"
+          "receipts",
+          "categories"
         ],
         "type": "object"
       },
@@ -4533,6 +4565,12 @@
           "account": {
             "type": "string"
           },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailCategoryResponse"
+            },
+            "type": "array"
+          },
           "hasAttachments": {
             "type": "boolean"
           },
@@ -4599,7 +4637,8 @@
           "moreParticipantsNotNamed",
           "newest",
           "newestReceivedSender",
-          "title"
+          "title",
+          "categories"
         ],
         "type": "object"
       },
@@ -4928,6 +4967,12 @@
               "string"
             ]
           },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/ClientMailCategoryResponse"
+            },
+            "type": "array"
+          },
           "enrichment": {
             "oneOf": [
               {
@@ -5090,7 +5135,8 @@
           "sender",
           "senderPhoto",
           "report",
-          "receipts"
+          "receipts",
+          "categories"
         ],
         "type": "object"
       },

@@ -447,6 +447,7 @@ public sealed class CitationResolverTests
         return new CitationResolver(
             new EmailContentReader(
                 SummaryReaderOver(summaries),
+                StubMailCategories.OfferingNothing,
                 new StubEmailThreadReader(),
                 contentStore ?? ContentStoreReturning(IntactContent()),
                 renderer ?? RendererReturning(RenderingOf(headers ?? HeadersOf("Subject", receivedAt: null), attachments)),

@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
@@ -52,6 +53,7 @@ namespace MailFathom.Application.Emails.BrowseThread;
 public sealed class MailThreadBrowser
 {
     private readonly IEmailThreadReader threadReader;
+    private readonly OfferedMailCategories categories;
     private readonly IStoredEmailSummaryReader summaryReader;
     private readonly IStoredEmailPreviewReader previewReader;
     private readonly IStoredEmailEnrichmentReader enrichmentReader;
@@ -62,6 +64,7 @@ public sealed class MailThreadBrowser
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="threadReader">Reads which messages one conversation holds, narrowed to what the caller may see.</param>
+    /// <param name="categories">Puts on each message of a page the categories its account shows.</param>
     /// <param name="summaryReader">Reads the listing projection of the messages one page names.</param>
     /// <param name="previewReader">Reads the bounded opening of the text of those messages.</param>
     /// <param name="enrichmentReader">Reads what a derivation concluded about the messages one page names.</param>
@@ -72,6 +75,7 @@ public sealed class MailThreadBrowser
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailThreadBrowser(
         IEmailThreadReader threadReader,
+        OfferedMailCategories categories,
         IStoredEmailSummaryReader summaryReader,
         IStoredEmailPreviewReader previewReader,
         IStoredEmailEnrichmentReader enrichmentReader,
@@ -81,6 +85,7 @@ public sealed class MailThreadBrowser
         AccessAuthorization authorization)
     {
         ArgumentNullException.ThrowIfNull(threadReader);
+        ArgumentNullException.ThrowIfNull(categories);
         ArgumentNullException.ThrowIfNull(summaryReader);
         ArgumentNullException.ThrowIfNull(previewReader);
         ArgumentNullException.ThrowIfNull(enrichmentReader);
@@ -90,6 +95,7 @@ public sealed class MailThreadBrowser
         ArgumentNullException.ThrowIfNull(authorization);
 
         this.threadReader = threadReader;
+        this.categories = categories;
         this.summaryReader = summaryReader;
         this.previewReader = previewReader;
         this.enrichmentReader = enrichmentReader;
@@ -284,7 +290,9 @@ public sealed class MailThreadBrowser
     {
         var identities = walked.Select(static placed => placed.Email.StoredEmailId).ToArray();
 
-        var summaries = await this.summaryReader.ReadSummariesAsync(identities, cancellationToken);
+        var read = await this.summaryReader.ReadSummariesAsync(identities, cancellationToken);
+        var summaries = (await this.categories.WithCategoriesAsync([.. read.Values], cancellationToken))
+            .ToDictionary(static summary => summary.StoredEmailId);
         var contributions = await this.previewReader.ReadPreviewsAsync(identities, cancellationToken);
         var enrichments = await this.enrichmentReader.ReadEnrichmentsAsync(identities, cancellationToken);
 

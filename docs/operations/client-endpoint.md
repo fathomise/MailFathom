@@ -1,6 +1,6 @@
 # The client endpoint
 
-<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientAutomaticReplyEndpoint.cs, backend/src/Host/Api/ClientMailFooterEndpoints.cs, backend/src/Host/Api/MailFooterContracts.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadListResponses.cs, backend/src/Application/Emails/BrowseThreadList/**, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientPersonPhotoEndpoint.cs, backend/src/Host/Api/PersonPhotoResponse.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Api/ClientPresenceEndpoints.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.App/src/deployment/requestsInFlight.ts, frontend/src/Client.App/src/shell/livenessProbe.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
+<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientAutomaticReplyEndpoint.cs, backend/src/Host/Api/ClientMailFooterEndpoints.cs, backend/src/Host/Api/MailFooterContracts.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadListResponses.cs, backend/src/Application/Emails/BrowseThreadList/**, backend/src/Application/Categories/**, backend/src/Host/Api/ClientMailCategoryResponse.cs, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientPersonPhotoEndpoint.cs, backend/src/Host/Api/PersonPhotoResponse.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Api/ClientPresenceEndpoints.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.App/src/deployment/requestsInFlight.ts, frontend/src/Client.App/src/shell/livenessProbe.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
 
 Where the MailFathom client reaches the service, what a deployment has to enable before it answers, and what a person's
 mail client presents to get in.
@@ -917,7 +917,11 @@ continues the list at each end:
         "signatureOutcome": "NotSigned",
         "signerMatchesAuthor": false
       },
-      "senderPhoto": { "book": "Member", "id": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a93", "photo": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a94" }
+      "senderPhoto": { "book": "Member", "id": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a93", "photo": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a94" },
+      "categories": [
+        { "identity": "finance", "name": null },
+        { "identity": "Contracts", "name": "Contracts" }
+      ]
     }
   ],
   "nextCursor": "AbCd...",
@@ -1009,6 +1013,19 @@ because it says what kind of spam a message is and nothing about mail that is no
 `impersonatedParty` is the kind of party a message pretends to come from and never a name — where a reader needs one,
 the message's own sender is in front of them. [Spam classification](../features/spam-classification.md) is where each
 stage and each value is decided.
+
+**`categories` is what sort of mail the message is**, read for the page in one request beside it rather than one per
+row, and empty where the message shows none. `identity` is one of the seven published default identities —
+`correspondence`, `subscriptions`, `finance`, `shopping`, `travel`, `notifications`, `other` — which a client names in
+its own language, or the name of a category the account declared itself, in which case `name` carries the same text to
+draw as written; `name` is `null` on a default. Defaults come first, in that order, and then the account's own in the
+order its record declares them. What decides the list is the account's
+[`Categorization`](configuration-mail.md#sorting-this-accounts-mail-into-categories--categorization) block as it stands
+when the mail is read: a default switched off is not published and neither is any category of an account that does not
+categorize, on any route, with nothing reclassified, so switching either back on brings back what was recorded. A
+category is a model's reading of a message and never evidence about who sent it. The search results, a conversation's
+messages, and [the message route](#the-message-route) carry the same field, and the rule is the same in every custody
+phase, because the read looks at the stored message alone.
 
 **`sender` is what was established about who sent the message, as four facts side by side**, so a list marks a
 row's sender without a request per row. `authorAuthentication` and `deploymentTrust` are the two states
@@ -1197,12 +1214,18 @@ reads like this:
     "standing": "Waiting on the notes review.",
     "derivedFromMessageCount": 4,
     "derivedFromLatestArrival": "2026-08-15T11:20:00+00:00"
-  }
+  },
+  "categories": [
+    { "identity": "finance", "name": null }
+  ]
 }
 ```
 
 **Once listed, a conversation is counted whole**: `messageCount` counts every message the user may read in it, the spam
-and the trashed ones included, whatever the filters let through.
+and the trashed ones included, whatever the filters let through. `categories` follows the same rule: every category any
+of those messages holds and the account publishes, each once, read for the page in one query rather than one per row and
+in the order and under the rules [a mail list row's](#the-mail-list-route) follows. An account holds seven defaults and
+twenty categories of its own at most, so a row carries no more than that.
 
 **`unreadCount` counts the received messages nobody has read**: a message the user sent is never unread, whichever
 of their accounts sent it. Who the user is comes from the sending identities of the accounts they are assigned, and
@@ -1296,7 +1319,7 @@ acted on without a second request. `snippets` are the extracts around what match
 route publishes. The one list field a result does not carry is `threadMessageCount`: a search ranks messages rather
 than correspondences, and counting the conversation behind every result would be a query this route does not owe.
 `spam` and `sender` are the list row's own objects, read the same way, so a result is folded, badged, and marked
-exactly as its row would be, and so are `report` and `receipts`.
+exactly as its row would be, and so are `report`, `receipts`, and `categories`.
 
 **`matchedBy` is why the row is there**: `LexicalRanking` for a message carrying the query's words, `SemanticRanking`
 for one matching by meaning, and `BothRankings` for one both rankings found. It is the field a screen needs most for
@@ -1773,7 +1796,8 @@ of its body exist to be asked for:
   "unread": true,
   "flagged": false,
   "answered": false,
-  "spam": null
+  "spam": null,
+  "categories": []
 }
 ```
 

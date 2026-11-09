@@ -201,6 +201,7 @@ internal static class CorpusReaders
     private static EmailContentReader ContentReaderOver(MailboxScopeResolver scope, AccessAuthorization authorization) =>
         new(
             new CorpusSummaries(),
+            StubMailCategories.OfferingNothing,
             new StubEmailThreadReader([.. Exchanges.Value.SelectMany(static exchange => ThreadedOf(exchange))]),
             new CorpusContent(),
             new MimeKitEmailContentRenderer(new EmailMimeExtractionOptions()),

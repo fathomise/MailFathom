@@ -19,6 +19,7 @@ namespace MailFathom.Host.Api;
 /// <param name="Newest">Its newest message, which the row quotes.</param>
 /// <param name="NewestReceivedSender">The facts the sender mark of its newest received message is chosen from, or <see langword="null" /> where the user wrote every message.</param>
 /// <param name="Title">What a derivation called it, or <see langword="null" /> where nothing has titled it.</param>
+/// <param name="Categories">Every category any of those messages holds and its account shows, each once, a default before an own category.</param>
 /// <remarks>
 /// All of it is personal data drawn from the user's mail, under the same rules as a timeline row.
 /// </remarks>
@@ -32,7 +33,8 @@ internal sealed record ClientMailThreadListEntryResponse(
     bool MoreParticipantsNotNamed,
     ClientMailThreadListNewestResponse Newest,
     ClientMailListedSenderResponse? NewestReceivedSender,
-    ClientMailThreadListTitleResponse? Title)
+    ClientMailThreadListTitleResponse? Title,
+    IReadOnlyList<ClientMailCategoryResponse> Categories)
 {
     /// <summary>Describes one row for the wire.</summary>
     /// <param name="row">The row the use case read.</param>
@@ -70,7 +72,8 @@ internal sealed record ClientMailThreadListEntryResponse(
                 title.Title.Standing,
                 title.DerivedFrom.MessageCount,
                 title.DerivedFrom.LatestArrival)
-            : null);
+            : null,
+        ClientMailCategoryResponse.For(row.Thread.Categories));
 }
 
 /// <summary>Somebody who wrote into a listed conversation.</summary>

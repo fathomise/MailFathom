@@ -63,6 +63,7 @@ public sealed class ClientMailThreadListResponsesTests
                 Title = new ListedThreadTitle(
                     ThreadTitle.Create("Summer plans", "Waiting on Anna."),
                     new ThreadStateRevision(2, FirstJuly.AddHours(2))),
+                Categories = ["finance", "Legal"],
             },
             MoreParticipantsNotNamed: false,
             Summary(ReadersReply, Answered, "Re: plans", ReaderAddress, "Me", FirstJuly.AddHours(2)),
@@ -77,6 +78,7 @@ public sealed class ClientMailThreadListResponsesTests
         var row = ClientMailThreadListEntryResponse.For(listed, new Dictionary<EmailAddress, PersonPhoto>());
 
         // Assert
+        Assert.Equal([new ClientMailCategoryResponse("finance", Name: null), new ClientMailCategoryResponse("Legal", "Legal")], row.Categories);
         Assert.Equal(
             (Answered.Value, "work", 2, 1, true, false),
             (row.ThreadId, row.Account, row.MessageCount, row.UnreadCount, row.HasAttachments, row.MoreParticipantsNotNamed));
@@ -110,6 +112,7 @@ public sealed class ClientMailThreadListResponsesTests
                 NewestReceivedEmailId = null,
                 Participants = [new ListedThreadParticipant(ReaderAddress, DisplayName: null, IsReader: true)],
                 Title = null,
+                Categories = [],
             },
             MoreParticipantsNotNamed: false,
             Summary(ReadersNote, Unanswered, "a note", ReaderAddress, senderDisplayName: null, FirstJuly),
@@ -125,6 +128,7 @@ public sealed class ClientMailThreadListResponsesTests
             (row.ThreadId, row.Newest.Own, row.Newest.SenderAddress, row.Newest.Preview));
         Assert.Null(row.Title);
         Assert.Null(row.NewestReceivedSender);
+        Assert.Empty(row.Categories);
     }
 
     private static EmailSummary Summary(

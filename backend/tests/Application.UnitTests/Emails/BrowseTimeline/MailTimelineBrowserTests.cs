@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.BrowseTimeline;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Enrichment;
@@ -42,6 +43,25 @@ public sealed class MailTimelineBrowserTests
         EmailTimelineDirection.NewestFirst,
         EmailTimelineDirection.OldestFirst,
     ];
+
+    /// <summary>A row carries what its account shows of what the message holds, a default it switched off gone.</summary>
+    [Fact]
+    public async Task BrowsePageAsync_AMessageHoldingCategories_CarriesWhatItsAccountShows()
+    {
+        // Arrange
+        var email = Assert.Single(SyntheticEmailSummaries.CreateDailyRun(1, FirstJuly));
+        var browser = BrowserOver(
+            new InMemoryStoredEmailTimeline().WithAll([email]),
+            categories: StubMailCategories.Offering(new StubMailCategories(
+            new Dictionary<MailAccountId, MailCategoryOffer> { [email.Account] = MailCategoryOffer.Of(["travel"], ["Legal"]) },
+            new Dictionary<StoredEmailId, IReadOnlyList<string>> { [email.StoredEmailId] = ["Legal", "travel", "finance"] })));
+
+        // Act
+        var page = await browser.BrowsePageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["finance", "Legal"], Assert.Single(page.Emails).Email.Categories);
+    }
 
     /// <summary>The leading end of a list has nothing before it, which is what tells a screen not to offer scrolling back.</summary>
     [Fact]
@@ -688,8 +708,10 @@ public sealed class MailTimelineBrowserTests
         SensitiveContentEgressGuard? egressGuard = null,
         IMailboxReadTelemetry? readTelemetry = null,
         AccessAuthorization? authorization = null,
-        StubMailFolderParticipation? folderParticipation = null) => new(
+        StubMailFolderParticipation? folderParticipation = null,
+        OfferedMailCategories? categories = null) => new(
         timeline,
+        categories ?? StubMailCategories.OfferingNothing,
         previewReader ?? new InMemoryStoredEmailPreviews(),
         enrichmentReader ?? new InMemoryStoredEmailEnrichments(),
         threadReader ?? new StubEmailThreadReader(),

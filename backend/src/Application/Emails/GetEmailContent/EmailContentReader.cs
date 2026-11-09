@@ -4,6 +4,7 @@
 
 using System.Collections.ObjectModel;
 using MailFathom.Application.Access;
+using MailFathom.Application.Categories;
 using MailFathom.Application.EmailContent;
 using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.EmailContent.Rendering;
@@ -21,6 +22,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.GetEmailContent;
 
@@ -66,6 +68,7 @@ namespace MailFathom.Application.Emails.GetEmailContent;
 public sealed class EmailContentReader
 {
     private readonly IStoredEmailSummaryReader summaryReader;
+    private readonly OfferedMailCategories categories;
     private readonly IEmailThreadReader threadReader;
     private readonly IEmailContentStore contentStore;
     private readonly IEmailContentRenderer renderer;
@@ -79,6 +82,7 @@ public sealed class EmailContentReader
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="summaryReader">Reads one stored email's summary by its identity.</param>
+    /// <param name="categories">Puts on the summary the categories its account shows.</param>
     /// <param name="threadReader">Reads the messages of the conversation an email belongs to.</param>
     /// <param name="contentStore">Reads the raw MIME stored for an email, with what was recorded about it.</param>
     /// <param name="renderer">Turns stored raw MIME into headers, a body, and a description of every attachment.</param>
@@ -92,6 +96,7 @@ public sealed class EmailContentReader
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public EmailContentReader(
         IStoredEmailSummaryReader summaryReader,
+        OfferedMailCategories categories,
         IEmailThreadReader threadReader,
         IEmailContentStore contentStore,
         IEmailContentRenderer renderer,
@@ -104,6 +109,7 @@ public sealed class EmailContentReader
         AccessAuthorization authorization)
     {
         ArgumentNullException.ThrowIfNull(summaryReader);
+        ArgumentNullException.ThrowIfNull(categories);
         ArgumentNullException.ThrowIfNull(threadReader);
         ArgumentNullException.ThrowIfNull(contentStore);
         ArgumentNullException.ThrowIfNull(renderer);
@@ -116,6 +122,7 @@ public sealed class EmailContentReader
         ArgumentNullException.ThrowIfNull(authorization);
 
         this.summaryReader = summaryReader;
+        this.categories = categories;
         this.threadReader = threadReader;
         this.contentStore = contentStore;
         this.renderer = renderer;
@@ -177,11 +184,17 @@ public sealed class EmailContentReader
         var remainingImageOctets = MailDocumentBounds.Default.MaximumInlineImageOctetsPerDocument;
         var assignedAccounts = await this.scopeResolver.ReadAssignedAccountsAsync(cancellationToken);
 
+        var readable = await this.ReadableSummariesAsync(
+            selection.StoredEmailIds,
+            assignedAccounts,
+            request.Reader,
+            cancellationToken);
+
         foreach (var storedEmailId in selection.StoredEmailIds)
         {
             var outcome = await this.ReadOneAsync(
                 storedEmailId,
-                assignedAccounts,
+                readable.GetValueOrDefault(storedEmailId),
                 request,
                 threads,
                 remainingCharacters,
@@ -234,23 +247,48 @@ public sealed class EmailContentReader
             [.. ordered.Skip(GetEmailContentRequest.MaximumEmails)]);
     }
 
+    /// <summary>Reads the summary of every selected email its reader may read, each carrying the categories its account shows.</summary>
+    /// <remarks>
+    /// An account this deployment no longer serves leaves its stored rows in place, and a folder an operator withheld
+    /// from AI keeps its own, and a message judged spam is never an agent's to read, so the row existing is not enough
+    /// when an agent is reading. Every such case is simply absent here and produces one answer: telling them apart would
+    /// let a caller learn which identifiers exist by asking about them. The categories are read once for the whole call
+    /// rather than for each email, so the cost of a read naming several does not grow with them.
+    /// </remarks>
+    private async Task<IReadOnlyDictionary<StoredEmailId, EmailSummary>> ReadableSummariesAsync(
+        IReadOnlyList<StoredEmailId> storedEmailIds,
+        IReadOnlyList<MailAccountId> assignedAccounts,
+        MailboxReaderKind reader,
+        CancellationToken cancellationToken)
+    {
+        var readable = new List<EmailSummary>(storedEmailIds.Count);
+
+        foreach (var storedEmailId in storedEmailIds)
+        {
+            var summary = await this.summaryReader.FindAsync(storedEmailId, cancellationToken);
+
+            if (summary is not null && this.scopeResolver.IsReadable(reader, assignedAccounts, summary))
+            {
+                readable.Add(summary);
+            }
+        }
+
+        var categorized = await this.categories.WithCategoriesAsync(readable, cancellationToken);
+
+        return categorized.ToDictionary(static summary => summary.StoredEmailId);
+    }
+
     /// <summary>Reads one email, or reports why it could not be.</summary>
     private async Task<EmailContentReadOutcome> ReadOneAsync(
         StoredEmailId storedEmailId,
-        IReadOnlyList<MailAccountId> assignedAccounts,
+        EmailSummary? summary,
         GetEmailContentRequest request,
         EmailThreadContexts threads,
         int remainingCharacters,
         int remainingImageOctets,
         CancellationToken cancellationToken)
     {
-        var summary = await this.summaryReader.FindAsync(storedEmailId, cancellationToken);
-
-        // An account this deployment no longer serves leaves its stored rows in place, and a folder an operator withheld
-        // from AI keeps its own, and a message judged spam is never an agent's to read, so the row existing is not enough
-        // when an agent is reading. Every such case produces one answer: telling them apart would let a caller learn
-        // which identifiers exist by asking about them.
-        if (summary is null || !this.scopeResolver.IsReadable(request.Reader, assignedAccounts, summary))
+        if (summary is null)
         {
             return EmailContentReadOutcome.NotFound(storedEmailId);
         }
@@ -537,6 +575,7 @@ public sealed class EmailContentReader
             SenderAuthenticationEvidence = summary.SenderAuthenticationEvidence,
             MachineAuthorship = summary.MachineAuthorship,
             Spam = summary.Spam,
+            Categories = summary.Categories,
             Report = summary.Report,
             ReadReceiptRequest = summary.ReadReceiptRequest,
             Receipts = summary.Receipts,
@@ -603,6 +642,7 @@ public sealed class EmailContentReader
             SenderAuthenticationEvidence = summary.SenderAuthenticationEvidence,
             MachineAuthorship = summary.MachineAuthorship,
             Spam = summary.Spam,
+            Categories = summary.Categories,
             Report = summary.Report,
             ReadReceiptRequest = summary.ReadReceiptRequest,
             Receipts = summary.Receipts,

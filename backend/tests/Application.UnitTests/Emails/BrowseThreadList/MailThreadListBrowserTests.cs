@@ -5,6 +5,7 @@
 using System.Globalization;
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.BrowseThreadList;
 using MailFathom.Application.Emails.BrowseTimeline;
 using MailFathom.Application.Emails.Enrichment;
@@ -166,6 +167,39 @@ public sealed class MailThreadListBrowserTests
 
         // Assert
         Assert.Equal([kept.ThreadId], page.Conversations.Select(row => row.Thread.ThreadId));
+    }
+
+    /// <summary>A conversation's set is what its account shows: a hidden default leaves it, and what stays stands in the account's order.</summary>
+    [Fact]
+    public async Task BrowseGroupedPageAsync_AConversationHoldingAHiddenDefault_NamesOnlyWhatTheAccountShows()
+    {
+        // Arrange
+        var thread = Listed(1) with { Categories = ["Legal", "travel", "finance"] };
+        var offers = new StubMailCategories(
+            new Dictionary<MailAccountId, MailCategoryOffer> { [Account] = MailCategoryOffer.Of(["travel"], ["Legal"]) },
+            new Dictionary<StoredEmailId, IReadOnlyList<string>>());
+        var browser = BrowserOver(ReaderAnswering([thread]), [thread], categoryOffers: offers);
+
+        // Act
+        var page = await browser.BrowseGroupedPageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["finance", "Legal"], Assert.Single(page.Conversations).Thread.Categories);
+    }
+
+    /// <summary>An account that does not categorize shows nothing, whatever was recorded while it did.</summary>
+    [Fact]
+    public async Task BrowseGroupedPageAsync_AnAccountThatDoesNotCategorize_NamesNoCategory()
+    {
+        // Arrange
+        var thread = Listed(1) with { Categories = ["finance"] };
+        var browser = BrowserOver(ReaderAnswering([thread]), [thread]);
+
+        // Act
+        var page = await browser.BrowseGroupedPageAsync(new BrowseTimelineRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(Assert.Single(page.Conversations).Thread.Categories);
     }
 
     [Fact]
@@ -424,6 +458,7 @@ public sealed class MailThreadListBrowserTests
 
         return new MailTimelineBrowser(
             timeline,
+            StubMailCategories.OfferingNothing,
             new InMemoryStoredEmailPreviews(),
             enrichments,
             Substitute.For<IEmailThreadReader>(),
@@ -452,6 +487,7 @@ public sealed class MailThreadListBrowserTests
         NewestReceivedEmailId = SummaryId(ordinal),
         Participants = [new ListedThreadParticipant("anna@example.test", "Anna", IsReader: false)],
         Title = null,
+        Categories = [],
     };
 
     private static StoredEmailId SummaryId(int ordinal) =>
@@ -470,6 +506,7 @@ public sealed class MailThreadListBrowserTests
         IReadOnlyList<ListedEmailThread> quotedThreads,
         IReadOnlyList<EmailSummary>? summaries = null,
         InMemoryStoredEmailPreviews? previews = null,
+        IMailCategoryOfferReader? categoryOffers = null,
         IReadOnlyList<(MailAccountId Account, string Address)>? sendingAs = null,
         IReadOnlyList<MailAccountId>? assignedAccounts = null,
         SensitiveContentEgressGuard? egressGuard = null,
@@ -500,6 +537,7 @@ public sealed class MailThreadListBrowserTests
             new InMemoryStoredEmailSummaries().WithAll(
                 summaries ?? [.. quotedThreads.Select(thread => Summary(OrdinalOf(thread.NewestEmailId), "anna@example.test"))]),
             previews ?? new InMemoryStoredEmailPreviews(),
+            categoryOffers ?? new StubMailCategories(),
             accountCatalog,
             senderIdentities,
             new MailboxScopeResolver(

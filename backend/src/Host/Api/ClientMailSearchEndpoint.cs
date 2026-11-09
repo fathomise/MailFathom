@@ -285,6 +285,7 @@ internal sealed record ClientMailSearchResponse(
 /// <param name="SenderPhoto">The photo the sender is drawn by, or <see langword="null" /> where they are drawn by their initials.</param>
 /// <param name="Report">The delivery report or read receipt the message was recognized as, or <see langword="null" /> for every other message, as on a mail list row.</param>
 /// <param name="Receipts">What the account's own message asked to be told and what came back, counted, as on a mail list row.</param>
+/// <param name="Categories">The categories its account shows for the message, as on a mail list row.</param>
 /// <remarks>
 /// <para>
 /// The row is the message list's row, field for field, so one layout draws both and a search result can be opened,
@@ -334,7 +335,8 @@ internal sealed record ClientMailSearchResultResponse(
     ClientMailListedSenderResponse Sender,
     PersonPhotoResponse? SenderPhoto,
     ClientMailReportResponse? Report,
-    ClientMailReceiptSummaryResponse? Receipts)
+    ClientMailReceiptSummaryResponse? Receipts,
+    IReadOnlyList<ClientMailCategoryResponse> Categories)
 {
     /// <summary>Describes one result for the wire.</summary>
     /// <param name="result">The result the use case read.</param>
@@ -368,7 +370,8 @@ internal sealed record ClientMailSearchResultResponse(
         ClientMailListedSenderResponse.For(result.Email.SenderVerification),
         PersonPhotoResponse.For(result.Email.SenderAddress, senderPhotos),
         ClientMailReportResponse.For(result.Email.Report),
-        ClientMailReceiptSummaryResponse.For(result.Email.Receipts));
+        ClientMailReceiptSummaryResponse.For(result.Email.Receipts),
+        ClientMailCategoryResponse.For(result.Email.Categories));
 }
 
 /// <summary>One attachment of a result the query reached, and where inside the file it was reached.</summary>

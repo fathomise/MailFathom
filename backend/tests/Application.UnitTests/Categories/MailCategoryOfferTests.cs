@@ -53,13 +53,27 @@ public sealed class MailCategoryOfferTests
 
     /// <summary>A record is exact where a request is forgiving, because a rename in case is a withdrawal of the old name.</summary>
     [Fact]
-    public void Shows_ARecordDifferingOnlyInCase_IsNotShown()
+    public void Shown_ARecordDifferingOnlyInCase_IsNotShown()
     {
         // Act
-        var shown = MailCategoryOffer.Of([], ["Contracts"]).Shows("contracts");
+        var shown = MailCategoryOffer.Of([], ["Contracts"]).Shown(["contracts"]);
 
         // Assert
-        Assert.False(shown);
+        Assert.Empty(shown);
+    }
+
+    /// <summary>What is shown stands in the order a screen draws it, a hidden default gone, whatever order it was recorded in.</summary>
+    [Fact]
+    public void Shown_RecordsInAnyOrder_StandDefaultsFirstThenOwnAsDeclared()
+    {
+        // Arrange
+        var offer = MailCategoryOffer.Of(["travel"], ["Legal", "Budget"]);
+
+        // Act
+        var shown = offer.Shown(["Budget", "travel", "Legal", "finance"]);
+
+        // Assert
+        Assert.Equal(["finance", "Legal", "Budget"], shown);
     }
 
     [Fact]

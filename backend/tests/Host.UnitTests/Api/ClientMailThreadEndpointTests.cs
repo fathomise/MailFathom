@@ -308,6 +308,24 @@ public sealed class ClientMailThreadEndpointTests
         });
     }
 
+    /// <summary>Each message of a conversation carries its own categories, so the one that is the invoice says so, in the row and in the drawn message alike.</summary>
+    [Fact]
+    public void For_AMessageShowingACategory_CarriesItOnTheRowAndTheDrawnMessage()
+    {
+        // Arrange
+        var email = SyntheticListedEmail(Message) with { Categories = ["finance"] };
+        var message = new BrowsedThreadEmail(email, Position: 0, AnsweredStoredEmailId: null, Contribution: null, Enrichment: null);
+
+        // Act
+        var response = ClientMailThreadEmailResponse.For(message, threadMessageCount: 1, drawn: DrawnMessage() with { Categories = ["finance"] }, standing: SenderContactStanding.Unanswered, senderPhotos: NoPhotos);
+
+        // Assert
+        ClientMailCategoryResponse[] shown = [new("finance", Name: null)];
+        Assert.Equal(shown, response.Email.Categories);
+        Assert.NotNull(response.Message);
+        Assert.Equal(shown, response.Message.Categories);
+    }
+
     /// <summary>A drawn conversation carries each message as the two message routes answer for it, which is what makes it one request.</summary>
     [Fact]
     public void For_AMessageTheReadOpened_CarriesWhatAReadingPaneDrawsAndWhatTheMessageSays()
@@ -695,6 +713,7 @@ public sealed class ClientMailThreadEndpointTests
 
         return new EmailContentReader(
             this.summaryReader,
+            StubMailCategories.OfferingNothing,
             this.threadReader,
             contentStore,
             renderer,
@@ -728,6 +747,7 @@ public sealed class ClientMailThreadEndpointTests
 
         return new EmailContentReader(
             Substitute.For<IStoredEmailSummaryReader>(),
+            StubMailCategories.OfferingNothing,
             Substitute.For<IEmailThreadReader>(),
             Substitute.For<IEmailContentStore>(),
             Substitute.For<IEmailContentRenderer>(),
@@ -769,6 +789,7 @@ public sealed class ClientMailThreadEndpointTests
 
         return new MailThreadBrowser(
             this.threadReader,
+            StubMailCategories.OfferingNothing,
             this.summaryReader,
             previews,
             enrichments,

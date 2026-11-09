@@ -16,9 +16,9 @@ namespace MailFathom.Infrastructure.Persistence.Emails.Threads;
 /// <summary>Reads a walk of the mail list grouped by conversation out of stored mail.</summary>
 /// <remarks>
 /// <para>
-/// Five reads per walk, none of them per row: the walk itself, which chooses the conversations from what the filters
+/// Six reads per walk, none of them per row: the walk itself, which chooses the conversations from what the filters
 /// let through and orders them in the database; a second grouping that counts the chosen ones whole; the messages each
-/// listed conversation is quoted by; who wrote into each; and the title a derivation stored for each. The first is the
+/// listed conversation is quoted by; who wrote into each; the categories each holds; and the title a derivation stored for each. The first is the
 /// one that grows with the mailbox, because it groups every message the filters let through.
 /// </para>
 /// <para>
@@ -84,7 +84,7 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
         ];
     }
 
-    /// <summary>Reads what each conversation of a page is quoted by, who wrote into it, and what it was called, in the page's order.</summary>
+    /// <summary>Reads what each conversation of a page is quoted by, who wrote into it, which categories it holds, and what it was called, in the page's order.</summary>
     /// <remarks>A conversation whose newest message has gone between the reads has nothing to quote and is left out.</remarks>
     private async Task<IReadOnlyList<ListedEmailThread>> DescribedAsync(
         StoredThreadListRow[] threads,
@@ -105,6 +105,8 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
             .ToDictionaryAsync(static row => row.EmailThreadId, cancellationToken);
         var participants = (await Participants(emails, scope, threadIds).ToArrayAsync(cancellationToken))
             .ToLookup(static row => row.EmailThreadId);
+        var categories = (await Categories(emails, scope, threadIds).ToArrayAsync(cancellationToken))
+            .ToLookup(static row => row.EmailThreadId);
         var titles = await Titles(dbContext.EmailThreadStates.AsNoTracking(), threadIds)
             .ToDictionaryAsync(static row => row.EmailThreadId, cancellationToken);
 
@@ -116,6 +118,7 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
                     thread,
                     quoted[thread.EmailThreadId],
                     participants[thread.EmailThreadId],
+                    categories[thread.EmailThreadId],
                     titles.GetValueOrDefault(thread.EmailThreadId),
                     readerAddresses)),
         ];
@@ -291,6 +294,23 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
                     .FirstOrDefault(),
                 wrote.Min(email => email.ReceivedAt)));
 
+    /// <summary>Reads every category the messages of each listed conversation hold, each once, by the rule its counts follow.</summary>
+    /// <remarks>
+    /// One read for the page, bounded by the page's length times what one account can hold: seven defaults and twenty own
+    /// categories, because an own category leaving the account's record takes its rows with it.
+    /// </remarks>
+    internal static IQueryable<StoredThreadCategoryRow> Categories(
+        IQueryable<StoredEmailEntity> emails,
+        MailboxScope scope,
+        Guid[] threadIds) =>
+        Readable(emails, scope)
+            .Where(email => threadIds.Contains(email.EmailThreadId!.Value))
+            .SelectMany(
+                static email => email.Categories,
+                static (email, held) => new { EmailThreadId = email.EmailThreadId!.Value, held.Category })
+            .Distinct()
+            .Select(static held => new StoredThreadCategoryRow(held.EmailThreadId, held.Category));
+
     /// <summary>Reads the title a derivation stored for each listed conversation, where one did.</summary>
     internal static IQueryable<StoredThreadTitleRow> Titles(
         IQueryable<EmailThreadStateEntity> states,
@@ -311,6 +331,7 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
         StoredThreadListRow thread,
         StoredThreadQuotedRow quoted,
         IEnumerable<StoredThreadParticipantRow> participants,
+        IEnumerable<StoredThreadCategoryRow> categories,
         StoredThreadTitleRow? title,
         IReadOnlySet<EmailAddress> readerAddresses) => new()
         {
@@ -332,6 +353,7 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
                         participant.DisplayName,
                         readerAddresses.Any(address => string.Equals(address.NormalizedAddress, participant.NormalizedAddress, StringComparison.Ordinal)))),
             ],
+            Categories = [.. categories.Select(static held => held.Category)],
             Title = title is null
                 ? null
                 : new ListedThreadTitle(
@@ -355,6 +377,8 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
         string Address,
         string? DisplayName,
         DateTimeOffset? FirstArrival);
+
+    internal sealed record StoredThreadCategoryRow(Guid EmailThreadId, string Category);
 
     internal sealed record StoredThreadTitleRow(
         Guid EmailThreadId,
