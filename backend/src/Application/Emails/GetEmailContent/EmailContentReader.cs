@@ -22,6 +22,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
+using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.GetEmailContent;
 
@@ -183,11 +184,17 @@ public sealed class EmailContentReader
         var remainingImageOctets = MailDocumentBounds.Default.MaximumInlineImageOctetsPerDocument;
         var assignedAccounts = await this.scopeResolver.ReadAssignedAccountsAsync(cancellationToken);
 
+        var readable = await this.ReadableSummariesAsync(
+            selection.StoredEmailIds,
+            assignedAccounts,
+            request.Reader,
+            cancellationToken);
+
         foreach (var storedEmailId in selection.StoredEmailIds)
         {
             var outcome = await this.ReadOneAsync(
                 storedEmailId,
-                assignedAccounts,
+                readable.GetValueOrDefault(storedEmailId),
                 request,
                 threads,
                 remainingCharacters,
@@ -240,28 +247,51 @@ public sealed class EmailContentReader
             [.. ordered.Skip(GetEmailContentRequest.MaximumEmails)]);
     }
 
+    /// <summary>Reads the summary of every selected email its reader may read, each carrying the categories its account shows.</summary>
+    /// <remarks>
+    /// An account this deployment no longer serves leaves its stored rows in place, and a folder an operator withheld
+    /// from AI keeps its own, and a message judged spam is never an agent's to read, so the row existing is not enough
+    /// when an agent is reading. Every such case is simply absent here and produces one answer: telling them apart would
+    /// let a caller learn which identifiers exist by asking about them. The categories are read once for the whole call
+    /// rather than for each email, so the cost of a read naming several does not grow with them.
+    /// </remarks>
+    private async Task<IReadOnlyDictionary<StoredEmailId, EmailSummary>> ReadableSummariesAsync(
+        IReadOnlyList<StoredEmailId> storedEmailIds,
+        IReadOnlyList<MailAccountId> assignedAccounts,
+        MailboxReaderKind reader,
+        CancellationToken cancellationToken)
+    {
+        var readable = new List<EmailSummary>(storedEmailIds.Count);
+
+        foreach (var storedEmailId in storedEmailIds)
+        {
+            var summary = await this.summaryReader.FindAsync(storedEmailId, cancellationToken);
+
+            if (summary is not null && this.scopeResolver.IsReadable(reader, assignedAccounts, summary))
+            {
+                readable.Add(summary);
+            }
+        }
+
+        var categorized = await this.categories.WithCategoriesAsync(readable, cancellationToken);
+
+        return categorized.ToDictionary(static summary => summary.StoredEmailId);
+    }
+
     /// <summary>Reads one email, or reports why it could not be.</summary>
     private async Task<EmailContentReadOutcome> ReadOneAsync(
         StoredEmailId storedEmailId,
-        IReadOnlyList<MailAccountId> assignedAccounts,
+        EmailSummary? summary,
         GetEmailContentRequest request,
         EmailThreadContexts threads,
         int remainingCharacters,
         int remainingImageOctets,
         CancellationToken cancellationToken)
     {
-        var summary = await this.summaryReader.FindAsync(storedEmailId, cancellationToken);
-
-        // An account this deployment no longer serves leaves its stored rows in place, and a folder an operator withheld
-        // from AI keeps its own, and a message judged spam is never an agent's to read, so the row existing is not enough
-        // when an agent is reading. Every such case produces one answer: telling them apart would let a caller learn
-        // which identifiers exist by asking about them.
-        if (summary is null || !this.scopeResolver.IsReadable(request.Reader, assignedAccounts, summary))
+        if (summary is null)
         {
             return EmailContentReadOutcome.NotFound(storedEmailId);
         }
-
-        summary = (await this.categories.WithCategoriesAsync([summary], cancellationToken))[0];
 
         // Both states are content synchronization deliberately did not store, so neither is a damaged local copy and
         // neither schedules a repair. They are answered apart because only one of them is worth asking about again.

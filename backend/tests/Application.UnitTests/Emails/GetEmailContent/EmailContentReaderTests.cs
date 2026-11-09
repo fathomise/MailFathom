@@ -65,6 +65,40 @@ public sealed class EmailContentReaderTests
         Assert.Equal(["finance"], ContentOf(Assert.Single(result.Emails)).Categories);
     }
 
+    /// <summary>A read naming several messages asks for their categories once, however many it names.</summary>
+    [Fact]
+    public async Task ReadContentAsync_SeveralMessages_ReadsTheirCategoriesInOneQuery()
+    {
+        // Arrange
+        var first = SyntheticEmailSummaries.Create(attachmentCount: 0);
+        var second = SyntheticEmailSummaries.Create(attachmentCount: 0);
+        var records = Substitute.For<IEmailCategoryRecordReader>();
+        records
+            .ReadAsync(Arg.Any<IReadOnlyCollection<StoredEmailId>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<StoredEmailId, IReadOnlyList<string>>
+            {
+                [first.StoredEmailId] = ["finance"],
+                [second.StoredEmailId] = ["Legal"],
+            });
+        var offers = new StubMailCategories(
+            new Dictionary<MailAccountId, MailCategoryOffer> { [first.Account] = MailCategoryOffer.Of(["travel"], ["Legal"]) },
+            new Dictionary<StoredEmailId, IReadOnlyList<string>>());
+        var reader = ReaderOver(
+            [first, second],
+            RendererReturning(RenderingOf(attachments: [])),
+            categories: new OfferedMailCategories(offers, records));
+
+        // Act
+        var result = await reader.ReadContentAsync(
+            RequestFor([first.StoredEmailId, second.StoredEmailId]),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["finance"], ContentOf(result.Emails[0]).Categories);
+        Assert.Equal(["Legal"], ContentOf(result.Emails[1]).Categories);
+        await records.Received(1).ReadAsync(Arg.Any<IReadOnlyCollection<StoredEmailId>>(), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>The literal the switched-on deployment in these tests detects, standing in for a credential in mail.</summary>
     private const string Marker = "AKIAEXAMPLEKEY";
 
@@ -2151,9 +2185,10 @@ public sealed class EmailContentReaderTests
         SensitiveContentEgressGuard? egressGuard = null,
         IMailboxReadTelemetry? readTelemetry = null,
         AccessAuthorization? authorization = null,
-        IEmailThreadReader? threadReader = null) => new(
+        IEmailThreadReader? threadReader = null,
+        OfferedMailCategories? categories = null) => new(
         SummaryReaderOver(summaries),
-        StubMailCategories.OfferingNothing,
+        categories ?? StubMailCategories.OfferingNothing,
         threadReader ?? new StubEmailThreadReader(),
         contentStore ?? ContentStoreReturning(IntactContent()),
         renderer,

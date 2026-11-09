@@ -84,7 +84,7 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
         ];
     }
 
-    /// <summary>Reads what each conversation of a page is quoted by, who wrote into it, and what it was called, in the page's order.</summary>
+    /// <summary>Reads what each conversation of a page is quoted by, who wrote into it, which categories it holds, and what it was called, in the page's order.</summary>
     /// <remarks>A conversation whose newest message has gone between the reads has nothing to quote and is left out.</remarks>
     private async Task<IReadOnlyList<ListedEmailThread>> DescribedAsync(
         StoredThreadListRow[] threads,
