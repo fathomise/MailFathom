@@ -174,7 +174,7 @@ export function TaskList({
 
     return (
         <div
-            className="flex shrink-0 flex-col gap-5 px-4 py-5 workspace:px-6 panes:min-h-0 panes:flex-1 panes:shrink panes:overflow-y-auto"
+            className="flex shrink-0 flex-col gap-5 px-4 py-5 workspace:px-6 desktop:px-tasks-gutter desktop:only:px-tasks-gutter-alone panes:min-h-0 panes:flex-1 panes:shrink panes:overflow-y-auto"
             onScroll={(event) => {
                 scrolled(event.currentTarget);
             }}
