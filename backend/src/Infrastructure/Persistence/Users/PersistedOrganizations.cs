@@ -741,9 +741,9 @@ internal sealed class PersistedOrganizations(
             violation,
             PersistenceConstraintNames.MailAccountAssignmentSoleUserIndexName))
         {
-            // The count above passed and the account left every organization still shared: a second user arrived past
-            // the lock it holds. The index refused the move, and it is answered as the count answers it, counted again
-            // once the failed transaction is gone.
+            // The count above runs under the lock every assignment waits on, so nothing a store writes reaches this; a
+            // refusal by the index is still answered as the count answers it rather than as a provider failure,
+            // counted again once the failed transaction is gone.
             await move.RollbackAsync(CancellationToken.None);
 
             return new OrganizationWriteResult(
