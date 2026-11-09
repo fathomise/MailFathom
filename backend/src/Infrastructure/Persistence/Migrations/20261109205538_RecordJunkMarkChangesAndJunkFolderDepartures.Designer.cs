@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261109204147_RecordJunkMarkChangesAndJunkFolderDepartures")]
+    [Migration("20261109205538_RecordJunkMarkChangesAndJunkFolderDepartures")]
     partial class RecordJunkMarkChangesAndJunkFolderDepartures
     {
         /// <inheritdoc />
@@ -5561,7 +5561,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("MailboxAccountId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_email_junk_folder_departures_mailbox_accounts");
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailMessageContentEntity", b =>

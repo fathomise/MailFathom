@@ -5558,7 +5558,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("MailboxAccountId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_email_junk_folder_departures_mailbox_accounts");
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailMessageContentEntity", b =>

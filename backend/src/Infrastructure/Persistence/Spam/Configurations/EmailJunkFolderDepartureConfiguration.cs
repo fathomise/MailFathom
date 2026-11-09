@@ -26,6 +26,7 @@ internal sealed class EmailJunkFolderDepartureConfiguration : IEntityTypeConfigu
         entity.HasOne<MailboxAccountEntity>()
             .WithMany()
             .HasForeignKey(departure => departure.MailboxAccountId)
+            .HasConstraintName(PersistenceConstraintNames.EmailJunkFolderDepartureAccountForeignKeyName)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

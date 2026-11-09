@@ -33,7 +33,7 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                 {
                     table.PrimaryKey("pk_email_junk_folder_departures", x => new { x.MailboxAccountId, x.MessageIdDigest });
                     table.ForeignKey(
-                        name: "FK_email_junk_folder_departures_mailbox_accounts_MailboxAccoun~",
+                        name: "fk_email_junk_folder_departures_mailbox_accounts",
                         column: x => x.MailboxAccountId,
                         principalTable: "mailbox_accounts",
                         principalColumn: "Id",
