@@ -360,6 +360,26 @@ describe('MessageBody', () => {
             expect(screen.queryByText(/Date: Mon, 24 Aug 2026/u)).toBeNull();
         });
 
+        it('folds every block of a run that spans several, and draws the words after it once', async () => {
+            const rule: MailDocumentBlock = {
+                type: 'separator',
+                writtenHeaders: { blockCount: 2, author: 'Ewa', date: 'today' },
+            };
+
+            drawing(forwarded([rule, written('From: Ewa\nDate: today\nTo: Marta'), written('The words after it.')]));
+
+            expect(screen.getAllByRole('button', { name: 'Ewa, today' })).toHaveLength(1);
+            expect(screen.queryByText(/From: Ewa/u)).toBeNull();
+            expect(screen.getAllByText('The words after it.')).toHaveLength(1);
+
+            fireEvent.click(screen.getByRole('button', { name: 'Ewa, today' }));
+
+            await screen.findByRole('button', { name: 'Hide these header lines' });
+            expect(screen.getByRole('separator')).toBeDefined();
+            expect(screen.getByText(/From: Ewa/u)).toBeDefined();
+            expect(screen.getAllByText('The words after it.')).toHaveLength(1);
+        });
+
         it('folds a block inside a quotation the same way and leaves the quotation drawn', () => {
             drawing(forwarded([{ type: 'quote', depth: 1, blocks: [headerLines, written('Quoted words.')] }]));
 

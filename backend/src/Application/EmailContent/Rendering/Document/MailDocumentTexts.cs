@@ -21,7 +21,8 @@ namespace MailFathom.Application.EmailContent.Rendering.Document;
 /// </para>
 /// <para>
 /// What is collected is what the message's author wrote: the words of every run, the text of every preformatted block,
-/// and what a picture says it shows. A link's target is not among them, for the reason an address is not scanned
+/// what a picture says it shows, and the author and date a block of typed header lines is named by, which are copies of
+/// those words. A link's target is not among them, for the reason an address is not scanned
 /// anywhere else here — it is a routing identity a reader acts on rather than free text, and redacting it would remove
 /// the reader's ability to see where a link goes while protecting nothing the words did not already carry.
 /// </para>
@@ -77,6 +78,12 @@ public static class MailDocumentTexts
 
     private static void CollectBlock(MailDocumentBlock block, List<string> collected)
     {
+        if (block.WrittenHeaders is { } writtenHeaders)
+        {
+            collected.Add(writtenHeaders.Author);
+            collected.Add(writtenHeaders.Date);
+        }
+
         switch (block)
         {
             case MailParagraphBlock paragraph:
@@ -142,7 +149,33 @@ public static class MailDocumentTexts
         TextCursor cursor) =>
         [.. blocks.Select(block => RewriteBlock(block, cursor))];
 
-    private static MailDocumentBlock RewriteBlock(MailDocumentBlock block, TextCursor cursor) => block switch
+    /// <summary>Rewrites one block, its named block of header lines first because that is the order they are collected in.</summary>
+    private static MailDocumentBlock RewriteBlock(MailDocumentBlock block, TextCursor cursor)
+    {
+        var writtenHeaders = RewriteWrittenHeaders(block.WrittenHeaders, cursor);
+
+        return RewriteContent(block, cursor) with { WrittenHeaders = writtenHeaders };
+    }
+
+    /// <summary>Puts the scanned author and date back, or stops naming the block where the scan left either of them empty.</summary>
+    /// <remarks>
+    /// A text past what one read scans comes back empty, and a fold naming nobody says nothing, so the block is then
+    /// drawn as the ordinary paragraphs it is.
+    /// </remarks>
+    private static MailWrittenHeaders? RewriteWrittenHeaders(MailWrittenHeaders? headers, TextCursor cursor)
+    {
+        if (headers is null)
+        {
+            return null;
+        }
+
+        var author = cursor.Next(headers.Author);
+        var date = cursor.Next(headers.Date);
+
+        return author.Length == 0 || date.Length == 0 ? null : headers with { Author = author, Date = date };
+    }
+
+    private static MailDocumentBlock RewriteContent(MailDocumentBlock block, TextCursor cursor) => block switch
     {
         MailParagraphBlock paragraph => new MailParagraphBlock(
             RewriteRuns(paragraph.Content, cursor),

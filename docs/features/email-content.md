@@ -689,8 +689,10 @@ marker on every blank line and so arrives as one paragraph: the document cuts su
 recognized block, keeping every line and its markers, so that only the block folds and the forwarded words stay visible.
 
 What the block says is not what MailFathom verified. Its lines are text the sender typed, so `From: The CEO` proves
-nothing, and the author and date are carried for a pane to draw as message text rather than as a header. The folding
-itself is the client's, and nothing is folded in the sender's own markup.
+nothing, and the author and date are carried for a pane to draw as message text rather than as a header. They are
+copies of the sender's words, so the sensitive-content scan a read runs before mail leaves the deployment reads them
+beside the runs they came from; where the scan's own bound leaves either one empty, the block stops being named and is
+drawn as written. The folding itself is the client's, and nothing is folded in the sender's own markup.
 
 ### The reader's own footer is named, never removed
 
