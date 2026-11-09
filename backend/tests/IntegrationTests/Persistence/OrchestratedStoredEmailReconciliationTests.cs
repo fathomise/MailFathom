@@ -488,7 +488,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
                 Disappeared: [],
                 RemovedByOwnMutation: [],
                 RemotelyDeletedEmailDisposition.RetainTombstone,
-                AppliesRemoteDeletions: true,
+                SourceIsTheTruth: true,
                 LaterObservation),
             cancellationToken);
 
