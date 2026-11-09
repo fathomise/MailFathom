@@ -15,7 +15,7 @@ namespace MailFathom.Infrastructure.Persistence.Sessions;
 /// </remarks>
 internal static class PersistenceConcurrencyConflicts
 {
-    /// <summary>Recognizes the inserts a competing writer can win, and nothing else.</summary>
+    /// <summary>Recognizes the inserts a competing writer can win and the writes a removed conversation invalidates, and nothing else.</summary>
     /// <param name="exception">The exception a commit raised.</param>
     /// <returns><see langword="true" /> when another writer got there first and the caller may retry from a fresh read.</returns>
     /// <remarks>
@@ -26,7 +26,8 @@ internal static class PersistenceConcurrencyConflicts
     /// two runs binding an alias for the first time under an account nothing has stored yet collide on the account
     /// before they ever reach the alias, and reporting only one half of one race would leave the other half an
     /// unhandled failure. Every other unique violation stays a failure, because treating an unnamed collision as a
-    /// race would retry a write that will never succeed.
+    /// race would retry a write that will never succeed. The foreign keys the last paragraph names are the one case
+    /// here that is not an insert another run won.
     /// </para>
     /// <para>
     /// The fourth is the mutation identity, and it is the one where losing the race is the mechanism rather than an

@@ -49,6 +49,25 @@ public sealed class MailRetentionJobPayloadTests
         Assert.Equal(1, second.Segment);
     }
 
+    /// <summary>A key that lost either part would collapse every account's run in a walk, or a night's run into the last.</summary>
+    [Fact]
+    public void ToIdempotencyKey_ADifferentAccountOrWalk_ComposesAnotherKey()
+    {
+        // Arrange
+        var otherAccount = MailAccountId.Create("0199a0c0-0000-7000-8000-000000000002");
+
+        // Act
+        JobIdempotencyKey[] keys =
+        [
+            RetainMailAccountJobPayload.For(Walk, Account).ToIdempotencyKey(),
+            RetainMailAccountJobPayload.For(Walk, otherAccount).ToIdempotencyKey(),
+            RetainMailAccountJobPayload.For("walk-of-the-next-occasion", Account).ToIdempotencyKey(),
+        ];
+
+        // Assert
+        Assert.Equal(3, keys.Distinct().Count());
+    }
+
     [Fact]
     public void FromTheStart_ABlankWalk_IsRefused()
     {

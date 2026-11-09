@@ -7,6 +7,7 @@ using MailFathom.Application.Jobs.Payloads;
 using MailFathom.Application.Mail.Retention;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
 
@@ -39,6 +40,28 @@ public sealed class MailAccountRetentionHandlerTests
             Arg.Any<CancellationToken>());
         await fixture.Session.Received(1).CommitAsync(Arg.Any<CancellationToken>());
         fixture.Telemetry.Received(1).RecordAccountRun(7, Arg.Any<TimeSpan>());
+    }
+
+    /// <summary>The duration published is the run's own, measured across the removal.</summary>
+    [Fact]
+    public async Task RunAsync_ARunThatTakesTime_RecordsThatDuration()
+    {
+        // Arrange
+        var fixture = new Fixture();
+        var took = TimeSpan.FromSeconds(42);
+        fixture.Threads.RemoveEmptiedAsync(Arg.Any<IPersistenceSession>(), Account, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                fixture.Clock.Advance(took);
+
+                return Task.FromResult(0);
+            });
+
+        // Act
+        await fixture.Handler.RunAsync(Run, TestContext.Current.CancellationToken);
+
+        // Assert
+        fixture.Telemetry.Received(1).RecordAccountRun(0, took);
     }
 
     /// <summary>Each batch is a transaction of its own, and what the night's bound leaves waits for the next occasion.</summary>
@@ -119,7 +142,7 @@ public sealed class MailAccountRetentionHandlerTests
                 this.Sessions,
                 this.Threads,
                 this.Telemetry,
-                TimeProvider.System);
+                this.Clock);
         }
 
         public IMailRetentionAccounts Accounts { get; } = Substitute.For<IMailRetentionAccounts>();
@@ -131,6 +154,8 @@ public sealed class MailAccountRetentionHandlerTests
         public IEmailThreadStore Threads { get; } = Substitute.For<IEmailThreadStore>();
 
         public IMailRetentionTelemetry Telemetry { get; } = Substitute.For<IMailRetentionTelemetry>();
+
+        public FakeTimeProvider Clock { get; } = new();
 
         public MailAccountRetentionHandler Handler { get; }
     }
