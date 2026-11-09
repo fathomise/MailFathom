@@ -389,12 +389,22 @@ hands each account a job of its own, so an account being erased is excluded by t
 account fails alone. An account nobody is served, one withheld on this replica, and one an erasure has taken are not
 reached.
 
-Each account's run removes the conversations no stored row is left in, a tombstone counting as one, with their state,
-statements, title, identifiers, and whatever was folded into them. It runs for every account whatever its retention
-says, because every kind of erasure leaves emptied conversations behind, and it reaches no mail server, so it is the
-same on a mirrored and a held account. Each night takes at most a fixed number of conversations per account and what
-is left waits for the next occasion. A message arriving into a conversation as it is removed is not lost and does not
-fail its run: the write retries and a reply with no conversation left starts a new one.
+Each account's run has two steps, and neither reaches a mail server. The first erases the tombstones past the age
+[the account's `Retention:Tombstones`](configuration-mail.md#how-long-an-account-keeps-its-mail--retention) states, on
+an account that switched it on, while the account is mirrored or held and not while it is being restored. A row a
+reconciliation changed as the batch read it costs that batch a commit conflict and is reached on the next occasion.
+Nothing is announced to an open client, because a tombstone is already out of every list and every read.
+
+The second removes the conversations no stored row is left in, a tombstone counting as one, with their state,
+statements, title, identifiers, and whatever was folded into them. It runs after the first, so a conversation the
+erasure emptied goes the same night. It runs for every account whatever its retention says, because every kind of
+erasure leaves emptied conversations behind, and it is the same on a mirrored and a held account. A message arriving
+into a conversation as it is removed is not lost and does not fail its run: the write retries and a reply with no
+conversation left starts a new one.
+
+Each night takes at most a fixed number of rows of each kind per account, in batches that are each a transaction of
+their own, and what is left waits for the next occasion. A step that fails fails the account's job, which is logged
+and retried as any job is, and what already committed stays committed.
 
 [Telemetry](telemetry.md#mail-retention) publishes what each night did as counts and durations, and nothing about the
 mail.

@@ -666,6 +666,7 @@ public static class ServiceCollectionExtensions
         // context of its own and writes through the caller's, which is what makes the placement part of the caller's
         // transaction rather than a second commit beside it.
         services.AddScoped<IEmailThreadStore, EmailThreadStore>();
+        services.AddScoped<IStoredTombstoneEraser, StoredTombstoneEraser>();
         services.AddScoped<EmailThreadAssembly>();
         services.AddScoped<IDatabaseSchemaInspector, EfCoreDatabaseSchemaInspector>();
         // Who this deployment holds user records for. Read once while the host comes up rather than per request, which

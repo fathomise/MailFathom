@@ -59,6 +59,33 @@ internal static class AccountScopedMailFolders
         return emails;
     }
 
+    /// <summary>Narrows one account's stored emails to the ones outside the folders its retention leaves alone.</summary>
+    /// <param name="emails">The emails to narrow, already narrowed to the account.</param>
+    /// <param name="excludedFolders">The entries the account states, each a folder alias or a local folder identifier.</param>
+    /// <returns>The narrowed query, which PostgreSQL evaluates in full.</returns>
+    /// <remarks>
+    /// Every entry is tried as both, because nothing about an entry says which it is and a folder a person made on a held
+    /// account has no alias to be named by. An entry naming no folder of the account excludes nothing.
+    /// </remarks>
+    internal static IQueryable<StoredEmailEntity> OutsideRetentionExclusions(
+        IQueryable<StoredEmailEntity> emails,
+        IReadOnlyList<string> excludedFolders)
+    {
+        if (excludedFolders.Count == 0)
+        {
+            return emails;
+        }
+
+        var aliases = excludedFolders.Select(static entry => MailFolderAlias.Create(entry).Value).ToArray();
+        var localFolders = excludedFolders
+            .Select(static entry => Guid.TryParse(entry, out var folder) ? folder : (Guid?)null)
+            .OfType<Guid>()
+            .ToArray();
+
+        return emails.Where(email => !localFolders.Contains(email.FolderId)
+            && (email.Folder.Alias == null || !aliases.Contains(email.Folder.Alias)));
+    }
+
     /// <summary>Narrows folder bindings to the ones outside the excluded folders.</summary>
     /// <param name="folders">The bindings to narrow.</param>
     /// <param name="excluded">The folders to leave out, empty for none.</param>

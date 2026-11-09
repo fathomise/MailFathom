@@ -160,6 +160,11 @@ keeps in other folders and expunging one would take mail out of a folder nobody 
 any more is answered the same way, since nothing is left to say which of the two it was. What those erasures leave is
 mail standing on the source rather than a command against mail nobody asked about.
 
+[Erasing a tombstone past the account's age](../operations/configuration-mail.md#how-long-an-account-keeps-its-mail--retention)
+is one of those erasures. The nightly pass reaches no mail server itself, and a tombstone the source still holds flagged
+leaves a record for the drain, while one the source was seen to have expunged has nothing left to name. The pass does not
+run while the account is being restored.
+
 ### Mail that was already stored
 
 An account switched on after years of mirroring has a mailbox already stored. It is drained under exactly the same gate

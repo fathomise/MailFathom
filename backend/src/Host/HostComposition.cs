@@ -545,6 +545,7 @@ internal static class HostComposition
         builder.Services.AddScoped<IAuthoredDeleteEmailDispositionReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.AuthoredDeleteEmailDispositions);
         builder.Services.AddScoped<IMailRuleActionPermissionReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.RuleActionPermissions);
         builder.Services.AddScoped<IMailboxMutationAuditSettingsReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.MutationAuditSettings);
+        builder.Services.AddScoped<IMailTombstoneRetentionReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.TombstoneRetention);
         builder.Services.AddScoped<IMailAnsweringAuditSettingsReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.AnsweringAuditSettings);
         // Composed here rather than taken off the snapshot's reader set, because which accounts are served is read from
         // the account records rather than bound from a file; the snapshot contributes only the synchronization switch.

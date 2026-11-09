@@ -19,7 +19,7 @@ namespace MailFathom.Boundaries.UnitTests;
 /// carried by the one custodian the resolver chooses, and a check of the phase anywhere else is a second dispatch that
 /// drifts from the first. Reflection cannot hold that, because a phase compared inside a method body and never stored
 /// appears in no signature. The types admitted here either decide from the phase because they exist for one mode — the
-/// synchronization, the drain, the restore, and the converger — or own it rather than decide from it: the custody domain
+/// synchronization, the drain, the restore, the converger, and the nightly retention that skips a restoring account — or own it rather than decide from it: the custody domain
 /// types, the store and the switch that change it, the endpoint that reports it, and the persistence of the account and
 /// its folders. Each implementation of the port is outside that set on purpose. The same dispatch can be written without
 /// naming the phase, as a test of which custodian the resolver returned, so the concrete custodians are held to their
@@ -33,6 +33,7 @@ public sealed class MailboxCustodyBoundaryTests
         + @"|Application\.Accounts\.Custody\.(MailboxCustodianResolver|IMailAccountCustodyStore|MailAccountCustodySwitch)"
         + @"|Application\.Synchronization\."
         + @"|Application\.Mail\.Mutations\.Convergence\."
+        + @"|Application\.Mail\.Retention\.MailAccountRetentionHandler"
         + @"|Infrastructure\.Persistence\.(Accounts|Folders|Synchronization|Entities|Migrations)\."
         + @"|Host\.Api\.MailAccountCustodyEndpoints"
         + @")";

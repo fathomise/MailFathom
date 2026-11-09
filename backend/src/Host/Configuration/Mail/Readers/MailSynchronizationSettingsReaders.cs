@@ -44,6 +44,9 @@ internal sealed class MailSynchronizationSettingsReaders(MailSynchronizationOpti
     /// <summary>Gets whether an answered question is recorded, and for how long.</summary>
     internal ConfiguredMailAnsweringAuditSettingsReader AnsweringAuditSettings { get; } = new(settings);
 
+    /// <summary>Gets how long an account keeps its tombstones.</summary>
+    internal ConfiguredMailTombstoneRetentionReader TombstoneRetention { get; } = new(settings);
+
     // The account catalog is deliberately not here. Every other reader answers from configuration alone, and an account
     // cannot be described without naming whose it is — a fact the deployment establishes at startup rather than one a
     // configuration snapshot holds. So ConfiguredMailAccountCatalog is composed where that user is resolvable, and
