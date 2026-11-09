@@ -89,6 +89,28 @@ public sealed class MailAccountPolicyResolutionTests
         Assert.Equal([expected], served!.Folders.Select(folder => folder.Alias));
     }
 
+    /// <summary>Each retention property resolves alone, and a stated exclusion list is replaced whole rather than added to.</summary>
+    [Fact]
+    public void TryBind_RetentionUnderAPolicy_ResolvesEachPropertyAloneAndReplacesTheExclusionsWhole()
+    {
+        // Arrange
+        const string Policy =
+            """{"MailAccounts":{"Forced":{"Retention":{"Messages":{"Enabled":true},"ExcludedFolders":["FORCED"]}},"Defaults":{"Retention":{"Tombstones":{"After":"2.00:00:00"}}}}}""";
+        const string Stated = """
+            "Retention": { "Messages": { "After": "40.00:00:00" }, "ExcludedFolders": [ "OWN" ] },
+            """;
+
+        // Act
+        var served = MailAccountQueryableSettingsReading.TryBind(Mailbox(StatedPolicies.Governing(deployment: Policy), Stated));
+
+        // Assert
+        Assert.True(served!.Retention.Messages.Enabled);
+        Assert.Equal(TimeSpan.FromDays(40), served.Retention.Messages.After);
+        Assert.False(served.Retention.Tombstones.Enabled);
+        Assert.Equal(TimeSpan.FromDays(2), served.Retention.Tombstones.After);
+        Assert.Equal(["FORCED"], served.Retention.ExcludedFolders);
+    }
+
     /// <summary>The account's own document is what a lifted force brings back, so resolving it never changes it.</summary>
     [Fact]
     public void Of_AnAccountUnderPolicies_DerivesItsColumnsFromWhatItIsServedAndLeavesItsDocumentAsItWasStated()

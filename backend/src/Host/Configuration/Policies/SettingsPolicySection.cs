@@ -37,7 +37,8 @@ internal sealed class SettingsPolicySection
             typeof(MailSynchronizationAccountOptions),
             MailAccountRecordComposition.EmailAddressProperty),
         record => FindUnwritableLanguage((MailSynchronizationAccountOptions)record)
-            .Concat(FindUnusableListEntries((MailSynchronizationAccountOptions)record)));
+            .Concat(FindUnusableListEntries((MailSynchronizationAccountOptions)record))
+            .Concat(((MailSynchronizationAccountOptions)record).Retention?.FindRefusals() ?? []));
 
     private SettingsPolicySection(
         string name,

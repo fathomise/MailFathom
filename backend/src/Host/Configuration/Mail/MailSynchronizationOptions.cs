@@ -1088,6 +1088,9 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// </remarks>
     public MailAnsweringAuditTrailOptions AnsweringAuditTrail { get; set; } = new();
 
+    /// <summary>Gets or sets how long this account's stored messages and tombstones are kept, which is off until somebody asks.</summary>
+    public MailAccountRetentionOptions Retention { get; set; } = new();
+
     /// <summary>Gets or sets what starts this account's next synchronization pass.</summary>
     /// <remarks>
     /// <para>
@@ -1245,6 +1248,22 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
             yield return new ValidationResult(
                 $"Account '{this.AccountId}': the answering audit trail retention must be between {MailAnsweringAuditTrailOptions.MinimumRetention} and {MailAnsweringAuditTrailOptions.MaximumRetention}.",
                 [nameof(this.AnsweringAuditTrail)]);
+        }
+
+        // Checked here for the reason the blocks above are, with the rule itself held by the block so that a policy
+        // stating the same value is refused by the same sentence.
+        if (this.Retention is null)
+        {
+            yield return new ValidationResult(
+                $"Account '{this.AccountId}': the retention configuration must be a block.",
+                [nameof(this.Retention)]);
+        }
+        else
+        {
+            foreach (var refusal in this.Retention.FindRefusals())
+            {
+                yield return new ValidationResult($"Account '{this.AccountId}': {refusal}", [nameof(this.Retention)]);
+            }
         }
 
         // Checked here for the reason the blocks above are. A missing block would read as an account that permits

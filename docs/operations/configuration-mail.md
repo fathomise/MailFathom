@@ -93,6 +93,11 @@ than met later by a run.
 | `…:AuditTrail:Retention` | TimeSpan | `90.00:00:00` | 1 day – 3650 days; how long this account's audit entries are kept | reload; the next account run erases against the new window |
 | `…:AnsweringAuditTrail:Enabled` | bool | `false` | Whether a finished `ask_mail` run leaves a durable entry naming the mail it read from this account | reload; governs runs from then on |
 | `…:AnsweringAuditTrail:Retention` | TimeSpan | `30.00:00:00` | 1 day – 3650 days; how long this account's answering entries are kept | reload; the next account run erases against the new window |
+| `…:Retention:Messages:Enabled` | bool | `false` | Whether the mail a person sees is retired past `After`; see [how long an account keeps its mail](#how-long-an-account-keeps-its-mail--retention) | reload |
+| `…:Retention:Messages:After` | TimeSpan | `730.00:00:00` | At least 30 days, with no ceiling | reload |
+| `…:Retention:Tombstones:Enabled` | bool | `false` | Whether a row kept as a tombstone is erased past `After`, with its raw MIME and everything derived from it | reload |
+| `…:Retention:Tombstones:After` | TimeSpan | `30.00:00:00` | At least 1 day, with no ceiling | reload |
+| `…:Retention:ExcludedFolders` | list | empty | At most 256 entries of at most 128 characters, none blank or holding a control character; the folders neither half reaches | reload |
 | `…:TrustOwnAccountDomains` | bool | `false` | Whether this account recognizes every author writing from a domain one of its owner's accounts uses. The set is read from the `UserName` of each account the same person owns, where that is an address, so it needs no list of its own; two people this deployment serves are two correspondents, so one's mail domain is never something the other recognizes. **Leave it off on a large shared provider** — `gmail.com`, `outlook.com`, `wp.pl` — where every stranger writes from the same domain; turn it on for an account whose domain is the owner's own. The owner's own addresses are recognized whatever it says | reload; the next extraction judges against it |
 | `…:Strict` | bool | `false` | Whether this account marks only senders something established. Off, the account is **relaxed**: a message nothing tied to its `From` address is still marked *known* where that address is a contact a person or an administrator wrote down, one of the owner's own addresses, or at one of the owner's domains under `TrustOwnAccountDomains`. **A forged `From` showing such an address is marked known too** — see below. On, no message on the account is ever known | reload; the next extraction judges against it, and `mfctl mailbox rederive` re-judges stored mail |
 | `…:Folders` | list | inbox by role | Aliases unique; each entry below | reload |
@@ -467,6 +472,25 @@ require the server's `UIDPLUS`.
 empties its source server as it takes custody, so a setting that leaves messages on that server says the opposite.
 [Asking to hold the mailbox](admin-endpoint.md#what-the-endpoint-serves) of an account set to `FlagDeleted` is refused, and the refusal says to
 set it to `Expunge` first.
+
+### How long an account keeps its mail — `Retention`
+
+`Retention` states an age for the mail a person sees, `Messages`, and another for the rows kept as tombstones,
+`Tombstones`. Both are off, so an account stating nothing removes nothing, and they read the same whatever the account's
+custody phase. **Nothing acts on these keys yet: they are validated and resolved through a settings policy, and turning a
+half on removes nothing.**
+
+`After` has a floor and no ceiling, because a typing mistake in a forced policy must not empty every account and a long
+age endangers nothing. An age under its floor is refused when a record or a policy is written and at start, in a sentence
+naming the key and the floor.
+
+An entry of `ExcludedFolders` is a folder alias, compared as every alias is, or, for a folder a person made on a held
+account, which has no alias, its local folder identifier. An entry naming no folder of the account excludes nothing and
+is not refused, because a policy states one list for many accounts. A refusal names an entry by its position and never
+repeats it, because an alias can name a person or a matter.
+
+A [settings policy](#how-a-settings-policy-resolves-a-mail-account) can default, force, and restrict each of these
+properties on its own, and a list it states replaces the account's whole.
 
 ### The language this mailbox is read in — `Language`
 

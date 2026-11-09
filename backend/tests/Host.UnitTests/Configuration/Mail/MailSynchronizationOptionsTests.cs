@@ -518,6 +518,36 @@ public sealed class MailSynchronizationOptionsTests
             && message.Contains("answering audit trail configuration must be a block", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ValidateForSynchronization_ARetentionAgeBelowItsFloor_NamesTheAccountTheKeyAndTheFloor()
+    {
+        // Arrange
+        var account = CreateAccount("primary");
+        account.Retention.Messages.After = TimeSpan.FromDays(29);
+        var options = new MailSynchronizationOptions { Enabled = true }.Serving(account);
+
+        // Act
+        var messages = ConfiguredMailAccounts.Validate(options).Select(result => result.ErrorMessage).ToArray();
+
+        // Assert
+        Assert.Contains("Account 'primary': Retention:Messages:After must be at least 30.00:00:00.", messages);
+    }
+
+    [Fact]
+    public void ValidateForSynchronization_AccountWithNoRetentionBlock_ReportsIt()
+    {
+        // Arrange
+        var account = CreateAccount("primary");
+        account.Retention = null!;
+        var options = new MailSynchronizationOptions { Enabled = true }.Serving(account);
+
+        // Act
+        var messages = ConfiguredMailAccounts.Validate(options).Select(result => result.ErrorMessage).ToArray();
+
+        // Assert
+        Assert.Contains("Account 'primary': the retention configuration must be a block.", messages);
+    }
+
     /// <summary>
     /// One record is judged over every mailbox assigned to the user, so a refusal about a classification block says
     /// which of them carries it rather than leaving an operator to find the typo across three accounts.
