@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useId, useRef, useState, type ReactNode } from 'react';
-import type { AnswerBlock } from '@mailfathom/client-backend';
+import { longestPresentationText, type AnswerBlock } from '@mailfathom/client-backend';
 import { namedZone, sendTimeAt } from '../../composer/sendLater';
 import { useSendTimeWording } from '../../composer/useSendTimeWording';
 import { useCoarsePointer } from '../../shell/useWideWorkspace';
@@ -165,6 +165,9 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
     const body = typed ?? answering?.editedBody ?? draft.body;
     const to = addressedTo(draft.recipients, locale);
     const changed = typed !== null && typed !== draft.body;
+
+    // An edit cleared to nothing is not a message, and the service would refuse it, so Send waits for one.
+    const empty = changed && typed.trim() === '';
     const send = (): void => {
         if (changed) {
             answering?.answer('accepted', typed);
@@ -257,11 +260,13 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                 ? [
                       {
                           said: sendSaid,
-                          name:
-                              leaves === null
-                                  ? translate('draft.sendEditedName', { to })
-                                  : translate('draft.sendEditedAtName', { to, when: leaves.long }),
+                          name: empty
+                              ? translate('draft.sendEmptyName', { to })
+                              : leaves === null
+                                ? translate('draft.sendEditedName', { to })
+                                : translate('draft.sendEditedAtName', { to, when: leaves.long }),
                           primary: true,
+                          held: empty,
                           run: send,
                       },
                       {
@@ -275,14 +280,16 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                 : [
                       {
                           said: sendSaid,
-                          name:
-                              leaves === null
-                                  ? translate(changed ? 'draft.sendEditedName' : 'draft.sendName', { to })
-                                  : translate(changed ? 'draft.sendEditedAtName' : 'draft.sendAtName', {
-                                        to,
-                                        when: leaves.long,
-                                    }),
+                          name: empty
+                              ? translate('draft.sendEmptyName', { to })
+                              : leaves === null
+                                ? translate(changed ? 'draft.sendEditedName' : 'draft.sendName', { to })
+                                : translate(changed ? 'draft.sendEditedAtName' : 'draft.sendAtName', {
+                                      to,
+                                      when: leaves.long,
+                                  }),
                           primary: true,
+                          held: empty,
                           run: send,
                       },
                       {
@@ -369,6 +376,7 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                             id={written}
                             lang=""
                             autoFocus
+                            maxLength={longestPresentationText}
                             value={body}
                             onChange={(event) => {
                                 setTyped(event.target.value);

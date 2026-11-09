@@ -2331,7 +2331,7 @@ Project repository: https://github.com/fathomise/MailFathom
                                 </div>
                               </sc-if>
                               <sc-if value="{{ bk.editing }}" hint-placeholder-val="{{ false }}">
-                                <textarea value="{{ bk.editText }}" onChange="{{ bk.onEdit }}" aria-label="Edit the draft text before sending" style="{{ bk.textareaStyle }}"></textarea>
+                                <textarea value="{{ bk.editText }}" onChange="{{ bk.onEdit }}" maxLength="4000" aria-label="Edit the draft text before sending" style="{{ bk.textareaStyle }}"></textarea>
                               </sc-if>
                               <sc-if value="{{ bk.notEditing }}" hint-placeholder-val="{{ true }}">
                                 <div style="{{ bk.letterStyle }}">
