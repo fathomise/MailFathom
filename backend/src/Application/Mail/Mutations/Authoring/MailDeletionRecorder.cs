@@ -41,7 +41,7 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// not destroy mail, and a rule action already authors the same delete from wherever the message happens to be.
 /// </para>
 /// <para>
-/// <b>A caller may ask for the record to wait before anything is asked of the mail server.</b> Deleting is the one act
+/// <b>A caller may ask for the record to wait before it takes effect.</b> Deleting is the one act
 /// with nothing to reverse it, so a question in front of it is all a person gets — and a question is answered before
 /// anybody has seen what happened. A withdrawal window is the way back that a confirmation is not: the record opens as
 /// every other does and is simply not taken in hand until the window has passed, which is what the two withdrawal

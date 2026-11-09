@@ -2671,7 +2671,7 @@ has not thereby let it destroy any. Which folder the message
 is in decides nothing on this surface: the rule that MailFathom's own client offers this only for mail already in the
 trash is that client's sentence to its reader, and the grant is the whole of what this route enforces.
 
-**A delete written here waits before anything is asked of the mail server, and can be taken back while it does.** Every
+**A delete written here waits before it takes effect, and can be taken back while it does.** Every
 record a batch writes is held for the signed-in person's own [`notificationSeconds`](#the-preferences-routes) plus ten
 seconds, read once for the whole batch so a selection deleted as one act can be taken back as one. The account's pass
 does not see a held record, so for that long `POST /api/client/mutations/deletes/withdrawals` cancels it exactly as the

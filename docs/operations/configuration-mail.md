@@ -481,10 +481,12 @@ or the account is. A copy of the message reaching another folder, or the same fo
 [A delete that leaves the server untouched](../features/imap-synchronization.md#a-delete-that-leaves-the-server-untouched)
 holds the rest.
 
-**`FlagDeleted` is refused on an account whose mailbox MailFathom holds.** A held account's deletes are local, and it
-empties its source server as it takes custody, so a setting that leaves messages on that server says the opposite.
+**`FlagDeleted` is refused on an account whose mailbox MailFathom holds.** It asks for a deleted message to stay on the
+source marked deleted for somebody to settle later, and a held account cannot honour that: its deletes are local, so
+nothing sets the flag, and it empties its source as it takes custody.
 [Asking to hold the mailbox](admin-endpoint.md#what-the-endpoint-serves) of an account set to `FlagDeleted` is refused, and the refusal says to
-set it to `Expunge` first.
+set it to `Expunge` first. `LeaveOnServer`, the default, is not refused: a message erased before the drain reached it
+stays on the source unflagged, and an account that should have it removed there states `Expunge`.
 
 ### How long an account keeps its mail — `Retention`
 

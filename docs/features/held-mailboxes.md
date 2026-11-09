@@ -101,7 +101,7 @@ A refusal changes nothing and names every reason at once, so one round of fixing
   would remove mail from folders nobody asked about. Providers whose folders are labels over one store are not what
   this mode is for.
 - **The account's deletes only flag a message deleted** — its `AuthoredDeleteServerDisposition` is `FlagDeleted`. That
-  setting asks for deleted mail to stay on the source server, which a held account empties. Set it to `Expunge` and ask
+  setting asks for deleted mail to stay flagged on the source server, which a held account empties. Set it to `Expunge` and ask
   again. An account the configuration does not declare is not refused for this.
 - **Switching off, a folder mapping names nothing the source could hold.** Before the mailbox is appended back, every
   mapping's remote path has to be valid and either name a folder the source advertises or be one the mapping's
