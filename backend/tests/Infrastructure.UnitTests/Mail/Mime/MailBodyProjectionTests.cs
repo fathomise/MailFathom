@@ -1098,6 +1098,213 @@ public sealed class MailBodyProjectionTests
         Assert.Contains("Tracked", TextOf(document), StringComparison.Ordinal);
     }
 
+    /// <summary>A banner the reader has not loaded stays a link, named by what the picture said it was or by where it goes.</summary>
+    [Theory]
+    [InlineData("Open the offer", "Open the offer")]
+    [InlineData("", "shop.test")]
+    [InlineData("   ", "shop.test")]
+    public async Task ProduceAsync_AnchorHoldingOnlyAnUndrawnRemotePicture_KeepsOneLinkedRun(string alt, string expectedWords)
+    {
+        // Act
+        var document = await DocumentOf(
+            $"<a href=\"https://shop.test/offer\"><img src=\"https://pictures.test/banner.png\" alt=\"{alt}\"></a>");
+
+        // Assert
+        var paragraph = Assert.IsType<MailParagraphBlock>(Assert.Single(document.Blocks));
+        var run = Assert.Single(paragraph.Content);
+        var (link, words) = Assert.Single(MailDocumentLinks.Of(document));
+
+        Assert.Equal(expectedWords, run.Text);
+        Assert.Equal(expectedWords, words);
+        Assert.Equal("https://shop.test/offer", link.Target);
+        Assert.Equal(1, document.RemovedRemoteReferenceCount);
+        Assert.Equal(0, document.RetainedRemoteImageCount);
+        Assert.DoesNotContain("pictures.test", TextOf(document), StringComparison.Ordinal);
+        Assert.Empty(ImagesIn(document.Blocks));
+    }
+
+    /// <summary>Whatever kept the picture from being drawn and whatever the markup wrote around it, the reader gets the same one link.</summary>
+    [Theory]
+    [InlineData("<img src=\"cid:missing@example.test\" alt=\"The offer\">")]
+    [InlineData("<img src=\"images/banner.png\" alt=\"The offer\">")]
+    [InlineData("<img alt=\"The offer\">")]
+    [InlineData("\n  <img src=\"https://pictures.test/banner.png\" alt=\"The offer\">\n")]
+    [InlineData("<img src=\"https://pictures.test/banner.png\" alt=\"The offer\"><br>")]
+    [InlineData("<span><img src=\"https://pictures.test/banner.png\" alt=\"The offer\"></span>")]
+    [InlineData("<img src=\"https://pictures.test/spacer.gif\" width=\"1\" alt=\"Spacer\"><img src=\"https://pictures.test/banner.png\" alt=\"The offer\">")]
+    public async Task ProduceAsync_AnchorHoldingAPictureThatCannotBeDrawn_KeepsOneLinkedRun(string inside)
+    {
+        // Act
+        var document = await DocumentOf($"<a href=\"https://shop.test/offer\">{inside}</a>");
+
+        // Assert
+        var paragraph = Assert.IsType<MailParagraphBlock>(Assert.Single(document.Blocks));
+        var run = Assert.Single(paragraph.Content);
+
+        Assert.Equal("The offer", run.Text);
+        Assert.Equal("https://shop.test/offer", run.Link?.Target);
+    }
+
+    /// <summary>A picture the octet bound refused is lost to the reader exactly as a remote one is, so its link is kept the same way.</summary>
+    [Fact]
+    public async Task ProduceAsync_LinkedPictureRefusedByTheOctetBound_KeepsItsLinkAndItsCounts()
+    {
+        // Arrange
+        var content = MimeFixtures.StoredMessage(
+            "From: sender@example.test",
+            "Content-Type: multipart/related; boundary=\"rel\"",
+            string.Empty,
+            "--rel",
+            "Content-Type: text/html; charset=utf-8",
+            string.Empty,
+            "<a href=\"https://one.test/\"><img src=\"cid:one@example.test\" alt=\"First\"></a>"
+                + "<a href=\"https://two.test/\"><img src=\"cid:one@example.test\" alt=\"Second\"></a>",
+            "--rel",
+            "Content-Type: image/png",
+            "Content-Id: <one@example.test>",
+            "Content-Transfer-Encoding: base64",
+            string.Empty,
+            Convert.ToBase64String(new byte[600]),
+            "--rel--");
+
+        // Act
+        var document = await DocumentOf(content, maxImageOctets: 600);
+
+        // Assert
+        Assert.Collection(
+            document.Blocks,
+            block => Assert.Equal("https://one.test/", Assert.IsType<MailImageBlock>(block).Link?.Target),
+            block =>
+            {
+                var run = Assert.Single(Assert.IsType<MailParagraphBlock>(block).Content);
+
+                Assert.Equal("Second", run.Text);
+                Assert.Equal("https://two.test/", run.Link?.Target);
+            });
+        Assert.Equal(1, document.UndrawnInlineImageCount);
+        Assert.True(document.Truncated);
+    }
+
+    /// <summary>The kept link is a paragraph of its own, so the words the message wrote around it stay where they were.</summary>
+    [Fact]
+    public async Task ProduceAsync_UndrawnLinkedPictureBetweenWords_IsAParagraphBetweenThem()
+    {
+        // Act
+        var document = await DocumentOf(
+            "<p>Before <a href=\"https://shop.test/\"><img src=\"https://pictures.test/b.png\" alt=\"Offer\"></a> after</p>");
+
+        // Assert
+        Assert.Equal(
+            ["Before", "Offer", "after"],
+            document.Blocks.Select(block => string.Concat(Assert.IsType<MailParagraphBlock>(block).Content.Select(run => run.Text))));
+    }
+
+    /// <summary>An anchor that already shows the reader something reads exactly as it did.</summary>
+    [Fact]
+    public async Task ProduceAsync_AnchorWithItsOwnWordsBesideAnUndrawnPicture_DrawsOnlyTheWords()
+    {
+        // Act
+        var document = await DocumentOf(
+            "<a href=\"https://shop.test/\"><img src=\"https://pictures.test/b.png\" alt=\"Banner\">Read more</a>");
+
+        // Assert
+        var run = Assert.Single(Assert.IsType<MailParagraphBlock>(Assert.Single(document.Blocks)).Content);
+
+        Assert.Equal("Read more", run.Text);
+        Assert.Equal(1, document.RemovedRemoteReferenceCount);
+    }
+
+    /// <summary>Loading remote content produces the document again, and then the picture takes the place of the words.</summary>
+    [Fact]
+    public async Task ProduceAsync_LinkedRemotePictureTheReaderAskedFor_IsDrawnWithItsLinkAndNoWords()
+    {
+        // Act
+        var document = await DocumentOf(
+            "<a href=\"https://shop.test/offer\"><img src=\"https://pictures.test/banner.png\" alt=\"Offer\"></a>",
+            retainRemoteImages: true);
+
+        // Assert
+        var picture = Assert.IsType<MailImageBlock>(Assert.Single(document.Blocks));
+
+        Assert.Equal("https://shop.test/offer", picture.Link?.Target);
+        Assert.Equal("https://pictures.test/banner.png", picture.Image.Source);
+        Assert.Equal(0, document.RemovedRemoteReferenceCount);
+        Assert.Equal(1, document.RetainedRemoteImageCount);
+    }
+
+    /// <summary>The words a picture brings are the words the link is judged against, because they are the claim the reader is shown.</summary>
+    [Theory]
+    [InlineData("www.bank.test", MailLinkDeception.DisplayedHostDiffers, true)]
+    [InlineData("shop.test", MailLinkDeception.None, false)]
+    [InlineData("", MailLinkDeception.None, false)]
+    [InlineData("Open the offer", MailLinkDeception.NotApplicable, false)]
+    public async Task ProduceAsync_UndrawnLinkedPicture_IsJudgedOnTheWordsShown(
+        string alt,
+        MailLinkDeception expectedDeception,
+        bool expectedWarning)
+    {
+        // Act
+        var document = await DocumentOf(
+            $"<a href=\"https://shop.test/offer\"><img src=\"https://pictures.test/b.png\" alt=\"{alt}\"></a>");
+
+        // Assert
+        var link = Assert.Single(LinksIn(document));
+
+        Assert.Equal(expectedDeception, link.Deception);
+        Assert.Equal(expectedWarning, link.IsWorthWarningAbout);
+    }
+
+    /// <summary>Nothing is kept where nothing was meant to be pressed, or where there is nowhere a reader may be sent or nothing to name it by.</summary>
+    [Theory]
+    [InlineData("<a href=\"https://shop.test/\"><img src=\"https://t.test/p.gif\" width=\"1\" height=\"1\" alt=\"Pixel\"></a>")]
+    [InlineData("<a href=\"https://shop.test/\"><img src=\"https://t.test/p.gif\" width=\"0\" alt=\"Pixel\"></a>")]
+    [InlineData("<a href=\"https://shop.test/\"><img src=\"https://t.test/p.gif\" height=\"1px\" alt=\"Pixel\"></a>")]
+    [InlineData("<a href=\"https://shop.test/\"><img src=\"https://t.test/p.gif\" style=\"width: 1px\" alt=\"Pixel\"></a>")]
+    [InlineData("<a href=\"https://shop.test/\"><img src=\"https://t.test/p.gif\" style=\"height:0 !important\" alt=\"Pixel\"></a>")]
+    [InlineData("<a href=\"https://shop.test/\"><img src=\"https://t.test/p.gif\" style=\"display:none\" alt=\"Pixel\"></a>")]
+    [InlineData("<a href=\"javascript:steal()\"><img src=\"https://t.test/p.gif\" alt=\"Pixel\"></a>")]
+    [InlineData("<a href=\"mailto:someone@shop.test\"><img src=\"https://t.test/p.gif\"></a>")]
+    public async Task ProduceAsync_LinkedPictureNotKept_ProducesNoLinkAndStillCountsTheReference(string anchor)
+    {
+        // Act
+        var document = await DocumentOf($"<p>Readable</p>{anchor}");
+
+        // Assert
+        Assert.Equal("Readable", TextOf(document));
+        Assert.Empty(MailDocumentLinks.Of(document));
+        Assert.Equal(1, document.RemovedRemoteReferenceCount);
+    }
+
+    /// <summary>Two pixels is a picture somebody was meant to see, however small; only a declared single pixel is a spacer.</summary>
+    [Theory]
+    [InlineData("width=\"2\"")]
+    [InlineData("width=\"1%\"")]
+    [InlineData("style=\"height: 2px\"")]
+    public async Task ProduceAsync_LinkedPictureLargerThanOnePixel_KeepsItsLink(string declared)
+    {
+        // Act
+        var document = await DocumentOf(
+            $"<a href=\"https://shop.test/\"><img src=\"https://pictures.test/b.png\" {declared} alt=\"Offer\"></a>");
+
+        // Assert
+        Assert.Equal("Offer", TextOf(document));
+    }
+
+    /// <summary>A parser leaves an anchor open across a table cell, and an anchor inside one answers for its own pictures alone.</summary>
+    [Fact]
+    public async Task ProduceAsync_AnchorNestedInsideAnAnchor_LeavesEachTheFirstPictureItHeld()
+    {
+        // Act
+        var document = await DocumentOf(
+            "<a href=\"https://outer.test/\"><img src=\"https://p.test/o.png\" alt=\"Outer\">"
+            + "<table><tr><td><a href=\"https://inner.test/\"><img src=\"https://p.test/i.png\" alt=\"Inner\"></a></td></tr></table></a>");
+
+        // Assert
+        Assert.Equal(
+            [("https://inner.test/", "Inner"), ("https://outer.test/", "Outer")],
+            MailDocumentLinks.Of(document).Select(found => (found.Link.Target, found.Words)));
+    }
+
     /// <summary>Every link the document carries, in reading order.</summary>
     private static IEnumerable<MailDocumentLink> LinksIn(MailDocument document) => document.Blocks
         .OfType<MailParagraphBlock>()

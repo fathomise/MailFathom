@@ -16,6 +16,7 @@ namespace MailFathom.Infrastructure.Mail.Mime.Rendering;
 /// <param name="RemovedEmphasis">The emphasis it took away from whatever it inherited.</param>
 /// <param name="WidthShare">The share of its parent's width it asked for, or <see langword="null" /> where it asked for none or asked in pixels.</param>
 /// <param name="PixelWidth">The pixel width it asked for, which a table resolves into a share against its siblings.</param>
+/// <param name="AtMostOnePixel">Whether it declared a width or a height of at most one pixel, which is how a spacer and a tracking pixel are written.</param>
 internal sealed record MailNodeStyle(
     bool Hidden,
     MailDocumentColour? Foreground,
@@ -25,7 +26,8 @@ internal sealed record MailNodeStyle(
     MailTextEmphasis AddedEmphasis,
     MailTextEmphasis RemovedEmphasis,
     double? WidthShare,
-    double? PixelWidth)
+    double? PixelWidth,
+    bool AtMostOnePixel)
 {
     /// <summary>Gets the style of an element that asked for nothing.</summary>
     public static MailNodeStyle None { get; } = new(
@@ -37,5 +39,6 @@ internal sealed record MailNodeStyle(
         MailTextEmphasis.None,
         MailTextEmphasis.None,
         WidthShare: null,
-        PixelWidth: null);
+        PixelWidth: null,
+        AtMostOnePixel: false);
 }

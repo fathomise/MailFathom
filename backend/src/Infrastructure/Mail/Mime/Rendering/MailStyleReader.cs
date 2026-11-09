@@ -57,6 +57,9 @@ internal static class MailStyleReader
             AddedEmphasis = style.AddedEmphasis | FaceEmphasis(element.GetAttribute("face")),
             WidthShare = style.WidthShare ?? ShareOf(element.GetAttribute("width")),
             PixelWidth = style.PixelWidth ?? PixelsOf(element.GetAttribute("width")),
+            AtMostOnePixel = style.AtMostOnePixel
+                || IsAtMostOnePixel(element.GetAttribute("width"))
+                || IsAtMostOnePixel(element.GetAttribute("height")),
         };
     }
 
@@ -200,7 +203,13 @@ internal static class MailStyleReader
             "font-family" => style with { AddedEmphasis = style.AddedEmphasis | FaceEmphasis(value) },
             "font-size" => style with { Size = MailTextSizeReader.FromDeclaration(value) ?? style.Size },
             "display" or "visibility" => style with { Hidden = style.Hidden || Hides(property, value) },
-            "width" => style with { WidthShare = ShareOf(value), PixelWidth = PixelsOf(value) },
+            "width" => style with
+            {
+                WidthShare = ShareOf(value),
+                PixelWidth = PixelsOf(value),
+                AtMostOnePixel = style.AtMostOnePixel || IsAtMostOnePixel(value),
+            },
+            "height" => style with { AtMostOnePixel = style.AtMostOnePixel || IsAtMostOnePixel(value) },
             _ => style,
         };
 
@@ -320,7 +329,11 @@ internal static class MailStyleReader
     /// <c>Utf8JsonWriter</c> refuses to write, so one attribute a stranger wrote would cost the reader the whole
     /// message rather than one column's proportion.
     /// </remarks>
-    private static double? PixelsOf(string? value)
+    private static double? PixelsOf(string? value) => WrittenPixels(value) is > 0 and { } pixels ? pixels : null;
+
+    private static bool IsAtMostOnePixel(string? value) => WrittenPixels(value) is >= 0 and <= 1;
+
+    private static double? WrittenPixels(string? value)
     {
         if (value is null || value.EndsWith('%'))
         {
@@ -335,7 +348,6 @@ internal static class MailStyleReader
 
         return double.TryParse(digits, NumberStyles.Float, CultureInfo.InvariantCulture, out var pixels)
             && double.IsFinite(pixels)
-            && pixels > 0
             ? pixels
             : null;
     }

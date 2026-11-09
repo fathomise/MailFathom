@@ -638,6 +638,20 @@ exactly what they mean on an anchor. It is done here for the same reason the jud
 for itself would be a second implementation of what a link is, and the quieter of the two would be the one a reader
 happened to have.
 
+**A link over a picture the document does not draw stays a link.** That is how a newsletter writes a banner or a button
+made of an image, and the picture is usually remote, so until the reader loads remote content the anchor would hold
+nothing at all. Where an anchor draws neither words nor a picture, and at least one picture inside it was left undrawn —
+remote, unresolvable, or past the octet bound — the reduction emits one paragraph holding one linked run. Its words are
+the first such picture's `alt`, or the link's host where the `alt` is empty, so the service writes no sentence and needs
+no language. The link is judged against those words, so an `alt` naming another host than the target carries
+`DisplayedHostDiffers` as worded text would. A picture declaring a width or a height of at most one pixel is a spacer or
+a tracking pixel and names nothing, a hidden picture is never reached, and a `mailto` link over a picture with no `alt`
+has no host to be named by, so none of those produces a link. No address but the anchor's own target enters the
+document, nothing is fetched for it, and the removed and retained counts are what they would have been. Loading remote
+content produces the document again, and the picture is then drawn with its link in place of the words.
+`MailDocumentLinks.Of` reads these as links with words like any other, so the reply drafter may cite one and leaves it
+out where the warning applies, and the spam stage reads the host the `alt` claimed.
+
 Three rules bound it, and each is a rule over the characters rather than a guess at intent. The punctuation a sentence
 closes on is dropped from the end of a match, while a bracket the address opened itself is kept. A run already inside
 an anchor is left alone, because the sender already said where those words go. And a bare host names no scheme, so the
