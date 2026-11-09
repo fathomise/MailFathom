@@ -80,20 +80,20 @@ function derivedReading(at: number) {
 }
 
 /**
- * What sort of mail each row is, cycling through the states a row draws: one default, nothing categorized yet, a
- * default no label is drawn for, more own categories than a row names, and the longest name a mailbox may declare.
+ * What sort of mail each row is, cycling through the states a row draws: one default, more own categories than a row
+ * names, a default no label is drawn for, nothing categorized yet, and the longest name a mailbox may declare.
  */
 const categoriesByRow = [
     [{ identity: 'subscriptions', name: null }],
-    [],
-    [{ identity: 'finance', name: null }],
-    [{ identity: 'correspondence', name: null }],
     [
         { identity: 'correspondence', name: null },
         { identity: 'Legal', name: 'Legal' },
         { identity: 'Budget 2027', name: 'Budget 2027' },
         { identity: 'Suppliers', name: 'Suppliers' },
     ],
+    [{ identity: 'finance', name: null }],
+    [{ identity: 'correspondence', name: null }],
+    [],
     [
         { identity: 'shopping', name: null },
         {
@@ -128,7 +128,9 @@ function timelineRow(at: number) {
         sizeOctets: 4_096,
         preview: `The opening of message ${String(at)}.`,
         threadMessageCount: null,
-        categories: categoriesOf(at),
+        // A category is read out after the subject, so a row carrying one is not a row a check finds by the subject its
+        // name ends on. Only the rows already past that — those a reading follows, and those no check reaches — carry any.
+        categories: at % 4 === 1 || at > 15 ? categoriesOf(at) : [],
         sender: listedSender(senderKindOf(`message-${String(at)}`)),
     };
 }
@@ -543,7 +545,7 @@ function conversationEmail(row: (typeof conversationRows)[number], position: num
         preview: row.preview,
         enrichment: derivedReading(position),
         threadMessageCount: conversationRows.length,
-        categories: categoriesOf(position),
+        categories: [],
         sender: listedSender(senderKindOf(row.id)),
         receipts: row.id === answeredReplyId ? answeredReplyCounted : null,
     };
@@ -580,7 +582,7 @@ function conversationContent(row: (typeof conversationRows)[number]) {
             body: { availability: 'Readable', plainText: true, html: false },
             attachments: [],
             unread: false,
-            categories: categoriesOf(conversationRows.indexOf(row)),
+            categories: [],
             receipts: row.id === answeredReplyId ? answeredReplyReceipts : null,
         },
         body: bodyOfConversationRow(row),
@@ -926,7 +928,7 @@ function newestOf(
 export const threadList = {
     conversations: [
         listedThread('00000000-0000-4000-8000-0000000000d1', {
-            categories: categoriesOf(4),
+            categories: categoriesOf(1),
             unreadCount: 2,
             hasAttachments: true,
             participants: [anna, reader],

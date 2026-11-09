@@ -18,8 +18,13 @@ describe('parseMailCategories', () => {
         ]);
     });
 
-    it('reads a field the answer left out as a message showing none', () => {
-        expect(parseMailCategories(undefined)).toEqual([]);
+    it('reads an empty list as a message showing none', () => {
+        expect(parseMailCategories([])).toEqual([]);
+    });
+
+    it('refuses an answer that leaves the field out, which the contract requires', () => {
+        expect(parseMailCategories(undefined)).toBeNull();
+        expect(parseMailCategories(null)).toBeNull();
     });
 
     it('refuses an unnamed category that is none of the defaults', () => {

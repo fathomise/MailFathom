@@ -300,6 +300,7 @@ const describedMessage: Answer = {
         folder: 'INBOX',
         threadId: null,
         sizeOctets: 4_096,
+        categories: [],
         headers: {
             subject: 'Quarterly invoice',
             sentAt: '2026-08-31T09:41:00+00:00',
@@ -374,6 +375,7 @@ const folderWithOneMessage: Answer = {
                 answered: false,
                 hasAttachments: false,
                 attachmentCount: 0,
+                categories: [],
                 sizeOctets: 4_096,
                 preview: 'The invoice for August.',
                 sender: listedSender('unrecognized'),
@@ -508,6 +510,7 @@ const drawnConversation: Answer = {
                     answered: false,
                     hasAttachments: false,
                     attachmentCount: 0,
+                    categories: [],
                     sizeOctets: 4_096,
                     preview: 'The invoice for August.',
                     sender: listedSender('unrecognized'),

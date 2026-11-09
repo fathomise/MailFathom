@@ -85,6 +85,7 @@ function described(overrides: Readonly<Record<string, unknown>> = {}): string {
     return JSON.stringify({
         storedEmailId: messageId,
         account: 'work',
+        categories: [],
         folder: 'INBOX',
         threadId: null,
         sizeOctets: 40_960,

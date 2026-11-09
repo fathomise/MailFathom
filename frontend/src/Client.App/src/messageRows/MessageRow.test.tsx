@@ -215,11 +215,8 @@ function marked(storedEmailId: string, place: MarkedIn = { account: 'work', fold
     };
 }
 
-// The line the row's height reserves whether or not anything is in it, which is what lets the search's row and the
-// folder's row be one row. Whether it is announced is the whole of what the two cases differ by, and nothing a reader
-// sees says which happened — so the attribute is what is asserted here.
 describe('MessageRow, what sort of mail it is', () => {
-    function drawnWith(over: Partial<MailTimelineEntry>): void {
+    function drawnWith(over: Partial<MailTimelineEntry>): HTMLElement {
         render(
             <LocalizationProvider>
                 <MailboxActsContext value={nothingActed}>
@@ -238,6 +235,8 @@ describe('MessageRow, what sort of mail it is', () => {
                 </MailboxActsContext>
             </LocalizationProvider>,
         );
+
+        return screen.getByRole('option');
     }
 
     it('names a default in the reader’s language and an own category as written', () => {
@@ -252,10 +251,25 @@ describe('MessageRow, what sort of mail it is', () => {
         expect(screen.getAllByText('Budget 2027')).not.toHaveLength(0);
     });
 
-    it('draws no label for a message that is only correspondence', () => {
-        drawnWith({ categories: [{ identity: 'correspondence', name: null }] });
+    it('draws no label for a message that is only correspondence, and announces no empty line', () => {
+        const row = drawnWith({ categories: [{ identity: 'correspondence', name: null }] });
 
         expect(screen.queryByText('Correspondence')).toBeNull();
+        expect(reservedLine(row)?.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('announces a line that holds categories and nothing else', () => {
+        const row = drawnWith({ categories: [{ identity: 'finance', name: null }] });
+
+        expect(reservedLine(row)?.getAttribute('aria-hidden')).toBeNull();
+    });
+
+    it('counts the names past the two a row draws', () => {
+        drawnWith({
+            categories: ['Legal', 'Budget 2027', 'Suppliers'].map((name) => ({ identity: name, name })),
+        });
+
+        expect(screen.getByText('+1')).not.toBeNull();
     });
 
     it('draws no category on a message that is spam', () => {
@@ -275,6 +289,9 @@ describe('MessageRow, what sort of mail it is', () => {
     });
 });
 
+// The line the row's height reserves whether or not anything is in it, which is what lets the search's row and the
+// folder's row be one row. Whether it is announced is the whole of what the two cases differ by, and nothing a reader
+// sees says which happened — so the attribute is what is asserted here.
 describe('MessageRow', () => {
     it('announces the reserved line when the row has something to say about the message', () => {
         const reserved = reservedLine(drawRow('Found by what it means.'));

@@ -1641,6 +1641,7 @@ export class FakeDeployment {
                 account: record['account'],
                 folder: draftsFolder,
                 sizeOctets: record['sizeOctets'],
+                categories: [],
                 headers: {
                     ...messages.markupOnlyMessage.headers,
                     subject: record['subject'],

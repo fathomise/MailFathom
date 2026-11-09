@@ -12450,6 +12450,7 @@ mail.ts phraseReading POST /api/client/emails/search/phrasing
 mail.ts conversationRows - -
 mail.ts derivedReading GET /api/client/emails
 mail.ts folderRow GET /api/client/emails
+mail.ts categoriesByRow GET /api/client/emails
 mail.ts citationResolutions POST /api/client/citations/resolution
 mail.ts messageCitationResolutions POST /api/client/citations/resolution
 mail.ts conversation GET /api/client/threads/{threadId}

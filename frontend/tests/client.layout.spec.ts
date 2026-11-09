@@ -698,6 +698,34 @@ test('draws the head’s acts as their symbols once the pane they stand in is na
     await expect(reply).toHaveAccessibleName('Reply - not built yet');
 });
 
+// Which names a row draws is the list's own width and how far one reaches is the label's, and only a browser lays either
+// out. The row is found by its subject alone, because a row's categories are read out after it.
+test('names two categories on a row, one where the list is narrow, and ends a long name in an ellipsis', async ({
+    page,
+}) => {
+    await page.setViewportSize(desktopWindow);
+    await openSignedIn(page, '/#/mail');
+
+    const listed = page.getByRole('listbox', { name: 'Messages' });
+    const categorized = listed.getByRole('option', { name: /\bMessage 1\b/u });
+
+    await expect(categorized.getByText('Budget 2027', { exact: true }).first()).toBeVisible();
+    await expect(categorized.getByText('+1', { exact: true })).toBeVisible();
+
+    const longest = listed
+        .getByRole('option', { name: /\bMessage 5\b/u })
+        .getByText(/^Contract renewals/u)
+        .first();
+
+    expect((await boxOf(longest)).width).toBeLessThanOrEqual(132);
+
+    await page.setViewportSize(foldWindow);
+
+    await expect(categorized.getByText('Legal', { exact: true })).toBeVisible();
+    await expect(categorized.getByText('Budget 2027', { exact: true }).first()).toBeHidden();
+    await expect(categorized.getByText('+2', { exact: true })).toBeVisible();
+});
+
 // The defect this replaced: a space arriving rises from a few pixels below its place, which lengthened the document
 // for as long as the motion lasted, and the focus placed in the arriving space scrolled the whole page — the navigation
 // with it — up by that much and back. Only a browser answers it, and only on every frame of the arrival: by its end

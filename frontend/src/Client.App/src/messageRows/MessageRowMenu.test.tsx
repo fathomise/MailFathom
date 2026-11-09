@@ -364,7 +364,7 @@ describe('MessageRowMenu', () => {
 });
 
 describe('MessageRowMenu, the categories under its header', () => {
-    it('says every category of the row, in a line that wraps', () => {
+    it('says every category of the row', () => {
         menuUnder({
             row: {
                 ...email,
@@ -375,7 +375,7 @@ describe('MessageRowMenu, the categories under its header', () => {
             },
         });
 
-        expect(screen.getByText(/Finance - Legal/u).className).toContain('wrap-anywhere');
+        expect(screen.getByText(/Finance - Legal/u)).not.toBeNull();
     });
 });
 

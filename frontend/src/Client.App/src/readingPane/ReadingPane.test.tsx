@@ -65,6 +65,7 @@ function description(overrides: Readonly<Record<string, unknown>> = {}): string 
         folder: 'INBOX',
         threadId: null,
         sizeOctets: 40_960,
+        categories: [],
         headers: {
             subject: 'Quarterly invoice',
             sentAt: '2026-08-31T09:41:00+00:00',

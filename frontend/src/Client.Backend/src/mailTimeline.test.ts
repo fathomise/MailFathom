@@ -384,8 +384,6 @@ describe('readMailTimeline', () => {
         expect(result.outcome === 'read' && result.value.emails[0]?.threadId).toBeNull();
     });
 
-    // How long the correspondence is is the deployment's count over the whole of it, so it is read as it arrived and
-    // never recomputed here — and a route that states none leaves the row saying nothing rather than saying one.
     it('reads what sort of mail the row is', async () => {
         const categories = [{ identity: 'finance', name: null }];
         const transport = answering({ status: 200, body: bodyOf([{ ...message, categories }]) });
@@ -403,6 +401,8 @@ describe('readMailTimeline', () => {
         expect(result.outcome).toBe('failed');
     });
 
+    // How long the correspondence is is the deployment's count over the whole of it, so it is read as it arrived and
+    // never recomputed here — and a route that states none leaves the row saying nothing rather than saying one.
     it('reads how many messages the row’s correspondence holds', async () => {
         const transport = answering({ status: 200, body: bodyOf([{ ...message, threadMessageCount: 6 }]) });
 

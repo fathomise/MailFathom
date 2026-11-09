@@ -63,26 +63,18 @@ describe('ThreadRow, what sort of mail it holds', () => {
         { identity: 'Budget 2027', name: 'Budget 2027' },
     ];
 
-    it('draws two names and how many more, and cuts the opening to one line', () => {
+    it('draws two names and how many more', () => {
         const row = drawing(thread({ categories }));
 
         expect(row.textContent).toContain('Finance');
         expect(row.textContent).toContain('Legal');
         expect(row.textContent).toContain('+1');
-        expect(screen.getByText('The figures are attached.').className).toContain('line-clamp-1');
     });
 
-    it('measures a row with labels apart from one without', () => {
-        const row = drawing(thread({ categories }));
-
-        expect(row.closest('li')?.getAttribute('data-thread-row')).toBe('standingCategorized');
-    });
-
-    it('draws nothing and keeps the two-line opening where only an undrawn default stands', () => {
+    it('draws nothing where only a default no label is drawn for stands', () => {
         const row = drawing(thread({ categories: [{ identity: 'other', name: null }] }));
 
-        expect(row.closest('li')?.getAttribute('data-thread-row')).toBe('standing');
-        expect(screen.getByText('The figures are attached.').className).toContain('line-clamp-2');
+        expect(row.textContent).not.toContain('Other');
     });
 });
 

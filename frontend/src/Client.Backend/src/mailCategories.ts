@@ -37,13 +37,9 @@ const longestCategoryName = 256;
  * Reads the categories of a message or a conversation, in the order the deployment published them.
  *
  * @param value The field as the deployment sent it.
- * @returns The categories, empty where it shows none, or `null` where the field is not a list of them.
+ * @returns The categories, empty where it shows none, or `null` where the field is missing or is not a list of them.
  */
 export function parseMailCategories(value: unknown): readonly MailCategory[] | null {
-    if (value === undefined || value === null) {
-        return [];
-    }
-
     if (!Array.isArray(value) || value.length > mostCategories) {
         return null;
     }

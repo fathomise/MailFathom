@@ -56,6 +56,7 @@ const described = {
     folder: 'INBOX',
     threadId,
     sizeOctets: 84_213,
+    categories: [],
     headers: {
         subject: 'The quarterly figures',
         sentAt: '2026-08-31T09:40:00+00:00',
@@ -379,7 +380,6 @@ describe('readMailThread drawing the messages', () => {
             report: null,
             receipts: null,
             readReceiptRequest: null,
-            categories: [],
         });
         expect(answered.outcome === 'read' && answered.value.messages[0]?.body).toStrictEqual(said);
     });

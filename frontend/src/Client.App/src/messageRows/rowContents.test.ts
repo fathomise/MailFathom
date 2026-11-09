@@ -113,13 +113,13 @@ describe('rowMark', () => {
         expect(sameRow(rowMark(message()), rowMark(message(moved)))).toBe(true);
     });
 
-    // A spam row folds or carries a badge naming its kind, so a kind named afterwards is a row drawn differently.
     it('reads a message whose categories moved as a row that changed', () => {
         const categorized = message({ categories: [{ identity: 'finance', name: null }] });
 
         expect(sameRow(rowMark(message()), rowMark(categorized))).toBe(false);
     });
 
+    // A spam row folds or carries a badge naming its kind, so a kind named afterwards is a row drawn differently.
     it('reads a spam verdict that gained a kind as a row that changed', () => {
         const unnamed = rowMark(message({ spam: judged() }));
         const named = rowMark(
