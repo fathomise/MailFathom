@@ -840,6 +840,62 @@ public sealed class UserAccountDocumentBinderTests
             refusal => refusal.Contains("would exclude every email in the mailbox", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Bind_AnAccountStatingNoRetention_HasBothHalvesOff()
+    {
+        // Arrange
+        var binder = CreateBinder();
+
+        // Act
+        var binding = binder.Bind(DocumentDeclaring(("work", "The work mailbox")), UserRecordArrival.BeingWritten);
+
+        // Assert
+        var retention = Assert.Single(binding.User!.MailAccounts).Retention;
+        Assert.False(retention.Messages.Enabled);
+        Assert.False(retention.Tombstones.Enabled);
+    }
+
+    /// <summary>A half stated in part keeps the rest of what the build supplies, since each key is decided alone.</summary>
+    [Fact]
+    public void Bind_AnAccountStatingPartOfRetention_KeepsTheDefaultsOfWhatItLeftOut()
+    {
+        // Arrange
+        var binder = CreateBinder();
+
+        // Act
+        var binding = binder.Bind(
+            DocumentDeclaringAccountCarrying("""
+                "Retention": { "Messages": { "Enabled": true }, "Tombstones": { "After": "2.00:00:00" }, "ExcludedFolders": [ "Archive" ] }
+                """),
+            UserRecordArrival.BeingWritten);
+
+        // Assert
+        var retention = Assert.Single(binding.User!.MailAccounts).Retention;
+        Assert.True(retention.Messages.Enabled);
+        Assert.Equal(TimeSpan.FromDays(730), retention.Messages.After);
+        Assert.False(retention.Tombstones.Enabled);
+        Assert.Equal(TimeSpan.FromDays(2), retention.Tombstones.After);
+        Assert.Equal(["Archive"], retention.ExcludedFolders);
+    }
+
+    [Fact]
+    public void Bind_ARetentionAgeBelowItsFloor_IsRefusedNamingTheKeyAndTheFloor()
+    {
+        // Arrange
+        var binder = CreateBinder();
+
+        // Act
+        var binding = binder.Bind(
+            DocumentDeclaringAccountCarrying("""
+                "Retention": { "Messages": { "After": "29.00:00:00" } }
+                """),
+            UserRecordArrival.BeingWritten);
+
+        // Assert
+        Assert.False(binding.IsBound);
+        Assert.Contains("Account 'work': Retention:Messages:After must be at least 30.00:00:00.", binding.Refusals);
+    }
+
     /// <summary>An absent document is not an empty record: every row this reads carries at least the empty object.</summary>
     [Theory]
     [InlineData("")]

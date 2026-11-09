@@ -380,6 +380,63 @@ public sealed class SettingsPolicyCandidateTests
         Assert.NotNull(candidate.Json);
     }
 
+    /// <summary>A typing mistake in a forced age is what the floor exists for, so a policy is held to it as a record is.</summary>
+    [Theory]
+    [InlineData("Forced", """{"Retention":{"Messages":{"After":"29.23:59:59"}}}""", "MailAccounts:Forced: Retention:Messages:After must be at least 30.00:00:00.")]
+    [InlineData("Defaults", """{"Retention":{"Messages":{"After":"1.00:00:00"}}}""", "MailAccounts:Defaults: Retention:Messages:After must be at least 30.00:00:00.")]
+    [InlineData("Forced", """{"Retention":{"Tombstones":{"After":"23:59:59"}}}""", "MailAccounts:Forced: Retention:Tombstones:After must be at least 1.00:00:00.")]
+    [InlineData("Defaults", """{"Retention":{"Tombstones":{"After":"00:00:00"}}}""", "MailAccounts:Defaults: Retention:Tombstones:After must be at least 1.00:00:00.")]
+    public void Judge_ARetentionAgeBelowItsFloor_IsRefusedNamingTheKeyAndTheFloor(string statement, string stated, string expected)
+    {
+        // Arrange
+        var saved = $$$"""{"MailAccounts":{"{{{statement}}}":{{{stated}}}}}""";
+
+        // Act
+        var candidate = SettingsPolicyCandidate.Judge(saved);
+
+        // Assert
+        Assert.Null(candidate.Json);
+        Assert.Equal(expected, Assert.Single(candidate.Refusals));
+    }
+
+    [Fact]
+    public void Judge_AnExcludedFolderThatIsNoFolderName_IsRefusedNamingItsPositionAndNotWhatItHolds()
+    {
+        // Arrange
+        const string saved = """{"MailAccounts":{"Forced":{"Retention":{"ExcludedFolders":["Archive","A private\nmatter"]}}}}""";
+
+        // Act
+        var candidate = SettingsPolicyCandidate.Judge(saved);
+
+        // Assert
+        Assert.Null(candidate.Json);
+        Assert.StartsWith(
+            "MailAccounts:Forced: Retention:ExcludedFolders entry 1 must be",
+            Assert.Single(candidate.Refusals),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("matter", candidate.Refusals[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Judge_APolicyDefaultingForcingAndRestrictingRetention_MayBeCommitted()
+    {
+        // Arrange
+        const string saved = """
+            {"MailAccounts":{
+              "Defaults":{"Retention":{"Messages":{"Enabled":true,"After":"30.00:00:00"}}},
+              "Forced":{"Retention":{"Tombstones":{"Enabled":true,"After":"1.00:00:00"},"ExcludedFolders":["Archive"]}},
+              "Editing":{"Mode":"AllExcept","Properties":["Retention:Messages:After","Retention:ExcludedFolders"]}
+            }}
+            """;
+
+        // Act
+        var candidate = SettingsPolicyCandidate.Judge(saved);
+
+        // Assert
+        Assert.Empty(candidate.Refusals);
+        Assert.NotNull(candidate.Json);
+    }
+
     /// <summary>
     /// A key inside a list entry is repeated back only where it is shaped like a setting's name. Where a setting's name
     /// belongs in a list of contact-collection exclusions, what somebody is likeliest to have written instead is an address.
