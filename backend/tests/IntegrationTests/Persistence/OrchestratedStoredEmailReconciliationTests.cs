@@ -445,6 +445,72 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
     }
 
     /// <summary>
+    /// A replacement carried as a removal and an addition holds only the keywords it changed: another client's keyword
+    /// shows beside the act's while both are outstanding, and giving up the addition takes back only what it named. The
+    /// row holds keywords folded and the records as they were written, which is the comparison this has to get right.
+    /// </summary>
+    [Fact]
+    public async Task ApplyReconciliationOutcomeAsync_AReplacementCarriedAsADifference_KeepsAnotherClientsKeywordAndRevertsOnlyWhatARefusedHalfNamed()
+    {
+        // Arrange
+        const uint KeywordedUid = 702;
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, "reconciliation-difference", cancellationToken);
+        var storedEmailId = (await StoreEmailsAsync(services, binding, [KeywordedUid], cancellationToken))[KeywordedUid];
+        var occurrence = SyntheticEmail.OccurrenceIn(binding, KeywordedUid);
+        var requester = MailboxMutationRequester.Command("reconciliation-difference-keywords");
+        var replaced = OverlayingMutationRecords.NothingObserved with { ObservedKeywords = EmailKeywords.Create(["OLD"]) };
+
+        await OverlayingMutationRecords.OpenAsync(
+            services,
+            MailboxMutationRequest.RemoveKeywords(storedEmailId, occurrence, requester, AuthoredMailKeywords.Create(["OLD"])),
+            replaced,
+            cancellationToken);
+        var addition = await OverlayingMutationRecords.OpenAsync(
+            services,
+            MailboxMutationRequest.AddKeywords(storedEmailId, occurrence, requester, AuthoredMailKeywords.Create(["something1"])),
+            replaced,
+            cancellationToken);
+        await OverlayingMutationRecords.SetStoredStateAsync(
+            services,
+            storedEmailId,
+            row => row.Keywords = ["SOMETHING1"],
+            cancellationToken);
+
+        await ApplyOutcomeAsync(
+            services,
+            new ReconciledFolderOutcome(
+                [new ObservedEmailFlags(storedEmailId, KeywordedAt(LaterObservation, "old", "something2"))],
+                ConfirmedUnchanged: [],
+                Disappeared: [],
+                RemovedByOwnMutation: [],
+                RemotelyDeletedEmailDisposition.RetainTombstone,
+                AppliesRemoteDeletions: true,
+                LaterObservation),
+            cancellationToken);
+
+        // The arrangement is asserted: the removal holds OLD off, the addition holds its own, and the other client's shows.
+        var whileOutstanding = (await ReadRowsAsync(services, binding, cancellationToken))[KeywordedUid];
+        Assert.Equal(["SOMETHING1", "SOMETHING2"], whileOutstanding.Keywords.Order(StringComparer.Ordinal));
+
+        // Act
+        await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IMailboxMutationRecordStore>().AdvanceAsync(
+                session,
+                addition.Record.Id,
+                MailboxMutationStage.Abandoned,
+                placement: null,
+                token),
+            cancellationToken);
+
+        // Assert
+        var reverted = (await ReadRowsAsync(services, binding, cancellationToken))[KeywordedUid];
+        Assert.Equal(["SOMETHING2"], reverted.Keywords);
+    }
+
+    /// <summary>
     /// A delete committed locally first hides its message from every reader at once, through a column of the row, while
     /// the row stays; withdrawing the delete clears the column and the message is listed and read again.
     /// </summary>

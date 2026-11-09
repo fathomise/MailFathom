@@ -380,7 +380,7 @@ name `mfctl rules show` and `GET /rules` report it by:
 | `set-flagged` | flagged or not | The message's remote `\Flagged` flag is set, or cleared — the star a mail client draws |
 | `add-keywords` | a list of keywords | Each named keyword is put on the message, beside the ones it already carries |
 | `remove-keywords` | a list of keywords | Each named keyword is taken off the message, leaving the ones the rule did not name |
-| `set-keywords` | a list of keywords, possibly empty | The message ends up carrying exactly the named keywords and no others |
+| `set-keywords` | a list of keywords, possibly empty | The keywords MailFathom knows the message to carry are replaced with the named ones. On a mirrored account only the difference is sent, so a keyword another client set that MailFathom has not seen yet stays on the message |
 
 **A change a rule does not declare is one it does not ask for**, which is why `set-seen` carries a state rather than
 being a switch: a rule declaring `set-seen` to unread asks for mail to be marked *unread*, and a rule declaring no

@@ -489,7 +489,13 @@ public sealed class MailboxReconciler
                     occurrence,
                     lastObservation.Keywords,
                     observed.Snapshot.Keywords,
-                    lastObservation.ObservedAt)));
+                    lastObservation.ObservedAt))
+                    ?? MailboxMutationRecord.AccountingTogetherForKeywordsOf(
+                        records,
+                        occurrence,
+                        lastObservation.Keywords,
+                        observed.Snapshot.Keywords,
+                        lastObservation.ObservedAt));
         }
     }
 

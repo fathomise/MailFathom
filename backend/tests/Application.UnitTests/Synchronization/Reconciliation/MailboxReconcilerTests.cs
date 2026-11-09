@@ -590,6 +590,48 @@ public sealed class MailboxReconcilerTests
         Assert.Equal(EmailKeywords.Create(["$Invoice", "$Todo"]), store.RowOf(10).Snapshot!.Keywords);
     }
 
+    /// <summary>A replacement carried as a removal and an addition is MailFathom's own, though neither half explains the reading alone.</summary>
+    [Fact]
+    public async Task ReconcileAsync_KeywordsAReplacementLeftAsARemovalAndAnAddition_WithholdsTheChange()
+    {
+        // Arrange
+        var store = new FakeReconciliationStore(ObservedOccurrence(10, isSeen: true, isFlagged: false, "$Invoice"));
+        var mutationStore = new InMemoryMailboxMutationReconciliationStore();
+        var addition = MutationAddingKeywords(store.StoredEmailIdOf(10), uid: 10, "$Todo");
+        mutationStore.Add(addition with
+        {
+            Id = MailboxMutationRecordId.Create(Guid.CreateVersion7()),
+            Request = MailboxMutationRequest.RemoveKeywords(
+                addition.Request.StoredEmailId,
+                addition.Request.Occurrence,
+                addition.Request.Requester,
+                AuthoredMailKeywords.Create(["$Invoice"])),
+        });
+        mutationStore.Add(addition);
+        await using var mailboxSession = CreateSessionReportingFlags(
+            isSeen: true,
+            isFlagged: false,
+            EmailKeywords.Create(["$Todo"]),
+            10);
+        var reconciler = CreateReconciler(
+            store,
+            RemotelyDeletedEmailDisposition.RetainTombstone,
+            mutationStore: mutationStore);
+
+        // Act
+        var result = await reconciler.ReconcileAsync(
+            mailboxSession,
+            Account,
+            InboxFolder,
+            SelectedUidValidity,
+            reconciledThroughModSeq: null,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(0, result.KeywordsChangedEmailCount);
+        Assert.Equal(MailboxChangeKind.KeywordsChanged, Assert.Single(result.SuppressedChanges).Kind);
+    }
+
     /// <summary>An addition accounts for the set it would have left and never for a set the user also took a label off.</summary>
     /// <remarks>
     /// This is the direction the attribution has to fail in. The record asked for <c>$Todo</c> and the user dropped

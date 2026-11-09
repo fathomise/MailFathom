@@ -938,10 +938,10 @@ internal sealed class MailboxMutationRecordStore(
 
         var heldByOthers = otherKeywordChanges
             .SelectMany(entity => entity.Keywords ?? [])
-            .ToHashSet(StringComparer.Ordinal);
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         bool Restored(string keyword) =>
             !heldByOthers.Contains(keyword)
-            && (ended.Mutation == MailboxMutation.SetKeywords.Name || (ended.Keywords ?? []).Contains(keyword, StringComparer.Ordinal));
+            && (ended.Mutation == MailboxMutation.SetKeywords.Name || (ended.Keywords ?? []).Contains(keyword, StringComparer.OrdinalIgnoreCase));
 
         return
         [

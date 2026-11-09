@@ -314,6 +314,9 @@ public sealed record SubmittedMailboxChange(
     MailboxMutationRecord? Record,
     AppliedMailboxChange? Change)
 {
+    /// <summary>Gets every record the change opened, which is more than <see cref="Record" /> only for a replacement of keywords carried as a removal and an addition.</summary>
+    public IReadOnlyList<MailboxMutationRecord> Records { get; init; } = Record is null ? [] : [Record];
+
     /// <summary>Describes a change written down as a durable record.</summary>
     /// <param name="record">The record.</param>
     /// <returns>The answer.</returns>
@@ -326,6 +329,16 @@ public sealed record SubmittedMailboxChange(
     /// <returns>The answer.</returns>
     public static SubmittedMailboxChange Applied(AppliedMailboxChange change, MailboxMutationRecord? record = null) =>
         new(MailboxChangeSubmissionOutcome.Applied, record, change ?? throw new ArgumentNullException(nameof(change)));
+
+    /// <summary>Describes a change committed to stored state that opened any number of records.</summary>
+    /// <param name="change">What to announce.</param>
+    /// <param name="records">The records the change opened, which may be none.</param>
+    /// <returns>The answer.</returns>
+    public static SubmittedMailboxChange Applied(AppliedMailboxChange change, IReadOnlyList<MailboxMutationRecord> records) =>
+        new(MailboxChangeSubmissionOutcome.Applied, records.Count > 0 ? records[0] : null, change ?? throw new ArgumentNullException(nameof(change)))
+        {
+            Records = records,
+        };
 
     /// <summary>Describes a change nothing was written for.</summary>
     /// <param name="outcome">Why.</param>

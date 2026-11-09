@@ -121,7 +121,7 @@ internal sealed record MailRuleDeclarationRequest(
 /// <param name="MarkAsFlagged">Whether <c>\Flagged</c> is set or cleared; absent leaves it alone.</param>
 /// <param name="AddKeywords">The keywords put on a match.</param>
 /// <param name="RemoveKeywords">The keywords taken off a match.</param>
-/// <param name="SetKeywords">The keywords a match ends up carrying and no others; empty clears every keyword.</param>
+/// <param name="SetKeywords">The keywords a match's are replaced with; empty clears every keyword MailFathom knows of.</param>
 /// <remarks>
 /// <para>
 /// Which of these may be declared together is the validator's to judge, so a pair it refuses is read here and refused

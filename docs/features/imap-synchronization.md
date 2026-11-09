@@ -954,11 +954,20 @@ rather than a gap to read as permission. The one `\Draft` MailFathom writes is o
 in a folder — [the copy of a waiting message](mail-delivery.md#the-copy-in-the-accounts-own-folders) — where the flag
 states exactly what happened.
 
-**A keyword replacement reads before it writes, and reads nothing else.** Asking a server to set a message's keywords
-outright would replace its entire flag set, clearing `\Seen`, `\Flagged`, `\Answered`, and `\Draft` as a side effect of
-writing a label. So a replacement fetches the message's current flags, then removes only the keywords the rule did not
-name and adds only the ones it did. The fetch requests flags alone and sets nothing, so the read-side guarantee holds
-across it exactly as it does anywhere else.
+**A keyword replacement sends only what the act changed.** Asking a server to set a message's keywords outright would
+replace its entire flag set, clearing `\Seen`, `\Flagged`, `\Answered`, and `\Draft` as a side effect of writing a
+label. So where the act commits locally first, a replacement is written down as the removal and the addition its
+difference from the stored keywords needs, and as nothing where there is no difference. Both are atomic and name
+keywords, so a keyword another client sets while the act is outstanding stays on the message and shows locally
+meanwhile; where both sides change one keyword, the command last to reach the server decides it, which means a change
+held back by an outage overwrites a later one made elsewhere. A keyword a server reported that is not an IMAP atom
+cannot be named in a command, so a replacement leaves it where it is.
+
+**A replacement that is not committed locally first reads before it writes, and reads nothing else.** That is one made
+while a replica does not know the overlay, on a `Restoring` account, or by the restore pass. It fetches the message's
+current flags, then removes only the keywords it did not name and adds only the ones it did, so it ends exact against
+what the server carried. The fetch requests flags alone and sets nothing, so the read-side guarantee holds across it
+exactly as it does anywhere else.
 
 **A folder that would not keep a keyword refuses it rather than accepting it.** A folder tells MailFathom which flags it
 keeps permanently when it is opened, and one that keeps no arbitrary keyword makes an addition or a replacement fail
@@ -1830,7 +1839,9 @@ is what tells the two apart, and both halves are joined to it by a recorded fact
   well, so a store that asked for the flag to be set answers for the flag becoming set and never for it becoming clear.
   Keywords are matched by computing the set the store would have left on the message that was last read — the earlier
   keywords plus the ones an addition named, minus the ones a removal named, or exactly the ones a replacement stated —
-  and comparing that whole set, folded, with what the server now reports. Anything else is somebody else's, which is
+  and comparing that whole set, folded, with what the server now reports. Where no one store explains the reading, the
+  stores issued since it are applied together, which is what recognizes a replacement carried as a removal and an
+  addition. Anything else is somebody else's, which is
   the direction this has to fail in: a message MailFathom labelled and the user then labelled again reaches evaluation
   as their change, and so does a removal that would otherwise have been read as accounting for a label it never
   touched. The stored snapshot still follows the server in every case — what the match decides is whose act it was, not

@@ -382,11 +382,52 @@ public sealed record MailboxMutationRecord
             return false;
         }
 
-        var expected = ExpectedKeywordsOf(this.Request.Mutation, previouslyObservedKeywords, authored);
+        var expected = ExpectedKeywordsOf(this.Request.Mutation, previouslyObservedKeywords.Values, authored);
 
         return expected is not null
             && observedKeywords.Values.Count == expected.Count
             && observedKeywords.Values.All(expected.Contains);
+    }
+
+    /// <summary>Finds the changes that, issued together since the earlier reading, left the keywords a folder just reported.</summary>
+    /// <param name="records">The records that may account for the reading.</param>
+    /// <param name="occurrence">The occurrence whose keywords changed.</param>
+    /// <param name="previouslyObservedKeywords">The keywords the last reading before these changes found.</param>
+    /// <param name="observedKeywords">The keywords the server has now reported.</param>
+    /// <param name="previouslyObservedAt">When synchronization last read this occurrence's flags before the reading being judged.</param>
+    /// <returns>The earliest of the changes where more than one of them together explains the reading exactly; otherwise <see langword="null" />.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
+    /// <remarks>
+    /// A replacement committed locally first reaches the server as a removal and an addition, and a reading taken after
+    /// both is explained by neither alone: <see cref="AccountsForKeywordsOf" /> would call it somebody else's change, and
+    /// a rule would be evaluated again on its own replacement.
+    /// </remarks>
+    public static MailboxMutationRecord? AccountingTogetherForKeywordsOf(
+        IReadOnlyList<MailboxMutationRecord> records,
+        EmailOccurrenceId occurrence,
+        EmailKeywords previouslyObservedKeywords,
+        EmailKeywords observedKeywords,
+        DateTimeOffset previouslyObservedAt)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(previouslyObservedKeywords);
+        ArgumentNullException.ThrowIfNull(observedKeywords);
+
+        MailboxMutationRecord[] issued =
+        [
+            .. records
+                .Where(record => record.MayHaveReachedTheServer
+                    && previouslyObservedAt < record.StageChangedAt
+                    && record.Request.Occurrence == occurrence
+                    && MailboxMutationRequest.IsKeywordChange(record.Request.Mutation))
+                .OrderBy(static record => record.RecordedAt),
+        ];
+
+        var expected = issued.Aggregate(
+            new HashSet<string>(previouslyObservedKeywords.Values, StringComparer.OrdinalIgnoreCase),
+            static (carried, record) => ExpectedKeywordsOf(record.Request.Mutation, carried, record.Request.Keywords!)!);
+
+        return issued.Length > 1 && expected.SetEquals(observedKeywords.Values) ? issued[0] : null;
     }
 
     /// <summary>Reports whether a newly discovered occurrence is the one this mutation's placement created.</summary>
@@ -460,7 +501,7 @@ public sealed record MailboxMutationRecord
     /// </remarks>
     private static HashSet<string>? ExpectedKeywordsOf(
         MailboxMutation mutation,
-        EmailKeywords previouslyObservedKeywords,
+        IEnumerable<string> previouslyObservedKeywords,
         AuthoredMailKeywords authored)
     {
         if (mutation == MailboxMutation.SetKeywords)
@@ -473,7 +514,7 @@ public sealed record MailboxMutationRecord
             return null;
         }
 
-        var expected = new HashSet<string>(previouslyObservedKeywords.Values, StringComparer.OrdinalIgnoreCase);
+        var expected = new HashSet<string>(previouslyObservedKeywords, StringComparer.OrdinalIgnoreCase);
 
         if (mutation == MailboxMutation.AddKeywords)
         {

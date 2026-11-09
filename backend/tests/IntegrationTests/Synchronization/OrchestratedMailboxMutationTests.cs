@@ -14,6 +14,7 @@ using MailFathom.Infrastructure.Observability;
 using MailFathom.Infrastructure.Resilience;
 using MailFathom.IntegrationTests.Mailbox;
 using MailFathom.IntegrationTests.Orchestration;
+using MailKit;
 using MailKit.Net.Imap;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -260,6 +261,85 @@ public sealed class OrchestratedMailboxMutationTests(MailFathomOrchestrationFixt
 
         // The replacement was carried as a difference rather than as STORE FLAGS, so the flag nobody named survives it.
         Assert.True(labelled.IsSeen);
+    }
+
+    /// <summary>
+    /// The difference a replacement is carried as, beside another client's changes on a real server: what each side did
+    /// not name is merged, and where both change one keyword the last command decides it. The removal is written as the
+    /// stored row holds the keyword, in upper case, so this also shows a real server matching it without regard to case.
+    /// </summary>
+    /// <param name="carried">What the message starts with, comma-separated.</param>
+    /// <param name="removed">What the removal names, comma-separated.</param>
+    /// <param name="added">What the addition names, comma-separated.</param>
+    /// <param name="otherAddsBefore">What another client adds before the commands, comma-separated.</param>
+    /// <param name="otherRemovesBefore">What another client removes before the commands, comma-separated.</param>
+    /// <param name="otherAddsAfter">What another client adds after the commands, comma-separated.</param>
+    /// <param name="expected">What the message ends up carrying, comma-separated, in ordinal order.</param>
+    [Theory]
+    [MailboxStateStep(5)]
+    [InlineData("label-a", "LABEL-A", "something1", "something2", "", "", "something1,something2")]
+    [InlineData("label-a,label-b", "LABEL-B", "label-c", "", "label-a", "", "label-c")]
+    [InlineData("label-a", "LABEL-A", "", "", "", "label-a", "label-a")]
+    public async Task KeywordDifference_BesideAnotherClientsChanges_MergesAndLetsTheLastWriterDecide(
+        string carried,
+        string removed,
+        string added,
+        string otherAddsBefore,
+        string otherRemovesBefore,
+        string otherAddsAfter,
+        string expected)
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var mailbox = new OrchestratedMailbox(orchestration.MailServer);
+        var subject = $"merge-target-{Guid.NewGuid():N}";
+        var occurrence = await mailbox.DeliverAndLocateAsync(Inbox.Id, subject, cancellationToken);
+
+        async Task OtherClientAsync(StoreAction action, string keywords)
+        {
+            if (keywords.Length > 0)
+            {
+                await mailbox.StoreKeywordsAsync(OrchestratedMailbox.InboxPath, occurrence.Uid, action, keywords.Split(','), cancellationToken);
+            }
+        }
+
+        await OtherClientAsync(StoreAction.Add, carried);
+        await OtherClientAsync(StoreAction.Add, otherAddsBefore);
+        await OtherClientAsync(StoreAction.Remove, otherRemovesBefore);
+
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+
+        // Act
+        await services.InScopeAsync(
+            async (scope, token) =>
+            {
+                var account = SyntheticMailAccount.AccountId;
+                await using var session = await scope.GetRequiredService<IMailboxWriteSessionFactory>()
+                    .OpenForWritingAsync(
+                        account,
+                        Inbox,
+                        scope.GetRequiredService<IMailTransportSecurityPolicyReader>().GetPolicy(account),
+                        token);
+                var journal = new InMemoryMailboxMutationJournal();
+
+                await session.RemoveKeywordsAsync(occurrence, AuthoredMailKeywords.Create([removed]), journal, token);
+
+                if (added.Length > 0)
+                {
+                    await session.AddKeywordsAsync(occurrence, AuthoredMailKeywords.Create([added]), journal, token);
+                }
+
+                return true;
+            },
+            cancellationToken);
+
+        await OtherClientAsync(StoreAction.Add, otherAddsAfter);
+
+        // Assert
+        var inbox = await mailbox.ReadAsync(OrchestratedMailbox.InboxPath, cancellationToken);
+        var labelled = Assert.Single(inbox, email => email.Subject == subject);
+
+        Assert.Equal(expected.Split(','), labelled.Keywords.Order(StringComparer.Ordinal));
     }
 
     /// <summary>Builds the pool over a client that hides <c>MOVE</c>, and relocates one email through it.</summary>

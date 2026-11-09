@@ -108,7 +108,7 @@ public sealed class MailFlagChangeRecorder
     /// <param name="requester">The invocation asking, which is what decides whether asking again is the same request.</param>
     /// <param name="reader">Who the act is asked for: the person through the client, or an agent or an MCP caller.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
-    /// <returns>The record opened for each value, in the order the change states them; no record where a held account applied the change; and, on a restoring account, the change applied beside the record each value whose message still stands on the source is carried by.</returns>
+    /// <returns>The record opened for each value, in the order the change states them, which for a replacement of keywords committed locally first is the removal and the addition it needed, or neither; no record where a held account applied the change; and, on a restoring account, the change applied beside the record each value whose message still stands on the source is carried by.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="change" /> or <paramref name="requester" /> is <see langword="null" />.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold the writing grant.</exception>
     /// <exception cref="AuthoredMailChangeTargetNotFoundException">Thrown when this deployment serves no readable email under that identity, or when the email it serves names a remote occurrence the mail server no longer holds.</exception>
@@ -233,14 +233,17 @@ public sealed class MailFlagChangeRecorder
                         applied.Add(appliedChange);
                     }
 
-                    if (submitted.Record is { } record)
+                    foreach (var record in submitted.Records)
                     {
-                        if (!StatesTheSameChangeAs(record.Request, request))
+                        // A record of another mutation is one half of the difference a replacement was carried as, which
+                        // names only what differed, so its terms are not the ones asked for. A repeat of a replacement is
+                        // answered from the key above: the person's client always sends one, and no other reader may replace.
+                        if (record.Request.Mutation == request.Mutation && !StatesTheSameChangeAs(record.Request, request))
                         {
                             throw MailFlagChangeInvalidException.RequestIdAlreadyAskedForAnother();
                         }
 
-                        opened.Add(new RecordedMailFlagMutation(request.Mutation, record.Id, record.Lifecycle));
+                        opened.Add(RecordedMailFlagMutation.Of(record));
                     }
                 }
 

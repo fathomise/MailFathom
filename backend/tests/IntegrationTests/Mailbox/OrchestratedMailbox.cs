@@ -251,6 +251,31 @@ internal sealed class OrchestratedMailbox(OrchestratedMailServerEndpoints endpoi
         await client.DisconnectAsync(quit: true, cancellationToken);
     }
 
+    /// <summary>Adds or removes keywords on one message over a connection MailFathom knows nothing about, as another mail client would.</summary>
+    /// <param name="folderPath">The folder holding the message.</param>
+    /// <param name="uid">The message to label.</param>
+    /// <param name="action">Whether the keywords are added or removed.</param>
+    /// <param name="keywords">The keywords.</param>
+    /// <param name="cancellationToken">Cancels the store.</param>
+    /// <returns>A task that completes once the server has answered.</returns>
+    internal async Task StoreKeywordsAsync(
+        string folderPath,
+        ImapUid uid,
+        StoreAction action,
+        IReadOnlyCollection<string> keywords,
+        CancellationToken cancellationToken)
+    {
+        using var client = await this.ConnectAndAuthenticateAsync(cancellationToken);
+
+        var folder = await client.GetFolderAsync(folderPath, cancellationToken);
+        await folder.OpenAsync(FolderAccess.ReadWrite, cancellationToken);
+
+        await folder.StoreAsync(new UniqueId(uid.Value), new StoreFlagsRequest(action, keywords) { Silent = true }, cancellationToken);
+
+        await folder.CloseAsync(expunge: false, cancellationToken);
+        await client.DisconnectAsync(quit: true, cancellationToken);
+    }
+
     /// <summary>Moves one message between folders over a connection MailFathom knows nothing about.</summary>
     /// <param name="sourceFolderPath">The folder holding the message.</param>
     /// <param name="destinationFolderPath">The folder to move it into.</param>
