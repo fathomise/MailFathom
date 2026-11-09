@@ -40,6 +40,9 @@ public sealed record MailDraftRequest
     /// <summary>Gets the people the draft is addressed to, which may be nobody.</summary>
     public IReadOnlyList<NamedRecipient> Recipients { get; init; } = [];
 
+    /// <summary>Gets the addresses the author asks replies to go to, which is ordinarily none.</summary>
+    public IReadOnlyList<string> ReplyTo { get; init; } = [];
+
     /// <summary>Gets the subject line the author wrote.</summary>
     public required string Subject { get; init; }
 

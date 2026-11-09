@@ -4,6 +4,7 @@
 
 using System.Text.Json.Serialization;
 using MailFathom.Application.EmailContent.Rendering.Document;
+using MailFathom.Application.Mail.Delivery.Addressing;
 using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Drafts;
 using MailFathom.Domain.Delivery;
@@ -24,6 +25,7 @@ namespace MailFathom.Host.Api;
 /// <param name="RequestsDeliveryNotification">Whether the author asks to be told when each recipient's server delivers the message or cannot, off where absent.</param>
 /// <param name="RequestsReadReceipt">Whether the author asks each recipient's mail client for a read receipt, off where absent.</param>
 /// <param name="Pictures">The pictures the author placed inside the message, each referred to from <paramref name="HtmlBody" /> as <c>cid:</c> and its name, or <see langword="null" /> for none.</param>
+/// <param name="ReplyTo">The addresses named in the <c>Reply-To</c> header, which nobody is offered the message at, or <see langword="null" /> for none.</param>
 /// <remarks>
 /// <para>
 /// The two shapes are one request because a revision has to be able to stay whichever shape the draft already is: a
@@ -47,8 +49,14 @@ internal sealed record ClientDraftWriteRequest(
     string? Answers,
     bool? RequestsDeliveryNotification = null,
     bool? RequestsReadReceipt = null,
-    IReadOnlyList<ClientDraftPictureRequest>? Pictures = null)
+    IReadOnlyList<ClientDraftPictureRequest>? Pictures = null,
+    IReadOnlyList<string>? ReplyTo = null)
 {
+    /// <summary>Gets the reply addresses the body states, held to the bounds a recipient header is held to.</summary>
+    /// <exception cref="MailDraftRefusedException">Thrown when the body names more reply addresses than a recipient header may, or an entry names nobody.</exception>
+    internal IReadOnlyList<string> StatedReplyTo() =>
+        AuthoredRecipientHeaders.ReplyAddresses(this.ReplyTo, MailDraftRefusedException.From);
+
     /// <summary>Gets the two requests the body states, each off where the body does not state it.</summary>
     /// <remarks>
     /// A revision states the whole draft again, these two included, so a revision that leaves one out switches it off
@@ -260,17 +268,20 @@ internal sealed record ClientDraftAttachmentResponse(
 /// <param name="PlainTextBody">The plain text the stored message carries.</param>
 /// <param name="HtmlBody">The HTML the stored message carries, or <see langword="null" /> where it carries none.</param>
 /// <param name="Document">The stored message reduced to the closed document tree a client draws, or <see langword="null" /> where it yielded none.</param>
+/// <param name="ReplyTo">The addresses the stored message names in its <c>Reply-To</c> header, which is none where it names none.</param>
 /// <remarks>
-/// The words are parsed out of the stored message rather than out of a second copy of them, so what an author is given
-/// back to go on editing is what would actually be sent. It is the one draft route that loads a message, which is why
-/// it is asked for one draft by identity. The document is what a composer reads the author's formatting back from, for
-/// the reason a message's body route serves one: a client that never parses markup is handed the tree instead.
+/// The words and the reply addresses are parsed out of the stored message rather than out of a second copy of them, so
+/// what an author is given back to go on editing is what would actually be sent. It is the one draft route that loads a
+/// message, which is why it is asked for one draft by identity. The document is what a composer reads the author's
+/// formatting back from, for the reason a message's body route serves one: a client that never parses markup is handed
+/// the tree instead.
 /// </remarks>
 internal sealed record ClientDraftReadingResponse(
     ClientDraftResponse Draft,
     string PlainTextBody,
     string? HtmlBody,
-    MailDocument? Document)
+    MailDocument? Document,
+    IReadOnlyList<string> ReplyTo)
 {
     /// <summary>Describes one opened draft for the wire.</summary>
     /// <param name="reading">The draft and its text, as the use case read them.</param>
@@ -284,7 +295,8 @@ internal sealed record ClientDraftReadingResponse(
             ClientDraftResponse.For(reading.Draft),
             reading.Text.PlainTextBody,
             reading.Text.HtmlBody,
-            reading.Document);
+            reading.Document,
+            reading.ReplyTo);
     }
 }
 

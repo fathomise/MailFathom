@@ -612,6 +612,7 @@ internal static class ClientDraftEndpoints
         {
             Account = named,
             Recipients = NamedRecipients(request),
+            ReplyTo = request.StatedReplyTo(),
             Subject = request.Subject,
             PlainTextBody = request.PlainTextBody ?? string.Empty,
             HtmlBody = request.HtmlBody,
@@ -650,6 +651,7 @@ internal static class ClientDraftEndpoints
             Pictures = request.StatedPictures(),
             ReceiptRequests = request.ReceiptRequests,
             Recipients = NamedRecipients(request),
+            ReplyTo = request.StatedReplyTo(),
             Author = Author(),
             Revises = revises,
         };

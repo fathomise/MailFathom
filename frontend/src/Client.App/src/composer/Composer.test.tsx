@@ -648,6 +648,7 @@ describe('Composer, a message of its own', () => {
             to: ['ada@example.invalid'],
             cc: [],
             bcc: [],
+            replyTo: [],
             words: [{ text: 'Half a sentence' }],
             pictures: new Map(),
             requestsDeliveryNotification: false,
@@ -678,6 +679,7 @@ describe('Composer, a message of its own', () => {
             to: ['ada@example.invalid'],
             cc: [],
             bcc: [],
+            replyTo: [],
             words: [{ text: 'Half a sentence' }],
             pictures: new Map(),
             requestsDeliveryNotification: false,
@@ -700,6 +702,7 @@ describe('Composer, a message of its own', () => {
             to: ['ada@example.invalid'],
             cc: [],
             bcc: [],
+            replyTo: [],
             words: [],
             pictures: new Map(),
             requestsDeliveryNotification: false,
@@ -783,11 +786,60 @@ describe('Composer, a message of its own', () => {
             to: ['ada@example.invalid'],
             cc: [],
             bcc: [],
+            replyTo: [],
         });
 
         fireEvent.click(screen.getByRole('button', { name: 'Show CC and BCC fields' }));
 
         expect(screen.getByRole('button', { name: 'Remove bo@example.invalid from Bcc' })).toBeDefined();
+    });
+
+    it('draws a Reply-to row under Bcc, and files what it holds as where replies go rather than as a recipient', async () => {
+        const { asked } = drawComposer();
+
+        address('ada@example.invalid');
+        fireEvent.click(screen.getByRole('button', { name: 'Show CC and BCC fields' }));
+
+        const replyTo = screen.getByLabelText('Reply-to');
+
+        expect(replyTo.getAttribute('placeholder')).toBe('replies go to the sending address…');
+
+        fireEvent.change(replyTo, { target: { value: 'desk@example.invalid' } });
+        fireEvent.keyDown(replyTo, { key: 'Enter' });
+
+        expect(screen.getByLabelText('Reply-to').getAttribute('placeholder')).toBe('another address…');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+        await waitFor(() => {
+            expect(asked.some((request) => request.method === 'POST')).toBe(true);
+        });
+        expect(JSON.parse(asked.find((request) => request.method === 'POST')?.body ?? '{}')).toMatchObject({
+            to: ['ada@example.invalid'],
+            bcc: [],
+            replyTo: ['desk@example.invalid'],
+        });
+    });
+
+    it('opens with the copy headers shown where what it carries on names a reply address', () => {
+        rememberComposition({
+            answering: null,
+            continuing: null,
+            account: 'work',
+            subject: 'Invoice',
+            to: ['ada@example.invalid'],
+            cc: [],
+            bcc: [],
+            replyTo: ['desk@example.invalid'],
+            words: [],
+            pictures: new Map(),
+            requestsDeliveryNotification: false,
+            requestsReadReceipt: false,
+        });
+
+        drawComposer();
+
+        expect(screen.getByRole('button', { name: 'Remove desk@example.invalid from Reply-to' })).toBeDefined();
     });
 
     it('keeps the copies written while the headers are hidden, and sends to them once they are shown again', async () => {
@@ -2280,6 +2332,7 @@ describe('Composer, an answer', () => {
             to: ['billing@example.invalid'],
             cc: [],
             bcc: [],
+            replyTo: [],
             words: [{ text: 'Half an answer' }],
             pictures: new Map(),
             requestsDeliveryNotification: false,
@@ -2512,6 +2565,7 @@ describe('Composer drafting', () => {
             to: [],
             cc: [],
             bcc: [],
+            replyTo: [],
             words: [
                 {
                     element: 'p',
@@ -2676,6 +2730,7 @@ describe('Composer drafting', () => {
             to: ['ada@example.invalid'],
             cc: [],
             bcc: [],
+            replyTo: [],
             words: [{ text: 'What I had written' }],
             pictures: new Map(),
             requestsDeliveryNotification: false,

@@ -60,6 +60,41 @@ public static class AuthoredRecipientHeaders
             ?? throw fieldUnusable(new AuthoredEmailRefusal(AuthoredEmailRefusalReason.FieldUnusable, unusableField));
     }
 
+    /// <summary>Reads the <c>Reply-To</c> header a boundary carries, held to the bounds a recipient header is held to.</summary>
+    /// <param name="replyTo">The addresses replies should go to, or <see langword="null" /> where the act names none.</param>
+    /// <param name="refused">Raises the caller's own refusal, naming the <c>Reply-To</c> header.</param>
+    /// <returns>The addresses as the author wrote them, unparsed, which is none where the act names none.</returns>
+    /// <remarks>
+    /// Counted on its own rather than with the recipients, because nobody it names is offered the message; what is
+    /// asked here is the same as above — how long the list is and whether an entry names anybody — and every other
+    /// question about the text is the composition's.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="refused" /> is <see langword="null" />.</exception>
+    /// <exception cref="MailFathomException">Thrown as the refusal the act supplied, when the header names more addresses than a recipient header may or an entry carries no address.</exception>
+    public static IReadOnlyList<string> ReplyAddresses(
+        IReadOnlyList<string>? replyTo,
+        Func<AuthoredEmailRefusal, MailFathomException> refused)
+    {
+        ArgumentNullException.ThrowIfNull(refused);
+
+        if (replyTo is null)
+        {
+            return [];
+        }
+
+        if (replyTo.Count > OutgoingEmailRequest.MaximumRecipientCount)
+        {
+            throw refused(new AuthoredEmailRefusal(
+                AuthoredEmailRefusalReason.BoundExceeded,
+                AuthoredEmailField.ReplyTo,
+                OutgoingEmailRequest.MaximumRecipientCount));
+        }
+
+        return replyTo.Any(string.IsNullOrWhiteSpace)
+            ? throw refused(new AuthoredEmailRefusal(AuthoredEmailRefusalReason.FieldUnusable, AuthoredEmailField.ReplyTo))
+            : [.. replyTo];
+    }
+
     /// <summary>Counts what the three headers name together, which is what decides whether they are expanded at all.</summary>
     private static int Counted(
         IReadOnlyList<string>? to,

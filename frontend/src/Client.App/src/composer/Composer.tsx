@@ -102,10 +102,6 @@ import { picturesNamedIn } from './writtenText';
 // deployment is both parts of one message — the markup and the plain-text alternative read out of the same tree. The
 // block of AI actions the design draws above the bar is `DraftingBlock`, drawn wherever the deployment writes drafts.
 //
-// **The design's copy headers carry a Reply-to field this composer does not draw.** A message MailFathom writes names
-// no reply address — the draft, the outbox, and the composed message carry To, Cc, and Bcc and nothing else — so a
-// field here would be an address somebody typed that no message ever carried.
-//
 // **An answer's subject is read-only, and that is the platform rather than a choice.** A save either names an account
 // and a subject, or names the message it answers and lets the deployment derive both — so an edited subject on a reply
 // is a value the surface has nowhere to put, and offering the field would be offering an edit that is discarded.
@@ -942,7 +938,9 @@ export function Composer({
         contextStart === null || sameMessages(context, contextStart)
             ? null
             : { subject: subjectSaid(contextStart[0] ?? ''), more: contextStart.length - 1 };
-    const copiesShown = copiesChosen ?? (composition !== null && composition.cc.length + composition.bcc.length > 0);
+    const copiesShown =
+        copiesChosen ??
+        (composition !== null && composition.cc.length + composition.bcc.length + composition.replyTo.length > 0);
     const footer = useFooterOf(composition?.account ?? null);
 
     return (
@@ -1112,6 +1110,23 @@ export function Composer({
                                 transport={transport}
                                 onChanged={(bcc) => {
                                     revise({ bcc });
+                                }}
+                            />
+
+                            <RecipientField
+                                label={translate('compose.replyTo')}
+                                placeholder={translate(
+                                    composition.replyTo.length > 0
+                                        ? 'compose.replyToMorePlaceholder'
+                                        : 'compose.replyToPlaceholder',
+                                )}
+                                addresses={composition.replyTo}
+                                participants={participants}
+                                session={session}
+                                organizationName={organizationName}
+                                transport={transport}
+                                onChanged={(replyTo) => {
+                                    revise({ replyTo });
                                 }}
                             />
                         </>
@@ -1355,7 +1370,7 @@ function offeredFrom(
 // What leaves the composer for what is written: all of it while the copy headers are shown, and nothing from them while
 // they are hidden, whatever they still hold.
 function sentAs(composition: Composition, copiesShown: boolean): Composition {
-    return copiesShown ? composition : { ...composition, cc: [], bcc: [] };
+    return copiesShown ? composition : { ...composition, cc: [], bcc: [], replyTo: [] };
 }
 
 // Where a composition starts: what this tab was already writing where it matches what is being opened, an empty

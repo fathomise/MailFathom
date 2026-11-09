@@ -45,4 +45,7 @@ public enum AuthoredEmailField
 
     /// <summary>A picture placed inside the message, by its name, its octets, or the reference the HTML alternative makes to it.</summary>
     Picture = 10,
+
+    /// <summary>The <c>Reply-To</c> header, which names where replies go rather than anybody the message is offered to.</summary>
+    ReplyTo = 11,
 }

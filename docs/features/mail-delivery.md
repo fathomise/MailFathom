@@ -351,6 +351,16 @@ return to the mailbox the message left from — and one whose author did not ask
 afresh, which is what takes the header off again. A draft, and the send promoted from it byte for byte, are the only
 messages that can carry it.
 
+**A reply address is the author's, and nobody it names is sent the message.** An authored message may name addresses
+replies should go to, held apart from its recipients: the composer writes them into `Reply-To` and nowhere else, so none
+of them reaches `RCPT TO`, the recipient policy, or the outgoing record, and a message naming none carries no `Reply-To`
+at all. They are held to what a recipient is held to — the recipient count, a usable address no longer than 320
+characters, a line break refused, an internationalized address only where the server carries one — and a refusal names
+the reply-to addresses rather than any of them. They live in the composed message alone, as a display name does, so a
+draft opened again reads them back out of its stored message, the send promoted from it carries them, and every
+occasion of a recurring send is recomposed from a stored draft that keeps them. The client's drafts are the one
+boundary that names them today.
+
 **The threading headers are owned here too.** `In-Reply-To` and `References` are what every mail client threads by and are
 the whole of what it threads by, so a message answering another carries both or neither. Nothing above the composer
 writes either one: an authored message states which conversation it answers and the composer writes the headers, which is

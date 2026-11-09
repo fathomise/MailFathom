@@ -10,7 +10,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     threads: THREADS, earlierMessages, threadMailBodies, conversationTitles: CONV_TITLES, newInThread: NEW_IN_THREAD, sentLast: SENT_LAST, threadStateSources: STATE_SRC, replyTo: HDR_REPLY_TO, cc: HDR_CC,
     mailBodies, documentPreviews, composeDrafts: COMPOSE_DRAFTS, newMessageTo: NEW_MESSAGE_TO, sendLater: SEND_LATER,
     composeFormatting: COMPOSE_FMT, composeFormattedDraft: COMPOSE_FORMATTED_DRAFT,
-    accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, freshness: FRESHNESS, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, defaultReplyTo: DEFAULT_REPLY_TO, mailAccounts: MAIL_ACCOUNTS,
+    accounts: ACCOUNTS, outbox: OUTBOX, localDrafts: LOCAL_DRAFTS, changeNotices: CHANGE_NOTICES, freshness: FRESHNESS, unifiedAccounts: UNIFIED_ACCOUNTS, mailboxes: MAILBOXES, mailAccounts: MAIL_ACCOUNTS,
     home: HOME, savedAnswers: SAVED_ANSWERS, suggestedQuestions: SUGGESTED_QUESTIONS, sampleText: SAMPLE_TEXT,
     calendarBriefing: CALENDAR_BRIEFING, eventFromThread: EVENT_FROM_THREAD, taskCapacity: TASK_CAPACITY,
     starterChips: STARTER_CHIPS, anotherTimeReply: ANOTHER_TIME, agentScheduledEvents: AGENT_SCHEDULED,
@@ -937,7 +937,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     openDraft = (d) => {
       this.pendingBody = draftHtml(d.body);
       const patch = { compose: true, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null,
-        composeSubjEdit: d.subject, composeDraft: d, composeCc: (d.cc || []).slice(), ccOpen: !!(d.cc || []).length, closeAsk: false, sendAsk: null,
+        composeSubjEdit: d.subject, composeDraft: d, composeCc: (d.cc || []).slice(), composeReplyTo: (d.replyTo || []).slice(), ccOpen: !!((d.cc || []).length || (d.replyTo || []).length), closeAsk: false, sendAsk: null,
         composeReceipts: Object.assign({}, d.receipts), composeSendAt: null, sendLaterAsk: null };
       if (this.tabsMode()) this.openTab("compose", patch);
       else this.setState(patch);
@@ -8249,7 +8249,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         composeBccChips: (st.composeBcc || []).map((n, i) => ({ name: n, remove: () => this.setState(s => ({ composeBcc: (s.composeBcc || []).filter((_, j) => j !== i) })) })),
         composeReplyToChips: (st.composeReplyTo || []).map((n, i) => ({ name: n, remove: () => this.setState(s => ({ composeReplyTo: (s.composeReplyTo || []).filter((_, j) => j !== i) })) })),
         replyToValue: st.replyToInput || "",
-        replyToPlaceholder: (st.composeReplyTo || []).length ? "another address…" : "default " + DEFAULT_REPLY_TO,
+        replyToPlaceholder: (st.composeReplyTo || []).length ? "another address…" : "replies go to the sending address…",
         onReplyToInput: (e) => this.setState({ replyToInput: e.target.value }),
         onReplyToKey: (e) => {
           if (e.key !== "Enter" && e.key !== ",") return;

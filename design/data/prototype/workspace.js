@@ -139,13 +139,13 @@ MailFathomDesign.data.unifiedAccounts = {
   counts: { Inbox: "15", Drafts: "2" },
 };
 
-// The mailboxes a message can be sent from, and the Reply-To a message carries unless another is added.
+// The mailboxes a message can be sent from. A message carries no Reply-To unless one is added, so replies go back to
+// the address it was sent from.
 MailFathomDesign.data.mailboxes = [
   { mail: "k.kowalska@nordwind.pl", dot: "var(--accent)" },
   { mail: "kowalska.k@mail.example", dot: "#4d9aa8" },
   { mail: "board@nordwind.example", dot: "#b0873a", shared: true },
 ];
-MailFathomDesign.data.defaultReplyTo = "k.kowalska@nordwind.example";
 
 // The accounts Settings lists, with what their connection forms hold.
 MailFathomDesign.data.mailAccounts = [

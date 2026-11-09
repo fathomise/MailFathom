@@ -39,6 +39,7 @@ const composition: MailDraftComposition = {
     to: ['anna@example.invalid'],
     cc: [],
     bcc: [],
+    replyTo: ['desk@example.invalid'],
     requestsDeliveryNotification: false,
     requestsReadReceipt: false,
 };
@@ -103,6 +104,7 @@ describe('writeMailDraft', () => {
             to: ['anna@example.invalid'],
             cc: [],
             bcc: [],
+            replyTo: ['desk@example.invalid'],
             requestsDeliveryNotification: false,
             requestsReadReceipt: false,
             account: 'work',
@@ -122,6 +124,7 @@ describe('writeMailDraft', () => {
             to: ['anna@example.invalid'],
             cc: ['piotr@example.invalid'],
             bcc: [],
+            replyTo: [],
             requestsDeliveryNotification: true,
             requestsReadReceipt: false,
         });
@@ -133,6 +136,7 @@ describe('writeMailDraft', () => {
             to: ['anna@example.invalid'],
             cc: ['piotr@example.invalid'],
             bcc: [],
+            replyTo: [],
             requestsDeliveryNotification: true,
             requestsReadReceipt: false,
             answeredEmailId: 'c0ffee00-0000-4000-8000-000000000001',
@@ -623,8 +627,28 @@ describe('readMailDraft', () => {
                 draft: { draftId, subject: 'Renewal terms' },
                 plainTextBody: 'The figure in the third column.',
                 document: null,
+                replyTo: [],
             },
         });
+    });
+
+    it('reads the addresses its stored message asks replies to go to', async () => {
+        const answer = await readMailDraft(
+            session,
+            answering(reading({ replyTo: ['desk@example.invalid', 'office@example.invalid'] })),
+            draftId,
+        );
+
+        expect(answer.outcome === 'read' ? answer.value.replyTo : null).toStrictEqual([
+            'desk@example.invalid',
+            'office@example.invalid',
+        ]);
+    });
+
+    it('refuses reply addresses it could not read rather than opening the draft without them', async () => {
+        const answer = await readMailDraft(session, answering(reading({ replyTo: [42] })), draftId);
+
+        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
     it('reads the document the words were reduced to, which is what formatting is read back from', async () => {

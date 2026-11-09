@@ -117,6 +117,7 @@ describe('answerTo', () => {
         );
 
         expect(composed.to).toEqual(['desk@example.invalid']);
+        expect(composed.replyTo).toEqual([]);
     });
 
     it('copies everybody else in when the reply is to everyone, and nobody twice', () => {
@@ -164,6 +165,7 @@ describe('draftContinued', () => {
             participant('To', 'ada@example.invalid'),
             participant('Cc', 'grace@example.invalid'),
             participant('Bcc', 'alan@example.invalid'),
+            participant('ReplyTo', 'desk@example.invalid'),
         ]);
 
         const composed = draftContinued(filed, null);
@@ -173,6 +175,7 @@ describe('draftContinued', () => {
         expect(composed.to).toStrictEqual(['ada@example.invalid']);
         expect(composed.cc).toStrictEqual(['grace@example.invalid']);
         expect(composed.bcc).toStrictEqual(['alan@example.invalid']);
+        expect(composed.replyTo).toStrictEqual(['desk@example.invalid']);
     });
 
     // It answers nothing — a draft is a message of its own — and says instead which stored message the words came
@@ -218,6 +221,7 @@ describe('draftHeld', () => {
             },
             plainTextBody: 'Agenda\nfirst item',
             document: null,
+            replyTo: ['desk@example.invalid'],
         });
 
         expect(composed).toMatchObject({
@@ -228,6 +232,7 @@ describe('draftHeld', () => {
             to: ['marta@example.invalid'],
             cc: ['olek@example.invalid'],
             bcc: [],
+            replyTo: ['desk@example.invalid'],
             requestsDeliveryNotification: false,
             requestsReadReceipt: true,
         });
@@ -313,6 +318,7 @@ describe('anythingWritten', () => {
     it('is something once anybody is addressed or anything is written', () => {
         expect(anythingWritten({ ...nothingWrittenYet('work'), words: [{ text: 'Hello' }] })).toBe(true);
         expect(anythingWritten({ ...nothingWrittenYet('work'), cc: ['ada@example.invalid'] })).toBe(true);
+        expect(anythingWritten({ ...nothingWrittenYet('work'), replyTo: ['desk@example.invalid'] })).toBe(true);
         expect(
             anythingWritten({
                 ...nothingWrittenYet('work'),
@@ -329,7 +335,12 @@ describe('anythingWritten', () => {
 describe('wireComposition', () => {
     it('states the account and the subject for a message of its own', () => {
         expect(
-            wireComposition({ ...nothingWrittenYet('work'), subject: 'Invoice', to: ['ada@example.invalid'] }),
+            wireComposition({
+                ...nothingWrittenYet('work'),
+                subject: 'Invoice',
+                to: ['ada@example.invalid'],
+                replyTo: ['desk@example.invalid'],
+            }),
         ).toEqual({
             account: 'work',
             subject: 'Invoice',
@@ -339,6 +350,7 @@ describe('wireComposition', () => {
             to: ['ada@example.invalid'],
             cc: [],
             bcc: [],
+            replyTo: ['desk@example.invalid'],
             requestsDeliveryNotification: false,
             requestsReadReceipt: false,
         });
@@ -369,6 +381,7 @@ describe('wireComposition', () => {
             to: [],
             cc: [],
             bcc: [],
+            replyTo: [],
             requestsDeliveryNotification: false,
             requestsReadReceipt: false,
         });

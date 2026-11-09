@@ -126,6 +126,14 @@ export interface MailDraftReading {
 
     /** The words as the closed tree a composer reads formatting back from, or `null` where the message yields none. */
     readonly document: MailDocument | null;
+
+    /**
+     * The addresses its stored message asks replies to go to, which is none where it names none.
+     *
+     * They are read out of the message rather than the record, because nobody they name is sent the message: the record
+     * lists who it is offered to, and these are not among them.
+     */
+    readonly replyTo: readonly string[];
 }
 
 /** The drafts one person is writing in one account, newest edit first. */
@@ -172,6 +180,9 @@ export type MailDraftComposition = {
     readonly to: readonly string[];
     readonly cc: readonly string[];
     readonly bcc: readonly string[];
+
+    /** The addresses replies should go to, which the message names in `Reply-To` and nobody is sent it at. */
+    readonly replyTo: readonly string[];
 
     /**
      * Whether the message asks to be told when each recipient's server delivers it or cannot, and whether it asks each
@@ -583,6 +594,7 @@ function stated(composition: MailDraftComposition): Readonly<Record<string, unkn
         to: composition.to,
         cc: composition.cc,
         bcc: composition.bcc,
+        replyTo: composition.replyTo,
         requestsDeliveryNotification: composition.requestsDeliveryNotification,
         requestsReadReceipt: composition.requestsReadReceipt,
     };
@@ -779,14 +791,23 @@ function parseReading(body: Readonly<Record<string, unknown>> | null): MailDraft
     const plainTextBody = body?.['plainTextBody'];
     const carried = body?.['document'] ?? null;
     const document = carried === null ? null : parseMailDocument(carried);
+    // Absent reads as none, so a draft a replica of the build before this one serves during an upgrade still opens.
+    const replyTo = parseEach(body?.['replyTo'] ?? [], mostRecipientsInDraft, (entry) =>
+        typeof entry === 'string' ? entry : null,
+    );
 
     // A document that arrived and could not be read is refused rather than dropped: the plain text would still open,
     // and the author would then save over their own formatting without knowing any was there.
-    if (draft === null || typeof plainTextBody !== 'string' || (carried !== null && document === null)) {
+    if (
+        draft === null ||
+        typeof plainTextBody !== 'string' ||
+        (carried !== null && document === null) ||
+        replyTo === null
+    ) {
         return null;
     }
 
-    return { draft, plainTextBody, document };
+    return { draft, plainTextBody, document, replyTo };
 }
 
 function parseRecipient(entry: unknown): MailDraftRecipient | null {
