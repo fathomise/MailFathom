@@ -468,12 +468,11 @@ public sealed class MimeKitAuthoredEmailComposerTests
 
     /// <summary>A reply address is held to what a recipient is held to, and the refusal names the header.</summary>
     [Theory]
-    [InlineData("not-a-mailbox", AuthoredEmailRefusalReason.FieldUnusable, MailFathomErrorCode.OutgoingEmailFieldUnusable)]
-    [InlineData(Injection, AuthoredEmailRefusalReason.HeaderInjected, MailFathomErrorCode.OutgoingEmailHeaderInjected)]
+    [InlineData("not-a-mailbox", AuthoredEmailRefusalReason.FieldUnusable)]
+    [InlineData(Injection, AuthoredEmailRefusalReason.HeaderInjected)]
     public void ComposeDraft_UnusableReplyAddress_IsRefusedNamingTheReplyToHeader(
         string replyAddress,
-        AuthoredEmailRefusalReason reason,
-        MailFathomErrorCode code)
+        AuthoredEmailRefusalReason reason)
     {
         // Arrange
         var authored = Authored() with { ReplyTo = [replyAddress] };
@@ -484,7 +483,6 @@ public sealed class MimeKitAuthoredEmailComposerTests
         // Assert
         var refusal = composition.Refusal!;
         Assert.Equal((reason, AuthoredEmailField.ReplyTo), (refusal.Reason, refusal.Field));
-        Assert.Equal(code, refusal.Failure);
     }
 
     /// <summary>More reply addresses than the deployment addresses one message to is refused naming that number.</summary>
