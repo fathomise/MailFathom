@@ -62,7 +62,8 @@ internal sealed class StoredTombstoneEraser(TimeProvider timeProvider) : IStored
         return aged.Count;
     }
 
-    /// <summary>Composes the query for one batch, oldest row first, so a test can hold it to what PostgreSQL is asked.</summary>
+    /// <summary>Composes the query for one batch, so a test can hold it to what PostgreSQL is asked.</summary>
+    /// <remarks>Rows are taken in identifier order, which is stable and walks an existing index but follows no tombstone's age, so what a night's bound leaves behind is not the youngest.</remarks>
     /// <param name="context">The context the rows are read and tracked through.</param>
     /// <param name="account">The account whose tombstones are read.</param>
     /// <param name="retention">The folders left alone.</param>

@@ -28,6 +28,7 @@ public sealed class MailAccountRetentionHandlerTests
     {
         // Arrange
         var fixture = new Fixture();
+        fixture.RetentionReader.GetTombstoneRetention(Account).Returns(MailTombstoneRetention.Disabled);
         fixture.Threads.RemoveEmptiedAsync(Arg.Any<IPersistenceSession>(), Account, Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(7);
 
@@ -72,6 +73,7 @@ public sealed class MailAccountRetentionHandlerTests
     {
         // Arrange
         var fixture = new Fixture();
+        fixture.RetentionReader.GetTombstoneRetention(Account).Returns(MailTombstoneRetention.Disabled);
         fixture.Threads.RemoveEmptiedAsync(Arg.Any<IPersistenceSession>(), Account, Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(call => Task.FromResult(call.ArgAt<int>(2)));
 
@@ -95,6 +97,7 @@ public sealed class MailAccountRetentionHandlerTests
     {
         // Arrange
         var fixture = new Fixture();
+        fixture.RetentionReader.GetTombstoneRetention(Account).Returns(MailTombstoneRetention.Disabled);
         fixture.Threads.RemoveEmptiedAsync(Arg.Any<IPersistenceSession>(), Account, Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(call => Task.FromResult(call.ArgAt<int>(2)));
         fixture.Session.CommitAsync(Arg.Any<CancellationToken>()).Returns(PersistenceCommitResult.ConcurrencyConflict);
@@ -215,7 +218,8 @@ public sealed class MailAccountRetentionHandlerTests
     {
         // Arrange
         var fixture = new Fixture();
-        fixture.Custody.ReadAsync(Account, Arg.Any<CancellationToken>()).Returns((MailAccountCustodyState?)null);
+        fixture.Custody.ReadAsync(Arg.Any<IPersistenceSession>(), Account, Arg.Any<CancellationToken>())
+            .Returns((MailAccountCustodyState?)null);
 
         // Act
         await fixture.Handler.RunAsync(Run, TestContext.Current.CancellationToken);
@@ -253,6 +257,66 @@ public sealed class MailAccountRetentionHandlerTests
             MailAccountRetentionHandler.MaximumTombstonesErasedPerNight,
             0,
             Arg.Any<TimeSpan>());
+    }
+
+    /// <summary>A run spans many batches, and an account that starts being restored partway through loses nothing further.</summary>
+    [Fact]
+    public async Task RunAsync_AnAccountThatStartsRestoringBetweenBatches_ErasesNoFurtherBatch()
+    {
+        // Arrange
+        var fixture = new Fixture();
+        fixture.ReturnsCustody(MailAccountCustodyPhase.Mirrored, MailAccountCustodyPhase.Restoring);
+        fixture.AnyErasure()
+            .Returns(MailAccountRetentionHandler.TombstonesErasedPerTransaction);
+
+        // Act
+        await fixture.Handler.RunAsync(Run, TestContext.Current.CancellationToken);
+
+        // Assert
+        await fixture.Eraser.Received(1).EraseAsync(
+            Arg.Any<IPersistenceSession>(),
+            Account,
+            Arg.Any<MailTombstoneRetention>(),
+            Arg.Any<DateTimeOffset>(),
+            Arg.Any<bool>(),
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+        fixture.Telemetry.Received(1).RecordAccountRun(
+            MailAccountRetentionHandler.TombstonesErasedPerTransaction,
+            0,
+            Arg.Any<TimeSpan>());
+    }
+
+    /// <summary>An account that starts being held partway through owes the drain a record from the next batch on.</summary>
+    [Fact]
+    public async Task RunAsync_AnAccountThatBecomesHeldBetweenBatches_DrainsItsSourceFromThenOn()
+    {
+        // Arrange
+        var fixture = new Fixture();
+        fixture.ReturnsCustody(MailAccountCustodyPhase.Mirrored, MailAccountCustodyPhase.Held);
+        fixture.AnyErasure()
+            .Returns(MailAccountRetentionHandler.TombstonesErasedPerTransaction, 0);
+
+        // Act
+        await fixture.Handler.RunAsync(Run, TestContext.Current.CancellationToken);
+
+        // Assert
+        await fixture.Eraser.Received(1).EraseAsync(
+            Arg.Any<IPersistenceSession>(),
+            Account,
+            Arg.Any<MailTombstoneRetention>(),
+            Arg.Any<DateTimeOffset>(),
+            isSourceDrained: false,
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+        await fixture.Eraser.Received(1).EraseAsync(
+            Arg.Any<IPersistenceSession>(),
+            Account,
+            Arg.Any<MailTombstoneRetention>(),
+            Arg.Any<DateTimeOffset>(),
+            isSourceDrained: true,
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>A tombstone that moved under the batch costs that batch and no other step, and the next occasion repeats it.</summary>
@@ -347,9 +411,9 @@ public sealed class MailAccountRetentionHandlerTests
 
         public MailTombstoneRetention Retention { get; } = new(IsEnabled: true, TimeSpan.FromDays(30), ["ARCHIVE"]);
 
-        public void ReturnsCustody(MailAccountCustodyPhase phase) =>
-            this.Custody.ReadAsync(Account, Arg.Any<CancellationToken>())
-                .Returns(new MailAccountCustodyState(MailAccountCustody.MirrorSource, phase));
+        public void ReturnsCustody(MailAccountCustodyPhase phase, params MailAccountCustodyPhase[] thereafter) =>
+            this.Custody.ReadAsync(Arg.Any<IPersistenceSession>(), Account, Arg.Any<CancellationToken>())
+                .Returns(StateIn(phase), [.. thereafter.Select(StateIn)]);
 
         public Task<int> AnyErasure() => this.Eraser.EraseAsync(
             Arg.Any<IPersistenceSession>(),
@@ -368,5 +432,8 @@ public sealed class MailAccountRetentionHandlerTests
             Arg.Any<bool>(),
             Arg.Any<int>(),
             Arg.Any<CancellationToken>());
+
+        private static MailAccountCustodyState StateIn(MailAccountCustodyPhase phase) =>
+            new(MailAccountCustody.MirrorSource, phase);
     }
 }

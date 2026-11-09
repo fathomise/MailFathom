@@ -131,27 +131,39 @@ public sealed class MailAccountRetentionHandler : IJobHandler
             return 0;
         }
 
-        var state = await this.custody.ReadAsync(account, cancellationToken);
+        var tombstonedBefore = this.timeProvider.GetUtcNow() - retention.After;
+
+        return await this.TakeInBatchesAsync(
+            (session, limit) => this.EraseBatchAsync(session, account, retention, tombstonedBefore, limit, cancellationToken),
+            TombstonesErasedPerTransaction,
+            MaximumTombstonesErasedPerNight,
+            cancellationToken);
+    }
+
+    /// <summary>Erases one batch under the custody read in that batch's own transaction.</summary>
+    /// <remarks>Read per batch because a run spans many of them, and an account can start being restored or held in between.</remarks>
+    private async Task<int> EraseBatchAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        MailTombstoneRetention retention,
+        DateTimeOffset tombstonedBefore,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var state = await this.custody.ReadAsync(session, account, cancellationToken);
 
         if (state?.Phase is not (MailAccountCustodyPhase.Mirrored or MailAccountCustodyPhase.Held))
         {
             return 0;
         }
 
-        var tombstonedBefore = this.timeProvider.GetUtcNow() - retention.After;
-        var isSourceDrained = state.Phase is MailAccountCustodyPhase.Held;
-
-        return await this.TakeInBatchesAsync(
-            (session, limit) => this.tombstones.EraseAsync(
-                session,
-                account,
-                retention,
-                tombstonedBefore,
-                isSourceDrained,
-                limit,
-                cancellationToken),
-            TombstonesErasedPerTransaction,
-            MaximumTombstonesErasedPerNight,
+        return await this.tombstones.EraseAsync(
+            session,
+            account,
+            retention,
+            tombstonedBefore,
+            isSourceDrained: state.Phase is MailAccountCustodyPhase.Held,
+            limit,
             cancellationToken);
     }
 
