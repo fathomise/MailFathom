@@ -91,14 +91,19 @@ export function titleStateOf(thread: ListedMailThread): ThreadTitleState {
     return title.standing.length === 0 ? 'topic' : 'standing';
 }
 
-/**
- * Which of the three heights a row is drawn at, which is what a drawn row is measured under: a subject with no frame, a
- * framed topic alone, or a framed topic with a line under it — the standing, or the line holding it back.
- */
-export type ThreadRowVariant = 'subject' | 'topic' | 'standing';
+/** What a row's title draws: a subject with no frame, a framed topic alone, or a framed topic with a line under it. */
+type ThreadRowTitle = 'subject' | 'topic' | 'standing';
 
-export function rowVariantOf(titled: ThreadTitleState): ThreadRowVariant {
-    return titled === 'untitled' ? 'subject' : titled === 'topic' ? 'topic' : 'standing';
+/**
+ * Which height a row is drawn at, which is what a drawn row is measured under: what its title draws — the line under
+ * a framed topic being the standing or the line holding it back — and whether its categories stand a line of their own.
+ */
+export type ThreadRowVariant = ThreadRowTitle | `${ThreadRowTitle}Categorized`;
+
+export function rowVariantOf(titled: ThreadTitleState, categorized: boolean): ThreadRowVariant {
+    const title: ThreadRowTitle = titled === 'untitled' ? 'subject' : titled === 'topic' ? 'topic' : 'standing';
+
+    return categorized ? `${title}Categorized` : title;
 }
 
 // A count alone misses a message that left as another arrived, so the newest arrival is held against the one the title

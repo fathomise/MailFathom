@@ -38,6 +38,7 @@ const email: MailTimelineEntry = {
     preview: 'The opening of the message.',
     enrichment: null,
     threadMessageCount: null,
+    categories: [],
     spam: null,
     sender: {
         authorAuthentication: 'Authenticated',
@@ -217,6 +218,63 @@ function marked(storedEmailId: string, place: MarkedIn = { account: 'work', fold
 // The line the row's height reserves whether or not anything is in it, which is what lets the search's row and the
 // folder's row be one row. Whether it is announced is the whole of what the two cases differ by, and nothing a reader
 // sees says which happened — so the attribute is what is asserted here.
+describe('MessageRow, what sort of mail it is', () => {
+    function drawnWith(over: Partial<MailTimelineEntry>): void {
+        render(
+            <LocalizationProvider>
+                <MailboxActsContext value={nothingActed}>
+                    <ul>
+                        <MessageRow
+                            email={{ ...email, ...over }}
+                            position={1}
+                            open={false}
+                            selected={false}
+                            focusable
+                            onOpen={() => undefined}
+                            onPoint={() => undefined}
+                            onElement={() => undefined}
+                        />
+                    </ul>
+                </MailboxActsContext>
+            </LocalizationProvider>,
+        );
+    }
+
+    it('names a default in the reader’s language and an own category as written', () => {
+        drawnWith({
+            categories: [
+                { identity: 'finance', name: null },
+                { identity: 'Budget 2027', name: 'Budget 2027' },
+            ],
+        });
+
+        expect(screen.getByText('Finance')).not.toBeNull();
+        expect(screen.getAllByText('Budget 2027')).not.toHaveLength(0);
+    });
+
+    it('draws no label for a message that is only correspondence', () => {
+        drawnWith({ categories: [{ identity: 'correspondence', name: null }] });
+
+        expect(screen.queryByText('Correspondence')).toBeNull();
+    });
+
+    it('draws no category on a message that is spam', () => {
+        drawnWith({
+            categories: [{ identity: 'finance', name: null }],
+            spam: {
+                verdict: 'Spam',
+                decidedBy: 'Model',
+                spamSubcategory: null,
+                spamSubcategoryNamedBy: null,
+                phishingRequest: null,
+                impersonatedParty: null,
+            },
+        });
+
+        expect(screen.queryByText('Finance')).toBeNull();
+    });
+});
+
 describe('MessageRow', () => {
     it('announces the reserved line when the row has something to say about the message', () => {
         const reserved = reservedLine(drawRow('Found by what it means.'));

@@ -41,6 +41,7 @@ const email = {
     sizeOctets: 1_024,
     preview: 'The opening of the message.',
     sender: listedSender('trusted'),
+    categories: [],
 } as unknown as MailTimelineEntry;
 
 const messages: readonly ActedMessage[] = [
@@ -359,6 +360,22 @@ describe('MessageRowMenu', () => {
             answers: 'forward',
             storedEmailId: 'message-1',
         });
+    });
+});
+
+describe('MessageRowMenu, the categories under its header', () => {
+    it('says every category of the row, in a line that wraps', () => {
+        menuUnder({
+            row: {
+                ...email,
+                categories: [
+                    { identity: 'finance', name: null },
+                    { identity: 'Legal', name: 'Legal' },
+                ],
+            },
+        });
+
+        expect(screen.getByText(/Finance - Legal/u).className).toContain('wrap-anywhere');
     });
 });
 

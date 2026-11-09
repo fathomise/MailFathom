@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { asRecord } from './json';
+import { parseMailCategories, type MailCategory } from './mailCategories';
 import { parsePersonPhoto, type PersonPhotoReference } from './personPhotos';
 import { parseListedSender, type MailListedSender } from './senderFacts';
 
@@ -90,6 +91,9 @@ export interface ListedMailThread {
 
     /** What a derivation called the conversation, or `null` where none has. */
     readonly title: ListedThreadTitle | null;
+
+    /** Every category any of its messages holds, each once, empty where it shows none. */
+    readonly categories: readonly MailCategory[];
 }
 
 const longestIdentity = 256;
@@ -135,8 +139,9 @@ export function parseListedThread(value: unknown): ListedMailThread | null {
     const newestReceivedSender = sent === null ? null : parseListedSender(sent);
     const titled = record['title'] ?? null;
     const title = titled === null ? null : parseTitle(titled);
+    const categories = parseMailCategories(record['categories']);
 
-    if (participants === null || newest === null) {
+    if (participants === null || newest === null || categories === null) {
         return null;
     }
 
@@ -155,6 +160,7 @@ export function parseListedThread(value: unknown): ListedMailThread | null {
         newest,
         newestReceivedSender,
         title,
+        categories,
     };
 }
 

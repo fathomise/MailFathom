@@ -37,6 +37,7 @@ function message(
             preview: null,
             enrichment: null,
             threadMessageCount: null,
+            categories: [],
             spam: null,
             sender: {
                 authorAuthentication: 'Authenticated',

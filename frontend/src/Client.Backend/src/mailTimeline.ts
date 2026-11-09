@@ -5,6 +5,7 @@
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
 import { asRecord } from './json';
 import { parseListedThread, type ListedMailThread } from './listedMailThread';
+import { parseMailCategories, type MailCategory } from './mailCategories';
 import { parseEnrichment, type MailEnrichment, type MailEnrichmentAspect } from './mailEnrichment';
 import { parseSpamVerdict, type MailSpamVerdict } from './mailSpam';
 import { parsePersonPhoto, type PersonPhotoReference } from './personPhotos';
@@ -173,6 +174,9 @@ export interface MailTimelineEntry {
 
     /** What the account's own message asked to be told and what came back, counted, or `null` where it asked for nothing and nothing came. */
     readonly receipts: MailReceiptSummary | null;
+
+    /** What sort of mail the message is, empty where it shows none. */
+    readonly categories: readonly MailCategory[];
 }
 
 /** One page of the list, and the two cursors the pages either side of it are asked with. */
@@ -539,6 +543,11 @@ export function parseTimelineEntry(value: unknown): MailTimelineEntry | null {
         return null;
     }
 
+    const categories = parseMailCategories(record['categories']);
+    if (categories === null) {
+        return null;
+    }
+
     return {
         id,
         account,
@@ -564,6 +573,7 @@ export function parseTimelineEntry(value: unknown): MailTimelineEntry | null {
         senderPhoto: drawnBy.photo,
         report,
         receipts,
+        categories,
     };
 }
 

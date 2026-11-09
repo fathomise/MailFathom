@@ -100,6 +100,7 @@ function message(sender: MailSenderVerdict, signature: MailSignature = unsigned)
         report: null,
         receipts: null,
         readReceiptRequest: null,
+        categories: [],
         body: { availability: 'Readable', plainText: true, html: false },
         sender,
         signature,

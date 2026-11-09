@@ -337,8 +337,8 @@
     --spacing-message-row-narrow: 7rem;
 
     /* What a conversation row reserves for the opening of its newest message: two lines at `--leading-quoted`, whether
-       the message runs to two or not, as the design draws every row. A row of the conversation list is otherwise as tall
-       as its title says, so this is the one part of it that does not move. */
+       the message runs to two or not, as the design draws every row with no categories, which take the second line's
+       place. A row of the conversation list is otherwise as tall as its title says. */
     --spacing-thread-snippet: calc(var(--text-base) * var(--leading-quoted) * 2);
 
     /* One row of the address book, which is one height at every width — the design draws the contact row the
@@ -501,6 +501,12 @@
        so the sender, the marks and the time keep one line at the row's one height. The list column's own width rather
        than the window's, asked as `@max-list-compact:` of a row inside it. */
     --container-list-compact: 16.875rem;
+
+    /* How much of a row's third line its categories may take, and how wide one label stands on a row and on the opened
+       message before it ends in an ellipsis, all the design's: what is said beside the labels always keeps its start. */
+    --container-categories-line: 62%;
+    --container-category-row: 8.25rem;
+    --container-category-opened: 15rem;
 
     /* The widest one tab in the strip above the content pane is drawn, which is a ceiling in the same sense: a tab
        takes the room its title needs and stops here, so a long subject is cut rather than pushing every other tab off

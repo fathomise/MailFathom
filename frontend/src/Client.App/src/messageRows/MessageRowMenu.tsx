@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { isSpam, type MailTimelineEntry } from '@mailfathom/client-backend';
+import { drawnCategories, type DrawnCategory } from '../categories/categoryWords';
 import { useComposing, type Composing } from '../composer/useComposing';
 import { ContextMenu, type ContextMenuItem } from '../contextMenu/ContextMenu';
 import type { MenuPoint } from '../contextMenu/menuPlacement';
@@ -119,6 +120,9 @@ export function MessageRowMenu({
     const spam = drawnSpam(acts, email);
     const marked = isSpam(spam);
 
+    // A finger has no hover, and the hold that would ask a label for its whole name is what opened this menu.
+    const categories = marked ? [] : drawnCategories(email.categories, translate);
+
     const askAgent =
         marked || handToAgent === null || thread === null
             ? null
@@ -139,13 +143,14 @@ export function MessageRowMenu({
                 senderDetail(
                     spam !== null && marked
                         ? spamMenuDetail(correspondent(email), spam, translate)
-                        : correspondent(email),
+                        : categoriesDetail(correspondent(email), categories, translate),
                     senderMark ?? null,
                     translate,
                 ),
                 receipt === null ? null : wordOf(receipt, translate, locale),
                 translate,
             )}
+            detailWraps={categories.length > 0}
             at={at}
             items={rowItems({
                 email,
@@ -342,6 +347,21 @@ function rowItems({
         ...sender,
         ...receipts,
     ];
+}
+
+function categoriesDetail(
+    who: string | undefined,
+    categories: readonly DrawnCategory[],
+    translate: Translate,
+): string | undefined {
+    return categories.reduce<string | undefined>(
+        (detail, category) =>
+            translate('category.rowDetail', {
+                who: detail ?? translate('list.senderUnknown'),
+                category: category.name,
+            }),
+        who,
+    );
 }
 
 function senderDetail(who: string | undefined, mark: SenderMark | null, translate: Translate): string | undefined {

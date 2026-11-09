@@ -174,6 +174,14 @@ describe('readMailMessage', () => {
         ]);
     });
 
+    it('reads what sort of mail the message is', async () => {
+        const categories = [{ identity: 'travel', name: null }];
+
+        const message = await readingOf(described({ categories }));
+
+        expect(message?.categories).toStrictEqual(categories);
+    });
+
     it('reads the message a well-formed answer describes', async () => {
         const message = await readingOf(described());
 

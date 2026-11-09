@@ -40,6 +40,7 @@ function message(subject: string | null, participants: readonly MailParticipant[
         report: null,
         receipts: null,
         readReceiptRequest: null,
+        categories: [],
         body: { availability: 'Available', plainText: true, html: false },
         sender: {
             authorAuthentication: 'Authenticated',

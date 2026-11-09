@@ -31,6 +31,7 @@ function drawn(over: Partial<RowContents> = {}): RowContents {
         senderMark: 'neutral',
         reading: null,
         spam: null,
+        categories: '',
         ...over,
     };
 }

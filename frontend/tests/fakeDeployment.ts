@@ -2661,6 +2661,7 @@ function corpusRow(storedEmailId: string): FolderRow | null {
         sizeOctets: found.sizeOctets,
         preview: found.preview,
         threadMessageCount: found.threadMessageCount,
+        categories: found.categories,
         sender: found.sender,
         enrichment: null,
     };

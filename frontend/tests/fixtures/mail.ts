@@ -79,6 +79,35 @@ function derivedReading(at: number) {
     };
 }
 
+/**
+ * What sort of mail each row is, cycling through the states a row draws: one default, nothing categorized yet, a
+ * default no label is drawn for, more own categories than a row names, and the longest name a mailbox may declare.
+ */
+const categoriesByRow = [
+    [{ identity: 'subscriptions', name: null }],
+    [],
+    [{ identity: 'finance', name: null }],
+    [{ identity: 'correspondence', name: null }],
+    [
+        { identity: 'correspondence', name: null },
+        { identity: 'Legal', name: 'Legal' },
+        { identity: 'Budget 2027', name: 'Budget 2027' },
+        { identity: 'Suppliers', name: 'Suppliers' },
+    ],
+    [
+        { identity: 'shopping', name: null },
+        {
+            identity: 'Contract renewals, addenda and indexation clauses for the master',
+            name: 'Contract renewals, addenda and indexation clauses for the master',
+        },
+    ],
+    [{ identity: 'other', name: null }],
+];
+
+function categoriesOf(at: number) {
+    return categoriesByRow[at % categoriesByRow.length] ?? [];
+}
+
 function timelineRow(at: number) {
     return {
         id: `message-${String(at)}`,
@@ -99,6 +128,7 @@ function timelineRow(at: number) {
         sizeOctets: 4_096,
         preview: `The opening of message ${String(at)}.`,
         threadMessageCount: null,
+        categories: categoriesOf(at),
         sender: listedSender(senderKindOf(`message-${String(at)}`)),
     };
 }
@@ -513,6 +543,7 @@ function conversationEmail(row: (typeof conversationRows)[number], position: num
         preview: row.preview,
         enrichment: derivedReading(position),
         threadMessageCount: conversationRows.length,
+        categories: categoriesOf(position),
         sender: listedSender(senderKindOf(row.id)),
         receipts: row.id === answeredReplyId ? answeredReplyCounted : null,
     };
@@ -549,6 +580,7 @@ function conversationContent(row: (typeof conversationRows)[number]) {
             body: { availability: 'Readable', plainText: true, html: false },
             attachments: [],
             unread: false,
+            categories: categoriesOf(conversationRows.indexOf(row)),
             receipts: row.id === answeredReplyId ? answeredReplyReceipts : null,
         },
         body: bodyOfConversationRow(row),
@@ -770,6 +802,7 @@ function spamRow(
         attachmentCount: 0,
         preview: `${subject}.`,
         enrichment: null,
+        categories: [],
         spam: {
             verdict: 'Spam',
             decidedBy: 'Model',
@@ -860,6 +893,7 @@ function listedThread(threadId: string, said: Readonly<Record<string, unknown>>)
         hasAttachments: false,
         moreParticipantsNotNamed: false,
         newestReceivedSender: listedSender('verified'),
+        categories: [],
         ...said,
     };
 }
@@ -892,6 +926,7 @@ function newestOf(
 export const threadList = {
     conversations: [
         listedThread('00000000-0000-4000-8000-0000000000d1', {
+            categories: categoriesOf(4),
             unreadCount: 2,
             hasAttachments: true,
             participants: [anna, reader],
@@ -910,6 +945,7 @@ export const threadList = {
             },
         }),
         listedThread('00000000-0000-4000-8000-0000000000d2', {
+            categories: categoriesOf(2),
             messageCount: 4,
             unreadCount: 1,
             participants: [piotr, reader],
@@ -928,6 +964,7 @@ export const threadList = {
             },
         }),
         listedThread('00000000-0000-4000-8000-0000000000d3', {
+            categories: categoriesOf(5),
             messageCount: 2,
             participants: [billing, reader],
             newest: newestOf(

@@ -11,6 +11,8 @@ import {
     type MailFathomTransport,
     type MailMessage,
 } from '@mailfathom/client-backend';
+import { OpenedCategories } from '../categories/CategoryLabels';
+import { drawnCategories } from '../categories/categoryWords';
 import { useContactPhoto } from '../contactBook/contactPhotos';
 import { Icon } from '../controls/Icon';
 import { ReceivedAt } from '../controls/ReceivedAt';
@@ -121,6 +123,7 @@ export function OpenedMessage({
     // links, and its files open nothing. The person's own mark from this session counts before the next read says so.
     const spam = drawnSpam(acts, { id: message.storedEmailId, spam: message.spam });
     const readOnly = isSpam(spam);
+    const categories = readOnly ? [] : drawnCategories(message.categories, translate);
     const details = useRef<HTMLDialogElement>(null);
     const [anchor, setAnchor] = useState<AskedSender['anchor']>(null);
     const receiptDialog = useRef<HTMLDialogElement>(null);
@@ -224,85 +227,91 @@ export function OpenedMessage({
                                 place="card"
                             />
 
-                            <span className="min-w-0 truncate text-md font-semibold text-text">
-                                {author === null
-                                    ? translate('message.noAuthor')
-                                    : (author.displayName ?? author.address)}
-                            </span>
+                            {/* Everything beside the avatar is one line that wraps as a whole where it runs out, as the
+                        design draws it, so a long category moves the end of the line rather than crushing the name. */}
+                            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
+                                <span className="min-w-0 truncate text-md font-semibold text-text">
+                                    {author === null
+                                        ? translate('message.noAuthor')
+                                        : (author.displayName ?? author.address)}
+                                </span>
 
-                            {/* Who sent it, as far as anything established it, beside the name it claims — the same mark its
+                                {/* Who sent it, as far as anything established it, beside the name it claims — the same mark its
                         row carries, and the way to every step that reached it. */}
-                            {marked ? (
-                                <SenderBadge
-                                    mark={senderMarkOf(listedSenderOf(message))}
-                                    onOpen={(at) => {
-                                        // Placed before it opens, so the details never draw for a frame where the last ones stood.
-                                        flushSync(() => {
-                                            setAnchor({
-                                                left: at.left,
-                                                right: at.right,
-                                                top: at.top,
-                                                bottom: at.bottom,
-                                            });
-                                        });
-                                        details.current?.showModal();
-                                    }}
-                                />
-                            ) : null}
-
-                            {marks}
-
-                            <span className="flex-1" />
-
-                            {/* What came back for a message the account sent, first in the end of the line as the design draws
-                        it, and the way to every recipient's own reports. */}
-                            {receiptsShown ? (
-                                <ReceiptBadge
-                                    receipts={message.receipts}
-                                    participants={message.headers.participants}
-                                    onOpen={(at) => {
-                                        flushSync(() => {
-                                            setAskedReceipts({
-                                                storedEmailId,
-                                                message,
-                                                anchor: {
+                                {marked ? (
+                                    <SenderBadge
+                                        mark={senderMarkOf(listedSenderOf(message))}
+                                        onOpen={(at) => {
+                                            // Placed before it opens, so the details never draw for a frame where the last ones stood.
+                                            flushSync(() => {
+                                                setAnchor({
                                                     left: at.left,
                                                     right: at.right,
                                                     top: at.top,
                                                     bottom: at.bottom,
-                                                },
+                                                });
                                             });
-                                        });
-                                        receiptDialog.current?.showModal();
-                                    }}
-                                />
-                            ) : null}
+                                            details.current?.showModal();
+                                        }}
+                                    />
+                                ) : null}
 
-                            {summary}
+                                <OpenedCategories categories={categories} />
 
-                            {message.attachments.length === 0 ? null : (
-                                <span className="flex shrink-0 items-center gap-0.75 text-xs text-faint">
-                                    <Icon name="attach_file" className="size-icon-xs" />
-                                    {numbers.format(message.attachments.length)}
-                                </span>
-                            )}
+                                {marks}
 
-                            {/* Drawn in the reduced view and in no other. With the embedded HTML view chosen the markup is
+                                <span className="ms-auto flex shrink-0 items-center gap-2.25">
+                                    {/* What came back for a message the account sent, first in the end of the line as the design draws
+                        it, and the way to every recipient's own reports. */}
+                                    {receiptsShown ? (
+                                        <ReceiptBadge
+                                            receipts={message.receipts}
+                                            participants={message.headers.participants}
+                                            onOpen={(at) => {
+                                                flushSync(() => {
+                                                    setAskedReceipts({
+                                                        storedEmailId,
+                                                        message,
+                                                        anchor: {
+                                                            left: at.left,
+                                                            right: at.right,
+                                                            top: at.top,
+                                                            bottom: at.bottom,
+                                                        },
+                                                    });
+                                                });
+                                                receiptDialog.current?.showModal();
+                                            }}
+                                        />
+                                    ) : null}
+
+                                    {summary}
+
+                                    {message.attachments.length === 0 ? null : (
+                                        <span className="flex shrink-0 items-center gap-0.75 text-xs text-faint">
+                                            <Icon name="attach_file" className="size-icon-xs" />
+                                            {numbers.format(message.attachments.length)}
+                                        </span>
+                                    )}
+
+                                    {/* Drawn in the reduced view and in no other. With the embedded HTML view chosen the markup is
                         already on the screen under this line, so a control offering to open it would open a second
                         copy of what is being read — which is why it goes rather than being disabled. */}
-                            {/* Spam keeps the control whatever view is chosen, and the press says why its original stays shut. */}
-                            {embeddedHtml && !readOnly ? null : (
-                                <ShowFullHtml
-                                    onShow={onShowFullHtml}
-                                    {...(readOnly && {
-                                        onRefused: () => {
-                                            refuse('spam.refusedOriginal');
-                                        },
-                                    })}
-                                />
-                            )}
+                                    {/* Spam keeps the control whatever view is chosen, and the press says why its original stays shut. */}
+                                    {embeddedHtml && !readOnly ? null : (
+                                        <ShowFullHtml
+                                            onShow={onShowFullHtml}
+                                            {...(readOnly && {
+                                                onRefused: () => {
+                                                    refuse('spam.refusedOriginal');
+                                                },
+                                            })}
+                                        />
+                                    )}
 
-                            <ReceivedAt at={message.headers.receivedAt} />
+                                    <ReceivedAt at={message.headers.receivedAt} />
+                                </span>
+                            </div>
                         </div>
 
                         {spam !== null && readOnly ? <SpamWarning spam={spam} /> : null}

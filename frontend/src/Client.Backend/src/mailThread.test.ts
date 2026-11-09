@@ -36,6 +36,7 @@ const email = {
     sizeOctets: 84_213,
     preview: 'The figures you asked for are attached.',
     threadMessageCount: 2,
+    categories: [],
     sender: {
         authorAuthentication: 'Authenticated',
         deploymentTrust: 'Unknown',
@@ -378,6 +379,7 @@ describe('readMailThread drawing the messages', () => {
             report: null,
             receipts: null,
             readReceiptRequest: null,
+            categories: [],
         });
         expect(answered.outcome === 'read' && answered.value.messages[0]?.body).toStrictEqual(said);
     });

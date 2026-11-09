@@ -33,6 +33,7 @@ function message(id: string): Readonly<Record<string, unknown>> {
         preview: null,
         enrichment: null,
         threadMessageCount: null,
+        categories: [],
         sender: {
             authorAuthentication: 'Authenticated',
             deploymentTrust: 'Unknown',
