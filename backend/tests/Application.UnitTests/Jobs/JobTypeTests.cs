@@ -30,6 +30,8 @@ public sealed class JobTypeTests
             JobType.EraseLocalMailFolderMail,
             JobType.EraseWithdrawnMailFolderMail,
             JobType.ExportMailbox,
+            JobType.WalkMailRetention,
+            JobType.RetainMailAccount,
         ];
 
         // Act

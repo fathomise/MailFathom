@@ -36,6 +36,8 @@ namespace MailFathom.Infrastructure.Persistence.Jobs;
 [JsonSerializable(typeof(RunScheduledMailRulesJobPayload))]
 [JsonSerializable(typeof(RederiveStoredMailJobPayload))]
 [JsonSerializable(typeof(ReclaimContentObjectsJobPayload))]
+[JsonSerializable(typeof(WalkMailRetentionJobPayload))]
+[JsonSerializable(typeof(RetainMailAccountJobPayload))]
 [JsonSerializable(typeof(EraseLocalMailFolderMailJobPayload))]
 [JsonSerializable(typeof(EraseWithdrawnMailFolderMailJobPayload))]
 [JsonSerializable(typeof(ExportMailboxJobPayload))]

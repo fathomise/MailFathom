@@ -37,6 +37,7 @@ using MailFathom.Application.Mail.KnownAuthenticationProviders;
 using MailFathom.Application.Mail.Maintenance;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Audit;
+using MailFathom.Application.Mail.Retention;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Retrieval.AskMail.Audit;
 using MailFathom.Application.Rules;
@@ -785,6 +786,13 @@ internal static class HostComposition
         // where no endpoint is configured: the sweep it drives is what AddContentStorage registers, and its absence is
         // the deployment saying its payloads leave with the rows they are a column of.
         builder.Services.AddScoped<IJobHandler, ContentObjectReclamationHandler>();
+        // The nightly retention walk and each account's run of it. One schedule for the deployment, read from the
+        // validated settings per pass, so a change to the schedule reaches the next pass as a rule's would.
+        builder.Services.AddScoped<IJobHandler, MailRetentionWalkHandler>();
+        builder.Services.AddScoped<IJobHandler, MailAccountRetentionHandler>();
+        builder.Services.AddScoped<IScheduledJobSource>(provider => new MailRetentionScheduleSource(
+            provider.GetRequiredService<ISettingsSnapshot<MailSynchronizationOptions>>().Current.Retention.ToRecurrence()));
+        builder.Services.AddSingleton<IMailRetentionAccounts, ServedMailRetentionAccounts>();
         // Registered on every deployment for the reason the reclamation is: a pass handed on before a restart has to
         // find its handler, and it erases nothing on an account that holds no erased folder.
         builder.Services.AddScoped<IJobHandler, LocalMailFolderMailErasureHandler>();

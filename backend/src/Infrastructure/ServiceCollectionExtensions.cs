@@ -103,6 +103,7 @@ using MailFathom.Application.Mail.Mutations.Convergence;
 using MailFathom.Application.Mail.Mutations.Destinations;
 using MailFathom.Application.Mail.Mutations.Filing;
 using MailFathom.Application.Mail.Mutations.Local;
+using MailFathom.Application.Mail.Retention;
 using MailFathom.Application.Notifications;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
@@ -501,6 +502,7 @@ public static class ServiceCollectionExtensions
         // it the eraser is handed nothing to reach and every locator it could have been given would have been null,
         // because a database-backed payload has no key.
         services.AddSingleton<ContentObjectReclamationTelemetry>();
+        services.AddSingleton<IMailRetentionTelemetry, MailRetentionTelemetry>();
         services.AddSingleton<ReleasedContentObjectEraser>();
         // The database half of the sweep, registered with persistence rather than with the endpoint because that is
         // what it reads. Nothing resolves it where no endpoint is configured, since the sweep that asks it is what

@@ -23,7 +23,7 @@ namespace MailFathom.Infrastructure.Persistence.Emails.Threads.Configurations;
 /// <para>
 /// The survivor pointer is the third of them and is a constraint like the others, because a merged conversation is
 /// still reachable by the identifier a tool published before the merge and resolving it is a walk this column decides.
-/// It differs only in doing nothing on delete, since both ends of it are one account's and are erased in the same
+/// It differs only in doing nothing on delete, since both ends of it are one account's and are removed in the same
 /// statement.
 /// </para>
 /// </remarks>
@@ -49,7 +49,8 @@ internal sealed class EmailThreadConfiguration : IEntityTypeConfiguration<EmailT
         // The survivor a merge points at is a row of this same table, and it is constrained rather than trusted: a
         // pointer at a conversation nothing holds would end the walk that resolves a published identifier at a row
         // that is nobody's survivor. Nothing is done on delete because nothing deletes one of these rows on its
-        // own — both sides belong to one account and go together, in the statement that erases it.
+        // own — both sides belong to one account and go together, in one statement: erasing the account, or removing
+        // a conversation whose last stored row has gone along with what was folded into it.
         entity.HasOne<EmailThreadEntity>()
             .WithMany()
             .HasForeignKey(thread => thread.MergedIntoEmailThreadId)

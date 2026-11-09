@@ -681,6 +681,18 @@ internal static class PersistenceConstraintNames
     /// </remarks>
     internal const string EmailThreadIdentifierPrimaryKeyConstraintName = "pk_email_thread_identifiers";
 
+    /// <summary>The key from a stored email to its conversation, which a placement loses when the conversation is removed under it.</summary>
+    internal const string StoredEmailThreadForeignKeyName = "FK_stored_emails_email_threads_EmailThreadId";
+
+    /// <summary>The key from a message identifier to its conversation.</summary>
+    internal const string EmailThreadIdentifierThreadForeignKeyName = "FK_email_thread_identifiers_email_threads_EmailThreadId";
+
+    /// <summary>The key from a derived state to its conversation.</summary>
+    internal const string EmailThreadStateThreadForeignKeyName = "FK_email_thread_states_email_threads_EmailThreadId";
+
+    /// <summary>The key from a folded conversation to its survivor.</summary>
+    internal const string EmailThreadMergedIntoForeignKeyName = "FK_email_threads_email_threads_MergedIntoEmailThreadId";
+
     /// <summary>The index a thread's identifiers are repointed through when two threads merge.</summary>
     internal const string EmailThreadIdentifierThreadIndexName = "ix_email_thread_identifiers_thread";
 

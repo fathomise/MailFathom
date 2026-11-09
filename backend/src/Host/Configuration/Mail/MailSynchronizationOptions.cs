@@ -117,6 +117,9 @@ internal sealed class MailSynchronizationOptions : IValidatableObject
                 .ToDictionary(static declared => declared.Id!, static declared => declared.Account, StringComparer.Ordinal),
             LazyThreadSafetyMode.ExecutionAndPublication);
 
+    /// <summary>Gets the settings of the nightly retention walk.</summary>
+    public MailRetentionOptions Retention { get; set; } = new();
+
     /// <summary>Gets or sets whether periodic synchronization is enabled.</summary>
     public bool Enabled { get; set; }
 
@@ -733,6 +736,11 @@ internal sealed class MailSynchronizationOptions : IValidatableObject
         foreach (var result in this.SignatureVerification.FindConfigurationErrors())
         {
             yield return result;
+        }
+
+        foreach (var error in this.Retention.FindConfigurationErrors())
+        {
+            yield return new ValidationResult(error, [nameof(this.Retention)]);
         }
     }
 

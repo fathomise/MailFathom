@@ -125,6 +125,17 @@ public readonly record struct JobType
     /// </remarks>
     public static JobType ExportMailbox { get; } = new("export-mailbox");
 
+    /// <summary>Gets the type whose work is one segment of a night's walk over the accounts retention reaches.</summary>
+    /// <remarks>
+    /// Its payload contract is <see cref="WalkMailRetentionJobPayload" />, which names a place among the accounts. It
+    /// belongs to no account: it hands each account a job of its own and the rest of the walk to the next segment.
+    /// </remarks>
+    public static JobType WalkMailRetention { get; } = new("walk-mail-retention");
+
+    /// <summary>Gets the type whose work is one account's run of the retention steps for one night.</summary>
+    /// <remarks>Its payload contract is <see cref="RetainMailAccountJobPayload" />, which names the account and nothing in its mail.</remarks>
+    public static JobType RetainMailAccount { get; } = new("retain-mail-account");
+
     /// <summary>Gets every declared job type.</summary>
     /// <remarks>Declared last so the members it lists are already initialized when this initializer runs.</remarks>
     public static IReadOnlyList<JobType> All { get; } =
@@ -139,6 +150,8 @@ public readonly record struct JobType
         EraseLocalMailFolderMail,
         EraseWithdrawnMailFolderMail,
         ExportMailbox,
+        WalkMailRetention,
+        RetainMailAccount,
     ];
 
     /// <summary>Gets whether this value names a declared job type rather than the unusable struct default.</summary>
