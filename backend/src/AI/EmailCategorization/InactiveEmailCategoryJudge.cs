@@ -32,4 +32,21 @@ internal sealed class InactiveEmailCategoryJudge : IEmailCategoryJudge
 
         return Task.FromResult(EmailCategoryJudgement.Unanswered(DecisionModelOutcome.NotActivated));
     }
+
+    /// <inheritdoc />
+    public Task<EmailCategoryJudgement> JudgeOwnCategoryAsync(
+        EmailCategoryEvidence evidence,
+        OwnMailCategory category,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(evidence);
+        ArgumentNullException.ThrowIfNull(category);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return Task.FromResult(EmailCategoryJudgement.Unanswered(DecisionModelOutcome.NotActivated));
+    }
+
+    /// <inheritdoc />
+    public EmailCategoryQuestionRevisions RevisionsOf(IReadOnlyList<OwnMailCategory> ownCategories) =>
+        EmailCategoryQuestions.RevisionsOf(ownCategories);
 }

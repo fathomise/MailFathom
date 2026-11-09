@@ -248,7 +248,7 @@ public sealed class EmailCategorizationPassTests
 
         public IEmailContentStore ContentStore { get; } = Substitute.For<IEmailContentStore>();
 
-        public ScriptedJudge Judge { get; } = new();
+        public ScriptedEmailCategoryJudge Judge { get; } = new() { Answer = EmailCategoryJudgement.Answered([Finance]) };
 
         public RecordingTelemetry Telemetry { get; } = new();
 
@@ -286,37 +286,18 @@ public sealed class EmailCategorizationPassTests
                 this.Store,
                 this.Judge,
                 settingsReader,
-                this.ContentStore,
-                new SpamModelEvidenceReader(
-                    new BoundedBodyEmailContentRenderer("A short synthetic body."),
-                    StubEmailProvenanceReader.AllKnownCorrespondents,
-                    SpamModelStageBounds.Default),
+                new EmailCategorizationConsultation(
+                    this.Judge,
+                    this.ContentStore,
+                    new SpamModelEvidenceReader(
+                        new BoundedBodyEmailContentRenderer("A short synthetic body."),
+                        StubEmailProvenanceReader.AllKnownCorrespondents,
+                        SpamModelStageBounds.Default),
+                    this.Telemetry),
                 SensitiveContentEgressGuards.Inactive(),
                 this.Telemetry,
                 new OptimisticConcurrencyRetryPolicy(sessionFactory, new PersistenceConcurrencyOptions(), new FakeTimeProvider()),
                 this.WalkBounds);
-        }
-    }
-
-    private sealed class ScriptedJudge : IEmailCategoryJudge
-    {
-        public bool IsActive { get; set; } = true;
-
-        public EmailCategoryJudgement Answer { get; set; } = EmailCategoryJudgement.Answered([Finance]);
-
-        public Action? OnAsked { get; set; }
-
-        public List<(EmailCategoryEvidence Evidence, IReadOnlyList<OwnMailCategory> OwnCategories)> Asked { get; } = [];
-
-        public Task<EmailCategoryJudgement> JudgeAsync(
-            EmailCategoryEvidence evidence,
-            IReadOnlyList<OwnMailCategory> ownCategories,
-            CancellationToken cancellationToken)
-        {
-            this.Asked.Add((evidence, ownCategories));
-            this.OnAsked?.Invoke();
-
-            return Task.FromResult(this.Answer);
         }
     }
 

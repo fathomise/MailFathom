@@ -196,6 +196,7 @@ internal static class AdminApiEndpoints
         api.MapMailAnsweringAudit();
         api.MapEmbeddingProfile();
         api.MapMailRules();
+        api.MapClassificationRuns();
         api.MapSpamClassification();
         api.MapJobDeadLetters();
         api.MapOutbox();

@@ -695,6 +695,241 @@
         ],
         "type": "object"
       },
+      "ClassificationRunRequestBody": {
+        "properties": {
+          "account": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "apply": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "category": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "folders": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "rescore": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        },
+        "required": [
+          "account",
+          "folders",
+          "apply",
+          "rescore",
+          "category"
+        ],
+        "type": "object"
+      },
+      "ClassificationRunResponse": {
+        "properties": {
+          "actedEmailCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "categoriesClearedEmailCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "categoriesCurrentEmailCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "categoriesUnansweredEmailCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "categorizedEmailCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "category": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "categoryFolders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "classifiedEmailCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "endedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ending": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "posture": {
+            "type": "string"
+          },
+          "profile": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "rescores": {
+            "type": "boolean"
+          },
+          "skippedEmailCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "spamEmailCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "spamFolders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "unclassifiableEmailCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "undeterminedEmailCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "requestedAt",
+          "spamFolders",
+          "categoryFolders",
+          "category",
+          "posture",
+          "rescores",
+          "profile",
+          "classifiedEmailCount",
+          "spamEmailCount",
+          "undeterminedEmailCount",
+          "skippedEmailCount",
+          "unclassifiableEmailCount",
+          "actedEmailCount",
+          "categorizedEmailCount",
+          "categoriesCurrentEmailCount",
+          "categoriesUnansweredEmailCount",
+          "categoriesClearedEmailCount",
+          "endedAt",
+          "ending"
+        ],
+        "type": "object"
+      },
+      "ClassificationRunStartResponse": {
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/ClassificationRunResponse"
+          },
+          "started": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "started",
+          "run"
+        ],
+        "type": "object"
+      },
+      "ClassificationRunStateResponse": {
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "run": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClassificationRunResponse"
+              }
+            ]
+          }
+        },
+        "required": [
+          "account",
+          "run"
+        ],
+        "type": "object"
+      },
       "ClientAgentConversationEntry": {
         "properties": {
           "entry": {
@@ -13710,184 +13945,6 @@
         ],
         "type": "object"
       },
-      "SpamClassificationRunRequestBody": {
-        "properties": {
-          "account": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "apply": {
-            "type": [
-              "null",
-              "boolean"
-            ]
-          },
-          "folders": {
-            "items": {
-              "type": "string"
-            },
-            "type": [
-              "null",
-              "array"
-            ]
-          },
-          "rescore": {
-            "type": [
-              "null",
-              "boolean"
-            ]
-          }
-        },
-        "required": [
-          "account",
-          "folders",
-          "apply",
-          "rescore"
-        ],
-        "type": "object"
-      },
-      "SpamClassificationRunResponse": {
-        "properties": {
-          "actedEmailCount": {
-            "format": "int32",
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ]
-          },
-          "classifiedEmailCount": {
-            "format": "int32",
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ]
-          },
-          "endedAt": {
-            "format": "date-time",
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "ending": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "folders": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "posture": {
-            "type": "string"
-          },
-          "profile": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "requestedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "rescores": {
-            "type": "boolean"
-          },
-          "skippedEmailCount": {
-            "format": "int32",
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ]
-          },
-          "spamEmailCount": {
-            "format": "int32",
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ]
-          },
-          "unclassifiableEmailCount": {
-            "format": "int32",
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ]
-          },
-          "undeterminedEmailCount": {
-            "format": "int32",
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ]
-          }
-        },
-        "required": [
-          "requestedAt",
-          "folders",
-          "posture",
-          "rescores",
-          "profile",
-          "classifiedEmailCount",
-          "spamEmailCount",
-          "undeterminedEmailCount",
-          "skippedEmailCount",
-          "unclassifiableEmailCount",
-          "actedEmailCount",
-          "endedAt",
-          "ending"
-        ],
-        "type": "object"
-      },
-      "SpamClassificationRunStartResponse": {
-        "properties": {
-          "run": {
-            "$ref": "#/components/schemas/SpamClassificationRunResponse"
-          },
-          "started": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "started",
-          "run"
-        ],
-        "type": "object"
-      },
-      "SpamClassificationRunStateResponse": {
-        "properties": {
-          "account": {
-            "type": "string"
-          },
-          "run": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/SpamClassificationRunResponse"
-              }
-            ]
-          }
-        },
-        "required": [
-          "account",
-          "run"
-        ],
-        "type": "object"
-      },
       "SpamRequestedMutationResponse": {
         "properties": {
           "mutation": {
@@ -15195,6 +15252,77 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MailAnsweringAuditPageResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      }
+    },
+    "/api/admin/classification/runs": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "account",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationRunStateResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Administrative"
+        ]
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ClassificationRunRequestBody"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationRunStartResponse"
                 }
               }
             },
@@ -19815,77 +19943,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SpamClassificationPageResponse"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "tags": [
-          "Administrative"
-        ]
-      }
-    },
-    "/api/admin/spam/runs": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "account",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SpamClassificationRunStateResponse"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "tags": [
-          "Administrative"
-        ]
-      },
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "oneOf": [
-                  {
-                    "type": "null"
-                  },
-                  {
-                    "$ref": "#/components/schemas/SpamClassificationRunRequestBody"
-                  }
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SpamClassificationRunStartResponse"
                 }
               }
             },

@@ -4,8 +4,8 @@
 
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
+using MailFathom.Application.Classification;
 using MailFathom.Application.Spam;
-using MailFathom.Application.Spam.Runs;
 using MailFathom.Domain.Folders;
 
 namespace MailFathom.Host.Configuration.Spam;
@@ -84,7 +84,7 @@ internal sealed class SpamClassificationOptions : IValidatableObject
 
     /// <summary>Turns the declared limits into the bounds one pass of an on-demand run works under.</summary>
     /// <returns>The bounds.</returns>
-    public SpamClassificationRunOptions ToRunOptions() => new()
+    public ClassificationRunOptions ToRunOptions() => new()
     {
         BatchSize = this.RunBatchSize,
         MaxBatchesPerPass = this.MaxRunBatchesPerPass,

@@ -15,4 +15,10 @@ public sealed record EmailCategorizationSettings(bool IsEnabled, IReadOnlyList<O
 {
     /// <summary>Gets the settings of an account that sorts nothing.</summary>
     public static EmailCategorizationSettings Disabled { get; } = new(IsEnabled: false, []);
+
+    /// <summary>Finds the own category a name means.</summary>
+    /// <param name="name">The name, compared without regard to case because an account's categories are unique whatever the case.</param>
+    /// <returns>The category, or <see langword="null" /> where the account names none so.</returns>
+    public OwnMailCategory? OwnCategoryNamed(string name) =>
+        this.OwnCategories.FirstOrDefault(category => string.Equals(category.Name, name, StringComparison.OrdinalIgnoreCase));
 }

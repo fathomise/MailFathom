@@ -12,6 +12,7 @@ using MailFathom.Application.Access.Grants;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Categories;
+using MailFathom.Application.Classification;
 using MailFathom.Application.Configuration;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.Contacts.Members;
@@ -57,7 +58,6 @@ using MailFathom.Application.Spam;
 using MailFathom.Application.Spam.Actions;
 using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Following;
-using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Administration;
@@ -453,10 +453,10 @@ internal static class HostComposition
             .Value
             .ModelStage
             .ToBounds());
-        builder.Services.AddScoped<SpamClassificationPass>();
+        builder.Services.AddScoped<ClassificationRunPass>();
         builder.Services.AddScoped<SpamVerdictFloorPass>();
         builder.Services.AddScoped<JunkMarkFollowPass>();
-        builder.Services.AddScoped<SpamClassificationRunRequests>();
+        builder.Services.AddScoped<ClassificationRunRequests>();
     }
 
     /// <summary>Registers what keeps each mail account's rules, changes them, previews them, and evaluates them.</summary>

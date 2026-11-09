@@ -343,6 +343,151 @@ public sealed class EmailCategorySelectionTests
                 terms ?? WaitRunning),
         ];
 
+    /// <summary>A message a rule pass evaluated has stopped arriving, which is what a run reaches and the arrival stage does not.</summary>
+    [Fact]
+    public void SelectingStored_MailARulePassEvaluatedAndHoldingADefault_SelectsIt()
+    {
+        // Arrange
+        var email = Evaluated(Email());
+        email.Categories.Add(new EmailCategoryEntity
+        {
+            StoredEmailId = email.Id,
+            Kind = EmailCategoryKind.Default,
+            Category = DefaultMailCategory.Finance.ToString(),
+            Origin = "vendor/decider-1",
+            QuestionRevision = "a",
+        });
+
+        // Act & Assert
+        Assert.Single(SelectStored(email));
+    }
+
+    /// <summary>The arrival stage asks about it in this same account run, so a run asking too would ask twice.</summary>
+    [Fact]
+    public void SelectingStored_MailStillArriving_LeavesItOut()
+    {
+        // Act & Assert
+        Assert.Empty(SelectStored(Email()));
+    }
+
+    [Fact]
+    public void SelectingStored_MailOutsideTheNamedBatch_LeavesItOut()
+    {
+        // Arrange
+        var email = Evaluated(Email());
+
+        // Act & Assert
+        Assert.Empty(SelectStored(email, named: [Guid.CreateVersion7()]));
+    }
+
+    [Fact]
+    public void SelectingStored_AFolderNotVisibleToAI_LeavesItsMailOut()
+    {
+        // Act & Assert
+        Assert.Empty(SelectStored(Evaluated(Email()), visibleFolders: []));
+    }
+
+    [Fact]
+    public void SelectingStored_MailWithASpamVerdict_LeavesItOutWhetherOrNotTheAccountClassifies()
+    {
+        // Arrange
+        var email = Evaluated(Email());
+        email.SpamClassification = Classified(email, SpamVerdict.Spam);
+
+        // Act & Assert
+        Assert.Empty(SelectStored(email));
+    }
+
+    /// <summary>A message that stopped being spam is showable again, which is what lets the same walk categorize it.</summary>
+    [Fact]
+    public void SelectingStored_MailThatStoppedBeingSpam_SelectsIt()
+    {
+        // Arrange
+        var email = Evaluated(Email());
+        email.SpamClassification = Classified(email, SpamVerdict.NotSpam);
+
+        // Act & Assert
+        Assert.Single(SelectStored(email));
+    }
+
+    [Fact]
+    public void SelectingStored_TheCopyFiledOfTheirOwnOutgoingMessage_LeavesItOut()
+    {
+        // Arrange
+        var email = Evaluated(Email());
+        email.FiledFromOutgoingEmailId = Guid.CreateVersion7();
+
+        // Act & Assert
+        Assert.Empty(SelectStored(email));
+    }
+
+    [Fact]
+    public void SpamInVisibleFolders_ASpamVerdictInAVisibleFolder_SelectsIt()
+    {
+        // Arrange
+        var email = Email();
+        email.SpamClassification = Classified(email, SpamVerdict.Spam);
+
+        // Act & Assert
+        Assert.Single(SpamIn(email));
+    }
+
+    [Fact]
+    public void SpamInVisibleFolders_AMessageThatIsNotSpam_LeavesItOut()
+    {
+        // Arrange
+        var email = Email();
+        email.SpamClassification = Classified(email, SpamVerdict.NotSpam);
+
+        // Act & Assert
+        Assert.Empty(SpamIn(email));
+    }
+
+    /// <summary>Withheld from AI means untouched by this half under any terms, the categories it already holds included.</summary>
+    [Fact]
+    public void SpamInVisibleFolders_AFolderNotVisibleToAI_LeavesItsMailOut()
+    {
+        // Arrange
+        var email = Email();
+        email.SpamClassification = Classified(email, SpamVerdict.Spam);
+
+        // Act & Assert
+        Assert.Empty(SpamIn(email, visibleFolders: []));
+    }
+
+    private static StoredEmailEntity Evaluated(StoredEmailEntity email)
+    {
+        email.Id = Guid.CreateVersion7();
+        email.RulesEvaluatedAt = Now;
+
+        return email;
+    }
+
+    private static IReadOnlyList<StoredEmailEntity> SelectStored(
+        StoredEmailEntity email,
+        Guid[]? named = null,
+        IReadOnlyList<MailFolderIdentity>? visibleFolders = null) =>
+        [
+            .. EmailCategoryStore.SelectingStored(
+                new[] { email }.AsQueryable(),
+                "work",
+                named ?? [email.Id],
+                visibleFolders ?? [WorkInbox],
+                [],
+                ClassificationOff),
+        ];
+
+    private static IReadOnlyList<StoredEmailEntity> SpamIn(
+        StoredEmailEntity email,
+        IReadOnlyList<MailFolderIdentity>? visibleFolders = null) =>
+        [
+            .. EmailCategoryStore.SpamInVisibleFolders(
+                new[] { email }.AsQueryable(),
+                "work",
+                [email.Id],
+                visibleFolders ?? [WorkInbox]),
+        ];
+
     private static IReadOnlyList<StoredEmailEntity> Select(
         StoredEmailEntity email,
         IReadOnlyList<MailFolderIdentity>? visibleFolders = null,

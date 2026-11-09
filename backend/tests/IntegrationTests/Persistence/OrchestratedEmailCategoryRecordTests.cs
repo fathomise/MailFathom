@@ -142,6 +142,57 @@ public sealed class OrchestratedEmailCategoryRecordTests(MailFathomOrchestration
         }
     }
 
+    /// <summary>
+    /// A run naming one own category replaces that category's record and leaves the message's other answers; a run naming
+    /// none replaces the whole set, so an answer holding fewer categories than before leaves fewer records.
+    /// </summary>
+    [Fact]
+    public async Task ReplaceAsync_OneCategoryNamedAndThenNone_ReplacesOnlyWhatTheRunAsked()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var account = Guid.CreateVersion7();
+        const string Replacement = "travel";
+
+        try
+        {
+            await SeedAccountsAsync(services, cancellationToken, account);
+            var message = await StoreCategorizedMessageAsync(services, account, cancellationToken);
+
+            // Act
+            await ReplaceAsync(services, message, [], StillDeclared, cancellationToken);
+            var afterOneCategory = await ReadCategoriesAsync(services, message, cancellationToken);
+            await ReplaceAsync(
+                services,
+                message,
+                [new EmailCategoryAssignment(EmailCategoryKind.Default, Replacement, 0.8, "provider/build", "def456")],
+                ownCategory: null,
+                cancellationToken);
+
+            // Assert
+            Assert.Equal([Withdrawn, SwitchedOffDefault], afterOneCategory);
+            Assert.Equal([Replacement], await ReadCategoriesAsync(services, message, cancellationToken));
+        }
+        finally
+        {
+            await RemoveAccountsAsync(services, account);
+        }
+    }
+
+    private static async Task ReplaceAsync(
+        OrchestratedMailFathomServices services,
+        StoredEmailId message,
+        IReadOnlyList<EmailCategoryAssignment> assignments,
+        string? ownCategory,
+        CancellationToken cancellationToken) =>
+        Assert.Equal(
+            PersistenceCommitResult.Committed,
+            await services.CommitAsync(
+                async (scope, session, token) => Assert.True(
+                    await scope.GetRequiredService<IEmailCategoryStore>().ReplaceAsync(session, message, assignments, ownCategory, token)),
+                cancellationToken));
+
     private static MailAccountQueryableSettings Declaring(params string[] ownCategoryNames) => new(
         IsReadable: true,
         MailSynchronizationMode.Polling,

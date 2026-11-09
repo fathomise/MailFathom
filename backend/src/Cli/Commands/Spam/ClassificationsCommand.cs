@@ -131,6 +131,6 @@ internal static class ClassificationsCommand
         { Verdict: { Length: > 0 } verdict } =>
             $"No message of {query.Account} carries the verdict '{verdict}'.",
         _ =>
-            $"Nothing has been classified for {query.Account}. Classification is off unless the deployment switched it on, and mail already in the mailbox is reached by '{CliRootCommand.CommandName} spam run --account {query.Account}'.",
+            $"Nothing has been classified for {query.Account}. Classification is off unless the deployment switched it on, and mail already in the mailbox is reached by '{CliRootCommand.CommandName} classification run --account {query.Account}'.",
     };
 }

@@ -20,6 +20,7 @@ using MailFathom.Application.Calendar;
 using MailFathom.Application.Calendar.Extraction;
 using MailFathom.Application.Calendar.Import;
 using MailFathom.Application.Categories;
+using MailFathom.Application.Classification;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.Contacts.Correspondence;
@@ -66,8 +67,8 @@ using MailFathom.Application.Emails.Search.Attachments;
 using MailFathom.Application.Emails.SearchEmails;
 using MailFathom.Application.Emails.Settlement;
 using MailFathom.Application.Emails.Summaries;
-using MailFathom.Application.Emails.Threads;
 using MailFathom.Application.Emails.ThreadStates;
+using MailFathom.Application.Emails.Threads;
 using MailFathom.Application.Emails.Trust;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Folders.Local;
@@ -132,7 +133,6 @@ using MailFathom.Application.Spam.Gating;
 using MailFathom.Application.Spam.History;
 using MailFathom.Application.Spam.Marking;
 using MailFathom.Application.Spam.Model;
-using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.StoredFiles;
 using MailFathom.Application.Synchronization;
@@ -174,6 +174,7 @@ using MailFathom.Infrastructure.Persistence.Authentication;
 using MailFathom.Infrastructure.Persistence.AutomaticReplies;
 using MailFathom.Infrastructure.Persistence.Calendar;
 using MailFathom.Infrastructure.Persistence.Categories;
+using MailFathom.Infrastructure.Persistence.Classification;
 using MailFathom.Infrastructure.Persistence.ClientAssertions;
 using MailFathom.Infrastructure.Persistence.ClientSessions;
 using MailFathom.Infrastructure.Persistence.Connections;
@@ -596,7 +597,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MailEnrichmentPass>();
         services.AddSingleton<IEmailCategorizationTelemetry, EmailCategorizationTelemetry>();
         services.AddScoped<IEmailCategoryStore, EmailCategoryStore>();
+        services.AddScoped<EmailCategorizationConsultation>();
         services.AddScoped<EmailCategorizationPass>();
+        services.AddScoped<StoredEmailCategorization>();
         // A conversation's derived state, on the same terms and for the same reason: the deriver a deployment that
         // turned it off resolves answers with a reason, so the pass runs, is told nothing activated it, and stops.
         services.AddScoped<IStoredThreadStateStore, StoredThreadStateStore>();
@@ -946,9 +949,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISpamVerdictActStore, EmailSpamVerdictActStore>();
         services.AddScoped<ISpamVerdictFloorCandidateReader, SpamVerdictFloorCandidateReader>();
         services.AddScoped<IJunkMarkFollowStore, JunkMarkFollowStore>();
-        services.AddScoped<ISpamClassificationRunStore, SpamClassificationRunStore>();
+        services.AddScoped<IClassificationRunStore, ClassificationRunStore>();
         services.AddScoped<ISpamClassificationHistoryReader, SpamClassificationHistoryReader>();
-        services.AddScoped<SpamClassificationRunReader>();
+        services.AddScoped<ClassificationRunReader>();
         services.AddScoped<SpamClassificationHistory>();
     }
 

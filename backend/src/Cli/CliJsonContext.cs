@@ -5,6 +5,7 @@
 using System.Text.Json.Serialization;
 using MailFathom.Cli.Administration;
 using MailFathom.Cli.Administration.Accounts;
+using MailFathom.Cli.Administration.Classification;
 using MailFathom.Cli.Administration.Configuration;
 using MailFathom.Cli.Administration.Contacts;
 using MailFathom.Cli.Administration.Content;
@@ -78,9 +79,9 @@ namespace MailFathom.Cli;
 [JsonSerializable(typeof(MailRuleRunStart))]
 [JsonSerializable(typeof(MailRuleRunState))]
 [JsonSerializable(typeof(MailRuleHistoryPage))]
-[JsonSerializable(typeof(SpamClassificationRunRequest))]
-[JsonSerializable(typeof(SpamClassificationRunStart))]
-[JsonSerializable(typeof(SpamClassificationRunState))]
+[JsonSerializable(typeof(ClassificationRunRequest))]
+[JsonSerializable(typeof(ClassificationRunStart))]
+[JsonSerializable(typeof(ClassificationRunState))]
 [JsonSerializable(typeof(SpamClassificationPage))]
 [JsonSerializable(typeof(DeadLetteredJobPage))]
 [JsonSerializable(typeof(JobRecoveryRequest))]

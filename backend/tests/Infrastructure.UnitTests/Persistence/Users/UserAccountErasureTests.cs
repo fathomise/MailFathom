@@ -49,6 +49,7 @@ public sealed class UserAccountErasureTests
         // Assert
         Assert.Equal<string[]>(
             [
+                "classification_runs",
                 "mail_answering_audit_entries",
                 "mail_drafts",
                 "mail_rederivation_positions",
@@ -58,7 +59,6 @@ public sealed class UserAccountErasureTests
                 "mailbox_refresh_tokens",
                 "outgoing_emails",
                 "recurring_sends",
-                "spam_classification_runs",
                 "stored_content_claims",
             ],
             tables);

@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Calendar.Extraction;
 using MailFathom.Application.Categories;
+using MailFathom.Application.Classification;
 using MailFathom.Application.Decisions;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.AttachmentText.Limits;
@@ -28,7 +29,6 @@ using MailFathom.Application.Rules.History;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Spam.Floor;
 using MailFathom.Application.Spam.Following;
-using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Administration;
 using MailFathom.Application.Synchronization.Drain;
@@ -1042,10 +1042,10 @@ internal sealed partial class AccountSynchronizationSupervisor
             scope.ServiceProvider.GetRequiredService<ScopedMailSynchronizationSettings>().UseRunSnapshot(runSettings);
 
             var report = await scope.ServiceProvider
-                .GetRequiredService<SpamClassificationPass>()
+                .GetRequiredService<ClassificationRunPass>()
                 .RunAsync(this.account, cancellationToken);
 
-            this.ReportSpamClassification(report);
+            this.ReportClassificationRun(report);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -1063,7 +1063,7 @@ internal sealed partial class AccountSynchronizationSupervisor
     /// from repeating a line per interval forever. The posture is part of the line because the same counts mean two
     /// different things under it: a dry run reporting mail it acted on is reporting mail it would have acted on.
     /// </remarks>
-    private void ReportSpamClassification(SpamClassificationRunReport report)
+    private void ReportClassificationRun(ClassificationRunReport report)
     {
         if (report.Walk is not { } walk)
         {
@@ -1082,20 +1082,24 @@ internal sealed partial class AccountSynchronizationSupervisor
                 walk.SpamEmailCount,
                 walk.UnclassifiableEmailCount,
                 walk.ActedEmailCount,
+                walk.CategorizedEmailCount,
+                walk.CategoriesCurrentEmailCount,
+                walk.CategoriesUnansweredEmailCount,
+                walk.CategoriesClearedEmailCount,
                 walk.EmailsRemain);
         }
 
         switch (report.Ending)
         {
-            case SpamClassificationRunEnding.Completed:
+            case ClassificationRunEnding.Completed:
                 this.LogSpamClassificationCompleted(this.account.Value, profile);
 
                 break;
-            case SpamClassificationRunEnding.Superseded:
+            case ClassificationRunEnding.Superseded:
                 this.LogSpamClassificationSuperseded(this.account.Value);
 
                 break;
-            case SpamClassificationRunEnding.Disabled:
+            case ClassificationRunEnding.Disabled:
                 this.LogSpamClassificationDisabled(this.account.Value);
 
                 break;
@@ -2368,7 +2372,7 @@ internal sealed partial class AccountSynchronizationSupervisor
     /// <summary>Reports one account run's share of a whole-mailbox classification run, in counts and the profile alone.</summary>
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Carried the whole-mailbox classification run of account {AccountId} under profile {Profile}; scored {ClassifiedEmailCount} messages, passed over {SkippedEmailCount} already decided under it, found {SpamEmailCount} junk, could reach no verdict about {UnclassifiableEmailCount}, acted on or would act on {ActedEmailCount}, and more remain: {EmailsRemain}.")]
+        Message = "Carried the whole-mailbox classification run of account {AccountId} under profile {Profile}; scored {ClassifiedEmailCount} messages, passed over {SkippedEmailCount} already decided under it, found {SpamEmailCount} junk, could reach no verdict about {UnclassifiableEmailCount}, acted on or would act on {ActedEmailCount}, asked a model about {CategorizedEmailCount}, passed over {CategoriesCurrentEmailCount} already answering the current questions, got no answer for {CategoriesUnansweredEmailCount}, removed the categories of {CategoriesClearedEmailCount} now spam, and more remain: {EmailsRemain}.")]
     private partial void LogSpamClassificationProgressed(
         string accountId,
         string profile,
@@ -2377,6 +2381,10 @@ internal sealed partial class AccountSynchronizationSupervisor
         int spamEmailCount,
         int unclassifiableEmailCount,
         int actedEmailCount,
+        int categorizedEmailCount,
+        int categoriesCurrentEmailCount,
+        int categoriesUnansweredEmailCount,
+        int categoriesClearedEmailCount,
         bool emailsRemain);
 
     [LoggerMessage(
@@ -2393,7 +2401,7 @@ internal sealed partial class AccountSynchronizationSupervisor
     /// <summary>Separates a run nobody switched classification on for from one that walked a mailbox and found it clean.</summary>
     [LoggerMessage(
         Level = LogLevel.Warning,
-        Message = "Classification was switched off while the whole-mailbox run of account {AccountId} was outstanding, so the run ended without reading its mail; switch classification on and ask for the run again.")]
+        Message = "A function the whole-mailbox run of account {AccountId} covers was switched off while it was outstanding, or the own category it applies was removed, so the run ended without reading its mail; ask for the run again under the settings now in force.")]
     private partial void LogSpamClassificationDisabled(string accountId);
 
     [LoggerMessage(

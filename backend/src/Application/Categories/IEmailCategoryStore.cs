@@ -8,7 +8,7 @@ using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Categories;
 
-/// <summary>Reads the arriving mail still owed a category, and writes down what a model said about it.</summary>
+/// <summary>Reads the mail a model may be asked about, and writes down what it said.</summary>
 public interface IEmailCategoryStore
 {
     /// <summary>Reads one keyset batch of the account's arriving mail no model has categorized.</summary>
@@ -47,5 +47,43 @@ public interface IEmailCategoryStore
         IPersistenceSession session,
         StoredEmailId email,
         IReadOnlyList<EmailCategoryAssignment> assignments,
+        CancellationToken cancellationToken);
+
+    /// <summary>Reads which of the named stored messages a run may ask about, and what each already holds.</summary>
+    /// <param name="account">The account.</param>
+    /// <param name="emails">The messages.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The messages a model may be shown and no arrival stage still owes a question, in identity order.</returns>
+    Task<IReadOnlyList<StoredEmailToCategorize>> GetStoredEmailsToCategorizeAsync(
+        MailAccountId account,
+        IReadOnlyList<StoredEmailId> emails,
+        CancellationToken cancellationToken);
+
+    /// <summary>Stages what a model said a stored message holds, in place of what it held.</summary>
+    /// <param name="session">The transaction to stage it in.</param>
+    /// <param name="email">The message.</param>
+    /// <param name="assignments">Its categories.</param>
+    /// <param name="ownCategory">The one own category being replaced, or <see langword="null" /> to replace them all.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns><see langword="false" /> where the message is gone, so nothing was staged.</returns>
+    Task<bool> ReplaceAsync(
+        IPersistenceSession session,
+        StoredEmailId email,
+        IReadOnlyList<EmailCategoryAssignment> assignments,
+        string? ownCategory,
+        CancellationToken cancellationToken);
+
+    /// <summary>Removes the categories of the named messages that are spam now, in folders visible to AI alone.</summary>
+    /// <param name="session">The transaction to run it in.</param>
+    /// <param name="account">The account.</param>
+    /// <param name="emails">The messages.</param>
+    /// <param name="ownCategory">The one own category to remove, or <see langword="null" /> to remove them all.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>How many messages lost something.</returns>
+    Task<int> ClearCategoriesOfSpamAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        IReadOnlyList<StoredEmailId> emails,
+        string? ownCategory,
         CancellationToken cancellationToken);
 }

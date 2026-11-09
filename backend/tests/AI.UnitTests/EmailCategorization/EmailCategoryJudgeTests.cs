@@ -242,14 +242,76 @@ public sealed class EmailCategoryJudgeTests
     }
 
     [Fact]
+    public async Task JudgeOwnCategoryAsync_OneCategory_AsksThatOneQuestionAndNothingElse()
+    {
+        // Arrange
+        var question = EmailCategoryQuestions.For(Project);
+        using var client = ScriptedDecisionClient.Answering((_, _) => Task.FromResult(Response(YesNo(question, 0.8))));
+        using var composition = Judging(client);
+
+        // Act
+        var judgement = await composition.Judge.JudgeOwnCategoryAsync(Evidence, Project, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(question.Id, Assert.Single(Assert.Single(client.Calls).Questions).Id);
+        var held = Assert.Single(judgement.Assignments);
+        Assert.Equal((EmailCategoryKind.Own, Project.Name), (held.Kind, held.Category));
+        Assert.Equal(DecisionQuestionSet.RevisionOf([question]), held.QuestionRevision);
+    }
+
+    [Fact]
+    public async Task JudgeOwnCategoryAsync_AnsweredNo_IsAnAnswerThatHoldsNothing()
+    {
+        // Arrange
+        var question = EmailCategoryQuestions.For(Project);
+        using var client = ScriptedDecisionClient.Answering((_, _) => Task.FromResult(Response(YesNo(question, 0.1))));
+        using var composition = Judging(client);
+
+        // Act
+        var judgement = await composition.Judge.JudgeOwnCategoryAsync(Evidence, Project, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(DecisionModelOutcome.Answered, judgement.Outcome);
+        Assert.Empty(judgement.Assignments);
+    }
+
+    [Fact]
+    public async Task JudgeOwnCategoryAsync_NoAnswerToTheQuestion_IsUnreadable()
+    {
+        // Arrange
+        using var client = ScriptedDecisionClient.Answering((_, _) => Task.FromResult(Response()));
+        using var composition = Judging(client);
+
+        // Act
+        var judgement = await composition.Judge.JudgeOwnCategoryAsync(Evidence, Project, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(DecisionModelOutcome.AnswerUnreadable, judgement.Outcome);
+    }
+
+    [Fact]
+    public void RevisionsOf_AMailboxsCategories_AnswerTheRevisionsTheirAnswersAreRecordedUnder()
+    {
+        // Act
+        var revisions = InactiveEmailCategoryJudge.Instance.RevisionsOf([Project]);
+
+        // Assert
+        Assert.Equal(EmailCategoryQuestions.DefaultRevision, revisions.Default);
+        Assert.Equal(DecisionQuestionSet.RevisionOf([EmailCategoryQuestions.For(Project)]), revisions.Own[Project.Name]);
+    }
+
+    [Fact]
     public async Task InactiveJudge_AskedAnything_AnswersNotActivated()
     {
         // Act
         var judgement = await InactiveEmailCategoryJudge.Instance.JudgeAsync(Evidence, [], TestContext.Current.CancellationToken);
 
         // Assert
+        var ownJudgement = await InactiveEmailCategoryJudge.Instance.JudgeOwnCategoryAsync(Evidence, Project, TestContext.Current.CancellationToken);
+
         Assert.False(InactiveEmailCategoryJudge.Instance.IsActive);
         Assert.Equal(DecisionModelOutcome.NotActivated, judgement.Outcome);
+        Assert.Equal(DecisionModelOutcome.NotActivated, ownJudgement.Outcome);
     }
 
     private static DecisionAnswer Default(DefaultMailCategory category, double probability)

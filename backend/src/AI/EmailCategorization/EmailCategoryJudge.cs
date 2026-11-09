@@ -63,13 +63,53 @@ internal sealed class EmailCategoryJudge : IEmailCategoryJudge, IDisposable
     public bool IsActive => true;
 
     /// <inheritdoc />
-    public async Task<EmailCategoryJudgement> JudgeAsync(
+    public Task<EmailCategoryJudgement> JudgeAsync(
         EmailCategoryEvidence evidence,
         IReadOnlyList<OwnMailCategory> ownCategories,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(evidence);
         ArgumentNullException.ThrowIfNull(ownCategories);
+
+        DecisionQuestion[] ownQuestions = [.. ownCategories.Select(EmailCategoryQuestions.For)];
+
+        return this.AskAsync(
+            evidence,
+            [EmailCategoryQuestions.Default, .. ownQuestions],
+            (response, requestedModel) => EmailCategoryReading.Read(response, ownCategories, ownQuestions, requestedModel),
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<EmailCategoryJudgement> JudgeOwnCategoryAsync(
+        EmailCategoryEvidence evidence,
+        OwnMailCategory category,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(category);
+
+        var question = EmailCategoryQuestions.For(category);
+
+        return this.AskAsync(
+            evidence,
+            [question],
+            (response, requestedModel) => EmailCategoryReading.ReadOwn(response, category, question, requestedModel),
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public EmailCategoryQuestionRevisions RevisionsOf(IReadOnlyList<OwnMailCategory> ownCategories) =>
+        EmailCategoryQuestions.RevisionsOf(ownCategories);
+
+    /// <inheritdoc />
+    public void Dispose() => this.callSlots.Dispose();
+
+    private async Task<EmailCategoryJudgement> AskAsync(
+        EmailCategoryEvidence evidence,
+        DecisionQuestion[] questions,
+        Func<DecisionResponse, string, IReadOnlyList<EmailCategoryAssignment>?> read,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(evidence);
 
         await using var scope = this.scopeFactory.CreateAsyncScope();
 
@@ -78,8 +118,6 @@ internal sealed class EmailCategoryJudge : IEmailCategoryJudge, IDisposable
             return this.Unanswered(DecisionModelOutcome.BudgetExhausted, modelAlias: null);
         }
 
-        DecisionQuestion[] ownQuestions = [.. ownCategories.Select(EmailCategoryQuestions.For)];
-        DecisionQuestion[] questions = [EmailCategoryQuestions.Default, .. ownQuestions];
         string input;
 
         try
@@ -105,7 +143,7 @@ internal sealed class EmailCategoryJudge : IEmailCategoryJudge, IDisposable
             return this.Unanswered(outcome, alias);
         }
 
-        if (EmailCategoryReading.Read(response, ownCategories, ownQuestions, requestedModel) is not { } assignments)
+        if (read(response, requestedModel) is not { } assignments)
         {
             return this.Unanswered(DecisionModelOutcome.AnswerUnreadable, alias);
         }
@@ -114,9 +152,6 @@ internal sealed class EmailCategoryJudge : IEmailCategoryJudge, IDisposable
 
         return EmailCategoryJudgement.Answered(assignments);
     }
-
-    /// <inheritdoc />
-    public void Dispose() => this.callSlots.Dispose();
 
     private EmailCategoryJudgement Unanswered(DecisionModelOutcome outcome, string? modelAlias)
     {

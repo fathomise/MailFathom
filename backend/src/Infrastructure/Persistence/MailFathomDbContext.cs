@@ -11,6 +11,7 @@ using MailFathom.Infrastructure.Persistence.Authentication.Configurations;
 using MailFathom.Infrastructure.Persistence.AutomaticReplies.Configurations;
 using MailFathom.Infrastructure.Persistence.Calendar.Configurations;
 using MailFathom.Infrastructure.Persistence.Categories.Configurations;
+using MailFathom.Infrastructure.Persistence.Classification.Configurations;
 using MailFathom.Infrastructure.Persistence.ClientAssertions.Configurations;
 using MailFathom.Infrastructure.Persistence.ClientSessions.Configurations;
 using MailFathom.Infrastructure.Persistence.Connections;
@@ -182,7 +183,7 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<EmailJunkFolderDepartureEntity> EmailJunkFolderDepartures => this.Set<EmailJunkFolderDepartureEntity>();
 
-    internal DbSet<SpamClassificationRunEntity> SpamClassificationRuns => this.Set<SpamClassificationRunEntity>();
+    internal DbSet<ClassificationRunEntity> ClassificationRuns => this.Set<ClassificationRunEntity>();
 
     internal DbSet<EmailEnrichmentEntity> EmailEnrichments => this.Set<EmailEnrichmentEntity>();
 
@@ -382,7 +383,7 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new EmailThreadStateConfiguration());
         modelBuilder.ApplyConfiguration(new EmailThreadStateEntryConfiguration());
         modelBuilder.ApplyConfiguration(new MailRuleEvaluationRunConfiguration());
-        modelBuilder.ApplyConfiguration(new SpamClassificationRunConfiguration());
+        modelBuilder.ApplyConfiguration(new ClassificationRunConfiguration());
         modelBuilder.ApplyConfiguration(new BackfillPositionConfiguration());
         modelBuilder.ApplyConfiguration(new MailRederivationPositionConfiguration());
         modelBuilder.ApplyConfiguration(new MailRederivationRunConfiguration());

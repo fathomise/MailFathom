@@ -446,7 +446,7 @@ These routes accept a grant held at any of the three, and check it against the t
 | `GET /api/admin/mailbox/synchronization` | — reports the mail accounts the caller's scopes for `mailfathom.admin.read` cover |
 | `GET` and `POST /api/admin/mailbox/rewind`, `GET` and `POST /api/admin/mailbox/rederivation` | The mail account the request names |
 | `GET /api/admin/accounts/custody`, `POST /api/admin/accounts/custody/switch`, `POST /api/admin/accounts/custody/restore/settle` | The mail account the request names |
-| `GET` and `POST /api/admin/rules/runs`, `GET` and `POST /api/admin/spam/runs` | The mail account the request names |
+| `GET` and `POST /api/admin/rules/runs`, `GET` and `POST /api/admin/classification/runs` | The mail account the request names |
 | `POST /api/admin/rules`, `POST /api/admin/rules/replacement`, `/enablement`, `/disablement`, `/position`, `/removal`, `/preview` | The mail account the body's `account` names |
 | `POST /api/admin/folders/erasure` | The mail account the request names |
 | `GET /api/admin/exports/measurement`, `GET` and `POST /api/admin/exports`, `GET` and `DELETE /api/admin/exports/{id}`, `POST /api/admin/exports/{id}/cancellation`, `GET /api/admin/exports/{id}/archive` | The mail account the request names |
@@ -624,8 +624,8 @@ and a request with none is refused as any other.
 | `GET /api/admin/rules/export` | `mailfathom.admin.read` | Reports one account's rules as the file an import reads: every rule in order, with whether it is enabled, and nothing else. |
 | `POST /api/admin/rules/import` | `mailfathom.admin.configuration.write` | Replaces an account's rules with a whole set, or merges a set into them, as one write against the version the body states; a rule it adds arrives disabled. |
 | `POST /api/admin/rules/import/preview` | `mailfathom.admin.read` | Reports what that import would add, change, move, and remove, judging it exactly as the import would, and writes nothing. |
-| `POST /api/admin/spam/runs` | `mailfathom.admin.operate` | Asks for every message already stored for one account to be [classified](../features/spam-classification.md), and answers with the run already under way where there is one. It is a dry run unless the body asks to apply. |
-| `GET /api/admin/spam/runs` | `mailfathom.admin.read` | Reports where that run has got to, or how the last one ended. |
+| `POST /api/admin/classification/runs` | `mailfathom.admin.operate` | Asks for every message already stored for one account to be gone over — [spam](../features/spam-classification.md) first, then the [categories](../features/email-categorization.md) of what is not spam — and answers with the run already under way where there is one. It is a dry run unless the body asks to apply. |
+| `GET /api/admin/classification/runs` | `mailfathom.admin.read` | Reports where that run has got to, or how the last one ended. |
 | `GET /api/admin/spam/classifications` | `mailfathom.admin.audit.read` | Reads one account's classifications, newest first, and the changes each verdict asked the mailbox for. |
 | `GET /api/admin/jobs/dead-letters` | `mailfathom.admin.read` | Reads the background work that stopped and will not be attempted again, newest first, with what ended each piece of it. |
 | `POST /api/admin/jobs/dead-letters/retry` | `mailfathom.admin.operate` | Returns one stopped job to the queue under the identity it was enqueued with. |
@@ -1368,55 +1368,73 @@ afterwards, the file's rules in their order and then the ones a replacement remo
 
 ### Classifying the mail you already have, and reading what was concluded
 
-Three commands, and none of *them* writes a setting: they apply the account's own classification settings to the mail
-this deployment already holds for it, and read what was decided. Whether that mail is classified at all, over which
+Three commands, and none of *them* writes a setting: they apply the account's own classification and category settings
+to the mail this deployment already holds for it, and read what was decided. Whether that mail is classified at all, over which
 folders, and what happens to junk are the account's to state, in the
 [`SpamClassification`](configuration-mail.md#classifying-this-accounts-mail--spamclassification) block of its record;
 the deployment's [`SpamClassification`](configuration-ai.md#spamclassification) section bounds what the process
 spends and reaches no mailbox's scope. The first is changed through [the mail account
 routes](#mail-accounts-and-who-they-are-assigned-to) and the second, without a restart, through [reading and changing
 the configuration](#reading-and-changing-the-deployments-own-configuration); neither is reached through these three.
-[Spam classification](../features/spam-classification.md) is what the feature does.
+[Spam classification](../features/spam-classification.md) and [email
+categorization](../features/email-categorization.md) are what the two functions do.
 
-**`mfctl spam run --account <id>` is a dry run unless you add `--apply`.** It returns as soon as the deployment has
+**`mfctl classification run --account <id>` is a dry run unless you add `--apply`.** It returns as soon as the deployment has
 written the request down and never waits for the walk; the run is carried by the account's synchronization runs, so
 this terminal is not what keeps it alive and closing it cannot cancel one:
 
 ```console
-$ mfctl spam run --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10
+$ mfctl classification run --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10
 A classification run over work has been asked for.
-Folders:   INBOX
-Acting:    no — this is a dry run; it records verdicts and leaves the mailbox alone. Add --apply to carry out what the switches ask for.
-Progress:  0 scored, 0 already decided, 0 unreadable
-The run is carried by the account's synchronization runs. Watch it with 'mfctl spam run-status --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10'.
+Spam folders:      INBOX
+Category folders:  ARCHIVE, INBOX
+Acting:            no — this is a dry run; it records verdicts and categories and leaves the mailbox alone. Add --apply to carry out what the switches ask for.
+Progress:          0 scored, 0 already decided, 0 unreadable
+The run is carried by the account's synchronization runs. Watch it with 'mfctl classification run-status --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10'.
 ```
 
-`--folder` narrows the walk and is repeatable; it narrows *within* that user's own scope, and a folder outside it is
-refused, because a run over a folder nobody classifies would read the whole of it and record nothing. `--rescore` classifies mail again even where its verdict was already reached under the terms now in force,
-which is the one form of the run that reads every message's content however recently it was decided.
+The run does what the account has switched on: spam then categories where both are, the one that is where only one is,
+and it is refused, naming the two switches, where neither is.
+
+`--folder` narrows the walk and is repeatable. Leaving it out walks every folder either function covers; a folder neither
+covers is refused, because a run over it would read the whole of it and record nothing, and a folder only one covers gets
+only that half. Categories cover only folders visible to AI, so a folder mapped `VisibleToAI: false` never reaches that
+half under any terms, while the spam half treats it as spam classification always has. `--rescore` asks about mail again
+even where its verdict and its categories already answer the terms now in force, which is the one form of the run that
+reads every message's content however recently it was decided, and where both functions are on it asks the model about
+every message twice over.
+
+`--category <name>` applies one of the account's own categories to the mail already there. It asks that one question per
+message and nothing about spam, reads the verdict already recorded, replaces only that category's records, and needs a
+folder visible to AI. It is refused beside `--rescore` or `--apply`, since it always asks and takes no action on the mailbox.
+
+**A large mailbox spends the same period ledger people's questions do.** Each model call the run makes is admitted against
+that allowance and written to it, so a run can use up what the people on the deployment were going to ask with.
 
 Asking twice is asking once, and the command says which of the two happened — including that the terms the second
 request carried were not applied to the walk under way.
 
-**`mfctl spam run-status --account <id>` is where the run is watched from**, and where the answer to *what would it do*
+**`mfctl classification run-status --account <id>` is where the run is watched from**, and where the answer to *what would it do*
 is read:
 
 ```console
-$ mfctl spam run-status --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10
-Account:    work — Completed at 2026-08-12 11:30:00Z
-Requested:  2026-08-12 11:00:00Z
-Folders:    INBOX
-Acting:     no — dry run
-Rescoring:  no
-Profile:    a1b2c3d4e5f6
-Progress:   1240 scored, 0 already decided, 3 unreadable
-Found:      37 junk, 4 undetermined, 37 would be acted on
+$ mfctl classification run-status --account %s
+Account:           work — Completed at 2026-08-12 11:30:00Z
+Requested:         2026-08-12 11:00:00Z
+Spam folders:      INBOX
+Category folders:  ARCHIVE, INBOX
+Acting:            no — dry run
+Rescoring:         no
+Profile:           a1b2c3d4e5f6
+Progress:          1240 scored, 0 already decided, 3 unreadable
+Found:             37 junk, 4 undetermined, 37 would be acted on
+Categories:        1180 asked, 0 already current, 2 unanswered, 5 cleared as spam
 ```
 
 `Found` is what an operator is deciding on: the junk the run reached, and how much of it the switches would act on.
 An account nobody has ever asked for a run is an answer rather than an error, and a run that ended an hour ago is still
 reported — *it completed* and *you never asked* are different answers. `Superseded` is a run the settings moved under,
-and `Disabled` one that was switched off under it.
+and `Disabled` one a function it covers was switched off under, or whose own category was removed.
 
 **`mfctl spam classifications --account <id>` answers why a message was filed.** Narrowing to a message with `--email`
 answers "why is this in junk"; narrowing with `--verdict` answers "what would this run file". `--page-size` and

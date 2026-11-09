@@ -2,10 +2,10 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Classification;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Payloads;
 using MailFathom.Application.Spam.Following;
-using MailFathom.Application.Spam.Runs;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using Microsoft.Extensions.Time.Testing;
@@ -126,5 +126,5 @@ public sealed class JunkMarkFollowPassTests
         this.jobs.EnqueueAsync(Arg.Any<JobEnqueueRequest>(), Arg.Any<CancellationToken>()).Returns(answer);
 
     private JunkMarkFollowPass Pass() =>
-        new(this.store, this.jobs, new SpamClassificationRunOptions { BatchSize = 50, MaxBatchesPerPass = 1 }, new FakeTimeProvider(Now));
+        new(this.store, this.jobs, new ClassificationRunOptions { BatchSize = 50, MaxBatchesPerPass = 1 }, new FakeTimeProvider(Now));
 }

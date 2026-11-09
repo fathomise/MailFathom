@@ -8,10 +8,10 @@ using MailFathom.TestSupport;
 
 namespace MailFathom.Cli.UnitTests;
 
-/// <summary>A deployment answering the spam routes, as the commands meet one without a server.</summary>
+/// <summary>A deployment answering the classification and spam routes, as the commands meet one without a server.</summary>
 /// <remarks>
 /// Routed by path and method rather than scripted in order, for the reason the rule double is: the run path is one
-/// resource read with a get and asked for with a post, and what is worth asserting about <c>spam run-status</c> is that
+/// resource read with a get and asked for with a post, and what is worth asserting about <c>classification run-status</c> is that
 /// it sent no post at all.
 /// </remarks>
 internal static class FakeSpamRoutes
@@ -36,7 +36,7 @@ internal static class FakeSpamRoutes
 
         return deployment.RecordedRequests.Count(request =>
             request.Method == HttpMethod.Post
-            && request.RequestUri?.AbsolutePath == AdminEndpointRoutes.SpamClassificationRunsPath);
+            && request.RequestUri?.AbsolutePath == AdminEndpointRoutes.ClassificationRunsPath);
     }
 
     /// <summary>Reports the query string the command composed for the classifications it last asked for.</summary>
@@ -61,14 +61,14 @@ internal static class FakeSpamRoutes
     {
         var path = request.RequestUri?.AbsolutePath;
 
-        if (path == AdminEndpointRoutes.SpamClassificationRunsPath
+        if (path == AdminEndpointRoutes.ClassificationRunsPath
             && request.Method == HttpMethod.Post
             && runStart is { } started)
         {
             return FakeAdminEndpoint.Json(started.Status, started.Body);
         }
 
-        if (path == AdminEndpointRoutes.SpamClassificationRunsPath
+        if (path == AdminEndpointRoutes.ClassificationRunsPath
             && request.Method == HttpMethod.Get
             && runState is { } stateBody)
         {

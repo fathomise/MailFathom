@@ -1,6 +1,6 @@
 # Email categorization
 
-<!-- describes: backend/src/Application/Categories/**, backend/src/AI/EmailCategorization/**, backend/src/Infrastructure/Persistence/Categories/**, backend/src/Infrastructure/Observability/EmailCategorizationTelemetry.cs, backend/src/Domain/Categories/** -->
+<!-- describes: backend/src/Application/Categories/**, backend/src/Application/Classification/**, backend/src/AI/EmailCategorization/**, backend/src/Infrastructure/Persistence/Categories/**, backend/src/Infrastructure/Observability/EmailCategorizationTelemetry.cs, backend/src/Domain/Categories/** -->
 
 A mailbox is easier to read when a message arrives already saying what sort of mail it is. Categorization asks a
 decision model about each arriving message, once, and records two things beside it: which one of seven default
@@ -60,13 +60,45 @@ that pass is about to evaluate, under the same batch bounds, so an arriving mess
 about. Two things follow:
 
 - **Switching it on re-reads nothing.** Mail the rules have already evaluated is not arriving mail.
-- **A message is asked about at most while it is arriving.** One that got no answer simply has no category once the
-  rules have evaluated it. Each run until then asks again, which on an account with a rule naming `category` can be
-  several runs inside that rule's wait.
+- **Arrival asks about a message only while it is arriving.** One that got no answer has no category once the rules have
+  evaluated it, until [a run over stored mail](#going-over-mail-you-already-have) reaches it. Each account run until then
+  asks again, which on an account with a rule naming `category` can be several runs inside that rule's wait.
 
 Never asked about: anything with a spam verdict, anything in the junk folder, anything in a folder that is not visible to
 AI, a message spam classification has not yet admitted, a tombstoned message, a delivery or read report, a message whose
 content is not stored, and the copy MailFathom filed of the person's own outgoing message.
+
+## Going over mail you already have
+
+Arriving mail is asked about on its own; a new or reworded own category, and everything stored before the account
+switched this on, are not. `mfctl classification run` is that asking, and it is one run with
+[spam classification](spam-classification.md#classifying-the-mail-you-already-have): each batch is decided for spam first
+and only then looked at here, so a model is never asked about mail the same walk is about to call junk.
+[Administering a deployment](../operations/admin-endpoint.md#classifying-the-mail-you-already-have-and-reading-what-was-concluded)
+is the command reference.
+
+The verdict recorded at that point decides, whichever stage reached it, and it is read even where the account does not
+classify spam, because the floor for the junk folder and `$Junk` holds without that switch. A message that is spam is not
+asked about and any category it held is removed; one that stopped being spam is asked about in the same walk. The mail that
+can be asked about is exactly the mail above, except that a message still arriving is left to the stage above, which asks
+about it in that same account run.
+
+A message whose default category and own categories carry the current question revisions costs no model call, and
+`--rescore` asks anyway. **A no leaves no record**, so a message with no record of an own category says nothing about that
+question and a run over everything does not ask it again: applying a new or reworded category to that mail is
+`--category <name>`, which asks that one question, replaces only that category's records, and leaves every other record
+alone. A run replaces what a message held only once a model has answered, so a failed consultation leaves it as it was.
+
+**The walk goes on past a failure.** A failure about one message leaves that message and moves on. The four failures above
+that say something about every message stop the asking for the rest of that pass, and the messages behind them count as
+unanswered, while the walk still reaches the end of its mail. A later run costs them one lookup each. Every call is
+admitted against the same period allowance people's questions are, and written to it.
+
+Folders are fixed when the run is asked for, and only folders visible to AI are ever covered: visibility is read again per
+batch, so a folder withdrawn while the run is outstanding is not reached either. A category a message already holds in a
+folder not visible to AI stays as it is. Switching categorization off, or removing the own category a run applies, ends the
+run as `Disabled`. Deleting an own category needs no run, because its records go with it, and a setting changing never
+starts one.
 
 ## When it fails
 
