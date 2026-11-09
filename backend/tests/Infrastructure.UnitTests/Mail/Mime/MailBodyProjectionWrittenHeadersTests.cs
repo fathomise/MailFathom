@@ -25,7 +25,7 @@ public sealed class MailBodyProjectionWrittenHeadersTests
     public static TheoryData<string, string> BlocksClientsWrite => new()
     {
         { "---------- Forwarded message ---------\nFrom: Ewa Zielińska <ewa@example.test>\nDate: Mon, 24 Aug 2026 at 16:02\nSubject: CPI\nTo: Marta <marta@example.test>", "Mon, 24 Aug 2026 at 16:02" },
-        { "---------- Forwarded message ---------\nOd: Ewa Zielińska <ewa@example.test>\nDate: pon., 24 sie 2026 o 16:02\nSubject: CPI\nTo: Marta <marta@example.test>", "pon., 24 sie 2026 o 16:02" },
+        { "---------- Forwarded message ---------\nOd: Ewa Zielińska <ewa@example.test>\nDate: pon., 2 lis 2026 o 16:02\nSubject: CPI\nTo: Marta <marta@example.test>", "pon., 2 lis 2026 o 16:02" },
         { "---------- Weitergeleitete Nachricht ---------\nVon: Ewa Zielińska <ewa@example.test>\nDate: Mo., 24. Aug. 2026 um 16:02 Uhr\nSubject: CPI\nTo: Marta <marta@example.test>", "Mo., 24. Aug. 2026 um 16:02 Uhr" },
         { "-----Original Message-----\nFrom: Ewa Zielińska [mailto:ewa@example.test]\nSent: Monday, August 24, 2026 4:02 PM\nTo: Marta\nCc: Piotr\nSubject: CPI", "Monday, August 24, 2026 4:02 PM" },
         { "-----Wiadomość oryginalna-----\nOd: Ewa Zielińska\nWysłano: poniedziałek, 24 sierpnia 2026 16:02\nDo: Marta\nDW: Piotr\nTemat: CPI", "poniedziałek, 24 sierpnia 2026 16:02" },
