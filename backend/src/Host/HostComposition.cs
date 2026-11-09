@@ -11,6 +11,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Access.Grants;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.AiProviders;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Configuration;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.Contacts.Members;
@@ -67,6 +68,7 @@ using MailFathom.Host.Configuration;
 using MailFathom.Host.Configuration.Access;
 using MailFathom.Host.Configuration.Administration;
 using MailFathom.Host.Configuration.Answering;
+using MailFathom.Host.Configuration.Categories;
 using MailFathom.Host.Configuration.Chat;
 using MailFathom.Host.Configuration.DataEncryption;
 using MailFathom.Host.Configuration.Decisions;
@@ -588,6 +590,7 @@ internal static class HostComposition
         builder.Services.AddScoped<IContactCollectionSettingsReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.ContactCollection);
         builder.Services.AddScoped<ISpamClassificationSettingsReader, ConfiguredSpamClassificationSettingsReader>();
         builder.Services.AddScoped<ISpamActionSettingsReader, ConfiguredSpamActionSettingsReader>();
+        builder.Services.AddScoped<IMailCategoryOfferReader, ConfiguredMailCategoryOfferReader>();
         // Registered beside the other per-account readers, because a derived reading of a mailbox two people are
         // assigned has one language wherever it is written. It is scoped like them, so a work unit answers under one
         // reload.

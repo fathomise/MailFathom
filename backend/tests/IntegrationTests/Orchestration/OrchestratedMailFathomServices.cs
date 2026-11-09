@@ -12,6 +12,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Access.Grants;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.AiProviders;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.Coordination;
 using MailFathom.Application.EmailContent;
@@ -599,6 +600,8 @@ internal sealed class OrchestratedMailFathomServices : IAsyncDisposable
             new StubSpamClassificationSettingsReader(
                 spamClassification ?? SpamClassificationSettings.Disabled,
                 SyntheticMailAccount.AccountId));
+
+        builder.Services.AddSingleton<IMailCategoryOfferReader>(new StubMailCategories());
 
         // The folder sets every deployment-wide reading asks for, which infrastructure registers over the account records
         // and this harness answers from the account above instead, after infrastructure so this registration is the one

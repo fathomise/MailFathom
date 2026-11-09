@@ -64,7 +64,8 @@ public sealed record MailboxEmailSelection
         bool? isFlagged,
         string? keyword,
         bool? hasAttachments,
-        EmailMarkSelection? mark)
+        EmailMarkSelection? mark,
+        EmailCategorySelection? category)
     {
         this.Scope = scope;
         this.Mark = mark;
@@ -77,6 +78,7 @@ public sealed record MailboxEmailSelection
         this.IsFlagged = isFlagged;
         this.Keyword = keyword;
         this.HasAttachments = hasAttachments;
+        this.Category = category;
         this.CanonicalText = this.ComputeCanonicalText();
     }
 
@@ -151,6 +153,10 @@ public sealed record MailboxEmailSelection
     /// </remarks>
     public EmailMarkSelection? Mark { get; }
 
+    /// <summary>Gets the category an email must be recorded under, or <see langword="null" /> when any matches.</summary>
+    /// <remarks>An email nothing has categorized matches no category, so naming one leaves that mail out.</remarks>
+    public EmailCategorySelection? Category { get; }
+
     /// <summary>Gets the injective text of every field, which whatever wraps this selection identifies it by.</summary>
     /// <remarks>
     /// Every field is written, absent ones included, so a filter added to this type in future changes the text of
@@ -171,6 +177,7 @@ public sealed record MailboxEmailSelection
     /// <param name="keyword">The keyword an email must carry, in any case, or <see langword="null" /> for any.</param>
     /// <param name="hasAttachments">Whether attachments are required, or <see langword="null" /> for either.</param>
     /// <param name="mark">The reading a derivation must have made about the email, or <see langword="null" /> when no reading is required.</param>
+    /// <param name="category">The category an email must be recorded under, already read against what the accounts offer, or <see langword="null" /> for any.</param>
     /// <returns>The validated selection.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="scope" /> is <see langword="null" />.</exception>
     /// <exception cref="MailboxQueryFilterInvalidException">Thrown when an address is unusable or over-long, the subject fragment is too long, the keyword is not one this system stores, or the received range can select nothing.</exception>
@@ -190,7 +197,8 @@ public sealed record MailboxEmailSelection
         bool? isFlagged,
         string? keyword,
         bool? hasAttachments,
-        EmailMarkSelection? mark = null)
+        EmailMarkSelection? mark = null,
+        EmailCategorySelection? category = null)
     {
         ArgumentNullException.ThrowIfNull(scope);
 
@@ -214,7 +222,8 @@ public sealed record MailboxEmailSelection
             isFlagged,
             ComparableKeyword(keyword),
             hasAttachments,
-            mark);
+            mark,
+            category);
     }
 
     /// <summary>Writes one value with its own length in front of it, so nothing a caller supplies can imitate a separator.</summary>
@@ -337,7 +346,8 @@ public sealed record MailboxEmailSelection
         // It removes rows from the middle of an ordering exactly as the flags above it do, and it is why this text opens
         // f3 rather than f2 — a cursor issued before it existed names a row in a result set this reading no longer
         // produces.
-        LengthPrefixed(this.Mark?.CanonicalText ?? CanonicalAbsentValue));
+        LengthPrefixed(this.Mark?.CanonicalText ?? CanonicalAbsentValue),
+        CanonicalOptionalText(this.Category?.ComparableName));
 
     /// <summary>Writes an optional free-text filter, marking whether one was named ahead of what it said.</summary>
     /// <remarks>

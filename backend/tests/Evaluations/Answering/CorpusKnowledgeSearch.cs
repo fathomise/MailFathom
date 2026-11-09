@@ -119,7 +119,8 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
                 EmailSearchSnippetBounds.Default,
                 SensitiveContentEgressGuards.Inactive(),
                 unobserved,
-                authorization),
+                authorization,
+                StubMailCategories.OfferingNothing),
             StubEmailProvenanceReader.Answering(corpus.ToDictionary(static message => message.Id, static message => message.Provenance)),
             EmailKnowledgeBounds.Default);
     }

@@ -933,7 +933,8 @@ public sealed class MailboxSearchReaderTests
         snippetBounds ?? EmailSearchSnippetBounds.Default,
         egressGuard ?? SensitiveContentEgressGuards.Inactive(),
         readTelemetry ?? new RecordingMailboxReadTelemetry(),
-        authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));
+        authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+        StubMailCategories.OfferingNothing);
 
     /// <summary>Builds the semantic half of a deployment that configured no embedding provider and activated nothing.</summary>
     private static SemanticEmailSearch LexicalOnlySemanticSearch() => new(

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Categories;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Categories;
@@ -19,7 +20,7 @@ using Xunit;
 
 namespace MailFathom.IntegrationTests.Persistence;
 
-/// <summary>Proves which stored category records leave in the commit that records an account's settings.</summary>
+/// <summary>Proves which stored category records leave in the commit that records an account's settings, and what a read of them finds.</summary>
 /// <remarks>
 /// The delete joins through the stored message to reach its account, which is a statement only PostgreSQL can run, and
 /// a mistake in it reaches derived personal data: too narrow keeps what the account withdrew, too wide takes another
@@ -27,7 +28,7 @@ namespace MailFathom.IntegrationTests.Persistence;
 /// reads what this one writes.
 /// </remarks>
 [Collection(OrchestratedInfrastructureCollectionDefinition.Name)]
-public sealed class OrchestratedEmailCategoryWithdrawalTests(MailFathomOrchestrationFixture orchestration)
+public sealed class OrchestratedEmailCategoryRecordTests(MailFathomOrchestrationFixture orchestration)
 {
     private const string FolderAlias = "email-category-withdrawal";
 
@@ -104,6 +105,36 @@ public sealed class OrchestratedEmailCategoryWithdrawalTests(MailFathomOrchestra
             Assert.Equal(
                 [Withdrawn, StillDeclared, SwitchedOffDefault],
                 await ReadCategoriesAsync(services, message, cancellationToken));
+        }
+        finally
+        {
+            await RemoveAccountsAsync(services, account);
+        }
+    }
+
+    /// <summary>The read port answers every record of a message, in ordinal order, and nothing for a message holding none.</summary>
+    [Fact]
+    public async Task ReadAsync_ACategorizedMessageAndAnUnknownOne_AnswersOnlyTheRecordsThatExist()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var account = Guid.CreateVersion7();
+        var unknown = StoredEmailId.Create(Guid.CreateVersion7());
+
+        try
+        {
+            await SeedAccountsAsync(services, cancellationToken, account);
+            var message = await StoreCategorizedMessageAsync(services, account, cancellationToken);
+
+            // Act
+            var recorded = await services.InScopeAsync(
+                (scope, token) => scope.GetRequiredService<IEmailCategoryRecordReader>().ReadAsync([message, unknown], token),
+                cancellationToken);
+
+            // Assert
+            Assert.Equal([Withdrawn, StillDeclared, SwitchedOffDefault], recorded[message]);
+            Assert.False(recorded.ContainsKey(unknown));
         }
         finally
         {

@@ -74,6 +74,7 @@ public sealed class ListEmailsToolMetadataTests
             "isFlagged",
             "keyword",
             "hasAttachments",
+            "category",
             "direction",
             "pageSize",
             "cursor",

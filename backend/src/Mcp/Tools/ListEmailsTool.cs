@@ -65,6 +65,7 @@ internal sealed class ListEmailsTool(
     /// <param name="isFlagged">The <c>\Flagged</c> state to require.</param>
     /// <param name="keyword">The keyword an email must carry.</param>
     /// <param name="hasAttachments">Whether attachments are required.</param>
+    /// <param name="category">The category an email must be sorted into.</param>
     /// <param name="direction">Which end of the timeline to read from.</param>
     /// <param name="pageSize">How many summaries to return, or none to take the default.</param>
     /// <param name="cursor">The cursor a previous page returned.</param>
@@ -86,7 +87,7 @@ internal sealed class ListEmailsTool(
     [Description(
         "Lists summaries of emails already synchronized into MailFathom's local mailbox copy, newest received first by "
         + "default. Filters by account, folder, sender address, recipient address, subject text, received date range, "
-        + "read state, flagged (starred) state, a keyword the email carries, and attachment "
+        + "read state, flagged (starred) state, a keyword the email carries, a category, and attachment "
         + "presence. Reads the local copy only: it never contacts a mail server, never "
         + "marks mail as read, and never returns body text, raw MIME, or attachment content. Never returns a message "
         + "judged spam, in any folder, or mail in the account's junk folder unless its owner marked it not spam. "
@@ -116,6 +117,8 @@ internal sealed class ListEmailsTool(
         string? keyword = null,
         [Description(MailboxFilterDescriptions.HasAttachments)]
         bool? hasAttachments = null,
+        [Description(MailboxFilterDescriptions.Category)]
+        string? category = null,
         [Description("Which end of the timeline to read from: newestFirst to browse recent mail, oldestFirst to walk a mailbox in full.")]
         ListEmailsDirection direction = ListEmailsDirection.NewestFirst,
         [Description("How many summaries to return, from 1 to 100. Omit to take the default of 25. A value outside the range is refused rather than clamped.")]
@@ -137,6 +140,7 @@ internal sealed class ListEmailsTool(
             IsFlagged = isFlagged,
             Keyword = keyword,
             HasAttachments = hasAttachments,
+            Category = category,
             Direction = DomainDirection(direction),
             PageSize = pageSize,
             Cursor = cursor,

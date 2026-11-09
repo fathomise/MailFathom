@@ -77,6 +77,7 @@ internal sealed class SearchEmailsTool(
     /// <param name="isFlagged">The <c>\Flagged</c> state to require.</param>
     /// <param name="keyword">The keyword an email must carry.</param>
     /// <param name="hasAttachments">Whether attachments are required.</param>
+    /// <param name="category">The category an email must be sorted into.</param>
     /// <param name="resultLimit">How many ranked results to return, or none to take the default.</param>
     /// <param name="cancellationToken">Cancels the search when the caller disconnects or the host shuts down.</param>
     /// <returns>The ranked window, how it was retrieved, and how current each covered folder is.</returns>
@@ -106,7 +107,7 @@ internal sealed class SearchEmailsTool(
         + "matching a word, and a result reached that way is marked isDepictedMatch and always sits below every result "
         + "any query word or any written text reached — so a photograph never displaces a message that contains the "
         + "word you searched for. Narrows by account, folder, sender address, recipient address, subject text, "
-        + "received date range, read state, flagged (starred) state, a keyword the email carries, "
+        + "received date range, read state, flagged (starred) state, a keyword the email carries, a category, "
         + "and attachment presence. Reads the local copy only: it never contacts "
         + "a mail server, never marks mail as read, and never returns whole bodies, raw MIME, whole attachments, or a "
         + "whole attachment's text — every extract it returns is bounded. "
@@ -139,6 +140,8 @@ internal sealed class SearchEmailsTool(
         string? keyword = null,
         [Description(MailboxFilterDescriptions.HasAttachments)]
         bool? hasAttachments = null,
+        [Description(MailboxFilterDescriptions.Category)]
+        string? category = null,
         [Description("How many ranked results to return, from 1 to 50. Omit to take the default of 20. A value outside the range is refused rather than clamped, so a window is never smaller than it claims to be.")]
         int? resultLimit = null,
         CancellationToken cancellationToken = default)
@@ -157,6 +160,7 @@ internal sealed class SearchEmailsTool(
             IsFlagged = isFlagged,
             Keyword = keyword,
             HasAttachments = hasAttachments,
+            Category = category,
             ResultLimit = resultLimit,
         };
 

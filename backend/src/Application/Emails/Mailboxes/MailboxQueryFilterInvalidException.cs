@@ -92,6 +92,29 @@ public sealed class MailboxQueryFilterInvalidException : MailFathomException
             outboxReading),
         filterName);
 
+    /// <summary>Refuses a category no account in scope offers, a default it switched off included, naming what is offered.</summary>
+    /// <param name="offered">Every category the accounts in scope offer.</param>
+    /// <returns>The failure to raise.</returns>
+    /// <remarks>
+    /// What the caller wrote is not repeated, as in every refusal here. What is offered is: without it a caller cannot
+    /// correct the name, and every name in it is one the same caller reads on the mail of those accounts. An own
+    /// category's name is the account's own text, which is why this message reaches the caller and only the error
+    /// code reaches a log.
+    /// </remarks>
+    public static MailboxQueryFilterInvalidException CategoryNotOffered(IReadOnlyCollection<string> offered)
+    {
+        ArgumentNullException.ThrowIfNull(offered);
+
+        return new(
+            offered.Count is 0
+                ? "The mailbox query category filter names a category, and no account in scope offers any."
+                : string.Format(
+                    CultureInfo.InvariantCulture,
+                    "The mailbox query category filter names no category the accounts in scope offer. They offer: {0}.",
+                    string.Join(", ", offered)),
+            "category");
+    }
+
     private static string NotAUsableIdentifierMessage(string filterName) => string.Format(
         CultureInfo.InvariantCulture,
         "The mailbox query {0} filter names a value this system does not issue.",

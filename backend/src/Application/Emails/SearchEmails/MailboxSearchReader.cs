@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
@@ -87,6 +88,7 @@ public sealed class MailboxSearchReader
     private readonly SensitiveContentEgressGuard egressGuard;
     private readonly IMailboxReadTelemetry readTelemetry;
     private readonly AccessAuthorization authorization;
+    private readonly OfferedMailCategories offeredCategories;
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="searchIndexReader">Ranks mail against the query text and reads the window a ranking selected.</param>
@@ -98,6 +100,7 @@ public sealed class MailboxSearchReader
     /// <param name="egressGuard">Scans what the window is about to publish, where this deployment scans anything.</param>
     /// <param name="readTelemetry">Publishes the search as the operation it is, beside the call it happened inside.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
+    /// <param name="offeredCategories">Reads a category filter against what the accounts offer, and puts on each published summary what its account shows.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailboxSearchReader(
         IEmailSearchIndexReader searchIndexReader,
@@ -108,7 +111,8 @@ public sealed class MailboxSearchReader
         EmailSearchSnippetBounds snippetBounds,
         SensitiveContentEgressGuard egressGuard,
         IMailboxReadTelemetry readTelemetry,
-        AccessAuthorization authorization)
+        AccessAuthorization authorization,
+        OfferedMailCategories offeredCategories)
     {
         ArgumentNullException.ThrowIfNull(searchIndexReader);
         ArgumentNullException.ThrowIfNull(attachmentMatchReader);
@@ -119,6 +123,7 @@ public sealed class MailboxSearchReader
         ArgumentNullException.ThrowIfNull(egressGuard);
         ArgumentNullException.ThrowIfNull(readTelemetry);
         ArgumentNullException.ThrowIfNull(authorization);
+        ArgumentNullException.ThrowIfNull(offeredCategories);
 
         this.searchIndexReader = searchIndexReader;
         this.attachmentMatchReader = attachmentMatchReader;
@@ -129,6 +134,7 @@ public sealed class MailboxSearchReader
         this.egressGuard = egressGuard;
         this.readTelemetry = readTelemetry;
         this.authorization = authorization;
+        this.offeredCategories = offeredCategories;
     }
 
     /// <summary>Searches for one window of ranked emails and publishes it to a caller outside this process.</summary>
@@ -173,10 +179,13 @@ public sealed class MailboxSearchReader
 
         var window = await this.SearchWindowAsync(request, cancellationToken);
         var matches = await this.GuardedAsync(window.Matches, cancellationToken);
+        var categorized = await this.offeredCategories.WithCategoriesAsync(
+            [.. matches.Select(static match => match.Summary)],
+            cancellationToken);
 
         read.Completed(matches.Count);
 
-        return window with { Matches = matches };
+        return window with { Matches = [.. matches.Zip(categorized, static (match, summary) => match with { Summary = summary })] };
     }
 
     /// <summary>Searches for one window of ranked emails, for a reader inside this process.</summary>
@@ -392,20 +401,26 @@ public sealed class MailboxSearchReader
     /// time. <see cref="SearchEmailsRequest.ResolvedScope" /> says why that is the narrower answer as well as the
     /// cheaper one, and why nothing outside this assembly can set it.
     /// </remarks>
-    private async Task<MailboxEmailSelection> ReadableSelectionAsync(SearchEmailsRequest request, CancellationToken cancellationToken) => MailboxEmailSelection.Create(
-        request.ResolvedScope ?? await this.scopeResolver.ReadableScopeAsync(
+    private async Task<MailboxEmailSelection> ReadableSelectionAsync(SearchEmailsRequest request, CancellationToken cancellationToken)
+    {
+        var scope = request.ResolvedScope ?? await this.scopeResolver.ReadableScopeAsync(
             MailboxReaderKind.Agent,
             request.Accounts,
             request.Folders,
             JunkMailInclusion.Excluded,
-            cancellationToken),
-        request.SenderAddress,
-        request.RecipientAddress,
-        request.SubjectFragment,
-        request.ReceivedOnOrAfter,
-        request.ReceivedBefore,
-        request.IsMarkedSeen,
-        request.IsFlagged,
-        request.Keyword,
-        request.HasAttachments);
+            cancellationToken);
+
+        return MailboxEmailSelection.Create(
+            scope,
+            request.SenderAddress,
+            request.RecipientAddress,
+            request.SubjectFragment,
+            request.ReceivedOnOrAfter,
+            request.ReceivedBefore,
+            request.IsMarkedSeen,
+            request.IsFlagged,
+            request.Keyword,
+            request.HasAttachments,
+            category: this.offeredCategories.SelectionWithin(scope, request.Category));
+    }
 }

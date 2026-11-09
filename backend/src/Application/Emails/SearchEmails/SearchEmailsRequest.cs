@@ -65,6 +65,10 @@ public sealed record SearchEmailsRequest
     /// <summary>Gets whether attachments are required, or <see langword="null" /> for either.</summary>
     public bool? HasAttachments { get; init; }
 
+    /// <summary>Gets the category an email must be recorded under, in any case, or <see langword="null" /> for any category.</summary>
+    /// <remarks>A default's published identity or an own category's name. It constrains which emails are eligible and never how they rank.</remarks>
+    public string? Category { get; init; }
+
     /// <summary>Gets the scope a caller has already resolved, which is read instead of <see cref="Accounts" /> and <see cref="Folders" />.</summary>
     /// <remarks>
     /// Internal because resolving a scope is what refuses an account this deployment does not serve and withholds a

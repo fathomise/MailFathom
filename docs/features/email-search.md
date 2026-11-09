@@ -104,10 +104,12 @@ the same reason. It stays distinguishable from a message whose body was genuinel
 | `IsFlagged` | The `\Flagged` state to require | either state |
 | `Keyword` | One keyword the email must carry, compared without regard to case | any keyword |
 | `HasAttachments` | Whether attachments are required | either |
+| `Category` | One category the email must be recorded under, a default's identifier or an account's own name, compared without regard to case | any category, and mail with none |
 | `ResultLimit` | How many ranked results to return | the default of 20 |
 
 The structured filters are the ones `ListEmails` takes and they mean exactly the same things, because both read models
-apply one validated `MailboxEmailSelection` and one SQL predicate.
+apply one validated `MailboxEmailSelection` and one SQL predicate. `Category` narrows which emails either ranking may
+reach and enters neither: no chunk, embedding, or score reads a category, so a category changing re-derives no index.
 [Mailbox queries](mailbox-queries.md#what-each-filter-accepts-and-what-it-refuses) documents what each of them accepts
 and refuses, including the attachment-presence rule and the account-scope resolution; nothing about them changes here.
 A folder mapped with `VisibleToAI: false`, and a folder no mapping names at all, are outside an agent's search for the

@@ -36,6 +36,7 @@
     <Compile Include="..\shared\ContactBookOwnerships.cs" Link="ContactBookOwnerships.cs" />
     <Compile Include="..\shared\OutgoingMailGovernors.cs" Link="OutgoingMailGovernors.cs" />
     <Compile Include="..\shared\AuthoredSendGovernors.cs" Link="AuthoredSendGovernors.cs" />
+    <Compile Include="..\shared\StubMailCategories.cs" Link="StubMailCategories.cs" />
     <Compile Include="..\shared\StubMailFolderParticipation.cs" Link="StubMailFolderParticipation.cs" />
     <Compile Include="..\shared\StubDeploymentMailFolders.cs" Link="StubDeploymentMailFolders.cs" />
     <Compile Include="..\shared\StubJunkMailFolderCatalog.cs" Link="StubJunkMailFolderCatalog.cs" />
