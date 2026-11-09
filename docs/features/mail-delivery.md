@@ -1432,7 +1432,10 @@ scoped to the caller's own user, as every draft tool on the MCP surface is, so a
 exactly as one nobody holds. **That bounds the draft and the acts on it rather than the copy in the mailbox.** The
 drafts folder belongs to the account, so on a mailbox assigned to more than one person the others meet the unsent
 revision there through ordinary folder and message reads exactly as they meet every other message the mailbox holds,
-while the draft itself stays unreachable to them by identifier. Withholding the copy would take the draft out of the
+while the draft itself stays unreachable to them by identifier — and by its copy, since
+[`GET /api/client/messages/{storedEmailId}/draft`](../operations/client-endpoint.md#the-drafts-routes), which names
+the draft a message in the drafts folder shows so opening that message revises the draft rather than writing a second
+one, answers only the draft's author, and somebody else opening the copy carries it on as a draft of their own. Withholding the copy would take the draft out of the
 mail client the person writes in, which is the whole reason it is filed. And because a
 draft is a row, a stored message, and a copy in the user's folder rather than anything a client keeps, the one
 somebody started in the browser is the one the desktop shell opens and the one their phone's mail client shows.
