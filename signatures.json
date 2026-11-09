@@ -9,6 +9,15 @@
       "agreementVersion": "1.0",
       "agreementBlob": "d44abe753fbf1d689a32089acac64df8c61c3021",
       "recordedAt": "2026-10-20T12:45:41Z"
+    },
+    {
+      "login": "Dominosam",
+      "githubUserId": 46669257,
+      "pullRequest": 3046,
+      "commentId": 6743468062,
+      "agreementVersion": "1.1",
+      "agreementBlob": "0cd30cda91d380b2677353e001ff4ed1f4b23b57",
+      "recordedAt": "2026-11-09T15:09:41Z"
     }
   ]
 }
