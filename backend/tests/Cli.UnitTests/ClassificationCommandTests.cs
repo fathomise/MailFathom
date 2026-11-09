@@ -247,7 +247,7 @@ public sealed class ClassificationCommandTests : IDisposable
     }
 
     [Fact]
-    public async Task RunStatus_ARunOverBothHalves_ReportsEachHalfsCounts()
+    public async Task RunStatus_ARunOverBothHalves_ReportsTheCountsOfEachHalf()
     {
         // Arrange
         using var deployment = FakeSpamRoutes.Answering(runState: $$"""
