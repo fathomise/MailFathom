@@ -35,8 +35,8 @@ export const mailMoveMutationsRoute = '/mutations/moves';
  * The route a batch of deletes is written down at, relative to the client prefix.
  *
  * A third route and a third grant, because deleting is the act with no way back: filing a message in the trash puts it
- * somewhere its reader can go and fetch it, and this expunges it from the mail server. A credential may hold the move
- * and not this one.
+ * somewhere its reader can go and fetch it, and this erases it from MailFathom, and from the mail server where the
+ * account says so. A credential may hold the move and not this one.
  */
 export const mailDeleteMutationsRoute = '/mutations/deletes';
 
@@ -374,10 +374,10 @@ export async function markMailSpam(
 }
 
 /**
- * Writes down that the named messages are to be deleted from the mail server, as one batch their reader's act authored.
+ * Writes down that the named messages are to be deleted, as one batch their reader's act authored.
  *
- * Nothing here names a folder or says what becomes of MailFathom's own copy: the first is not part of the act and the
- * second is the account's configured answer, which no client decides and none displays.
+ * Nothing here names a folder or says what becomes of the mail server's copy or MailFathom's own: the first is not part
+ * of the act and the other two are the account's configured answer, which no client decides and none displays.
  *
  * @param session Who is asking and where.
  * @param transport How a request reaches the deployment.

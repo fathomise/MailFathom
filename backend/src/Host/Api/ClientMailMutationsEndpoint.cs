@@ -57,7 +57,8 @@ namespace MailFathom.Host.Api;
 /// </para>
 /// <para>
 /// <b>Deleting is a third route and a third grant, and it is the one with no way back.</b> Filing a message in the
-/// trash is a move, and a person who does it can go and fetch it; deleting expunges the remote occurrence, so
+/// trash is a move, and a person who does it can go and fetch it; deleting erases the message from MailFathom, and the
+/// remote occurrence on an account that states <c>Expunge</c>, so
 /// <see cref="MailFathomPermission.MailDelete" /> is granted apart from
 /// <see cref="MailFathomPermission.MailMove" /> and a deployment lets a credential file mail without letting it destroy
 /// mail. It names no folder in either direction: what becomes of MailFathom's own copy is the account's configured
@@ -102,7 +103,7 @@ internal static class ClientMailMutationsEndpoint
 
     /// <summary>The route deletes are submitted at.</summary>
     /// <remarks>
-    /// A delete this surface records waits before anything is asked of the mail server, which the two routes below are
+    /// A delete this surface records waits before it takes effect, which the two routes below are
     /// the two ends of. The question the client asks in front of the act stays: it is answered before anybody has seen
     /// what happened, and what the window adds is the seconds in which they can still see it and say no.
     /// </remarks>
@@ -122,7 +123,7 @@ internal static class ClientMailMutationsEndpoint
     /// <summary>How much longer than the person's own notification a held delete waits.</summary>
     /// <remarks>
     /// What it covers is a client that cannot say <c>now</c> — one whose tab was closed, whose network went, or whose
-    /// machine was put to sleep while the notification stood. Without it such a delete would reach the mail server at
+    /// machine was put to sleep while the notification stood. Without it such a delete would take effect at
     /// the very moment the way back was still on somebody's screen; with it the mailbox waits ten seconds nobody
     /// notices, and every client that does say <c>now</c> gives them back.
     /// </remarks>
@@ -377,7 +378,7 @@ internal static class ClientMailMutationsEndpoint
     }
 
     /// <summary>Writes down the deletes one batch asks for, one message at a time.</summary>
-    /// <param name="request">The messages to delete from the mail server.</param>
+    /// <param name="request">The messages to delete.</param>
     /// <param name="recorder">Writes one delete down.</param>
     /// <param name="preferences">Answers how long the acting person's own notification stands, which is what the window is measured from.</param>
     /// <param name="idempotency">Answers whether the batch's request identifier already named a different act.</param>
@@ -486,7 +487,7 @@ internal static class ClientMailMutationsEndpoint
     /// <param name="withdrawer">Withdraws them.</param>
     /// <param name="cancellationToken">Cancels the read and the commit when the client disconnects.</param>
     /// <returns><c>200</c> with each record as it now stands, <c>400</c> when the batch itself is not one this boundary accepts, or <c>403</c> for a caller whose grant does not carry <c>mailfathom.mail.delete</c>.</returns>
-    /// <remarks>This is the way back the act itself has none of, and it is why a delete recorded here waits: a record still unattempted is a message still on the mail server, and withdrawing it leaves the message there.</remarks>
+    /// <remarks>This is the way back the act itself has none of, and it is why a delete recorded here waits: a record still unattempted is a message nothing has erased yet, and withdrawing it leaves the message where it was.</remarks>
     internal static Task<Results<Ok<ClientMailChangesResponse>, ProblemHttpResult>> WithdrawDeletesAsync(
         [FromBody] ClientMailChangeWithdrawalRequest? request,
         [FromServices] MailboxChangeWithdrawer withdrawer,
@@ -630,7 +631,7 @@ internal static class ClientMailMutationsEndpoint
         return ClientMailMoveResultResponse.For(move.StoredEmailId, destination, result);
     }
 
-    /// <summary>Reads how long a delete this person authored waits before anything is asked of the mail server.</summary>
+    /// <summary>Reads how long a delete this person authored waits before it takes effect.</summary>
     /// <remarks>
     /// A preferences row this caller cannot read is answered with the unset notification time rather than with a
     /// refusal, whether the row is not a document or the grant does not carry the read: the person asked for mail to be
@@ -1057,7 +1058,7 @@ internal sealed record ClientMailMoveResultResponse(
 /// <param name="Deletes">The messages to delete, at most the batch bound this surface publishes.</param>
 internal sealed record ClientMailDeletesRequest(string? RequestId, IReadOnlyList<ClientMailDeleteRequest> Deletes);
 
-/// <summary>One message to delete from the mail server.</summary>
+/// <summary>One message to delete.</summary>
 /// <param name="StoredEmailId">The message to delete, as a list row, a conversation, or a search published it.</param>
 /// <remarks>It names nothing else. What becomes of MailFathom's own copy is the account's configured answer, so a caller that could state it here would be deciding an operator's posture from a screen.</remarks>
 internal sealed record ClientMailDeleteRequest(Guid StoredEmailId);

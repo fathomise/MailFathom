@@ -39,7 +39,8 @@ public enum MailAccountCustodySwitchRefusal
     /// <summary>The account's own deletions only flag a message <c>\Deleted</c> and leave it on the source.</summary>
     /// <remarks>
     /// A held account empties its source once each message is durably stored, so a delete that means to leave the
-    /// message on the server contradicts the mode itself. The operator states <c>Expunge</c> for the account first.
+    /// message flagged on the server for somebody to settle later is one the mode cannot honour. The operator states
+    /// <c>Expunge</c> for the account first.
     /// </remarks>
     FlagOnlyAuthoredDelete = 3,
 }

@@ -27,8 +27,8 @@ public enum AuthoredFolderDeleteDisposition
     /// <summary>Deletes the folder on the mail server and removes the mail MailFathom stored from it.</summary>
     /// <remarks>
     /// The folder goes on both sides, which is what a person deleting a folder in a mail client means by the gesture.
-    /// It is the default because every other deletion setting of an account is becoming full deletion, and because a
-    /// deletion that leaves the folder on the server brings its mail back the moment the alias is declared again.
+    /// It is the default because a deletion that leaves the folder on the server brings its mail back the moment the
+    /// alias is declared again.
     /// </remarks>
     DeleteOnServer = 0,
 

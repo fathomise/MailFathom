@@ -101,7 +101,7 @@ A refusal changes nothing and names every reason at once, so one round of fixing
   would remove mail from folders nobody asked about. Providers whose folders are labels over one store are not what
   this mode is for.
 - **The account's deletes only flag a message deleted** — its `AuthoredDeleteServerDisposition` is `FlagDeleted`. That
-  setting asks for deleted mail to stay on the source server, which a held account empties. Set it to `Expunge` and ask
+  setting asks for deleted mail to stay flagged on the source server, which a held account empties. Set it to `Expunge` and ask
   again. An account the configuration does not declare is not refused for this.
 - **Switching off, a folder mapping names nothing the source could hold.** Before the mailbox is appended back, every
   mapping's remote path has to be valid and either name a folder the source advertises or be one the mapping's
@@ -166,7 +166,7 @@ source. So the erasing transaction writes a **source removal record** — a fold
 nothing from the message — and the drain expunges from it afterwards. The request that asked for the erasure never
 waits on a mail server and never fails because one is unreachable.
 
-A delete under `AuthoredDeleteServerDisposition` `LeaveOnServer` writes no such record: what the drain had not reached
+A delete under `AuthoredDeleteServerDisposition` `LeaveOnServer`, the default, writes no such record: what the drain had not reached
 stays on the source, and only [its position](imap-synchronization.md#a-delete-that-leaves-the-server-untouched) is kept.
 
 A record is written for a folder the source keeps messages in, and for no other. Erasing what is stored of a folder
@@ -303,9 +303,9 @@ has.
   disappearance means. The configured value goes on saying what it says, and applies again once the account is mirrored.
   This is why the switch does not refuse an account configured to erase the local copy.
 - **A delete is local, so `AuthoredDeleteServerDisposition` decides one thing while the mailbox is held.** The drain
-  empties the source of whatever MailFathom still holds, whichever value is set. Only `LeaveOnServer` takes a message
-  out of that: its erasure writes no source removal record, so a message erased before the drain reached it stays on
-  the source.
+  empties the source of whatever MailFathom still holds, whichever value is set. Only `LeaveOnServer`, the default,
+  takes a message out of that: its erasure writes no source removal record, so a message erased before the drain reached
+  it stays on the source. An account that should have such a message removed there states `Expunge`.
 - **Every synchronized folder is drained, including sent, drafts, junk, and trash.** A folder whose mapping does not
   synchronize is never held and never drained.
 - **A `UIDVALIDITY` change on a held account's source duplicates rather than loses.** Rows still carrying an occurrence

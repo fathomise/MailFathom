@@ -1614,7 +1614,7 @@ export const en = {
     'grant.fileMail':
         'This credential may not file mail in another folder on this server, so archiving, deleting and moving are not offered. Your administrator can grant that.',
     'grant.deleteMail':
-        'This credential may not delete mail from your mail server, so a message already in the trash can only be left there. Your administrator can grant that.',
+        'This credential may not delete mail, so a message already in the trash can only be left there. Your administrator can grant that.',
 
     'grant.composeMail':
         'This credential may not write a draft on this server, so writing a message is not offered. Your administrator can grant that.',

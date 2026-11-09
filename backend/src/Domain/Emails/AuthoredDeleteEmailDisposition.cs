@@ -33,11 +33,10 @@ public enum AuthoredDeleteEmailDisposition
 
     /// <summary>Removes the local row together with its raw MIME and everything derived from it.</summary>
     /// <remarks>
-    /// Nothing of the email survives locally, which is what deleting a message means, so it is the default: every
-    /// deletion setting of an account defaults to deleting completely. The removal happens once the server is seen to
-    /// no longer serve the message as live — gone, or flagged <c>\Deleted</c> by a delete that issued no expunge — and
-    /// is deliberate. Where the server still holds the message and somebody removes the flag, synchronization fetches it
-    /// again rather than leaving it lost.
+    /// Nothing of the email survives locally, which is what deleting a message means, so it is the default. On a delete
+    /// that reaches the server, the removal happens once the server is seen to no longer serve the message as live — gone,
+    /// or flagged <c>\Deleted</c> by a delete that issued no expunge — and is deliberate. Where the server still holds the
+    /// message and somebody removes the flag, synchronization fetches it again rather than leaving it lost.
     /// </remarks>
     EraseLocalCopy = 2,
 }

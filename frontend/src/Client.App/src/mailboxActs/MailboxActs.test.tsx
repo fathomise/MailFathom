@@ -595,7 +595,7 @@ describe('MailboxActsProvider', () => {
 
     // Deleting from the trash is said plainly and offered no way back, because the question before it already said
     // the messages cannot be recovered — an Undo after that would contradict the confirmation somebody just answered.
-    it('deletes a message already in the trash from the mail server, saying so plainly and offering no way back', async () => {
+    it('deletes a message already in the trash, saying so plainly and offering no way back', async () => {
         const deployment = deploymentAnswering();
         const { held } = acting(deployment);
 

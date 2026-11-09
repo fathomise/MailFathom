@@ -528,8 +528,10 @@ states how the record answers that exactly, without a cycle counter or a rate li
 `AuthoredDeleteServerDisposition` for the server at the moment the request is written, exactly as a deletion somebody
 authored through a tool is.
 [What becomes of a message MailFathom deleted itself](imap-synchronization.md#what-becomes-of-a-message-mailfathom-deleted-itself)
-states the three local answers, and [a delete that only flags the message](imap-synchronization.md#a-delete-that-only-flags-the-message)
-the server's other one. A rule that moves mail always expunges its source.
+states the three local answers. On the server a rule's delete, like any other, by default
+[leaves the message untouched](imap-synchronization.md#a-delete-that-leaves-the-server-untouched), and
+[a delete that only flags the message](imap-synchronization.md#a-delete-that-only-flags-the-message) describes the two
+an account can state instead. A rule that moves mail always expunges its source.
 
 ### What an account permits a rule to do
 

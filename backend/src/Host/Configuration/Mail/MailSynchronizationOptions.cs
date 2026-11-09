@@ -1035,7 +1035,8 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// <para>
     /// It binds as one of the names <see cref="AuthoredDeleteEmailDisposition" /> declares, and a value that is none of
     /// them fails startup for the same reason the setting above does. The default erases the local copy, which is what
-    /// the gesture means; keeping a tombstone is a choice an account states by name.
+    /// the gesture means; keeping a tombstone is a choice an account states by name, together with an
+    /// <see cref="AuthoredDeleteServerDisposition" /> other than the default, which erases the copy whatever this says.
     /// </para>
     /// </remarks>
     public AuthoredDeleteEmailDisposition AuthoredDeleteEmailDisposition { get; set; } =
@@ -1044,13 +1045,19 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// <summary>Gets or sets what a delete MailFathom authors on this account does to the message on its mail server.</summary>
     /// <remarks>
     /// <para>
-    /// The default expunges the message. <see cref="AuthoredDeleteServerDisposition.FlagDeleted" /> only flags it
-    /// <c>\Deleted</c> and leaves the expunge to the server or to another client, which is what a mailbox shared with a
-    /// client that still offers an undelete asks for. Either way the local copy follows
-    /// <see cref="AuthoredDeleteEmailDisposition" />, and <see cref="RemotelyDeletedEmailDisposition" /> never applies to
-    /// the later expunge of a message MailFathom flagged. <see cref="AuthoredDeleteServerDisposition.LeaveOnServer" />
-    /// sends the server nothing and erases the local copy whatever that setting says, keeping only the occurrence's
-    /// identity so the message is never mirrored again.
+    /// The default, <see cref="AuthoredDeleteServerDisposition.LeaveOnServer" />, sends the server nothing and erases the
+    /// local copy whatever <see cref="AuthoredDeleteEmailDisposition" /> says, keeping only the occurrence's identity so
+    /// the message is never mirrored again. It is the default so that one wrong press through MailFathom, or one wrong
+    /// decision by the Agent or a rule, is never final on the mail server.
+    /// </para>
+    /// <para>
+    /// <see cref="AuthoredDeleteServerDisposition.FlagDeleted" /> is not that answer and is not the default: IMAP leaves
+    /// expunging to clients, so the first client that expunges the folder removes a flagged message for good, and
+    /// Gmail's IMAP Auto-Expunge removes it the moment the flag is set. It stays a value an administrator may state, for
+    /// a mailbox shared with a client that still offers an undelete. <see cref="AuthoredDeleteServerDisposition.Expunge" />
+    /// is what an account states to have the message removed from its server. Under either of those two the local copy
+    /// follows <see cref="AuthoredDeleteEmailDisposition" />, and <see cref="RemotelyDeletedEmailDisposition" /> never
+    /// applies to the later expunge of a message MailFathom flagged.
     /// </para>
     /// <para>
     /// It binds as one of the names <see cref="AuthoredDeleteServerDisposition" /> declares, and a value that is none of
@@ -1059,7 +1066,7 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// </para>
     /// </remarks>
     public AuthoredDeleteServerDisposition AuthoredDeleteServerDisposition { get; set; } =
-        AuthoredDeleteServerDisposition.Expunge;
+        AuthoredDeleteServerDisposition.LeaveOnServer;
 
     /// <summary>Gets or sets what deleting one of this account's folders through the client does on its mail server.</summary>
     /// <remarks>
@@ -1072,7 +1079,7 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// It binds as one of the names <see cref="AuthoredFolderDeleteDisposition" /> declares, and a value that is none
     /// of them fails startup for the reason the two settings above do: this decides whether mail is destroyed, and a
     /// typo in it must never be the reason mail survives or does not. The default deletes the folder on the server,
-    /// which is what the gesture means and what every other deletion setting of an account is becoming.
+    /// which is what the gesture means.
     /// </para>
     /// </remarks>
     public AuthoredFolderDeleteDisposition AuthoredFolderDeleteDisposition { get; set; } =

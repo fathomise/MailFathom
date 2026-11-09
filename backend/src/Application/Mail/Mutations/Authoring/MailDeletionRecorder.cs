@@ -21,12 +21,13 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0007-remote-mailbox-mutation-boundary-and-write-session.md">ADR 0007</see>
 /// permits a caller to author, and it is built exactly as <see cref="MailRelocationRecorder" /> is: it asks for the
 /// grant before it asks about the email, it answers the same question about which mail may be written as about which
-/// mail may be read, and it issues no IMAP command at all. The account's own convergence pass expunges the remote
-/// occurrence, which is why an unreachable account leaves the delete pending rather than failing it.
+/// mail may be read, and it issues no IMAP command at all. On an account that states <c>Expunge</c> the account's own
+/// convergence pass expunges the remote occurrence, which is why an unreachable account leaves the delete pending
+/// rather than failing it.
 /// </para>
 /// <para>
 /// The grant is its own, and is not the one that moves mail. Filing a message in the trash puts it somewhere the user
-/// has to look for it; this destroys the remote occurrence, so <see cref="MailFathomPermission.MailDelete" /> is a name
+/// has to look for it; this destroys the message, so <see cref="MailFathomPermission.MailDelete" /> is a name
 /// a deployment grants separately from <see cref="MailFathomPermission.MailMove" />.
 /// </para>
 /// <para>
@@ -41,7 +42,7 @@ namespace MailFathom.Application.Mail.Mutations.Authoring;
 /// not destroy mail, and a rule action already authors the same delete from wherever the message happens to be.
 /// </para>
 /// <para>
-/// <b>A caller may ask for the record to wait before anything is asked of the mail server.</b> Deleting is the one act
+/// <b>A caller may ask for the record to wait before it takes effect.</b> Deleting is the one act
 /// with nothing to reverse it, so a question in front of it is all a person gets — and a question is answered before
 /// anybody has seen what happened. A withdrawal window is the way back that a confirmation is not: the record opens as
 /// every other does and is simply not taken in hand until the window has passed, which is what the two withdrawal
@@ -68,7 +69,7 @@ public sealed class MailDeletionRecorder
     /// <param name="deleteDispositions">Answers what the account keeps locally of mail the server has let go of.</param>
     /// <param name="submission">Records the delete, or commits it where the account is held.</param>
     /// <param name="commitPolicy">Commits the record, retrying an optimistic conflict.</param>
-    /// <param name="runSignal">Brings the account's next synchronization run forward, which is what carries the delete to the mail server.</param>
+    /// <param name="runSignal">Brings the account's next synchronization run forward, which is what carries the delete out.</param>
     /// <param name="timeProvider">Measures the withdrawal window a caller asks for, from the moment the record is written.</param>
     /// <param name="idempotency">Answers a repeat of an act the person already made, and keeps the key of one that commits.</param>
     /// <exception cref="ArgumentNullException">Thrown when a required collaborator is <see langword="null" />.</exception>
@@ -272,7 +273,7 @@ public sealed class MailDeletionRecorder
             //
             // A held record is the one case where it is not raised at all. Nothing a run could do with it has become
             // due, so bringing one forward would spend a pass on a record it must leave where it is; what carries a
-            // held delete to the mail server is the account's ordinary schedule once the window has elapsed, or the
+            // held delete out is the account's ordinary schedule once the window has elapsed, or the
             // release that lifts the hold and raises this itself.
             this.runSignal.BringForward(target.Occurrence.AccountId);
         }

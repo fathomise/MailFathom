@@ -81,8 +81,8 @@ than met later by a run.
 | `…:EarliestEmailReceivedDate` | date | unset (everything) | Not in the future (compared in UTC) | reload |
 | `…:TrustedAuthenticationServiceIdentifier` | string | unset (believe the known provider listed for `Host`, else no header) | The authserv-id of the server that receives this account's mail; at most 253 characters and no whitespace, compared without regard to case. Present and unusable fails startup; omitted is an ordinary choice | reload; the next extraction reads against it |
 | `…:RemotelyDeletedEmailDisposition` | enum | `EraseLocalCopy` | `RetainLocalCopy`, `RetainTombstone`, `EraseLocalCopy`; see [what a deletion does](#what-a-deletion-does--three-settings) | reload; governs disappearances observed from then on |
-| `…:AuthoredDeleteEmailDisposition` | enum | `EraseLocalCopy` | `RetainTombstone`, `EraseLocalCopy`, and an account stating `RetainLocalCopy` is refused naming those two; what becomes of the local copy of mail MailFathom itself deleted, and it takes precedence over the key above for those | reload; governs deletes authored from then on |
-| `…:AuthoredDeleteServerDisposition` | enum | `Expunge` | `Expunge`, `FlagDeleted`, `LeaveOnServer`, read by name; any other name fails startup and is refused when a record is written. What a delete MailFathom authored does on the mail server: `Expunge` removes the message, `FlagDeleted` only marks it `\Deleted` and leaves it there, and `LeaveOnServer` sends the server nothing; see [what a deletion does](#what-a-deletion-does--three-settings). `FlagDeleted` is refused as the account's setting while MailFathom holds its mailbox | reload; governs deletes authored from then on |
+| `…:AuthoredDeleteEmailDisposition` | enum | `EraseLocalCopy` | `RetainTombstone`, `EraseLocalCopy`, and an account stating `RetainLocalCopy` is refused naming those two; what becomes of the local copy of mail MailFathom itself deleted, and it takes precedence over the key above for those. `RetainTombstone` takes effect only beside an `AuthoredDeleteServerDisposition` of `Expunge` or `FlagDeleted` | reload; governs deletes authored from then on |
+| `…:AuthoredDeleteServerDisposition` | enum | `LeaveOnServer` | `Expunge`, `FlagDeleted`, `LeaveOnServer`, read by name; any other name fails startup and is refused when a record is written. What a delete MailFathom authored does on the mail server: `Expunge` removes the message, `FlagDeleted` only marks it `\Deleted` and leaves it there, and `LeaveOnServer` sends the server nothing; see [what a deletion does](#what-a-deletion-does--three-settings). `FlagDeleted` is refused as the account's setting while MailFathom holds its mailbox | reload; governs deletes authored from then on |
 | `…:AuthoredFolderDeleteDisposition` | enum | `DeleteOnServer` | `DeleteOnServer`, `MarkDeletedLocally`; what deleting a folder [through the client](client-endpoint.md#the-folder-management-routes) does on a mirrored account's own mail server. `DeleteOnServer` issues `DELETE`, stops synchronizing the folder, and removes the mail stored from it; `MarkDeletedLocally` reaches the server not at all and marks the folder deleted in MailFathom, which takes it and its mail out of every listing while the server keeps both. It decides nothing for an account whose mailbox MailFathom holds, where a deletion is always local | reload; governs folder deletions authored from then on |
 | `…:RuleActions:Move` | bool | `true` | Whether a rule may file this account's mail into another of its folders | reload; the next rule pass writes down no change this refuses |
 | `…:RuleActions:Copy` | bool | `true` | Whether a rule may place a copy of this account's mail in another of its folders | reload; the same |
@@ -444,12 +444,13 @@ served it, which step supplied it, and who holds it.
 ### What a deletion does — three settings
 
 Three keys of one account decide what a deletion leaves behind, and they are read together because they answer the
-same question for different acts. An account that sets none of them deletes fully on both sides.
+same question for different acts. An account that sets none of them erases what it deletes from MailFathom, leaves the
+mail server's copy untouched, and erases what the server stops holding.
 
 | Setting | The act it governs | Default | What the other values do |
 | --- | --- | --- | --- |
-| `AuthoredDeleteServerDisposition` | A delete MailFathom performed — by the user in the client, by an MCP caller, or by a rule — as the server sees it | `Expunge`: `UID STORE +FLAGS (\Deleted)` and then `UID EXPUNGE` for that one UID | `FlagDeleted` issues the `STORE` and no `EXPUNGE`. The message stays on the server marked deleted, for another client, a server policy, or a person to expunge later. `LeaveOnServer` sends the server nothing, erases the message from MailFathom whatever `AuthoredDeleteEmailDisposition` says, and keeps only what stops it being mirrored again |
-| `AuthoredDeleteEmailDisposition` | The same delete, as the local copy sees it | `EraseLocalCopy`: the stored row and everything derived from it are erased | `RetainTombstone` keeps the row and hides it from every query. No value keeps a message readable after a delete MailFathom performed |
+| `AuthoredDeleteServerDisposition` | A delete MailFathom performed — by the user in the client, by an MCP caller, or by a rule — as the server sees it | `LeaveOnServer`: the server is sent nothing, the message is erased from MailFathom whatever `AuthoredDeleteEmailDisposition` says, and only what stops it being mirrored again is kept | `Expunge` issues `UID STORE +FLAGS (\Deleted)` and then `UID EXPUNGE` for that one UID. `FlagDeleted` issues the `STORE` and no `EXPUNGE`. The message stays on the server marked deleted, for another client, a server policy, or a person to expunge later |
+| `AuthoredDeleteEmailDisposition` | The same delete, as the local copy sees it | `EraseLocalCopy`: the stored row and everything derived from it are erased | `RetainTombstone` keeps the row and hides it from every query, and takes effect only beside an `AuthoredDeleteServerDisposition` of `Expunge` or `FlagDeleted`, so an account keeping tombstones states that setting too. No value keeps a message readable after a delete MailFathom performed |
 | `RemotelyDeletedEmailDisposition` | A message the server stopped holding when MailFathom did not delete it | `EraseLocalCopy` | `RetainLocalCopy` keeps the message readable and marks it local only; `RetainTombstone` keeps the row and hides it from every query |
 
 Each value is read when the delete is recorded and travels with the record, so a setting changed while a delete is still
@@ -469,7 +470,9 @@ Moving a message and withdrawing a filed copy always expunge the source, whateve
 says: those acts leave the message somewhere else, and a copy left flagged behind would be a second one. `Expunge` and
 `FlagDeleted` require the server's `UIDPLUS`.
 
-**`LeaveOnServer` is the delete that actually leaves the message alone.** `FlagDeleted` does not: the first client that
+**`LeaveOnServer` is the delete that actually leaves the message alone, and the default for that reason:** one wrong
+press through MailFathom, or one wrong decision by the Agent or a rule, is then never final on the mail server. An
+account that should remove what it deletes states `Expunge`. `FlagDeleted` does not leave it alone: the first client that
 expunges or closes the folder removes a flagged message for good, and a server that auto-expunges, as Gmail's IMAP does
 by default, removes it the moment the flag is set, so on such a server `FlagDeleted` is not a safe setting.
 `LeaveOnServer` issues no command for the delete. What MailFathom keeps is the account, the folder, `UIDVALIDITY`, and
@@ -478,10 +481,12 @@ or the account is. A copy of the message reaching another folder, or the same fo
 [A delete that leaves the server untouched](../features/imap-synchronization.md#a-delete-that-leaves-the-server-untouched)
 holds the rest.
 
-**`FlagDeleted` is refused on an account whose mailbox MailFathom holds.** A held account's deletes are local, and it
-empties its source server as it takes custody, so a setting that leaves messages on that server says the opposite.
+**`FlagDeleted` is refused on an account whose mailbox MailFathom holds.** It asks for a deleted message to stay on the
+source marked deleted for somebody to settle later, and a held account cannot honour that: its deletes are local, so
+nothing sets the flag, and it empties its source as it takes custody.
 [Asking to hold the mailbox](admin-endpoint.md#what-the-endpoint-serves) of an account set to `FlagDeleted` is refused, and the refusal says to
-set it to `Expunge` first.
+set it to `Expunge` first. `LeaveOnServer`, the default, is not refused: a message erased before the drain reached it
+stays on the source unflagged, and an account that should have it removed there states `Expunge`.
 
 ### How long an account keeps its mail — `Retention`
 

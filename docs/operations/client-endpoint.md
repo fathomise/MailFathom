@@ -2440,7 +2440,7 @@ flag.
 ### The mutation routes
 
 These nine are how a person changes the mailbox itself: marking mail read or unread, starring it, relabelling it,
-filing it into another folder, saying it is spam or not, and deleting it off the server — and asking where each of
+filing it into another folder, saying it is spam or not, and deleting it — and asking where each of
 those changes has got to, taking one back, or saying a delete need wait no longer.
 
 | Route | What it does |
@@ -2650,9 +2650,8 @@ mind.
 flag misdescribes mail the user can still find; a move puts the mail somewhere else, and on a server without `MOVE` it
 is a copy followed by a delete — which is why the two are granted separately and why the record exists at all.
 
-**A delete names a message and nothing else**, because there is no destination to name: it asks the account's pass to
-expunge that occurrence from the server, and what becomes of the local copy is the account's configured disposition
-rather than anything a caller writes.
+**A delete names a message and nothing else**, because there is no destination to name: what it does on the mail server
+and what becomes of the local copy are the account's configured dispositions rather than anything a caller writes.
 
 ```http
 POST /api/client/mutations/deletes
@@ -2666,12 +2665,13 @@ Each result carries `recorded`, `applied`, `message-not-found`, or `account-no-l
 that is not there rather than as a delete that succeeded twice.
 
 **Deleting mail is its own grant again.** `mailfathom.mail.move` does not reach it and `mailfathom.mail.delete` does: a
-move the user did not want is undone by moving the mail back, while this is the act that means the mail stops existing
-on the server, so a deployment that lets a client file mail has not thereby let it destroy any. Which folder the message
+move the user did not want is undone by moving the mail back, while this is the act that erases the mail from
+MailFathom, and from the mail server where the account states `Expunge`, so a deployment that lets a client file mail
+has not thereby let it destroy any. Which folder the message
 is in decides nothing on this surface: the rule that MailFathom's own client offers this only for mail already in the
 trash is that client's sentence to its reader, and the grant is the whole of what this route enforces.
 
-**A delete written here waits before anything is asked of the mail server, and can be taken back while it does.** Every
+**A delete written here waits before it takes effect, and can be taken back while it does.** Every
 record a batch writes is held for the signed-in person's own [`notificationSeconds`](#the-preferences-routes) plus ten
 seconds, read once for the whole batch so a selection deleted as one act can be taken back as one. The account's pass
 does not see a held record, so for that long `POST /api/client/mutations/deletes/withdrawals` cancels it exactly as the
