@@ -677,11 +677,12 @@ is counts, volumes, and MailFathom's own two words for the two mechanisms.
 
 ### Mail retention
 
-`mailfathom.mail_retention.conversations.removed` counts the conversations removed because no stored message was left
-in them, and `mailfathom.mail_retention.account_run.duration` is how long one account's run of the nightly steps took,
+`mailfathom.mail_retention.tombstones.erased` counts the stored messages erased because they had been tombstones for
+longer than their account keeps them, `mailfathom.mail_retention.conversations.removed` counts the conversations removed
+because no stored message was left in them, and `mailfathom.mail_retention.account_run.duration` is how long one account's run of the nightly steps took,
 in seconds. A night's count across accounts is what [the nightly retention walk](configuration-runtime.md#the-nightly-retention-walk)
-did; the bound per account means a large backlog shows as the same count night after night until it clears. Neither
-carries an account, a conversation, or anything read from mail.
+did; the bound per account means a large backlog shows as the same count night after night until it clears. None of
+them carries an account, a conversation, or anything read from mail.
 
 ### The move of stored content
 

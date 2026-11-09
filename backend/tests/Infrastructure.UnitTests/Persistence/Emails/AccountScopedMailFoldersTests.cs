@@ -40,6 +40,64 @@ public sealed class AccountScopedMailFoldersTests
             readable.AsEnumerable().Select(email => (email.MailboxAccountId, email.MailFolderBinding.Alias)));
     }
 
+    /// <summary>An exclusion is compared as every alias is, whatever case the account wrote it in.</summary>
+    [Fact]
+    public void OutsideRetentionExclusions_AnAliasInAnyCase_LeavesThatFolderOut()
+    {
+        // Arrange
+        var emails = Emails(("work", "ARCHIVE"), ("work", "INBOX"));
+
+        // Act
+        var retiring = AccountScopedMailFolders.OutsideRetentionExclusions(emails, ["archive"]);
+
+        // Assert
+        Assert.Equal(["INBOX"], retiring.AsEnumerable().Select(email => email.Folder.Alias));
+    }
+
+    /// <summary>A folder a person made on a held account has no alias, so its identifier is the only way to name it.</summary>
+    [Fact]
+    public void OutsideRetentionExclusions_ALocalFolderIdentifier_LeavesThatFolderOut()
+    {
+        // Arrange
+        var made = FolderRow("work", alias: null, role: null);
+        var emails = EmailsIn(made, FolderRow("work", "INBOX", role: null));
+
+        // Act
+        var retiring = AccountScopedMailFolders.OutsideRetentionExclusions(emails, [made.Id.ToString("D")]);
+
+        // Assert
+        Assert.Equal(["INBOX"], retiring.AsEnumerable().Select(email => email.Folder.Alias));
+    }
+
+    /// <summary>A policy states one list for many accounts, so an entry naming no folder here excludes nothing.</summary>
+    [Fact]
+    public void OutsideRetentionExclusions_AnEntryNamingNoFolder_ExcludesNothing()
+    {
+        // Arrange
+        var made = FolderRow("work", alias: null, role: null);
+        var emails = EmailsIn(made, FolderRow("work", "INBOX", role: null));
+
+        // Act
+        var retiring = AccountScopedMailFolders.OutsideRetentionExclusions(emails, ["ELSEWHERE"]);
+
+        // Assert
+        Assert.Equal(2, retiring.AsEnumerable().Count());
+    }
+
+    /// <summary>An account excluding nothing pays for no clause at all.</summary>
+    [Fact]
+    public void OutsideRetentionExclusions_NothingExcluded_LeavesTheQueryAsItWas()
+    {
+        // Arrange
+        var emails = Emails(("work", "INBOX"));
+
+        // Act
+        var retiring = AccountScopedMailFolders.OutsideRetentionExclusions(emails, []);
+
+        // Assert
+        Assert.Same(emails, retiring);
+    }
+
     /// <summary>A deployment that withholds nothing pays for no clause at all, which is what keeps the switch free.</summary>
     [Fact]
     public void Excluding_NothingExcluded_LeavesTheQueryAsItWas()

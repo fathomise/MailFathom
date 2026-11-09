@@ -46,4 +46,17 @@ internal static class StoredEmailTombstone
                 && email.AuthoredDeleteFlaggedAt == null
                 && email.LocalDeleteCommittedAt == null)
             || email.IsRetainedAfterAuthoredDelete;
+
+    /// <summary>Admits the rows that became a settled tombstone before a moment, which PostgreSQL evaluates in full.</summary>
+    /// <param name="moment">The moment the row must have become one before.</param>
+    /// <returns>The predicate.</returns>
+    /// <remarks>
+    /// A row is a tombstone from the moment the server was first seen to have removed or flagged it. A row only
+    /// <see cref="StoredEmailEntity.LocalDeleteCommittedAt" /> hides is left out, because that delete has not settled and
+    /// may still be withdrawn or given up. A flag always precedes the expunge that follows it, so the flag is the older
+    /// of the two wherever both are set.
+    /// </remarks>
+    internal static Expression<Func<StoredEmailEntity, bool>> SettledBefore(DateTimeOffset moment) =>
+        email => !email.IsRetainedAfterAuthoredDelete
+            && (email.AuthoredDeleteFlaggedAt ?? email.RemoteExpungeObservedAt) < moment;
 }

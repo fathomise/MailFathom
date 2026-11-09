@@ -9,6 +9,7 @@ using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Mail.Mutations.Audit;
 using MailFathom.Application.Mail.Mutations.Convergence;
+using MailFathom.Application.Mail.Retention;
 using MailFathom.Application.Retrieval.AskMail.Audit;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Accounts;
@@ -1859,6 +1860,11 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// <returns>The settings the account's block names.</returns>
     internal MailboxMutationAuditSettings CreateAuditSettings() =>
         new(this.AuditTrail.Enabled, this.AuditTrail.Retention);
+
+    /// <summary>Builds the account's configured tombstone retention.</summary>
+    /// <returns>The retention the account's block names.</returns>
+    internal MailTombstoneRetention CreateTombstoneRetention() =>
+        new(this.Retention.Tombstones.Enabled, this.Retention.Tombstones.After, [.. this.Retention.ExcludedFolders]);
 
     /// <summary>Builds the account's configured answering record settings.</summary>
     /// <returns>The settings the account's block names.</returns>

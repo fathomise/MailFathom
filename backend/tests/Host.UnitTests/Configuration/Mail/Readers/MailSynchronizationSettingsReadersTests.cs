@@ -113,6 +113,40 @@ public sealed class MailSynchronizationSettingsReadersTests
     private static ScopedMailSynchronizationSettings ScopeOver(StubSettingsSnapshot<MailSynchronizationOptions> published) =>
         new(published, Substitute.For<IMailSynchronizationAccountSource>());
 
+    /// <summary>What the account states is what the pass reads, age and exclusions alike.</summary>
+    [Fact]
+    public void GetTombstoneRetention_AnAccountStatingIt_AnswersItsSwitchAgeAndExclusions()
+    {
+        // Arrange
+        var account = AccountAt("work", "user@work.example");
+        account.Retention.Tombstones.Enabled = true;
+        account.Retention.Tombstones.After = TimeSpan.FromDays(7);
+        account.Retention.ExcludedFolders = ["Archive"];
+        var readers = OptionsFor(account).Readers;
+
+        // Act
+        var retention = readers.TombstoneRetention.GetTombstoneRetention(MailAccountId.Create("work"));
+
+        // Assert
+        Assert.True(retention.IsEnabled);
+        Assert.Equal(TimeSpan.FromDays(7), retention.After);
+        Assert.Equal(["Archive"], retention.ExcludedFolders);
+    }
+
+    /// <summary>A reload can remove an account after the walk handed it out, and no operator decision applies to it then.</summary>
+    [Fact]
+    public void GetTombstoneRetention_AnAccountNoLongerConfigured_IsDisabled()
+    {
+        // Arrange
+        var readers = OptionsFor(AccountAt("work", "user@work.example")).Readers;
+
+        // Act
+        var retention = readers.TombstoneRetention.GetTombstoneRetention(MailAccountId.Create("removed"));
+
+        // Assert
+        Assert.False(retention.IsEnabled);
+    }
+
     private static MailSynchronizationOptions OptionsFor(params MailSynchronizationAccountOptions[] accounts) =>
         new MailSynchronizationOptions().Serving(accounts);
 

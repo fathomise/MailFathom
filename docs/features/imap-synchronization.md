@@ -1903,9 +1903,12 @@ sets this beside the two settings for deletes MailFathom performs.
 **Changing the setting governs what is observed from then on, and touches nothing already recorded.** A message already
 tombstoned under `RetainTombstone` is outside every later window — the server has nothing left to say about it — so
 switching an account to `EraseLocalCopy` erases the disappearances observed after the change and leaves the existing
-tombstones exactly as they are. Cleaning those up is deliberately not automatic; [#170](https://github.com/fathomise/MailFathom/issues/170)
-tracks the retention grace period and the bounded garbage collection that will own it, and that is also where a delay
-between observing a disappearance and erasing the local copy will come from.
+tombstones exactly as they are. [`Retention:Tombstones`](../operations/configuration-mail.md#how-long-an-account-keeps-its-mail--retention)
+is what clears them: with it on, the nightly retention run erases a row once it has been a tombstone for longer than the
+account's `After`, as `EraseLocalCopy` erases, the tombstones an account accumulated before it was switched on included.
+It is also the delay between observing a disappearance and erasing the local copy, for an account that wants one:
+`RetainTombstone` with an age. Nothing is announced to an open client, since a tombstone is already out of every list and
+every read.
 
 The whole window is applied as one set of writes against rows read in one query, so a pass costs one round trip rather
 than one per email inside an open write transaction.
@@ -2491,10 +2494,6 @@ A rejected reload is logged with the configuration path and the failure identity
   so a sink failure loses the record of a change that already happened.
 - Adapters for external managed secret stores. Kubernetes and container deployments need none, because their secrets are files.
 - Explicit EF Core migrations after schema review.
-- A retention grace period for a message the server no longer holds, and the bounded garbage collection that would act
-  on it. Erasing a local copy happens as the disappearance is observed, and a tombstone keeps its content
-  indefinitely; [#170](https://github.com/fathomise/MailFathom/issues/170) owns both, together with clearing the
-  tombstones an account accumulated before it switched to erasing.
 - Chaos-tested resilience pipelines. The composition has unit coverage; what is missing is proof that an adapter survives a
   dependency misbehaving, which belongs with the adapters now that they are under integration coverage.
 - RAG indexing and SMTP outbox integration. The MCP protocol surface has landed, with `list_emails` and the conventions

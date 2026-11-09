@@ -70,6 +70,97 @@ public sealed class StoredEmailTombstoneTests
         Assert.True(admitted);
     }
 
+    /// <summary>A row is measured from the moment the server was seen to have removed it, whatever came before.</summary>
+    [Fact]
+    public void SettledBefore_AnExpungeOlderThanTheMoment_IsAdmitted()
+    {
+        // Arrange
+        var email = CreateEmail();
+        email.RemoteExpungeObservedAt = ExpungeObservedAt;
+
+        // Act
+        var admitted = StoredEmailTombstone.SettledBefore(ExpungeObservedAt.AddTicks(1)).Compile()(email);
+
+        // Assert
+        Assert.True(admitted);
+    }
+
+    /// <summary>"Longer than" is strict, so a row exactly at the age has not yet outlived it.</summary>
+    [Fact]
+    public void SettledBefore_AnExpungeExactlyAtTheMoment_IsLeftOut()
+    {
+        // Arrange
+        var email = CreateEmail();
+        email.RemoteExpungeObservedAt = ExpungeObservedAt;
+
+        // Act
+        var admitted = StoredEmailTombstone.SettledBefore(ExpungeObservedAt).Compile()(email);
+
+        // Assert
+        Assert.False(admitted);
+    }
+
+    /// <summary>A flagged row became a tombstone when it was flagged, and a later expunge does not restart its clock.</summary>
+    [Fact]
+    public void SettledBefore_AFlagFollowedByAnExpunge_IsMeasuredFromTheFlag()
+    {
+        // Arrange
+        var email = CreateEmail();
+        email.AuthoredDeleteFlaggedAt = ExpungeObservedAt.AddDays(-10);
+        email.RemoteExpungeObservedAt = ExpungeObservedAt;
+
+        // Act
+        var admitted = StoredEmailTombstone.SettledBefore(ExpungeObservedAt.AddDays(-1)).Compile()(email);
+
+        // Assert
+        Assert.True(admitted);
+    }
+
+    /// <summary>A delete committed locally and not yet observed to settle can still be given up, so it is not a tombstone yet.</summary>
+    [Fact]
+    public void SettledBefore_ADeleteOnlyCommittedLocally_IsLeftOutHoweverOld()
+    {
+        // Arrange
+        var email = CreateEmail();
+        email.LocalDeleteCommittedAt = ExpungeObservedAt.AddYears(-5);
+
+        // Act
+        var admitted = StoredEmailTombstone.SettledBefore(ExpungeObservedAt).Compile()(email);
+
+        // Assert
+        Assert.False(admitted);
+    }
+
+    /// <summary>Mail kept readable is a message rather than a tombstone, and this pass must never reach it.</summary>
+    [Fact]
+    public void SettledBefore_EmailRetainedAfterAnAuthoredDelete_IsLeftOut()
+    {
+        // Arrange
+        var email = CreateEmail();
+        email.RemoteExpungeObservedAt = ExpungeObservedAt;
+        email.IsRetainedAfterAuthoredDelete = true;
+
+        // Act
+        var admitted = StoredEmailTombstone.SettledBefore(ExpungeObservedAt.AddDays(1)).Compile()(email);
+
+        // Assert
+        Assert.False(admitted);
+    }
+
+    /// <summary>An email the server still holds has no age as a tombstone at all.</summary>
+    [Fact]
+    public void SettledBefore_EmailTheServerStillHolds_IsLeftOut()
+    {
+        // Arrange
+        var email = CreateEmail();
+
+        // Act
+        var admitted = StoredEmailTombstone.SettledBefore(ExpungeObservedAt).Compile()(email);
+
+        // Assert
+        Assert.False(admitted);
+    }
+
     private static StoredEmailEntity CreateEmail()
     {
         var account = new MailboxAccountEntity { Id = "personal" };
