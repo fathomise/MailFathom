@@ -638,6 +638,12 @@ exactly what they mean on an anchor. It is done here for the same reason the jud
 for itself would be a second implementation of what a link is, and the quieter of the two would be the one a reader
 happened to have.
 
+Three rules bound it, and each is a rule over the characters rather than a guess at intent. The punctuation a sentence
+closes on is dropped from the end of a match, while a bracket the address opened itself is kept. A run already inside
+an anchor is left alone, because the sender already said where those words go. And a bare host names no scheme, so the
+one supplied for it is `https` — the reader is the one who will follow it, and that is the only choice here that cannot
+expose what they were reading. What the sender wrote is never rewritten: a written `http://` stays one.
+
 **A link over a picture the document does not draw stays a link.** That is how a newsletter writes a banner or a button
 made of an image, and the picture is usually remote, so until the reader loads remote content the anchor would hold
 nothing at all. Where an anchor draws neither words nor a picture, and at least one picture inside it was left undrawn —
@@ -651,12 +657,6 @@ document, nothing is fetched for it, and the removed and retained counts are wha
 content produces the document again, and the picture is then drawn with its link in place of the words.
 `MailDocumentLinks.Of` reads these as links with words like any other, so the reply drafter may cite one and leaves it
 out where the warning applies, and the spam stage reads the host the `alt` claimed.
-
-Three rules bound it, and each is a rule over the characters rather than a guess at intent. The punctuation a sentence
-closes on is dropped from the end of a match, while a bracket the address opened itself is kept. A run already inside
-an anchor is left alone, because the sender already said where those words go. And a bare host names no scheme, so the
-one supplied for it is `https` — the reader is the one who will follow it, and that is the only choice here that cannot
-expose what they were reading. What the sender wrote is never rewritten: a written `http://` stays one.
 
 ### A refusal is a value rather than an exception
 

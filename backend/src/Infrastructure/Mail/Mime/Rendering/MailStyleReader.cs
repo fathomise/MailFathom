@@ -322,6 +322,12 @@ internal static class MailStyleReader
     }
 
     /// <summary>Reads a pixel width, which is never a share on its own and is only ever resolved against siblings.</summary>
+    private static double? PixelsOf(string? value) => WrittenPixels(value) is > 0 and { } pixels ? pixels : null;
+
+    /// <summary>Answers whether a dimension is a spacer's or a tracking pixel's, which zero is as much as one.</summary>
+    private static bool IsAtMostOnePixel(string? value) => WrittenPixels(value) is >= 0 and <= 1;
+
+    /// <summary>Reads the pixels a dimension states, a zero or a negative included, or nothing where it states none.</summary>
     /// <remarks>
     /// The finiteness check is the whole reason this refuses rather than clamps. <c>double.TryParse</c> answers an
     /// overflowing literal with <see cref="double.PositiveInfinity" /> rather than failing, so <c>width="1e400px"</c>
@@ -329,10 +335,6 @@ internal static class MailStyleReader
     /// <c>Utf8JsonWriter</c> refuses to write, so one attribute a stranger wrote would cost the reader the whole
     /// message rather than one column's proportion.
     /// </remarks>
-    private static double? PixelsOf(string? value) => WrittenPixels(value) is > 0 and { } pixels ? pixels : null;
-
-    private static bool IsAtMostOnePixel(string? value) => WrittenPixels(value) is >= 0 and <= 1;
-
     private static double? WrittenPixels(string? value)
     {
         if (value is null || value.EndsWith('%'))

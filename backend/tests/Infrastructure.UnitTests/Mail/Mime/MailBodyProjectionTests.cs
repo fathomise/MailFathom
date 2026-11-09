@@ -1150,22 +1150,9 @@ public sealed class MailBodyProjectionTests
     public async Task ProduceAsync_LinkedPictureRefusedByTheOctetBound_KeepsItsLinkAndItsCounts()
     {
         // Arrange
-        var content = MimeFixtures.StoredMessage(
-            "From: sender@example.test",
-            "Content-Type: multipart/related; boundary=\"rel\"",
-            string.Empty,
-            "--rel",
-            "Content-Type: text/html; charset=utf-8",
-            string.Empty,
+        var content = MessageCarryingOnePicture(
             "<a href=\"https://one.test/\"><img src=\"cid:one@example.test\" alt=\"First\"></a>"
-                + "<a href=\"https://two.test/\"><img src=\"cid:one@example.test\" alt=\"Second\"></a>",
-            "--rel",
-            "Content-Type: image/png",
-            "Content-Id: <one@example.test>",
-            "Content-Transfer-Encoding: base64",
-            string.Empty,
-            Convert.ToBase64String(new byte[600]),
-            "--rel--");
+            + "<a href=\"https://two.test/\"><img src=\"cid:one@example.test\" alt=\"Second\"></a>");
 
         // Act
         var document = await DocumentOf(content, maxImageOctets: 600);
@@ -1305,6 +1292,39 @@ public sealed class MailBodyProjectionTests
             MailDocumentLinks.Of(document).Select(found => (found.Link.Target, found.Words)));
     }
 
+    /// <summary>An anchor that drew one picture is already visible, so a second it could not draw adds no words beside it.</summary>
+    [Fact]
+    public async Task ProduceAsync_AnchorHoldingADrawnAndAnUndrawnPicture_DrawsOnlyThePicture()
+    {
+        // Act
+        var document = await DocumentOf(MessageCarryingOnePicture(
+            "<a href=\"https://shop.test/\"><img src=\"cid:one@example.test\">"
+            + "<img src=\"https://pictures.test/b.png\" alt=\"Offer\"></a>"));
+
+        // Assert
+        var picture = Assert.IsType<MailImageBlock>(Assert.Single(document.Blocks));
+
+        Assert.Equal("https://shop.test/", picture.Link?.Target);
+        Assert.Equal(1, document.RemovedRemoteReferenceCount);
+    }
+
+    /// <summary>A picture drawn by an anchor nested inside another is drawn inside the outer one too, so the outer adds no words.</summary>
+    [Fact]
+    public async Task ProduceAsync_InnerAnchorDrawsAPictureAndOuterHoldsAnUndrawnOne_DrawsOnlyThePicture()
+    {
+        // Act
+        var document = await DocumentOf(MessageCarryingOnePicture(
+            "<a href=\"https://outer.test/\"><img src=\"https://p.test/o.png\" alt=\"Outer\">"
+            + "<table><tr><td><a href=\"https://inner.test/\"><img src=\"cid:one@example.test\"></a></td></tr></table></a>"));
+
+        // Assert
+        var (link, words) = Assert.Single(MailDocumentLinks.Of(document));
+
+        Assert.Equal("https://inner.test/", link.Target);
+        Assert.Null(words);
+        Assert.Single(ImagesIn(document.Blocks));
+    }
+
     /// <summary>Every link the document carries, in reading order.</summary>
     private static IEnumerable<MailDocumentLink> LinksIn(MailDocument document) => document.Blocks
         .OfType<MailParagraphBlock>()
@@ -1396,6 +1416,23 @@ public sealed class MailBodyProjectionTests
             }
         }
     }
+
+    /// <summary>A message whose body may name the one picture it carries, as <c>cid:one@example.test</c>.</summary>
+    private static StoredEmailContent MessageCarryingOnePicture(string markup) => MimeFixtures.StoredMessage(
+        "From: sender@example.test",
+        "Content-Type: multipart/related; boundary=\"rel\"",
+        string.Empty,
+        "--rel",
+        "Content-Type: text/html; charset=utf-8",
+        string.Empty,
+        markup,
+        "--rel",
+        "Content-Type: image/png",
+        "Content-Id: <one@example.test>",
+        "Content-Transfer-Encoding: base64",
+        string.Empty,
+        Convert.ToBase64String(new byte[600]),
+        "--rel--");
 
     private static StoredEmailContent HtmlOnlyMessage(string markup) => MimeFixtures.StoredMessage(
         "From: sender@example.test",
