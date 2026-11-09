@@ -84,6 +84,7 @@ internal sealed class StoredMailFolderMirrorStore(TimeProvider timeProvider) : I
         if (!emailsRemain)
         {
             await ClearCheckpointsAsync(sessionContext, accountIdValue, aliasValue, cancellationToken);
+            await ForgottenOccurrenceStore.EraseOfFoldersAsync(sessionContext, accountIdValue, [aliasValue], cancellationToken);
         }
 
         return new MailFolderMirrorErasure(emailsRemain ? maxEmails : erased.Length, emailsRemain);

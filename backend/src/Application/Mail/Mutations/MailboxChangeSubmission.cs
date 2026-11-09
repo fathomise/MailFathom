@@ -234,10 +234,69 @@ public sealed class MailboxChangeSubmission
         }
 
         // The erasing transaction also writes the source removal record naming the occurrence, so a later drain can
-        // still remove the message from the source once this cascade has taken the row that said where it was.
-        await this.states.EraseAsync(session, account, record.Request.StoredEmailId, cancellationToken);
+        // still remove the message from the source once this cascade has taken the row that said where it was. A delete
+        // that leaves the server untouched writes the opposite record: a drain must never ask the source for it.
+        if (record.Request.LeavesServerUntouched)
+        {
+            await this.states.ForgetAsync(session, account, record.Request.StoredEmailId, record.Request.Occurrence, cancellationToken);
+        }
+        else
+        {
+            await this.states.EraseAsync(session, account, record.Request.StoredEmailId, cancellationToken);
+        }
 
         return new AppliedMailboxChange(account, state.Folder, record.Request.StoredEmailId, Flags: null);
+    }
+
+    /// <summary>Settles a delete that leaves its server untouched, whose window has passed: the message goes from MailFathom and nothing is asked of the server.</summary>
+    /// <param name="session">The transaction the delete settles in.</param>
+    /// <param name="outstanding">The delete's record and the folder it names, which the cascade removes with the message.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>What to announce once the transaction commits, or <see langword="null" /> where the message is already gone.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> or <paramref name="outstanding" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// <para>
+    /// Advancing the record comes first because it is the claim, for the reason <see cref="EraseAsync" /> gives: a
+    /// withdrawal that won refuses here and the transaction ends before anything is erased.
+    /// </para>
+    /// <para>
+    /// The occurrence is resolved first, because a completed move leaves the message at a place only the move's record
+    /// names until the destination's forward pass carries the row there. Remembering the source instead would leave that
+    /// pass to store the message again.
+    /// </para>
+    /// </remarks>
+    public async Task<AppliedMailboxChange?> ForgetAsync(
+        IPersistenceSession session,
+        OutstandingMailboxMutation outstanding,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(outstanding);
+
+        var issued = await this.records.ResolveIssuedOccurrenceAsync(session, outstanding, cancellationToken);
+        var record = issued.Record;
+        var account = record.Request.Account;
+        var email = record.Request.StoredEmailId;
+
+        await this.records.AdvanceAsync(session, record.Id, MailboxMutationStage.Completed, placement: null, cancellationToken);
+
+        var now = this.timeProvider.GetUtcNow();
+
+        if (record.IsAudited)
+        {
+            await this.auditEntries.AppendAsync(
+                session,
+                MailboxMutationAuditEntry.Of(
+                    MailboxMutationAuditEntryId.Create(Guid.CreateVersion7(now)),
+                    record with { Stage = MailboxMutationStage.Completed, StageChangedAt = now },
+                    issued.Folder,
+                    now),
+                cancellationToken);
+        }
+
+        return await this.states.ForgetAsync(session, account, email, record.Request.Occurrence, cancellationToken) is { } folder
+            ? new AppliedMailboxChange(account, folder, email, Flags: null)
+            : null;
     }
 
     /// <summary>Tells the clients watching an account about a local change that has committed.</summary>

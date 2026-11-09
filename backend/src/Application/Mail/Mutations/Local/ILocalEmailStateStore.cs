@@ -55,6 +55,24 @@ public interface ILocalEmailStateStore
         MailAccountId account,
         StoredEmailId email,
         CancellationToken cancellationToken);
+
+    /// <summary>Erases the message as <see cref="EraseAsync" /> does, owing its source nothing, and remembers only where it stands there.</summary>
+    /// <param name="session">The transaction the erasure commits in.</param>
+    /// <param name="account">The account the message is stored for.</param>
+    /// <param name="email">The message, which a delete committed locally first has already hidden from every other read.</param>
+    /// <param name="occurrence">Where the server holds it, resolved by the caller because a completed move may have left it somewhere the row does not name yet.</param>
+    /// <param name="cancellationToken">Cancels the erasure.</param>
+    /// <returns>The folder the message was in, or <see langword="null" /> where nothing is stored under <paramref name="email" />.</returns>
+    /// <remarks>
+    /// What is kept is the occurrence's identity, which synchronization reads so it does not mirror the message again;
+    /// a message holding no occurrence leaves nothing behind.
+    /// </remarks>
+    Task<MailFolderId?> ForgetAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        StoredEmailId email,
+        EmailOccurrenceId occurrence,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>Where a stored message is kept and what it carries, as a local change reads and writes it.</summary>

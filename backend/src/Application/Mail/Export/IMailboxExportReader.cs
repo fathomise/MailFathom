@@ -35,6 +35,13 @@ public interface IMailboxExportReader
         string? folderPath,
         CancellationToken cancellationToken);
 
+    /// <summary>Counts the occurrences a delete left on the account's mail server and MailFathom still remembers, so an archive reports them as held.</summary>
+    /// <param name="account">The account whose occurrences are counted.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The account's whole figure, whatever folder an export is scoped to: the record names a position on the server rather than a folder of the archive.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="account" /> names nothing.</exception>
+    Task<long> CountForgottenOccurrencesAsync(MailAccountId account, CancellationToken cancellationToken);
+
     /// <summary>Names every folder of the scope that holds nothing, so the archive still carries an empty Maildir for it.</summary>
     /// <param name="account">The account whose folders are read.</param>
     /// <param name="folderPath">One folder's path to read alone, or <see langword="null" /> for the whole mailbox.</param>

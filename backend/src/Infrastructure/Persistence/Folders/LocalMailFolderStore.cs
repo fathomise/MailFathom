@@ -11,6 +11,7 @@ using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
+using MailFathom.Infrastructure.Persistence.Synchronization;
 using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Folders;
@@ -270,6 +271,12 @@ internal sealed class LocalMailFolderStore(MailFathomDbContext dbContext, TimePr
         }
 
         sessionContext.MailFolders.RemoveRange(erasedRows.Where(static row => row.Alias is null));
+
+        await ForgottenOccurrenceStore.EraseOfFoldersAsync(
+            sessionContext,
+            account.Value,
+            [.. erasedRows.Select(static row => row.Alias).OfType<string>()],
+            cancellationToken);
     }
 
     private static LocalMailFolder ToFolder(MailFolderEntity row) => new(

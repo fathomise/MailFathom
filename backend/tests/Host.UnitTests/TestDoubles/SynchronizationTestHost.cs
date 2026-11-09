@@ -282,6 +282,7 @@ internal static class SynchronizationTestHost
         // The converger erases a held account's due deletes through the submission. No account these tests configure is
         // held, so the substituted state store is composed and never asked.
         services.AddSingleton(Substitute.For<ILocalEmailStateStore>());
+        services.AddSingleton(Substitute.For<IForgottenOccurrenceStore>());
         services.AddSingleton(ClientSignalPublishers.ReachingNobody);
 
         // The copier is composed beside the submission because the submission holds it, and for no other reason: a

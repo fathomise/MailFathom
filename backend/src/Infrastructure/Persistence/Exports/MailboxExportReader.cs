@@ -77,6 +77,17 @@ internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMail
     }
 
     /// <inheritdoc />
+    public Task<long> CountForgottenOccurrencesAsync(MailAccountId account, CancellationToken cancellationToken)
+    {
+        RequireNamedAccount(account);
+
+        var accountValue = account.Value;
+
+        return dbContext.MailboxForgottenOccurrences
+            .LongCountAsync(occurrence => occurrence.MailboxAccountId == accountValue, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<MailboxExportFolder>> ReadFoldersAsync(
         MailAccountId account,
         string? folderPath,

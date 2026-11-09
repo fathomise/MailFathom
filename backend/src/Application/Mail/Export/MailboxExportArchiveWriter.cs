@@ -205,6 +205,28 @@ public sealed class MailboxExportArchiveWriter : IAsyncDisposable
         await writer.FlushAsync(cancellationToken);
     }
 
+    /// <summary>Writes the document counting the occurrences a delete left on the mail server and MailFathom still remembers.</summary>
+    /// <param name="count">How many there are.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>A task that completes once the document is in the archive.</returns>
+    /// <remarks>
+    /// A count rather than a list: each record holds a folder, a UIDVALIDITY, and a UID and no part of a message, and an
+    /// export answers for what is held, which this states without copying positions on a server out of the deployment.
+    /// </remarks>
+    public async Task WriteForgottenOccurrencesAsync(long count, CancellationToken cancellationToken)
+    {
+        var entry = this.archive.CreateEntry(MaildirArchiveLayout.ForgottenOccurrencesDocumentPath, Compression);
+
+        await using var content = entry.Open();
+        await using var writer = new Utf8JsonWriter(content, new JsonWriterOptions { Indented = true });
+
+        writer.WriteStartObject();
+        writer.WriteNumber("count", count);
+        writer.WriteEndObject();
+
+        await writer.FlushAsync(cancellationToken);
+    }
+
     /// <summary>Writes the categories of the messages not yet named in a document.</summary>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>A task that completes once they are in the archive.</returns>

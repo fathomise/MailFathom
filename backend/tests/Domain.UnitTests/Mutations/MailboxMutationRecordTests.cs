@@ -421,7 +421,7 @@ public sealed class MailboxMutationRecordTests
         var expungedFirst = delete with { SourceRemovalObservedAt = RecordedAt.AddMinutes(1) };
 
         // Assert
-        Assert.True(delete.LeavesMessageOnServer);
+        Assert.True(delete.LeavesMessageFlaggedOnServer);
         Assert.False(delete.IsReconciled);
         Assert.True(settled.IsReconciled);
         Assert.True(expungedFirst.IsReconciled);
@@ -448,7 +448,7 @@ public sealed class MailboxMutationRecordTests
         var reconciled = delete.IsReconciled;
 
         // Assert
-        Assert.False(delete.LeavesMessageOnServer);
+        Assert.False(delete.LeavesMessageFlaggedOnServer);
         Assert.False(reconciled);
     }
 

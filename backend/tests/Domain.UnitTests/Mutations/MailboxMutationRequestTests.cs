@@ -550,6 +550,47 @@ public sealed class MailboxMutationRequestTests
         Assert.False(later.Supersedes(earlier));
     }
 
+    /// <summary>Keeping the local copy would make a delete that touches no server change nothing anywhere, so whatever the account says about it, the request says the copy goes.</summary>
+    [Theory]
+    [InlineData(AuthoredDeleteEmailDisposition.RetainLocalCopy)]
+    [InlineData(AuthoredDeleteEmailDisposition.RetainTombstone)]
+    [InlineData(AuthoredDeleteEmailDisposition.EraseLocalCopy)]
+    public void Delete_LeavingTheServerUntouched_ErasesTheLocalCopyWhateverTheAccountSays(AuthoredDeleteEmailDisposition localDisposition)
+    {
+        // Arrange
+        // Act
+        var request = MailboxMutationRequest.Delete(
+            LocalEmail,
+            Occurrence(),
+            Requester,
+            localDisposition,
+            AuthoredDeleteServerDisposition.LeaveOnServer);
+
+        // Assert
+        Assert.True(request.LeavesServerUntouched);
+        Assert.Equal(AuthoredDeleteEmailDisposition.EraseLocalCopy, request.LocalDisposition);
+    }
+
+    /// <summary>Only the value that sends nothing leaves the server untouched, and a flag-only delete keeps the local disposition it was given.</summary>
+    [Theory]
+    [InlineData(AuthoredDeleteServerDisposition.Expunge)]
+    [InlineData(AuthoredDeleteServerDisposition.FlagDeleted)]
+    public void Delete_ReachingTheServer_KeepsTheLocalDispositionItWasGiven(AuthoredDeleteServerDisposition serverDisposition)
+    {
+        // Arrange
+        // Act
+        var request = MailboxMutationRequest.Delete(
+            LocalEmail,
+            Occurrence(),
+            Requester,
+            AuthoredDeleteEmailDisposition.RetainLocalCopy,
+            serverDisposition);
+
+        // Assert
+        Assert.False(request.LeavesServerUntouched);
+        Assert.Equal(AuthoredDeleteEmailDisposition.RetainLocalCopy, request.LocalDisposition);
+    }
+
     private static EmailOccurrenceId Occurrence() => EmailOccurrenceId.Create(
         MailAccountId.Create("personal"),
         MailFolderResolution.FirstBindingOf(

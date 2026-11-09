@@ -81,6 +81,7 @@ for a state the deployment is already in — which is what makes *download, veri
 | `.Projects.MailFathom/cur/…` | Every other folder, as one Maildir++ directory at the root named `.` followed by its path segments joined by `.` |
 | `…/cur/1700000000.7.mailfathom,S=4096:2,FS` | One message: the stored bytes exactly, under a name carrying its arrival, its length, and its flags |
 | `keywords.json` | The keywords Maildir file names have no form for, each named against the path of the message carrying it |
+| `forgotten-occurrences.json` | How many occurrences the account remembers because a [delete left them on the server](../features/imap-synchronization.md#a-delete-that-leaves-the-server-untouched). A count rather than a list: each one is a folder, a `UIDVALIDITY`, and a UID and no part of a message. It is the whole account's figure whatever folder the export is scoped to |
 | `categories/000000.json`, … | Every category recorded for a message, each with its kind, its probability, what said so, and the revision of the question, named against the path of the message. A default the account switched off is still here, because an export answers for what is held rather than what is shown. A document names at most a thousand messages, and an archive with no category holds one empty document |
 
 The four flag letters are the standard ones — `D` draft, `F` flagged, `R` answered, `S` seen — written in ascending

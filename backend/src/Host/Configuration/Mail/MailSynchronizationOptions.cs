@@ -1048,7 +1048,9 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// <c>\Deleted</c> and leaves the expunge to the server or to another client, which is what a mailbox shared with a
     /// client that still offers an undelete asks for. Either way the local copy follows
     /// <see cref="AuthoredDeleteEmailDisposition" />, and <see cref="RemotelyDeletedEmailDisposition" /> never applies to
-    /// the later expunge of a message MailFathom flagged.
+    /// the later expunge of a message MailFathom flagged. <see cref="AuthoredDeleteServerDisposition.LeaveOnServer" />
+    /// sends the server nothing and erases the local copy whatever that setting says, keeping only the occurrence's
+    /// identity so the message is never mirrored again.
     /// </para>
     /// <para>
     /// It binds as one of the names <see cref="AuthoredDeleteServerDisposition" /> declares, and a value that is none of

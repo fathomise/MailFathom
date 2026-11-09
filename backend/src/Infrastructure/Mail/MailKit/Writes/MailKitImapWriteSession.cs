@@ -114,6 +114,13 @@ internal sealed class MailKitImapWriteSession : IMailboxWriteSession
         ArgumentNullException.ThrowIfNull(occurrenceId);
         ArgumentNullException.ThrowIfNull(journal);
 
+        // Below this line anything that is not a flag-only delete expunges, so a value that must reach no server is
+        // stopped before a command can be issued for it.
+        if (serverDisposition is AuthoredDeleteServerDisposition.LeaveOnServer)
+        {
+            throw new InvalidOperationException("A delete that leaves its server untouched is settled without a write session.");
+        }
+
         await this.PerformAsync(
             MailboxMutation.Delete,
             occurrenceId,

@@ -2990,6 +2990,35 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("mailbox_flagged_deletes", (string)null);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailboxForgottenOccurrenceEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("MailFolderBindingId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("MailFolderId");
+
+                    b.Property<string>("MailboxAccountId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<long>("Uid")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("UidValidity")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MailFolderBindingId", "UidValidity", "Uid")
+                        .IsUnique()
+                        .HasDatabaseName("ix_mailbox_forgotten_occurrences_occurrence");
+
+                    b.ToTable("mailbox_forgotten_occurrences", (string)null);
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailboxMutationAuditEntryEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5921,6 +5950,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("StoredEmailId")
                         .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailboxForgottenOccurrenceEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailFolderBindingEntity", null)
+                        .WithMany()
+                        .HasForeignKey("MailFolderBindingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.MailboxMutationEntity", b =>

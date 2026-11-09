@@ -56,6 +56,25 @@ public sealed class MailboxFlaggedDeleteModelTests
         Assert.Equal(DeleteBehavior.Cascade, reference.DeleteBehavior);
     }
 
+    /// <summary>One position on a server is remembered once, and it goes with the folder that holds it.</summary>
+    [Fact]
+    public void MailboxForgottenOccurrenceModel_Occurrence_IsUniqueAndCascadesFromItsFolder()
+    {
+        // Arrange
+        using var context = CreateContext();
+        var entity = EntityTypeOf<MailboxForgottenOccurrenceEntity>(context);
+
+        // Act
+        var index = IndexNamed(entity, PersistenceConstraintNames.MailboxForgottenOccurrenceUniqueIndexName);
+        var reference = Assert.Single(entity.GetForeignKeys());
+
+        // Assert
+        Assert.True(index.IsUnique);
+        Assert.Equal(["MailFolderBindingId", "UidValidity", "Uid"], index.Properties.Select(property => property.Name));
+        Assert.Equal(typeof(MailFolderBindingEntity), reference.PrincipalEntityType.ClrType);
+        Assert.Equal(DeleteBehavior.Cascade, reference.DeleteBehavior);
+    }
+
     /// <summary>The index reconciliation reads holds only the flag-only deletes still waiting to be settled.</summary>
     [Fact]
     public void MailboxMutationModel_FlaggedDeleteIndex_HoldsOnlyUnsettledFlagOnlyDeletes()

@@ -238,6 +238,26 @@ public sealed class MailboxExportArchiveWriterTests
         Assert.Empty(document.RootElement.GetProperty("messages").EnumerateArray());
     }
 
+    /// <summary>What a delete left on the server is still something the deployment holds, so the archive says how much of it there is.</summary>
+    [Fact]
+    public async Task WriteForgottenOccurrencesAsync_OccurrencesAreRemembered_ReportsHowMany()
+    {
+        // Arrange
+        var destination = new MemoryStream();
+
+        // Act
+        await using (var writer = new MailboxExportArchiveWriter(destination))
+        {
+            await writer.WriteForgottenOccurrencesAsync(3, TestContext.Current.CancellationToken);
+        }
+
+        // Assert
+        using var archive = OpenArchive(destination);
+        var document = JsonDocument.Parse(await ReadAsync(EntryNamed(archive, "forgotten-occurrences.json")));
+
+        Assert.Equal(3, document.RootElement.GetProperty("count").GetInt64());
+    }
+
     /// <summary>Every category of a message is carried with what said so, named against the path the message was written at.</summary>
     [Fact]
     public async Task WriteCategoriesAsync_AMessageHoldingCategories_NamesThemAgainstItsPathWithTheirProvenance()

@@ -222,6 +222,8 @@ internal sealed class MailFathomDbContext : DbContext
 
     internal DbSet<MailboxFlaggedDeleteEntity> MailboxFlaggedDeletes => this.Set<MailboxFlaggedDeleteEntity>();
 
+    internal DbSet<MailboxForgottenOccurrenceEntity> MailboxForgottenOccurrences => this.Set<MailboxForgottenOccurrenceEntity>();
+
     internal DbSet<OutgoingEmailEntity> OutgoingEmails => this.Set<OutgoingEmailEntity>();
 
     internal DbSet<OutgoingEmailRecipientEntity> OutgoingEmailRecipients =>
@@ -396,6 +398,7 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new MailboxSourceRemovalConfiguration());
         modelBuilder.ApplyConfiguration(new MailboxRestoreAppendConfiguration());
         modelBuilder.ApplyConfiguration(new MailboxFlaggedDeleteConfiguration());
+        modelBuilder.ApplyConfiguration(new MailboxForgottenOccurrenceConfiguration());
         modelBuilder.ApplyConfiguration(new OutgoingEmailConfiguration());
         modelBuilder.ApplyConfiguration(new OutgoingEmailRecipientConfiguration());
         modelBuilder.ApplyConfiguration(new OutgoingEmailReceiptOutcomeConfiguration());

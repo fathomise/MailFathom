@@ -219,6 +219,78 @@ public sealed class MailboxMutationConvergerTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A delete that leaves its server untouched is settled without so much as a connection to that server.</summary>
+    [Fact]
+    public async Task ConvergeAsync_ADeleteThatLeavesTheServerUntouched_ForgetsTheMessageWithoutOpeningAWriteSession()
+    {
+        // Arrange
+        var states = new InMemoryLocalEmailStateStore(Account);
+        var context = new ConvergerContext(states: states);
+        var request = await context.LeaveOutstandingAsync(
+            MailboxMutationRequest.Delete(
+                StoredEmailId.Create(Guid.CreateVersion7()),
+                Occurrence(57U),
+                MailboxMutationRequester.Command("client-delete-1"),
+                AuthoredDeleteEmailDisposition.EraseLocalCopy,
+                AuthoredDeleteServerDisposition.LeaveOnServer),
+            record => record,
+            MailboxMutationLocalChange.AlreadyCommitted);
+        states.Store(
+            request.StoredEmailId,
+            new LocalEmailState(InboxFolder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, EmailKeywords.Create([])));
+
+        // Act
+        var report = await context.Converger.ConvergeAsync(Account, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(1, report.CompletedCount);
+        Assert.Equal(request.StoredEmailId, Assert.Single(states.Forgotten));
+        Assert.Empty(states.Erased);
+        Assert.Equal(MailboxMutationStage.Completed, context.Store.RecordOf(request).Stage);
+        await context.WriteSessionFactory.DidNotReceive().OpenForWritingAsync(
+            Arg.Any<MailAccountId>(),
+            Arg.Any<MailFolderResolution>(),
+            Arg.Any<MailTransportSecurityPolicy>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A completed move leaves the message at a place the row does not name yet, and that is the occurrence that must not come back.</summary>
+    [Fact]
+    public async Task ConvergeAsync_ADeleteThatLeavesTheServerUntouchedAfterACompletedMove_RemembersWhereTheMoveLeftTheMessage()
+    {
+        // Arrange
+        var states = new InMemoryLocalEmailStateStore(Account);
+        var context = new ConvergerContext(states: states);
+        var archiveFolder = MailFolderResolution.FirstBindingOf(MailFolderAlias.Create("archive"), ArchivePath);
+        context.Store.BindFolder(InboxFolder);
+        context.Store.BindFolder(archiveFolder);
+        var email = StoredEmailId.Create(Guid.CreateVersion7());
+        var placement = RemoteEmailPlacement.Reported(ImapUidValidity.Create(9U), ImapUid.Create(700U));
+        await context.LeaveOutstandingAsync(
+            MailboxMutationRequest.Relocate(email, Occurrence(42U), MailboxMutationRequester.Command("move-1"), ArchivePath),
+            record => record with { Stage = MailboxMutationStage.Completed, Placement = placement });
+        await context.LeaveOutstandingAsync(
+            MailboxMutationRequest.Delete(
+                email,
+                Occurrence(42U),
+                MailboxMutationRequester.Command("client-delete-1"),
+                AuthoredDeleteEmailDisposition.EraseLocalCopy,
+                AuthoredDeleteServerDisposition.LeaveOnServer),
+            record => record,
+            MailboxMutationLocalChange.AlreadyCommitted);
+        states.Store(
+            email,
+            new LocalEmailState(InboxFolder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, EmailKeywords.Create([])));
+
+        // Act
+        await context.Converger.ConvergeAsync(Account, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(
+            EmailOccurrenceId.Create(Account, archiveFolder.Id, placement.UidValidity!.Value, placement.Uid!.Value),
+            Assert.Single(states.ForgottenOccurrences));
+    }
+
     /// <summary>An erasure a person asked for is run whichever phase the account has since reached, so a restore never appends a message back that was erased.</summary>
     [Fact]
     public async Task ConvergeAsync_ARestoringAccountsDueErasure_ErasesTheMessageWithoutOpeningAWriteSession()

@@ -188,6 +188,13 @@ public sealed class MailboxMutationConverger
                 continue;
             }
 
+            if (candidate.Record.Request.LeavesServerUntouched)
+            {
+                await this.ForgetAsync(candidate, tally, cancellationToken);
+
+                continue;
+            }
+
             await this.ConvergeOneAsync(candidate, transportSecurityPolicy, tally, cancellationToken);
         }
 
@@ -240,6 +247,37 @@ public sealed class MailboxMutationConverger
                         candidate.Record,
                         candidate.Folder)
                     .CompleteAsync(candidate.Record.Placement, cancellationToken);
+            }
+
+            tally.CompletedCount++;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            tally.FailedCount++;
+        }
+    }
+
+    /// <summary>Settles one delete that leaves its server untouched, whose window has passed, without opening a connection to it.</summary>
+    /// <remarks>The isolation is the one a remote change gets, for the same reason.</remarks>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "A pass isolates one delete's failure so the account's remaining records are still taken in hand; the record stays outstanding and the next pass tries it again.")]
+    private async Task ForgetAsync(
+        OutstandingMailboxMutation candidate,
+        ConvergenceTally tally,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var forgotten = await this.commitPolicy.CommitAsync(
+                (session, token) => this.submission.ForgetAsync(session, candidate, token),
+                cancellationToken);
+
+            if (forgotten is not null)
+            {
+                this.submission.Announce(forgotten);
             }
 
             tally.CompletedCount++;

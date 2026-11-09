@@ -247,6 +247,28 @@ public sealed class MirroredMailboxCustodianTests
         Assert.Null(submitted.Record!.Overlay);
     }
 
+    /// <summary>A delete that sends the server nothing cannot be refused by what the server advertised, so it is hidden at once wherever the delete would otherwise wait.</summary>
+    [Fact]
+    public async Task SubmitAsync_ADeleteThatLeavesTheServerUntouchedOnAServerThatCannotExpungeByUid_IsAppliedThroughItsRecord()
+    {
+        // Arrange
+        this.StoreUnread();
+        var leaveOnServer = MailboxMutationRequest.Delete(
+            Email,
+            Occurrence,
+            Requester,
+            AuthoredDeleteEmailDisposition.EraseLocalCopy,
+            AuthoredDeleteServerDisposition.LeaveOnServer);
+
+        // Act
+        var submitted = await this.LocalFirstCustodian(MailboxServerCapabilities.None)
+            .SubmitAsync(this.session, Change(leaveOnServer), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Applied, submitted.Outcome);
+        Assert.NotNull(submitted.Record);
+    }
+
     /// <summary>A move creates an occurrence the server has to name, so it waits for the server where none was seen advertising how.</summary>
     [Fact]
     public async Task SubmitAsync_AMoveOnAServerThatNamesNoNewOccurrence_IsRecordedAlone()

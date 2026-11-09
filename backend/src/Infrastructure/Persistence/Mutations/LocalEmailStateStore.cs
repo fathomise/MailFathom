@@ -100,15 +100,91 @@ internal sealed class LocalEmailStateStore(TimeProvider timeProvider) : ILocalEm
         }
 
         var sessionContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
-        Guid[] removedIds = [row.Id];
 
         // This is the one erasure path a person's own delete takes on a held account, so it owes the source removal
         // record every other erasure path owes: the row about to go is the only thing that still says where the
         // message is on the source, and the drain may not have reached it yet.
         MailboxSourceRemovalRecords.Stage(sessionContext, [row], timeProvider.GetUtcNow());
 
-        // The cascade every stored message's erasure runs, in the order LocalMailFolderStore states it: the user's storage
-        // figure and the content objects are read from the row the removal below only stages.
+        await RemoveWithItsContentAsync(session, sessionContext, row, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<MailFolderId?> ForgetAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        StoredEmailId email,
+        EmailOccurrenceId occurrence,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(occurrence);
+
+        var sessionContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        var emailId = email.Value;
+        var accountId = account.Value;
+
+        // Not narrowed to what a reader may see, because the delete being settled is what has hidden this row.
+        var row = await sessionContext.StoredEmails
+            .SingleOrDefaultAsync(stored => stored.Id == emailId && stored.MailboxAccountId == accountId, cancellationToken);
+
+        if (row is null)
+        {
+            return null;
+        }
+
+        if (row.Uid is not null)
+        {
+            await this.RememberAsync(sessionContext, account, occurrence, cancellationToken);
+        }
+
+        await RemoveWithItsContentAsync(session, sessionContext, row, cancellationToken);
+
+        return MailFolderId.Create(row.FolderId);
+    }
+
+    private async Task RememberAsync(
+        MailFathomDbContext sessionContext,
+        MailAccountId account,
+        EmailOccurrenceId occurrence,
+        CancellationToken cancellationToken)
+    {
+        var binding = await MailFolderBindingResolver.GetRequiredAsync(
+            sessionContext,
+            account,
+            occurrence.FolderResolutionId,
+            cancellationToken);
+        var uidValidity = occurrence.UidValidity.Value;
+        var uid = occurrence.Uid.Value;
+
+        if (await sessionContext.MailboxForgottenOccurrences.AnyAsync(
+            forgotten => forgotten.MailFolderBindingId == binding.Id
+                && forgotten.UidValidity == uidValidity
+                && forgotten.Uid == uid,
+            cancellationToken))
+        {
+            return;
+        }
+
+        sessionContext.MailboxForgottenOccurrences.Add(new MailboxForgottenOccurrenceEntity
+        {
+            Id = Guid.CreateVersion7(timeProvider.GetUtcNow()),
+            MailboxAccountId = account.Value,
+            MailFolderBindingId = binding.Id,
+            UidValidity = uidValidity,
+            Uid = uid,
+        });
+    }
+
+    /// <summary>The cascade every stored message's erasure runs, in the order LocalMailFolderStore states it.</summary>
+    /// <remarks>The user's storage figure and the content objects are read from the row the removal below only stages.</remarks>
+    private static async Task RemoveWithItsContentAsync(
+        IPersistenceSession session,
+        MailFathomDbContext sessionContext,
+        StoredEmailEntity row,
+        CancellationToken cancellationToken)
+    {
+        Guid[] removedIds = [row.Id];
+
         await AccountStoredContentLedger.RemoveAsync(sessionContext, removedIds, cancellationToken);
         await ReleasedContentObjects.ReleaseForStoredEmailsAsync(session, removedIds, cancellationToken);
         sessionContext.StoredEmails.Remove(row);

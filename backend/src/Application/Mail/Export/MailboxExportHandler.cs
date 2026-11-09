@@ -227,6 +227,9 @@ public sealed class MailboxExportHandler : IJobHandler
 
             await writer.WriteKeywordsAsync(cancellationToken);
             await writer.WriteCategoriesAsync(cancellationToken);
+            await writer.WriteForgottenOccurrencesAsync(
+                await this.reader.CountForgottenOccurrencesAsync(export.Account, cancellationToken),
+                cancellationToken);
         }
 
         var archiveByteLength = await write.CompleteAsync(cancellationToken);

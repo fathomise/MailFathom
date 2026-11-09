@@ -30,6 +30,9 @@ public static class MaildirArchiveLayout
     /// <summary>The document at the archive root that carries the keywords Maildir file names have no form for.</summary>
     public const string KeywordsDocumentPath = "keywords.json";
 
+    /// <summary>The document saying how many occurrences a delete left on the mail server and MailFathom still remembers.</summary>
+    public const string ForgottenOccurrencesDocumentPath = "forgotten-occurrences.json";
+
     /// <summary>The directory at the archive root holding the documents that carry each message's categories.</summary>
     private const string CategoriesDirectory = "categories";
 

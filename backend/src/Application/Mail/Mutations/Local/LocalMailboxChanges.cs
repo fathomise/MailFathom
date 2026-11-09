@@ -601,6 +601,9 @@ public sealed class LocalMailboxChanges
     /// <see cref="MailboxMutationLocalChange.AlreadyCommitted" /> so that withdrawal refuses it rather than cancelling
     /// the only thing left to tell the source with.
     /// </para>
+    /// <para>
+    /// A delete that leaves its server untouched opens none, since it owes the source nothing to carry.
+    /// </para>
     /// </remarks>
     private async Task<SubmittedMailboxChange> WriteAsync(
         IPersistenceSession session,
@@ -619,7 +622,7 @@ public sealed class LocalMailboxChanges
             isHeldFolder: true,
             cancellationToken);
 
-        var carried = carriesToSource && before.HoldsSourceOccurrence
+        var carried = carriesToSource && before.HoldsSourceOccurrence && !request.LeavesServerUntouched
             ? await this.records.OpenAsync(
                 session,
                 request,

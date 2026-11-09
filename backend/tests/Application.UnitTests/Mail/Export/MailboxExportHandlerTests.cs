@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.IO.Compression;
+using System.Text.Json;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Payloads;
@@ -26,6 +27,32 @@ public sealed class MailboxExportHandlerTests
     private static readonly DateTimeOffset Now = new(2026, 9, 15, 12, 0, 0, TimeSpan.Zero);
 
     private static readonly MailboxExportFolder Inbox = new("INBOX", ["INBOX"], IsInbox: true);
+
+    /// <summary>An export answers for what is held, and the record of a delete that left its message on the server is held.</summary>
+    [Fact]
+    public async Task RunAsync_AnAccountRememberingOccurrences_ReportsThemInTheArchive()
+    {
+        // Arrange
+        var queued = Queued();
+        var store = new InMemoryMailboxExportStore().Holding(queued);
+        var archives = new InMemoryMailboxExportArchiveStore();
+        var reader = ReaderHolding();
+        reader.ForgottenOccurrenceCount = 2;
+        var handler = HandlerOver(store, reader, archives);
+
+        // Act
+        await handler.RunAsync(PayloadFor(queued), TestContext.Current.CancellationToken);
+
+        // Assert
+        using var archive = new ZipArchive(new MemoryStream(archives.Read(store.Find(queued.Id)!.ObjectLocator!)!), ZipArchiveMode.Read);
+        var entry = archive.GetEntry(MaildirArchiveLayout.ForgottenOccurrencesDocumentPath);
+        Assert.NotNull(entry);
+
+        await using var content = await entry.OpenAsync(TestContext.Current.CancellationToken);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, document.RootElement.GetProperty("count").GetInt64());
+    }
 
     [Fact]
     public async Task RunAsync_AQueuedExport_WritesTheArchiveAndRecordsWhereItIsAndWhenItGoes()
@@ -78,7 +105,7 @@ public sealed class MailboxExportHandlerTests
             ZipArchiveMode.Read);
 
         Assert.Equal(
-            ["cur/", "keywords.json", "new/", "tmp/"],
+            ["cur/", "forgotten-occurrences.json", "keywords.json", "new/", "tmp/"],
             archive.Entries
                 .Select(entry => entry.FullName)
                 .Where(name => name.EndsWith('/') || !name.Contains('/', StringComparison.Ordinal))

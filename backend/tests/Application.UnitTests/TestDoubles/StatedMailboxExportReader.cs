@@ -45,6 +45,9 @@ internal sealed class StatedMailboxExportReader : IMailboxExportReader
         return this;
     }
 
+    /// <summary>Gets or sets how many occurrences the account is stated to remember.</summary>
+    internal long ForgottenOccurrenceCount { get; set; }
+
     /// <inheritdoc />
     public Task<MailboxExportMeasurement> MeasureAsync(
         MailAccountId account,
@@ -63,6 +66,10 @@ internal sealed class StatedMailboxExportReader : IMailboxExportReader
                     folder.Sum(message => message.ByteLength))),
         ]));
     }
+
+    /// <inheritdoc />
+    public Task<long> CountForgottenOccurrencesAsync(MailAccountId account, CancellationToken cancellationToken) =>
+        Task.FromResult(this.ForgottenOccurrenceCount);
 
     /// <inheritdoc />
     public Task<IReadOnlyList<MailboxExportFolder>> ReadFoldersAsync(
