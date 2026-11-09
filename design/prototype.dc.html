@@ -2242,7 +2242,7 @@ Project repository: https://github.com/fathomise/MailFathom
                                 </div>
                               </sc-if>
                               <sc-if value="{{ bk.editing }}" hint-placeholder-val="{{ false }}">
-                                <textarea value="{{ bk.editText }}" onChange="{{ bk.onEdit }}" aria-label="Edit the draft text before sending" style="{{ bk.textareaStyle }}"></textarea>
+                                <textarea value="{{ bk.editText }}" onChange="{{ bk.onEdit }}" maxLength="4000" aria-label="Edit the draft text before sending" style="{{ bk.textareaStyle }}"></textarea>
                               </sc-if>
                               <sc-if value="{{ bk.notEditing }}" hint-placeholder-val="{{ true }}">
                                 <div style="{{ bk.letterStyle }}">
@@ -2288,7 +2288,7 @@ Project repository: https://github.com/fathomise/MailFathom
                               <sc-if value="{{ bk.hasControls }}" hint-placeholder-val="{{ false }}">
                                 <div style="{{ bk.controlsStyle }}">
                                   <sc-for list="{{ bk.controls }}" as="cn" hint-placeholder-count="2">
-                                    <div role="button" tabIndex="0" aria-label="{{ cn.aria }}" onClick="{{ cn.run }}" onKeyDown="{{ cn.key }}" style="{{ cn.style }}" style-hover="cursor:pointer;opacity:0.9" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ cn.label }}</div>
+                                    <div role="button" tabIndex="0" aria-label="{{ cn.aria }}" aria-disabled="{{ cn.held }}" title="{{ cn.tip }}" onClick="{{ cn.run }}" onKeyDown="{{ cn.key }}" style="{{ cn.style }}" style-hover="cursor:pointer;opacity:0.9" style-focus="outline:2px solid var(--accent);outline-offset:2px">{{ cn.label }}</div>
                                   </sc-for>
                                 </div>
                               </sc-if>

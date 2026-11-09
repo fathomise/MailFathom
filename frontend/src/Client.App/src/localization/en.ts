@@ -365,6 +365,7 @@ export const en = {
     'suggestedAction.error': 'Could not build this proposal. This took too long - try again.',
     'draft.send': 'Send',
     'draft.sendName': 'Send the draft to {to}',
+    'draft.sendEmptyName': 'Send the edited draft to {to} - write the message first',
     'draft.sendEditedName': 'Send the edited draft to {to}',
     'draft.editHere': 'Edit here',
     'draft.editHereName': 'Edit here - the draft to {to}, inside the conversation',

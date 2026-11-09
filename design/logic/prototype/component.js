@@ -3696,7 +3696,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { label: "Decline", aria: "Decline the task “" + b.title + "”", run: () => this.declineBk(key) },
         ];
         else if (b.type === "draft") raw = editing
-          ? [{ label: sendSaid, aria: "Send the edited draft to " + b.to + sendWhen, primary: true, run: () => this.acceptBk(key, b) },
+          ? [{ label: sendSaid, aria: "Send the edited draft to " + b.to + sendWhen + (editRaw.trim() ? "" : " - write the message first"), primary: true, held: !editRaw.trim(), run: () => this.acceptBk(key, b) },
              { label: "Stop editing", aria: "Stop editing the draft to " + b.to, run: () => this.editBk(key, false) }]
           : [{ label: sendSaid, aria: "Send the draft to " + b.to + sendWhen, primary: true, run: () => this.acceptBk(key, b) },
              { label: "Edit here", aria: "Edit the draft to " + b.to + " inside the conversation", run: () => this.editBk(key, true, (b.paras || []).join("\n\n")) },
@@ -3708,7 +3708,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }
       if (failed) raw = [{ label: "Try again", aria: "Try again: " + b.title, primary: true, run: () => this.setBk(key, { phase: "pending" }) }];
 
-      const controls = raw.map(c => ({ label: c.label, aria: c.aria, run: c.run, key: keyer(c.run), style: btn(c.primary ? "primary" : "quiet") }));
+      /* A held control stays where it is and says why on its title, as every control that cannot act does: an edit
+         cleared to nothing is not a message, so Send waits for one. */
+      const controls = raw.map(c => {
+        const run = c.held ? () => {} : c.run;
+        return { label: c.label, aria: c.aria, tip: c.held ? c.aria : undefined, held: !!c.held, run, key: keyer(run), style: btn(c.primary ? "primary" : "quiet") + (c.held ? "opacity:0.5;" : "") };
+      });
 
       const nav = (declined ? [] : (b.nav || [])).map(n => ({
         label: n.label, icon: n.icon, aria: n.label + " - leaves the conversation, you can come straight back",

@@ -6,9 +6,11 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.Discovery.Presentation;
+using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.Signals;
 using MailFathom.Application.UnitTests.Agent.Conversations;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Emails;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -177,6 +179,70 @@ public sealed class AgentProposalAcceptanceTests : IAsyncDisposable
         // Assert
         Assert.Equal(9L, place);
         await this.performer.Received(1).PerformAsync(sent, AgentActPerformer.KeyOf(Conversation, ProposedAt), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A proposed answer to a message accepted with an edited body is sent with that body, and nothing else of it changes.</summary>
+    [Fact]
+    public async Task AcceptAsync_AProposedAnswerWithAnEditedBody_SendsTheEditedBody()
+    {
+        // Arrange
+        var edited = PresentationText.Create("Thursday works, thank you.");
+        var proposed = new AgentResponseSending(
+            StoredEmailId.Create(Guid.Parse("0198f4a1-0000-7000-8000-000000000001")),
+            AuthoredResponseAct.Reply,
+            [],
+            PresentationText.Create("Thank you, we accept."));
+        this.ProposalStands(proposed);
+        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, edited, Now, Arg.Any<CancellationToken>())
+            .Returns(9L);
+        this.performer.PerformAsync(Arg.Any<AgentProposedAct>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
+
+        // Act
+        var place = await this.Acceptance(Granted(MailFathomPermission.AssistantUse, MailFathomPermission.MailRead, MailFathomPermission.MailDraftsWrite, MailFathomPermission.MailSend))
+            .AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, edited, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(9L, place);
+        await this.performer.Received(1).PerformAsync(proposed with { Body = edited }, Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A refused send of an edited body ends the proposal failed with the body that was tried, which is what trying again resends.</summary>
+    [Fact]
+    public async Task AcceptAsync_AnEditedBodyThisDeploymentRefuses_FailsWithTheEditedBody()
+    {
+        // Arrange
+        var edited = PresentationText.Create("Thursday works, thank you.");
+        this.ProposalStands();
+        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, edited, Now, Arg.Any<CancellationToken>())
+            .Returns(9L);
+        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Failed, edited, Now, Arg.Any<CancellationToken>())
+            .Returns(10L);
+        this.performer.PerformAsync(Arg.Any<AgentProposedAct>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
+
+        // Act
+        var place = await this.Acceptance(Granted()).AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, edited, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(10L, place);
+    }
+
+    /// <summary>An unnamed fault sending an edited body ends the proposal failed with the body that was tried, and is raised.</summary>
+    [Fact]
+    public async Task AcceptAsync_AnUnnamedFaultSendingAnEditedBody_FailsWithTheEditedBody()
+    {
+        // Arrange
+        var edited = PresentationText.Create("Thursday works, thank you.");
+        this.ProposalStands();
+        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, edited, Now, Arg.Any<CancellationToken>())
+            .Returns(9L);
+        this.performer.PerformAsync(Arg.Any<AgentProposedAct>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<bool>(new InvalidOperationException("Unexpected.")));
+
+        // Act and assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => this.Acceptance(Granted())
+            .AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, edited, TestContext.Current.CancellationToken));
+        await this.store.Received(1).TryResolveProposalAsync(
+            Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Failed, edited, Now, Arg.Any<CancellationToken>());
     }
 
     /// <summary>A proposal that sends no message has no body to edit, so an edited body offered with it is refused before anything is recorded.</summary>

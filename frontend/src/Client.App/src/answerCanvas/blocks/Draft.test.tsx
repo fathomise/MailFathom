@@ -304,6 +304,27 @@ describe('Draft', () => {
             ]);
         });
 
+        it('holds Send while the edit holds nothing but space, saying why, and takes no more than a draft body may hold', () => {
+            const answer = vi.fn<(decision: AgentProposalDecision, editedBody?: string) => void>();
+            renderDraft(drafted(), inConversation('pending', answer));
+
+            fireEvent.click(
+                screen.getByRole('button', {
+                    name: 'Edit here - the draft to anna@contoso.example, inside the conversation',
+                }),
+            );
+            const field = screen.getByRole('textbox', { name: 'Draft text' });
+            fireEvent.change(field, { target: { value: '   ' } });
+            fireEvent.click(
+                screen.getByRole('button', {
+                    name: 'Send the edited draft to anna@contoso.example - write the message first',
+                }),
+            );
+
+            expect(answer).not.toHaveBeenCalled();
+            expect(field.getAttribute('maxlength')).toBe('4000');
+        });
+
         it('shows the text that was sent where the record says it was sent as edited', () => {
             renderDraft(drafted(), { ...inConversation('accepted'), editedBody: 'Agreed, from Monday.' });
 

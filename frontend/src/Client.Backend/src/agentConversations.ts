@@ -5,7 +5,7 @@
 import { parseBlock, type AnswerBlock } from './discoveryRun';
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
 import { asRecord } from './json';
-import { parseDeclaredSource, type DeclaredSource } from './presentationBlocks';
+import { longestPresentationText, parseDeclaredSource, type DeclaredSource } from './presentationBlocks';
 import type { RunTail } from './runFollowing';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
@@ -646,7 +646,13 @@ function parseEntry(value: unknown): AgentConversationEntry | null {
             const answeredAt = entry['answeredAt'];
             const editedBody = entry['editedBody'];
 
-            return typeof proposedAt !== 'number' || !Number.isSafeInteger(proposedAt) || state === undefined
+            // An edited body is held to the bound a draft's own body is, which is all the service ever writes.
+            return typeof proposedAt !== 'number' ||
+                !Number.isSafeInteger(proposedAt) ||
+                state === undefined ||
+                (answeredAt !== undefined && typeof answeredAt !== 'string') ||
+                (editedBody !== undefined &&
+                    (typeof editedBody !== 'string' || editedBody.length > longestPresentationText))
                 ? null
                 : {
                       kind: 'resolution',

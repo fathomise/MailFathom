@@ -371,6 +371,7 @@ export const pl: Catalogue = {
     'suggestedAction.error': 'Nie udało się przygotować tej propozycji. Trwało to zbyt długo – spróbuj ponownie.',
     'draft.send': 'Wyślij',
     'draft.sendName': 'Wyślij szkic do {to}',
+    'draft.sendEmptyName': 'Wyślij poprawiony szkic do {to} – najpierw napisz wiadomość',
     'draft.sendEditedName': 'Wyślij poprawiony szkic do {to}',
     'draft.editHere': 'Edytuj tutaj',
     'draft.editHereName': 'Edytuj tutaj – szkic do {to}, w tej rozmowie',

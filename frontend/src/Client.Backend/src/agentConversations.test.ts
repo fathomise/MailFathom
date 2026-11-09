@@ -657,6 +657,24 @@ describe('answerAgentProposal', () => {
         ]);
     });
 
+    it.each([
+        ['an edited body past the bound a draft body is held to', { editedBody: 'a'.repeat(4001) }],
+        ['an edited body that is not text', { editedBody: 7 }],
+        ['an answer time that is not text', { answeredAt: 1758533520 }],
+    ])('refuses a resolution carrying %s', async (_, carried) => {
+        const answered = await readAgentConversation(
+            session,
+            answering({
+                status: 200,
+                body: pageOf([entryOf(7, { entry: 'resolution', proposedAt: 5, state: 'Accepted', ...carried })]),
+            }),
+            conversation,
+            0,
+        );
+
+        expect(answered.outcome).toBe('failed');
+    });
+
     it.each([404, 409])('reads a proposal no longer answerable that way, a %s, as missing', async (status) => {
         const answered = await answerAgentProposal(
             session,
