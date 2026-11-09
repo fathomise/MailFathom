@@ -302,8 +302,10 @@ has.
   the source is the drain's own work completing rather than somebody deleting mail, so the phase answers what a
   disappearance means. The configured value goes on saying what it says, and applies again once the account is mirrored.
   This is why the switch does not refuse an account configured to erase the local copy.
-- **A delete is local, so `AuthoredDeleteServerDisposition` decides nothing while the mailbox is held.** The drain
-  empties the source whatever a delete would have left there.
+- **A delete is local, so `AuthoredDeleteServerDisposition` decides one thing while the mailbox is held.** The drain
+  empties the source of whatever MailFathom still holds, whichever value is set. Only `LeaveOnServer` takes a message
+  out of that: its erasure writes no source removal record, so a message erased before the drain reached it stays on
+  the source.
 - **Every synchronized folder is drained, including sent, drafts, junk, and trash.** A folder whose mapping does not
   synchronize is never held and never drained.
 - **A `UIDVALIDITY` change on a held account's source duplicates rather than loses.** Rows still carrying an occurrence

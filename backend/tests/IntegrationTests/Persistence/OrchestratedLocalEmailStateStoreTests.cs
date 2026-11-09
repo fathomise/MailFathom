@@ -10,7 +10,9 @@ using MailFathom.Application.Synchronization.Drain;
 using MailFathom.Application.Synchronization.Reconciliation;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence;
+using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.IntegrationTests.ObjectStorage;
 using MailFathom.IntegrationTests.Orchestration;
 using Microsoft.EntityFrameworkCore;
@@ -49,6 +51,8 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
     private const uint ForgottenUid = 814;
 
     private const uint ForgottenWithoutOccurrenceUid = 815;
+
+    private const uint StagedSourceRemovalUid = 816;
 
     /// <summary>Past the payload PostgreSQL keeps in a heap page, so the figure moves by a length no rounding could produce.</summary>
     private const int PayloadByteCount = 64 * 1024;
@@ -257,6 +261,7 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
             "local-email-state-forgotten",
             SyntheticEmail.RawMimeOf("local-email-state-forgotten", PayloadByteCount),
             cancellationToken);
+        await StageSourceRemovalAsync(services, binding, occurrenceId.UidValidity, StagedSourceRemovalUid, cancellationToken);
 
         // Act
         var folder = await services.CommitProducingAsync(
@@ -281,14 +286,10 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
                 [occurrenceId.Uid],
                 token),
             cancellationToken);
-        var sourceRemovals = await services.InScopeAsync(
-            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().MailboxSourceRemovals
-                .AsNoTracking()
-                .CountAsync(removal => removal.Uid == ForgottenUid, token),
-            cancellationToken);
 
         Assert.Contains(occurrenceId.Uid, forgotten);
-        Assert.Equal(0, sourceRemovals);
+        Assert.Equal(1, await CountSourceRemovalsAsync(services, binding, StagedSourceRemovalUid, cancellationToken));
+        Assert.Equal(0, await CountSourceRemovalsAsync(services, binding, ForgottenUid, cancellationToken));
     }
 
     /// <summary>A message the drain already took off the source has no position left to protect, so nothing of it stays behind.</summary>
@@ -338,6 +339,61 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
 
         Assert.Equal(0, await CountStoredEmailRowsAsync(services, storedEmailId, cancellationToken));
         Assert.Empty(remembered);
+    }
+
+    /// <summary>Writes a removal the source is owed, so a count that finds none has been seen to find one.</summary>
+    private static Task<int> StageSourceRemovalAsync(
+        OrchestratedMailFathomServices services,
+        MailFolderResolution binding,
+        ImapUidValidity uidValidity,
+        uint uid,
+        CancellationToken cancellationToken) =>
+        services.InScopeAsync(
+            async (scope, token) =>
+            {
+                var context = scope.GetRequiredService<MailFathomDbContext>();
+                var alias = binding.Id.Alias.Value;
+                var generation = binding.Id.Generation.Value;
+                var bindingRowId = await context.MailFolderBindings
+                    .AsNoTracking()
+                    .Where(folder => folder.MailboxAccountId == SyntheticMailAccount.Account.Value
+                        && folder.Alias == alias
+                        && folder.ResolutionGeneration == generation)
+                    .Select(static folder => folder.Id)
+                    .SingleAsync(token);
+
+                context.MailboxSourceRemovals.Add(new MailboxSourceRemovalEntity
+                {
+                    Id = Guid.CreateVersion7(),
+                    MailboxAccountId = SyntheticMailAccount.Account.Value,
+                    MailFolderBindingId = bindingRowId,
+                    UidValidity = uidValidity.Value,
+                    Uid = uid,
+                    RecordedAt = DateTimeOffset.UnixEpoch,
+                });
+
+                return await context.SaveChangesAsync(token);
+            },
+            cancellationToken);
+
+    private static Task<int> CountSourceRemovalsAsync(
+        OrchestratedMailFathomServices services,
+        MailFolderResolution binding,
+        uint uid,
+        CancellationToken cancellationToken)
+    {
+        var alias = binding.Id.Alias.Value;
+        var generation = binding.Id.Generation.Value;
+
+        return services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().MailboxSourceRemovals
+                .AsNoTracking()
+                .CountAsync(
+                    removal => removal.Uid == uid
+                        && removal.MailFolderBinding!.Alias == alias
+                        && removal.MailFolderBinding.ResolutionGeneration == generation,
+                    token),
+            cancellationToken);
     }
 
     /// <summary>Reads through the store inside a session of its own, which is the only way the port reads.</summary>
