@@ -174,7 +174,7 @@ internal sealed class EmailCategoryStore(
         IReadOnlyList<MailFolderIdentity> junkFolders,
         DerivedWorkAdmissionTerms terms) =>
         Selecting(emails.Where(email => identifiers.Contains(email.Id)), mailboxAccountId, visibleFolders, junkFolders, terms)
-            .Where(email => email.StoredAt >= terms.ReleasedWhenStoredBefore);
+            .Where(email => email.StoredAt > terms.ReleasedWhenStoredBefore);
 
     /// <summary>Narrows stored mail to what a model may be shown: nothing junk, nothing erased, and nothing in a folder withheld from AI.</summary>
     /// <remarks>

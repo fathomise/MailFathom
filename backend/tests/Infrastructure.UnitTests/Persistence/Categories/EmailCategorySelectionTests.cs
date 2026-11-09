@@ -29,6 +29,8 @@ public sealed class EmailCategorySelectionTests
 
     private static DerivedWorkAdmissionTerms ClassificationOff { get; } = new([], [], [], Now);
 
+    private static DerivedWorkAdmissionTerms WaitRunning { get; } = new([], [], [], Now - TimeSpan.FromMinutes(15));
+
     private static DerivedWorkAdmissionTerms ClassificationOn { get; } = new(
         [MailAccountId.Create("work")],
         [],
@@ -241,10 +243,22 @@ public sealed class EmailCategorySelectionTests
     {
         // Arrange
         var email = Email();
-        email.StoredAt = ClassificationOn.ReleasedWhenStoredBefore.AddSeconds(-1);
+        email.StoredAt = WaitRunning.ReleasedWhenStoredBefore.AddSeconds(-1);
 
         // Act & Assert
-        Assert.Empty(Awaited(email, [email.Id], ClassificationOn));
+        Assert.Empty(Awaited(email, [email.Id]));
+    }
+
+    /// <summary>The gate releases a message stored at exactly this instant, so a rule must not go on holding it.</summary>
+    [Fact]
+    public void Awaited_AnArrivalStoredAtTheExactBound_LeavesItOut()
+    {
+        // Arrange
+        var email = Email();
+        email.StoredAt = WaitRunning.ReleasedWhenStoredBefore;
+
+        // Act & Assert
+        Assert.Empty(Awaited(email, [email.Id]));
     }
 
     [Fact]
@@ -279,7 +293,7 @@ public sealed class EmailCategorySelectionTests
             .ToQueryString();
 
         // Assert
-        Assert.Contains($"\"{nameof(StoredEmailEntity.StoredAt)}\" >=", command, StringComparison.Ordinal);
+        Assert.Contains($"\"{nameof(StoredEmailEntity.StoredAt)}\" >", command, StringComparison.Ordinal);
     }
 
     /// <summary>The database picks each conversation's first message, so a reply never carries the conversation across the boundary.</summary>
@@ -326,7 +340,7 @@ public sealed class EmailCategorySelectionTests
                 identifiers,
                 visibleFolders ?? [WorkInbox],
                 [],
-                terms ?? ClassificationOff),
+                terms ?? WaitRunning),
         ];
 
     private static IReadOnlyList<StoredEmailEntity> Select(
