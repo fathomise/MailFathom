@@ -78,8 +78,12 @@ function recording(response: Answer): { transport: MailFathomTransport; requests
     };
 }
 
-async function readingDocument(blocks: readonly unknown[], remoteImages = false) {
-    const document = documentWith(blocks);
+async function readingDocument(
+    blocks: readonly unknown[],
+    remoteImages = false,
+    members: Readonly<Record<string, unknown>> = {},
+) {
+    const document = documentWith(blocks, members);
     const body = bodyWith(document, { remoteImagesRequested: remoteImages });
 
     return readMailBody(session, answering({ status: 200, body }), storedEmailId, { remoteImages, fullHtml: false });
@@ -590,14 +594,8 @@ describe('readMailBody reading the reader own footer', () => {
 describe('readMailBody reading a block of header lines the message typed', () => {
     const headers = { blockCount: 2, author: 'Ewa', date: 'Mon, 24 Aug' };
 
-    async function readingBlocks(blocks: readonly unknown[]) {
-        const body = bodyWith(documentWith(blocks));
-
-        return readMailBody(session, answering({ status: 200, body }), storedEmailId, readingTheMessage);
-    }
-
     it('reads what a paragraph and a separator name, and leaves a block naming nothing without it', async () => {
-        const result = await readingBlocks([
+        const result = await readingDocument([
             { type: 'separator', version: 1, writtenHeaders: headers },
             paragraph(run('From: Ewa')),
             paragraph(run('The words under it.')),
@@ -615,7 +613,7 @@ describe('readMailBody reading a block of header lines the message typed', () =>
         ['with a date past the bound', { ...headers, date: 'd'.repeat(1025) }],
         ['that is not an object', 'the first two blocks'],
     ])('refuses a document naming a block %s', async (_, writtenHeaders) => {
-        const result = await readingBlocks([
+        const result = await readingDocument([
             { ...paragraph(run('From: Ewa')), writtenHeaders },
             paragraph(run('Date: Monday')),
         ]);
@@ -624,7 +622,7 @@ describe('readMailBody reading a block of header lines the message typed', () =>
     });
 
     it('refuses the member on a block that cannot start such a run', async () => {
-        const result = await readingBlocks([
+        const result = await readingDocument([
             { type: 'preformatted', version: 1, text: 'From: Ewa', writtenHeaders: { ...headers, blockCount: 1 } },
         ]);
 
@@ -640,21 +638,18 @@ describe('readMailBody reading what the service states about a proven author', (
         paragraph(run('The report.')),
     ];
 
-    async function reading(members: Record<string, unknown>) {
-        const body = bodyWith(documentWith(fourParagraphs, members));
-
-        return readMailBody(session, answering({ status: 200, body }), storedEmailId, readingTheMessage);
-    }
-
     it('reads the quotation the document names and that its author is proven', async () => {
-        const result = await reading({ quotation: { firstBlock: 2, blockCount: 2 }, authorIsProven: true });
+        const result = await readingDocument(fourParagraphs, false, {
+            quotation: { firstBlock: 2, blockCount: 2 },
+            authorIsProven: true,
+        });
 
         expect(result.outcome === 'read' && result.value.document?.quotation).toEqual({ firstBlock: 2, blockCount: 2 });
         expect(result.outcome === 'read' && result.value.document?.authorIsProven).toBe(true);
     });
 
     it('reads a document from a deployment that states neither as one whose author nothing proves', async () => {
-        const result = await reading({});
+        const result = await readingDocument(fourParagraphs, false, {});
 
         expect(result.outcome === 'read' && result.value.document?.quotation).toBeNull();
         expect(result.outcome === 'read' && result.value.document?.authorIsProven).toBe(false);
@@ -668,7 +663,7 @@ describe('readMailBody reading what the service states about a proven author', (
         ],
         ['a statement of proof that is not a boolean', { authorIsProven: 'yes' }],
     ])('refuses %s', async (_, members) => {
-        const result = await reading(members);
+        const result = await readingDocument(fourParagraphs, false, members);
 
         expect(result.outcome).toBe('failed');
     });

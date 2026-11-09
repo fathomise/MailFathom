@@ -577,22 +577,28 @@ const forwardedHeaderLines = [
     'To: Marta Nowak <marta.nowak@nordwind.example>',
 ].join('\n');
 
+/** A paragraph of one unformatted run, carrying the header block it names where it names one. */
+function plainParagraph(text: string, writtenHeaders?: object) {
+    return {
+        type: 'paragraph',
+        version: 1,
+        content: [{ text, emphasis: 'None', foreground: null, link: null }],
+        alignment: 'Inherited',
+        ...(writtenHeaders === undefined ? {} : { writtenHeaders }),
+    };
+}
+
 function forwardingBody(storedEmailId: string, reply: string) {
     const conversation = conversationBody(storedEmailId, [reply]);
-    const paragraph = (text: string, writtenHeaders?: object) => ({
-        ...conversation.document.blocks[0],
-        content: [{ text, emphasis: 'None', foreground: null, link: null }],
-        ...(writtenHeaders === undefined ? {} : { writtenHeaders }),
-    });
 
     return {
         ...conversation,
         document: {
             ...conversation.document,
             blocks: [
-                paragraph(reply),
-                paragraph(forwardedHeaderLines, { blockCount: 1, ...forwardedHeaders }),
-                paragraph('Our forecast for 2027 is 4.1%, with the upper band at 5.2%.'),
+                plainParagraph(reply),
+                plainParagraph(forwardedHeaderLines, { blockCount: 1, ...forwardedHeaders }),
+                plainParagraph('Our forecast for 2027 is 4.1%, with the upper band at 5.2%.'),
             ],
         },
     };
@@ -613,12 +619,6 @@ export const quotedByTheReply = rackingQuote.preview;
 /** The reply that footer was appended to: a coloured run, the footer, and the quotation MailFathom marked under it. */
 function signedReplyBody(storedEmailId: string, words: string) {
     const body = conversationBody(storedEmailId, [words, ...readerFooter]);
-    const paragraph = (text: string) => ({
-        type: 'paragraph',
-        version: 1,
-        content: [{ text, emphasis: 'None', foreground: null, link: null }],
-        alignment: 'Inherited',
-    });
     const [authored, ...footer] = body.document.blocks;
 
     return {
@@ -634,8 +634,8 @@ function signedReplyBody(storedEmailId: string, words: string) {
                     ],
                 },
                 ...footer,
-                paragraph(quotationAttribution),
-                { type: 'quote', version: 1, depth: 1, blocks: [paragraph(quotedByTheReply)] },
+                plainParagraph(quotationAttribution),
+                { type: 'quote', version: 1, depth: 1, blocks: [plainParagraph(quotedByTheReply)] },
             ],
             quotation: { firstBlock: 1 + footer.length, blockCount: 2 },
             authorIsProven: true,
