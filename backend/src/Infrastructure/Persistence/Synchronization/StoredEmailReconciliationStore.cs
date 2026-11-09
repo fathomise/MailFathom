@@ -214,9 +214,9 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
                 row.Uid = null;
             }
 
-            // The drain never takes a message whose bytes it does not hold, so one of these left by another client's
-            // hand and MailFathom never held it, as ADR 0034 says. Clearing its occurrence would leave a row whose
-            // content nothing could ever fetch.
+            // The drain never takes a message whose bytes MailFathom does not hold, so such a row's disappearance is
+            // another client's deletion and MailFathom never held the message, as ADR 0034 says. Clearing its occurrence
+            // would leave a row with no content and nothing that could ever fetch it.
             await EraseWithTheirContentAsync(
                 session,
                 sessionContext,
@@ -523,19 +523,26 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
     private static bool HasNewerObservationThan(StoredEmailEntity row, DateTimeOffset observedAt) =>
         row.FlagsObservedAt is { } recordedAt && recordedAt > observedAt;
 
-    /// <summary>Writes what the server reported onto the row, except a field a change committed locally first still overlays.</summary>
+    /// <summary>Records one observation of a message on its row, as far as the account's custody phase lets the source decide.</summary>
     /// <remarks>
-    /// Such a field keeps the value the act wrote, and what the server reported for it is recorded on every change still
-    /// outstanding on it as the field's last observation, so the rest of the message follows the server meanwhile. A
-    /// keyword is overlaid by name: an addition or a removal holds the keywords it named, and a replacement every one.
-    /// See <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>
+    /// <para>
+    /// Where the source is the truth, what the server reported is written, except a field a change committed locally
+    /// first still overlays. Such a field keeps the value the act wrote, and what the server reported for it is recorded
+    /// on every change still outstanding on it as the field's last observation, so the rest of the message follows the
+    /// server meanwhile. A keyword is overlaid by name: an addition or a removal holds the keywords it named, and a
+    /// replacement every one. See <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>
     /// axis F.
+    /// </para>
+    /// <para>
+    /// Where MailFathom is the truth, on a held or a restoring account, only <see cref="StoredEmailEntity.FlagsObservedAt" />
+    /// and a row's first reading are written.
+    /// </para>
     /// </remarks>
     internal static void ApplyFlagSnapshot(StoredEmailEntity row, RemoteEmailFlagSnapshot snapshot, bool sourceIsTheTruth)
     {
         if (!sourceIsTheTruth)
         {
-            ApplyObservationOfAHeldEmail(row, snapshot);
+            ApplyObservationOfAnEmailMailFathomKeeps(row, snapshot);
 
             return;
         }
@@ -585,7 +592,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
     /// expunge, and a batch interrupted between the two would otherwise publish a held message as deleted.
     /// </para>
     /// </remarks>
-    private static void ApplyObservationOfAHeldEmail(StoredEmailEntity row, RemoteEmailFlagSnapshot snapshot)
+    private static void ApplyObservationOfAnEmailMailFathomKeeps(StoredEmailEntity row, RemoteEmailFlagSnapshot snapshot)
     {
         var isFirstObservation = row.FlagsObservedAt is null;
 

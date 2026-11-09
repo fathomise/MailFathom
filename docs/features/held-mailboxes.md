@@ -150,8 +150,8 @@ twice. The same property is what makes two replicas overlapping across a lease h
 ### What happens on the source while a message waits
 
 Nothing that changes on the source is imported. Another client marking a message read, starring it, labelling it, or
-flagging it deleted changes nothing here, and a window reading such a message writes only when it read it. The one
-exception is a message's first reading, which is its initial state and is taken from the source except for whatever a
+flagging it deleted changes nothing here, and a window reading such a message writes only the moment it read it, which
+keeps the row moving through the reconciliation queue. The one exception is a message's first reading, which is its initial state and is taken from the source except for whatever a
 person has already done to it.
 
 A message another client removes before its content was stored was never held, so its row goes. A message another
