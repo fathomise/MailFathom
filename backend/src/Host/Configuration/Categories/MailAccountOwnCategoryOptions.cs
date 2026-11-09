@@ -28,14 +28,14 @@ internal sealed class MailAccountOwnCategoryOptions
         if (ReasonUnusable(this.Name, OwnMailCategoryBounds.MaximumNameLength) is { } name)
         {
             yield return new ValidationResult(
-                $"The account record's {path}:{nameof(this.Name)} {name}.",
+                $"{path}:{nameof(this.Name)} {name}.",
                 [nameof(this.Name)]);
         }
 
         if (ReasonUnusable(this.Description, OwnMailCategoryBounds.MaximumDescriptionLength) is { } description)
         {
             yield return new ValidationResult(
-                $"The account record's {path}:{nameof(this.Description)} {description}.",
+                $"{path}:{nameof(this.Description)} {description}.",
                 [nameof(this.Description)]);
         }
     }

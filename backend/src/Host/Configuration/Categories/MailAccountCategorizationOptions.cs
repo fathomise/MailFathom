@@ -59,14 +59,14 @@ internal sealed class MailAccountCategorizationOptions
         var unknown = this.DisabledDefaults.Index()
             .Where(static entry => !DefaultMailCategory.TryParse(entry.Item, out _))
             .Select(entry => new ValidationResult(
-                $"The account record's {RecordProperty}:{nameof(this.DisabledDefaults)}:{Position(entry.Index)} names no default category. It takes {DefaultIdentities}.",
+                $"{RecordProperty}:{nameof(this.DisabledDefaults)}:{Position(entry.Index)} names no default category. It takes {DefaultIdentities}.",
                 [nameof(this.DisabledDefaults)]));
 
         var repeated = this.DisabledDefaults.Index()
             .GroupBy(static entry => entry.Item, StringComparer.Ordinal)
             .Where(static group => group.Count() > 1)
             .Select(group => new ValidationResult(
-                $"The account record's {RecordProperty}:{nameof(this.DisabledDefaults)}:{Position(group.Last().Index)} repeats an entry above it. Name each default once.",
+                $"{RecordProperty}:{nameof(this.DisabledDefaults)}:{Position(group.Last().Index)} repeats an entry above it. Name each default once.",
                 [nameof(this.DisabledDefaults)]));
 
         return unknown.Concat(repeated);
@@ -77,7 +77,7 @@ internal sealed class MailAccountCategorizationOptions
         if (this.OwnCategories.Count > OwnMailCategoryBounds.MaximumPerAccount)
         {
             yield return new ValidationResult(
-                $"The account record declares {Position(this.OwnCategories.Count)} categories under {RecordProperty}:{nameof(this.OwnCategories)}, past the {Position(OwnMailCategoryBounds.MaximumPerAccount)} one account holds.",
+                $"{RecordProperty}:{nameof(this.OwnCategories)} holds {Position(this.OwnCategories.Count)} categories, past the {Position(OwnMailCategoryBounds.MaximumPerAccount)} one account holds.",
                 [nameof(this.OwnCategories)]);
         }
     }
@@ -91,14 +91,14 @@ internal sealed class MailAccountCategorizationOptions
             .GroupBy(static entry => entry.Item.Name, StringComparer.OrdinalIgnoreCase)
             .Where(static group => group.Count() > 1)
             .Select(group => new ValidationResult(
-                $"The account record's {RecordProperty}:{nameof(this.OwnCategories)}:{Position(group.Last().Index)} repeats the name of a category above it, whatever the case. Name each category once.",
+                $"{RecordProperty}:{nameof(this.OwnCategories)}:{Position(group.Last().Index)} repeats the name of a category above it, whatever the case. Name each category once.",
                 [nameof(this.OwnCategories)]));
 
         var takingADefault = this.OwnCategories.Index()
             .Where(static entry => DefaultMailCategory.All.Any(
                 category => string.Equals(category.ToString(), entry.Item.Name, StringComparison.OrdinalIgnoreCase)))
             .Select(entry => new ValidationResult(
-                $"The account record's {RecordProperty}:{nameof(this.OwnCategories)}:{Position(entry.Index)} takes the name of a default category, and a name offered to a search or an agent has to mean one thing. Name it something else.",
+                $"{RecordProperty}:{nameof(this.OwnCategories)}:{Position(entry.Index)} takes the name of a default category, and a name offered to a search or an agent has to mean one thing. Name it something else.",
                 [nameof(this.OwnCategories)]));
 
         return entryRefusals.Concat(repeated).Concat(takingADefault);

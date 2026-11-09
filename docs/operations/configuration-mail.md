@@ -618,6 +618,10 @@ the account's rather than its user's for the reason spam classification is: the 
 | `…:Categorization:OwnCategories:<n>:Name` | string | required | At most 64 characters, no control character and no white space around it, not a default's identity, and unique within the account whatever the case. At most 20 categories. A rename is a removal and an addition, so it removes the records naming the old name | reload; a name that leaves the list removes its stored records in the same commit |
 | `…:Categorization:OwnCategories:<n>:Description` | string | required | At most 500 characters and no control character; what a model reads to decide whether a message is about this subject | reload |
 
+A [settings policy](#how-a-settings-policy-resolves-a-mail-account) can default, force, and restrict each of these
+properties on its own. A list it states replaces the account's whole, and is refused when the policy is written by the
+rules a record's is.
+
 ### Scanning this account's mail — `SensitiveContent`
 
 `…:SensitiveContent` is this mailbox's half of [sensitive-content

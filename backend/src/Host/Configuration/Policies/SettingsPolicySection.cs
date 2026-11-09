@@ -38,7 +38,8 @@ internal sealed class SettingsPolicySection
             MailAccountRecordComposition.EmailAddressProperty),
         record => FindUnwritableLanguage((MailSynchronizationAccountOptions)record)
             .Concat(FindUnusableListEntries((MailSynchronizationAccountOptions)record))
-            .Concat(((MailSynchronizationAccountOptions)record).Retention?.FindRefusals() ?? []));
+            .Concat(((MailSynchronizationAccountOptions)record).Retention?.FindRefusals() ?? [])
+            .Concat(FindUnusableCategorization((MailSynchronizationAccountOptions)record)));
 
     private SettingsPolicySection(
         string name,
@@ -87,6 +88,9 @@ internal sealed class SettingsPolicySection
                 $"{nameof(account.Language)} states '{account.Language}', which is not a language MailFathom writes in. It takes {string.Join(" or ", Enum.GetNames<MailAccountLanguage>().Select(language => $"'{language}'"))}.";
         }
     }
+
+    private static IEnumerable<string> FindUnusableCategorization(MailSynchronizationAccountOptions account) =>
+        account.Categorization?.FindRefusals().Select(refusal => refusal.ErrorMessage).OfType<string>() ?? [];
 
     /// <summary>Reports each entry of a stated list that the account's own rule for such an entry refuses.</summary>
     /// <remarks>
