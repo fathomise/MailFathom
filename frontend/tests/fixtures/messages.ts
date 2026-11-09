@@ -211,6 +211,7 @@ export function senderMarkup(remoteImages: boolean): string {
         '<p style="background:#0b3d91;color:#ffffff">A dark band</p>' +
         '<p style="background-image:linear-gradient(#ffffff,#eeeeee);color:#333333">Over a gradient</p>' +
         '<p style="border:1px solid #dddddd">Between light rules</p>' +
+        '<div style="background:#1a1a1a"><p style="background:#ffffff;color:#333333">A card on a dark wrapper</p></div>' +
         `<img src="${picture}" alt="A mark">` +
         '</body></html>'
     );

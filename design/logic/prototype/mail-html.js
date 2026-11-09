@@ -86,8 +86,6 @@ MailFathomDesign.mailHtml = (() => {
         return 'rgb(' + channels.join(',') + ')';
     }
 
-    const surfaceLuminance = luminanceOf(surface);
-
     function readableInk(channels, ground) {
         const lifting = ground <= groundTakingDarkInk;
         const destination = lifting ? [255, 255, 255] : [0, 0, 0];
@@ -120,7 +118,7 @@ MailFathomDesign.mailHtml = (() => {
         }
 
         const fillLuminance = luminanceOf(fill.channels);
-        const fillAsWritten = fill.alpha === 1 ? fillLuminance : inheritedGround;
+        const fillAsWritten = fill.alpha === 1 ? fill.channels : inheritedGround;
 
         if (fillLuminance <= lightFillLuminance) {
             return fillAsWritten;
@@ -131,7 +129,7 @@ MailFathomDesign.mailHtml = (() => {
         if (tintPercent < leastTintPercent) {
             style.setProperty('background-color', 'transparent', 'important');
 
-            return surfaceLuminance;
+            return inheritedGround;
         }
 
         if (!dark) {
@@ -144,7 +142,7 @@ MailFathomDesign.mailHtml = (() => {
             'important',
         );
 
-        return luminanceOf(mixed(surface, fill.channels, tintPercent / 100));
+        return inheritedGround === null ? null : mixed(inheritedGround, fill.channels, tintPercent / 100);
     }
 
     function makeInkReadable(style, computed, ground) {
@@ -154,8 +152,10 @@ MailFathomDesign.mailHtml = (() => {
             return;
         }
 
-        if (contrastBetween(luminanceOf(ink.channels), ground) < legibleContrast) {
-            style.setProperty('color', readableInk(ink.channels, ground), 'important');
+        const groundLuminance = luminanceOf(ground);
+
+        if (contrastBetween(luminanceOf(ink.channels), groundLuminance) < legibleContrast) {
+            style.setProperty('color', readableInk(ink.channels, groundLuminance), 'important');
         }
     }
 
@@ -163,6 +163,8 @@ MailFathomDesign.mailHtml = (() => {
         if (!dark || ground === null) {
             return;
         }
+
+        const groundLuminance = luminanceOf(ground);
 
         for (const side of ['top', 'right', 'bottom', 'left']) {
             const rule = colourOf(computed.getPropertyValue('border-' + side + '-color'));
@@ -174,7 +176,7 @@ MailFathomDesign.mailHtml = (() => {
 
             const ruleLuminance = luminanceOf(rule.channels);
 
-            if (ruleLuminance > lightFillLuminance || contrastBetween(ruleLuminance, ground) < faintestRuleContrast) {
+            if (ruleLuminance > lightFillLuminance || contrastBetween(ruleLuminance, groundLuminance) < faintestRuleContrast) {
                 style.setProperty('border-' + side + '-color', hairline, 'important');
             }
         }
@@ -196,7 +198,7 @@ MailFathomDesign.mailHtml = (() => {
         document.documentElement.style.setProperty('color-scheme', dark ? 'dark' : 'light', 'important');
 
         if (document.body !== null) {
-            adapt(document.body, surfaceLuminance);
+            adapt(document.body, surface);
         }
     }
 

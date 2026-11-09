@@ -55,7 +55,7 @@ window.addEventListener("load",send);setTimeout(send,120);setTimeout(send,600);}
 // colours can be seen: each element's fill, ink, and rules are read as the browser resolved them, and written back
 // inline and `important`, which is what outranks whatever the sender's own rules said.
 //
-// A near-white fill goes altogether, so the theme's own surface stands behind it, and ink that would not reach WCAG's
+// A near-white fill goes altogether, so what stood behind it shows, and ink that would not reach WCAG's
 // 4.5:1 on what is now behind it is moved until it does. Most mail sets no background and needs nothing else, which is
 // the whole of the light theme; under the dark one a remaining light fill keeps only a hint of its hue, an achromatic
 // ink simply takes the theme's own, and a light rule stops glaring. What decides is the ground each element stands on,
@@ -66,8 +66,8 @@ window.addEventListener("load",send);setTimeout(send,120);setTimeout(send,600);}
 //
 // `surfaceChannel` is a grey standing for every surface of its theme a frame is drawn on: the frame is transparent and
 // cannot read the surface behind it, and those surfaces all sit within a rounding of this grey for a contrast sum. A
-// tinted fill is judged as what it paints, that grey with the fill's share mixed in. `CanvasText` is the theme's ink
-// only as nearly as the platform's own dark furniture is.
+// tinted fill is judged as what it paints, the ground behind it with the fill's share mixed in. `CanvasText` is the
+// theme's ink only as nearly as the platform's own dark furniture is.
 //
 // shortcut: a transparent picture is left alone, so a dark logo on a transparent ground stays dark on a dark page; reading
 // its pixels to plate it is the upgrade if mail is found to depend on it.
@@ -115,8 +115,6 @@ export const themeColoursScript = `(() => {
         return 'rgb(' + channels.join(',') + ')';
     }
 
-    const surfaceLuminance = luminanceOf(surface);
-
     function readableInk(channels, ground) {
         const lifting = ground <= groundTakingDarkInk;
         const destination = lifting ? [255, 255, 255] : [0, 0, 0];
@@ -149,7 +147,7 @@ export const themeColoursScript = `(() => {
         }
 
         const fillLuminance = luminanceOf(fill.channels);
-        const fillAsWritten = fill.alpha === 1 ? fillLuminance : inheritedGround;
+        const fillAsWritten = fill.alpha === 1 ? fill.channels : inheritedGround;
 
         if (fillLuminance <= lightFillLuminance) {
             return fillAsWritten;
@@ -160,7 +158,7 @@ export const themeColoursScript = `(() => {
         if (tintPercent < leastTintPercent) {
             style.setProperty('background-color', 'transparent', 'important');
 
-            return surfaceLuminance;
+            return inheritedGround;
         }
 
         if (!dark) {
@@ -173,7 +171,7 @@ export const themeColoursScript = `(() => {
             'important',
         );
 
-        return luminanceOf(mixed(surface, fill.channels, tintPercent / 100));
+        return inheritedGround === null ? null : mixed(inheritedGround, fill.channels, tintPercent / 100);
     }
 
     function makeInkReadable(style, computed, ground) {
@@ -183,8 +181,10 @@ export const themeColoursScript = `(() => {
             return;
         }
 
-        if (contrastBetween(luminanceOf(ink.channels), ground) < legibleContrast) {
-            style.setProperty('color', readableInk(ink.channels, ground), 'important');
+        const groundLuminance = luminanceOf(ground);
+
+        if (contrastBetween(luminanceOf(ink.channels), groundLuminance) < legibleContrast) {
+            style.setProperty('color', readableInk(ink.channels, groundLuminance), 'important');
         }
     }
 
@@ -192,6 +192,8 @@ export const themeColoursScript = `(() => {
         if (!dark || ground === null) {
             return;
         }
+
+        const groundLuminance = luminanceOf(ground);
 
         for (const side of ['top', 'right', 'bottom', 'left']) {
             const rule = colourOf(computed.getPropertyValue('border-' + side + '-color'));
@@ -203,7 +205,7 @@ export const themeColoursScript = `(() => {
 
             const ruleLuminance = luminanceOf(rule.channels);
 
-            if (ruleLuminance > lightFillLuminance || contrastBetween(ruleLuminance, ground) < faintestRuleContrast) {
+            if (ruleLuminance > lightFillLuminance || contrastBetween(ruleLuminance, groundLuminance) < faintestRuleContrast) {
                 style.setProperty('border-' + side + '-color', hairline, 'important');
             }
         }
@@ -225,7 +227,7 @@ export const themeColoursScript = `(() => {
         document.documentElement.style.setProperty('color-scheme', dark ? 'dark' : 'light', 'important');
 
         if (document.body !== null) {
-            adapt(document.body, surfaceLuminance);
+            adapt(document.body, surface);
         }
     }
 

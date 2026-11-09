@@ -306,12 +306,14 @@ const coloursUnder = {
         whiteInk: 'rgb(255, 255, 255)',
         noticeFill: /^color\(srgb 1 0\.92\d* 0\.23\d* \/ 0\.31\)$/,
         noticeInk: 'rgb(240, 225, 204)',
+        cardInk: 'rgb(255, 255, 255)',
         rule: 'color(srgb 1 1 1 / 0.16)',
     },
     light: {
         whiteInk: 'rgb(51, 51, 51)',
         noticeFill: 'rgb(255, 235, 59)',
         noticeInk: 'rgb(143, 86, 0)',
+        cardInk: 'rgb(133, 133, 133)',
         rule: 'rgb(221, 221, 221)',
     },
 } as const;
@@ -327,6 +329,10 @@ async function expectTheThemeColours(frame: FrameLocator, colorScheme: keyof typ
     await expect(written).toHaveCSS('color', expected.whiteInk);
     await expect(notice).toHaveCSS('background-color', expected.noticeFill);
     await expect(notice).toHaveCSS('color', expected.noticeInk);
+
+    // A white card goes, so its words stand on the dark wrapper that shows through and not on the theme's surface.
+    await expect(frame.getByText('A card on a dark wrapper')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(frame.getByText('A card on a dark wrapper')).toHaveCSS('color', expected.cardInk);
 
     // Dark and saturated, so it is left as the sender wrote it in either theme.
     await expect(band).toHaveCSS('background-color', 'rgb(11, 61, 145)');
