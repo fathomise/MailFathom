@@ -1322,8 +1322,10 @@ public sealed class AccountSynchronizationSupervisorTests
     }
 
     /// <summary>
-    /// The arrival pipeline's order, asserted where it is composed. The spam floor runs first, so nothing after it meets
-    /// a message in the junk folder or carrying <c>$Junk</c> below spam. Classification runs next so that every later stage
+    /// The arrival pipeline's order, asserted where it is composed. Following the junk marks another client changed runs
+    /// first, because it only hands those changes to the queue and every stage behind it may then read a verdict they moved.
+    /// The spam floor runs next, so nothing after it meets a message in the junk folder or carrying <c>$Junk</c> below spam.
+    /// Classification runs next so that every later stage
     /// reads a verdict instead of deciding without one, the rules run over what it did not settle, the cut runs behind
     /// them because a rule may still move the message into a folder mapped differently from the one it arrived in, and
     /// the attachment reading runs behind the cut because it is the one stage that parses octets a stranger composed.

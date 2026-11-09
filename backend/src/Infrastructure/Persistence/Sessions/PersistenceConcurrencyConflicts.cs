@@ -250,6 +250,11 @@ internal static class PersistenceConcurrencyConflicts
     /// a reply starts a new conversation, so the arrival is neither lost nor charged against its run. Every other
     /// foreign-key violation stays a failure.
     /// </para>
+    /// <para>
+    /// <see cref="PersistenceConstraintNames.EmailJunkFolderDeparturePrimaryKeyConstraintName" /> is two reconciliations
+    /// seeing one <c>Message-ID</c> leave the junk folder at once. Both read no departure and both add one, and the retry
+    /// re-reads the row the winner wrote and refreshes when it departed.
+    /// </para>
     /// </remarks>
     internal static bool IsConcurrencyConflict(DbUpdateException exception) =>
         exception.InnerException is PostgresException
@@ -270,6 +275,7 @@ internal static class PersistenceConcurrencyConflicts
                 or PersistenceConstraintNames.SpamClassificationRunPrimaryKeyConstraintName
                 or PersistenceConstraintNames.EmailSpamClassificationPrimaryKeyConstraintName
                 or PersistenceConstraintNames.EmailSpamVerdictActPrimaryKeyConstraintName
+                or PersistenceConstraintNames.EmailJunkFolderDeparturePrimaryKeyConstraintName
                 or PersistenceConstraintNames.EmailChunkOrdinalUniqueIndexName
                 or PersistenceConstraintNames.EmailChunkAttachmentOrdinalUniqueIndexName
                 or PersistenceConstraintNames.EmailAttachmentTextPrimaryKeyName
