@@ -493,6 +493,7 @@ describe('readMailMessage', () => {
             described({ senderPhoto: { book: 'Collected', id: 'x', photo: 'y' } }),
         ],
         ['more attachments than a message may carry', tooManyAttachments()],
+        ['a message saying nothing about its categories', described({ categories: undefined })],
         ['a read receipt request naming no address', described({ readReceiptRequest: { namesAnotherAddress: false } })],
     ])('refuses %s rather than reading part of it', async (_shape, body) => {
         const result = await readMailMessage(session, answering({ status: 200, body }), messageId);

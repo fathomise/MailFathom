@@ -172,6 +172,7 @@ describe('readMailConversations', () => {
         ],
         ['an attachment mark that is not a yes or a no', { ...thread, hasAttachments: 'yes' }],
         ['a say on unnamed participants that is not a yes or a no', { ...thread, moreParticipantsNotNamed: 1 }],
+        ['a row saying nothing about its categories', { ...thread, categories: undefined }],
     ])('refuses %s', async (_, row) => {
         const answer = await reading(recording(200, { ...page, conversations: [row] }).transport);
 
