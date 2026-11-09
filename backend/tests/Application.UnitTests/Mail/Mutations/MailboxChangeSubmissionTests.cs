@@ -355,7 +355,7 @@ public sealed class MailboxChangeSubmissionTests
             Email,
             Occurrence,
             MailboxMutationRequester.Rule("tidy-newsletters", "revision-1"),
-            AuthoredDeleteEmailDisposition.RetainLocalCopy,
+            AuthoredDeleteEmailDisposition.RetainTombstone,
             AuthoredDeleteServerDisposition.Expunge);
         await submission.SubmitAsync(this.session, ruleDelete, null, null, Token);
 
@@ -599,6 +599,45 @@ public sealed class MailboxChangeSubmissionTests
             Arg.Is<MailboxMutationAuditEntry>(entry =>
                 entry != null && entry.MutationRecordId == record.Id && entry.Outcome == MailboxMutationAuditOutcome.Performed),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A local-only message's delete leaves what the account states: a tombstone, hidden and aged out like any other.</summary>
+    [Fact]
+    public async Task EraseAsync_ALocalOnlyMessageUnderRetainTombstone_LeavesATombstone()
+    {
+        // Arrange
+        this.StoreLocalOnly();
+        var record = await this.records.OpenAsync(this.session, DeleteRequest(), heldUntil: null, MailboxMutationLocalChange.Erasure, Token);
+
+        // Act
+        var erased = await this.Submission().EraseAsync(this.session, record, Token);
+
+        // Assert
+        Assert.NotNull(erased);
+        Assert.Equal(Email, Assert.Single(this.states.Tombstoned));
+        Assert.Empty(this.states.Erased);
+    }
+
+    /// <summary>An account stating the local copy is erased gets that on a local-only message too.</summary>
+    [Fact]
+    public async Task EraseAsync_ALocalOnlyMessageUnderEraseLocalCopy_ErasesIt()
+    {
+        // Arrange
+        this.StoreLocalOnly();
+        var delete = MailboxMutationRequest.Delete(
+            Email,
+            Occurrence,
+            Requester,
+            AuthoredDeleteEmailDisposition.EraseLocalCopy,
+            AuthoredDeleteServerDisposition.Expunge);
+        var record = await this.records.OpenAsync(this.session, delete, heldUntil: null, MailboxMutationLocalChange.Erasure, Token);
+
+        // Act
+        await this.Submission().EraseAsync(this.session, record, Token);
+
+        // Assert
+        Assert.Equal(Email, Assert.Single(this.states.Erased));
+        Assert.Empty(this.states.Tombstoned);
     }
 
     /// <summary>A person who withdrew the delete after the pass read its record keeps the message: the erasure claims the record, and a cancelled one refuses.</summary>
@@ -932,7 +971,7 @@ public sealed class MailboxChangeSubmissionTests
                 Email,
                 Occurrence,
                 MailboxMutationRequester.Command("call-2"),
-                AuthoredDeleteEmailDisposition.RetainLocalCopy,
+                AuthoredDeleteEmailDisposition.RetainTombstone,
                 AuthoredDeleteServerDisposition.Expunge),
             null,
             Now.AddSeconds(30),
@@ -963,7 +1002,7 @@ public sealed class MailboxChangeSubmissionTests
         Email,
         Occurrence,
         Requester,
-        AuthoredDeleteEmailDisposition.RetainLocalCopy,
+        AuthoredDeleteEmailDisposition.RetainTombstone,
         AuthoredDeleteServerDisposition.Expunge);
 
     private static MailboxMutationRequest CopyRequest(MailboxDestination destination) =>
@@ -1045,6 +1084,17 @@ public sealed class MailboxChangeSubmissionTests
         StoredContentFound(),
         this.copies,
         MimeReadingNothing());
+
+    private void StoreLocalOnly() => this.states.Store(
+        Email,
+        new LocalEmailState(
+            Inbox,
+            HoldsSourceOccurrence: false,
+            Folder: null,
+            IsSeen: false,
+            IsFlagged: false,
+            EmailKeywords.Create([]),
+            IsLocalOnly: true));
 
     private void Store(IEnumerable<string>? keywords = null, bool holdsSourceOccurrence = true, MailFolderId? folder = null) => this.states.Store(
         Email,

@@ -1007,11 +1007,12 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// <summary>Gets or sets what happens to the local copy of an email this account's mail server no longer holds.</summary>
     /// <remarks>
     /// <para>
-    /// It binds as one of the two names <see cref="RemotelyDeletedEmailDisposition" /> declares, and a value that is
-    /// neither fails startup rather than silently selecting a default: this setting decides whether stored mail is
+    /// It binds as one of the names <see cref="RemotelyDeletedEmailDisposition" /> declares, and a value that is none of
+    /// them fails startup rather than silently selecting a default: this setting decides whether stored mail is
     /// destroyed, and a typo in it must never be the reason mail survives or does not. The default erases the local
     /// copy, so what the server no longer holds is not kept either; an account that has to outlive the server's own
-    /// retention names <see cref="RemotelyDeletedEmailDisposition.RetainTombstone" /> instead.
+    /// retention names <see cref="RemotelyDeletedEmailDisposition.RetainLocalCopy" /> to go on reading it, or
+    /// <see cref="RemotelyDeletedEmailDisposition.RetainTombstone" /> to keep only the record that it existed.
     /// </para>
     /// <para>
     /// The setting is per account because the accounts of one deployment answer to different providers and serve
@@ -1028,14 +1029,13 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// <para>
     /// It is a separate setting from <see cref="RemotelyDeletedEmailDisposition" /> and takes precedence over it for
     /// every deletion MailFathom performed, because the two answer for different acts. That one governs a disappearance
-    /// somebody else caused; this one governs one the mailbox user authored, and an account that erases what its
-    /// server loses must not thereby erase what it was just told to delete — freeing space on the server is not the
-    /// same instruction as forgetting the mail.
+    /// somebody else caused; this one governs one the mailbox user authored, and an account that keeps what its server
+    /// loses must not thereby keep readable what it was just told to delete.
     /// </para>
     /// <para>
     /// It binds as one of the names <see cref="AuthoredDeleteEmailDisposition" /> declares, and a value that is none of
     /// them fails startup for the same reason the setting above does. The default erases the local copy, which is what
-    /// the gesture means; keeping it is a choice an account states by name.
+    /// the gesture means; keeping a tombstone is a choice an account states by name.
     /// </para>
     /// </remarks>
     public AuthoredDeleteEmailDisposition AuthoredDeleteEmailDisposition { get; set; } =

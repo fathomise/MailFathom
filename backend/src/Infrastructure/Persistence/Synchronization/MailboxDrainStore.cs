@@ -47,6 +47,7 @@ internal sealed class MailboxDrainStore(MailFathomDbContext readContext) : IMail
             .AsNoTracking()
             .Where(email => email.MailboxAccountId == accountValue
                 && email.UidValidity != null
+                && !email.IsRetainedAfterRemoteDelete
                 && aliasValues.Contains(email.MailFolderBinding.Alias))
             .OrderBy(email => email.ReceivedAt)
             .ThenBy(email => email.Id)
@@ -86,7 +87,8 @@ internal sealed class MailboxDrainStore(MailFathomDbContext readContext) : IMail
             .AsNoTracking()
             .Where(email => email.MailboxAccountId == accountValue
                 && identifiers.Contains(email.Id)
-                && email.UidValidity != null)
+                && email.UidValidity != null
+                && !email.IsRetainedAfterRemoteDelete)
             .Select(email => new DrainRow(
                 email.Id,
                 email.UidValidity!.Value,
@@ -215,7 +217,7 @@ internal sealed class MailboxDrainStore(MailFathomDbContext readContext) : IMail
 
         var standing = await readContext.StoredEmails
             .AsNoTracking()
-            .Where(email => email.MailboxAccountId == accountValue && email.UidValidity != null)
+            .Where(email => email.MailboxAccountId == accountValue && email.UidValidity != null && !email.IsRetainedAfterRemoteDelete)
             .GroupBy(email => email.ContentAvailability)
             .Select(group => new AvailabilityCount(group.Key, group.Count()))
             .ToArrayAsync(cancellationToken);

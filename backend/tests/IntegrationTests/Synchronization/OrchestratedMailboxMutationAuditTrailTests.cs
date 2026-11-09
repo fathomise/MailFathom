@@ -200,7 +200,7 @@ public sealed class OrchestratedMailboxMutationAuditTrailTests(MailFathomOrchest
                 storedEmailId,
                 occurrence,
                 Requester,
-                AuthoredDeleteEmailDisposition.RetainLocalCopy,
+                AuthoredDeleteEmailDisposition.RetainTombstone,
                 AuthoredDeleteServerDisposition.Expunge);
         }
 

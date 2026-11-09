@@ -906,8 +906,10 @@ public sealed class MailSynchronizationOptionsTests
         Assert.Equal(RemotelyDeletedEmailDisposition.EraseLocalCopy, disposition);
     }
 
-    [Fact]
-    public void Bind_RemotelyDeletedEmailDisposition_ReadsItByName()
+    [Theory]
+    [InlineData("EraseLocalCopy", RemotelyDeletedEmailDisposition.EraseLocalCopy)]
+    [InlineData("RetainLocalCopy", RemotelyDeletedEmailDisposition.RetainLocalCopy)]
+    public void Bind_RemotelyDeletedEmailDisposition_ReadsItByName(string stated, RemotelyDeletedEmailDisposition expected)
     {
         // Arrange
         var configuration = new ConfigurationBuilder()
@@ -915,7 +917,7 @@ public sealed class MailSynchronizationOptionsTests
             {
                 ["MailAccounts:0:AccountId"] = "primary",
                 ["MailAccounts:0:DisplayName"] = "The primary mailbox",
-                ["MailAccounts:0:RemotelyDeletedEmailDisposition"] = "EraseLocalCopy",
+                ["MailAccounts:0:RemotelyDeletedEmailDisposition"] = stated,
             })
             .Build();
 
@@ -923,9 +925,7 @@ public sealed class MailSynchronizationOptionsTests
         var user = configuration.Get<UserAccountOptions>()!;
 
         // Assert
-        Assert.Equal(
-            RemotelyDeletedEmailDisposition.EraseLocalCopy,
-            Assert.Single(user.MailAccounts).RemotelyDeletedEmailDisposition);
+        Assert.Equal(expected, Assert.Single(user.MailAccounts).RemotelyDeletedEmailDisposition);
     }
 
     /// <summary>
@@ -969,7 +969,7 @@ public sealed class MailSynchronizationOptionsTests
                 ["MailAccounts:0:Host"] = "imap.example.test",
                 ["MailAccounts:0:UserName"] = "mailfathom@example.test",
                 ["MailAccounts:0:Secrets:Password:SecretReference"] = "systemd-credential:imap-primary-password",
-                ["MailAccounts:0:RemotelyDeletedEmailDisposition"] = "2",
+                ["MailAccounts:0:RemotelyDeletedEmailDisposition"] = "3",
             })
             .Build();
         var user = configuration.Get<UserAccountOptions>()!;
@@ -995,7 +995,7 @@ public sealed class MailSynchronizationOptionsTests
         // Arrange
         var account = CreateAccount("primary");
         account.RemotelyDeletedEmailDisposition = RemotelyDeletedEmailDisposition.EraseLocalCopy;
-        account.AuthoredDeleteEmailDisposition = AuthoredDeleteEmailDisposition.RetainLocalCopy;
+        account.AuthoredDeleteEmailDisposition = AuthoredDeleteEmailDisposition.RetainTombstone;
         var options = new MailSynchronizationOptions().Serving(account);
         var accountId = MailAccountId.Create("primary");
 
@@ -1005,7 +1005,7 @@ public sealed class MailSynchronizationOptionsTests
 
         // Assert
         Assert.Equal(RemotelyDeletedEmailDisposition.EraseLocalCopy, remoteDisposition);
-        Assert.Equal(AuthoredDeleteEmailDisposition.RetainLocalCopy, authoredDisposition);
+        Assert.Equal(AuthoredDeleteEmailDisposition.RetainTombstone, authoredDisposition);
     }
 
     /// <summary>The two accounts of one deployment answer differently here too, which is why this setting is per account as well.</summary>
@@ -1014,7 +1014,7 @@ public sealed class MailSynchronizationOptionsTests
     {
         // Arrange
         var archive = CreateAccount("archive");
-        archive.AuthoredDeleteEmailDisposition = AuthoredDeleteEmailDisposition.RetainLocalCopy;
+        archive.AuthoredDeleteEmailDisposition = AuthoredDeleteEmailDisposition.RetainTombstone;
         var options = new MailSynchronizationOptions().Serving(CreateAccount("forgetful"), archive);
 
         // Act
@@ -1026,7 +1026,7 @@ public sealed class MailSynchronizationOptionsTests
 
         // Assert
         Assert.Equal(
-            [AuthoredDeleteEmailDisposition.RetainLocalCopy, AuthoredDeleteEmailDisposition.EraseLocalCopy],
+            [AuthoredDeleteEmailDisposition.RetainTombstone, AuthoredDeleteEmailDisposition.EraseLocalCopy],
             dispositions);
     }
 
@@ -1079,7 +1079,7 @@ public sealed class MailSynchronizationOptionsTests
 
         // Assert
         var result = Assert.Single(results);
-        Assert.Contains("RetainLocalCopy", result.ErrorMessage, StringComparison.Ordinal);
+        Assert.Contains("RetainTombstone", result.ErrorMessage, StringComparison.Ordinal);
         Assert.Contains("EraseLocalCopy", result.ErrorMessage, StringComparison.Ordinal);
     }
 

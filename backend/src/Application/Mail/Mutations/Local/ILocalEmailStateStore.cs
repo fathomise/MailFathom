@@ -44,6 +44,18 @@ public interface ILocalEmailStateStore
         bool isHeldFolder,
         CancellationToken cancellationToken);
 
+    /// <summary>Takes a local-only message out of every mailbox query, leaving the record that it existed.</summary>
+    /// <param name="session">The transaction the change commits in.</param>
+    /// <param name="account">The account the message is stored for.</param>
+    /// <param name="email">The message.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>A task that completes once the write is staged in the session.</returns>
+    Task MakeTombstoneAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        StoredEmailId email,
+        CancellationToken cancellationToken);
+
     /// <summary>Erases the message, its payload, and everything derived from it.</summary>
     /// <param name="session">The transaction the erasure commits in.</param>
     /// <param name="account">The account the message is stored for.</param>
@@ -82,6 +94,7 @@ public interface ILocalEmailStateStore
 /// <param name="IsSeen">Whether the message is read.</param>
 /// <param name="IsFlagged">Whether the message is starred.</param>
 /// <param name="Keywords">The keywords the message carries.</param>
+/// <param name="IsLocalOnly">Whether the account keeps the message although its server was seen to have lost it.</param>
 /// <remarks>
 /// The occurrence is reported as a fact rather than as an identity, because the identity a change is recorded against
 /// is the one the requester resolved and wrote into its request. What the transaction has to answer is narrower: a
@@ -94,4 +107,5 @@ public sealed record LocalEmailState(
     MailFolderId? Folder,
     bool IsSeen,
     bool IsFlagged,
-    EmailKeywords Keywords);
+    EmailKeywords Keywords,
+    bool IsLocalOnly = false);

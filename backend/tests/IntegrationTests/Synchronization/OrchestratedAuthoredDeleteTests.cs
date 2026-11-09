@@ -94,7 +94,6 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
         var run = Guid.NewGuid().ToString("N");
         var subjects = new Dictionary<AuthoredDeleteEmailDisposition, string>
         {
-            [AuthoredDeleteEmailDisposition.RetainLocalCopy] = $"authored-delete-retained-{run}",
             [AuthoredDeleteEmailDisposition.RetainTombstone] = $"authored-delete-tombstoned-{run}",
             [AuthoredDeleteEmailDisposition.EraseLocalCopy] = $"authored-delete-erased-{run}",
         };
@@ -138,27 +137,16 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
         Assert.Equal(0, result.Reconciliation.RemotelyDeletedEmailCount);
         Assert.Empty(await mailbox.ReadAsync(FolderName, cancellationToken));
 
-        // The mail the user asked to free space for is still theirs to read, which is the outcome that separates
-        // deleting on the server from forgetting the mail.
-        var retained = await ReadStoredEmailAsync(
-            services,
-            subjects[AuthoredDeleteEmailDisposition.RetainLocalCopy],
-            cancellationToken);
-        Assert.True(retained.IsRetainedAfterAuthoredDelete);
-        Assert.NotNull(retained.RemoteExpungeObservedAt);
-        Assert.NotNull(await ReadSummaryAsync(services, retained.StoredEmailId, cancellationToken));
-
         // The tombstone keeps the record that the email existed and takes the mail out of every query, exactly as the
         // counterpart setting does for a disappearance somebody else caused.
         var tombstoned = await ReadStoredEmailAsync(
             services,
             subjects[AuthoredDeleteEmailDisposition.RetainTombstone],
             cancellationToken);
-        Assert.False(tombstoned.IsRetainedAfterAuthoredDelete);
         Assert.NotNull(tombstoned.RemoteExpungeObservedAt);
         Assert.Null(await ReadSummaryAsync(services, tombstoned.StoredEmailId, cancellationToken));
 
-        // Nothing of the third survives, and PostgreSQL took the raw MIME with it through the cascade the row owns.
+        // Nothing of the other survives, and PostgreSQL took the raw MIME with it through the cascade the row owns.
         Assert.Equal(
             0,
             await CountStoredEmailsAsync(
@@ -181,14 +169,14 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
         });
     }
 
-    /// <summary>Every read the client surface publishes serves the retained copy and neither of the two the deployment tombstoned.</summary>
+    /// <summary>Every read the client surface publishes serves a message nobody deleted and neither of the two the user did.</summary>
     /// <remarks>
-    /// The retained message is the control each absence is read against: an answer that reported nothing at all would
+    /// The message nobody deleted is the control each absence is read against: an answer that reported nothing at all would
     /// satisfy three of these assertions while proving that the reads had stopped working rather than that a tombstone
     /// takes a message out of them.
     /// </remarks>
     [Fact]
-    public async Task ClientReads_AfterDeletesTheUserAuthored_ServeTheRetainedCopyAndNeitherTombstonedOne()
+    public async Task ClientReads_AfterDeletesTheUserAuthored_ServeNeitherTheTombstoneNorTheErasedOne()
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -198,12 +186,13 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
         var run = Guid.NewGuid().ToString("N");
         var subjects = new Dictionary<AuthoredDeleteEmailDisposition, string>
         {
-            [AuthoredDeleteEmailDisposition.RetainLocalCopy] = $"authored-delete-read-retained-{run}",
             [AuthoredDeleteEmailDisposition.RetainTombstone] = $"authored-delete-read-tombstoned-{run}",
             [AuthoredDeleteEmailDisposition.EraseLocalCopy] = $"authored-delete-read-erased-{run}",
         };
 
-        foreach (var subject in subjects.Values)
+        var keptSubject = $"authored-delete-read-kept-{run}";
+
+        foreach (var subject in subjects.Values.Append(keptSubject))
         {
             await mailbox.AppendAsync(ReadFolderName, subject, ReadAuthor, [], cancellationToken);
         }
@@ -213,9 +202,10 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
             cancellationToken,
             RemotelyDeletedEmailDisposition.EraseLocalCopy);
         Assert.Equal(
-            subjects.Count,
+            subjects.Count + 1,
             (await SynchronizeAsync(services, ReadFolderMapping, cancellationToken)).StoredEmailCount);
 
+        var retained = await ReadStoredEmailAsync(services, keptSubject, cancellationToken);
         var stored = new Dictionary<AuthoredDeleteEmailDisposition, StoredEmailRow>();
 
         foreach (var (disposition, subject) in subjects)
@@ -240,11 +230,10 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
         // A synchronizer run alone leaves its mail settling, and every read below admits settled mail only.
         await OrchestratedSettlement.ApplyAsync(
             services,
-            [.. stored.Values.Select(row => row.StoredEmailId)],
+            [retained.StoredEmailId, .. stored.Values.Select(row => row.StoredEmailId)],
             TimeProvider.System.GetUtcNow(),
             cancellationToken);
 
-        var retained = stored[AuthoredDeleteEmailDisposition.RetainLocalCopy];
         var tombstoned = stored[AuthoredDeleteEmailDisposition.RetainTombstone];
         var erased = stored[AuthoredDeleteEmailDisposition.EraseLocalCopy];
 
@@ -340,8 +329,7 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
                     ImapUidValidity.Create(storedEmail.UidValidity!.Value),
                     ImapUid.Create(storedEmail.Uid!.Value),
                     storedEmail.EmailThreadId,
-                    storedEmail.RemoteExpungeObservedAt,
-                    storedEmail.IsRetainedAfterAuthoredDelete))
+                    storedEmail.RemoteExpungeObservedAt))
                 .SingleAsync(token),
             cancellationToken);
 
@@ -437,6 +425,5 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
         ImapUidValidity UidValidity,
         ImapUid Uid,
         Guid? EmailThreadId,
-        DateTimeOffset? RemoteExpungeObservedAt,
-        bool IsRetainedAfterAuthoredDelete);
+        DateTimeOffset? RemoteExpungeObservedAt);
 }

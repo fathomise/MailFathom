@@ -89,7 +89,7 @@ public sealed class StoredMailFolderReaderCommandTests
             NarrowingIn(command),
             StringComparison.Ordinal);
         Assert.Contains(
-            nameof(StoredEmailEntity.IsRetainedAfterAuthoredDelete),
+            nameof(StoredEmailEntity.IsRetainedAfterRemoteDelete),
             NarrowingIn(command),
             StringComparison.Ordinal);
     }

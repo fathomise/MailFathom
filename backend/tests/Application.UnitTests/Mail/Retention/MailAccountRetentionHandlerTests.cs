@@ -5,9 +5,11 @@
 using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.Emails.Threads;
 using MailFathom.Application.Jobs.Payloads;
+using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Retention;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -41,7 +43,7 @@ public sealed class MailAccountRetentionHandlerTests
             Account,
             MailAccountRetentionHandler.ConversationsRemovedPerTransaction,
             Arg.Any<CancellationToken>());
-        await fixture.Session.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+        await fixture.Session.Received(2).CommitAsync(Arg.Any<CancellationToken>());
         fixture.Telemetry.Received(1).RecordAccountRun(0, 7, Arg.Any<TimeSpan>());
     }
 
@@ -84,7 +86,8 @@ public sealed class MailAccountRetentionHandlerTests
         var expectedBatches = MailAccountRetentionHandler.MaximumConversationsRemovedPerNight
             / MailAccountRetentionHandler.ConversationsRemovedPerTransaction;
 
-        await fixture.Sessions.Received(expectedBatches).BeginSessionAsync(Arg.Any<CancellationToken>());
+        await fixture.Threads.Received(expectedBatches)
+            .RemoveEmptiedAsync(Arg.Any<IPersistenceSession>(), Account, Arg.Any<int>(), Arg.Any<CancellationToken>());
         fixture.Telemetry.Received(1).RecordAccountRun(
             0,
             MailAccountRetentionHandler.MaximumConversationsRemovedPerNight,
@@ -106,7 +109,8 @@ public sealed class MailAccountRetentionHandlerTests
         await fixture.Handler.RunAsync(Run, TestContext.Current.CancellationToken);
 
         // Assert
-        await fixture.Sessions.Received(1).BeginSessionAsync(Arg.Any<CancellationToken>());
+        await fixture.Threads.Received(1)
+            .RemoveEmptiedAsync(Arg.Any<IPersistenceSession>(), Account, Arg.Any<int>(), Arg.Any<CancellationToken>());
         fixture.Telemetry.Received(1).RecordAccountRun(0, 0, Arg.Any<TimeSpan>());
     }
 
@@ -359,6 +363,67 @@ public sealed class MailAccountRetentionHandlerTests
             TestContext.Current.CancellationToken));
     }
 
+    /// <summary>A row an older value kept readable is settled under what the account states now, even with tombstone erasure off.</summary>
+    [Theory]
+    [InlineData(MailAccountCustodyPhase.Mirrored, false)]
+    [InlineData(MailAccountCustodyPhase.Held, true)]
+    public async Task RunAsync_AnAccountWithKeptRows_SettlesThemUnderItsCurrentValue(MailAccountCustodyPhase phase, bool isSourceDrained)
+    {
+        // Arrange
+        var fixture = new Fixture();
+        fixture.ReturnsCustody(phase);
+        fixture.RetentionReader.GetTombstoneRetention(Account).Returns(MailTombstoneRetention.Disabled);
+        fixture.DeleteDispositions.GetAuthoredDeleteDisposition(Account).Returns(AuthoredDeleteEmailDisposition.EraseLocalCopy);
+        fixture.AnySettlement().Returns(3);
+
+        // Act
+        await fixture.Handler.RunAsync(Run, TestContext.Current.CancellationToken);
+
+        // Assert
+        await fixture.Eraser.Received(1).SettleKeptAfterAuthoredDeleteAsync(
+            Arg.Any<IPersistenceSession>(),
+            Account,
+            AuthoredDeleteEmailDisposition.EraseLocalCopy,
+            isSourceDrained,
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+        fixture.Telemetry.Received(1).RecordAccountRun(3, 0, Arg.Any<TimeSpan>());
+    }
+
+    /// <summary>What becomes a tombstone was hidden, not erased, so the run's figure of erased rows does not count it.</summary>
+    [Fact]
+    public async Task RunAsync_RowsSettledToTombstones_AreNotCountedAsErased()
+    {
+        // Arrange
+        var fixture = new Fixture();
+        fixture.ReturnsCustody(MailAccountCustodyPhase.Mirrored);
+        fixture.RetentionReader.GetTombstoneRetention(Account).Returns(MailTombstoneRetention.Disabled);
+        fixture.DeleteDispositions.GetAuthoredDeleteDisposition(Account).Returns(AuthoredDeleteEmailDisposition.RetainTombstone);
+        fixture.AnySettlement().Returns(3);
+
+        // Act
+        await fixture.Handler.RunAsync(Run, TestContext.Current.CancellationToken);
+
+        // Assert
+        fixture.Telemetry.Received(1).RecordAccountRun(0, 0, Arg.Any<TimeSpan>());
+    }
+
+    /// <summary>A restore is writing to the source, so what it might still need is left alone until it ends.</summary>
+    [Fact]
+    public async Task RunAsync_AnAccountBeingRestored_SettlesNothing()
+    {
+        // Arrange
+        var fixture = new Fixture();
+        fixture.ReturnsCustody(MailAccountCustodyPhase.Restoring);
+        fixture.RetentionReader.GetTombstoneRetention(Account).Returns(MailTombstoneRetention.Disabled);
+
+        // Act
+        await fixture.Handler.RunAsync(Run, TestContext.Current.CancellationToken);
+
+        // Assert
+        await fixture.AnySettlementReceived(0);
+    }
+
     [Fact]
     public async Task RunAsync_APayloadOfAnotherJob_IsRefused()
     {
@@ -384,6 +449,7 @@ public sealed class MailAccountRetentionHandlerTests
                 this.RetentionReader,
                 this.Custody,
                 this.Eraser,
+                this.DeleteDispositions,
                 this.Telemetry,
                 this.Clock);
             this.RetentionReader.GetTombstoneRetention(Account).Returns(this.Retention);
@@ -409,6 +475,8 @@ public sealed class MailAccountRetentionHandlerTests
 
         public IStoredTombstoneEraser Eraser { get; } = Substitute.For<IStoredTombstoneEraser>();
 
+        public IAuthoredDeleteEmailDispositionReader DeleteDispositions { get; } = Substitute.For<IAuthoredDeleteEmailDispositionReader>();
+
         public MailTombstoneRetention Retention { get; } = new(IsEnabled: true, TimeSpan.FromDays(30), ["ARCHIVE"]);
 
         public void ReturnsCustody(MailAccountCustodyPhase phase, params MailAccountCustodyPhase[] thereafter) =>
@@ -429,6 +497,22 @@ public sealed class MailAccountRetentionHandlerTests
             Account,
             Arg.Any<MailTombstoneRetention>(),
             Arg.Any<DateTimeOffset>(),
+            Arg.Any<bool>(),
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+
+        public Task<int> AnySettlement() => this.Eraser.SettleKeptAfterAuthoredDeleteAsync(
+            Arg.Any<IPersistenceSession>(),
+            Account,
+            Arg.Any<AuthoredDeleteEmailDisposition>(),
+            Arg.Any<bool>(),
+            Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+
+        public Task<int> AnySettlementReceived(int times) => this.Eraser.Received(times).SettleKeptAfterAuthoredDeleteAsync(
+            Arg.Any<IPersistenceSession>(),
+            Account,
+            Arg.Any<AuthoredDeleteEmailDisposition>(),
             Arg.Any<bool>(),
             Arg.Any<int>(),
             Arg.Any<CancellationToken>());

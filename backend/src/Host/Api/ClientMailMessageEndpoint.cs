@@ -137,6 +137,7 @@ internal static class ClientMailMessageEndpoint
 /// <param name="Receipts">What the account's own message asked to be told and what came back for each recipient, or <see langword="null" /> where it asked for nothing and nothing came.</param>
 /// <param name="ReadReceiptRequest">A received message's request for a read receipt and whether it was answered, or <see langword="null" /> where it asked for none or is spam.</param>
 /// <param name="Categories">The categories its account shows for the message, a default before an own category, empty where it shows none.</param>
+/// <param name="LocalOnly">Whether the mail server no longer holds the message and MailFathom alone keeps it, never on an account whose custody is holding the mailbox.</param>
 /// <remarks>
 /// All of it is mail content and personal data, so none of it reaches a log, a span attribute, or a telemetry event,
 /// here or anywhere it is carried afterwards.
@@ -161,7 +162,8 @@ internal sealed record ClientMailMessageResponse(
     ClientMailReportResponse? Report,
     ClientMailReceiptsResponse? Receipts,
     ClientMailReadReceiptRequestResponse? ReadReceiptRequest,
-    IReadOnlyList<ClientMailCategoryResponse> Categories)
+    IReadOnlyList<ClientMailCategoryResponse> Categories,
+    bool LocalOnly)
 {
     /// <summary>Reads the author a message displays: the first mailbox of its <c>From</c> header.</summary>
     /// <param name="message">The message.</param>
@@ -216,7 +218,8 @@ internal sealed record ClientMailMessageResponse(
             ClientMailReportResponse.For(message.Report),
             ClientMailReceiptsResponse.For(message.Receipts),
             ClientMailReadReceiptRequestResponse.For(message.ReadReceiptRequest, message.Spam),
-            ClientMailCategoryResponse.For(message.Categories));
+            ClientMailCategoryResponse.For(message.Categories),
+            message.IsLocalOnly);
     }
 }
 

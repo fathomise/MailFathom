@@ -7,6 +7,7 @@ using MailFathom.Domain.Mutations;
 using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace MailFathom.Infrastructure.Persistence.Mutations.Configurations;
 
@@ -63,7 +64,14 @@ internal sealed class MailboxMutationConfiguration : IEntityTypeConfiguration<Ma
         // Stored as text for the same reason, and nullable because only a delete carries one. A row whose text
         // names no declared disposition fails the read rather than being taken as the destructive value by
         // elimination, which is what an integer column would have allowed.
-        entity.Property(mutation => mutation.LocalDisposition).HasConversion<string>().HasMaxLength(64);
+        // A record written before the value left, or by an older replica during the upgrade that removes it, still reads.
+        entity.Property(mutation => mutation.LocalDisposition)
+            .HasConversion(new ValueConverter<AuthoredDeleteEmailDisposition, string>(
+                disposition => disposition.ToString(),
+                stored => stored == "RetainLocalCopy"
+                    ? AuthoredDeleteEmailDisposition.RetainTombstone
+                    : Enum.Parse<AuthoredDeleteEmailDisposition>(stored)))
+            .HasMaxLength(64);
         entity.Property(mutation => mutation.ServerDisposition).HasConversion<string>().HasMaxLength(64);
 
         // See the stored-email mapping: this is the PostgreSQL `xmin` system column, not a user-defined column.

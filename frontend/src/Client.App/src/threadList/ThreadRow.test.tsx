@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ListedMailThread } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
@@ -55,6 +55,18 @@ function drawing(listed: ListedMailThread, onOpen: () => void = () => undefined)
 
     return screen.getByRole('button');
 }
+
+describe('ThreadRow, the newest message local only', () => {
+    it('draws one mark named Local only', () => {
+        const row = drawing(thread({ newest: { ...thread().newest, localOnly: true } }));
+
+        expect(within(row).getAllByText('Local only')).toHaveLength(1);
+    });
+
+    it('draws none on a message the mail server still holds', () => {
+        expect(within(drawing(thread())).queryByText('Local only')).toBeNull();
+    });
+});
 
 describe('ThreadRow, what sort of mail it holds', () => {
     const categories: ListedMailThread['categories'] = [

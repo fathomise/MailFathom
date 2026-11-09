@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import type { MailTimelineEntry } from '@mailfathom/client-backend';
 import { Icon } from './Icon';
 import type { IconName } from './icons';
+import { useTip } from './useTip';
 import { useLocalization } from '../localization/useLocalization';
 
 // What the mail server said about the message, in the order a reader scans for it. Each carries its own words, because
@@ -44,6 +45,8 @@ export function MessageMarkers({
 
             {email.answered ? <Marker name="reply" label={translate('list.answered')} /> : null}
 
+            {email.localOnly === true ? <LocalOnlyMark tapReveals={false} /> : null}
+
             {email.hasAttachments ? (
                 <Marker
                     name="attach_file"
@@ -53,6 +56,28 @@ export function MessageMarkers({
 
             {flagged ? <Marker name="flag" label={translate('list.flagged')} /> : null}
         </span>
+    );
+}
+
+/** The mark on a message the mail server no longer holds and MailFathom alone keeps, one icon wherever it is drawn. */
+export function LocalOnlyMark({
+    tapReveals,
+}: {
+    /** Off inside a row, whose tap opens the message, where this same mark then answers one. */
+    readonly tapReveals: boolean;
+}) {
+    const { translate } = useLocalization();
+    const name = translate('list.localOnly');
+    const { anchor, tip } = useTip({ says: name, tapReveals });
+
+    return (
+        <>
+            <span {...anchor} className="text-muted">
+                <Icon name="cloud_off" className="size-icon-sm" />
+                <span className="sr-only">{name}</span>
+            </span>
+            {tip}
+        </>
     );
 }
 

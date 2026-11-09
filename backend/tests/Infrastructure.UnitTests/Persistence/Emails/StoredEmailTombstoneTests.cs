@@ -56,7 +56,23 @@ public sealed class StoredEmailTombstoneTests
     /// disposition exists to keep.
     /// </remarks>
     [Fact]
-    public void IsNotTombstoned_EmailRetainedAfterAnAuthoredDelete_IsAdmittedDespiteTheExpunge()
+    public void IsNotTombstoned_EmailKeptAfterItsServerLostIt_IsAdmittedDespiteTheExpunge()
+    {
+        // Arrange
+        var email = CreateEmail();
+        email.RemoteExpungeObservedAt = ExpungeObservedAt;
+        email.IsRetainedAfterRemoteDelete = true;
+
+        // Act
+        var admitted = StoredEmailTombstone.IsNotTombstoned.Compile()(email);
+
+        // Assert
+        Assert.True(admitted);
+    }
+
+    /// <summary>A delete MailFathom performed never leaves its message readable, whatever an earlier release recorded.</summary>
+    [Fact]
+    public void IsNotTombstoned_EmailKeptAfterAnAuthoredDeleteByAnEarlierRelease_IsExcluded()
     {
         // Arrange
         var email = CreateEmail();
@@ -67,7 +83,24 @@ public sealed class StoredEmailTombstoneTests
         var admitted = StoredEmailTombstone.IsNotTombstoned.Compile()(email);
 
         // Assert
-        Assert.True(admitted);
+        Assert.False(admitted);
+    }
+
+    /// <summary>A local-only message filed into another account goes at once, as any other message a delete hides.</summary>
+    [Fact]
+    public void IsNotTombstoned_EmailKeptAfterItsServerLostItAndThenDeletedLocally_IsExcluded()
+    {
+        // Arrange
+        var email = CreateEmail();
+        email.RemoteExpungeObservedAt = ExpungeObservedAt;
+        email.IsRetainedAfterRemoteDelete = true;
+        email.LocalDeleteCommittedAt = ExpungeObservedAt;
+
+        // Act
+        var admitted = StoredEmailTombstone.IsNotTombstoned.Compile()(email);
+
+        // Assert
+        Assert.False(admitted);
     }
 
     /// <summary>A row is measured from the moment the server was seen to have removed it, whatever came before.</summary>
@@ -133,12 +166,12 @@ public sealed class StoredEmailTombstoneTests
 
     /// <summary>Mail kept readable is a message rather than a tombstone, and this pass must never reach it.</summary>
     [Fact]
-    public void SettledBefore_EmailRetainedAfterAnAuthoredDelete_IsLeftOut()
+    public void SettledBefore_EmailKeptAfterItsServerLostIt_IsLeftOut()
     {
         // Arrange
         var email = CreateEmail();
         email.RemoteExpungeObservedAt = ExpungeObservedAt;
-        email.IsRetainedAfterAuthoredDelete = true;
+        email.IsRetainedAfterRemoteDelete = true;
 
         // Act
         var admitted = StoredEmailTombstone.SettledBefore(ExpungeObservedAt.AddDays(1)).Compile()(email);

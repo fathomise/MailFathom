@@ -12,8 +12,8 @@ namespace MailFathom.Infrastructure.Persistence.Emails;
 /// <remarks>
 /// <para>
 /// A row whose remote occurrence has gone, or which a delete that issued no expunge left flagged, is hidden by default
-/// and readable only where an authored delete said to keep it, so the rule is three columns rather than one and no
-/// longer reads as an obvious null check at its call sites. Every
+/// and readable only where the disappearance was observed under an account keeping what its server loses, so the rule
+/// is several columns rather than one and no longer reads as an obvious null check at its call sites. Every
 /// query that narrows to mail a reader may see composes this expression instead of restating it: a listing, a search, a
 /// content read, and both backfills, which must not spend extraction or a provider's embeddings on mail nothing may
 /// retrieve.
@@ -21,7 +21,7 @@ namespace MailFathom.Infrastructure.Persistence.Emails;
 /// <para>
 /// Written once because the two ways to get it wrong are opposite and both are silent. Repeating only the timestamp
 /// check hides mail an operator configured
-/// <see cref="AuthoredDeleteEmailDisposition.RetainLocalCopy" /> to keep; forgetting the check entirely serves mail the
+/// <see cref="RemotelyDeletedEmailDisposition.RetainLocalCopy" /> to keep; forgetting the check entirely serves mail the
 /// server no longer holds and nobody agreed to keep.
 /// </para>
 /// </remarks>
@@ -42,10 +42,9 @@ internal static class StoredEmailTombstone
     /// </para>
     /// </remarks>
     internal static Expression<Func<StoredEmailEntity, bool>> IsNotTombstoned { get; } =
-        email => (email.RemoteExpungeObservedAt == null
-                && email.AuthoredDeleteFlaggedAt == null
-                && email.LocalDeleteCommittedAt == null)
-            || email.IsRetainedAfterAuthoredDelete;
+        email => email.LocalDeleteCommittedAt == null
+            && ((email.RemoteExpungeObservedAt == null && email.AuthoredDeleteFlaggedAt == null)
+                || email.IsRetainedAfterRemoteDelete);
 
     /// <summary>Admits the rows that became a settled tombstone before a moment, which PostgreSQL evaluates in full.</summary>
     /// <param name="moment">The moment the row must have become one before.</param>
@@ -57,6 +56,6 @@ internal static class StoredEmailTombstone
     /// of the two wherever both are set.
     /// </remarks>
     internal static Expression<Func<StoredEmailEntity, bool>> SettledBefore(DateTimeOffset moment) =>
-        email => !email.IsRetainedAfterAuthoredDelete
+        email => !email.IsRetainedAfterRemoteDelete
             && (email.AuthoredDeleteFlaggedAt ?? email.RemoteExpungeObservedAt) < moment;
 }

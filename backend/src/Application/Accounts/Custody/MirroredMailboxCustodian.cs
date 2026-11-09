@@ -219,6 +219,11 @@ public sealed class MirroredMailboxCustodian : IMailboxCustodian
             return SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.DestinationNotAllowed);
         }
 
+        if (await this.changes.CommitOnLocalOnlyAsync(session, change, cancellationToken) is { } localOnly)
+        {
+            return localOnly;
+        }
+
         // A delete that leaves the server untouched asks the server for nothing, so what it advertised decides nothing.
         var commitsLocallyFirst = request.LeavesServerUntouched
             ? await this.EveryReplicaKnowsTheOverlayAsync(cancellationToken)

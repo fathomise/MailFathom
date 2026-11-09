@@ -200,12 +200,9 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
                 continue;
             }
 
-            // Both retaining values record the expunge, because the server genuinely no longer holds the message and
-            // the reconciliation queue has to stop selecting a row nothing will ever answer about again. Which of the
-            // two it was decides only whether mailbox queries still admit the row.
+            // A tombstone records the expunge, because the server genuinely no longer holds the message and the
+            // reconciliation queue has to stop selecting a row nothing will ever answer about again.
             row.RemoteExpungeObservedAt ??= outcome.ObservedAt;
-            row.IsRetainedAfterAuthoredDelete =
-                authoredDisposition is AuthoredDeleteEmailDisposition.RetainLocalCopy;
         }
 
         await EraseWithTheirContentAsync(session, sessionContext, erasedByAuthoredDelete, cancellationToken);
@@ -278,6 +275,9 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             // timestamp is what takes it out: a window is ordered by that column, so a row left never-observed would be
             // selected again on every run for an email the server will never answer about.
             row.FlagsObservedAt ??= outcome.ObservedAt;
+
+            // Decided by this observation, so an account changing its setting later leaves what is recorded as it is.
+            row.IsRetainedAfterRemoteDelete = outcome.Disposition is RemotelyDeletedEmailDisposition.RetainLocalCopy;
         }
     }
 
@@ -369,7 +369,6 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             }
 
             row.AuthoredDeleteFlaggedAt ??= observedAt;
-            row.IsRetainedAfterAuthoredDelete = disposition is AuthoredDeleteEmailDisposition.RetainLocalCopy;
             row.IsRemotelyDeleted = true;
             row.FlagsObservedAt = observedAt;
         }
@@ -384,7 +383,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             ],
             cancellationToken);
 
-        // The row stays exactly as the delete left it — readable or a tombstone — and only records what the server did.
+        // The row stays the tombstone the delete left and only records what the server did.
         foreach (var row in KeptRowsOf(settlement.Expunged, rowsById))
         {
             row.RemoteExpungeObservedAt ??= observedAt;

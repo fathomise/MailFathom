@@ -107,8 +107,7 @@ internal sealed class MailboxMutationRecordStore(
         WriteObservations(entity, ObservationCarriedOver(request.Mutation, earlier, replaced));
         this.WithdrawSuperseded(request, earlier);
 
-        if (request.Mutation == MailboxMutation.Delete
-            && request.LocalDisposition is not AuthoredDeleteEmailDisposition.RetainLocalCopy)
+        if (request.Mutation == MailboxMutation.Delete)
         {
             storedEmail.LocalDeleteCommittedAt ??= entity.RecordedAt;
         }
@@ -901,8 +900,7 @@ internal sealed class MailboxMutationRecordStore(
             email.Keywords = KeywordsRestored(ended, email.Keywords, observed, others);
         }
         else if (ended.Mutation == MailboxMutation.Delete.Name
-            && !others.Any(entity => entity.Mutation == ended.Mutation
-                && entity.LocalDisposition is not AuthoredDeleteEmailDisposition.RetainLocalCopy))
+            && !others.Any(entity => entity.Mutation == ended.Mutation))
         {
             email.LocalDeleteCommittedAt = null;
         }

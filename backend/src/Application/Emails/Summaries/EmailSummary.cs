@@ -146,6 +146,13 @@ public sealed record EmailSummary
     /// </remarks>
     public bool IsFiledSentCopy { get; init; }
 
+    /// <summary>Gets whether the mail server no longer holds this message and the account keeps it readable anyway.</summary>
+    /// <remarks>
+    /// Always <see langword="false" /> on an account whose custody is holding the mailbox: MailFathom empties that
+    /// source on purpose, so the mark would stand on every message and say nothing.
+    /// </remarks>
+    public bool IsLocalOnly { get; init; }
+
     /// <summary>Gets where the email sits in the timeline order, which is the boundary a continuation cursor is built from.</summary>
     public EmailTimelinePosition Position => new(this.ReceivedAt, this.StoredEmailId);
 }

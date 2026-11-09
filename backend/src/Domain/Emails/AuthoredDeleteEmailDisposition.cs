@@ -10,9 +10,8 @@ namespace MailFathom.Domain.Emails;
 /// It is a separate decision from <see cref="RemotelyDeletedEmailDisposition" /> because the two answer for different
 /// acts. That one governs a disappearance somebody else caused and MailFathom observed afterwards; this one governs a
 /// deletion the mailbox user authored through MailFathom. Inheriting one value for both would make an account
-/// configured to erase what its server loses also erase what MailFathom was just told to delete — which is precisely the
-/// case where the user may have wanted the opposite, because deleting on the server is how mail is kept while quota is
-/// freed.
+/// configured to keep what its server loses also keep what MailFathom was just told to delete, and a delete a person
+/// asked for is a delete: this setting has no value that leaves the message readable.
 /// </para>
 /// <para>
 /// The value is resolved when the mutation is written down and travels on its record, so changing the setting while a
@@ -21,20 +20,13 @@ namespace MailFathom.Domain.Emails;
 /// </remarks>
 public enum AuthoredDeleteEmailDisposition
 {
-    /// <summary>Keeps the local email readable and searchable although the server no longer holds it.</summary>
-    /// <remarks>
-    /// The remote occurrence is gone and the local copy is not, which is what separates freeing space on the server from
-    /// forgetting the mail. Nothing is destroyed, and an account asks for it by name.
-    /// </remarks>
-    RetainLocalCopy = 0,
-
     /// <summary>Keeps the local row as a tombstone that every mailbox query excludes.</summary>
     /// <remarks>
     /// The record that the email existed survives and the mail itself stops being reachable, which is what makes an
     /// authored delete auditable without leaving the message readable. It is the exact counterpart of
     /// <see cref="RemotelyDeletedEmailDisposition.RetainTombstone" />.
     /// </remarks>
-    RetainTombstone = 1,
+    RetainTombstone = 0,
 
     /// <summary>Removes the local row together with its raw MIME and everything derived from it.</summary>
     /// <remarks>
@@ -44,5 +36,5 @@ public enum AuthoredDeleteEmailDisposition
     /// is deliberate. Where the server still holds the message and somebody removes the flag, synchronization fetches it
     /// again rather than leaving it lost.
     /// </remarks>
-    EraseLocalCopy = 2,
+    EraseLocalCopy = 1,
 }

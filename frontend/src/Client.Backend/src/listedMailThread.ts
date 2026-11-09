@@ -40,6 +40,9 @@ export interface ListedThreadNewest {
 
     /** The photo its author is drawn by, or `null` where they are drawn by their initials. */
     readonly senderPhoto: PersonPhotoReference | null;
+
+    /** Set where the mail server no longer holds the message and MailFathom alone keeps it; absent on every other. */
+    readonly localOnly?: boolean;
 }
 
 /**
@@ -219,7 +222,17 @@ function parseNewest(value: unknown): ListedThreadNewest | null {
         return null;
     }
 
-    return { id, subject, receivedAt, senderAddress, senderDisplayName, preview, own, senderPhoto: drawnBy.photo };
+    return {
+        id,
+        subject,
+        receivedAt,
+        senderAddress,
+        senderDisplayName,
+        preview,
+        own,
+        senderPhoto: drawnBy.photo,
+        ...(record['localOnly'] === true && { localOnly: true }),
+    };
 }
 
 function parseTitle(value: unknown): ListedThreadTitle | null {

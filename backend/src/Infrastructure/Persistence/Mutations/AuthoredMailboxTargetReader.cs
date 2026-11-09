@@ -25,13 +25,9 @@ namespace MailFathom.Infrastructure.Persistence.Mutations;
 /// mail no listing serves cannot make the write surface a way to learn that a row exists.
 /// </para>
 /// <para>
-/// An occurrence the server no longer holds answers as absent too, and that is the stricter of the two conditions
-/// rather than the same one said twice. A local copy retained after an authored delete is not a tombstone — a listing
-/// serves it, so a caller can see it and name it — while the UID it carries names a message the server expunged.
-/// Recording a change against one would open durable records that convergence could only attempt and fail, so this read
-/// refuses it where a read of the mail itself does not. A copy retained after a delete that only flagged the message is
-/// refused on the same terms: the server still holds it, but the delete it was retained after has already been
-/// answered for, and a second change against that occurrence would be one the person never saw it standing for.
+/// A local-only copy, kept after its server lost it, is the one row with a dead occurrence this answers for: a listing
+/// serves it, and the change a person makes on it commits locally, with the occurrence naming the message and opening
+/// no record.
 /// </para>
 /// </remarks>
 [RequiresIntegrationCoverage]
@@ -48,7 +44,6 @@ internal sealed class AuthoredMailboxTargetReader(MailFathomDbContext readContex
             .AsNoTracking()
             .Where(email => email.Id == emailId)
             .Where(StoredEmailTombstone.IsNotTombstoned)
-            .Where(email => email.RemoteExpungeObservedAt == null && email.AuthoredDeleteFlaggedAt == null)
             .Select(email => new
             {
                 email.MailboxAccountId,
@@ -61,8 +56,7 @@ internal sealed class AuthoredMailboxTargetReader(MailFathomDbContext readContex
             })
             .SingleOrDefaultAsync(cancellationToken);
 
-        // A row no mail server holds any longer has nothing a change could be issued against, exactly like the retained
-        // copy the filter above refuses.
+        // A row that never held an occurrence, or whose occurrence the drain cleared, has nothing a request can name.
         if (located is not { UidValidity: { } uidValidity, Uid: { } uid })
         {
             return null;

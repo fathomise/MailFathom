@@ -306,6 +306,9 @@ export interface MailMessage {
 
     /** What sort of mail the message is, empty where it shows none. */
     readonly categories: readonly MailCategory[];
+
+    /** Set where the mail server no longer holds the message and MailFathom alone keeps it; absent on every other. */
+    readonly localOnly?: boolean;
 }
 
 // A description composes to a stated size, so the backstop written for a stranger is far looser than this answer ever
@@ -527,6 +530,7 @@ export function parseMailMessage(value: unknown): MailMessage | null {
         receipts,
         readReceiptRequest,
         categories,
+        ...(record['localOnly'] === true && { localOnly: true }),
     };
 }
 

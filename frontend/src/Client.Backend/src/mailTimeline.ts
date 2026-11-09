@@ -177,6 +177,9 @@ export interface MailTimelineEntry {
 
     /** What sort of mail the message is, empty where it shows none. */
     readonly categories: readonly MailCategory[];
+
+    /** Set where the mail server no longer holds the message and MailFathom alone keeps it; absent on every other. */
+    readonly localOnly?: boolean;
 }
 
 /** One page of the list, and the two cursors the pages either side of it are asked with. */
@@ -574,6 +577,7 @@ export function parseTimelineEntry(value: unknown): MailTimelineEntry | null {
         report,
         receipts,
         categories,
+        ...(record['localOnly'] === true && { localOnly: true }),
     };
 }
 

@@ -165,6 +165,22 @@ public sealed class ClientMailMessageEndpointTests
         Assert.False(response.Body.Html);
     }
 
+    /// <summary>The opened message carries the same statement the list row does.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void For_AMessage_SaysWhetherItIsLocalOnly(bool isLocalOnly)
+    {
+        // Arrange
+        var message = MessageWith() with { IsLocalOnly = isLocalOnly };
+
+        // Act
+        var response = ClientMailMessageResponse.For(message, SenderContactStanding.Unanswered, NoPhotos);
+
+        // Assert
+        Assert.Equal(isLocalOnly, response.LocalOnly);
+    }
+
     /// <summary>
     /// The body block says which forms the sender wrote rather than which the surface would return, because the words
     /// come back for every readable message and therefore say nothing about what arrived.

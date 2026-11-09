@@ -215,6 +215,117 @@ public sealed class MirroredMailboxCustodianTests
         Assert.Equal(1, this.records.OpenedRecordCount);
     }
 
+    /// <summary>The server lost a local-only message, so a change to its flags is committed here and owed to nobody.</summary>
+    [Fact]
+    public async Task SubmitAsync_AFlagChangeOnALocalOnlyMessage_IsCommittedLocallyWithNoRecord()
+    {
+        // Arrange
+        this.StoreLocalOnly();
+
+        // Act
+        var submitted = await this.LocalFirstCustodian().SubmitAsync(this.session, Change(SeenRequest()), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Applied, submitted.Outcome);
+        Assert.True(this.states.States[Email].IsSeen);
+        Assert.Null(submitted.Record);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A move of a local-only message files it here, since no server holds an occurrence to move.</summary>
+    [Fact]
+    public async Task SubmitAsync_AMoveOfALocalOnlyMessage_FilesItLocallyWithNoRecord()
+    {
+        // Arrange
+        this.StoreLocalOnly();
+
+        // Act
+        var submitted = await this.LocalFirstCustodian().SubmitAsync(this.session, MoveToArchive(), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Applied, submitted.Outcome);
+        Assert.Equal(ArchiveFolder, this.states.States[Email].Folder);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A destination with no local counterpart is answered as missing rather than dropped on the floor.</summary>
+    [Fact]
+    public async Task SubmitAsync_AMoveOfALocalOnlyMessageToAFolderWithNoLocalCounterpart_AnswersDestinationMissing()
+    {
+        // Arrange
+        this.StoreLocalOnly();
+        var move = Change(MailboxMutationRequest.Relocate(Email, Occurrence, Requester, Inbox.RemotePath)) with
+        {
+            Destination = new MailboxDestination(Inbox, IsMirrored: true),
+            PersonsMove = true,
+        };
+
+        // Act
+        var submitted = await this.LocalFirstCustodian().SubmitAsync(this.session, move, Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.DestinationMissing, submitted.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A person's delete of a local-only message keeps the undo window every delete has, as a local erasure and nothing the converger carries to a server.</summary>
+    [Fact]
+    public async Task SubmitAsync_APersonsDeleteOfALocalOnlyMessage_OpensALocalErasure()
+    {
+        // Arrange
+        this.StoreLocalOnly();
+        var heldUntil = DateTimeOffset.UnixEpoch.AddSeconds(10);
+
+        // Act
+        var submitted = await this.LocalFirstCustodian()
+            .SubmitAsync(this.session, Change(DeleteRequest()) with { HeldUntil = heldUntil }, Token);
+
+        // Assert
+        Assert.Equal(MailboxMutationLocalChange.Erasure, submitted.Record!.LocalChange);
+        Assert.Equal(heldUntil, this.records.HeldUntilOf(DeleteRequest()));
+    }
+
+    /// <summary>A rule's delete leaves what only a person may end: the message is already gone from the server, so nothing is owed.</summary>
+    [Fact]
+    public async Task SubmitAsync_ARulesDeleteOfALocalOnlyMessage_LeavesIt()
+    {
+        // Arrange
+        this.StoreLocalOnly();
+        var delete = MailboxMutationRequest.Delete(
+            Email,
+            Occurrence,
+            MailboxMutationRequester.Rule("rule-1", "1"),
+            AuthoredDeleteEmailDisposition.RetainTombstone,
+            AuthoredDeleteServerDisposition.Expunge);
+
+        // Act
+        var submitted = await this.LocalFirstCustodian().SubmitAsync(this.session, Change(delete), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.AlreadyInDestination, submitted.Outcome);
+        Assert.Contains(Email, this.states.States.Keys);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A second row would hold no occurrence either, so a copy says the source is gone rather than inventing one.</summary>
+    [Fact]
+    public async Task SubmitAsync_ACopyOfALocalOnlyMessage_AnswersThatTheSourceContentIsMissing()
+    {
+        // Arrange
+        this.StoreLocalOnly();
+        var copy = Change(MailboxMutationRequest.Copy(Email, Occurrence, Requester, Archive.RemotePath)) with
+        {
+            Destination = new MailboxDestination(Archive, IsMirrored: true),
+        };
+
+        // Act
+        var submitted = await this.LocalFirstCustodian().SubmitAsync(this.session, copy, Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.SourceContentMissing, submitted.Outcome);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
     /// <summary>A delete is committed by its record alone, which hides the message; its stored state is left as it was.</summary>
     [Fact]
     public async Task SubmitAsync_ADeleteOnAServerThatExpungesByUid_IsAppliedThroughItsRecord()
@@ -496,6 +607,17 @@ public sealed class MirroredMailboxCustodianTests
                 capabilities ?? MailboxServerCapabilityObservation.NeverObserved),
         };
     }
+
+    private void StoreLocalOnly() => this.states.Store(
+        Email,
+        new LocalEmailState(
+            Inbox,
+            HoldsSourceOccurrence: false,
+            Folder: null,
+            IsSeen: false,
+            IsFlagged: false,
+            EmailKeywords.Create([]),
+            IsLocalOnly: true));
 
     private void StoreUnread() => this.states.Store(
         Email,

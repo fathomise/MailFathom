@@ -200,7 +200,7 @@ public sealed class OrchestratedTombstoneErasureTests(MailFathomOrchestrationFix
                     setters => setters
                         .SetProperty(row => row.RemoteExpungeObservedAt, expungedAt)
                         .SetProperty(row => row.AuthoredDeleteFlaggedAt, flaggedAt)
-                        .SetProperty(row => row.IsRetainedAfterAuthoredDelete, isRetained),
+                        .SetProperty(row => row.IsRetainedAfterRemoteDelete, isRetained),
                     token);
 
             return true;

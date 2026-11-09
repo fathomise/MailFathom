@@ -7,7 +7,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using MailFathom.AI.DecisionModels;
+using MailFathom.Domain.Emails;
 using MailFathom.Host.Configuration.Decisions;
+using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Infrastructure.Persistence.Settings;
 using MailFathom.Infrastructure.Persistence.Users;
@@ -127,6 +129,8 @@ internal sealed class UserAccountDocumentBinder(
     }
 
     /// <summary>The one sentence a document nothing can parse is refused with, whichever stage met it.</summary>
+    private const string RemovedAuthoredDeleteValue = "RetainLocalCopy";
+
     private const string NotADocument =
         "The user record is not a JSON object MailFathom can read. A user record is a document of settings, so check what wrote the settings_accounts row rather than the settings themselves.";
 
@@ -155,6 +159,18 @@ internal sealed class UserAccountDocumentBinder(
             _ => "The user record does not bind to a user's settings. Check it against the settings a user's record carries.",
         };
 
+    /// <summary>Refuses every mail account still stating the authored-delete value that was removed, naming the two it takes.</summary>
+    private static string[] RefusalsOfTheRemovedAuthoredDeleteValue(IConfiguration document) =>
+    [
+        .. document.GetSection(nameof(UserAccountOptions.MailAccounts)).GetChildren()
+            .Where(static account => string.Equals(
+                account[nameof(MailSynchronizationAccountOptions.AuthoredDeleteEmailDisposition)],
+                RemovedAuthoredDeleteValue,
+                StringComparison.OrdinalIgnoreCase))
+            .Select(static account =>
+                $"Mail account {account.Key} sets {nameof(MailSynchronizationAccountOptions.AuthoredDeleteEmailDisposition)} to {RemovedAuthoredDeleteValue}, which no longer exists. Set it to {string.Join(" or ", Enum.GetNames<AuthoredDeleteEmailDisposition>())}. To keep reading what the mail server lost, set {nameof(MailSynchronizationAccountOptions.RemotelyDeletedEmailDisposition)} to {nameof(RemotelyDeletedEmailDisposition.RetainLocalCopy)}."),
+    ];
+
     /// <summary>Reads the document into flattened configuration keys.</summary>
     /// <remarks>
     /// Named by the built type rather than by the interface, because what comes back is owned. Built from the provider
@@ -169,6 +185,12 @@ internal sealed class UserAccountDocumentBinder(
     private UserAccountBinding Judge(IConfiguration document, UserRecordArrival accounts)
     {
         UserAccountOptions user;
+
+        // Before the bind, because the framework's refusal of a name the enum no longer has cannot say which names it has.
+        if (RefusalsOfTheRemovedAuthoredDeleteValue(document) is { Length: > 0 } removedValue)
+        {
+            return UserAccountBinding.Refused(removedValue);
+        }
 
         try
         {

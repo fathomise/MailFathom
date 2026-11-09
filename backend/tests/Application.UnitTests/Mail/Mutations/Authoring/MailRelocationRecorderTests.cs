@@ -111,7 +111,7 @@ public sealed class MailRelocationRecorderTests
     /// <summary>Arranges the disposition every test shares, so a test that is about it overrides it afterwards.</summary>
     public MailRelocationRecorderTests() => this.dispositions
         .GetAuthoredDeleteDisposition(Arg.Any<MailAccountId>())
-        .Returns(AuthoredDeleteEmailDisposition.RetainLocalCopy);
+        .Returns(AuthoredDeleteEmailDisposition.RetainTombstone);
 
     /// <summary>The record names the occurrence and the remote path a command will be issued against, neither of which the caller supplied.</summary>
     [Fact]

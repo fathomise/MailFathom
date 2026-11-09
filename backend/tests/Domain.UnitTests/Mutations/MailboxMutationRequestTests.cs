@@ -94,7 +94,7 @@ public sealed class MailboxMutationRequestTests
             desiredSeenState: null,
             desiredFlaggedState: null,
             keywords: null,
-            AuthoredDeleteEmailDisposition.RetainLocalCopy,
+            AuthoredDeleteEmailDisposition.RetainTombstone,
             AuthoredDeleteServerDisposition.Expunge));
 
         // Assert
@@ -146,7 +146,7 @@ public sealed class MailboxMutationRequestTests
     /// <summary>A relocation into a folder MailFathom does not mirror loses the occurrence for good, so it disposes of the local copy exactly as a delete does.</summary>
     [Theory]
     [InlineData(AuthoredDeleteEmailDisposition.EraseLocalCopy)]
-    [InlineData(AuthoredDeleteEmailDisposition.RetainLocalCopy)]
+    [InlineData(AuthoredDeleteEmailDisposition.RetainTombstone)]
     public void Relocate_ADestinationNothingMirrors_CarriesTheDispositionItWasAuthoredUnder(
         AuthoredDeleteEmailDisposition disposition)
     {

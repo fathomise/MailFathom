@@ -233,15 +233,21 @@ public sealed class MailboxChangeSubmission
                 cancellationToken);
         }
 
-        // The erasing transaction also writes the source removal record naming the occurrence, so a later drain can
-        // still remove the message from the source once this cascade has taken the row that said where it was. A delete
-        // that leaves the server untouched writes the opposite record: a drain must never ask the source for it.
-        if (record.Request.LeavesServerUntouched)
+        // The one erasure a disposition can soften: a local-only message's delete leaves what the account says it leaves.
+        if (state.IsLocalOnly && record.Request.LocalDisposition is AuthoredDeleteEmailDisposition.RetainTombstone)
         {
+            await this.states.MakeTombstoneAsync(session, account, record.Request.StoredEmailId, cancellationToken);
+        }
+        else if (record.Request.LeavesServerUntouched && !state.IsLocalOnly)
+        {
+            // A delete that leaves the server untouched writes the opposite of a source removal record: a drain must never
+            // ask the source for it, and a later synchronization must not mirror it again.
             await this.states.ForgetAsync(session, account, record.Request.StoredEmailId, record.Request.Occurrence, cancellationToken);
         }
         else
         {
+            // The erasing transaction also writes the source removal record naming the occurrence, so a later drain can
+            // still remove the message from the source once this cascade has taken the row that said where it was.
             await this.states.EraseAsync(session, account, record.Request.StoredEmailId, cancellationToken);
         }
 

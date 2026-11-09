@@ -256,7 +256,6 @@ public sealed class MailboxReconcilerTests
     /// copy whichever disposition the delete was authored under.
     /// </remarks>
     [Theory]
-    [InlineData(AuthoredDeleteEmailDisposition.RetainLocalCopy)]
     [InlineData(AuthoredDeleteEmailDisposition.RetainTombstone)]
     [InlineData(AuthoredDeleteEmailDisposition.EraseLocalCopy)]
     public async Task ReconcileAsync_OccurrenceRemovedByAnAuthoredDelete_CarriesTheDispositionItWasAuthoredUnder(
@@ -331,7 +330,6 @@ public sealed class MailboxReconcilerTests
     /// disappearance carries the disposition the change was authored under exactly as a delete does.
     /// </summary>
     [Theory]
-    [InlineData(AuthoredDeleteEmailDisposition.RetainLocalCopy)]
     [InlineData(AuthoredDeleteEmailDisposition.RetainTombstone)]
     [InlineData(AuthoredDeleteEmailDisposition.EraseLocalCopy)]
     public async Task ReconcileAsync_OccurrenceRemovedByARelocationNothingMirrors_CarriesTheDispositionItWasAuthoredUnder(
@@ -1982,7 +1980,7 @@ public sealed class MailboxReconcilerTests
         uint uid,
         bool isRelocation,
         DateTimeOffset? recordedAt = null,
-        AuthoredDeleteEmailDisposition localDisposition = AuthoredDeleteEmailDisposition.RetainLocalCopy,
+        AuthoredDeleteEmailDisposition localDisposition = AuthoredDeleteEmailDisposition.RetainTombstone,
         AuthoredDeleteEmailDisposition? relocationDisposition = null)
     {
         var occurrence = EmailOccurrenceId.Create(Account, InboxFolder.Id, SelectedUidValidity, ImapUid.Create(uid));
