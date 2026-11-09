@@ -118,6 +118,7 @@ The tool publishes the query and the narrowing `search_emails` publishes to its 
 | `isFlagged` | Only mail flagged, or unflagged, which is the star a mail client shows |
 | `keyword` | Only mail carrying this keyword, matched whole and without regard to case |
 | `hasAttachments` | Only mail that carries attachments, or that carries none |
+| `category` | Only mail sorted into this category, a default such as `finance` or a subject the account named for itself, matched whole and without regard to case; a name nothing in scope offers is refused, and the refusal lists what is offered |
 
 The filters are the greater part of what makes a question reach the mail a search would. A question that is naturally a
 narrowing — one person's mail, one week, mail carrying an attachment — is the one shape lexical and vector similarity

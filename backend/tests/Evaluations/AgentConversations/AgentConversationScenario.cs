@@ -44,8 +44,8 @@ namespace MailFathom.Evaluations.AgentConversations;
 /// The Agent is composed by the composition a deployment uses, handed the conversation a deployment composes — every
 /// earlier turn, then the question's own turn naming the conversation the person is looking at — and offered every tool
 /// the case's grant allows, under the run bounds a deployment runs with by default. Each tool reads through the use case a
-/// deployment gives it, composed by <see cref="CorpusReaders" /> over the corpus, the suite's hostile and false-claim
-/// mail, the Polish mail, the person's unsent replies, and <see cref="PersonalAgenda" />; what stands in for a deployment is only the storage beneath those use cases and
+/// deployment gives it, composed by <see cref="CorpusReaders" /> over the corpus, the suite's hostile, false-claim, and
+/// categorized mail, the Polish mail, the person's unsent replies, and <see cref="PersonalAgenda" />; what stands in for a deployment is only the storage beneath those use cases and
 /// the conversation the run writes into, which is kept in memory so every proposal can be read back.
 /// </para>
 /// <para>
