@@ -604,6 +604,7 @@ public sealed class OrchestratedAgentConversationTests(MailFathomOrchestrationFi
                     UserId.Create(user),
                     proposedAt!.Value,
                     AgentProposalState.Accepted,
+                    editedBody: null,
                     Instant,
                     token),
                 cancellationToken);
@@ -654,6 +655,7 @@ public sealed class OrchestratedAgentConversationTests(MailFathomOrchestrationFi
                 UserId.Create(Guid.NewGuid()),
                 leftPendingAt!.Value,
                 AgentProposalState.Declined,
+                editedBody: null,
                 Instant,
                 cancellationToken);
             var theirsStillMoves = await Resolve(store, conversation, user, leftPendingAt, AgentProposalState.Declined, cancellationToken);
@@ -894,6 +896,7 @@ public sealed class OrchestratedAgentConversationTests(MailFathomOrchestrationFi
             UserId.Create(user),
             proposedAt!.Value,
             state,
+            editedBody: null,
             Instant,
             cancellationToken);
 

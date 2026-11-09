@@ -485,10 +485,11 @@ internal sealed class AgentConversationStore(NpgsqlDataSource dataSource) : IAge
         UserId user,
         long proposedAt,
         AgentProposalState state,
+        PresentationText? editedBody,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var resolution = new AgentProposalResolved(proposedAt, state) { ConversationId = id };
+        var resolution = new AgentProposalResolved(proposedAt, state, now.ToUniversalTime(), editedBody) { ConversationId = id };
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var answering = await connection.BeginTransactionAsync(cancellationToken);

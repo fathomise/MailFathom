@@ -52,7 +52,16 @@ function inConversation(
     phase: ProposalPhase,
     answer: (decision: AgentProposalDecision) => void = () => undefined,
 ): ProposalAnswering {
-    return { phase, answering: false, refused: null, answer, askAnotherTime: () => undefined, look: null };
+    return {
+        phase,
+        answering: false,
+        refused: null,
+        answeredAt: null,
+        editedBody: null,
+        answer,
+        askAnotherTime: () => undefined,
+        look: null,
+    };
 }
 
 function renderSuggestion(block: AnswerBlock, answering: ProposalAnswering | null = null) {

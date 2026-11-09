@@ -35,6 +35,8 @@ const answered: Answer = {
         {
             sequence: 3,
             phase: null,
+            answeredAt: null,
+            editedBody: null,
             block: {
                 type: 'answer',
                 named: 'answer',

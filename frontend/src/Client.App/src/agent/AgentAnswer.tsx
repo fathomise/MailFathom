@@ -291,7 +291,12 @@ function AskInDeep({
 function Drawn({ answered }: { readonly answered: AnsweredBlock }) {
     return (
         <Containment drawing={String(answered.sequence)} region="answer_block">
-            <AnswerableBlock phase={answered.phase} proposedAt={answered.sequence}>
+            <AnswerableBlock
+                answeredAt={answered.answeredAt}
+                editedBody={answered.editedBody}
+                phase={answered.phase}
+                proposedAt={answered.sequence}
+            >
                 <DrawnBlock block={answered} renderers={answerBlockRenderers} />
             </AnswerableBlock>
         </Containment>

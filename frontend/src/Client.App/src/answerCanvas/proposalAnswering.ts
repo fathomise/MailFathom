@@ -30,7 +30,14 @@ export interface ProposalAnswering {
     /** Why the last decision pressed was not taken, and `null` where none was refused. */
     readonly refused: ClientFailureReason | null;
 
-    readonly answer: (decision: AgentProposalDecision) => void;
+    /** When the record last answered the proposal, and `null` while pending or where the service did not say. */
+    readonly answeredAt: string | null;
+
+    /** The body the record says was sent in place of the proposed one, and `null` where what was proposed was sent. */
+    readonly editedBody: string | null;
+
+    /** Answers the proposal, sending a proposed message with `editedBody` in place of its own where one is given. */
+    readonly answer: (decision: AgentProposalDecision, editedBody?: string) => void;
 
     /** Declines the proposal and asks the agent for the same thing at another time, in the reader's own words. */
     readonly askAnotherTime: (title: string) => void;
