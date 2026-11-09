@@ -1202,7 +1202,6 @@ export const en = {
     'compose.notSentTitle': 'Message not sent',
     'compose.queued': 'Queued to go out.',
     'compose.showInOutbox': 'Show in Outbox',
-    'compose.withdraw': 'Take it back',
     'compose.withdrawnTitle': 'Message taken back',
     'compose.notWithdrawnTitle': 'Message not taken back',
     'compose.withdrawn': 'Taken back before it went out.',

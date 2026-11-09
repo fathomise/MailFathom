@@ -1218,7 +1218,6 @@ export const pl: Catalogue = {
     'compose.notSentTitle': 'Wiadomość nie została wysłana',
     'compose.queued': 'Wiadomość czeka w kolejce do wysłania.',
     'compose.showInOutbox': 'Pokaż w Nadawczej',
-    'compose.withdraw': 'Wycofaj',
     'compose.withdrawnTitle': 'Wiadomość wycofana',
     'compose.notWithdrawnTitle': 'Nie udało się wycofać wiadomości',
     'compose.withdrawn': 'Wycofana, zanim poszła dalej.',

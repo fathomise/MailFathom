@@ -967,18 +967,6 @@ describe('Composer, a message of its own', () => {
         expect(screen.queryByRole('button', { name: 'Show in Outbox' })).toBeNull();
     });
 
-    // A queued message offers no way back, because there is none: the deployment has taken it and the composer the act
-    // would have belonged to is gone. A control promising otherwise is one nothing behind it could keep.
-    it('offers no way to take a queued message back', async () => {
-        drawComposer();
-
-        address('ada@example.invalid');
-        confirmSend();
-
-        expect(await screen.findByText('Queued to go out.')).toBeDefined();
-        expect(screen.queryByRole('button', { name: 'Take it back' })).toBeNull();
-    });
-
     // Stopping takes the task's own toast away, so what the stop came to is a toast of its own rather than a settling
     // of one that is no longer there to be read.
     it('says what a stopped send came to once the deployment has answered the stop', async () => {
