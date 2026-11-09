@@ -737,6 +737,20 @@ internal sealed class PersistedOrganizations(
         {
             return OrganizationWriteResult.Of(OrganizationWriteOutcome.UnknownOrganization);
         }
+        catch (PostgresException violation) when (PersistedMailAccountRecordStore.Violates(
+            violation,
+            PersistenceConstraintNames.MailAccountAssignmentSoleUserIndexName))
+        {
+            // The count above passed and the account left every organization still shared: a second user arrived past
+            // the lock it holds. The index refused the move, and it is answered as the count answers it, counted again
+            // once the failed transaction is gone.
+            await move.RollbackAsync(CancellationToken.None);
+
+            return new OrganizationWriteResult(
+                OrganizationWriteOutcome.SharedOnlyInOrganization,
+                StandingAssignments: await dbContext.MailAccountAssignments
+                    .CountAsync(assignment => assignment.MailAccountId == mailAccountId, cancellationToken));
+        }
 
         return new OrganizationWriteResult(OrganizationWriteOutcome.Written, organizationId ?? Guid.Empty);
     }
