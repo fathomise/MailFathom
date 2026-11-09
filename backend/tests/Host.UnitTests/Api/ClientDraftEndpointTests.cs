@@ -766,28 +766,19 @@ public sealed class ClientDraftEndpointTests
 
     /// <summary>A draft whose stored message names reply addresses is opened with them, read out of the message.</summary>
     [Fact]
-    public async Task ReadDraftAsync_ADraftWhoseMessageNamesReplyAddresses_AnswersWithThem()
+    public async Task ReadingFor_ADraftWhoseMessageNamesReplyAddresses_AnswersWithThem()
     {
         // Arrange
-        var drafts = new InMemoryMailDraftStore();
-        var contents = new InMemoryMailDraftContentStore();
-        var draft = await OpenAsync(drafts, SyntheticUser.Deployment);
-
-        await contents.SaveMailDraftContentAsync(
-            Substitute.For<IPersistenceSession>(),
-            draft.Id,
-            PlacedEmailContent.InDatabase(Encoding.ASCII.GetBytes(
-                "Subject: a draft\r\nReply-To: desk@example.test, Office <office@example.test>\r\n\r\nHello.").AsMemory()),
-            TestContext.Current.CancellationToken);
+        var draft = await OpenAsync(new InMemoryMailDraftStore(), SyntheticUser.Deployment);
+        var text = new OutgoingMailText("a draft", "Hello.", HtmlBody: null)
+        {
+            ReplyTo = ["desk@example.test", "office@example.test"],
+        };
 
         // Act
-        var result = await ClientDraftEndpoints.ReadDraftAsync(
-            draft.Id.Value,
-            DirectoryOver(drafts, contents),
-            TestContext.Current.CancellationToken);
+        var reading = ClientDraftReadingResponse.For(new MailDraftReading(draft, text, Document: null));
 
         // Assert
-        var reading = Assert.IsType<Ok<ClientDraftReadingResponse>>(result.Result).Value!;
         Assert.Equal(["desk@example.test", "office@example.test"], reading.ReplyTo);
     }
 

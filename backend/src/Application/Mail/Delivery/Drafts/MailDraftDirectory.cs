@@ -189,11 +189,6 @@ public sealed class MailDraftDirectory(
         return new MailDraftReading(
             draft,
             await text.ReadWordsAsync(content.RawMime, cancellationToken),
-            rendered.Rendering?.Document,
-            [
-                .. rendered.Rendering?.Headers.Participants
-                    .Where(static participant => participant.Role == EmailAddressRole.ReplyTo)
-                    .Select(static participant => participant.Address.Address) ?? [],
-            ]);
+            rendered.Rendering?.Document);
     }
 }

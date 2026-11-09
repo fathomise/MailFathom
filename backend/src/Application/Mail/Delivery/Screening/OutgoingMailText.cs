@@ -55,6 +55,14 @@ public sealed record OutgoingMailText(string Subject, string PlainTextBody, stri
     /// </remarks>
     public IReadOnlyList<string> AttachmentTexts { get; init; } = [];
 
+    /// <summary>Gets the addresses the message's <c>Reply-To</c> header names, which is none where it carries no such header.</summary>
+    /// <remarks>
+    /// They are read here, in the one parse a draft read back for its author already makes, so a draft whose words come
+    /// back comes back with them too — a draft reopened without them would lose them on its next save. They are not
+    /// among <see cref="ScreenedValues" />: an address is judged by what it is, never scanned as words.
+    /// </remarks>
+    public IReadOnlyList<string> ReplyTo { get; init; } = [];
+
     /// <summary>Gets why the message's attachments left nothing to judge them by, or <see langword="null" /> where every document it carries was read.</summary>
     /// <remarks>
     /// <para>

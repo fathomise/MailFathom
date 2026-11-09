@@ -168,6 +168,32 @@ public sealed class MimeKitOutgoingMailTextReaderTests
     }
 
     /// <summary>
+    /// A draft read back for its author comes back with the addresses its <c>Reply-To</c> names, and a message naming
+    /// none with none — and none of them is a value the screen scans.
+    /// </summary>
+    [Fact]
+    public async Task ReadWordsAsync_AMessageNamingReplyAddressesOrNone_ReadsThemAndScreensNone()
+    {
+        // Arrange
+        using var message = new MimeMessage { Subject = "Quarterly figures" };
+        message.From.Add(new MailboxAddress("Anna", "anna@example.test"));
+        message.ReplyTo.Add(new MailboxAddress(null, "desk@example.test"));
+        message.ReplyTo.Add(new MailboxAddress("Office", "office@example.test"));
+        message.Body = new TextPart(TextFormat.Plain) { Text = "the plain text" };
+
+        // Act
+        var replying = await this.reader.ReadWordsAsync(Serialize(message), TestContext.Current.CancellationToken);
+        var silent = await this.reader.ReadWordsAsync(
+            Compose("Quarterly figures", "the plain text", htmlBody: null),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["desk@example.test", "office@example.test"], replying.ReplyTo);
+        Assert.DoesNotContain(replying.ScreenedValues, value => value.Contains("desk@", StringComparison.Ordinal));
+        Assert.Empty(silent.ReplyTo);
+    }
+
+    /// <summary>
     /// A file nothing could read refuses only the read that would have judged it. The words-only read is not asked to
     /// judge anything, so the same message comes back as its words rather than as a refusal nobody would act on.
     /// </summary>

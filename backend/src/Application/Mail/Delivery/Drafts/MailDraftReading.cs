@@ -17,9 +17,4 @@ namespace MailFathom.Application.Mail.Delivery.Drafts;
 /// <param name="Draft">The record, which is what a listing already answered with.</param>
 /// <param name="Text">The subject and the two body representations, read back out of the composed message.</param>
 /// <param name="Document">The composed message reduced to the closed document tree a client draws, or <see langword="null" /> where the message yielded none; it is what a composer reads the author's formatting back from, since it never parses markup.</param>
-/// <param name="ReplyTo">The addresses the composed message asks replies to go to, which is none where it carries no <c>Reply-To</c> header; read out of the message for the reason the words are, since the record keeps only who the draft is offered to.</param>
-public sealed record MailDraftReading(
-    MailDraftRecord Draft,
-    OutgoingMailText Text,
-    MailDocument? Document,
-    IReadOnlyList<string> ReplyTo);
+public sealed record MailDraftReading(MailDraftRecord Draft, OutgoingMailText Text, MailDocument? Document);
