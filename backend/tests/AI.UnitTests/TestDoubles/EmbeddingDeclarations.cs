@@ -49,5 +49,5 @@ internal static class EmbeddingDeclarations
             endpoints.Length > 0 ? endpoints : [Endpoint()],
             allowTrimVectors,
             maximumPassagesPerCall,
-            TimeSpan.FromSeconds(5));
+            ChatDeclarations.RequestTimeout);
 }

@@ -143,7 +143,7 @@ public sealed class AiServiceCollectionExtensionsTests
         Assert.Equal(EmbeddingDeclarations.Dimension, generator.Identity.Dimension);
 
         // The bounds live in the registration rather than at a call site, so a client asked for by name carries them.
-        Assert.Equal(TimeSpan.FromSeconds(35), transport.Timeout);
+        Assert.Equal(ChatDeclarations.RequestTimeout + TimeSpan.FromSeconds(30), transport.Timeout);
     }
 
     [Fact]
