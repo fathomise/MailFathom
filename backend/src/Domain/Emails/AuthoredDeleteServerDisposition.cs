@@ -20,10 +20,6 @@ namespace MailFathom.Domain.Emails;
 public enum AuthoredDeleteServerDisposition
 {
     /// <summary>Flags the message <c>\Deleted</c> and expunges exactly that message, so the server no longer holds it.</summary>
-    /// <remarks>
-    /// It is the default because it is what deleting means, and every deletion setting of an account defaults to deleting
-    /// completely.
-    /// </remarks>
     Expunge = 0,
 
     /// <summary>Flags the message <c>\Deleted</c> and issues no expunge of any kind.</summary>
@@ -38,10 +34,10 @@ public enum AuthoredDeleteServerDisposition
     /// <summary>Sends the mail server nothing at all, and erases the message from MailFathom alone.</summary>
     /// <remarks>
     /// <para>
-    /// <see cref="FlagDeleted" /> reads as the safe answer and is not one: IMAP leaves expunging to clients, so the first
-    /// client that expunges or closes the folder removes a flagged message for good, and a server such as Gmail with its
-    /// IMAP Auto-Expunge on removes it the moment the flag is set. Only a delete that touches nothing on the server keeps
-    /// the message there whatever else reads the mailbox.
+    /// An account that states nothing gets this one. <see cref="FlagDeleted" /> reads as the safe answer and is not one:
+    /// IMAP leaves expunging to clients, so the first client that expunges or closes the folder removes a flagged message
+    /// for good, and a server such as Gmail with its IMAP Auto-Expunge on removes it the moment the flag is set. Only a
+    /// delete that touches nothing on the server keeps the message there whatever else reads the mailbox.
     /// </para>
     /// <para>
     /// The local copy is erased whatever <see cref="AuthoredDeleteEmailDisposition" /> says, because keeping it would make

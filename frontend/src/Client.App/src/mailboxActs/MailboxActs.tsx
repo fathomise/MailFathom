@@ -349,7 +349,7 @@ export function MailboxActsProvider({
     /** Whether this credential may file mail in another folder, which is a grant of its own. */
     readonly moves: boolean;
 
-    /** Whether this credential may delete mail from the mail server, which is the grant with no way back. */
+    /** Whether this credential may delete mail, which is the grant with no way back. */
     readonly deletes: boolean;
 
     /**

@@ -1954,7 +1954,9 @@ keep readable what MailFathom was just told to delete, and a delete a person ask
 | `EraseLocalCopy` (default) | The row is removed as the disappearance is observed, and PostgreSQL removes the raw MIME, the search document, the chunks, the vectors, and any outstanding repair request with it. A payload stored in a bucket goes too, once the transaction has committed. Nothing of the message survives locally. |
 
 The default does what a delete says. Keeping the record that a deleted message existed is an account's choice, made by
-naming `RetainTombstone`. A row an earlier release kept readable after a delete is out of every mailbox query from this
+naming `RetainTombstone` together with an `AuthoredDeleteServerDisposition` of `Expunge` or
+`FlagDeleted`: the default for that setting, [`LeaveOnServer`](#a-delete-that-leaves-the-server-untouched), erases the local copy whatever this one
+says. A row an earlier release kept readable after a delete is out of every mailbox query from this
 release on, and the nightly retention run settles it under the value the account states now.
 
 **The value is resolved when the delete is authored, not when it completes.** Those are different runs — the commands go
@@ -1978,10 +1980,10 @@ destinations are which.
 
 ### A delete that only flags the message
 
-`AuthoredDeleteServerDisposition` decides what a delete MailFathom performs does on the server. `Expunge`, the default,
+`AuthoredDeleteServerDisposition` decides what a delete MailFathom performs does on the server. `Expunge`
 issues `UID STORE +FLAGS (\Deleted)` and then `UID EXPUNGE` for that one UID. `FlagDeleted` issues the `STORE` and
 nothing else, so the message stays in its folder marked deleted until another client, a server policy, or a person
-expunges it. Both require `UIDPLUS`; `LeaveOnServer`, [below](#a-delete-that-leaves-the-server-untouched), asks the server for nothing and requires nothing of it. The value is resolved when the delete is recorded and travels on the mutation record,
+expunges it. Both require `UIDPLUS`; `LeaveOnServer`, the default and [below](#a-delete-that-leaves-the-server-untouched), asks the server for nothing and requires nothing of it. The value is resolved when the delete is recorded and travels on the mutation record,
 exactly as the local disposition does, and a resumed attempt that finds the flag already set issues nothing again.
 
 The local copy still follows `AuthoredDeleteEmailDisposition`, and it is disposed of as soon as a run reads the flag on
@@ -2011,8 +2013,10 @@ of an account set to `FlagDeleted` is refused.
 
 ### A delete that leaves the server untouched
 
-`LeaveOnServer` sends the mail server nothing at all: no `\Deleted`, no expunge, not even a connection for it. The
-message leaves MailFathom and stays on the server unflagged, for the other clients and the server's own retention.
+`LeaveOnServer`, the default, sends the mail server nothing at all: no `\Deleted`, no expunge, not even a connection for
+it. The message leaves MailFathom and stays on the server unflagged, for the other clients and the server's own
+retention, so one wrong press through MailFathom is never final there. An account that should remove what it deletes
+states `Expunge`.
 
 `FlagDeleted` is not the safe version of this. IMAP leaves expunging to clients, so the first client that expunges or
 closes the folder removes a flagged message for good, and Gmail's IMAP *Auto-Expunge*, on by default, removes it the
@@ -2309,7 +2313,7 @@ The extraction backfill has a section of its own rather than a block inside the 
 
 `MaxReconciledEmailsPerRun` bounds the backward pass the way the batch settings bound the forward one, and `RemotelyDeletedEmailDisposition` is the per-account choice [Reconciling against the server](#reconciling-against-the-server) describes. It binds as one of the three names `RetainLocalCopy`, `RetainTombstone`, and `EraseLocalCopy`, and a value that is none of them **fails startup** rather than falling back to a default: the setting decides whether stored mail is destroyed, and a typo in it must never be the reason mail survives or does not. That check is explicit rather than left to the binder, because a bare number binds onto an enum whether or not any member carries it — strict binding rejects unknown keys and failed conversions, and this conversion succeeds.
 
-`AuthoredDeleteEmailDisposition` answers the same question for the opposite act — a deletion MailFathom performed on the user's instruction rather than one it observed — and [takes precedence over the setting above](#what-becomes-of-a-message-mailfathom-deleted-itself) for every such deletion. It binds as `RetainTombstone` or `EraseLocalCopy`, is validated the same way, fails startup the same way, and defaults to erasing the local copy. `AuthoredDeleteServerDisposition` decides the same delete on the server, binds as `Expunge`, `FlagDeleted`, or `LeaveOnServer`, is validated and fails startup the same way, and defaults to `Expunge`; [a delete that only flags the message](#a-delete-that-only-flags-the-message) and [a delete that leaves the server untouched](#a-delete-that-leaves-the-server-untouched) describe the other two.
+`AuthoredDeleteEmailDisposition` answers the same question for the opposite act — a deletion MailFathom performed on the user's instruction rather than one it observed — and [takes precedence over the setting above](#what-becomes-of-a-message-mailfathom-deleted-itself) for every such deletion. It binds as `RetainTombstone` or `EraseLocalCopy`, is validated the same way, fails startup the same way, and defaults to erasing the local copy. `AuthoredDeleteServerDisposition` decides the same delete on the server, binds as `Expunge`, `FlagDeleted`, or `LeaveOnServer`, is validated and fails startup the same way, and defaults to `LeaveOnServer`; [a delete that leaves the server untouched](#a-delete-that-leaves-the-server-untouched) describes that default and [a delete that only flags the message](#a-delete-that-only-flags-the-message) the other two.
 
 Every declared account carries a `DisplayName`, whether or not synchronization is enabled, because the stored copy stays readable after the switch is turned off and the name is what a caller reads the account back as. There is no fallback to the generated identifier: a name MailFathom invented would be published to callers as though an operator had chosen it. The two share one naming space — a request may name an account by either — so a write is refused where a display name another of that user's accounts already carries as an identifier or a display name, compared without regard to case. Display names are judged within each assigned user's set rather than across the deployment; the address is the one name judged across the deployment.
 

@@ -1110,9 +1110,9 @@ public sealed class MailSynchronizationOptionsTests
         Assert.Contains("EraseLocalCopy", result.ErrorMessage, StringComparison.Ordinal);
     }
 
-    /// <summary>Every deletion setting of an account that says nothing deletes fully, which is what each gesture means.</summary>
+    /// <summary>An account that says nothing erases what it deletes from MailFathom and leaves the mail server's copy alone.</summary>
     [Fact]
-    public void Readers_AccountConfiguringNoDeletionSetting_DeleteFullyOnBothSides()
+    public void Readers_AccountConfiguringNoDeletionSetting_EraseLocallyAndLeaveTheServerUntouched()
     {
         // Arrange
         var options = new MailSynchronizationOptions().Serving(CreateAccount("primary"));
@@ -1126,7 +1126,24 @@ public sealed class MailSynchronizationOptionsTests
         // Assert
         Assert.Equal(RemotelyDeletedEmailDisposition.EraseLocalCopy, remote);
         Assert.Equal(AuthoredDeleteEmailDisposition.EraseLocalCopy, authoredLocal);
-        Assert.Equal(AuthoredDeleteServerDisposition.Expunge, authoredServer);
+        Assert.Equal(AuthoredDeleteServerDisposition.LeaveOnServer, authoredServer);
+    }
+
+    /// <summary>An account that should keep expunging says so, and stating it is all that takes.</summary>
+    [Fact]
+    public void GetAuthoredDeleteServerDisposition_AccountStatingExpunge_Expunges()
+    {
+        // Arrange
+        var account = CreateAccount("primary");
+        account.AuthoredDeleteServerDisposition = AuthoredDeleteServerDisposition.Expunge;
+        var options = new MailSynchronizationOptions().Serving(account);
+
+        // Act
+        var disposition = options.Readers.AuthoredDeleteEmailDispositions
+            .GetAuthoredDeleteServerDisposition(MailAccountId.Create("primary"));
+
+        // Assert
+        Assert.Equal(AuthoredDeleteServerDisposition.Expunge, disposition);
     }
 
     /// <summary>Two accounts of one deployment can leave their deletes on the server differently.</summary>
@@ -1147,7 +1164,7 @@ public sealed class MailSynchronizationOptionsTests
 
         // Assert
         Assert.Equal(
-            [AuthoredDeleteServerDisposition.Expunge, AuthoredDeleteServerDisposition.FlagDeleted],
+            [AuthoredDeleteServerDisposition.LeaveOnServer, AuthoredDeleteServerDisposition.FlagDeleted],
             dispositions);
     }
 

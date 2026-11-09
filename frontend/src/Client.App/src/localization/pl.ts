@@ -1638,7 +1638,7 @@ export const pl: Catalogue = {
     'grant.fileMail':
         'To poświadczenie nie może przenosić poczty do innego katalogu na tym serwerze, więc nie oferujemy archiwizowania, usuwania ani przenoszenia. Administrator może nadać takie uprawnienie.',
     'grant.deleteMail':
-        'To poświadczenie nie może usuwać poczty z Twojego serwera pocztowego, więc wiadomość, która jest już w koszu, można tam tylko zostawić. Administrator może nadać takie uprawnienie.',
+        'To poświadczenie nie może usuwać poczty, więc wiadomość, która jest już w koszu, można tam tylko zostawić. Administrator może nadać takie uprawnienie.',
 
     'grant.composeMail':
         'To poświadczenie nie może zapisywać szkiców na tym serwerze, więc nie oferujemy pisania wiadomości. Administrator może nadać takie uprawnienie.',

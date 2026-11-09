@@ -35,8 +35,8 @@ export const mailMoveMutationsRoute = '/mutations/moves';
  * The route a batch of deletes is written down at, relative to the client prefix.
  *
  * A third route and a third grant, because deleting is the act with no way back: filing a message in the trash puts it
- * somewhere its reader can go and fetch it, and this expunges it from the mail server. A credential may hold the move
- * and not this one.
+ * somewhere its reader can go and fetch it, and this erases it from MailFathom, and from the mail server where the
+ * account says so. A credential may hold the move and not this one.
  */
 export const mailDeleteMutationsRoute = '/mutations/deletes';
 

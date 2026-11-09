@@ -2650,9 +2650,8 @@ mind.
 flag misdescribes mail the user can still find; a move puts the mail somewhere else, and on a server without `MOVE` it
 is a copy followed by a delete — which is why the two are granted separately and why the record exists at all.
 
-**A delete names a message and nothing else**, because there is no destination to name: it asks the account's pass to
-expunge that occurrence from the server, and what becomes of the local copy is the account's configured disposition
-rather than anything a caller writes.
+**A delete names a message and nothing else**, because there is no destination to name: what it does on the mail server
+and what becomes of the local copy are the account's configured dispositions rather than anything a caller writes.
 
 ```http
 POST /api/client/mutations/deletes
