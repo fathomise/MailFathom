@@ -15,6 +15,7 @@ using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Delivery.Drafts;
+using MailFathom.Domain.Emails;
 using MailFathom.TestSupport;
 using NSubstitute;
 using Xunit;
@@ -169,6 +170,57 @@ public sealed class MailDraftDirectoryTests
 
         // Assert
         Assert.Null(reading);
+    }
+
+    /// <summary>A message in a drafts folder that shows one of this user's drafts opens that draft with its words.</summary>
+    [Fact]
+    public async Task ReadComposedFiledAsAsync_AMessageShowingADraftThisUserHolds_AnswersWithThatDraft()
+    {
+        // Arrange
+        var drafts = new InMemoryMailDraftStore();
+        var contents = new InMemoryMailDraftContentStore();
+        var draft = await OpenAsync(drafts, SyntheticUser.Deployment, Work, "a draft");
+        var filed = StoredEmailId.Create(Guid.CreateVersion7(Moment));
+
+        await drafts.RecordFiledAsync(
+            Substitute.For<IPersistenceSession>(),
+            draft.Id,
+            filed,
+            draft.Revision,
+            TestContext.Current.CancellationToken);
+        await contents.SaveMailDraftContentAsync(
+            Substitute.For<IPersistenceSession>(),
+            draft.Id,
+            PlacedEmailContent.InDatabase(Encoding.ASCII.GetBytes("Subject: a draft\r\n\r\nHello.").AsMemory()),
+            TestContext.Current.CancellationToken);
+
+        var directory = DirectoryOver(drafts, contents);
+
+        // Act
+        var reading = await directory.ReadComposedFiledAsAsync(filed, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(reading);
+        Assert.Equal(draft.Id, reading.Draft.Id);
+        Assert.Equal("Hello.", reading.Text.PlainTextBody);
+    }
+
+    /// <summary>Asking which draft a message shows asks for the drafting grant, as every other reading of a draft does.</summary>
+    [Fact]
+    public async Task ReadComposedFiledAsAsync_CallerHoldingOnlyTheReadingGrant_IsRefused()
+    {
+        // Arrange
+        var directory = DirectoryOver(
+            new InMemoryMailDraftStore(),
+            authorization: AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));
+
+        // Act
+        var refusal = () => directory.ReadComposedFiledAsAsync(
+            StoredEmailId.Create(Guid.CreateVersion7(Moment)),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(refusal);
     }
 
     /// <summary>Builds the reading over the store a test arranged, for a caller acting for the deployment's user.</summary>

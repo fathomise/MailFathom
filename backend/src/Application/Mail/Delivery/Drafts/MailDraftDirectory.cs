@@ -12,6 +12,7 @@ using MailFathom.Application.Mail.Delivery.Screening;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery.Drafts;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Mail.Delivery.Drafts;
 
@@ -129,12 +130,44 @@ public sealed class MailDraftDirectory(
         MailDraftId draftId,
         CancellationToken cancellationToken)
     {
-        if (await this.FindAsync(draftId, cancellationToken) is not { } draft)
-        {
-            return null;
-        }
+        return await this.FindAsync(draftId, cancellationToken) is { } draft
+            ? await this.ComposeAsync(draft, cancellationToken)
+            : null;
+    }
 
-        var content = await contentStore.FindMailDraftContentAsync(draftId, cancellationToken);
+    /// <summary>Reads the caller's own draft that a message in a drafts folder shows, as the words its author wrote, so editing can go on as that draft.</summary>
+    /// <param name="filedEmail">The stored message, as a list row or a conversation published it.</param>
+    /// <param name="cancellationToken">Cancels the reads.</param>
+    /// <returns>The draft and what its stored message says, or <see langword="null" /> where the message shows none of this user's drafts.</returns>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller does not hold <see cref="MailFathomPermission.MailDraftsWrite" />, or is acting for no user.</exception>
+    /// <remarks>
+    /// <para>
+    /// A message another mail client wrote, one another user's draft is filed as, one showing a draft already given up or
+    /// sent, and one nobody holds answer alike, so nothing here tells a caller that somebody else's draft exists — and
+    /// what is left for each is carrying the message on as a draft of its own, which is what it was before this existed.
+    /// </para>
+    /// <para>
+    /// It reads the same in every custody phase. Every custodian files a draft's current revision into the account's
+    /// local drafts folder and records which stored message it is — a held account as the whole of the filing, a mirrored
+    /// or restoring one ahead of the append the server copy is later bound to — so the link is there wherever the folder
+    /// shows the draft at all.
+    /// </para>
+    /// </remarks>
+    public async Task<MailDraftReading?> ReadComposedFiledAsAsync(
+        StoredEmailId filedEmail,
+        CancellationToken cancellationToken)
+    {
+        authorization.RequirePermission(MailFathomPermission.MailDraftsWrite);
+
+        return await drafts.FindFiledAsAsync(accountCatalog.User, filedEmail, cancellationToken) is { } draft
+            ? await this.ComposeAsync(draft, cancellationToken)
+            : null;
+    }
+
+    /// <summary>Reads one draft's stored message back as its words and its document, or answers nothing where the message is missing.</summary>
+    private async Task<MailDraftReading?> ComposeAsync(MailDraftRecord draft, CancellationToken cancellationToken)
+    {
+        var content = await contentStore.FindMailDraftContentAsync(draft.Id, cancellationToken);
 
         if (content is null || content.RawMime.IsEmpty)
         {

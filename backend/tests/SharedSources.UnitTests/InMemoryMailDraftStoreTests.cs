@@ -99,6 +99,43 @@ public sealed class InMemoryMailDraftStoreTests
         Assert.Equal(1, draft.Revision);
     }
 
+    /// <summary>
+    /// A message filed for a draft names it only while its author is still writing it, as the real store reads it: the
+    /// author's own draft is found, and another user's, one given up, and one promoted to a send are not.
+    /// </summary>
+    [Fact]
+    public async Task FindFiledAsAsync_DraftsInEveryStanding_FindsOnlyTheAuthorsOwnStillBeingWritten()
+    {
+        // Arrange
+        var store = new InMemoryMailDraftStore();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var writing = await OpenAsync(store);
+        var theirs = await OpenAsync(store, author: SyntheticUser.Another);
+        var givenUp = await OpenAsync(store);
+        var promoted = await OpenAsync(store);
+        var filed = new[] { writing, theirs, givenUp, promoted }
+            .ToDictionary(draft => draft.Id, _ => StoredEmailId.Create(Guid.CreateVersion7(Moment)));
+
+        foreach (var (draftId, email) in filed)
+        {
+            await store.RecordFiledAsync(Session, draftId, email, revision: 1, cancellationToken);
+        }
+
+        await store.RecordDiscardedAsync(Session, givenUp.Id, Moment, cancellationToken);
+        await store.RecordPromotedAsync(
+            Session,
+            promoted.Id,
+            OutgoingEmailId.Create(Guid.CreateVersion7(Moment)),
+            cancellationToken);
+
+        // Act
+        var found = await Task.WhenAll(new[] { writing, theirs, givenUp, promoted }
+            .Select(draft => store.FindFiledAsAsync(SyntheticUser.Deployment, filed[draft.Id], cancellationToken)));
+
+        // Assert
+        Assert.Equal([writing.Id, null, null, null], found.Select(draft => draft?.Id));
+    }
+
     /// <summary>A draft that has been given up is not revised, which is the refusal the real store gives.</summary>
     [Fact]
     public async Task ReviseAsync_ADraftAlreadyGivenUp_RefusesRatherThanWritingAnotherRevision()

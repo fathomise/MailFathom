@@ -245,7 +245,7 @@ test('shows the copy headers, keeps what they hold while hidden, and sends nothi
     ]);
 });
 
-test('keeps a draft with its file when the composer is left, lists it in Drafts, and sends it whole from there', async ({
+test('keeps a draft with its file when the composer is left, revises that one draft from Drafts, and sends it out of the folder', async ({
     page,
     deployment,
 }) => {
@@ -270,14 +270,12 @@ test('keeps a draft with its file when the composer is left, lists it in Drafts,
         .click();
     await expect(page.getByRole('region', { name: 'New message' })).toHaveCount(0);
 
-    await page
-        .getByRole('tree', { name: 'Mailboxes and folders' })
-        .getByRole('treeitem', { name: /^Drafts/u })
-        .click();
-    await page
-        .getByRole('listbox', { name: 'Messages' })
-        .getByRole('option', { name: new RegExp(subject, 'u') })
-        .click();
+    const folders = page.getByRole('tree', { name: 'Mailboxes and folders' });
+    const list = page.getByRole('listbox', { name: 'Messages' });
+    const kept = list.getByRole('option', { name: new RegExp(subject, 'u') });
+
+    await folders.getByRole('treeitem', { name: /^Drafts/u }).click();
+    await kept.click();
 
     // Opened again from Drafts, it holds everything that was written and attached.
     const draft = page.getByRole('region', { name: 'Draft' });
@@ -287,39 +285,26 @@ test('keeps a draft with its file when the composer is left, lists it in Drafts,
     await expect(draft.getByRole('textbox', { name: 'Message' })).toHaveText(words);
     await expect(draft.getByRole('list', { name: 'Attached files' }).getByText(file.name)).toBeVisible();
 
+    // Drafts holds that one draft and no second copy of it while it is being carried on.
+    await expect(kept).toHaveCount(1);
+
     await send(page);
 
-    // The words come back from the deployment as its own paragraphs, so the markup is the one part allowed to differ.
-    const written = {
-        plainTextBody: words,
-        pictures: [],
-        to: [recipient],
-        cc: [],
-        bcc: [],
-        requestsDeliveryNotification: false,
-        requestsReadReceipt: false,
-        account: deploymentCorpus.workAccount.id,
-        subject,
-    };
+    // Only the first save wrote a draft: the save the send made first revised that one, and the send named it.
+    expect(deployment.requests('POST', '/drafts')).toHaveLength(1);
 
-    expect(deployment.requests('POST', '/drafts').map(({ body }) => body)).toStrictEqual([
-        { ...written, htmlBody: words },
-        { ...written, htmlBody: `<p>${words}</p>` },
-    ]);
+    const [revised = ''] = draftRoutesOf(deployment, 'PUT', '');
 
-    // The file went up once for the draft that was kept and once for the one that was sent, the same octets both times,
-    // and the send named the draft the second of them was staged against.
-    const staged = deployment.issued.filter(
-        ({ method, route }) => method === 'POST' && route.startsWith('/drafts/') && route.endsWith('/attachments'),
-    );
+    expect(draftRoutesOf(deployment, 'PUT', '')).toStrictEqual([revised]);
+    expect(draftRoutesOf(deployment, 'POST', '/send')).toStrictEqual([`${revised}/send`]);
 
-    expect(staged.map(({ query, text }) => [query.get('fileName'), text])).toStrictEqual([
-        [file.name, file.buffer.toString()],
-        [file.name, file.buffer.toString()],
-    ]);
-    expect(draftRoutesOf(deployment, 'POST', '/send')).toStrictEqual([
-        staged[1]?.route.replace(/\/attachments$/u, '/send'),
-    ]);
+    // The file went up once, for the draft that was kept, and stayed staged against it through the send.
+    expect(draftRoutesOf(deployment, 'POST', '/attachments')).toStrictEqual([`${revised}/attachments`]);
+
+    // Sent, the draft has left Drafts rather than standing there as if it had never gone.
+    await folders.getByRole('treeitem', { name: /^Inbox/u }).click();
+    await folders.getByRole('treeitem', { name: /^Drafts/u }).click();
+    await expect(kept).toHaveCount(0);
 });
 
 // What a focused field draws is read off the field and the row around it — an outline, a shadow, or an edge taking the
