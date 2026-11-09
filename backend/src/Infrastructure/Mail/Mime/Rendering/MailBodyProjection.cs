@@ -149,7 +149,7 @@ internal static class MailBodyProjection
         int? footerFirstBlock = null;
         var footerBlockCount = 0;
 
-        foreach (var (paragraph, inFooter) in ParagraphsIn(source, footer))
+        foreach (var (paragraph, inFooter) in ParagraphsIn(source, footer).SelectMany(WithWrittenHeadersApart))
         {
             if (blocks.Count >= bounds.MaximumBlocks)
             {
@@ -179,7 +179,7 @@ internal static class MailBodyProjection
         return blocks.Count == 0
             ? MailDocument.Refused(MailDocumentRefusal.NoHtmlPart)
             : MailDocument.Reduced(
-                blocks,
+                MailWrittenHeaderBlocks.Marked(blocks),
                 removedRemoteReferenceCount: 0,
                 retainedRemoteImageCount: 0,
                 inlineImageCount: 0,
@@ -233,6 +233,11 @@ internal static class MailBodyProjection
             .Concat(ParagraphsIn(source.Substring(start, length)).Select(static paragraph => (paragraph, true)))
             .Concat(ParagraphsIn(source[(start + length)..]).Select(static paragraph => (paragraph, false)));
     }
+
+    private static IEnumerable<(string Paragraph, bool InFooter)> WithWrittenHeadersApart(
+        (string Paragraph, bool InFooter) written) => written.InFooter
+            ? [written]
+            : MailWrittenHeaderBlocks.SeparatedFromTheWordsAround(written.Paragraph).Select(static piece => (piece, false));
 
     private static IEnumerable<string> ParagraphsIn(string source) => source
         .Split("\n\n", StringSplitOptions.None)

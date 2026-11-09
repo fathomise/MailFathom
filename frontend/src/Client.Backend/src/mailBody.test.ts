@@ -585,6 +585,51 @@ describe('readMailBody reading the reader own footer', () => {
     });
 });
 
+describe('readMailBody reading a block of header lines the message typed', () => {
+    const headers = { blockCount: 2, author: 'Ewa', date: 'Mon, 24 Aug' };
+
+    async function readingBlocks(blocks: readonly unknown[]) {
+        const body = bodyWith(documentWith(blocks));
+
+        return readMailBody(session, answering({ status: 200, body }), storedEmailId, readingTheMessage);
+    }
+
+    it('reads what a paragraph and a separator name, and leaves a block naming nothing without it', async () => {
+        const result = await readingBlocks([
+            { type: 'separator', version: 1, writtenHeaders: headers },
+            paragraph(run('From: Ewa')),
+            paragraph(run('The words under it.')),
+        ]);
+
+        const blocks = result.outcome === 'read' ? result.value.document?.blocks : undefined;
+        expect(blocks?.[0]).toMatchObject({ writtenHeaders: headers });
+        expect(blocks?.[2]).not.toHaveProperty('writtenHeaders');
+    });
+
+    it.each([
+        ['reaching past the blocks beside it', { ...headers, blockCount: 3 }],
+        ['spanning no block', { ...headers, blockCount: 0 }],
+        ['with an empty author', { ...headers, author: '' }],
+        ['with a date past the bound', { ...headers, date: 'd'.repeat(1025) }],
+        ['that is not an object', 'the first two blocks'],
+    ])('refuses a document naming a block %s', async (_, writtenHeaders) => {
+        const result = await readingBlocks([
+            { ...paragraph(run('From: Ewa')), writtenHeaders },
+            paragraph(run('Date: Monday')),
+        ]);
+
+        expect(result.outcome).toBe('failed');
+    });
+
+    it('refuses the member on a block that cannot start such a run', async () => {
+        const result = await readingBlocks([
+            { type: 'preformatted', version: 1, text: 'From: Ewa', writtenHeaders: { ...headers, blockCount: 1 } },
+        ]);
+
+        expect(result.outcome).toBe('failed');
+    });
+});
+
 describe('readMailBody meeting a deployment ahead of this client', () => {
     it('draws a placeholder for a block type this build does not implement, and keeps the rest of the message', async () => {
         const blocks = [{ type: 'chart', version: 1 }, paragraph(run('After it.'))];

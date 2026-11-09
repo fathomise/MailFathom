@@ -551,7 +551,50 @@ function conversationContent(row: (typeof conversationRows)[number]) {
             unread: false,
             receipts: row.id === answeredReplyId ? answeredReplyReceipts : null,
         },
-        body: conversationBody(row.id, row.id === signedReplyId ? [row.preview, ...readerFooter] : [row.preview]),
+        body: bodyOfConversationRow(row),
+    };
+}
+
+function bodyOfConversationRow(row: { readonly id: string; readonly preview: string }) {
+    if (row.id === forwardingReplyId) {
+        return forwardingBody(row.id, row.preview);
+    }
+
+    return conversationBody(row.id, row.id === signedReplyId ? [row.preview, ...readerFooter] : [row.preview]);
+}
+
+/** The message of the conversation that forwards one, carrying the block of header lines another mail client typed. */
+const forwardingReplyId = '00000000-0000-4000-8000-0000000000c3';
+
+/** The author and date that block folds to, which are the design's own so a capture holds the same line on both sides. */
+export const forwardedHeaders = { author: 'Ewa Zielińska', date: 'Mon, 24 Aug 2026 at 16:02' };
+
+const forwardedHeaderLines = [
+    '---------- Forwarded message ---------',
+    `From: ${forwardedHeaders.author} <ewa.zielinska@contoso.example>`,
+    `Date: ${forwardedHeaders.date}`,
+    'Subject: CPI forecast for 2027',
+    'To: Marta Nowak <marta.nowak@nordwind.example>',
+].join('\n');
+
+function forwardingBody(storedEmailId: string, reply: string) {
+    const conversation = conversationBody(storedEmailId, [reply]);
+    const paragraph = (text: string, writtenHeaders?: object) => ({
+        ...conversation.document.blocks[0],
+        content: [{ text, emphasis: 'None', foreground: null, link: null }],
+        ...(writtenHeaders === undefined ? {} : { writtenHeaders }),
+    });
+
+    return {
+        ...conversation,
+        document: {
+            ...conversation.document,
+            blocks: [
+                paragraph(reply),
+                paragraph(forwardedHeaderLines, { blockCount: 1, ...forwardedHeaders }),
+                paragraph('Our forecast for 2027 is 4.1%, with the upper band at 5.2%.'),
+            ],
+        },
     };
 }
 

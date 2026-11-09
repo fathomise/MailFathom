@@ -2066,6 +2066,19 @@ one written in another mail client, and above all one from anybody else, because
 could copy and the copy MailFathom filed of its own send is the one thing nothing in a message can claim to be. The
 sender's own markup under `fullHtml` is unchanged by any of it.
 
+**`writtenHeaders` names a block of header lines the message typed, and proves nothing.** A forward or a quoted reply
+from another mail client usually carries one: a separator such as `---------- Forwarded message ---------`, then
+`From:`, `Date:`, `To:`, and `Subject:` in that client's language. The first block forming it carries
+`{ "blockCount": 2, "author": "Ewa Zielińska", "date": "Mon, 24 Aug 2026 at 16:02" }`: how many consecutive blocks at
+that level form it, that one included, the name its author line gives, and its date line as written and never parsed.
+It appears at any quotation depth, inside a `quote` block's own `blocks` as well as at the top level, and only on a
+`paragraph` or a `separator`; a block naming nothing leaves the member out. The blocks stay where they are, so a pane
+can fold them to one line and unfold every original line, and a client that does not read the member draws the message
+exactly as before, which is why neither `schemaVersion` nor any block's revision moved for it. Those lines are what the
+sender typed, so `From: The CEO` is a claim rather than a fact: a pane draws the line as message text, with no avatar,
+no sender mark, and nothing a verified header carries. [What is recognized](../features/email-content.md#a-block-of-header-lines-a-message-typed-is-named-never-removed)
+is deliberately narrow, and whatever is not stays ordinary blocks.
+
 **Nothing in a body reaches somebody else's server unless the reader asked.** Every reference to a remote address is
 removed while the tree is built rather than left for a renderer to decline to follow, so a tracking pixel is defeated by
 the document not carrying it. `removedRemoteReferenceCount` is what survives instead — a count a pane can put in front

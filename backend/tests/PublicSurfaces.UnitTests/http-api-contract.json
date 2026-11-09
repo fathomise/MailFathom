@@ -9476,6 +9476,16 @@
               "integer",
               "string"
             ]
+          },
+          "writtenHeaders": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailWrittenHeaders"
+              }
+            ]
           }
         },
         "required": [
@@ -9507,6 +9517,16 @@
             "type": [
               "integer",
               "string"
+            ]
+          },
+          "writtenHeaders": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailWrittenHeaders"
+              }
             ]
           }
         },
@@ -9540,6 +9560,16 @@
               "integer",
               "string"
             ]
+          },
+          "writtenHeaders": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailWrittenHeaders"
+              }
+            ]
           }
         },
         "required": [
@@ -9571,6 +9601,16 @@
               "integer",
               "string"
             ]
+          },
+          "writtenHeaders": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailWrittenHeaders"
+              }
+            ]
           }
         },
         "required": [
@@ -9595,6 +9635,16 @@
             "type": [
               "integer",
               "string"
+            ]
+          },
+          "writtenHeaders": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailWrittenHeaders"
+              }
             ]
           }
         },
@@ -9631,6 +9681,16 @@
               "integer",
               "string"
             ]
+          },
+          "writtenHeaders": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailWrittenHeaders"
+              }
+            ]
           }
         },
         "required": [
@@ -9652,6 +9712,16 @@
             "type": [
               "integer",
               "string"
+            ]
+          },
+          "writtenHeaders": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailWrittenHeaders"
+              }
             ]
           }
         }
@@ -9682,6 +9752,16 @@
             "type": [
               "integer",
               "string"
+            ]
+          },
+          "writtenHeaders": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailWrittenHeaders"
+              }
             ]
           }
         },
@@ -10972,6 +11052,30 @@
           "Larger",
           "Largest"
         ]
+      },
+      "MailWrittenHeaders": {
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "blockCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "date": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "blockCount",
+          "author",
+          "date"
+        ],
+        "type": "object"
       },
       "MailboxExportFolderMeasurementResponse": {
         "properties": {

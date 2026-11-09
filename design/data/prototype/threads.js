@@ -999,6 +999,21 @@ MailFathomDesign.data.earlierMessages = {
         {
           text: "I calculated the impact of the 8% increase at a 4.1% CPI forecast - about €19k more per year. Worth asking for an upper indexation cap.",
         },
+        // The block of header lines another mail client typed into a forward, folded to who wrote it and when.
+        {
+          headers: {
+            author: "Ewa Zielińska",
+            date: "Mon, 24 Aug 2026 at 16:02",
+            lines: [
+              "---------- Forwarded message ---------",
+              "From: Ewa Zielińska <ewa.zielinska@contoso.example>",
+              "Date: Mon, 24 Aug 2026 at 16:02",
+              "Subject: CPI forecast for 2027",
+              "To: Marta Nowak <marta.nowak@nordwind.example>",
+            ],
+          },
+        },
+        { text: "Our forecast for 2027 is 4.1%, with the upper band at 5.2%." },
       ],
       attachments: [{ type: "XLSX", name: "CPI_2027.xlsx", size: "34 kB" }],
       html: "cpiCalculation",
@@ -1016,6 +1031,21 @@ MailFathomDesign.data.earlierMessages = {
       quoted: [
         { text: "On 22.08.2026 Anna Kowalska wrote:" },
         { text: "Attached is the comparison version. The changes affect clause 4 (response time) and the price schedule." },
+        // The same block inside a quotation folds the same way, and how the quotation folds does not change.
+        {
+          headers: {
+            author: "Piotr Wiśniewski",
+            date: "Fri, 21 Aug 2026 at 17:40",
+            lines: [
+              "-----Original Message-----",
+              "From: Piotr Wiśniewski <piotr.wisniewski@contoso.example>",
+              "Sent: Friday, August 21, 2026 5:40 PM",
+              "To: Anna Kowalska <anna.kowalska@contoso.example>",
+              "Subject: Addendum - clause 4",
+            ],
+          },
+        },
+        { text: "Clause 4 now reads two hours for priority A." },
       ],
     },
   ],

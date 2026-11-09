@@ -1008,6 +1008,44 @@
         }
       ]
     },
+    "mail-written-headers": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Contract addendum - signatures"
+          }
+        },
+        {
+          "click": {
+            "text": "Show 5 earlier messages"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Ewa Zielińska, Mon, 24 Aug 2026 at 16:02",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Hide these header lines",
+            "exact": true
+          }
+        }
+      ]
+    },
     "composer-sending-options": {
       "file": "prototype.dc.html",
       "properties": {

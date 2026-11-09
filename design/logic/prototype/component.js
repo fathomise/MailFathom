@@ -4813,11 +4813,30 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           /* The reader's own footer, named by the message, folds to one quiet line under their words; the conversation
              it quoted folds under that, behind a line of its own. A message naming no footer is drawn whole. */
           ...(() => {
+            let bodyHeaders;
+            return Object.assign({}, (() => {
             const lines = m.mine && m.footer ? FOOTERS[thread.acc || "acc1"] || [] : [];
             const footOpen = !!(st.footerOpen || {})[k];
             const quoteOpen = !!(st.quotedOpen || {})[k];
             const flip = (key) => () => this.setState(s2 => ({ [key]: Object.assign({}, s2[key], { [k]: !(s2[key] || {})[k] }) }));
             const foldLine = this.footerFoldStyle(touch);
+            /* A block of header lines the message typed folds to who it says wrote it and when, in the message's own
+               words and measure: no avatar, no mark, nothing a verified header carries. */
+            const writtenHeaders = (headers, place) => {
+              const key = k + ":" + place;
+              const open = !!(st.headersOpen || {})[key];
+              return {
+                isHeaders: true, headersOpen: open,
+                toggleHeaders: () => this.setState(s2 => ({ headersOpen: Object.assign({}, s2.headersOpen, { [key]: !open }) })),
+                headersGlyph: open ? "expand_more" : "chevron_right",
+                headersLabel: open ? "Hide these header lines" : headers.author + ", " + headers.date,
+                headersFoldStyle: "display:inline-flex;align-self:flex-start;align-items:center;gap:4px;box-sizing:border-box;min-height:" + (touch ? 44 : 28) +
+                  "px;padding:0 10px 0 4px;margin-left:-4px;border-radius:8px;font-size:15px;line-height:1.3;color:var(--text2);text-wrap:pretty",
+                headersGlyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)",
+                headerLines: headers.lines.map(text => ({ text, style: "font-size:15px;line-height:1.65;color:var(--text2);overflow-wrap:anywhere" })),
+              };
+            };
+            bodyHeaders = writtenHeaders;
             return {
               foldsShown: lines.length > 0 || m.quoted.length > 0,
               footerShown: lines.length > 0, footerOpen: footOpen, toggleFooter: flip("footerOpen"),
@@ -4826,18 +4845,22 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               footerLines: lines.map(l => ({ text: l.text, style: this.footerLineStyle(l) })),
               quotedShown: m.quoted.length > 0, quotedOpen: quoteOpen, toggleQuoted: flip("quotedOpen"),
               quotedGlyph: quoteOpen ? "expand_more" : "chevron_right",
-              quotedParas: m.quoted.map(q => ({ text: q.text, style: "font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty" })),
+              quotedParas: m.quoted.map((q, at) => q.headers
+                ? writtenHeaders(q.headers, "q" + at)
+                : ({ isText: true, text: q.text, style: "font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty" })),
               foldLineStyle: foldLine,
               foldGlyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1",
             };
+            })(), {
+              paras: m.paras.reduce((acc, bb, at) => bb.headers ? acc.concat([bodyHeaders(bb.headers, "p" + at)]) : bb.md ? acc.concat(threadSpam.spam ? unlinked(mdView(bb.md)) : mdView(bb.md)) : acc.concat([{
+                isText: true,
+                runs: [{ text: bb.text, plain: true, isLink: false, href: "", style: "" }],
+                style: bb.hl && st.cameFrom
+                  ? "font-size:16px;line-height:1.55;background:var(--hl);border-left:3px solid var(--hl-line);padding:13px 16px;text-wrap:pretty"
+                  : MDTXT + (bb.text.indexOf("\n") >= 0 ? ";white-space:pre-line" : ""),
+              }]), []),
+            });
           })(),
-          paras: m.paras.reduce((acc, bb) => bb.md ? acc.concat(threadSpam.spam ? unlinked(mdView(bb.md)) : mdView(bb.md)) : acc.concat([{
-            isText: true,
-            runs: [{ text: bb.text, plain: true, isLink: false, href: "", style: "" }],
-            style: bb.hl && st.cameFrom
-              ? "font-size:16px;line-height:1.55;background:var(--hl);border-left:3px solid var(--hl-line);padding:13px 16px;text-wrap:pretty"
-              : MDTXT + (bb.text.indexOf("\n") >= 0 ? ";white-space:pre-line" : ""),
-          }]), []),
         });
       });
       const selectionOn = sel.length > 0;

@@ -104,6 +104,9 @@ export interface MailParagraphBlock {
     readonly type: 'paragraph';
     readonly content: readonly MailInlineRun[];
     readonly alignment: MailBlockAlignment;
+
+    /** The block of header lines the message typed that starts here, absent where none does. */
+    readonly writtenHeaders?: MailWrittenHeaders;
 }
 
 export interface MailHeadingBlock {
@@ -161,6 +164,9 @@ export interface MailImageBlock {
 
 export interface MailSeparatorBlock {
     readonly type: 'separator';
+
+    /** The block of header lines the message typed that starts here, absent where none does. */
+    readonly writtenHeaders?: MailWrittenHeaders;
 }
 
 export interface MailPreformattedBlock {
@@ -191,6 +197,19 @@ export type MailDocumentBlock =
     | MailSeparatorBlock
     | MailPreformattedBlock
     | MailUnimplementedBlock;
+
+/**
+ * A block of header lines a message typed into its own body, which a forward or a quoted reply from another mail client
+ * carries. Its author and date are the sender's words as written, so they prove nothing and are drawn as message text.
+ */
+export interface MailWrittenHeaders {
+    /** How many consecutive sibling blocks, starting at the one carrying this, form it. At least one. */
+    readonly blockCount: number;
+
+    readonly author: string;
+
+    readonly date: string;
+}
 
 /**
  * Which of a document's top-level blocks are the footer MailFathom appended to a message the reader sent.
@@ -286,6 +305,7 @@ const bounds = {
     maximumLinkTargetLength: 4096,
     maximumPictureEdge: 10_000,
     maximumAlternativeTextLength: 1024,
+    maximumWrittenHeaderLength: 1024,
 } as const;
 
 const availabilities: readonly MailBodyAvailability[] = [
@@ -565,7 +585,7 @@ function parseBlocks(entries: readonly unknown[], walk: Walk): MailDocumentBlock
     }
 
     const blocks: MailDocumentBlock[] = [];
-    for (const entry of entries) {
+    for (const [position, entry] of entries.entries()) {
         if (walk.budget.blocks <= 0) {
             return null;
         }
@@ -577,10 +597,46 @@ function parseBlocks(entries: readonly unknown[], walk: Walk): MailDocumentBlock
             return null;
         }
 
-        blocks.push(block);
+        const writtenHeaders = parseWrittenHeaders(asRecord(entry)?.['writtenHeaders'], entries.length - position);
+        if (writtenHeaders === undefined) {
+            return null;
+        }
+
+        if (writtenHeaders === null) {
+            blocks.push(block);
+        } else if (block.type === 'paragraph' || block.type === 'separator') {
+            blocks.push({ ...block, writtenHeaders });
+        } else {
+            return null;
+        }
     }
 
     return blocks;
+}
+
+// A run of sibling blocks counted from the one carrying it, so one reaching past them names blocks that are not there
+// and folding by it would hide words or draw a fold over nothing. A deployment that predates the member sends none.
+function parseWrittenHeaders(value: unknown, blocksLeft: number): MailWrittenHeaders | null | undefined {
+    if (value === undefined || value === null) {
+        return null;
+    }
+
+    const record = asRecord(value);
+    const blockCount = record?.['blockCount'];
+    const author = record?.['author'];
+    const date = record?.['date'];
+
+    return isCount(blockCount) &&
+        blockCount > 0 &&
+        blockCount <= blocksLeft &&
+        isWrittenHeaderText(author) &&
+        isWrittenHeaderText(date)
+        ? { blockCount, author, date }
+        : undefined;
+}
+
+function isWrittenHeaderText(value: unknown): value is string {
+    return typeof value === 'string' && value.length > 0 && value.length <= bounds.maximumWrittenHeaderLength;
 }
 
 function parseBlock(value: unknown, walk: Walk): MailDocumentBlock | null {
