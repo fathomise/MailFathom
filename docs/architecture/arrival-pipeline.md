@@ -198,6 +198,11 @@ and a rule that asked for a move each bring forward. A held account commits the 
 is left to wait for once the rule pass has run. A restoring account commits locally before opening the record that
 carries it to the source, and that record is marked as already committed, so it is not waited for either.
 
+**A message waits for a category only where a rule of its account names the fact.** The rule pass leaves such a message
+in its queue while a category may still arrive, and evaluates it with an empty `category` once it has waited as long as
+a verdict may take. An account with no such rule settles as it did before, and so does a message no categorization will
+ever ask about, one in a folder not visible to AI among them.
+
 **Every wait is bounded.** A verdict is released on the classification's own terms, and anything else — a stalled rule
 pass, a move that never reaches the row, content that never finds headroom — is released once the message has waited
 the classification wait plus fifteen minutes. A late message is shown late rather than never, and each release is
@@ -239,7 +244,7 @@ The personal-data analyzer is optional, and a deployment that configures none ru
 | --- | --- | --- |
 | Personal-data analyzer | The extracted body text of one message, shown to the sidecar | **Fails closed.** The derivation is refused, nothing derived is written, and the run retries the message later |
 | Spam classification | The stored header block of one message, read locally | **Fails open.** A message no verdict has reached is held only as long as `SpamClassification:ClassificationWait` allows, and then admitted on the same terms as one nothing has looked at |
-| [Categorization](../features/email-categorization.md) | One stored message, read locally and shown to a decision model | **Fails open.** The message has no category and nothing waits for one |
+| [Categorization](../features/email-categorization.md) | One stored message, read locally and shown to a decision model | **Fails open.** The message has no category. Only a rule naming the `category` fact waits for one, for no longer than a verdict may take, and then reads an empty set |
 
 The asymmetry is deliberate and it is the single most important thing on this page. Redaction is an egress guard: text
 that reached a derived store unscanned is text a retrieval hit can hand back months later, and putting it back costs a

@@ -581,6 +581,7 @@ public sealed class MailRuleChangeEndpointsTests
                 new NCalcMailRuleConditionCompiler(),
                 new MailRuleSetEvaluator(this.timeProvider),
                 Substitute.For<IMailFolderMappingReader>(),
+                StubMailCategories.OfferingNothing,
                 MailRuleConditionBounds.Default,
                 authorization ?? AdministrativeGrant.WholeSurface,
                 this.timeProvider),

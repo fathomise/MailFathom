@@ -23,9 +23,10 @@ namespace MailFathom.Application.Categories;
 /// </para>
 /// <para>
 /// <b>It fails open.</b> An unreachable provider, a spent budget, or an unreadable answer leaves a message with no
-/// category and holds up nothing: no later stage and no settlement waits for one, and the message is not asked about
-/// again once the rule pass has evaluated it. A failure that says something about every message behind it ends the pass
-/// rather than being met once per message, because this stage holds the account's run while it asks.
+/// category. Only a rule pass whose rules name the category fact waits for one, and for no longer than a spam verdict may
+/// take, so the message still settles; it is not asked about again once that pass has evaluated it. A failure that says
+/// something about every message behind it ends the pass rather than being met once per message, because this stage
+/// holds the account's run while it asks.
 /// </para>
 /// <para>
 /// Identical in every custody phase, so nothing here reads one: it reads stored content, writes local rows, reaches no

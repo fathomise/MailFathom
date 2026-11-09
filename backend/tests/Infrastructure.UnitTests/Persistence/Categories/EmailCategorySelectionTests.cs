@@ -29,6 +29,8 @@ public sealed class EmailCategorySelectionTests
 
     private static DerivedWorkAdmissionTerms ClassificationOff { get; } = new([], [], [], Now);
 
+    private static DerivedWorkAdmissionTerms WaitRunning { get; } = new([], [], [], Now - TimeSpan.FromMinutes(15));
+
     private static DerivedWorkAdmissionTerms ClassificationOn { get; } = new(
         [MailAccountId.Create("work")],
         [],
@@ -225,6 +227,75 @@ public sealed class EmailCategorySelectionTests
         Assert.Contains(nameof(StoredEmailEntity.RulesEvaluatedAt), command, StringComparison.Ordinal);
     }
 
+    /// <summary>A rule naming the fact holds a message only while a category may still come, and for no longer than a verdict may take.</summary>
+    [Fact]
+    public void Awaited_AnArrivalInsideTheWait_SelectsIt()
+    {
+        // Arrange
+        var email = Email();
+
+        // Act & Assert
+        Assert.Single(Awaited(email, [email.Id]));
+    }
+
+    [Fact]
+    public void Awaited_AnArrivalPastTheWaitAVerdictIsAllowed_LeavesItOut()
+    {
+        // Arrange
+        var email = Email();
+        email.StoredAt = WaitRunning.ReleasedWhenStoredBefore.AddSeconds(-1);
+
+        // Act & Assert
+        Assert.Empty(Awaited(email, [email.Id]));
+    }
+
+    /// <summary>The gate releases a message stored at exactly this instant, so a rule must not go on holding it.</summary>
+    [Fact]
+    public void Awaited_AnArrivalStoredAtTheExactBound_LeavesItOut()
+    {
+        // Arrange
+        var email = Email();
+        email.StoredAt = WaitRunning.ReleasedWhenStoredBefore;
+
+        // Act & Assert
+        Assert.Empty(Awaited(email, [email.Id]));
+    }
+
+    [Fact]
+    public void Awaited_AFolderNotVisibleToAI_NeverWaits()
+    {
+        // Arrange
+        var email = Email();
+
+        // Act & Assert
+        Assert.Empty(Awaited(email, [email.Id], visibleFolders: []));
+    }
+
+    [Fact]
+    public void Awaited_AMessageTheBatchDoesNotName_LeavesItOut()
+    {
+        // Arrange
+        var email = Email();
+
+        // Act & Assert
+        Assert.Empty(Awaited(email, [Guid.CreateVersion7()]));
+    }
+
+    [Fact]
+    public void Awaited_TheNamedMail_IsOneCommandPostgreSqlEvaluates()
+    {
+        // Arrange
+        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
+
+        // Act
+        var command = EmailCategoryStore
+            .Awaited(context.StoredEmails.AsNoTracking(), "work", [new Guid("11111111-1111-1111-1111-111111111111")], [WorkInbox], [WorkJunk], ClassificationOn)
+            .ToQueryString();
+
+        // Assert
+        Assert.Contains($"\"{nameof(StoredEmailEntity.StoredAt)}\" >", command, StringComparison.Ordinal);
+    }
+
     /// <summary>The database picks each conversation's first message, so a reply never carries the conversation across the boundary.</summary>
     [Fact]
     public void FirstOfEachConversation_NamedConversations_NarrowsTheCommandToThem()
@@ -256,6 +327,21 @@ public sealed class EmailCategorySelectionTests
         // Assert
         Assert.Contains("substring(", command, StringComparison.OrdinalIgnoreCase);
     }
+
+    private static IReadOnlyList<StoredEmailEntity> Awaited(
+        StoredEmailEntity email,
+        Guid[] identifiers,
+        DerivedWorkAdmissionTerms? terms = null,
+        IReadOnlyList<MailFolderIdentity>? visibleFolders = null) =>
+        [
+            .. EmailCategoryStore.Awaited(
+                new[] { email }.AsQueryable(),
+                "work",
+                identifiers,
+                visibleFolders ?? [WorkInbox],
+                [],
+                terms ?? WaitRunning),
+        ];
 
     private static IReadOnlyList<StoredEmailEntity> Select(
         StoredEmailEntity email,

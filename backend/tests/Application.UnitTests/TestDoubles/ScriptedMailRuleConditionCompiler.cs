@@ -9,12 +9,16 @@ namespace MailFathom.Application.UnitTests.TestDoubles;
 /// <summary>Reads a condition the way a test scripts it, without the condition language.</summary>
 /// <remarks>
 /// A condition naming <see cref="UnknownFact" /> is refused, as the real compiler refuses a fact it does not know; a
-/// condition reading exactly <c>false</c> never matches; every other one matches every message.
+/// condition reading exactly <c>false</c> never matches; one opening with <see cref="HoldsCategory" /> matches the
+/// messages holding the category after it; every other one matches every message.
 /// </remarks>
 internal sealed class ScriptedMailRuleConditionCompiler : IMailRuleConditionCompiler
 {
     /// <summary>The text whose presence makes a condition one this compiler refuses.</summary>
     internal const string UnknownFact = "NoSuchFact";
+
+    /// <summary>The text opening a condition that matches the messages holding the category named after it.</summary>
+    internal const string HoldsCategory = "holds:";
 
     /// <summary>Gets how many conditions have been read.</summary>
     internal int CompileCount { get; private set; }
@@ -32,6 +36,8 @@ internal sealed class ScriptedMailRuleConditionCompiler : IMailRuleConditionComp
             _ when conditionText.Length > bounds.MaxLength =>
                 MailRuleConditionCompilation.Refused([$"Rule {ruleName} has a condition longer than the bound."]),
             "false" => MailRuleConditionCompilation.Compiled(ScriptedMailRuleCondition.Answering(matches: false)),
+            _ when conditionText.StartsWith(HoldsCategory, StringComparison.Ordinal) =>
+                MailRuleConditionCompilation.Compiled(ScriptedMailRuleCondition.MatchingCategory(conditionText[HoldsCategory.Length..])),
             _ => MailRuleConditionCompilation.Compiled(ScriptedMailRuleCondition.Answering(matches: true)),
         };
     }

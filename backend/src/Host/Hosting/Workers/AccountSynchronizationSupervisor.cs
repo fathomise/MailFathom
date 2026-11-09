@@ -1079,7 +1079,8 @@ internal sealed partial class AccountSynchronizationSupervisor
     /// <remarks>
     /// After the spam verdict, so junk is never asked about, and before the rules, whose evaluation is what ends a
     /// message's time as an arrival. A failure never fails the run and holds up no stage behind it: the pass reads only
-    /// stored mail and writes only derived rows, and a message left without a category costs that and nothing else.
+    /// stored mail and writes only derived rows, and a message left without a category costs that, and a bounded wait
+    /// where one of the account's rules names the fact.
     /// </remarks>
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "A pass that failed is logged and leaves its messages with no category rather than putting the account into backoff; it reaches no mail server.")]
     private async Task CategorizeArrivedMailAsync(

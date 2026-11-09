@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Categories;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Folders;
@@ -60,8 +61,24 @@ public sealed class MailRuleEvaluationPassTests
 
     private readonly FakeTimeProvider timeProvider = new(EvaluatedAt);
 
+    private readonly IEmailCategoryStore categoryStore = Substitute.For<IEmailCategoryStore>();
+    private readonly IEmailCategoryRecordReader categoryRecords = Substitute.For<IEmailCategoryRecordReader>();
+    private readonly IMailCategoryOfferReader categoryOffers = Substitute.For<IMailCategoryOfferReader>();
+    private readonly IEmailCategorizationSettingsReader categorizationSettings = Substitute.For<IEmailCategorizationSettingsReader>();
+    private readonly IEmailCategoryJudge categoryJudge = Substitute.For<IEmailCategoryJudge>();
+
     public MailRuleEvaluationPassTests()
     {
+        this.categoryOffers.OfferOf(Account).Returns(MailCategoryOffer.Of(["shopping"], ["Contracts"]));
+        this.categorizationSettings.SettingsFor(Account).Returns(new EmailCategorizationSettings(IsEnabled: true, []));
+        this.categoryJudge.IsActive.Returns(true);
+        this.categoryRecords
+            .ReadAsync(Arg.Any<IReadOnlyCollection<StoredEmailId>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<StoredEmailId, IReadOnlyList<string>>());
+        this.categoryStore
+            .ReadAwaitedAsync(Arg.Any<MailAccountId>(), Arg.Any<IReadOnlyCollection<StoredEmailId>>(), Arg.Any<CancellationToken>())
+            .Returns(new HashSet<StoredEmailId>());
+
         this.permissions
             .GetRuleActionPermissions(Arg.Any<MailAccountId>())
             .Returns(MailRuleActionPermissions.Default with { PermitsDelete = true });
@@ -504,6 +521,121 @@ public sealed class MailRuleEvaluationPassTests
     }
 
     [Fact]
+    public async Task RunAsync_RuleNamingTheCategoryAndACategoryStillAwaited_SkipsItAndLeavesItInTheQueue()
+    {
+        // Arrange
+        var awaiting = this.store.Add(FactsFor(Account));
+        this.ArrangeAwaited(awaiting);
+
+        // Act
+        var report = await this.CreatePass(RuleSetOf(ArrivalRule("files-finance", ScriptedMailRuleCondition.MatchingCategory("finance"))))
+            .RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(this.store.IsEvaluated(awaiting));
+        Assert.Equal(1, report.Arrivals.SkippedEmailCount);
+    }
+
+    /// <summary>The wait ended or the consultation failed for good: the fact is empty, and the message goes on to settle.</summary>
+    [Fact]
+    public async Task RunAsync_RuleNamingTheCategoryAndNothingAwaited_EvaluatesItWithTheFactEmpty()
+    {
+        // Arrange
+        var unanswered = this.store.Add(FactsFor(Account));
+        var condition = ScriptedMailRuleCondition.MatchingCategory("finance");
+
+        // Act
+        var report = await this.CreatePass(RuleSetOf(ArrivalRule("files-finance", condition)))
+            .RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(this.store.IsEvaluated(unanswered));
+        Assert.Equal(1, condition.EvaluationCount);
+        Assert.Equal(0, report.Arrivals.MatchedEmailCount);
+        Assert.Equal(0, report.Arrivals.FailedRuleCount);
+    }
+
+    [Theory]
+    [InlineData("Contracts", 1)]
+    [InlineData("shopping", 0)]
+    public async Task RunAsync_ACategoryRecorded_TheRuleReadsWhatTheAccountShows(string named, int expectedMatches)
+    {
+        // Arrange
+        var categorized = this.store.Add(FactsFor(Account));
+        this.categoryRecords
+            .ReadAsync(Arg.Any<IReadOnlyCollection<StoredEmailId>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<StoredEmailId, IReadOnlyList<string>> { [categorized] = ["Contracts", "shopping"] });
+
+        // Act
+        var report = await this.CreatePass(RuleSetOf(ArrivalRule("reads-it", ScriptedMailRuleCondition.MatchingCategory(named), stopWhenMatched: false)))
+            .RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(expectedMatches, report.Arrivals.MatchedEmailCount);
+    }
+
+    /// <summary>An account with no such rule settles as it always did, and pays for no read of a category.</summary>
+    [Fact]
+    public async Task RunAsync_NoRuleNamesTheCategory_ReadsNoCategoryAndEvaluatesTheEmail()
+    {
+        // Arrange
+        var arrived = this.store.Add(FactsFor(Account));
+        this.ArrangeAwaited(arrived);
+
+        // Act
+        await this.CreatePass(RuleSetOf(ArrivalRule("other", ScriptedMailRuleCondition.Answering(matches: true))))
+            .RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(this.store.IsEvaluated(arrived));
+        await this.categoryRecords.DidNotReceive().ReadAsync(Arg.Any<IReadOnlyCollection<StoredEmailId>>(), Arg.Any<CancellationToken>());
+        await this.categoryStore.DidNotReceive().ReadAwaitedAsync(Arg.Any<MailAccountId>(), Arg.Any<IReadOnlyCollection<StoredEmailId>>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>The category question is asked of the rules a walk runs, so a manual-only rule holds nothing up.</summary>
+    [Fact]
+    public async Task RunAsync_ManualOnlyRuleNamingTheCategory_LeavesArrivingMailEvaluated()
+    {
+        // Arrange
+        var arrived = this.store.Add(FactsFor(Account));
+        this.ArrangeAwaited(arrived);
+        var ruleSet = RuleSetOf(
+            MailRule.Create(
+                MailRuleIds.For("housekeeping"),
+                "housekeeping",
+                ScriptedMailRuleCondition.MatchingCategory("finance"),
+                triggers: []),
+            ArrivalRule("on-arrival", ScriptedMailRuleCondition.Answering(matches: true)));
+
+        // Act
+        await this.CreatePass(ruleSet).RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(this.store.IsEvaluated(arrived));
+    }
+
+    /// <summary>Nothing is ever going to answer in either case, so the store is not asked and the message does not wait.</summary>
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task RunAsync_NothingWillEverCategorizeTheAccount_DoesNotWait(bool isEnabled, bool isActive)
+    {
+        // Arrange
+        var arrived = this.store.Add(FactsFor(Account));
+        this.ArrangeAwaited(arrived);
+        this.categorizationSettings.SettingsFor(Account).Returns(new EmailCategorizationSettings(isEnabled, []));
+        this.categoryJudge.IsActive.Returns(isActive);
+
+        // Act
+        await this.CreatePass(RuleSetOf(ArrivalRule("files-finance", ScriptedMailRuleCondition.MatchingCategory("finance"))))
+            .RunAsync(Account, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(this.store.IsEvaluated(arrived));
+        await this.categoryStore.DidNotReceive().ReadAwaitedAsync(Arg.Any<MailAccountId>(), Arg.Any<IReadOnlyCollection<StoredEmailId>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RunAsync_ExtractionArrivedForASkippedEmail_EvaluatesItOnTheNextPass()
     {
         // Arrange
@@ -863,6 +995,10 @@ public sealed class MailRuleEvaluationPassTests
         }.Destinations;
     }
 
+    private void ArrangeAwaited(StoredEmailId email) => this.categoryStore
+        .ReadAwaitedAsync(Arg.Any<MailAccountId>(), Arg.Any<IReadOnlyCollection<StoredEmailId>>(), Arg.Any<CancellationToken>())
+        .Returns(new HashSet<StoredEmailId> { email });
+
     private MailRuleEvaluationPass CreatePass(
         MailRuleSet ruleSet,
         int batchSize = 100,
@@ -896,6 +1032,11 @@ public sealed class MailRuleEvaluationPassTests
             this.CreateDestinationResolver(),
             this.history,
             this.folderMappings,
+            new MailRuleCategories(
+                new OfferedMailCategories(this.categoryOffers, this.categoryRecords),
+                this.categoryStore,
+                this.categorizationSettings,
+                this.categoryJudge),
             new OptimisticConcurrencyRetryPolicy(
                 sessionFactory,
                 new PersistenceConcurrencyOptions(),

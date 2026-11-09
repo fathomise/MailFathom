@@ -192,6 +192,8 @@ before the message is derived from regardless, which is what stops a classificat
 from silently stopping the index. Lengthening it delays mail of a classified folder by that much longer in the worst
 case; shortening it narrows the window in which a verdict can arrive first. Zero is refused, because a wait of none
 releases every message before anything could have classified it.
+The same length bounds how long a rule naming [`category`](../features/mail-rules.md#when-rules-run) holds a message for a
+category that may still arrive, with or without classification on.
 [Junk is kept out of what a deployment derives from mail](../features/spam-classification.md#junk-is-kept-out-of-what-a-deployment-derives-from-mail)
 records what each answer means and what is counted.
 

@@ -25,10 +25,10 @@ namespace MailFathom.Infrastructure.Persistence.Rules;
 /// <remarks>
 /// <para>
 /// Both walks project straight into the fact surface rather than loading rows, because a condition reads twenty-four of its
-/// twenty-six facts from metadata and none of them is the raw MIME sitting beside it in the same aggregate. Of the
-/// other two, <c>folderRole</c> is read from configuration rather than from any row, and <c>bodyText</c> is read one
+/// twenty-seven facts from metadata and none of them is the raw MIME sitting beside it in the same aggregate. Of the
+/// other three, <c>folderRole</c> is read from configuration rather than from any row, <c>bodyText</c> is read one
 /// email at a time and only when a condition names it, which is what keeps a rule set that mentions no body text free
-/// of a content read.
+/// of a content read, and <c>category</c> is read a batch at a time by the pass, also only when a condition names it.
 /// </para>
 /// <para>
 /// Both walks also admit the folders a mapping mirrors and no others, and it is the walk rather than the pass that

@@ -93,6 +93,13 @@ public sealed record MailRuleEmailFacts
     /// <summary>Gets the part of the sender's address after the at sign, or <see langword="null" /> when there is no sender.</summary>
     public string? SenderDomain => ReadDomain(this.SenderAddress);
 
+    /// <summary>Gets the categories the email holds, as far as its account shows them.</summary>
+    /// <remarks>
+    /// Empty unless a rule the walk runs names the fact: the pass reads them a batch at a time then, so a rule set that
+    /// names none costs no read of them.
+    /// </remarks>
+    public IReadOnlyList<string> Categories { get; init; } = [];
+
     /// <summary>Gets the distinct domains of every recipient address, in the order the addresses appear.</summary>
     public IReadOnlyList<string> RecipientDomains =>
     [

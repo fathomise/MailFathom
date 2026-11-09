@@ -602,7 +602,7 @@ without one is done.
 
 ## The facts a condition can read
 
-A condition reaches these twenty-six names and nothing else. Each carries one shape of value, which is what the
+A condition reaches these twenty-seven names and nothing else. Each carries one shape of value, which is what the
 comparison, operator, and function checks below are made against.
 
 | Fact | Type | What it holds |
@@ -633,20 +633,27 @@ comparison, operator, and function checks below are made against.
 | `hasExtractedContent` | boolean | Whether text has been extracted from the email's body |
 | `bodyText` | text | The text extracted from the email's body, after quoted history and signatures were removed; absent while no extraction has run for it |
 | `machineAuthorship` | text | How much the email's own text reads as machine written — `likely`, `possible`, `unlikely`, or `notAssessed` |
+| `category` | text set | The [categories](email-categorization.md) a model recorded on the email and its account shows, a default the account switched off left out; empty where nothing was recorded |
 
 Names are case-sensitive. `senderDomain` is a fact and `SenderDomain` is not, so the surface documented here and the
 surface accepted are the same one.
 
 **Every fact resolves only if the condition names it, and once per email however many rules name it.** Twenty-four of
-the twenty-six come from metadata a pass already holds, so they cost nothing to read. `folderRole` is read from
+the twenty-seven come from metadata a pass already holds, so they cost nothing to read. `folderRole` is read from
 configuration, which costs no read either. `bodyText` is the exception: it reads
 stored content, which is why a rule set naming it nowhere pays for no read at all, and one naming it in five conditions
-pays for one. The boolean operators short-circuit, so a condition whose first half already decides it never resolves
+pays for one. `category` is read from the rows recorded beside the mail, one read per batch, and only by a walk whose
+rules name it. The boolean operators short-circuit, so a condition whose first half already decides it never resolves
 what its second half would have named.
 
 **An absent fact answers rather than failing.** A message with no subject compares unequal to every subject, matches no
 `contains`, and reports `isNull(subject)` as true. Guarding a comparison is a choice about what the rule should mean,
 never a requirement.
+
+**An empty `category` means nobody could say, as well as that nothing was recorded.** A message the model gave no answer
+about, one in a folder not visible to AI, and one on an account that does not categorize all hold no category, so
+`not contains(category, 'finance')` matches every one of them. Decide whether those belong in a rule before writing its
+`not` branch.
 
 **A timestamp is always in UTC.** A date literal is written `#yyyy/MM/dd#` and carries no offset of its own, so
 `receivedAt >= #2026/01/01#` means the start of that day in UTC.
@@ -759,7 +766,7 @@ against the account as it now stands. A rule the write leaves as stored, or only
 Compiling a condition checks four things:
 
 - **Syntax.** The condition parses, and a failure reports the position it failed at.
-- **The names.** Every identifier is one of the twenty-six facts and every call is one of the seven functions.
+- **The names.** Every identifier is one of the twenty-seven facts and every call is one of the seven functions.
 - **The types.** Every comparison, operator, and argument holds between shapes that could match. `subject == 1`,
   `sizeInBytes > 'large'`, `recipientDomains == 'example.test'`, and `contains(subject, 3)` are each refused here.
 - **The result.** The condition produces a boolean. A condition producing text or a number is refused rather than read
@@ -887,6 +894,14 @@ permits. A message whose content will never yield text is evaluated now with the
 that is not coming would stall the queue behind it. Two messages are that: one above the size limit, which every later
 run refuses for the same reason, and one whose stored payload a reader has already failed to read, which every later
 run would fail to read the same way.
+
+**A message a category may still arrive for is skipped the same way, for a bounded time.** It applies only where the
+rules that walk runs name `category`, and only to mail [categorization](email-categorization.md) would still ask about,
+on an account that sorts its mail and a deployment with a decision model — so a message in a folder not visible to AI,
+a message with a spam verdict, and any message on an account with no such rule are evaluated at once. The wait is
+`SpamClassification:ClassificationWait`, measured from when the message was stored. Once it has passed, the message is
+evaluated with `category` empty, so a provider that stays down costs a rule its input and never costs the message its
+place: it still settles.
 
 **A rule that cannot answer for one message costs that message's rule and nothing else.** It is recorded as a failed
 rule with a reason, the rules below it still run, the remaining messages of the batch are still evaluated, and the

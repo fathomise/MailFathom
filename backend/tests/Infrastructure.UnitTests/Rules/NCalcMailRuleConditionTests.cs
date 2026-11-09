@@ -56,6 +56,8 @@ public sealed class NCalcMailRuleConditionTests
     [InlineData("machineAuthorship == 'possible'", true)]
     [InlineData("machineAuthorship != 'likely'", true)]
     [InlineData("contains(bodyText, 'due on receipt')", true)]
+    [InlineData("contains(category, 'FINANCE')", true)]
+    [InlineData("contains(category, 'travel')", false)]
     [InlineData("if(isSeen, 0, attachmentCount) > 1", true)]
     [InlineData("isFlagged ? attachmentCount > 1 : false", true)]
     public async Task EvaluateAsync_ConditionOverTheDeclaredFacts_AnswersFromTheEmail(
@@ -97,6 +99,8 @@ public sealed class NCalcMailRuleConditionTests
     /// <summary>An absent fact answers rather than failing, which is what keeps an unusual email from failing a rule.</summary>
     [Theory]
     [InlineData("subject == 'anything'", false)]
+    [InlineData("contains(category, 'finance')", false)]
+    [InlineData("not contains(category, 'finance')", true)]
     [InlineData("subject != 'anything'", true)]
     [InlineData("isNull(subject)", true)]
     [InlineData("isNullOrEmpty(subject)", true)]
@@ -223,6 +227,7 @@ public sealed class NCalcMailRuleConditionTests
                 IsFlagged = true,
                 IsDraft = false,
                 Keywords = ["$Invoice", "$Todo"],
+                Categories = ["finance", "Contracts"],
                 AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
                 SenderTrust = SenderTrustLevel.Trusted,
                 MachineAuthorship = MachineAuthorshipBand.Possible,
