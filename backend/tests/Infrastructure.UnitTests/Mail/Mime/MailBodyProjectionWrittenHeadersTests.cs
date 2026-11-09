@@ -4,11 +4,8 @@
 
 using System.Net;
 using System.Text;
-using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.EmailContent.Rendering.Document.Blocks;
-using MailFathom.Application.Emails.Extraction;
-using MailFathom.Infrastructure.Mail.Mime;
 using MailFathom.Infrastructure.UnitTests.TestDoubles;
 using MimeKit;
 using Xunit;
@@ -55,7 +52,7 @@ public sealed class MailBodyProjectionWrittenHeadersTests
         var message = Composed($"{block}\n\n{ForwardedWords}", html: null);
 
         // Act
-        var document = await DocumentOf(message);
+        var document = await MimeFixtures.DocumentOf(message);
 
         // Assert
         Assert.Equal(new MailWrittenHeaders(1, Author, date), document.Blocks[0].WrittenHeaders);
@@ -75,7 +72,7 @@ public sealed class MailBodyProjectionWrittenHeadersTests
         var message = Composed(block, $"<div>{markup}<br></div><div>{ForwardedWords}</div>");
 
         // Act
-        var document = await DocumentOf(message);
+        var document = await MimeFixtures.DocumentOf(message);
 
         // Assert
         Assert.Equal(new MailWrittenHeaders(1, Author, date), document.Blocks[0].WrittenHeaders);
@@ -89,7 +86,7 @@ public sealed class MailBodyProjectionWrittenHeadersTests
         var html = "<hr><p>From: Ewa Zielińska</p><p>Date: today</p><p>To: Marta</p><p>Subject: CPI</p><p>" + ForwardedWords + "</p>";
 
         // Act
-        var document = await DocumentOf(Composed("x", html));
+        var document = await MimeFixtures.DocumentOf(Composed("x", html));
 
         // Assert
         Assert.IsType<MailSeparatorBlock>(document.Blocks[0]);
@@ -107,7 +104,7 @@ public sealed class MailBodyProjectionWrittenHeadersTests
         var text = $"{introduction}\n\nFrom: Ewa Zielińska\nDate: today\nTo: Marta\n\n{ForwardedWords}";
 
         // Act
-        var document = await DocumentOf(Composed(text, html: null));
+        var document = await MimeFixtures.DocumentOf(Composed(text, html: null));
 
         // Assert
         Assert.Equal(new MailWrittenHeaders(2, Author, "today"), document.Blocks[0].WrittenHeaders);
@@ -121,7 +118,7 @@ public sealed class MailBodyProjectionWrittenHeadersTests
         var html = $"<p>See below.</p><blockquote><div>From: Ewa Zielińska<br>Sent: today<br>To: Marta</div><div>{ForwardedWords}</div></blockquote>";
 
         // Act
-        var document = await DocumentOf(Composed("x", html));
+        var document = await MimeFixtures.DocumentOf(Composed("x", html));
 
         // Assert
         var quote = Assert.IsType<MailQuoteBlock>(document.Blocks[1]);
@@ -136,7 +133,7 @@ public sealed class MailBodyProjectionWrittenHeadersTests
         var text = "Thanks.\n\n> -----Original Message-----\n> From: Ewa Zielińska\n> Sent: today\n> To: Marta\n> Subject: CPI\n>\n> Our forecast\n> is 4.1%.";
 
         // Act
-        var document = await DocumentOf(Composed(text, html: null));
+        var document = await MimeFixtures.DocumentOf(Composed(text, html: null));
 
         // Assert
         Assert.Equal(new MailWrittenHeaders(1, Author, "today"), document.Blocks[1].WrittenHeaders);
@@ -149,7 +146,7 @@ public sealed class MailBodyProjectionWrittenHeadersTests
     public async Task ProduceAsync_ARunThatDoesNotQualify_IsLeftAsWritten(string run)
     {
         // Act
-        var document = await DocumentOf(Composed($"{run}\n\n{ForwardedWords}", html: null));
+        var document = await MimeFixtures.DocumentOf(Composed($"{run}\n\n{ForwardedWords}", html: null));
 
         // Assert
         Assert.All(document.Blocks, block => Assert.Null(block.WrittenHeaders));
@@ -163,26 +160,10 @@ public sealed class MailBodyProjectionWrittenHeadersTests
         var html = "<div>From: Ewa<br>Date: today<br>To: Marta<br><br>And then the words</div>";
 
         // Act
-        var document = await DocumentOf(Composed("x", html));
+        var document = await MimeFixtures.DocumentOf(Composed("x", html));
 
         // Assert
         Assert.Null(document.Blocks[0].WrittenHeaders);
-    }
-
-    private static async Task<MailDocument> DocumentOf(ReadOnlyMemory<byte> rawMime)
-    {
-        var renderer = new MimeKitEmailContentRenderer(new EmailMimeExtractionOptions { MaxPartCount = 1000 });
-
-        var result = await renderer.RenderAsync(
-            MimeFixtures.StoredRawContent(rawMime.ToArray()),
-            new EmailContentRenderingBounds(false, 100_000, int.MaxValue) { IncludeMailDocument = true },
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(EmailContentRenderingOutcome.Rendered, result.Outcome);
-        var document = result.Rendering!.Document;
-        Assert.NotNull(document);
-
-        return document;
     }
 
     private static string TextOf(MailDocumentBlock block) =>

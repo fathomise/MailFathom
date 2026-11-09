@@ -596,7 +596,7 @@ function parseBlockRange(
     const firstBlock = record?.['firstBlock'];
     const count = record?.['blockCount'];
 
-    return isCount(firstBlock) && isCount(count) && count > 0 && firstBlock + count <= blockCount
+    return isCount(firstBlock) && isSpanOfBlocks(count, blockCount - firstBlock)
         ? { firstBlock, blockCount: count }
         : undefined;
 }
@@ -655,11 +655,7 @@ function parseWrittenHeaders(value: unknown, blocksLeft: number): MailWrittenHea
     const author = record?.['author'];
     const date = record?.['date'];
 
-    return isCount(blockCount) &&
-        blockCount > 0 &&
-        blockCount <= blocksLeft &&
-        isWrittenHeaderText(author) &&
-        isWrittenHeaderText(date)
+    return isSpanOfBlocks(blockCount, blocksLeft) && isWrittenHeaderText(author) && isWrittenHeaderText(date)
         ? { blockCount, author, date }
         : undefined;
 }
@@ -1100,6 +1096,11 @@ function parsed(body: string): unknown {
 
 function isCount(value: unknown): value is number {
     return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+/** Whether a stated run of consecutive blocks holds at least one and stays within the blocks there are. */
+function isSpanOfBlocks(value: unknown, blocksLeft: number): value is number {
+    return isCount(value) && value > 0 && value <= blocksLeft;
 }
 
 function isShare(value: unknown): value is number {

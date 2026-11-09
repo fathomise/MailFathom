@@ -4,10 +4,15 @@
 
 using System.Security.Cryptography;
 using System.Text;
+using MailFathom.Application.EmailContent.Rendering;
+using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.EmailContent.Storage;
+using MailFathom.Application.Emails.Extraction;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Infrastructure.Mail.Mime;
+using Xunit;
 
 namespace MailFathom.Infrastructure.UnitTests.TestDoubles;
 
@@ -52,5 +57,40 @@ internal static class MimeFixtures
         ArgumentNullException.ThrowIfNull(rawMime);
 
         return new StoredEmailContent(rawMime, rawMime.LongLength, SHA256.HashData(rawMime));
+    }
+
+    /// <summary>Renders raw MIME as a read of a stored message does, asking for the document and the sender's own markup.</summary>
+    /// <param name="rawMime">The raw payload.</param>
+    /// <param name="authorIsProven">Whether the read established who wrote the message.</param>
+    /// <returns>The rendering, having asserted that one was produced.</returns>
+    public static async Task<EmailContentRendering> RenderingOf(ReadOnlyMemory<byte> rawMime, bool authorIsProven = false)
+    {
+        var renderer = new MimeKitEmailContentRenderer(new EmailMimeExtractionOptions { MaxPartCount = 1000 });
+
+        var result = await renderer.RenderAsync(
+            StoredRawContent(rawMime.ToArray()),
+            new EmailContentRenderingBounds(false, 100_000, int.MaxValue)
+            {
+                IncludeMailDocument = true,
+                IncludeSelfContainedHtml = true,
+                AuthorIsProven = authorIsProven,
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(EmailContentRenderingOutcome.Rendered, result.Outcome);
+
+        return result.Rendering!;
+    }
+
+    /// <summary>Renders raw MIME as <see cref="RenderingOf" /> does and answers its document.</summary>
+    /// <param name="rawMime">The raw payload.</param>
+    /// <param name="authorIsProven">Whether the read established who wrote the message.</param>
+    /// <returns>The document, having asserted that one was produced.</returns>
+    public static async Task<MailDocument> DocumentOf(ReadOnlyMemory<byte> rawMime, bool authorIsProven = false)
+    {
+        var document = (await RenderingOf(rawMime, authorIsProven)).Document;
+        Assert.NotNull(document);
+
+        return document;
     }
 }
