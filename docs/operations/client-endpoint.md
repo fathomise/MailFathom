@@ -5064,7 +5064,36 @@ tried again. The one decided proposal that can still be answered is a `failed` o
 accepted one either way. A caller whose grant does not carry every permission the act needs — `mailfathom.mail.drafts.write`
 and `mailfathom.mail.send` for a message, `mailfathom.mail.read` as well for an answer to one,
 `mailfathom.calendar.write` for an event, and `mailfathom.tasks.write` for a task — is `403` before anything is
-recorded. Declining carries nothing out. `DELETE /api/client/agent/conversations/{conversationId}` removes
+recorded. Declining carries nothing out.
+
+**A proposed message is sent as the person edited it when the acceptance carries the body they wrote:**
+
+```http
+PUT /api/client/agent/conversations/{conversationId}/proposals/8
+Content-Type: application/json
+
+{ "decision": "accepted", "body": "Thursday works for the walk-through. Thank you for holding the bays." }
+```
+
+The body takes the place of the one proposed and nothing else changes: the account it leaves from, its recipients, the
+message it answers, and the time it was proposed to leave at stay what was proposed. It is held to the bounds a proposed
+body is — at most 4 000 characters, not blank, no control character but a line break or a tab, and not markup — and
+then to everything sending it meets, exactly as a body `send_email` takes is: an over-long or empty one is `400` before
+anything is recorded, and one the deployment's own send bounds refuse ends the proposal `failed`. A body carried with
+`declined` is `400`, and one carried for a proposal that sends no message — an event or a task — is `409`, since there
+is no way of answering that proposal with one. Trying a failed proposal again sends the body the new acceptance carries,
+and the proposed one where it carries none.
+
+**Every answer says when it was given.** A `resolution` entry carries `answeredAt`, the instant it was recorded, and —
+on an acceptance sent as edited, and on the failure that may follow one — `editedBody`, the body that was sent in place
+of the proposed one:
+
+```json
+{"sequence":12,"entry":{"entry":"resolution","proposedAt":8,"state":"Accepted","answeredAt":"2026-09-22T09:42:00+00:00","editedBody":"Thursday works for the walk-through. Thank you for holding the bays."}}
+```
+
+A resolution sent as proposed carries no `editedBody`, and one recorded before resolutions said when carries no
+`answeredAt` either. `DELETE /api/client/agent/conversations/{conversationId}` removes
 the conversation and everything said in it, `204`, and `404` once there is nothing to remove.
 
 **Archiving puts a conversation away without losing any of it:**

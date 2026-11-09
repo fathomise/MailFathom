@@ -319,7 +319,7 @@ describe('readAgentConversation', () => {
             { kind: 'block', sequence: 4, run: question, block: { type: 'answer' } },
             { kind: 'proposal', sequence: 5, run: question, block: { type: 'answer' } },
             { kind: 'answerEnded', sequence: 6, run: question, outcome: 'stopped' },
-            { kind: 'resolution', sequence: 7, proposedAt: 5, state: 'declined' },
+            { kind: 'resolution', sequence: 7, proposedAt: 5, state: 'declined', answeredAt: null, editedBody: null },
             {
                 kind: 'citation',
                 sequence: 8,
@@ -616,6 +616,45 @@ describe('answerAgentProposal', () => {
             path: `${base}/${conversation}/proposals/7`,
             body: JSON.stringify({ decision: 'declined' }),
         });
+    });
+
+    it('carries the body a person edited a proposed message to beside accepting it', async () => {
+        const { transport, requests } = recording({ status: 200, body: JSON.stringify({ sequence: 9 }) });
+
+        await answerAgentProposal(session, transport, conversation, 7, 'accepted', 'Thursday works.');
+
+        expect(requests[0]?.body).toBe(JSON.stringify({ decision: 'accepted', body: 'Thursday works.' }));
+    });
+
+    it('reads when a proposal was answered and the body it was sent with', async () => {
+        const answered = await readAgentConversation(
+            session,
+            answering({
+                status: 200,
+                body: pageOf([
+                    entryOf(7, {
+                        entry: 'resolution',
+                        proposedAt: 5,
+                        state: 'Accepted',
+                        answeredAt: '2026-09-22T09:42:00+00:00',
+                        editedBody: 'Thursday works.',
+                    }),
+                ]),
+            }),
+            conversation,
+            0,
+        );
+
+        expect(answered.outcome === 'read' ? answered.value.events : null).toStrictEqual([
+            {
+                kind: 'resolution',
+                sequence: 7,
+                proposedAt: 5,
+                state: 'accepted',
+                answeredAt: '2026-09-22T09:42:00+00:00',
+                editedBody: 'Thursday works.',
+            },
+        ]);
     });
 
     it.each([404, 409])('reads a proposal no longer answerable that way, a %s, as missing', async (status) => {

@@ -85,6 +85,7 @@ internal sealed class RecordingAgentConversationStore : IAgentConversationStore
         UserId user,
         long proposedAt,
         AgentProposalState state,
+        PresentationText? editedBody,
         DateTimeOffset now,
         CancellationToken cancellationToken) =>
         throw Unasked();

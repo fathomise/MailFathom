@@ -567,7 +567,7 @@ internal static class ClientAgentConversationEndpoints
     /// <param name="controls">Records a decline and announces it.</param>
     /// <param name="acceptance">Records an acceptance and carries out exactly the act that was proposed.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
-    /// <returns><c>200</c> naming the place the last answer to the proposal was written at; <c>400</c> for a decision that is neither accepted nor declined; <c>409</c> where there is no proposal at that place this person can answer that way — none offered, not theirs, or already answered; or <c>403</c> for a caller whose grant does not carry <c>mailfathom.assistant.use</c>, or, on accepting, every grant the proposed act needs.</returns>
+    /// <returns><c>200</c> naming the place the last answer to the proposal was written at; <c>400</c> for a decision that is neither accepted nor declined, or an edited body that is not acceptable text or comes with a decline; <c>409</c> where there is no proposal at that place this person can answer that way — none offered, not theirs, already answered, or one sending no message offered an edited body; or <c>403</c> for a caller whose grant does not carry <c>mailfathom.assistant.use</c>, or, on accepting, every grant the proposed act needs.</returns>
     /// <remarks>
     /// Accepting carries the act out, under the accepting caller's own grant, before this route answers: an act this
     /// deployment refuses — a recipient a governor refuses, an account no longer served — ends the proposal as failed,
@@ -602,9 +602,24 @@ internal static class ClientAgentConversationEndpoints
                 statusCode: StatusCodes.Status400BadRequest);
         }
 
+        PresentationText? editedBody = null;
+
+        if (request?.Body is { } body)
+        {
+            if (decided is not AgentProposalState.Accepted || !PresentationText.TryCreate(body, out var written))
+            {
+                return TypedResults.Problem(
+                    $"An edited body is carried only by '{ClientAgentProposalAnswerRequest.Accepted}', and is text of at "
+                    + $"most {PresentationText.MaxLength} characters that is not blank, carries no control character, and is not markup.",
+                    statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            editedBody = written;
+        }
+
         var conversation = AgentConversationId.Create(conversationId);
         var answered = decided is AgentProposalState.Accepted
-            ? await acceptance.AcceptAsync(conversation, scopeResolver.User, proposedAt, cancellationToken)
+            ? await acceptance.AcceptAsync(conversation, scopeResolver.User, proposedAt, editedBody, cancellationToken)
             : await controls.DeclineProposalAsync(conversation, scopeResolver.User, proposedAt, cancellationToken);
 
         return answered is { } place
@@ -673,7 +688,8 @@ internal sealed record ClientAgentMessageResponse(Guid MessageId, Guid RunId, lo
 
 /// <summary>A decision on one proposal.</summary>
 /// <param name="Decision"><c>accepted</c> or <c>declined</c>.</param>
-internal sealed record ClientAgentProposalAnswerRequest(string? Decision)
+/// <param name="Body">The body a person edited a proposed message to, sent in place of the proposed one, and absent to send what was proposed; only accepting carries one.</param>
+internal sealed record ClientAgentProposalAnswerRequest(string? Decision, string? Body = null)
 {
     /// <summary>The word that accepts a proposal.</summary>
     internal const string Accepted = "accepted";

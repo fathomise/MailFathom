@@ -206,6 +206,7 @@ public sealed class AgentConversationControls
             user,
             proposedAt,
             AgentProposalState.Declined,
+            editedBody: null,
             this.timeProvider.GetUtcNow(),
             cancellationToken);
 

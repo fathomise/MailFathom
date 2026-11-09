@@ -195,7 +195,8 @@ for (const [act, decision, said] of [
             const card = thread.getByRole('article', { name: proposal.card, exact: true });
 
             if (decision === 'accepted') {
-                await expect(card.getByText(proposal.done, { exact: true })).toBeVisible();
+                // The result line ends in when it was answered, which the record says.
+                await expect(card.getByText(new RegExp(`^${proposal.done} · \\S`, 'u'))).toBeVisible();
             } else {
                 await expect(card.getByText('Declined - nothing was done')).toBeVisible();
             }

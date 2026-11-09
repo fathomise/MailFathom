@@ -371,8 +371,6 @@ export const en = {
     'draft.discard': 'Discard',
     'draft.discardName': 'Discard the draft to {to}',
     'draft.stopEditingName': 'Stop editing the draft to {to}',
-    'draft.editedUnsendable':
-        'Your edit cannot be sent from here yet - only the draft as it was proposed can. Put the text back to send it, or copy your changes into a reply.',
     'draft.done': 'Sent',
     'draft.failed': 'Could not send it.',
     'draft.sendAt': 'Send {when}',
@@ -414,6 +412,7 @@ export const en = {
     'proposal.notDone': 'not done',
     'proposal.declined': 'declined',
     'proposal.declinedLine': 'Declined - nothing was done',
+    'proposal.resultAt': '{result} · {when}',
     'proposal.decline': 'Decline',
     'proposal.tryAgain': 'Try again',
     'proposal.tryAgainName': 'Try again: {title}',

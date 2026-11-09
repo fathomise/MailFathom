@@ -377,8 +377,6 @@ export const pl: Catalogue = {
     'draft.discard': 'Odrzuć',
     'draft.discardName': 'Odrzuć szkic do {to}',
     'draft.stopEditingName': 'Zakończ edycję szkicu do {to}',
-    'draft.editedUnsendable':
-        'Poprawionej treści nie da się jeszcze stąd wysłać – można wysłać tylko szkic w zaproponowanej postaci. Przywróć treść, aby go wysłać, albo przenieś swoje zmiany do odpowiedzi.',
     'draft.done': 'Wysłano',
     'draft.failed': 'Nie udało się tego wysłać.',
     'draft.sendAt': 'Wyślij {when}',
@@ -420,6 +418,7 @@ export const pl: Catalogue = {
     'proposal.notDone': 'nie zrobiono',
     'proposal.declined': 'odrzucone',
     'proposal.declinedLine': 'Odrzucono – nic nie zostało zrobione',
+    'proposal.resultAt': '{result} · {when}',
     'proposal.decline': 'Odrzuć',
     'proposal.tryAgain': 'Spróbuj ponownie',
     'proposal.tryAgainName': 'Spróbuj ponownie: {title}',

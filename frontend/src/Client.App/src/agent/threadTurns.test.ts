@@ -52,11 +52,47 @@ describe('threadOf', () => {
             asked,
             started,
             proposed,
-            { kind: 'resolution', sequence: 4, proposedAt: 3, state: 'declined' },
+            { kind: 'resolution', sequence: 4, proposedAt: 3, state: 'declined', answeredAt: null, editedBody: null },
         ]);
 
-        expect(pending[1]).toMatchObject({ blocks: [{ phase: 'pending' }] });
+        expect(pending[1]).toMatchObject({ blocks: [{ phase: 'pending', answeredAt: null, editedBody: null }] });
         expect(declined[1]).toMatchObject({ blocks: [{ phase: 'declined' }] });
+    });
+
+    it('carries when the latest answer was given and the body it sent in place of the proposed one', () => {
+        const proposed: AgentConversationEntry = { kind: 'proposal', sequence: 3, run: 'q-1', block };
+
+        const turns = threadOf([
+            asked,
+            started,
+            proposed,
+            {
+                kind: 'resolution',
+                sequence: 4,
+                proposedAt: 3,
+                state: 'failed',
+                answeredAt: '2026-09-22T09:40:00+00:00',
+                editedBody: 'Agreed.',
+            },
+            {
+                kind: 'resolution',
+                sequence: 5,
+                proposedAt: 3,
+                state: 'accepted',
+                answeredAt: '2026-09-22T09:42:00+00:00',
+                editedBody: 'Agreed, from Monday.',
+            },
+        ]);
+
+        expect(turns[1]).toMatchObject({
+            blocks: [
+                {
+                    phase: 'accepted',
+                    answeredAt: '2026-09-22T09:42:00+00:00',
+                    editedBody: 'Agreed, from Monday.',
+                },
+            ],
+        });
     });
 
     it('reads a line the agent wrote after a stop as the note the stop left', () => {

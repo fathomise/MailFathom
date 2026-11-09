@@ -1811,7 +1811,12 @@ export class FakeDeployment {
         }
 
         if (method === 'PUT' && part === 'proposals' && parameter !== undefined) {
-            return this.proposalAnswered(conversation, Number(parameter), recordIn(body)?.['decision']);
+            return this.proposalAnswered(
+                conversation,
+                Number(parameter),
+                recordIn(body)?.['decision'],
+                recordIn(body)?.['body'],
+            );
         }
 
         return null;
@@ -1895,7 +1900,12 @@ export class FakeDeployment {
      * A proposal already answered is refused as the service refuses it, `409`, and a place that holds no proposal as
      * `404` — the two answers the client reads as the card having moved on under it.
      */
-    private proposalAnswered(conversation: Conversation, proposedAt: number, decision: unknown): FakeAnswer {
+    private proposalAnswered(
+        conversation: Conversation,
+        proposedAt: number,
+        decision: unknown,
+        editedBody: unknown,
+    ): FakeAnswer {
         const entries = [...this.written(conversation), ...conversation.added];
         const proposal = entries.find((held) => held.sequence === proposedAt && held.entry['entry'] === 'proposal');
 
@@ -1911,6 +1921,8 @@ export class FakeDeployment {
             entry: 'resolution',
             proposedAt,
             state: decision === 'accepted' ? 'Accepted' : 'Declined',
+            answeredAt: (this.heldInstant ?? new Date()).toISOString(),
+            ...(typeof editedBody === 'string' ? { editedBody } : {}),
         });
 
         return answering({ sequence });

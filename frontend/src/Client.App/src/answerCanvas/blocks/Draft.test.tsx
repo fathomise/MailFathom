@@ -88,7 +88,16 @@ function inConversation(
     phase: ProposalPhase,
     answer: (decision: AgentProposalDecision) => void = () => undefined,
 ): ProposalAnswering {
-    return { phase, answering: false, refused: null, answer, askAnotherTime: () => undefined, look: null };
+    return {
+        phase,
+        answering: false,
+        refused: null,
+        answeredAt: null,
+        editedBody: null,
+        answer,
+        askAnotherTime: () => undefined,
+        look: null,
+    };
 }
 
 function renderDraft(
@@ -275,8 +284,8 @@ describe('Draft', () => {
             expect(screen.getByText('Agreed.')).toBeDefined();
         });
 
-        it('holds Send once the text differs from what was proposed, and says why', () => {
-            const answer = vi.fn<(decision: AgentProposalDecision) => void>();
+        it('sends the text as the reader edited it, while editing and after editing stopped', () => {
+            const answer = vi.fn<(decision: AgentProposalDecision, editedBody?: string) => void>();
             renderDraft(drafted(), inConversation('pending', answer));
 
             fireEvent.click(
@@ -286,9 +295,22 @@ describe('Draft', () => {
             );
             fireEvent.change(screen.getByRole('textbox', { name: 'Draft text' }), { target: { value: 'Agreed.' } });
             fireEvent.click(screen.getByRole('button', { name: 'Send the edited draft to anna@contoso.example' }));
+            fireEvent.click(screen.getByRole('button', { name: 'Stop editing the draft to anna@contoso.example' }));
+            fireEvent.click(screen.getByRole('button', { name: 'Send the edited draft to anna@contoso.example' }));
 
-            expect(answer).not.toHaveBeenCalled();
-            expect(screen.getByText(/Your edit cannot be sent from here yet/)).toBeDefined();
+            expect(answer.mock.calls).toEqual([
+                ['accepted', 'Agreed.'],
+                ['accepted', 'Agreed.'],
+            ]);
+        });
+
+        it('shows the text that was sent where the record says it was sent as edited', () => {
+            renderDraft(drafted(), { ...inConversation('accepted'), editedBody: 'Agreed, from Monday.' });
+
+            expect(screen.getByText('Agreed, from Monday.')).toBeDefined();
+            expect(
+                screen.queryByText('We accept shortening the response time to 2 hours on business days.'),
+            ).toBeNull();
         });
 
         it('reads the subject and the text out in the language they were written in', () => {

@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
+using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Signals;
 using MailFathom.Application.UnitTests.Agent.Conversations;
 using MailFathom.Domain.Access;
@@ -49,22 +50,22 @@ public sealed class AgentProposalAcceptanceTests : IAsyncDisposable
     {
         // Arrange
         this.ProposalStands();
-        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, Now, Arg.Any<CancellationToken>())
+        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, null, Now, Arg.Any<CancellationToken>())
             .Returns(9L);
         this.performer.PerformAsync(this.act, Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
 
         // Act
-        var place = await this.Acceptance(Granted()).AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, TestContext.Current.CancellationToken);
+        var place = await this.Acceptance(Granted()).AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, editedBody: null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(9L, place);
         Received.InOrder(() =>
         {
-            _ = this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, Now, Arg.Any<CancellationToken>());
+            _ = this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, null, Now, Arg.Any<CancellationToken>());
             _ = this.performer.PerformAsync(this.act, AgentActPerformer.KeyOf(Conversation, ProposedAt), Arg.Any<CancellationToken>());
         });
         await this.store.DidNotReceive().TryResolveProposalAsync(
-            Arg.Any<AgentConversationId>(), Arg.Any<UserId>(), Arg.Any<long>(), AgentProposalState.Failed, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+            Arg.Any<AgentConversationId>(), Arg.Any<UserId>(), Arg.Any<long>(), AgentProposalState.Failed, Arg.Any<PresentationText?>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>An act this deployment refuses ends the proposal as failed, which is what the conversation then shows.</summary>
@@ -73,14 +74,14 @@ public sealed class AgentProposalAcceptanceTests : IAsyncDisposable
     {
         // Arrange
         this.ProposalStands();
-        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, Now, Arg.Any<CancellationToken>())
+        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, null, Now, Arg.Any<CancellationToken>())
             .Returns(9L);
-        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Failed, Now, Arg.Any<CancellationToken>())
+        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Failed, null, Now, Arg.Any<CancellationToken>())
             .Returns(10L);
         this.performer.PerformAsync(this.act, Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
 
         // Act
-        var place = await this.Acceptance(Granted()).AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, TestContext.Current.CancellationToken);
+        var place = await this.Acceptance(Granted()).AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, editedBody: null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(10L, place);
@@ -92,16 +93,16 @@ public sealed class AgentProposalAcceptanceTests : IAsyncDisposable
     {
         // Arrange
         this.ProposalStands();
-        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, Now, Arg.Any<CancellationToken>())
+        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, null, Now, Arg.Any<CancellationToken>())
             .Returns(9L);
         this.performer.PerformAsync(this.act, Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException<bool>(new InvalidOperationException("Unexpected.")));
 
         // Act and assert
         await Assert.ThrowsAsync<InvalidOperationException>(() => this.Acceptance(Granted())
-            .AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, TestContext.Current.CancellationToken));
+            .AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, editedBody: null, TestContext.Current.CancellationToken));
         await this.store.Received(1).TryResolveProposalAsync(
-            Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Failed, Now, Arg.Any<CancellationToken>());
+            Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Failed, null, Now, Arg.Any<CancellationToken>());
     }
 
     /// <summary>A grant that could not carry the act out is refused before anything is recorded, so no proposal reads accepted and then failed over it.</summary>
@@ -113,9 +114,9 @@ public sealed class AgentProposalAcceptanceTests : IAsyncDisposable
 
         // Act and assert
         await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() => this.Acceptance(Granted(MailFathomPermission.AssistantUse, MailFathomPermission.MailDraftsWrite))
-            .AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, TestContext.Current.CancellationToken));
+            .AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, editedBody: null, TestContext.Current.CancellationToken));
         await this.store.DidNotReceive().TryResolveProposalAsync(
-            Arg.Any<AgentConversationId>(), Arg.Any<UserId>(), Arg.Any<long>(), Arg.Any<AgentProposalState>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+            Arg.Any<AgentConversationId>(), Arg.Any<UserId>(), Arg.Any<long>(), Arg.Any<AgentProposalState>(), Arg.Any<PresentationText?>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
         await this.performer.DidNotReceive().PerformAsync(Arg.Any<AgentProposedAct>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -125,11 +126,11 @@ public sealed class AgentProposalAcceptanceTests : IAsyncDisposable
     {
         // Arrange
         this.ProposalStands();
-        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, Now, Arg.Any<CancellationToken>())
+        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, null, Now, Arg.Any<CancellationToken>())
             .Returns((long?)null);
 
         // Act
-        var place = await this.Acceptance(Granted()).AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, TestContext.Current.CancellationToken);
+        var place = await this.Acceptance(Granted()).AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, editedBody: null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(place);
@@ -150,12 +151,51 @@ public sealed class AgentProposalAcceptanceTests : IAsyncDisposable
                 MoreFollows: false));
 
         // Act
-        var place = await this.Acceptance(Granted()).AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, TestContext.Current.CancellationToken);
+        var place = await this.Acceptance(Granted()).AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, editedBody: null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(place);
         await this.store.DidNotReceive().TryResolveProposalAsync(
-            Arg.Any<AgentConversationId>(), Arg.Any<UserId>(), Arg.Any<long>(), Arg.Any<AgentProposalState>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+            Arg.Any<AgentConversationId>(), Arg.Any<UserId>(), Arg.Any<long>(), Arg.Any<AgentProposalState>(), Arg.Any<PresentationText?>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A proposed message accepted with an edited body is sent with that body, and the acceptance records it.</summary>
+    [Fact]
+    public async Task AcceptAsync_AProposedMessageWithAnEditedBody_SendsAndRecordsTheEditedBody()
+    {
+        // Arrange
+        var edited = PresentationText.Create("Thursday works, thank you.");
+        var sent = Assert.IsType<AgentMessageSending>(this.act) with { Body = edited };
+        this.ProposalStands();
+        this.store.TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, ProposedAt, AgentProposalState.Accepted, edited, Now, Arg.Any<CancellationToken>())
+            .Returns(9L);
+        this.performer.PerformAsync(sent, Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
+
+        // Act
+        var place = await this.Acceptance(Granted()).AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, edited, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(9L, place);
+        await this.performer.Received(1).PerformAsync(sent, AgentActPerformer.KeyOf(Conversation, ProposedAt), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A proposal that sends no message has no body to edit, so an edited body offered with it is refused before anything is recorded.</summary>
+    [Fact]
+    public async Task AcceptAsync_AnEditedBodyForAProposalSendingNoMessage_RecordsAndCarriesOutNothing()
+    {
+        // Arrange
+        var scheduling = new AgentEventScheduling(PresentationText.Create("Walk-through"), Now.AddDays(1), End: null, IsAllDay: false, SourceMessage: null);
+        this.ProposalStands(scheduling);
+
+        // Act
+        var place = await this.Acceptance(Granted(MailFathomPermission.AssistantUse, MailFathomPermission.CalendarWrite))
+            .AcceptAsync(Conversation, SyntheticUser.Deployment, ProposedAt, PresentationText.Create("Edited."), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(place);
+        await this.store.DidNotReceive().TryResolveProposalAsync(
+            Arg.Any<AgentConversationId>(), Arg.Any<UserId>(), Arg.Any<long>(), Arg.Any<AgentProposalState>(), Arg.Any<PresentationText?>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+        await this.performer.DidNotReceive().PerformAsync(Arg.Any<AgentProposedAct>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     /// <inheritdoc />
@@ -166,13 +206,13 @@ public sealed class AgentProposalAcceptanceTests : IAsyncDisposable
             ? [MailFathomPermission.AssistantUse, MailFathomPermission.MailDraftsWrite, MailFathomPermission.MailSend]
             : permissions);
 
-    private void ProposalStands() =>
+    private void ProposalStands(AgentProposedAct? proposed = null) =>
         this.store.ReadAsync(Conversation, SyntheticUser.Deployment, AgentConversationHistory.Visible, ProposedAt - 1, 1, Arg.Any<CancellationToken>())
             .Returns(new AgentConversationReading(
                 Title: null,
                 Now,
                 Composing: false,
-                [new AgentActionProposed(AgentMessageId.New(), AgentConversationExample.Actionable(), this.act) with { ConversationId = Conversation, Sequence = ProposedAt }],
+                [new AgentActionProposed(AgentMessageId.New(), AgentConversationExample.Actionable(), proposed ?? this.act) with { ConversationId = Conversation, Sequence = ProposedAt }],
                 MoreFollows: false));
 
     private AgentProposalAcceptance Acceptance(AccessAuthorization authorization) =>
