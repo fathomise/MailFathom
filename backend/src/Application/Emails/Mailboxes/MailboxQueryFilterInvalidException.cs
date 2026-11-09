@@ -18,7 +18,8 @@ namespace MailFathom.Application.Emails.Mailboxes;
 /// <para>
 /// The message names the filter and, where there is one, its limit. It never repeats the value that was refused,
 /// because an address and a subject fragment are mail content; both the filter name and the limit come from this
-/// assembly rather than from the request.
+/// assembly rather than from the request. <see cref="CategoryNotOffered"/> is the one refusal whose message also carries
+/// text an account's owner wrote, the names of its own categories, and its remarks say where that message may go.
 /// </para>
 /// </remarks>
 public sealed class MailboxQueryFilterInvalidException : MailFathomException
