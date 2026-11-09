@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
@@ -55,6 +56,9 @@ public sealed class OrchestratedMutationReconciliationReadTests(MailFathomOrches
 
     /// <summary>An age bound every record this class writes is newer than, which is what a window whose reading predates them passes.</summary>
     private static readonly DateTimeOffset BeforeEveryRecord = new(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    /// <summary>A moment later than every record this class writes, which is what a forward pass opened after them passes.</summary>
+    private static readonly DateTimeOffset AfterEveryRecord = new(2100, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     private static readonly MailboxMutationRequester Requester =
         MailboxMutationRequester.Rule("reconciliation-read", "1");
@@ -259,6 +263,89 @@ public sealed class OrchestratedMutationReconciliationReadTests(MailFathomOrches
         // The five kept are the newest of the six, which is what makes the budget the recent history of the value
         // rather than an arbitrary five of it.
         Assert.DoesNotContain(crowdedRecordIds[0], flagChanges.Select(change => change.Id));
+    }
+
+    /// <summary>
+    /// A move a server took without naming where it put the message leaves one row rather than two: the discovery the
+    /// destination's pass stored stands for it, so the row left at the old occurrence goes. The second message of the
+    /// arrangement is the control, whose row a later change has already carried elsewhere and which therefore stays.
+    /// </summary>
+    [Fact]
+    public async Task RetireUnboundPlacementsAsync_MovesTheServerNamedNoPlacementFor_RetiresOnlyTheRowStillAtItsOccurrence()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, FolderAlias, cancellationToken);
+        var destination = RemoteFolderPath.Create("MutationReconciliationUnbound", hierarchyDelimiter: '.');
+
+        var stranded = SyntheticEmail.OccurrenceIn(binding, uid: 5301);
+        var strandedEmail = await StoredSyntheticEmail.MetadataOnlyAsync(services, stranded, "stranded", cancellationToken);
+        var carried = SyntheticEmail.OccurrenceIn(binding, uid: 5302);
+        var carriedEmail = await StoredSyntheticEmail.MetadataOnlyAsync(services, carried, "carried", cancellationToken);
+
+        await CompletedRelocationWithNoPlacementAsync(
+            services,
+            MailboxMutationRequest.Relocate(strandedEmail, stranded, Requester, destination),
+            cancellationToken);
+        await CompletedRelocationWithNoPlacementAsync(
+            services,
+            MailboxMutationRequest.Relocate(carriedEmail, carried, Requester, destination),
+            cancellationToken);
+        await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IEmailMetadataRepository>().TryCarryToOccurrenceAsync(
+                session,
+                carriedEmail,
+                SyntheticEmail.OccurrenceIn(binding, uid: 5303),
+                token),
+            cancellationToken);
+
+        // Act
+        var hadWork = await HasUnboundPlacementsAsync(services, destination, cancellationToken);
+        var retired = await services.CommitProducingAsync(
+            (scope, session, token) => scope.GetRequiredService<IMailboxMutationReconciliationStore>()
+                .RetireUnboundPlacementsAsync(session, SyntheticMailAccount.Account, destination, AfterEveryRecord, token),
+            cancellationToken);
+        var hasWorkAfterwards = await HasUnboundPlacementsAsync(services, destination, cancellationToken);
+
+        // Assert
+        Assert.True(hadWork);
+        Assert.Equal([strandedEmail], retired);
+        Assert.False(hasWorkAfterwards);
+    }
+
+    private static Task<bool> HasUnboundPlacementsAsync(
+        OrchestratedMailFathomServices services,
+        RemoteFolderPath destination,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<IMailboxMutationReconciliationStore>()
+                .HasUnboundPlacementsAsync(SyntheticMailAccount.Account, destination, AfterEveryRecord, token),
+            cancellationToken);
+
+    private static async Task CompletedRelocationWithNoPlacementAsync(
+        OrchestratedMailFathomServices services,
+        MailboxMutationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var recordId = await OpenAsync(services, request, cancellationToken);
+
+        Assert.Equal(
+            PersistenceCommitResult.Committed,
+            await services.CommitAsync(
+                async (scope, session, token) =>
+                {
+                    var store = scope.GetRequiredService<IMailboxMutationRecordStore>();
+
+                    await store.RecordPlacementIssuedAsync(session, recordId, requiresSourceRemoval: false, token);
+                    await store.AdvanceAsync(
+                        session,
+                        recordId,
+                        MailboxMutationStage.PlacementConfirmed,
+                        RemoteEmailPlacement.NotReported(),
+                        token);
+                    await store.AdvanceAsync(session, recordId, MailboxMutationStage.Completed, placement: null, token);
+                },
+                cancellationToken));
     }
 
     private static Task<IReadOnlyList<MailboxMutationRecord>> ReadFlagChangesAsync(

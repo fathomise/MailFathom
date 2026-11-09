@@ -189,7 +189,7 @@ internal sealed class InMemoryMailboxMutationReconciliationStore : IMailboxMutat
     }
 
     /// <inheritdoc />
-    public Task<bool> HasUnboundLocalCopiesAsync(
+    public Task<bool> HasUnboundPlacementsAsync(
         MailAccountId account,
         RemoteFolderPath destinationPath,
         DateTimeOffset completedBefore,
@@ -197,7 +197,7 @@ internal sealed class InMemoryMailboxMutationReconciliationStore : IMailboxMutat
         Task.FromResult(this.UnboundCopies(account, destinationPath, completedBefore).Any());
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<StoredEmailId>> RetireUnboundLocalCopiesAsync(
+    public Task<IReadOnlyList<StoredEmailId>> RetireUnboundPlacementsAsync(
         IPersistenceSession session,
         MailAccountId account,
         RemoteFolderPath destinationPath,

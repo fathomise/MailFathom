@@ -528,6 +528,104 @@ public sealed class MailKitImapWriteSessionTests
     }
 
     /// <summary>
+    /// A server answers <c>OK</c> to a <c>MOVE</c> or a <c>COPY</c> naming a UID that has gone and does nothing, which
+    /// nothing after the command can tell from a success, so whether the message is there is read before it.
+    /// </summary>
+    [Theory]
+    [InlineData(true, ImapCapabilities.Move | ImapCapabilities.UidPlus)]
+    [InlineData(false, ImapCapabilities.Move | ImapCapabilities.UidPlus)]
+    [InlineData(false, ImapCapabilities.UidPlus)]
+    public async Task PlacingMutations_MessageNoLongerAtItsUid_AreRefusedPermanentlyBeforeAnythingIsIssued(
+        bool isCopy,
+        ImapCapabilities capabilities)
+    {
+        // Arrange
+        using var resilience = CreateSingleAttemptResilience();
+        var client = new FakeImapClient { Capabilities = capabilities };
+        var openFolder = CreateWritableFolder();
+        openFolder
+            .FetchAsync(Arg.Any<IList<UniqueId>>(), Arg.Any<IFetchRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IList<IMessageSummary>>([]));
+        var journal = new RecordingMailboxMutationJournal();
+        await using var harness = CreateHarness(resilience, client, openFolder);
+        await using var session = await harness.OpenSessionAsync();
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailboxMutationDeclinedException>(
+            () => isCopy
+                ? session.CopyAsync(CreateOccurrenceId(42U), Archive, journal, CancellationToken.None)
+                : session.RelocateAsync(CreateOccurrenceId(42U), Archive, journal, CancellationToken.None));
+
+        // Assert
+        Assert.Equal(MailboxMutationRefusalClass.Permanent, refusal.RefusalClass);
+        Assert.Equal(MailboxMutationStage.Recorded, journal.Stage);
+        await openFolder.DidNotReceive().CopyToAsync(
+            Arg.Any<IList<UniqueId>>(),
+            Arg.Any<IMailFolder>(),
+            Arg.Any<CancellationToken>());
+        await openFolder.DidNotReceive().MoveToAsync(
+            Arg.Any<IList<UniqueId>>(),
+            Arg.Any<IMailFolder>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A selection opened before another client took the message still lists it until the server is given the chance to say so.</summary>
+    [Fact]
+    public async Task CopyAsync_Always_LetsTheServerReportExpungesBeforeReadingWhetherTheMessageIsThere()
+    {
+        // Arrange
+        using var resilience = CreateSingleAttemptResilience();
+        var client = new FakeImapClient { Capabilities = ImapCapabilities.UidPlus };
+        var openFolder = CreateWritableFolder();
+        var present = Substitute.For<IMessageSummary>();
+        var commands = new List<string>();
+        client.Client.NoOpAsync(Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            commands.Add("NOOP");
+
+            return Task.CompletedTask;
+        });
+        openFolder
+            .FetchAsync(Arg.Any<IList<UniqueId>>(), Arg.Any<IFetchRequest>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                commands.Add("UID FETCH");
+
+                return Task.FromResult<IList<IMessageSummary>>([present]);
+            });
+        await using var harness = CreateHarness(resilience, client, openFolder);
+        await using var session = await harness.OpenSessionAsync();
+
+        // Act
+        await session.CopyAsync(CreateOccurrenceId(42U), Archive, new RecordingMailboxMutationJournal(), CancellationToken.None);
+
+        // Assert
+        Assert.Equal(["NOOP", "UID FETCH"], commands);
+    }
+
+    /// <summary>A placement already confirmed is finished, whatever the source now holds, so a resumed copy asks nothing.</summary>
+    [Fact]
+    public async Task CopyAsync_PlacementAlreadyConfirmed_DoesNotReadWhetherTheMessageIsThere()
+    {
+        // Arrange
+        using var resilience = CreateSingleAttemptResilience();
+        var client = new FakeImapClient { Capabilities = ImapCapabilities.UidPlus };
+        var openFolder = CreateWritableFolder();
+        var journal = new RecordingMailboxMutationJournal(MailboxMutationStage.PlacementConfirmed);
+        await using var harness = CreateHarness(resilience, client, openFolder);
+        await using var session = await harness.OpenSessionAsync();
+
+        // Act
+        await session.CopyAsync(CreateOccurrenceId(42U), Archive, journal, CancellationToken.None);
+
+        // Assert
+        await openFolder.DidNotReceive().FetchAsync(
+            Arg.Any<IList<UniqueId>>(),
+            Arg.Any<IFetchRequest>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
     /// Both halves of the placement come out of the <c>COPYUID</c> response, which is the only place the destination's
     /// UIDVALIDITY is available: the folder was resolved by path and never selected, so it reports zero. Reading it
     /// there would raise a failure while describing a relocation that had already moved the message — the worst

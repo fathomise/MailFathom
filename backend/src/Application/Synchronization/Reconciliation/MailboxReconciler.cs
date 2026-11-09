@@ -160,12 +160,12 @@ public sealed class MailboxReconciler
             folder.Id,
             uidValidity,
             cancellationToken);
-        var flagChanges = await this.AttributeFlagChangesAsync(
-            classification,
-            account,
-            folder.Id,
-            uidValidity,
-            cancellationToken);
+
+        // On an account MailFathom is the truth for, a value differing from the source is a person's act or another
+        // client's change that is not imported, so it is nobody's change to attribute, count, or react to.
+        var flagChanges = outcome.SourceIsTheTruth
+            ? await this.AttributeFlagChangesAsync(classification, account, folder.Id, uidValidity, cancellationToken)
+            : ReconciledFlagChanges.None;
 
         await this.concurrencyRetryPolicy.CommitAsync(
             async (persistenceSession, attemptCancellationToken) =>
@@ -195,8 +195,8 @@ public sealed class MailboxReconciler
 
         return new MailboxReconciliationResult(
             outcome.StillPresent.Count + outcome.ConfirmedUnchanged.Count,
-            outcome.AppliesRemoteDeletions ? outcome.Disappeared.Count : 0,
-            outcome.AppliesRemoteDeletions ? 0 : outcome.Disappeared.Count,
+            outcome.SourceIsTheTruth ? outcome.Disappeared.Count : 0,
+            outcome.SourceIsTheTruth ? 0 : outcome.Disappeared.Count,
             outcome.RemovedByOwnMutation.Count,
             flagChanges.ExternalSeenStateCount,
             flagChanges.ExternalFlaggedStateCount,
@@ -244,7 +244,7 @@ public sealed class MailboxReconciler
             return;
         }
 
-        var moved = classification.Moved;
+        IReadOnlyList<ObservedWindowCandidate> moved = outcome.SourceIsTheTruth ? classification.Moved : [];
         var left = outcome.Disappeared
             .Concat(outcome.RemovedByOwnMutation.Select(static attributed => attributed.StoredEmailId))
             .ToArray();
@@ -298,7 +298,7 @@ public sealed class MailboxReconciler
         // holds the answer is that the source has no say at all: an occurrence gone from it is the drain's own work
         // completing, and the local row is the only copy there is.
         var custody = await this.custodyStore.ReadAsync(account, cancellationToken);
-        var appliesRemoteDeletions = custody?.AppliesRemoteDeletions ?? true;
+        var sourceIsTheTruth = custody is not { IsMailFathomTheTruth: true };
         var observedAt = this.timeProvider.GetUtcNow();
 
         if (classification.Disappeared.Count == 0)
@@ -309,7 +309,7 @@ public sealed class MailboxReconciler
                 [],
                 [],
                 disposition,
-                appliesRemoteDeletions,
+                sourceIsTheTruth,
                 observedAt);
         }
 
@@ -342,7 +342,7 @@ public sealed class MailboxReconciler
                         attribution.Record.Request.LocalDisposition)),
             ],
             disposition,
-            appliesRemoteDeletions,
+            sourceIsTheTruth,
             observedAt);
     }
 

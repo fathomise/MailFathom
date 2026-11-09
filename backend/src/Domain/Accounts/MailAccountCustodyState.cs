@@ -38,21 +38,6 @@ public sealed record MailAccountCustodyState(MailAccountCustody Requested, MailA
     /// </remarks>
     public bool IsMailFathomTheTruth => this.Phase is not MailAccountCustodyPhase.Mirrored;
 
-    /// <summary>Gets whether a disappearance from the source is a deletion this account applies to what it stores.</summary>
-    /// <remarks>
-    /// <para>
-    /// It is not, from the moment MailFathom becomes the truth, because MailFathom is the one emptying the source: a
-    /// message that has left is one the drain removed, and applying the account's disposition for mail somebody else
-    /// deleted would erase or tombstone every message the mode successfully drained.
-    /// </para>
-    /// <para>
-    /// The answer is the phase's alone and never the account's configured disposition, which is why the switch no
-    /// longer refuses an account configured to erase the local copy: the configuration goes on saying what it says and
-    /// stops being consulted for as long as the mailbox is held.
-    /// </para>
-    /// </remarks>
-    public bool AppliesRemoteDeletions => !this.IsMailFathomTheTruth;
-
     /// <summary>Gets whether the account is being asked to move to a custody it has not reached yet.</summary>
     public bool IsSwitchPending => this.Requested switch
     {

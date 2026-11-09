@@ -51,18 +51,20 @@ public sealed record MutationAttributedDisappearance(
 /// <paramref name="RemovedByOwnMutation" />, which is the whole point of the split: an account configured to erase what
 /// its server loses must not thereby erase what MailFathom itself was told to delete.
 /// </param>
-/// <param name="AppliesRemoteDeletions">
-/// Whether the source is still the truth about what exists on this account. <see langword="false" /> on an account
-/// whose mailbox MailFathom holds, where the disposition above is not reached at all.
+/// <param name="SourceIsTheTruth">
+/// Whether the source is still the truth about this account's mail. <see langword="false" /> on an account whose mailbox
+/// MailFathom holds or is restoring, where the disposition above is not reached at all and an observation writes nothing
+/// but a message's first reading.
 /// </param>
 /// <param name="ObservedAt">When this window was read, which orders it against what other writers have recorded.</param>
 /// <remarks>
 /// <para>
-/// <paramref name="AppliesRemoteDeletions" /> is what an account whose mailbox MailFathom holds answers
+/// <paramref name="SourceIsTheTruth" /> is what an account whose mailbox MailFathom holds answers
 /// <see langword="false" /> to, and it outranks <paramref name="Disposition" /> rather than choosing among its values.
 /// On such an account the source is not the truth about what exists: a message gone from it is a message the drain has
 /// taken off it, so the local row keeps its whole life and only its occurrence is cleared. Reaching the disposition
-/// there would let a setting written about a mirror erase the only copy of somebody's mail.
+/// there would let a setting written about a mirror erase the only copy of somebody's mail. Only a message whose content
+/// was never stored goes, because the drain never takes one and MailFathom therefore never held it.
 /// </para>
 /// <para>
 /// The window travels as one value rather than as a call per email so that applying it is one bounded set of database
@@ -87,5 +89,5 @@ public sealed record ReconciledFolderOutcome(
     IReadOnlyList<StoredEmailId> Disappeared,
     IReadOnlyList<MutationAttributedDisappearance> RemovedByOwnMutation,
     RemotelyDeletedEmailDisposition Disposition,
-    bool AppliesRemoteDeletions,
+    bool SourceIsTheTruth,
     DateTimeOffset ObservedAt);

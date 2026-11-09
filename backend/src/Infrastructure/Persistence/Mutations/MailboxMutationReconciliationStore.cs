@@ -231,17 +231,17 @@ internal sealed partial class MailboxMutationReconciliationStore(
     }
 
     /// <inheritdoc />
-    public Task<bool> HasUnboundLocalCopiesAsync(
+    public Task<bool> HasUnboundPlacementsAsync(
         MailAccountId account,
         RemoteFolderPath destinationPath,
         DateTimeOffset completedBefore,
         CancellationToken cancellationToken) =>
         readContext.MailboxMutations
             .AsNoTracking()
-            .AnyAsync(UnboundCopiesOf(account, destinationPath, completedBefore), cancellationToken);
+            .AnyAsync(UnboundPlacementsOf(account, destinationPath, completedBefore), cancellationToken);
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<StoredEmailId>> RetireUnboundLocalCopiesAsync(
+    public async Task<IReadOnlyList<StoredEmailId>> RetireUnboundPlacementsAsync(
         IPersistenceSession session,
         MailAccountId account,
         RemoteFolderPath destinationPath,
@@ -252,7 +252,7 @@ internal sealed partial class MailboxMutationReconciliationStore(
 
         var writeContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
         var unbound = await writeContext.MailboxMutations
-            .Where(UnboundCopiesOf(account, destinationPath, completedBefore))
+            .Where(UnboundPlacementsOf(account, destinationPath, completedBefore))
             .ToArrayAsync(cancellationToken);
 
         var retired = new List<StoredEmailId>(unbound.Length);
@@ -261,9 +261,11 @@ internal sealed partial class MailboxMutationReconciliationStore(
         {
             record.PlacementObservedAt = completedBefore;
 
-            if (await LocalCopyErasure.EraseAsync(session, writeContext, record.LocalCopyStoredEmailId!.Value, cancellationToken))
+            var rowTheDiscoveryReplaces = record.LocalCopyStoredEmailId ?? record.StoredEmailId;
+
+            if (await LocalCopyErasure.EraseAsync(session, writeContext, rowTheDiscoveryReplaces, cancellationToken))
             {
-                retired.Add(StoredEmailId.Create(record.LocalCopyStoredEmailId.Value));
+                retired.Add(StoredEmailId.Create(rowTheDiscoveryReplaces));
             }
         }
 
@@ -331,7 +333,12 @@ internal sealed partial class MailboxMutationReconciliationStore(
         entity.DeleteFlagSettledAt ??= settledAt;
     }
 
-    private static Expression<Func<MailboxMutationEntity, bool>> UnboundCopiesOf(
+    /// <summary>Selects the completed copies and moves a server took without naming where it put the message.</summary>
+    /// <remarks>
+    /// A move's row counts only while it still stands at the occurrence the move took it from: a later change of the same
+    /// message that was given a placement has already carried it somewhere the discovery is not about.
+    /// </remarks>
+    private static Expression<Func<MailboxMutationEntity, bool>> UnboundPlacementsOf(
         MailAccountId account,
         RemoteFolderPath destinationPath,
         DateTimeOffset completedBefore)
@@ -339,15 +346,19 @@ internal sealed partial class MailboxMutationReconciliationStore(
         var accountValue = account.Value;
         var destinationValue = destinationPath.Value;
         var copy = MailboxMutation.Copy.Name;
+        var relocate = MailboxMutation.Relocate.Name;
 
         return mutation => mutation.MailboxAccountId == accountValue
-            && mutation.Mutation == copy
             && mutation.DestinationFolderPath == destinationValue
             && mutation.Stage == MailboxMutationStage.Completed
             && mutation.StageChangedAt < completedBefore
             && mutation.PlacementUid == null
             && mutation.PlacementObservedAt == null
-            && mutation.LocalCopyStoredEmailId != null;
+            && ((mutation.Mutation == copy && mutation.LocalCopyStoredEmailId != null)
+                || (mutation.Mutation == relocate
+                    && mutation.StoredEmail.MailFolderBindingId == mutation.MailFolderBindingId
+                    && mutation.StoredEmail.UidValidity == mutation.UidValidity
+                    && mutation.StoredEmail.Uid == mutation.Uid));
     }
 
     private static async Task<MailboxMutationEntity> RequireEntityAsync(

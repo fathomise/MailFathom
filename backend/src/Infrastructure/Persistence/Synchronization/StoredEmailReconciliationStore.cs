@@ -140,7 +140,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             if (rowsById.TryGetValue(observed.StoredEmailId.Value, out var row)
                 && !HasNewerObservationThan(row, observed.Snapshot.ObservedAt ?? outcome.ObservedAt))
             {
-                ApplyFlagSnapshot(row, observed.Snapshot);
+                ApplyFlagSnapshot(row, observed.Snapshot, outcome.SourceIsTheTruth);
             }
         }
 
@@ -195,7 +195,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
                 authoredDisposition is AuthoredDeleteEmailDisposition.RetainLocalCopy;
         }
 
-        await EraseAuthoredDeletesAsync(session, sessionContext, erasedByAuthoredDelete, cancellationToken);
+        await EraseWithTheirContentAsync(session, sessionContext, erasedByAuthoredDelete, cancellationToken);
 
         var disappeared = outcome.Disappeared
             .Select(storedEmailId => rowsById.GetValueOrDefault(storedEmailId.Value))
@@ -203,16 +203,25 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             .Where(row => !HasNewerObservationThan(row, outcome.ObservedAt))
             .ToArray();
 
-        if (!outcome.AppliesRemoteDeletions)
+        if (!outcome.SourceIsTheTruth)
         {
             // The account's mailbox is MailFathom's to keep, so a message gone from the source is the drain's own work
             // completing rather than somebody deleting mail. The row keeps its whole life and loses only the pointer at
             // a position no server holds any more, which is the same clearing the drain would have written itself.
-            foreach (var row in disappeared)
+            foreach (var row in disappeared.Where(static row => row.ContentAvailability is StoredEmailContentAvailability.Available))
             {
                 row.UidValidity = null;
                 row.Uid = null;
             }
+
+            // The drain never takes a message whose bytes it does not hold, so one of these left by another client's
+            // hand and MailFathom never held it, as ADR 0034 says. Clearing its occurrence would leave a row whose
+            // content nothing could ever fetch.
+            await EraseWithTheirContentAsync(
+                session,
+                sessionContext,
+                [.. disappeared.Where(static row => row.ContentAvailability is not StoredEmailContentAvailability.Available)],
+                cancellationToken);
 
             return;
         }
@@ -347,7 +356,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             row.FlagsObservedAt = observedAt;
         }
 
-        await EraseAuthoredDeletesAsync(
+        await EraseWithTheirContentAsync(
             session,
             sessionContext,
             [
@@ -412,8 +421,8 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             .ExecuteDeleteAsync(cancellationToken);
     }
 
-    /// <summary>Removes the rows an authored delete said to erase, with everything that leaves storage with them.</summary>
-    private static async Task EraseAuthoredDeletesAsync(
+    /// <summary>Removes rows along with everything that leaves storage with them.</summary>
+    private static async Task EraseWithTheirContentAsync(
         IPersistenceSession session,
         MailFathomDbContext sessionContext,
         List<StoredEmailEntity> erased,
@@ -434,8 +443,8 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             [.. erased.Select(email => email.Id)],
             cancellationToken);
 
-        // An authored delete is a deliberate erasure, so it carries through to the object rather than being left
-        // to the sweep: the keys are read here, before the cascade removes the rows that carry them.
+        // A deliberate erasure carries through to the object rather than being left to the sweep: the keys are read
+        // here, before the cascade removes the rows that carry them.
         await ReleasedContentObjects.ReleaseForStoredEmailsAsync(
             session,
             [.. erased.Select(static row => row.Id)],
@@ -522,8 +531,15 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
     /// See <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>
     /// axis F.
     /// </remarks>
-    private static void ApplyFlagSnapshot(StoredEmailEntity row, RemoteEmailFlagSnapshot snapshot)
+    internal static void ApplyFlagSnapshot(StoredEmailEntity row, RemoteEmailFlagSnapshot snapshot, bool sourceIsTheTruth)
     {
+        if (!sourceIsTheTruth)
+        {
+            ApplyObservationOfAHeldEmail(row, snapshot);
+
+            return;
+        }
+
         var overlays = row.Mutations.Where(static mutation => mutation.OverlaysStoredState).ToArray();
         var observedKeywords = snapshot.Keywords.Values.ToArray();
 
@@ -554,6 +570,43 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             .. EmailKeywords.Create(observedKeywords.Where(keyword => !held.Contains(keyword))
                 .Concat(row.Keywords.Where(held.Contains))).Values,
         ];
+    }
+
+    /// <summary>Moves the queue past a message MailFathom is the truth about, and takes from the source only what is the message's initial state.</summary>
+    /// <remarks>
+    /// <para>
+    /// After the first observation the source has no say: a difference from it is a person's own act or another client's
+    /// change, and ADR 0034 imports neither. The timestamp still advances, because it is what moves the row through the
+    /// reconciliation queue.
+    /// </para>
+    /// <para>
+    /// A new arrival's flags have no other writer, so the first observation is its initial state, except for a field an
+    /// act has already decided. <c>\Deleted</c> is never read back: the drain sets it itself between its store and its
+    /// expunge, and a batch interrupted between the two would otherwise publish a held message as deleted.
+    /// </para>
+    /// </remarks>
+    private static void ApplyObservationOfAHeldEmail(StoredEmailEntity row, RemoteEmailFlagSnapshot snapshot)
+    {
+        var isFirstObservation = row.FlagsObservedAt is null;
+
+        row.FlagsObservedAt = snapshot.ObservedAt;
+
+        if (!isFirstObservation)
+        {
+            return;
+        }
+
+        var setByAnAct = row.FieldsSetBeforeFirstObservation;
+
+        row.IsRemotelyAnswered = snapshot.IsAnswered;
+        row.IsDraft = snapshot.IsDraft;
+        row.IsMarkedSeen = setByAnAct.HasFlag(EmailFieldsSetBeforeFirstObservation.Seen) ? row.IsMarkedSeen : snapshot.IsSeen;
+        row.IsFlagged = setByAnAct.HasFlag(EmailFieldsSetBeforeFirstObservation.Flagged) ? row.IsFlagged : snapshot.IsFlagged;
+
+        if (!setByAnAct.HasFlag(EmailFieldsSetBeforeFirstObservation.Keywords))
+        {
+            row.Keywords = [.. snapshot.Keywords.Values];
+        }
     }
 
     /// <summary>Answers the stored value of one overlaid field: the act's where a change on it is outstanding, the server's otherwise.</summary>

@@ -174,7 +174,15 @@ internal sealed class StoredEmailMetadataRepository(
         // The stored flags were read in the folder the email has left, and the tombstone, if the source disappearance
         // was seen first, described an occurrence that no longer exists. All three are cleared so the destination
         // folder's own window is what says what holds there now: the email has a remote occurrence again, so it is no
-        // longer one retained without one either.
+        // longer one retained without one either. On an account MailFathom is the truth for, that window is not this
+        // message's first reading, so what the row holds stands; a mirrored account's window writes every field anyway.
+        if (entity.FlagsObservedAt is not null)
+        {
+            entity.FieldsSetBeforeFirstObservation = EmailFieldsSetBeforeFirstObservation.Seen
+                | EmailFieldsSetBeforeFirstObservation.Flagged
+                | EmailFieldsSetBeforeFirstObservation.Keywords;
+        }
+
         entity.FlagsObservedAt = null;
         entity.RemoteExpungeObservedAt = null;
         entity.AuthoredDeleteFlaggedAt = null;

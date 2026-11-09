@@ -25,21 +25,6 @@ public sealed class MailAccountCustodyStateTests
         Assert.False(state.IsSwitchPending);
     }
 
-    [Theory]
-    [InlineData(MailAccountCustodyPhase.Mirrored, true)]
-    [InlineData(MailAccountCustodyPhase.Held, false)]
-    [InlineData(MailAccountCustodyPhase.Restoring, false)]
-    public void AppliesRemoteDeletions_EachPhase_AnswersFromThePhaseAndNotFromWhatWasRequested(
-        MailAccountCustodyPhase phase,
-        bool applies)
-    {
-        // Arrange
-        var state = new MailAccountCustodyState(MailAccountCustody.MirrorSource, phase);
-
-        // Act and assert
-        Assert.Equal(applies, state.AppliesRemoteDeletions);
-    }
-
     /// <summary>
     /// A restoring account is still answering from what MailFathom stores while it appends the mailbox back, so the
     /// source does not become the truth until the phase is mirrored again.

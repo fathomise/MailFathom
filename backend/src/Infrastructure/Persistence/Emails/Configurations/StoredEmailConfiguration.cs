@@ -70,6 +70,10 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
 
         // Stored as text so the availability reason stays readable in ad-hoc audit queries and survives enum reordering.
         entity.Property(email => email.ContentAvailability).HasConversion<string>().HasMaxLength(64).IsRequired();
+        entity.Property(email => email.FieldsSetBeforeFirstObservation)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .HasDefaultValue(EmailFieldsSetBeforeFirstObservation.None);
 
         // The sender-authentication verdict — what authenticated, and separately what that establishes about the
         // displayed author — whose six enums are stored as text for the same reason and whose domains are bounded
