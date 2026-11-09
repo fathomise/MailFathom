@@ -206,6 +206,7 @@ export function senderMarkup(remoteImages: boolean): string {
     return (
         `<html><body><h1>${newsletterHeading}</h1>` +
         `<p><a href="${senderLink}"><span>Read the offers</span></a></p>` +
+        '<p style="background:#ffffff;color:#333333">Written for a white page</p>' +
         `<img src="${picture}" alt="A mark">` +
         '</body></html>'
     );

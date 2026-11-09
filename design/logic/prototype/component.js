@@ -4784,7 +4784,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           simpleView: !htmlViewMode || threadSpam.spam,
           htmlView: htmlViewMode && !threadSpam.spam,
           htmlFrameId: "fit:" + thread.id + ":" + i,
-          htmlEmbedSrc: htmlViewMode && !threadSpam.spam ? embedHtml(m.html || htmlFallback(original, thread.subject), "fit:" + thread.id + ":" + i) : "",
+          htmlEmbedSrc: htmlViewMode && !threadSpam.spam ? embedHtml(m.html || htmlFallback(original, thread.subject), "fit:" + thread.id + ":" + i, theme === "dark") : "",
           htmlFrameRef: this.htmlFrameRef,
           htmlRich: !!m.html,
           htmlTitle: m.html ? "Show the original message (rich content)" : "Show the original message",
@@ -8266,7 +8266,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         htmlOpen: !!st.htmlDoc && (!tabsMode || htmlInPane),
         htmlTitleText: st.htmlDoc ? st.htmlDoc.title : "",
         htmlMeta: st.htmlDoc ? st.htmlDoc.from + " · " + st.htmlDoc.when : "",
-        htmlSrc: st.htmlDoc ? embedLinks(st.htmlDoc.src) : "",
+        htmlSrc: st.htmlDoc ? embedLinks(st.htmlDoc.src, theme === "dark") : "",
         closeHtml: () => (htmlInPane ? this.closeTab(st.activeTab) : this.setState({ htmlDoc: null })),
         htmlOverlayStyle: htmlInPane
           ? "flex:1;display:flex;min-height:0;min-width:0;background:var(--sub)"
@@ -8278,9 +8278,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         htmlWindowStyle: htmlInPane || singlePane
           ? "flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel)"
           : "width:min(1000px,100%);height:" + (tall ? "min(90dvh,1100px,100%)" : "min(90dvh,100%)") + ";display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 26px 60px var(--scrim);overflow:hidden",
-        htmlFrameStyle: "flex:1;min-height:0;width:100%;border:0;background:#ffffff" + (st.htmlLoading ? ";visibility:hidden" : ""),
+        htmlFrameStyle: "flex:1;min-height:0;width:100%;border:0;background:transparent" + (st.htmlLoading ? ";visibility:hidden" : ""),
         htmlLoading: !!st.htmlLoading,
-        htmlSkelStyle: "position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;gap:14px;background:#ffffff;padding:26px 30px",
+        htmlSkelStyle: "position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;gap:14px;background:transparent;padding:26px 30px",
         htmlSkelLines: [{ w: 46, h: 15 }, { w: 28, h: 10 }, { w: 0, h: 0 }, { w: 98, h: 11 }, { w: 94, h: 11 }, { w: 99, h: 11 }, { w: 62, h: 11 }, { w: 0, h: 0 }, { w: 100, h: 90 }, { w: 88, h: 11 }, { w: 51, h: 11 }].map(l => ({
           style: l.w
             ? "border-radius:6px;background:linear-gradient(90deg,#e9edf2 0%,#f6f8fa 42%,#e9edf2 78%);background-size:260% 100%;animation:mfshim 1.05s linear infinite;height:" + l.h + "px;width:" + l.w + "%"

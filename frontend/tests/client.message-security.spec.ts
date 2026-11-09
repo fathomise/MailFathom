@@ -299,6 +299,32 @@ test('leaves the markup surface for the message it was opened from, and asks aga
     await expect(page.getByRole('heading', { name: 'Show the original message?' })).toBeVisible();
 });
 
+// The colours inside a frame are the computed styles of a document only a browser lays out, so what a theme does to a
+// sender's page is asked of one: a white paragraph with dark words has to come out readable on the theme's surface.
+for (const [colorScheme, ink] of [
+    ['dark', 'rgb(255, 255, 255)'],
+    ['light', 'rgb(51, 51, 51)'],
+] as const) {
+    test(`moves the embedded original onto the ${colorScheme} theme and keeps what it says readable`, async ({
+        page,
+    }) => {
+        await page.emulateMedia({ colorScheme });
+        await openSignedIn(page, '/#/mail');
+        await expect(page.locator('html')).toHaveAttribute('data-theme', colorScheme);
+        await openApplicationSettings(page);
+        await page.getByRole('group', { name: 'Message view' }).getByText('Original', { exact: true }).click();
+        await expect(page.getByRole('radio', { name: 'Original' })).toBeChecked();
+        await page.keyboard.press('Escape');
+
+        await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
+
+        const written = page.frameLocator(`iframe[title="${markupFrame}"]`).getByText('Written for a white page');
+
+        await expect(written).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+        await expect(written).toHaveCSS('color', ink);
+    });
+}
+
 // The embedded view is the one place a message's own markup is drawn inline, and a frame has no height of its own: the
 // script the client put in it measures the document and reports, and the pane sizes the frame to the report. A frame
 // is a document jsdom does not lay out or run, so both halves — the report arriving and the pane acting on it — are

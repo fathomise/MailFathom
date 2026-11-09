@@ -1395,9 +1395,9 @@ Project repository: https://github.com/fathomise/MailFathom
                         </sc-if>
                       </sc-if>
                       <sc-if value="{{ m.htmlView }}" hint-placeholder-val="{{ false }}">
-                        <div style="display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#ffffff">
-                          <div style="position:relative;overflow:hidden;background:#ffffff">
-                            <iframe srcDoc="{{ m.htmlEmbedSrc }}" ref="{{ m.htmlFrameRef }}" data-frame-id="{{ m.htmlFrameId }}" sandbox="allow-scripts" scrolling="no" title="Message HTML content" style="width:100%;height:320px;border:0;display:block;background:#ffffff"></iframe>
+                        <div style="display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:transparent">
+                          <div style="position:relative;overflow:hidden;background:transparent">
+                            <iframe srcDoc="{{ m.htmlEmbedSrc }}" ref="{{ m.htmlFrameRef }}" data-frame-id="{{ m.htmlFrameId }}" sandbox="allow-scripts" scrolling="no" title="Message HTML content" style="width:100%;height:320px;border:0;display:block;background:transparent"></iframe>
                           </div>
                           <div style="display:flex;align-items:center;gap:7px;padding:7px 11px;border-top:1px solid var(--line);background:var(--sub);font-size:11px;color:var(--muted)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">lock</span><span data-fit-status="{{ m.htmlFrameId }}">Fitting height to content…</span></div>
                         </div>

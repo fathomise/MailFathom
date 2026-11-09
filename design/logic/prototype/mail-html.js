@@ -36,12 +36,38 @@ MailFathomDesign.mailHtml = (() => {
     'try{parent.postMessage({link:{href:a.getAttribute("href"),text:(a.textContent||"").trim(),image:!!a.querySelector("img,svg,picture")}},"*")}catch(x){}}' +
     'document.addEventListener("click",press,true);document.addEventListener("auxclick",press,true)})()' + S_CLOSE;
 
+  /* The page behind a message is the theme's own in both themes: the frame is transparent, the page shows through it,
+     and a near-white fill goes with it. Text that would not read 4.5:1 on what is now behind it is moved until it does,
+     and a fill the sender made dark or saturated stays as written. Under the dark theme the remaining light fills keep
+     only a hint of their hue and a light rule stops glaring. Text over a picture or a gradient is left as the sender
+     paired it. */
+  const THEME = (dark) => "<" + "style>html,body{background:transparent!important}html{color-scheme:" + (dark ? "dark" : "light") + "!important}<" + "/style>" +
+    S_OPEN + '(function(){var dark=getComputedStyle(document.documentElement).colorScheme==="dark",canvas=dark?0.02:0.95,lightFill=0.45,legible=4.5,hairline="color-mix(in srgb,CanvasText 16%,transparent)";' +
+    'function parsed(v){var m=/^rgba?\\(([\\d.]+), ([\\d.]+), ([\\d.]+)(?:, ([\\d.]+))?\\)$/.exec(v);return m?[+m[1],+m[2],+m[3],m[4]===void 0?1:+m[4]]:null}' +
+    'function linear(c){c/=255;return c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4)}' +
+    'function luminance(c){return 0.2126*linear(c[0])+0.7152*linear(c[1])+0.0722*linear(c[2])}' +
+    'function contrast(a,b){return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)}' +
+    'function readable(c,ground){var target=ground>0.18?0:255;' +
+    'if(dark&&target&&Math.max(c[0],c[1],c[2])-Math.min(c[0],c[1],c[2])<32)return "CanvasText";' +
+    'for(var p=0.2;p<1;p+=0.2){var m=[0,1,2].map(function(i){return Math.round(c[i]+(target-c[i])*p)});if(contrast(luminance(m),ground)>=legible)return "rgb("+m+")"}' +
+    'return "rgb("+target+","+target+","+target+")"}' +
+    'function tint(c){var k=Math.round((255-Math.min(c[0],c[1],c[2]))/255*40);return k<4?"transparent":"color-mix(in srgb,rgb("+c.slice(0,3)+") "+k+"%,transparent)"}' +
+    'function adapt(el,ground){var cs=getComputedStyle(el),s=el.style,fill=parsed(cs.backgroundColor);' +
+    'if(cs.backgroundImage!=="none")ground=null;' +
+    'else if(fill&&fill[3]>0){var l=luminance(fill),t=l>lightFill?tint(fill):null;if(t&&(dark||t==="transparent")){s.setProperty("background-color",t,"important");ground=canvas}else if(fill[3]===1)ground=l}' +
+    'var ink=parsed(cs.color);if(ink&&ink[3]>0&&ground!==null&&contrast(luminance(ink),ground)<legible)s.setProperty("color",readable(ink,ground),"important");' +
+    '["top","right","bottom","left"].forEach(function(side){var edge=parsed(cs.getPropertyValue("border-"+side+"-color"));' +
+    'if(dark&&edge&&edge[3]>0&&ground!==null&&parseFloat(cs.getPropertyValue("border-"+side+"-width"))>0&&(luminance(edge)>lightFill||contrast(luminance(edge),ground)<1.25))s.setProperty("border-"+side+"-color",hairline,"important")});' +
+    'for(var c=el.firstElementChild;c;c=c.nextElementSibling)adapt(c,ground)}' +
+    'function run(){document.documentElement.style.setProperty("color-scheme",dark?"dark":"light","important");if(document.body)adapt(document.body,canvas)}' +
+    'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",run);else run()})()' + S_CLOSE;
+
   const inHead = (src, script) => {
     const i = src.indexOf("<head>");
     return i < 0 ? script + src : src.slice(0, i + 6) + script + src.slice(i + 6);
   };
-  const embedHtml = (src, frameId) => inHead(src, FIT_SCRIPT(frameId) + LINK_SCRIPT);
-  const embedLinks = (src) => inHead(src, LINK_SCRIPT);
+  const embedHtml = (src, frameId, dark) => inHead(src, THEME(dark) + FIT_SCRIPT(frameId) + LINK_SCRIPT);
+  const embedLinks = (src, dark) => inHead(src, THEME(dark) + LINK_SCRIPT);
 
   const htmlFallback = (m, subject) => HTML_SHELL(subject || "Message", `
 <div style="padding:24px 12px;font-family:Georgia,'Times New Roman',serif">
