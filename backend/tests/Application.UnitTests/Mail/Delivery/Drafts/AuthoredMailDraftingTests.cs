@@ -269,6 +269,32 @@ public sealed class AuthoredMailDraftingTests
         Assert.Equal([picture], LastComposed(composer).Pictures);
     }
 
+    /// <summary>The reply addresses the author named reach the composition as the request stated them, apart from its recipients.</summary>
+    [Fact]
+    public async Task SaveAsync_AMessageNamingAReplyAddress_ComposesItApartFromTheRecipients()
+    {
+        // Arrange
+        var composer = ComposingAuthoredEmails.ThatComposesDrafts(ComposedMime);
+        var drafting = DraftingOver(Harness(new InMemoryOutgoingEmailStore()), composer: composer);
+
+        // Act
+        await drafting.SaveAsync(
+            new MailDraftRequest
+            {
+                Account = MailAccountSelector.For(Account),
+                Subject = "a draft",
+                PlainTextBody = "Hello.",
+                ReplyTo = ["desk@example.test"],
+                Author = OutgoingEmailRequester.Command("mfctl-4f2a"),
+            },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var composed = LastComposed(composer);
+        Assert.Equal(["desk@example.test"], composed.ReplyTo);
+        Assert.Empty(composed.Recipients);
+    }
+
     /// <summary>
     /// The two requests are kept on the draft and the read receipt is composed into its message; a revision that asks for
     /// neither switches both off, because each revision states the whole draft again.

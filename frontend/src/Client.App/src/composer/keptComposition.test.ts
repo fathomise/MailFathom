@@ -75,6 +75,17 @@ describe('rememberedComposition', () => {
         expect(rememberedComposition()).toEqual(written);
     });
 
+    it('reads back where replies go, and a kept message that states none as naming none', () => {
+        const replying = { ...written, replyTo: ['desk@example.invalid'] };
+
+        rememberComposition(replying);
+        const kept = rememberedComposition();
+        window.sessionStorage.setItem(storageKey, JSON.stringify({ ...written, replyTo: undefined }));
+
+        expect(kept).toEqual(replying);
+        expect(rememberedComposition()).toEqual(written);
+    });
+
     it('drops what was being written, which is what signing out does', () => {
         rememberComposition(written);
         forgetComposition();

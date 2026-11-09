@@ -295,6 +295,9 @@ function compositionIn(value: unknown, pictures: ReadonlyMap<string, HeldPicture
     const cc = addressesIn(record['cc']);
     const bcc = addressesIn(record['bcc']);
 
+    // Absent reads as none, for the reason an absent request reads as off just below.
+    const replyTo = addressesIn(record['replyTo'] ?? []);
+
     // An absent request reads as off, so a tab reloaded onto this client from one that kept neither still gets its words
     // back. A null, or anything else but a yes or a no, is a shape this client did not write.
     const requestsDeliveryNotification =
@@ -305,7 +308,7 @@ function compositionIn(value: unknown, pictures: ReadonlyMap<string, HeldPicture
         return null;
     }
 
-    if (answering === undefined || to === null || cc === null || bcc === null) {
+    if (answering === undefined || to === null || cc === null || bcc === null || replyTo === null) {
         return null;
     }
 
@@ -338,6 +341,7 @@ function compositionIn(value: unknown, pictures: ReadonlyMap<string, HeldPicture
         to,
         cc,
         bcc,
+        replyTo,
         words,
         pictures,
         requestsDeliveryNotification,

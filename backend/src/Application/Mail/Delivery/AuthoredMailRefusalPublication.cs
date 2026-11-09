@@ -349,6 +349,7 @@ internal static class AuthoredMailRefusalPublication
         AuthoredEmailField.Sender => "sending address",
         AuthoredEmailField.Message => "whole message",
         AuthoredEmailField.Picture => "picture",
+        AuthoredEmailField.ReplyTo => "reply-to addresses",
         _ => throw new InvalidOperationException("The authored email field is not one this system declares."),
     };
 }

@@ -93,6 +93,7 @@ public sealed class AuthoredResponseDrafting(
         {
             Attachments = [.. response.Email!.Attachments, .. staged],
             Pictures = request.Pictures,
+            ReplyTo = request.ReplyTo,
             RequestsReadReceipt = request.ReceiptRequests.ReadReceipt,
         };
 

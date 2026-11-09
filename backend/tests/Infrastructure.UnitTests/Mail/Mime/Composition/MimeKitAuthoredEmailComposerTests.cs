@@ -432,6 +432,99 @@ public sealed class MimeKitAuthoredEmailComposerTests
             StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>A reply address is written into the <c>Reply-To</c> header and offered the message by nothing.</summary>
+    [Fact]
+    public void Compose_ReplyAddresses_AreNamedInTheReplyToHeaderAndNeverInTheEnvelope()
+    {
+        // Arrange
+        var composer = CreateComposer();
+        var authored = Authored() with { ReplyTo = ["desk@example.test", "Desk@example.test", "office@example.test"] };
+
+        // Act
+        var composition = composer.Compose(Account, SyntheticUser.Deployment, Requester(), authored, Capabilities());
+
+        // Assert
+        Assert.Equal(
+            ["desk@example.test", "office@example.test"],
+            Parse(composition).ReplyTo.Mailboxes.Select(static mailbox => mailbox.Address));
+        Assert.Equal(
+            "anna@example.test",
+            Assert.Single(composition.Email!.Request.Recipients).Address.Address);
+    }
+
+    /// <summary>A message naming no reply address carries no such header, so a reply goes back to the sending address.</summary>
+    [Fact]
+    public void Compose_NoReplyAddress_WritesNoReplyToHeader()
+    {
+        // Arrange
+        var composer = CreateComposer();
+
+        // Act
+        var composition = composer.Compose(Account, SyntheticUser.Deployment, Requester(), Authored(), Capabilities());
+
+        // Assert
+        Assert.False(Parse(composition).Headers.Contains(HeaderId.ReplyTo));
+    }
+
+    /// <summary>A reply address is held to what a recipient is held to, and the refusal names the header.</summary>
+    [Theory]
+    [InlineData("not-a-mailbox", AuthoredEmailRefusalReason.FieldUnusable, MailFathomErrorCode.OutgoingEmailFieldUnusable)]
+    [InlineData(Injection, AuthoredEmailRefusalReason.HeaderInjected, MailFathomErrorCode.OutgoingEmailHeaderInjected)]
+    public void ComposeDraft_UnusableReplyAddress_IsRefusedNamingTheReplyToHeader(
+        string replyAddress,
+        AuthoredEmailRefusalReason reason,
+        MailFathomErrorCode code)
+    {
+        // Arrange
+        var authored = Authored() with { ReplyTo = [replyAddress] };
+
+        // Act
+        var composition = CreateComposer().ComposeDraft(Account, authored, Capabilities());
+
+        // Assert
+        var refusal = composition.Refusal!;
+        Assert.Equal((reason, AuthoredEmailField.ReplyTo), (refusal.Reason, refusal.Field));
+        Assert.Equal(code, refusal.Failure);
+    }
+
+    /// <summary>More reply addresses than the deployment addresses one message to is refused naming that number.</summary>
+    [Fact]
+    public void Compose_MoreReplyAddressesThanConfigured_IsRefusedNamingTheBound()
+    {
+        // Arrange
+        var authored = Authored() with
+        {
+            ReplyTo = [.. Enumerable.Range(0, 4).Select(index => $"desk{index}@example.test")],
+        };
+
+        // Act
+        var composition = CreateComposer().Compose(Account, SyntheticUser.Deployment, Requester(), authored, Capabilities());
+
+        // Assert
+        AssertBoundExceeded(composition, AuthoredEmailField.ReplyTo, Bounds().MaxRecipientCount);
+    }
+
+    /// <summary>An occasion of a recurring send goes out with the reply addresses its stored draft was composed with.</summary>
+    [Fact]
+    public void RecomposeAsOccurrence_DraftNamingAReplyAddress_KeepsIt()
+    {
+        // Arrange
+        var composer = CreateComposer();
+        var draft = composer.ComposeDraft(Account, Authored() with { ReplyTo = ["desk@example.test"] }, Capabilities()).Draft!;
+
+        // Act
+        var composition = composer.RecomposeAsOccurrence(
+            Account,
+            SyntheticUser.Deployment,
+            Requester(),
+            [Recipient("anna@example.test")],
+            draft.RawMime,
+            Capabilities());
+
+        // Assert
+        Assert.Equal("desk@example.test", Assert.Single(Parse(composition).ReplyTo.Mailboxes).Address);
+    }
+
     /// <summary>An address that names no mailbox is refused against the header the author wrote it in, never against the address.</summary>
     [Theory]
     [InlineData(OutgoingRecipientRole.To, AuthoredEmailField.To)]

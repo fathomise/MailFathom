@@ -654,7 +654,9 @@ public sealed class ClientDraftEndpointTests
             Pictures: [.. Enumerable.Range(0, AuthoredEmailPicture.MaximumCount)
                 .Select(index => new ClientDraftPictureRequest(
                     new string((char)('a' + index), 64),
-                    Convert.ToBase64String(new byte[pictureOctets])))]);
+                    Convert.ToBase64String(new byte[pictureOctets])))],
+            ReplyTo: [.. Enumerable.Range(0, OutgoingEmailRequest.MaximumRecipientCount)
+                .Select(_ => new string('a', OutgoingRecipient.MaximumAddressLength))]);
 
         // Act
         var written = JsonSerializer.SerializeToUtf8Bytes(largest, JsonSerializerOptions.Web);
@@ -716,6 +718,77 @@ public sealed class ClientDraftEndpointTests
         // Assert
         Assert.Equal("0198f0a0-4444-7000-8000-000000000001", picture.Name);
         Assert.Equal(octets, picture.Content.ToArray());
+    }
+
+    /// <summary>A write stating reply addresses hands them on as written, and one stating none hands on none.</summary>
+    [Fact]
+    public void StatedReplyTo_AWriteStatingReplyAddressesOrNone_HandsOnWhatItStated()
+    {
+        // Arrange
+        var stating = WriteStating([]) with { ReplyTo = ["desk@example.test", "office@example.test"] };
+        var statingNone = WriteStating([]);
+
+        // Act
+        var stated = stating.StatedReplyTo();
+
+        // Assert
+        Assert.Equal(["desk@example.test", "office@example.test"], stated);
+        Assert.Empty(statingNone.StatedReplyTo());
+    }
+
+    /// <summary>
+    /// The reply addresses are held to the bounds a recipient header is held to: no more than one header may name, and
+    /// no entry that names nobody — each refused naming the header and never echoing what was written.
+    /// </summary>
+    [Fact]
+    public void StatedReplyTo_MoreAddressesThanAHeaderMayNameOrABlankOne_IsRefusedNamingTheHeader()
+    {
+        // Arrange
+        var tooMany = WriteStating([]) with
+        {
+            ReplyTo = [.. Enumerable.Range(0, OutgoingEmailRequest.MaximumRecipientCount + 1)
+                .Select(index => $"desk{index}@example.test")],
+        };
+        var blank = WriteStating([]) with { ReplyTo = ["desk@example.test", " "] };
+
+        // Act
+        var tooManyRefusal = Assert.Throws<MailDraftRefusedException>(() => tooMany.StatedReplyTo());
+        var blankRefusal = Assert.Throws<MailDraftRefusedException>(() => blank.StatedReplyTo());
+
+        // Assert
+        Assert.Equal(MailFathomErrorCode.AuthoredMailBoundExceeded, tooManyRefusal.ErrorCode);
+        Assert.Equal(MailFathomErrorCode.AuthoredMailFieldRefused, blankRefusal.ErrorCode);
+        Assert.All(
+            [tooManyRefusal.Message, blankRefusal.Message],
+            message => Assert.Contains("reply-to", message, StringComparison.Ordinal));
+        Assert.DoesNotContain("desk", tooManyRefusal.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A draft whose stored message names reply addresses is opened with them, read out of the message.</summary>
+    [Fact]
+    public async Task ReadDraftAsync_ADraftWhoseMessageNamesReplyAddresses_AnswersWithThem()
+    {
+        // Arrange
+        var drafts = new InMemoryMailDraftStore();
+        var contents = new InMemoryMailDraftContentStore();
+        var draft = await OpenAsync(drafts, SyntheticUser.Deployment);
+
+        await contents.SaveMailDraftContentAsync(
+            Substitute.For<IPersistenceSession>(),
+            draft.Id,
+            PlacedEmailContent.InDatabase(Encoding.ASCII.GetBytes(
+                "Subject: a draft\r\nReply-To: desk@example.test, Office <office@example.test>\r\n\r\nHello.").AsMemory()),
+            TestContext.Current.CancellationToken);
+
+        // Act
+        var result = await ClientDraftEndpoints.ReadDraftAsync(
+            draft.Id.Value,
+            DirectoryOver(drafts, contents),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var reading = Assert.IsType<Ok<ClientDraftReadingResponse>>(result.Result).Value!;
+        Assert.Equal(["desk@example.test", "office@example.test"], reading.ReplyTo);
     }
 
     /// <summary>Builds a write of a message of its own stating the given pictures.</summary>

@@ -2370,13 +2370,20 @@
           },
           "plainTextBody": {
             "type": "string"
+          },
+          "replyTo": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
           "draft",
           "plainTextBody",
           "htmlBody",
-          "document"
+          "document",
+          "replyTo"
         ],
         "type": "object"
       },
@@ -2615,6 +2622,15 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "replyTo": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
             ]
           },
           "requestsDeliveryNotification": {
