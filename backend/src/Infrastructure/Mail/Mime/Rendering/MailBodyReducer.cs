@@ -7,6 +7,7 @@ using System.Text;
 using AngleSharp.Dom;
 using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.EmailContent.Rendering.Document.Blocks;
+using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Domain.Emails;
 
 namespace MailFathom.Infrastructure.Mail.Mime.Rendering;
@@ -50,9 +51,10 @@ internal sealed class MailBodyReducer
 
     private readonly MailInlineImages inlineImages;
     private readonly bool retainRemoteImages;
-    private readonly bool namesAppendedFooter;
+    private readonly bool authorIsProven;
     private readonly List<List<MailDocumentBlock>> footers = [];
 
+    private int? quotationFirstBlock;
     private int emittedBlocks;
     private int removedRemoteReferences;
     private int retainedRemoteImages;
@@ -66,13 +68,13 @@ internal sealed class MailBodyReducer
     /// <param name="bounds">What one reduction may produce at most.</param>
     /// <param name="inlineImages">The pictures the message carries in itself, already resolved.</param>
     /// <param name="retainRemoteImages">Whether the reader asked for this message's remote pictures.</param>
-    /// <param name="namesAppendedFooter">Whether the document names the footer MailFathom appended to the message.</param>
+    /// <param name="authorIsProven">Whether the use case established who wrote the message, which is what lets the document read the marks MailFathom wrote into it.</param>
     /// <exception cref="ArgumentNullException">Thrown when either reference argument is <see langword="null" />.</exception>
     internal MailBodyReducer(
         MailDocumentBounds bounds,
         MailInlineImages inlineImages,
         bool retainRemoteImages,
-        bool namesAppendedFooter)
+        bool authorIsProven)
     {
         ArgumentNullException.ThrowIfNull(bounds);
         ArgumentNullException.ThrowIfNull(inlineImages);
@@ -80,7 +82,7 @@ internal sealed class MailBodyReducer
         this.Bounds = bounds;
         this.inlineImages = inlineImages;
         this.retainRemoteImages = retainRemoteImages;
-        this.namesAppendedFooter = namesAppendedFooter;
+        this.authorIsProven = authorIsProven;
     }
 
     /// <summary>Reduces the body of one parsed document.</summary>
@@ -108,6 +110,10 @@ internal sealed class MailBodyReducer
             this.truncated) with
         {
             Footer = this.FindAppendedFooter(blocks),
+            Quotation = this.quotationFirstBlock is { } firstBlock && firstBlock < blocks.Count
+                ? new MailDocumentQuotation(firstBlock, blocks.Count - firstBlock)
+                : null,
+            AuthorIsProven = this.authorIsProven,
         };
     }
 
@@ -156,6 +162,17 @@ internal sealed class MailBodyReducer
 
             case IElement element:
                 this.ReduceElement(element, context, blocks, pending);
+
+                break;
+
+            // The composer writes it directly under the body and nothing quoted can carry one, because the quoted markup
+            // is sanitized. Anywhere else it is not the mark, and a message missing the mark is drawn as it always was.
+            case IComment comment
+                when this.authorIsProven
+                    && context.Depth == 0
+                    && $"<!--{comment.Data}-->" == IMailFooterComposer.HtmlQuotationMarker:
+                this.Flush(blocks, pending, context);
+                this.quotationFirstBlock = blocks.Count;
 
                 break;
 
@@ -292,7 +309,7 @@ internal sealed class MailBodyReducer
 
             var reduced = this.ReduceChildren(element, emphasized);
 
-            if (this.namesAppendedFooter && name == "footer" && context.QuoteDepth == 0)
+            if (this.authorIsProven && name == "footer" && context.QuoteDepth == 0)
             {
                 this.footers.Add(reduced);
             }

@@ -694,15 +694,21 @@ copies of the sender's words, so the sensitive-content scan a read runs before m
 beside the runs they came from; where the scan's own bound leaves either one empty, the block stops being named and is
 drawn as written. The folding itself is the client's, and nothing is folded in the sender's own markup.
 
-### The reader's own footer is named, never removed
+### A proven author's marks are named, never removed
+
+`AuthorIsProven` says the use case established who wrote the message: the summary's `IsFiledSentCopy`, which the send
+recorded and nothing in a message can claim, or a verdict granted by `OrganizationMember`, which only the
+organization's signature reaches. An organization directory, an account's domain, and a contact recognize an address
+and prove nothing about these bytes, so none of them qualifies. Only where it holds does the document read the marks
+MailFathom wrote, because every mark is ordinary markup any sender could copy.
 
 `Footer` is a `MailDocumentFooter` — the position of its first top-level block and how many consecutive blocks it
-spans, that first one included — on the copy MailFathom filed of
-a message it sent from the account being read, where that message carries [the footer it
-appended](mail-footers.md#where-it-goes-in-a-message), and `null` everywhere else. What decides it is the summary's
-`IsFiledSentCopy`, which the send recorded and nothing in a message can claim, rather than the mark itself, which any
-sender could copy. The blocks stay in `Blocks`, so this is a statement a pane may fold by rather than a reduction, and
-the self-contained markup beside it is unchanged. [The message body
+spans, that first one included — where that message carries [the footer it
+appended](mail-footers.md#where-it-goes-in-a-message), and `null` everywhere else. `Quotation` is a
+`MailDocumentQuotation` of the same shape, from the attribution line under `<!--mailfathom-quotation-->` to the end of
+the document, where that comment stands directly under the body, and `null` everywhere else. The blocks stay in
+`Blocks`, so these are statements a pane may fold by rather than a reduction, a message without a mark is drawn as it
+always was, and the self-contained markup beside it is unchanged. [The message body
 route](../operations/client-endpoint.md#the-message-body-route) states how a client reads it.
 
 ## The markup a full-HTML surface reads

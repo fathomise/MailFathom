@@ -3,12 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Text;
-using MailFathom.Application.EmailContent.Rendering;
 using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.EmailContent.Rendering.Document.Blocks;
-using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Mail.Delivery.Footers;
-using MailFathom.Infrastructure.Mail.Mime;
 using MailFathom.Infrastructure.Mail.Mime.Composition;
 using MailFathom.Infrastructure.UnitTests.TestDoubles;
 using MimeKit;
@@ -40,7 +37,7 @@ public sealed class MailBodyProjectionFooterTests
         var footed = this.composer.Append(Composed("Dzień dobry.", "<p>Dzień dobry.</p>"), Footer);
 
         // Act
-        var document = await DocumentOf(footed, namesAppendedFooter: true);
+        var document = await MimeFixtures.DocumentOf(footed, authorIsProven: true);
 
         // Assert
         Assert.Equal(new MailDocumentFooter(1, 2), document.Footer);
@@ -55,7 +52,7 @@ public sealed class MailBodyProjectionFooterTests
         var footed = this.composer.Append(Composed($"Thank you.\n\n{Attribution}\n> The report.", html, answers: true), Footer);
 
         // Act
-        var document = await DocumentOf(footed, namesAppendedFooter: true);
+        var document = await MimeFixtures.DocumentOf(footed, authorIsProven: true);
 
         // Assert
         Assert.Equal(new MailDocumentFooter(1, 2), document.Footer);
@@ -70,7 +67,7 @@ public sealed class MailBodyProjectionFooterTests
         var html = $"<p>Thank you.</p>{IMailFooterComposer.HtmlQuotationMarker}<p>{Attribution}</p><blockquote><p>The report.</p><footer><p>Bob</p></footer></blockquote>";
 
         // Act
-        var document = await DocumentOf(Composed("Thank you.", html, answers: true), namesAppendedFooter: true);
+        var document = await MimeFixtures.DocumentOf(Composed("Thank you.", html, answers: true), authorIsProven: true);
 
         // Assert
         Assert.Null(document.Footer);
@@ -83,8 +80,8 @@ public sealed class MailBodyProjectionFooterTests
         var footed = this.composer.Append(Composed("Dzień dobry.", "<p>Dzień dobry.</p>"), Footer);
 
         // Act
-        var own = await DocumentOf(footed, namesAppendedFooter: true);
-        var foreign = await DocumentOf(footed, namesAppendedFooter: false);
+        var own = await MimeFixtures.DocumentOf(footed, authorIsProven: true);
+        var foreign = await MimeFixtures.DocumentOf(footed, authorIsProven: false);
 
         // Assert
         Assert.Null(foreign.Footer);
@@ -98,7 +95,7 @@ public sealed class MailBodyProjectionFooterTests
     public async Task ProduceAsync_TheReadersOwnMessageCarryingNoMark_NamesNoFooter(string? html)
     {
         // Act
-        var document = await DocumentOf(Composed("Dzień dobry.\n\nAnna", html), namesAppendedFooter: true);
+        var document = await MimeFixtures.DocumentOf(Composed("Dzień dobry.\n\nAnna", html), authorIsProven: true);
 
         // Assert
         Assert.Null(document.Footer);
@@ -111,7 +108,7 @@ public sealed class MailBodyProjectionFooterTests
         var footed = this.composer.Append(Composed("Dzień dobry.", html: null), Footer);
 
         // Act
-        var document = await DocumentOf(footed, namesAppendedFooter: true);
+        var document = await MimeFixtures.DocumentOf(footed, authorIsProven: true);
 
         // Assert
         Assert.Equal(new MailDocumentFooter(1, 2), document.Footer);
@@ -125,8 +122,8 @@ public sealed class MailBodyProjectionFooterTests
         var typed = Composed("Hello.\n-- \nAnna", html: null);
 
         // Act
-        var own = await DocumentOf(typed, namesAppendedFooter: true);
-        var foreign = await DocumentOf(typed, namesAppendedFooter: false);
+        var own = await MimeFixtures.DocumentOf(typed, authorIsProven: true);
+        var foreign = await MimeFixtures.DocumentOf(typed, authorIsProven: false);
 
         // Assert
         Assert.Null(own.Footer);
@@ -141,11 +138,87 @@ public sealed class MailBodyProjectionFooterTests
         var footed = this.composer.Append(Composed(text, html: null, answers: true), Footer);
 
         // Act
-        var document = await DocumentOf(footed, namesAppendedFooter: true);
+        var document = await MimeFixtures.DocumentOf(footed, authorIsProven: true);
 
         // Assert
         Assert.Equal(new MailDocumentFooter(1, 2), document.Footer);
         Assert.StartsWith(Attribution, ParagraphTexts(document)[^1], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ProduceAsync_AProvenReply_NamesTheQuotationFromItsAttributionToTheEndAndSaysTheAuthorIsProven()
+    {
+        // Arrange
+        var html = $"<p>Thank you.</p>{IMailFooterComposer.HtmlQuotationMarker}<p>{Attribution}</p><blockquote><p>The report.</p></blockquote>";
+        var footed = this.composer.Append(Composed($"Thank you.\n\n{Attribution}\n> The report.", html, answers: true), Footer);
+
+        // Act
+        var document = await MimeFixtures.DocumentOf(footed, authorIsProven: true);
+
+        // Assert
+        Assert.True(document.AuthorIsProven);
+        Assert.Equal(new MailDocumentFooter(1, 2), document.Footer);
+        Assert.Equal(new MailDocumentQuotation(3, 2), document.Quotation);
+        Assert.Equal(Attribution, ParagraphTexts(document)[^1]);
+        Assert.IsType<MailQuoteBlock>(document.Blocks[^1]);
+    }
+
+    [Fact]
+    public async Task ProduceAsync_ABodyOfWordsAndTheMarkWithNoParagraphAroundThem_NamesTheQuotationAfterTheWords()
+    {
+        // Arrange
+        var html = $"Thank you.{IMailFooterComposer.HtmlQuotationMarker}<p>{Attribution}</p><blockquote><p>The report.</p></blockquote>";
+
+        // Act
+        var document = await MimeFixtures.DocumentOf(Composed("Thank you.", html, answers: true), authorIsProven: true);
+
+        // Assert
+        Assert.Equal(new MailDocumentQuotation(1, 2), document.Quotation);
+    }
+
+    [Fact]
+    public async Task ProduceAsync_AMarkNestedBelowTheBody_NamesNoQuotation()
+    {
+        // Arrange
+        var html = $"<div><p>Thank you.</p>{IMailFooterComposer.HtmlQuotationMarker}<p>{Attribution}</p></div>";
+
+        // Act
+        var document = await MimeFixtures.DocumentOf(Composed("Thank you.", html), authorIsProven: true);
+
+        // Assert
+        Assert.Null(document.Quotation);
+    }
+
+    [Theory]
+    [InlineData("<p>Thank you.</p><blockquote><p>The report.</p></blockquote>")]
+    [InlineData(null)]
+    public async Task ProduceAsync_AProvenMessageCarryingNoQuotationMark_NamesNoQuotation(string? html)
+    {
+        // Act
+        var document = await MimeFixtures.DocumentOf(Composed("Thank you.", html), authorIsProven: true);
+
+        // Assert
+        Assert.True(document.AuthorIsProven);
+        Assert.Null(document.Quotation);
+    }
+
+    [Fact]
+    public async Task ProduceAsync_AMarkedMessageNothingProves_ProducesTheSameDocumentAsBeforeTheMarksWereRead()
+    {
+        // Arrange
+        var html = $"<p style=\"color:#db0118\">Thank you.</p>{IMailFooterComposer.HtmlQuotationMarker}<p>{Attribution}</p><blockquote><p>The report.</p></blockquote>";
+        var footed = this.composer.Append(Composed("Thank you.", html, answers: true), Footer);
+
+        // Act
+        var proven = await MimeFixtures.DocumentOf(footed, authorIsProven: true);
+        var unproven = await MimeFixtures.DocumentOf(footed, authorIsProven: false);
+
+        // Assert
+        Assert.False(unproven.AuthorIsProven);
+        Assert.Null(unproven.Footer);
+        Assert.Null(unproven.Quotation);
+        Assert.Equal(proven.Blocks.Count, unproven.Blocks.Count);
+        Assert.Equal(ParagraphTexts(proven), ParagraphTexts(unproven));
     }
 
     [Fact]
@@ -155,39 +228,12 @@ public sealed class MailBodyProjectionFooterTests
         var footed = this.composer.Append(Composed("Dzień dobry.", "<p>Dzień dobry.</p>"), Footer);
 
         // Act
-        var own = await RenderingOf(footed, namesAppendedFooter: true);
-        var foreign = await RenderingOf(footed, namesAppendedFooter: false);
+        var own = await MimeFixtures.RenderingOf(footed, authorIsProven: true);
+        var foreign = await MimeFixtures.RenderingOf(footed, authorIsProven: false);
 
         // Assert
         Assert.NotNull(own.SelfContainedHtmlBody);
         Assert.Equal(foreign.SelfContainedHtmlBody, own.SelfContainedHtmlBody);
-    }
-
-    private static async Task<MailDocument> DocumentOf(ReadOnlyMemory<byte> rawMime, bool namesAppendedFooter)
-    {
-        var document = (await RenderingOf(rawMime, namesAppendedFooter)).Document;
-        Assert.NotNull(document);
-
-        return document;
-    }
-
-    private static async Task<EmailContentRendering> RenderingOf(ReadOnlyMemory<byte> rawMime, bool namesAppendedFooter)
-    {
-        var renderer = new MimeKitEmailContentRenderer(new EmailMimeExtractionOptions { MaxPartCount = 1000 });
-
-        var result = await renderer.RenderAsync(
-            MimeFixtures.StoredRawContent(rawMime.ToArray()),
-            new EmailContentRenderingBounds(false, 100_000, int.MaxValue)
-            {
-                IncludeMailDocument = true,
-                IncludeSelfContainedHtml = true,
-                NamesAppendedFooter = namesAppendedFooter,
-            },
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(EmailContentRenderingOutcome.Rendered, result.Outcome);
-
-        return result.Rendering!;
     }
 
     private static string[] ParagraphTexts(MailDocument document) =>

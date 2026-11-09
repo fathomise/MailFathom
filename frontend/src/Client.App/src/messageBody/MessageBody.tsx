@@ -10,6 +10,7 @@ import type {
     MailDocument,
     MailDocumentBlock,
     MailDocumentFooter,
+    MailDocumentQuotation,
     MailDocumentRefusal,
 } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
@@ -17,6 +18,8 @@ import { FoldedFooter } from '../footers/FoldedFooter';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import type { Locale } from '../localization/locale';
+import { AuthorsPresentation } from './authorsPresentation';
+import { firstLineOfText } from './firstLineOfText';
 import { LinksNotOpened } from './linksNotOpened';
 import { EmbeddedMessageMarkup } from './MessageMarkupFrame';
 import { MessageBlocks } from './MessageBlocks';
@@ -157,11 +160,14 @@ export function MessageBody({
             ) : (
                 <article className={writtenWords}>
                     <LinksNotOpened value={readOnly}>
-                        <Written
-                            blocks={drawn.blocks}
-                            footer={drawn.footer}
-                            quotedHistoryOnRequest={quotedHistoryOnRequest}
-                        />
+                        <AuthorsPresentation value={drawn.authorIsProven}>
+                            <Written
+                                blocks={drawn.blocks}
+                                footer={drawn.footer}
+                                quotation={drawn.quotation}
+                                quotedHistoryOnRequest={quotedHistoryOnRequest}
+                            />
+                        </AuthorsPresentation>
                     </LinksNotOpened>
                     {drawn.truncated ? <p className="text-sm text-muted">{translate('body.truncated')}</p> : null}
                 </article>
@@ -170,30 +176,42 @@ export function MessageBody({
     );
 }
 
-// What the message says, with the reader's own footer folded to one line under the words where the document names one,
-// and the conversation it quoted under that. The footer always sits above the quotation, so drawing the blocks around
-// it in order is what puts the three in the order the design draws them, in a single message and in a conversation.
+// What the message says, with the footer folded to one line under the words where the document names one, and the
+// conversation it quoted under that. The footer always sits above the quotation, so drawing the blocks around it in
+// order is what puts the three in the order the design draws them, in a single message and in a conversation. A footer
+// with no line of text has nothing for the fold to say, so it is drawn with the words.
 function Written({
     blocks,
     footer,
+    quotation,
     quotedHistoryOnRequest,
 }: {
     readonly blocks: readonly MailDocumentBlock[];
     readonly footer: MailDocumentFooter | null;
+    readonly quotation: MailDocumentQuotation | null;
     readonly quotedHistoryOnRequest: boolean;
 }) {
-    if (footer === null) {
-        return <WordsAndQuotation blocks={blocks} quotedHistoryOnRequest={quotedHistoryOnRequest} />;
-    }
+    const footerEnd = footer === null ? 0 : footer.firstBlock + footer.blockCount;
+    const footerBlocks = footer === null ? [] : blocks.slice(footer.firstBlock, footerEnd);
+    const firstLine = firstLineOfText(footerBlocks);
 
-    const footerEnd = footer.firstBlock + footer.blockCount;
+    if (footer === null || firstLine === null) {
+        return (
+            <WordsAndQuotation
+                blocks={blocks}
+                namedQuotationAt={quotation?.firstBlock ?? null}
+                quotedHistoryOnRequest={quotedHistoryOnRequest}
+            />
+        );
+    }
 
     return (
         <>
             <MessageBlocks blocks={blocks.slice(0, footer.firstBlock)} />
-            <FoldedFooter blocks={blocks.slice(footer.firstBlock, footerEnd)} />
+            <FoldedFooter blocks={footerBlocks} firstLine={firstLine} />
             <WordsAndQuotation
                 blocks={blocks.slice(footerEnd)}
+                namedQuotationAt={quotation === null ? null : quotation.firstBlock - footerEnd}
                 quotedHistoryOnRequest={quotedHistoryOnRequest}
                 wordsAbove={footer.firstBlock > 0}
             />
@@ -207,15 +225,17 @@ function Written({
 // costs no code to be so.
 function WordsAndQuotation({
     blocks,
+    namedQuotationAt,
     quotedHistoryOnRequest,
     wordsAbove = false,
 }: {
     readonly blocks: readonly MailDocumentBlock[];
+    readonly namedQuotationAt: number | null;
     readonly quotedHistoryOnRequest: boolean;
     readonly wordsAbove?: boolean;
 }) {
     const { translate } = useLocalization();
-    const written = quotedHistoryOnRequest ? splitQuotedHistory(blocks, wordsAbove) : null;
+    const written = quotedHistoryOnRequest ? splitQuotedHistory(blocks, wordsAbove, namedQuotationAt) : null;
 
     if (written === null || written.quotedHistory.length === 0) {
         return <MessageBlocks blocks={blocks} />;
@@ -225,11 +245,16 @@ function WordsAndQuotation({
         <>
             <MessageBlocks blocks={written.contribution} />
 
-            <details>
-                <summary className="cursor-pointer text-sm text-muted">{translate('body.quotedHistory')}</summary>
+            <details className="group">
+                <summary className="-ms-1 flex min-h-7 w-fit max-w-full cursor-pointer items-center gap-1 rounded-md ps-1 pe-2.5 text-base leading-natural text-muted transition pointer-coarse:min-h-11 hover:bg-hover hover:text-text-soft [&::-webkit-details-marker]:hidden">
+                    <Icon name="chevron_right" className="size-icon-md shrink-0 transition group-open:rotate-90" />
+                    <span className="truncate">{written.attribution ?? translate('body.quotedHistory')}</span>
+                </summary>
 
                 <div className={`mt-3 ${writtenWords}`}>
-                    <MessageBlocks blocks={written.quotedHistory} />
+                    <AuthorsPresentation value={false}>
+                        <MessageBlocks blocks={written.quotedHistory} />
+                    </AuthorsPresentation>
                 </div>
             </details>
         </>

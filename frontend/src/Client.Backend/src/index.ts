@@ -260,6 +260,7 @@ export {
     type MailDocumentBlock,
     type MailDocumentFooter,
     type MailDocumentLink,
+    type MailDocumentQuotation,
     type MailWrittenHeaders,
     type MailDocumentRefusal,
     type MailHeadingBlock,

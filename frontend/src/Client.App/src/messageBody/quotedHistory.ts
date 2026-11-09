@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import type { MailDocumentBlock } from '@mailfathom/client-backend';
+import { firstLineOfText } from './firstLineOfText';
 
 // Where a reply stops being what somebody wrote and starts being what they were answering. A conversation is mostly
 // repetition — each reply carries the one before it — so a thread that drew every message whole would be the same
@@ -13,9 +14,10 @@ import type { MailDocumentBlock } from '@mailfathom/client-backend';
 // contribution. A quotation somebody replied underneath or between stays where it is, because there it is part of what
 // the message said rather than a copy of what it answered.
 //
-// It is a presentation decision and it is the client's: the service publishes the document a message reduces to and
-// judges no block of it, and the trimmed opening it publishes beside that is two hundred characters for a list row
-// rather than a message anybody reads.
+// Where the service names the quotation MailFathom itself wrote, that is the split instead, and the line MailFathom
+// wrote above it is what the fold says. Otherwise it is a presentation decision and it is the client's: the service
+// publishes the document a message reduces to and judges no block of it, and the trimmed opening it publishes beside
+// that is two hundred characters for a list row rather than a message anybody reads.
 
 /** A message's own words, and the history it quoted underneath them. */
 export interface SplitDocument {
@@ -24,6 +26,9 @@ export interface SplitDocument {
 
     /** The quotation it ended on, which a reader asks for rather than reads through. Empty where it ended on none. */
     readonly quotedHistory: readonly MailDocumentBlock[];
+
+    /** The line MailFathom wrote above a quotation it named, which the fold shows. Null where it named none. */
+    readonly attribution: string | null;
 }
 
 /**
@@ -35,21 +40,43 @@ export interface SplitDocument {
  *
  * @param blocks The document's top-level blocks, in the order the message wrote them.
  * @param wordsAbove Whether the message's own words stand above these blocks, as they do over the blocks under the
- * reader's own footer — where a run of nothing but quotation still leaves the message on the screen.
+ * named footer — where a run of nothing but quotation still leaves the message on the screen.
+ * @param namedQuotationAt Where among these blocks the quotation the service named begins, or null where it named none.
  * @returns What the message added, and the quotation under it.
  */
-export function splitQuotedHistory(blocks: readonly MailDocumentBlock[], wordsAbove = false): SplitDocument {
+export function splitQuotedHistory(
+    blocks: readonly MailDocumentBlock[],
+    wordsAbove = false,
+    namedQuotationAt: number | null = null,
+): SplitDocument {
+    const at = namedQuotationAt ?? trailingQuotationStart(blocks);
+    const quoted = blocks.slice(at);
+
+    if ((at === 0 && !wordsAbove) || !quoted.some((block) => block.type === 'quote')) {
+        return { contribution: blocks, quotedHistory: [], attribution: null };
+    }
+
+    const attribution = namedQuotationAt === null ? null : attributionIn(quoted[0]);
+
+    return {
+        contribution: blocks.slice(0, at),
+        quotedHistory: attribution === null ? quoted : quoted.slice(1),
+        attribution,
+    };
+}
+
+function trailingQuotationStart(blocks: readonly MailDocumentBlock[]): number {
     let at = blocks.length;
 
     while (at > 0 && trailing(blocks[at - 1])) {
         at -= 1;
     }
 
-    const quotedHistory = blocks.slice(at);
+    return at;
+}
 
-    return (at === 0 && !wordsAbove) || !quotedHistory.some((block) => block.type === 'quote')
-        ? { contribution: blocks, quotedHistory: [] }
-        : { contribution: blocks.slice(0, at), quotedHistory };
+function attributionIn(block: MailDocumentBlock | undefined): string | null {
+    return block?.type === 'paragraph' ? firstLineOfText([block]) : null;
 }
 
 // A separator immediately above the quotation is the rule a mail client draws between a reply and what it answers, so

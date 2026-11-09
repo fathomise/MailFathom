@@ -46,7 +46,8 @@ test('moves a task it wrote, finished, and deleted between the headings, and the
     ]);
 
     // Finished work leaves the list while done tasks are hidden, and stops counting against the day.
-    await dueToday.getByRole('checkbox', { name: `Mark ${written} as done` }).check();
+    // Pressed rather than checked: `check` reads the box again afterwards, and by then the row may have left the list.
+    await dueToday.getByRole('checkbox', { name: `Mark ${written} as done` }).click();
 
     await expect(page.getByRole('status').filter({ hasText: 'Marked as done.' })).toBeVisible();
     await expect(capacity).toContainText('One task is due today.');

@@ -1712,6 +1712,7 @@ export const pl: Catalogue = {
     'body.quotedHistory': 'Rozmowa cytowana w tej wiadomości',
     'footer.folded': 'Twoja stopka jest ukryta',
     'footer.open': 'Ukryj swoją stopkę',
+    'footer.hide': 'Ukryj stopkę',
     'footer.added': 'Stopka dodawana przy wysyłce',
     'footer.notEditable': 'Zostanie dodana przy wysyłce wiadomości i nie można jej tu edytować.',
     'body.markupFitting': 'Dopasowywanie wysokości do treści…',

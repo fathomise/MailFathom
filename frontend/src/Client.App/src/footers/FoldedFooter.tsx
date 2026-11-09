@@ -16,27 +16,33 @@ import { MessageBlocks } from '../messageBody/MessageBlocks';
 export function FoldedFooter({
     blocks,
     quiet = false,
+    firstLine = null,
 }: {
     readonly blocks: readonly MailDocumentBlock[];
+
+    /** The footer's first line of text where it stands under a sent message, which says who wrote that message. */
+    readonly firstLine?: string | null;
 
     /** Whether its lines are drawn quieter than the words beside them, which is how the composer tells the two apart. */
     readonly quiet?: boolean;
 }) {
     const { translate } = useLocalization();
     const [open, setOpen] = useState(false);
+    const unopened = firstLine ?? translate('footer.folded');
+    const opened = translate(firstLine === null ? 'footer.open' : 'footer.hide');
 
     return (
         <div className="flex flex-col gap-1.5">
             <button
                 type="button"
                 aria-expanded={open}
-                className="-ms-1 inline-flex min-h-7 items-center gap-1 self-start rounded-md ps-1 pe-2.5 text-base pointer-coarse:min-h-11 leading-natural text-muted transition hover:bg-hover hover:text-text-soft"
+                className="-ms-1 inline-flex min-h-7 max-w-full items-center gap-1 self-start rounded-md ps-1 pe-2.5 text-base pointer-coarse:min-h-11 leading-natural text-muted transition hover:bg-hover hover:text-text-soft"
                 onClick={() => {
                     setOpen(!open);
                 }}
             >
                 <Icon name={open ? 'expand_more' : 'chevron_right'} className="size-icon-md" />
-                <span>{translate(open ? 'footer.open' : 'footer.folded')}</span>
+                <span className="truncate">{open ? opened : unopened}</span>
             </button>
 
             {open ? (

@@ -1684,6 +1684,7 @@ export const en = {
     'body.quotedHistory': 'The conversation this message quoted',
     'footer.folded': 'Your footer is hidden',
     'footer.open': 'Hide your footer',
+    'footer.hide': 'Hide the footer',
     'footer.added': 'Footer added when you send',
     'footer.notEditable': 'It is added when the message is sent and cannot be edited here.',
     'body.markupFitting': 'Fitting the height to the content…',

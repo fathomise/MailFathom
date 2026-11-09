@@ -66,6 +66,8 @@ const workFooter: MailDocument = {
     undrawnInlineImageCount: 0,
     truncated: false,
     footer: null,
+    quotation: null,
+    authorIsProven: false,
 };
 
 function drafted(disposition: DraftDisposition = 'Composed'): AnswerBlock {
