@@ -1025,11 +1025,16 @@ MailFathomDesign.data.earlierMessages = {
       paras: [
         {
           text: "Are the indexation rules negotiable? We would accept the 2 h SLA on condition that an upper CPI cap is introduced.",
+          runs: [
+            { text: "Are the indexation rules negotiable? We would accept the 2 h SLA " },
+            { text: "on condition that an upper CPI cap is introduced.", colour: "#035dff" },
+          ],
         },
       ],
-      // The conversation the reply quoted under the footer, folded behind its own line in a thread.
+      // The conversation the reply quoted under the footer, folded behind its own line in a thread. `attribution` marks
+      // the line MailFathom wrote above a quotation, which is what the fold shows.
       quoted: [
-        { text: "On 22.08.2026 Anna Kowalska wrote:" },
+        { text: "On 22.08.2026 Anna Kowalska wrote:", attribution: true },
         { text: "Attached is the comparison version. The changes affect clause 4 (response time) and the price schedule." },
         // The same block inside a quotation folds the same way, and how the quotation folds does not change.
         {
@@ -1046,6 +1051,37 @@ MailFathomDesign.data.earlierMessages = {
           },
         },
         { text: "Clause 4 now reads two hours for priority A." },
+      ],
+    },
+  ],
+  // A colleague the organization's signature proves (`rekrutacja1` in sender-marks.js): the colours are drawn, and the
+  // footer and the message it quoted fold from the marks MailFathom wrote into what was sent.
+  rekrutacja1: [
+    {
+      from: "Anna Bielska",
+      when: "02.09, 16:40",
+      footerLines: [
+        { text: "Anna Bielska", strong: true },
+        { text: "HR Business Partner · Nordwind" },
+        { text: "+48 22 555 0177 · a.bielska@company.example" },
+      ],
+      paras: [
+        {
+          text: "The final round is on Thursday 04.09 at 10:00. Please confirm who joins from your team.",
+          runs: [
+            { text: "The final round is on " },
+            { text: "Thursday 04.09 at 10:00", colour: "#db0118" },
+            { text: ". Please confirm who joins from your team." },
+          ],
+        },
+        {
+          text: "The offer ranges are confidential until the decision.",
+          runs: [{ text: "The offer ranges are confidential until the decision.", colour: "#797979" }],
+        },
+      ],
+      quoted: [
+        { text: "On 2026-09-02 09:12 UTC, Karolina Kowalska <k.kowalska@company.example> wrote:", attribution: true },
+        { text: "When is the final round? I need to block the time for the panel." },
       ],
     },
   ],

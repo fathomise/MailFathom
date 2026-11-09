@@ -224,6 +224,8 @@ describe('readMailBody', () => {
                     undrawnInlineImageCount: 0,
                     truncated: false,
                     footer: null,
+                    quotation: null,
+                    authorIsProven: false,
                 },
                 selfContainedHtml: null,
                 remoteImagesRequested: false,
@@ -625,6 +627,48 @@ describe('readMailBody reading a block of header lines the message typed', () =>
         const result = await readingBlocks([
             { type: 'preformatted', version: 1, text: 'From: Ewa', writtenHeaders: { ...headers, blockCount: 1 } },
         ]);
+
+        expect(result.outcome).toBe('failed');
+    });
+});
+
+describe('readMailBody reading what the service states about a proven author', () => {
+    const fourParagraphs = [
+        paragraph(run('Thanks.')),
+        paragraph(run('Iris Marlow')),
+        paragraph(run('On Monday, Sam wrote:')),
+        paragraph(run('The report.')),
+    ];
+
+    async function reading(members: Record<string, unknown>) {
+        const body = bodyWith(documentWith(fourParagraphs, members));
+
+        return readMailBody(session, answering({ status: 200, body }), storedEmailId, readingTheMessage);
+    }
+
+    it('reads the quotation the document names and that its author is proven', async () => {
+        const result = await reading({ quotation: { firstBlock: 2, blockCount: 2 }, authorIsProven: true });
+
+        expect(result.outcome === 'read' && result.value.document?.quotation).toEqual({ firstBlock: 2, blockCount: 2 });
+        expect(result.outcome === 'read' && result.value.document?.authorIsProven).toBe(true);
+    });
+
+    it('reads a document from a deployment that states neither as one whose author nothing proves', async () => {
+        const result = await reading({});
+
+        expect(result.outcome === 'read' && result.value.document?.quotation).toBeNull();
+        expect(result.outcome === 'read' && result.value.document?.authorIsProven).toBe(false);
+    });
+
+    it.each([
+        ['a quotation past the last block', { quotation: { firstBlock: 4, blockCount: 1 } }],
+        [
+            'a quotation reaching into the footer',
+            { footer: { firstBlock: 1, blockCount: 2 }, quotation: { firstBlock: 2, blockCount: 2 } },
+        ],
+        ['a statement of proof that is not a boolean', { authorIsProven: 'yes' }],
+    ])('refuses %s', async (_, members) => {
+        const result = await reading(members);
 
         expect(result.outcome).toBe('failed');
     });

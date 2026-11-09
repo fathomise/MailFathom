@@ -222,6 +222,14 @@ its saturation bound of 0.25 and under its lightness bound of 0.35, which Excel'
 every cell both are — and a background as light as the page (every channel at `#f8` or above). A pasted or reopened
 colour outside the band is the source's choice and is kept and drawn as it is; what is sent is the value.
 
+The reading pane draws the band as written where the service states the message's author is proven, which is a
+message [the organization's signature](0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md)
+proves and the copy MailFathom filed of its own send: a colour inside the band is drawn as its value, a grey in the band
+included, and a colour outside it takes the body colour, because a paste can carry one that does not read on a theme.
+Everything inside a quotation, and every message nothing proves, keeps `senderColourRole`'s two tokens. A cell background
+stays the client's own fill even for a proven author: the band says when a colour reads as text on a panel, and nothing
+says when the words in a cell read on a fill somebody chose.
+
 **Size.** A closed scale of four marked steps and an unmarked normal, named for what they are rather than in pixels:
 
 | Step | HTML part writes | `<font size>` read as | CSS keyword read as | Any length read as |

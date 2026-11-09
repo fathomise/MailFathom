@@ -1470,18 +1470,30 @@ public sealed class EmailContentReaderTests
             Arg.Any<CancellationToken>());
     }
 
-    /// <summary>Only the copy MailFathom filed of its own send has its footer named, because only the send can say a message is the reader's.</summary>
+    /// <summary>Only the organization's signature and the copy MailFathom filed of its own send prove who wrote a message.</summary>
     /// <remarks>
-    /// The mark is ordinary markup anybody can write, so what decides is the row the send recorded. Honouring it on a
-    /// message from outside would let its sender fold part of what they wrote out of the reader's sight.
+    /// The marks are ordinary markup anybody can write, so what decides is the verdict and the row the send recorded.
+    /// A directory, an own-domain match, and a contact recognize an address and prove nothing about these bytes, and an
+    /// unsigned message or a failed signature leaves no organization source at all.
     /// </remarks>
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ReadContentAsync_AnEmailWhetherOrNotFiledFromItsOwnSend_AsksForTheFooterOnlyOnTheFiledCopy(bool isFiledSentCopy)
+    [InlineData(true, SenderTrustSource.None, true)]
+    [InlineData(false, SenderTrustSource.OrganizationMember, true)]
+    [InlineData(false, SenderTrustSource.OrganizationDirectory, false)]
+    [InlineData(false, SenderTrustSource.OwnAccountDomain, false)]
+    [InlineData(false, SenderTrustSource.None, false)]
+    public async Task ReadContentAsync_AnEmailAndWhatRecognizedItsAuthor_ReadsTheMarksOnlyWhereTheAuthorIsProven(
+        bool isFiledSentCopy,
+        SenderTrustSource grantedBy,
+        bool expectedProven)
     {
         // Arrange
-        var summary = SyntheticEmailSummaries.Create() with { IsFiledSentCopy = isFiledSentCopy };
+        var created = SyntheticEmailSummaries.Create();
+        var summary = created with
+        {
+            IsFiledSentCopy = isFiledSentCopy,
+            SenderVerification = created.SenderVerification with { DeploymentTrustGrantedBy = grantedBy },
+        };
         var renderer = RendererReturning(RenderingOf(plainText: "Body") with { Document = DocumentSaying("Words") });
         var reader = ReaderOver(summary, renderer);
 
@@ -1494,7 +1506,7 @@ public sealed class EmailContentReaderTests
         await renderer.Received(1).RenderAsync(
             Arg.Any<StoredEmailContent>(),
             Arg.Is<EmailContentRenderingBounds>(bounds =>
-                bounds != null && bounds.NamesAppendedFooter == isFiledSentCopy),
+                bounds != null && bounds.AuthorIsProven == expectedProven),
             Arg.Any<CancellationToken>());
     }
 

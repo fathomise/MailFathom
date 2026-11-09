@@ -4,7 +4,7 @@
 
 import { expect } from '@playwright/test';
 
-import { conversationId, readerFooter } from './fixtures/mail';
+import { conversationId, quotationAttribution, quotedByTheReply, readerFooter } from './fixtures/mail';
 import { openSignedIn, test } from './client.harness';
 
 // A conversation opened from the list lands on the message the row stood for and draws that one alone, with the rest of
@@ -80,19 +80,23 @@ test('folds the footer of the reader’s own reply to one line, and opens it fro
     await conversation.getByRole('button', { name: 'Show all the messages' }).click();
 
     const reply = messages.nth(1);
+    const author = readerFooter.at(0) ?? '';
     const role = readerFooter.at(-1) ?? '';
-    const folded = reply.getByRole('button', { name: 'Your footer is hidden' });
+    const folded = reply.getByRole('button', { name: author });
 
     await expect(reply).toContainText('Does the deeper price include the fixings?');
+    await expect(reply.getByText('include the fixings?')).toHaveCSS('color', 'rgb(3, 93, 255)');
+    await expect(reply.getByText(quotationAttribution)).toBeVisible();
+    await expect(reply.getByText(quotedByTheReply)).toBeHidden();
     await expect(folded).toHaveAttribute('aria-expanded', 'false');
     await expect(reply.getByText(role)).toHaveCount(0);
-    await expect(messages.first().getByRole('button', { name: 'Your footer is hidden' })).toHaveCount(0);
+    await expect(messages.first().getByRole('button', { name: author })).toHaveCount(0);
 
     await folded.focus();
     const before = await folded.boundingBox();
     await page.keyboard.press('Enter');
 
-    const opened = reply.getByRole('button', { name: 'Hide your footer' });
+    const opened = reply.getByRole('button', { name: 'Hide the footer' });
     await expect(opened).toHaveAttribute('aria-expanded', 'true');
     await expect(reply.getByText(role)).toBeVisible();
     // Within half a pixel rather than equal: the engine lays the control out in fractions of a pixel, and the footer
@@ -101,9 +105,6 @@ test('folds the footer of the reader’s own reply to one line, and opens it fro
 
     await opened.click();
 
-    await expect(reply.getByRole('button', { name: 'Your footer is hidden' })).toHaveAttribute(
-        'aria-expanded',
-        'false',
-    );
+    await expect(reply.getByRole('button', { name: author })).toHaveAttribute('aria-expanded', 'false');
     await expect(reply.getByText(role)).toHaveCount(0);
 });

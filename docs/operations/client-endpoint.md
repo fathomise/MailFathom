@@ -1990,6 +1990,8 @@ layout reads:
     "undrawnInlineImageCount": 0,
     "truncated": false,
     "footer": null,
+    "quotation": null,
+    "authorIsProven": false,
     "blocks": [
       {
         "type": "heading",
@@ -2053,17 +2055,27 @@ level whatever its words carry. The member is an addition rather than a change o
 [ADR 0047](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0047-what-the-composer-may-write-beyond-its-closed-set-and-how-it-reads-a-formatted-paste.md)
 holds the scale.
 
-**`footer` names the reader's own footer, and only theirs.** On the copy MailFathom filed of a message it sent from
-one of the reader's accounts — a shared mailbox they are assigned to included — it reads
-`{ "firstBlock": 1, "blockCount": 2 }`: the top-level blocks, counted from zero, that are the footer MailFathom appended
-to that message, so a pane can fold them under each message the reader wrote, in Sent and in a conversation alike. The
-blocks themselves stay in `blocks`, so the footer can be unfolded, and a client that does not read `footer` draws the
-message exactly as before, which is why `schemaVersion` did not move for it. In a message with markup the footer is
-found by the `footer` element the composer wraps it in, above any quotation — a footer the quoted history carries sits
-inside the `quote` block and is never the one named — and in a message without markup by the `-- ` line it opens with,
-up to the quotation or the end. On every other message `footer` is `null`: one MailFathom sent before footers existed,
-one written in another mail client, and above all one from anybody else, because the mark is ordinary markup a sender
-could copy and the copy MailFathom filed of its own send is the one thing nothing in a message can claim to be. The
+**`authorIsProven` says the service established who wrote the message, and a client never evaluates it.** It is `true`
+on the copy MailFathom filed of a message it sent from one of the reader's accounts — a shared mailbox they are assigned
+to included — and on a message the organization's signature proves a colleague wrote, and `false` on everything else,
+a member of the organization's directory, an account's own domain, and a contact among them, because each of those
+recognizes an address rather than these bytes. Where it is `true`, a run's `foreground` inside the readable band is the
+author's to have drawn; a signature covers what its author quoted and vouches only for what they wrote, so nothing inside
+a `quote` block is ever drawn that way.
+
+**`footer` names the footer MailFathom appended, and `quotation` the quotation it wrote, only where `authorIsProven` is
+`true`.** `footer` reads `{ "firstBlock": 1, "blockCount": 2 }`: the top-level blocks, counted from zero, that are the
+footer MailFathom appended to that message, so a pane can fold them, in Sent and in a conversation alike. `quotation`
+has the same shape and runs from the attribution line to the end of the document, so a pane can fold the quotation
+behind that line. The blocks themselves stay in `blocks`, so both can be unfolded, and a client that reads neither draws
+the message exactly as before, which is why `schemaVersion` did not move for them. In a message with markup the footer
+is found by the `footer` element the composer wraps it in, above any quotation — a footer the quoted history carries
+sits inside the `quote` block and is never the one named — and in a message without markup by the `-- ` line it opens
+with, up to the quotation or the end. The quotation is found by the `<!--mailfathom-quotation-->` comment written directly
+under the body, so a message without markup, or without that comment, names none. On every other message both are
+`null`: one MailFathom sent before footers existed, one written in another mail client, and above all one nothing proves,
+because the marks are ordinary markup a sender could copy and neither the organization's signature nor the copy
+MailFathom filed of its own send is something a message can claim to be. The
 sender's own markup under `fullHtml` is unchanged by any of it.
 
 **`writtenHeaders` names a block of header lines the message typed, and proves nothing.** A forward or a quoted reply

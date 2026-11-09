@@ -260,7 +260,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
   const segStyle = (on) => "flex:1;text-align:center;padding:6px 8px;border-radius:8px;font-size:13px;white-space:nowrap;" + (on ? "background:var(--accent);color:var(--onaccent)" : "color:var(--muted)");
 
-  /* `footer` says the message names the footer MailFathom appended to it; `quoted` is the conversation it quoted. */
+  /* `footer` says the message names the footer MailFathom appended to it, and `footerLines` is that footer where the
+     message is a proven colleague's rather than the reader's; `quoted` is the conversation it quoted. */
   const M = (from, when, paras, atts, html, extra) => Object.assign({ from, when, initials: initialsOf(from), mine: from === ME, paras, atts: atts || [], html: html || "", footer: false, quoted: [] }, extra);
 
   /* The originals wrapped in the document shell they arrive in, and the earlier messages built as the newest one is. */
@@ -270,7 +271,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   Object.keys(threadMailBodies).forEach(t => { THREAD_HTML[t] = MAIL_HTML[threadMailBodies[t]]; });
   const HERO_MSGS = {};
   Object.keys(earlierMessages).forEach(t => {
-    HERO_MSGS[t] = earlierMessages[t].map(m => M(m.from, m.when, m.paras, m.attachments, m.html && MAIL_HTML[m.html], { footer: !!m.footer, quoted: m.quoted || [] }));
+    HERO_MSGS[t] = earlierMessages[t].map(m => M(m.from, m.when, m.paras, m.attachments, m.html && MAIL_HTML[m.html], { footer: !!m.footer, footerLines: m.footerLines || null, quoted: m.quoted || [] }));
   });
 
   const msgsFor = (t) => {
@@ -1722,7 +1723,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     signOffHtml = () => (this.composeFooter().length ? "" : '<p style="margin:12px 0 0 0">' + COMPOSE_DRAFTS.signOff + "</p>");
     /* The one quiet line a footer folds to wherever it is drawn — sent mail, the composer, the Agent's draft. */
     footerFoldStyle = (touch) => "display:inline-flex;align-self:flex-start;align-items:center;gap:4px;box-sizing:border-box;min-height:" + (touch ? 44 : 28) +
-      "px;padding:0 10px 0 4px;margin-left:-4px;border-radius:8px;font-size:13px;line-height:1.3;color:var(--muted)";
+      "px;max-width:100%;padding:0 10px 0 4px;margin-left:-4px;border-radius:8px;font-size:13px;line-height:1.3;color:var(--muted)";
     /* A footer line drawn as sent mail draws it: the name line strong, the fine print small. */
     footerLineStyle = (l) => l.strong ? "font-size:14px;line-height:1.5;font-weight:600;color:var(--text)"
       : l.small ? "font-size:12px;line-height:1.5;color:var(--muted);margin-top:6px;text-wrap:pretty"
@@ -4711,7 +4712,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const folding = st.histFolding === thread.id;
         /* The original is what went out, footer and quoted conversation included, so nothing in it is folded. */
         const original = Object.assign({}, m, { paras: m.paras
-          .concat(m.mine && m.footer ? (FOOTERS[thread.acc || "acc1"] || []).map(l => ({ text: l.text })) : [], m.quoted) });
+          .concat((m.footerLines || (m.mine && m.footer ? FOOTERS[thread.acc || "acc1"] || [] : [])).map(l => ({ text: l.text })), m.quoted) });
         /* A mailbox change the server never took, on the message it was asked for, until it is asked again or let go. */
         const chg = i === lastIdx && !(st.changeDecided || {})[thread.id] ? CHANGE_NOTICES[thread.id] : null;
         const chgBoth = !!chg && chg.fate === "both";
@@ -4810,12 +4811,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           avatarStyle:
             "width:30px;height:30px;flex:0 0 30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;letter-spacing:0.02em;" +
             (m.mine ? "background:var(--accent);color:var(--onaccent);" : "background:var(--border2);color:var(--text2);"),
-          /* The reader's own footer, named by the message, folds to one quiet line under their words; the conversation
-             it quoted folds under that, behind a line of its own. A message naming no footer is drawn whole. */
+          /* A footer the message names — the reader's own, or a proven colleague's — folds to one quiet line under the
+             words, showing the footer's first line; the conversation it quoted folds under that, behind the attribution
+             MailFathom wrote. A message naming no footer is drawn whole. */
           ...(() => {
             let bodyHeaders;
             return Object.assign({}, (() => {
-            const lines = m.mine && m.footer ? FOOTERS[thread.acc || "acc1"] || [] : [];
+            const lines = m.footerLines || (m.mine && m.footer ? FOOTERS[thread.acc || "acc1"] || [] : []);
+            const attribution = m.quoted[0] && m.quoted[0].attribution ? m.quoted[0].text : null;
             const footOpen = !!(st.footerOpen || {})[k];
             const quoteOpen = !!(st.quotedOpen || {})[k];
             const flip = (key) => () => this.setState(s2 => ({ [key]: Object.assign({}, s2[key], { [k]: !(s2[key] || {})[k] }) }));
@@ -4840,12 +4843,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             return {
               foldsShown: lines.length > 0 || m.quoted.length > 0,
               footerShown: lines.length > 0, footerOpen: footOpen, toggleFooter: flip("footerOpen"),
-              footerLabel: footOpen ? "Hide your footer" : "Your footer is hidden",
+              footerLabel: footOpen ? "Hide the footer" : (lines[0] || {}).text,
               footerGlyph: footOpen ? "expand_more" : "chevron_right",
               footerLines: lines.map(l => ({ text: l.text, style: this.footerLineStyle(l) })),
               quotedShown: m.quoted.length > 0, quotedOpen: quoteOpen, toggleQuoted: flip("quotedOpen"),
               quotedGlyph: quoteOpen ? "expand_more" : "chevron_right",
-              quotedParas: m.quoted.map((q, at) => q.headers
+              quotedLabel: attribution || "The conversation this message quoted",
+              quotedParas: m.quoted.slice(attribution ? 1 : 0).map((q, at) => q.headers
                 ? writtenHeaders(q.headers, "q" + at)
                 : ({ isText: true, text: q.text, style: "font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty" })),
               foldLineStyle: foldLine,
@@ -4854,7 +4858,11 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             })(), {
               paras: m.paras.reduce((acc, bb, at) => bb.headers ? acc.concat([bodyHeaders(bb.headers, "p" + at)]) : bb.md ? acc.concat(threadSpam.spam ? unlinked(mdView(bb.md)) : mdView(bb.md)) : acc.concat([{
                 isText: true,
-                runs: [{ text: bb.text, plain: true, isLink: false, href: "", style: "" }],
+                /* `runs` is a proven author's own colours, drawn as the value: only what is inside the readable band is
+                   written with one, and everything else is the body colour. */
+                runs: bb.runs
+                  ? bb.runs.map(r => ({ text: r.text, plain: true, isLink: false, href: "", style: r.colour ? "color:" + r.colour : "" }))
+                  : [{ text: bb.text, plain: true, isLink: false, href: "", style: "" }],
                 style: bb.hl && st.cameFrom
                   ? "font-size:16px;line-height:1.55;background:var(--hl);border-left:3px solid var(--hl-line);padding:13px 16px;text-wrap:pretty"
                   : MDTXT + (bb.text.indexOf("\n") >= 0 ? ";white-space:pre-line" : ""),

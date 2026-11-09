@@ -9324,6 +9324,9 @@
       },
       "MailDocument": {
         "properties": {
+          "authorIsProven": {
+            "type": "boolean"
+          },
           "blocks": {
             "items": {
               "$ref": "#/components/schemas/MailDocumentBlock"
@@ -9346,6 +9349,16 @@
             "type": [
               "integer",
               "string"
+            ]
+          },
+          "quotation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailDocumentQuotation"
+              }
             ]
           },
           "refusal": {
@@ -9825,6 +9838,31 @@
           "host",
           "asciiHost",
           "deception"
+        ],
+        "type": "object"
+      },
+      "MailDocumentQuotation": {
+        "properties": {
+          "blockCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "firstBlock": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "firstBlock",
+          "blockCount"
         ],
         "type": "object"
       },

@@ -4,7 +4,7 @@
 
 namespace MailFathom.Application.EmailContent.Rendering.Document;
 
-/// <summary>Which of a document's top-level blocks are the footer MailFathom appended to a message the reader sent.</summary>
+/// <summary>Which of a document's top-level blocks are the footer MailFathom appended to a message whose author is proven.</summary>
 /// <param name="FirstBlock">The position of the footer's first block in <see cref="MailDocument.Blocks" />.</param>
 /// <param name="BlockCount">How many consecutive top-level blocks the footer is, at least one.</param>
 /// <remarks>

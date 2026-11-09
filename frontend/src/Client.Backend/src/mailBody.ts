@@ -212,12 +212,21 @@ export interface MailWrittenHeaders {
 }
 
 /**
- * Which of a document's top-level blocks are the footer MailFathom appended to a message the reader sent.
+ * Which of a document's top-level blocks are the footer MailFathom appended to a message whose author is proven.
  *
  * A statement about blocks the document still carries rather than a removal of them, so the range always lies inside
  * `blocks` and spans at least one of them.
  */
 export interface MailDocumentFooter {
+    readonly firstBlock: number;
+    readonly blockCount: number;
+}
+
+/**
+ * Which of a document's top-level blocks are the quotation MailFathom wrote into a message whose author is proven, from
+ * the attribution line to the end of the document. A statement rather than a removal, as a footer is.
+ */
+export interface MailDocumentQuotation {
     readonly firstBlock: number;
     readonly blockCount: number;
 }
@@ -232,8 +241,14 @@ export interface MailDocument {
     readonly undrawnInlineImageCount: number;
     readonly truncated: boolean;
 
-    /** The reader's own footer, named only on the copy MailFathom filed of a message it sent for them. */
+    /** The footer MailFathom appended, named only where the author is proven and the message carries its mark. */
     readonly footer: MailDocumentFooter | null;
+
+    /** The quotation MailFathom wrote, named only where the author is proven and the message carries its mark. */
+    readonly quotation: MailDocumentQuotation | null;
+
+    /** Whether this message's presentation is its proven author's, which the service decides and this client never does. */
+    readonly authorIsProven: boolean;
 }
 
 /** The message as words, which is a rendering in its own right rather than only what a refusal falls back to. */
@@ -538,8 +553,17 @@ function parseDocument(record: Readonly<Record<string, unknown>>, remoteImages: 
         return null;
     }
 
-    const footer = parseFooter(record['footer'], blocks.length);
-    if (footer === undefined) {
+    const footer = parseBlockRange(record['footer'], blocks.length);
+    const quotation = parseBlockRange(record['quotation'], blocks.length);
+    const authorIsProven = record['authorIsProven'] ?? false;
+
+    // The composer writes a footer above the quotation, so one reaching into the other names neither correctly.
+    if (
+        footer === undefined ||
+        quotation === undefined ||
+        typeof authorIsProven !== 'boolean' ||
+        (footer !== null && quotation !== null && quotation.firstBlock < footer.firstBlock + footer.blockCount)
+    ) {
         return null;
     }
 
@@ -552,13 +576,18 @@ function parseDocument(record: Readonly<Record<string, unknown>>, remoteImages: 
         undrawnInlineImageCount,
         truncated,
         footer,
+        quotation,
+        authorIsProven,
     };
 }
 
-// A footer is a range over the blocks this same document carries, so one reaching past them names blocks that are not
-// there, and folding by it would hide words the reader wrote or show a fold over nothing. A deployment that predates
-// the member sends none, which is a document naming no footer rather than one to refuse.
-function parseFooter(value: unknown, blockCount: number): MailDocumentFooter | null | undefined {
+// A footer and a quotation are ranges over the blocks this same document carries, so one reaching past them names blocks
+// that are not there, and folding by it would hide words somebody wrote or show a fold over nothing. A deployment that
+// predates the member sends none, which is a document naming none rather than one to refuse.
+function parseBlockRange(
+    value: unknown,
+    blockCount: number,
+): { readonly firstBlock: number; readonly blockCount: number } | null | undefined {
     if (value === undefined || value === null) {
         return null;
     }

@@ -2,7 +2,11 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-// What the reduced view does with a colour the sender wrote, which is to normalise it rather than to reproduce it.
+// What the reduced view does with a colour a sender wrote, which is to normalise it rather than to reproduce it — unless
+// the service states the message's author is proven, where `MessageBlocks.tsx` draws a colour inside ADR 0047's readable
+// band as written and everything else in the body colour. A stranger chose theirs for a page this client never drew; a
+// proven author chose theirs in this client's own picker, so it reads on both themes for a reason rather than by luck.
+// Nothing inside a quotation is theirs to colour, however the message was signed.
 //
 // **The reading surfaces are for reading, so they are drawn in this client's own colours.** A sender picks theirs
 // against the white page their composer drew, with no idea of the panel a reader's theme paints, and they pick them to
@@ -20,8 +24,8 @@
 // Both are tokens rather than values, which is what makes the dark theme free: the stylesheet already states each of
 // them for both panels, so nothing here computes a contrast and nothing asks which theme is in force.
 //
-// The sender's own markup is the surface that still shows their colours, and that is what that surface is for. This
-// governs the reduced document.
+// The sender's own markup is the surface that still shows anybody's colours, and that is what that surface is for. This
+// governs the reduced document of a message nothing proves.
 
 /** The one notation `Client.Backend` lets a run's colour through as. */
 const sixDigitHex = /^#[0-9a-f]{6}$/iu;

@@ -10,6 +10,7 @@ import type {
     ClientSession,
     MailAccount,
     MailBody,
+    MailDocumentBlock,
     MailFathomTransport,
     MailFolder,
     MailMessage,
@@ -259,6 +260,48 @@ describe('ThreadMessage', () => {
         expect(screen.getByText('The auditor')).toBeDefined();
         expect(screen.getByText('The figures you asked for are attached.')).toBeDefined();
         expect(screen.getByText('Sent · Work')).toBeDefined();
+    });
+
+    it('folds what the message quoted behind one line, so a conversation does not repeat itself', () => {
+        const paragraph = (text: string): MailDocumentBlock => ({
+            type: 'paragraph',
+            content: [
+                {
+                    text,
+                    emphasis: { bold: false, italic: false, underline: false, strikethrough: false, monospace: false },
+                    foreground: null,
+                    size: 'Normal',
+                    link: null,
+                },
+            ],
+            alignment: 'Inherited',
+        });
+
+        drawing(
+            message({
+                body: {
+                    ...said,
+                    document: {
+                        blocks: [
+                            paragraph('The figures are attached.'),
+                            { type: 'quote', depth: 1, blocks: [paragraph('Could you send the figures?')] },
+                        ],
+                        refusal: 'None',
+                        removedRemoteReferenceCount: 0,
+                        retainedRemoteImageCount: 0,
+                        inlineImageCount: 0,
+                        undrawnInlineImageCount: 0,
+                        truncated: false,
+                        footer: null,
+                        quotation: null,
+                        authorIsProven: false,
+                    },
+                },
+            }),
+        );
+
+        expect(screen.getByText('The figures are attached.')).toBeDefined();
+        expect(screen.getByText('The conversation this message quoted').closest('details')?.open).toBe(false);
     });
 
     it('names a folder with no role by the last part of its path', () => {

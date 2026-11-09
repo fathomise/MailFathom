@@ -40,6 +40,8 @@ const drawnDocument: MailDocument = {
     undrawnInlineImageCount: 0,
     truncated: false,
     footer: null,
+    quotation: null,
+    authorIsProven: false,
 };
 
 const readable: MailBody = {
@@ -415,33 +417,31 @@ describe('MessageBody', () => {
             drawing(sentWithFooter);
 
             expect(screen.getByText('Thursday works for us.')).toBeDefined();
-            expect(screen.getByRole('button', { name: 'Your footer is hidden' }).getAttribute('aria-expanded')).toBe(
-                'false',
-            );
-            expect(screen.queryByText('Iris Marlow')).toBeNull();
+            expect(screen.getByRole('button', { name: 'Iris Marlow' }).getAttribute('aria-expanded')).toBe('false');
+            expect(screen.queryByText('Head of Procurement')).toBeNull();
         });
 
         it('opens the footer on a press and folds it again on the next', async () => {
             drawing(sentWithFooter);
 
-            fireEvent.click(screen.getByRole('button', { name: 'Your footer is hidden' }));
+            fireEvent.click(screen.getByRole('button', { name: 'Iris Marlow' }));
 
-            const open = await screen.findByRole('button', { name: 'Hide your footer' });
+            const open = await screen.findByRole('button', { name: 'Hide the footer' });
             expect(open.getAttribute('aria-expanded')).toBe('true');
             expect(screen.getByText('Iris Marlow')).toBeDefined();
             expect(screen.getByText('Head of Procurement')).toBeDefined();
 
             fireEvent.click(open);
 
-            expect(await screen.findByRole('button', { name: 'Your footer is hidden' })).toBeDefined();
-            expect(screen.queryByText('Iris Marlow')).toBeNull();
+            expect(await screen.findByRole('button', { name: 'Iris Marlow' })).toBeDefined();
+            expect(screen.queryByText('Head of Procurement')).toBeNull();
         });
 
         it('draws the words, the folded footer, and the folded history in that order in a conversation', () => {
             inAConversation(sentWithFooter);
 
             const words = screen.getByText('Thursday works for us.');
-            const footer = screen.getByRole('button', { name: 'Your footer is hidden' });
+            const footer = screen.getByRole('button', { name: 'Iris Marlow' });
             const history = screen.getByText('The conversation this message quoted');
 
             expect(words.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -452,7 +452,7 @@ describe('MessageBody', () => {
         it('draws the history under the footer where one message is what is being read', () => {
             drawing(sentWithFooter);
 
-            const footer = screen.getByRole('button', { name: 'Your footer is hidden' });
+            const footer = screen.getByRole('button', { name: 'Iris Marlow' });
             const answered = screen.getByText('Does Thursday work?');
 
             expect(footer.compareDocumentPosition(answered) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -466,14 +466,98 @@ describe('MessageBody', () => {
             });
 
             expect(screen.getByText('Best regards, Iris')).toBeDefined();
-            expect(screen.queryByRole('button', { name: 'Your footer is hidden' })).toBeNull();
+            expect(screen.queryByRole('button', { name: 'Iris Marlow' })).toBeNull();
         });
 
         it('folds nothing in the sender’s own markup, which is the message as it went out', () => {
             render(inTheEmbeddedView({ ...sentWithFooter, selfContainedHtml: markup }));
 
             expect(screen.getByTitle("The sender's own markup, drawn in isolation")).toBeDefined();
-            expect(screen.queryByRole('button', { name: 'Your footer is hidden' })).toBeNull();
+            expect(screen.queryByRole('button', { name: 'Iris Marlow' })).toBeNull();
+        });
+
+        it('draws a footer with no line of text with the words rather than folding it behind nothing', () => {
+            drawing({
+                ...readable,
+                document: {
+                    ...drawnDocument,
+                    blocks: [
+                        written('Thursday works for us.'),
+                        {
+                            type: 'image',
+                            image: {
+                                source: 'data:image/png;base64,AAAA',
+                                alternativeText: 'A logo',
+                                width: null,
+                                height: null,
+                            },
+                            link: null,
+                            alignment: 'Inherited',
+                        },
+                    ],
+                    footer: { firstBlock: 1, blockCount: 1 },
+                },
+            });
+
+            expect(screen.getByRole('img', { name: 'A logo' })).toBeDefined();
+            expect(screen.queryByRole('button', { expanded: false })).toBeNull();
+        });
+
+        it('folds a named quotation behind the attribution MailFathom wrote, once, in a conversation', () => {
+            inAConversation({
+                ...readable,
+                document: {
+                    ...drawnDocument,
+                    blocks: [
+                        written('Thursday works for us.'),
+                        written('On Monday, Sam wrote:'),
+                        { type: 'quote', depth: 1, blocks: [written('Does Thursday work?')] },
+                    ],
+                    quotation: { firstBlock: 1, blockCount: 2 },
+                    authorIsProven: true,
+                },
+            });
+
+            expect(screen.getByText('On Monday, Sam wrote:').closest('summary')).not.toBeNull();
+            expect(screen.queryByText('The conversation this message quoted')).toBeNull();
+        });
+
+        it('draws a proven author colours in their words and never in what they quoted', () => {
+            const coloured = (text: string): MailDocumentBlock => ({
+                type: 'paragraph',
+                alignment: 'Inherited',
+                content: [
+                    {
+                        text,
+                        emphasis: {
+                            bold: false,
+                            italic: false,
+                            underline: false,
+                            strikethrough: false,
+                            monospace: false,
+                        },
+                        foreground: '#db0118',
+                        size: 'Normal',
+                        link: null,
+                    },
+                ],
+            });
+
+            const { container } = drawing({
+                ...readable,
+                document: {
+                    ...drawnDocument,
+                    blocks: [
+                        coloured('Their words.'),
+                        { type: 'quote', depth: 1, blocks: [coloured('Quoted words.')] },
+                    ],
+                    authorIsProven: true,
+                },
+            });
+
+            expect(container.querySelectorAll('[style*="color"]')).toHaveLength(1);
+            expect(screen.getByText('Their words.').getAttribute('style')).toContain('color');
+            expect(screen.getByText('Quoted words.').getAttribute('style')).toBeNull();
         });
     });
 

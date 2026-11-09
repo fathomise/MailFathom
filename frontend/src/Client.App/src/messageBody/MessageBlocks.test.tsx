@@ -6,6 +6,7 @@ import { getDefaultNormalizer, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { MailDocumentBlock, MailDocumentLink, MailInlineRun, MailTextSize } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
+import { AuthorsPresentation } from './authorsPresentation';
 import { MessageBlocks } from './MessageBlocks';
 import { LinkOpenerContext } from '../shellOperations/linkOpener';
 
@@ -335,6 +336,42 @@ describe('MessageBlocks', () => {
         drawing([{ type: 'separator' }]);
 
         expect(screen.getByRole('separator')).toBeDefined();
+    });
+});
+
+describe('MessageBlocks, a run in a colour a proven author chose', () => {
+    function provenRun(foreground: string): HTMLElement {
+        const { container } = render(
+            <LocalizationProvider>
+                <AuthorsPresentation value>
+                    <MessageBlocks
+                        blocks={[
+                            { type: 'paragraph', content: [run('Regards', { foreground })], alignment: 'Inherited' },
+                        ]}
+                    />
+                </AuthorsPresentation>
+            </LocalizationProvider>,
+        );
+
+        return container.firstElementChild as HTMLElement;
+    }
+
+    it('draws a colour inside the readable band as the value it was written in', () => {
+        expect(provenRun('#db0118').querySelector('span')?.style.color).toBe('rgb(219, 1, 24)');
+    });
+
+    it.each(['#000000', '#ffffff', '#ffff00'])('draws %s, outside the band, in the body colour', (foreground) => {
+        const drawn = provenRun(foreground);
+
+        expect(drawn.querySelector('[style]')).toBeNull();
+        expect(drawn.querySelector('.text-muted')).toBeNull();
+    });
+
+    it('draws a grey inside the band as written rather than as small print', () => {
+        const drawn = provenRun('#797979');
+
+        expect(drawn.querySelector('span')?.style.color).toBe('rgb(121, 121, 121)');
+        expect(drawn.querySelector('.text-muted')).toBeNull();
     });
 });
 

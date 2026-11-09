@@ -74,6 +74,7 @@ export function OpenedMessage({
     summary = null,
     receiptsShown = true,
     answersReadReceipt = true,
+    quotedHistoryOnRequest = false,
 }: {
     readonly session: ClientSession;
     readonly transport: MailFathomTransport;
@@ -104,6 +105,9 @@ export function OpenedMessage({
      * offers one; a message read on its own is that message.
      */
     readonly answersReadReceipt?: boolean;
+
+    /** Whether the conversation this message quoted is folded away until a reader asks for it, which a thread does. */
+    readonly quotedHistoryOnRequest?: boolean;
 }) {
     const { locale, translate } = useLocalization();
     const embeddedHtml = useMessageView() === 'embeddedHtml';
@@ -319,6 +323,7 @@ export function OpenedMessage({
                             <Message
                                 body={body}
                                 storedEmailId={storedEmailId}
+                                quotedHistoryOnRequest={quotedHistoryOnRequest}
                                 readOnly={readOnly}
                                 answer={
                                     answersReadReceipt && !readOnly && message.readReceiptRequest !== null ? (

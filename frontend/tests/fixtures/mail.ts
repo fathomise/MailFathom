@@ -560,7 +560,7 @@ function bodyOfConversationRow(row: { readonly id: string; readonly preview: str
         return forwardingBody(row.id, row.preview);
     }
 
-    return conversationBody(row.id, row.id === signedReplyId ? [row.preview, ...readerFooter] : [row.preview]);
+    return row.id === signedReplyId ? signedReplyBody(row.id, row.preview) : conversationBody(row.id, [row.preview]);
 }
 
 /** The message of the conversation that forwards one, carrying the block of header lines another mail client typed. */
@@ -603,6 +603,45 @@ const signedReplyId = '00000000-0000-4000-8000-0000000000c2';
 
 /** The footer MailFathom appended to that reply, a paragraph a line. */
 export const readerFooter = ['Iris Marlow', 'Head of Procurement · Example Warehousing'];
+
+/** The line MailFathom wrote above what that reply quoted. */
+export const quotationAttribution = 'On 2026-08-27 15:12 UTC, Nordwind <sales@nordwind.example> wrote:';
+
+/** What that reply quoted, which a conversation folds behind the line above. */
+export const quotedByTheReply = rackingQuote.preview;
+
+/** The reply that footer was appended to: a coloured run, the footer, and the quotation MailFathom marked under it. */
+function signedReplyBody(storedEmailId: string, words: string) {
+    const body = conversationBody(storedEmailId, [words, ...readerFooter]);
+    const paragraph = (text: string) => ({
+        type: 'paragraph',
+        version: 1,
+        content: [{ text, emphasis: 'None', foreground: null, link: null }],
+        alignment: 'Inherited',
+    });
+    const [authored, ...footer] = body.document.blocks;
+
+    return {
+        ...body,
+        document: {
+            ...body.document,
+            blocks: [
+                {
+                    ...authored,
+                    content: [
+                        { text: 'Does the deeper price ', emphasis: 'None', foreground: null, link: null },
+                        { text: 'include the fixings?', emphasis: 'None', foreground: '#035dff', link: null },
+                    ],
+                },
+                ...footer,
+                paragraph(quotationAttribution),
+                { type: 'quote', version: 1, depth: 1, blocks: [paragraph(quotedByTheReply)] },
+            ],
+            quotation: { firstBlock: 1 + footer.length, blockCount: 2 },
+            authorIsProven: true,
+        },
+    };
+}
 
 /**
  * A body whose paragraphs are the given ones, naming every paragraph after the first as the reader's footer and setting
