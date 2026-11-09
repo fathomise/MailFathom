@@ -14,6 +14,7 @@ namespace MailFathom.Infrastructure.Persistence.Users.AccountSettings;
 /// <param name="ScansFor">The scanners the account switched on for itself, whatever the deployment provides.</param>
 /// <param name="ScreensOutgoingMailFor">The scanners whose findings the account asked to stop a message it sends.</param>
 /// <param name="Folders">Every folder the account is run with, which is the inbox alone where its document maps none.</param>
+/// <param name="OwnCategoryNames">The own categories the account declares, whose stored records are the only ones of their kind it keeps.</param>
 /// <remarks>
 /// The document stays the account's settings and this is never written on its own: the configuration layer reads it
 /// out of the document it binds, and the store writes both in one transaction, which is what keeps the two from
@@ -26,9 +27,10 @@ public sealed record MailAccountQueryableSettings(
     bool ClassifiesSpam,
     IReadOnlyList<SensitiveContentScannerKind> ScansFor,
     IReadOnlyList<SensitiveContentScannerKind> ScreensOutgoingMailFor,
-    IReadOnlyList<MailAccountQueryableFolder> Folders)
+    IReadOnlyList<MailAccountQueryableFolder> Folders,
+    IReadOnlyList<string> OwnCategoryNames)
 {
     /// <summary>Gets the settings of an account whose document does not bind, which takes part in nothing.</summary>
     public static MailAccountQueryableSettings Unreadable { get; } =
-        new(IsReadable: false, MailSynchronizationMode.Polling, ClassifiesSpam: false, [], [], []);
+        new(IsReadable: false, MailSynchronizationMode.Polling, ClassifiesSpam: false, [], [], [], []);
 }

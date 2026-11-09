@@ -83,6 +83,7 @@ public sealed class MailboxExportHandlerTests
                 .Select(entry => entry.FullName)
                 .Where(name => name.EndsWith('/') || !name.Contains('/', StringComparison.Ordinal))
                 .Order(StringComparer.Ordinal));
+        Assert.Contains(archive.Entries, entry => entry.FullName == "categories/000000.json");
 
         Assert.Single(
             archive.Entries,
@@ -261,6 +262,7 @@ public sealed class MailboxExportHandlerTests
         Now,
         byteLength,
         MaildirFlagSet.Seen,
+        [],
         []);
 
     private static StatedMailboxExportReader ReaderHolding(params ExportableMessage[] messages)

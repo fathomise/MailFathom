@@ -399,6 +399,38 @@ public sealed class SettingsPolicyCandidateTests
         Assert.Equal(expected, Assert.Single(candidate.Refusals));
     }
 
+    /// <summary>A policy states a list whole, so a list no account could hold is refused when the policy is written, not at the next write of an account it governs.</summary>
+    [Theory]
+    [InlineData("Forced", """{"Categorization":{"DisabledDefaults":["nonsense"]}}""", "MailAccounts:Forced: Categorization:DisabledDefaults:0 names no default category.")]
+    [InlineData("Defaults", """{"Categorization":{"OwnCategories":[{"Name":"finance","Description":"Money."}]}}""", "MailAccounts:Defaults: Categorization:OwnCategories:0 takes the name of a default category")]
+    [InlineData("Forced", """{"Categorization":{"OwnCategories":[{"Name":"Contracts","Description":""}]}}""", "MailAccounts:Forced: Categorization:OwnCategories:0:Description")]
+    public void Judge_ACategorizationListNoAccountCouldHold_IsRefusedNamingTheEntryByItsPosition(string statement, string stated, string expected)
+    {
+        // Arrange
+        var saved = $$$"""{"MailAccounts":{"{{{statement}}}":{{{stated}}}}}""";
+
+        // Act
+        var candidate = SettingsPolicyCandidate.Judge(saved);
+
+        // Assert
+        Assert.Null(candidate.Json);
+        Assert.StartsWith(expected, Assert.Single(candidate.Refusals), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Judge_ACategorizationAnAccountCouldHold_MayBeCommitted()
+    {
+        // Arrange
+        const string saved = """{"MailAccounts":{"Forced":{"Categorization":{"DisabledDefaults":["shopping"],"OwnCategories":[{"Name":"Contracts","Description":"Agreements."}]}}}}""";
+
+        // Act
+        var candidate = SettingsPolicyCandidate.Judge(saved);
+
+        // Assert
+        Assert.Empty(candidate.Refusals);
+        Assert.NotNull(candidate.Json);
+    }
+
     [Fact]
     public void Judge_AnExcludedFolderThatIsNoFolderName_IsRefusedNamingItsPositionAndNotWhatItHolds()
     {

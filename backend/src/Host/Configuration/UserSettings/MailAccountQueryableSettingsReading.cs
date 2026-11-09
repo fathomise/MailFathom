@@ -89,7 +89,8 @@ internal static class MailAccountQueryableSettingsReading
             && one.ClassifiesSpam == other.ClassifiesSpam
             && one.ScansFor.SequenceEqual(other.ScansFor)
             && one.ScreensOutgoingMailFor.SequenceEqual(other.ScreensOutgoingMailFor)
-            && one.Folders.SequenceEqual(other.Folders);
+            && one.Folders.SequenceEqual(other.Folders)
+            && one.OwnCategoryNames.SequenceEqual(other.OwnCategoryNames, StringComparer.Ordinal);
     }
 
     /// <summary>Binds one account's effective declaration as the options every per-account reader reads it as.</summary>
@@ -151,6 +152,7 @@ internal static class MailAccountQueryableSettingsReading
                     folder.SpecialUse,
                     folder.Participation,
                     classification.Covers(folder.Identity.Alias))),
-            ]);
+            ],
+            [.. account.Categorization.OwnCategories.Select(static category => category.Name)]);
     }
 }

@@ -497,6 +497,7 @@ public sealed class MailboxExportsTests
         Now,
         byteLength,
         MaildirFlagSet.Seen,
+        [],
         []);
 
     private static MailboxExport Completed() => new(

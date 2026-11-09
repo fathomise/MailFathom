@@ -18,6 +18,7 @@ using MailFathom.Domain.Emails.Authorship;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Synchronization;
 using MailFathom.Domain.Transport;
+using MailFathom.Host.Configuration.Categories;
 using MailFathom.Host.Configuration.Mail.Readers;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.Spam;
@@ -980,6 +981,10 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// </remarks>
     public MailAccountSpamClassificationOptions SpamClassification { get; set; } = new();
 
+    /// <summary>Gets or sets whether this account's mail is sorted into categories, and which of them it recognizes.</summary>
+    /// <remarks>Always present so that a record stating none of its keys still binds, with categorization off.</remarks>
+    public MailAccountCategorizationOptions Categorization { get; set; } = new();
+
     /// <summary>Gets what this account asks to have its mail scanned for, within what the deployment provides.</summary>
     /// <remarks>
     /// An account that says nothing here reads the deployment's own posture, which is what every mailbox read before
@@ -1224,6 +1229,11 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
             yield return result;
         }
 
+        foreach (var result in this.ValidateCategorization())
+        {
+            yield return result;
+        }
+
         // Checked here rather than through a data annotation because nothing binds the block as an options graph of its
         // own, so an annotation on it would be read by nothing. The window decides when personal data is destroyed, so
         // a typo in it fails startup instead of quietly selecting a period nobody wrote.
@@ -1440,6 +1450,18 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
                     refusal.MemberNames))
             : [];
     }
+
+    /// <summary>Reports a categorization block this account could not run under, each refusal prefixed with the account.</summary>
+    private IEnumerable<ValidationResult> ValidateCategorization() => this.Categorization is null
+        ?
+        [
+            new ValidationResult(
+                $"Account '{this.AccountId}': the categorization configuration must be a block.",
+                [nameof(this.Categorization)]),
+        ]
+        : this.Categorization.FindRefusals().Select(refusal => new ValidationResult(
+            $"Account '{this.AccountId}': {refusal.ErrorMessage}",
+            refusal.MemberNames));
 
     /// <summary>Reports a contact collection block this account could not run under.</summary>
     /// <returns>One result per unusable value or entry, empty when the whole block is one this account can run under.</returns>

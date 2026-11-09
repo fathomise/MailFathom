@@ -4,7 +4,7 @@
 
 An export is **a copy of what MailFathom stores for one mail account, in a form somebody else's software reads**: a
 Maildir tree in a zip archive, one Maildir per folder, each message a file holding the stored bytes exactly, the
-standard flags in the file names, and the keywords beside them in a document of their own. It is available for every
+standard flags in the file names, and the keywords and categories beside them in documents of their own. It is available for every
 account, because what it carries is what this deployment stored rather than what a server still holds.
 
 It matters most for an account whose mailbox MailFathom is the only holder of. A drained account's source is empty by
@@ -81,6 +81,7 @@ for a state the deployment is already in — which is what makes *download, veri
 | `.Projects.MailFathom/cur/…` | Every other folder, as one Maildir++ directory at the root named `.` followed by its path segments joined by `.` |
 | `…/cur/1700000000.7.mailfathom,S=4096:2,FS` | One message: the stored bytes exactly, under a name carrying its arrival, its length, and its flags |
 | `keywords.json` | The keywords Maildir file names have no form for, each named against the path of the message carrying it |
+| `categories/000000.json`, … | Every category recorded for a message, each with its kind, its probability, what said so, and the revision of the question, named against the path of the message. A default the account switched off is still here, because an export answers for what is held rather than what is shown. A document names at most a thousand messages, and an archive with no category holds one empty document |
 
 The four flag letters are the standard ones — `D` draft, `F` flagged, `R` answered, `S` seen — written in ascending
 order so one message's name does not depend on how the flags were read.
@@ -137,8 +138,9 @@ implied by anything MailFathom does on its own:
   against its recorded length and digest. A restored account with an unreadable payload is a lost message, and finding
   that out when somebody opens it is too late to do anything about.
 - **An export is not a backup.** It is a copy of the mail in a portable form, taken at one instant, kept for a retention
-  period measured in hours, and holding none of the derived state — no rules, no evaluation history, no embeddings, no
-  contact book, no configuration. It is what somebody leaves with; the backup is what the deployment is restored from.
+  period measured in hours, and holding almost none of the derived state — a message's categories, and no rules, no
+  evaluation history, no embeddings, no contact book, no configuration. It is what somebody leaves with; the backup is
+  what the deployment is restored from.
 - **Erasure is final.** On a mirrored account the source still holds what MailFathom erased. On a drained one nothing
   does. Take the export, download it, verify it opens, and only then erase — and note that the export temporarily
   doubles this deployment's stored-content usage for the account, which is what the size limit and the ceiling are

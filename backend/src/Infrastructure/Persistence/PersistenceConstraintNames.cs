@@ -223,6 +223,15 @@ internal static class PersistenceConstraintNames
     internal const string EmailSpamClassificationSignalForeignKeyName =
         "fk_email_spam_classification_signals_classifications";
 
+    /// <summary>The key that keeps one record per message and category.</summary>
+    internal const string EmailCategoryPrimaryKeyConstraintName = "pk_email_categories";
+
+    /// <summary>What stops one message holding two answers to what sort of mail it is.</summary>
+    internal const string EmailCategoryOneDefaultUniqueIndexName = "ix_email_categories_one_default";
+
+    /// <summary>What keeps a recorded probability a probability.</summary>
+    internal const string EmailCategoryProbabilityCheckConstraintName = "ck_email_categories_probability";
+
     /// <summary>The key that keeps one derivation per occurrence, and which a second concurrent run is recognized by.</summary>
     /// <remarks>
     /// Named because losing this race is the mechanism rather than a fault: an account run derives from an occurrence

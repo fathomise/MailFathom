@@ -12,6 +12,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Scheduling;
+using MailFathom.Host.Configuration.Categories;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.Spam;
@@ -324,6 +325,19 @@ internal sealed class UserAccountOptions : IValidatableObject
                 .Select(entry => new ValidationResult(
                     $"{nameof(this.MailAccounts)}:{entry.Index.ToString(CultureInfo.InvariantCulture)}:{MailAccountSpamModelStageOptions.EnabledPath} switches the spam model stage on, and this deployment declares no decision model under Decisions:Models that Decisions:SpamClassification:Model reaches. Declare one, or switch the model stage off.",
                     [MailAccountSpamModelStageOptions.EnabledPath]));
+
+    /// <summary>Finds the refusal for every account of this record switching categorization on with no model to ask.</summary>
+    /// <param name="decisionModelDeclared">Whether this deployment declares a decision model at all.</param>
+    /// <returns>One result per account asking for categorization while nothing could answer it, empty otherwise.</returns>
+    /// <remarks>Asked of the account blocks being written and of no others, for the reason <see cref="FindSpamModelStageErrors" /> is.</remarks>
+    internal IEnumerable<ValidationResult> FindCategorizationWithoutModelErrors(bool decisionModelDeclared) =>
+        decisionModelDeclared
+            ? []
+            : this.MailAccounts.Index()
+                .Where(static entry => entry.Item.Categorization is { Enabled: true })
+                .Select(entry => new ValidationResult(
+                    $"{nameof(this.MailAccounts)}:{entry.Index.ToString(CultureInfo.InvariantCulture)}:{MailAccountCategorizationOptions.EnabledPath} switches categorization on, and this deployment declares no decision model under Decisions:Models. Declare one, or switch categorization off.",
+                    [MailAccountCategorizationOptions.EnabledPath]));
 
     /// <summary>Finds the refusal for every account of this record that states no language at all.</summary>
     /// <returns>One result per account stating none, empty where every one of them names a language.</returns>

@@ -121,7 +121,18 @@ internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMail
                     message.IsRemotelyAnswered,
                     message.IsDraft,
                     message.Keywords,
-                    message.StoredAt))
+                    message.StoredAt,
+                    message.Categories
+                        .OrderBy(category => category.Kind)
+                        .ThenBy(category => category.Category)
+                        .Select(category => new ExportedEmailCategory(
+                            category.Kind,
+                            category.Category,
+                            category.Probability,
+                            category.Source,
+                            category.Origin,
+                            category.QuestionRevision))
+                        .ToArray()))
                 .ToArrayAsync(cancellationToken);
 
             if (page.Length == 0)
@@ -144,7 +155,8 @@ internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMail
                     row.ReceivedAt ?? row.StoredAt,
                     row.ByteLength,
                     FlagsOf(row),
-                    row.Keywords);
+                    row.Keywords,
+                    row.Categories);
             }
 
             after = page[^1].Id;
@@ -215,7 +227,8 @@ internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMail
         bool IsAnswered,
         bool IsDraft,
         IReadOnlyList<string> Keywords,
-        DateTimeOffset StoredAt);
+        DateTimeOffset StoredAt,
+        IReadOnlyList<ExportedEmailCategory> Categories);
 
     private sealed record FolderRow(Guid Id, Guid? ParentId, string Name, MailFolderSpecialUse? Role);
 

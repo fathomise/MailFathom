@@ -30,11 +30,26 @@ public static class MaildirArchiveLayout
     /// <summary>The document at the archive root that carries the keywords Maildir file names have no form for.</summary>
     public const string KeywordsDocumentPath = "keywords.json";
 
+    /// <summary>The directory at the archive root holding the documents that carry each message's categories.</summary>
+    private const string CategoriesDirectory = "categories";
+
     /// <summary>The subdirectory of a Maildir that holds messages whose flags have been decided.</summary>
     private const string DeliveredSubdirectory = "cur";
 
     /// <summary>The token a message file name carries in place of a delivering host, which is a name no export reveals.</summary>
     private const string MintedHostToken = "mailfathom";
+
+    /// <summary>Composes the path of one document of the archive's categories.</summary>
+    /// <param name="ordinal">The document's position among them.</param>
+    /// <returns>A relative path under the archive root.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="ordinal" /> is negative.</exception>
+    /// <remarks>Beneath a directory whose name does not begin with <c>.</c>, so a Maildir++ reader does not take it for a folder.</remarks>
+    public static string CategoriesDocumentPath(int ordinal)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(ordinal);
+
+        return string.Create(CultureInfo.InvariantCulture, $"{CategoriesDirectory}/{ordinal:D6}.json");
+    }
 
     /// <summary>Composes the directory one folder's Maildir sits at, relative to the archive root.</summary>
     /// <param name="pathSegments">The folder's own path, outermost segment first, exactly as the account holds it.</param>

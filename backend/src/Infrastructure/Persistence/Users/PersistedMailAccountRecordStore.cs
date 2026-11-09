@@ -8,6 +8,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.Application.SensitiveContent;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Access;
+using MailFathom.Infrastructure.Persistence.Categories;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Policies;
 using MailFathom.Infrastructure.Persistence.Sessions;
@@ -569,7 +570,10 @@ internal sealed class PersistedMailAccountRecordStore(
     /// <remarks>
     /// Written inside the transaction that wrote the document or the policy that moved them, so a reader meets either
     /// both as they stood or both as they stand now, and stamped with the version of the document they were read out of. The folders are replaced whole rather than
-    /// reconciled, because they are a reading of the document and the document was just replaced whole.
+    /// reconciled, because they are a reading of the document and the document was just replaced whole. This is the one
+    /// place every change of a declaration arrives, a policy's and a build trailing behind included, which is why an own
+    /// category leaving the declaration takes its stored records here. An unreadable document declares nothing, and says
+    /// nothing about what was withdrawn, so it removes none.
     /// </remarks>
     internal static async Task<bool> WriteQueryableSettingsAsync(
         MailFathomDbContext context,
@@ -599,6 +603,13 @@ internal sealed class PersistedMailAccountRecordStore(
         if (recorded == 0)
         {
             return false;
+        }
+
+        if (settings.IsReadable)
+        {
+            await context.EmailCategories
+                .OfWithdrawnOwnCategories(accountId.ToString("D"), settings.OwnCategoryNames)
+                .ExecuteDeleteAsync(cancellationToken);
         }
 
         await context.Database.ExecuteSqlAsync(

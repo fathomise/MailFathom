@@ -164,4 +164,25 @@ public sealed class MaildirArchiveLayoutTests
         // Assert
         Assert.IsType<ArgumentOutOfRangeException>(refusal);
     }
+
+    /// <summary>Beneath a directory not beginning with a dot, so a Maildir++ reader does not take the documents for a folder.</summary>
+    [Fact]
+    public void CategoriesDocumentPath_AnOrdinal_NamesADocumentOutsideEveryMaildir()
+    {
+        // Act
+        var path = MaildirArchiveLayout.CategoriesDocumentPath(12);
+
+        // Assert
+        Assert.Equal("categories/000012.json", path);
+    }
+
+    [Fact]
+    public void CategoriesDocumentPath_ANegativeOrdinal_IsRefused()
+    {
+        // Act
+        var refusal = Record.Exception(() => MaildirArchiveLayout.CategoriesDocumentPath(-1));
+
+        // Assert
+        Assert.IsType<ArgumentOutOfRangeException>(refusal);
+    }
 }
