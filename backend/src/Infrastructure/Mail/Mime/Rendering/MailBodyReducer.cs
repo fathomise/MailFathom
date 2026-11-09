@@ -57,6 +57,8 @@ internal sealed class MailBodyReducer
     private int removedRemoteReferences;
     private int retainedRemoteImages;
     private int undrawnPictures;
+    private int drawnPictures;
+    private string? firstUndrawnPictureAlt;
     private long emittedImageOctets;
     private bool truncated;
 
@@ -307,27 +309,80 @@ internal sealed class MailBodyReducer
     }
 
     /// <summary>Reduces an anchor, which is a link over words, over a picture, or over both.</summary>
+    /// <remarks>
+    /// An anchor holding nothing but a picture the document does not carry would otherwise vanish with it, and that is
+    /// how a newsletter writes its main action. The picture stays out, as every remote reference does, but the anchor's
+    /// own target is already what this document carries for a link, so the link is kept over the words the picture
+    /// supplies. The state is saved around the walk because a table cell lets one anchor sit inside another, and each
+    /// answers for its own pictures.
+    /// </remarks>
     private void ReduceAnchor(
         IElement element,
         MailReductionContext inside,
         List<MailDocumentBlock> blocks,
         List<MailInlineRun> pending)
     {
-        var link = MailLinkReader.Read(element.GetAttribute("href"), DisplayTextOf(element));
+        var href = element.GetAttribute("href");
+        var displayedText = DisplayTextOf(element);
+        var link = MailLinkReader.Read(href, displayedText);
         var linked = inside with { Link = link ?? inside.Link };
+        var picturesDrawnBefore = this.drawnPictures;
+        var enclosingAnchorsUndrawnAlt = this.firstUndrawnPictureAlt;
+
+        this.firstUndrawnPictureAlt = null;
 
         foreach (var child in element.ChildNodes)
         {
             this.ReduceNode(child, linked, blocks, pending);
         }
+
+        var undrawnAlt = this.firstUndrawnPictureAlt;
+
+        this.firstUndrawnPictureAlt = enclosingAnchorsUndrawnAlt;
+
+        if (link is not null
+            && undrawnAlt is not null
+            && displayedText.Length == 0
+            && this.drawnPictures == picturesDrawnBefore)
+        {
+            this.EmitLinkOverUndrawnPicture(href, link, undrawnAlt, inside, blocks, pending);
+        }
+    }
+
+    /// <summary>Emits the paragraph that stands in for a linked picture, judged against the words a reader is actually shown.</summary>
+    private void EmitLinkOverUndrawnPicture(
+        string? href,
+        MailDocumentLink link,
+        string undrawnAlt,
+        MailReductionContext inside,
+        List<MailDocumentBlock> blocks,
+        List<MailInlineRun> pending)
+    {
+        var words = undrawnAlt.Length > 0 ? undrawnAlt : link.Host;
+
+        if (words is null)
+        {
+            return;
+        }
+
+        // Reaching the picture flushed everything written before the anchor, so a run still here is the anchor's own
+        // line break or space, which would otherwise be drawn as a link over nothing.
+        pending.RemoveAll(static run => string.IsNullOrWhiteSpace(run.Text));
+
+        this.AppendText(pending, words, inside with { Link = MailLinkReader.Read(href, words) });
+        this.Flush(blocks, pending, inside);
     }
 
     private void EmitImage(IElement element, MailReductionContext context, List<MailDocumentBlock> blocks)
     {
         if (this.ResolveImageSource(element.GetAttribute("src")) is not { } source || !this.Affords(source))
         {
+            this.NoteUndrawnPicture(element);
+
             return;
         }
+
+        this.drawnPictures++;
 
         var image = new MailInlineImage(
             source,
@@ -336,6 +391,16 @@ internal sealed class MailBodyReducer
             DimensionOf(element.GetAttribute("height")));
 
         this.Emit(blocks, new MailImageBlock(image, context.Link, context.Alignment));
+    }
+
+    /// <summary>Remembers the first picture left undrawn that somebody was meant to see, which is what a link over it is named by.</summary>
+    /// <remarks>A picture declaring at most one pixel is a spacer or a tracking pixel, so it names nothing.</remarks>
+    private void NoteUndrawnPicture(IElement picture)
+    {
+        if (this.firstUndrawnPictureAlt is null && !MailStyleReader.Read(picture).AtMostOnePixel)
+        {
+            this.firstUndrawnPictureAlt = Bounded(picture.GetAttribute("alt")) ?? string.Empty;
+        }
     }
 
     /// <summary>Charges what a picture would add to the answer, and refuses the one that would carry it past the bound.</summary>

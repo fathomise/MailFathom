@@ -644,6 +644,20 @@ an anchor is left alone, because the sender already said where those words go. A
 one supplied for it is `https` — the reader is the one who will follow it, and that is the only choice here that cannot
 expose what they were reading. What the sender wrote is never rewritten: a written `http://` stays one.
 
+**A link over a picture the document does not draw stays a link.** That is how a newsletter writes a banner or a button
+made of an image, and the picture is usually remote, so until the reader loads remote content the anchor would hold
+nothing at all. Where an anchor draws neither words nor a picture, and at least one picture inside it was left undrawn —
+remote, unresolvable, or past the octet bound — the reduction emits one paragraph holding one linked run. Its words are
+the first such picture's `alt`, or the link's host where the `alt` is empty, so the service writes no sentence and needs
+no language. The link is judged against those words, so an `alt` naming another host than the target carries
+`DisplayedHostDiffers` as worded text would. A picture declaring a width or a height of at most one pixel is a spacer or
+a tracking pixel and names nothing, a hidden picture is never reached, and a `mailto` link over a picture with no `alt`
+has no host to be named by, so none of those produces a link. No address but the anchor's own target enters the
+document, nothing is fetched for it, and the removed and retained counts are what they would have been. Loading remote
+content produces the document again, and the picture is then drawn with its link in place of the words.
+`MailDocumentLinks.Of` reads these as links with words like any other, so the reply drafter may cite one and leaves it
+out where the warning applies, and the spam stage reads the host the `alt` claimed.
+
 ### A refusal is a value rather than an exception
 
 `MailDocumentRefusal` says why a document holds nothing: `NoHtmlPart` where the message carried no body at all,
