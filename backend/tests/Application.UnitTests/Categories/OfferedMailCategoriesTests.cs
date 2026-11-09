@@ -113,6 +113,24 @@ public sealed class OfferedMailCategoriesTests
     }
 
     [Fact]
+    public async Task ReadShownAsync_AHiddenDefaultAndAnAccountOfferingNothing_ShowsOnlyWhatIsOffered()
+    {
+        // Arrange
+        var hidden = StoredEmailId.Create(Guid.CreateVersion7());
+        var unasked = StoredEmailId.Create(Guid.CreateVersion7());
+        var categories = StubMailCategories.Offering(new StubMailCategories(
+            new Dictionary<MailAccountId, MailCategoryOffer> { [Work] = MailCategoryOffer.Of(["finance"], ["Contracts"]) },
+            new Dictionary<StoredEmailId, IReadOnlyList<string>> { [hidden] = ["Contracts", "finance"], [unasked] = ["travel"] }));
+
+        // Act
+        var shown = await categories.ReadShownAsync([(hidden, Work), (unasked, Home)], TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["Contracts"], Assert.Single(shown, entry => entry.Key == hidden).Value);
+        Assert.DoesNotContain(unasked, shown.Keys);
+    }
+
+    [Fact]
     public async Task WithCategoriesAsync_ARecordedDefaultTheAccountSwitchedOff_IsWithheld()
     {
         // Arrange

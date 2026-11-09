@@ -137,6 +137,7 @@ public sealed class MailAnsweringAgentCompositionTests
                 "isFlagged",
                 "keyword",
                 "hasAttachments",
+                "category",
             ],
             tool.JsonSchema.GetProperty("properties").EnumerateObject().Select(property => property.Name));
     }

@@ -4,6 +4,8 @@
 
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
+using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Categories;
 
@@ -73,27 +75,46 @@ public sealed class OfferedMailCategories(
     {
         ArgumentNullException.ThrowIfNull(summaries);
 
-        var offers = summaries
-            .Select(static summary => summary.Account)
+        var shown = await this.ReadShownAsync(
+            [.. summaries.Select(static summary => (summary.StoredEmailId, summary.Account))],
+            cancellationToken);
+
+        return shown.Count is 0
+            ? summaries
+            :
+            [
+                .. summaries.Select(summary => shown.TryGetValue(summary.StoredEmailId, out var names)
+                    ? summary with { Categories = names }
+                    : summary),
+            ];
+    }
+
+    /// <summary>Reads the categories each email's account shows.</summary>
+    /// <param name="emails">The emails, each with the account it belongs to.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The shown categories of each email something is recorded on, in the order its account shows them; any other email is absent.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="emails" /> is <see langword="null" />.</exception>
+    public async Task<IReadOnlyDictionary<StoredEmailId, IReadOnlyList<string>>> ReadShownAsync(
+        IReadOnlyCollection<(StoredEmailId Email, MailAccountId Account)> emails,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(emails);
+
+        var offers = emails
+            .Select(static entry => entry.Account)
             .Distinct()
             .ToDictionary(static account => account, offerReader.OfferOf);
-        var asked = summaries
-            .Where(summary => offers[summary.Account].Names.Count > 0)
-            .Select(static summary => summary.StoredEmailId)
-            .ToArray();
+        var asked = emails.Where(entry => offers[entry.Account].Names.Count > 0).ToArray();
 
         if (asked.Length is 0)
         {
-            return summaries;
+            return new Dictionary<StoredEmailId, IReadOnlyList<string>>();
         }
 
-        var recorded = await recordReader.ReadAsync(asked, cancellationToken);
+        var recorded = await recordReader.ReadAsync([.. asked.Select(static entry => entry.Email)], cancellationToken);
 
-        return
-        [
-            .. summaries.Select(summary => recorded.TryGetValue(summary.StoredEmailId, out var names)
-                ? summary with { Categories = offers[summary.Account].Shown(names) }
-                : summary),
-        ];
+        return asked
+            .Where(entry => recorded.ContainsKey(entry.Email))
+            .ToDictionary(static entry => entry.Email, entry => offers[entry.Account].Shown(recorded[entry.Email]));
     }
 }

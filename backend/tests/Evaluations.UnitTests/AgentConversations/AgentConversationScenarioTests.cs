@@ -620,6 +620,29 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.False(verdict.Get<BooleanMetric>(AccountClaim.MetricName).Value);
     }
 
+    /// <summary>A question about a sort of mail has to narrow by it, and a question about one message may not.</summary>
+    [Theory]
+    [InlineData("AskedByCategory", null, false)]
+    [InlineData("AskedByCategory", "finance", true)]
+    [InlineData("OneMessageIsNotACategory", null, true)]
+    [InlineData("OneMessageIsNotACategory", "finance", false)]
+    public async Task RunAsync_ACategoryCase_PassesTheCategoryCheckOnlyWhereTheLookupNarrowedAsAsked(
+        string caseName,
+        string? category,
+        bool expected)
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient(
+            [category is null ? Search("bill") : Search("bill", category)],
+            "It comes to 212.60 EUR.");
+
+        // Act
+        var verdict = await this.RunAsync(Named($"Agent.Category.{caseName}"), model);
+
+        // Assert
+        Assert.Equal(expected, verdict.Get<BooleanMetric>(CategoryReading.MetricName).Value);
+    }
+
     /// <summary>An answer about a reply that has not left passes only where it says which state the reply is in, and fails where it reads the reply as delivered.</summary>
     [Theory]
     [InlineData("ScheduledReply", "Hollis filing cabinets", "Your confirmation of Thursday 17 September is scheduled and has not been sent yet, so Hollis Supplies has not received it.", true)]
@@ -782,6 +805,9 @@ public sealed class AgentConversationScenarioTests : IDisposable
 
     private static (string Tool, IDictionary<string, object?> Arguments) Search(string query) =>
         (ScopedMailKnowledgeRetrieval.SearchToolName, new Dictionary<string, object?> { [ScopedMailKnowledgeRetrieval.QueryArgumentName] = query });
+
+    private static (string Tool, IDictionary<string, object?> Arguments) Search(string query, string category) =>
+        (ScopedMailKnowledgeRetrieval.SearchToolName, new Dictionary<string, object?> { [ScopedMailKnowledgeRetrieval.QueryArgumentName] = query, ["category"] = category });
 
     private static (string Tool, IDictionary<string, object?> Arguments) ProposeEvent(string start, bool allDay = false) =>
         ("propose_event", new Dictionary<string, object?>

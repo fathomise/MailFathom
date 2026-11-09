@@ -5,6 +5,7 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using MailFathom.Application.AiProviders;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
@@ -75,6 +76,8 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
 
     private readonly ConcurrentQueue<string> queries = new();
 
+    private readonly ConcurrentQueue<string> narrowedBy = new();
+
     private readonly MailboxKnowledgeSearch search = SearchOver(corpus);
 
     /// <summary>Gets the scope every lookup of a run is answered from: the one inbox, admitted as a deployment's folder mapping admits it.</summary>
@@ -82,6 +85,9 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
 
     /// <summary>Gets the words of every lookup this search answered, in the order they arrived.</summary>
     public IReadOnlyList<string> Queries => [.. this.queries];
+
+    /// <summary>Gets the category of every lookup that named one, in the order they arrived.</summary>
+    public IReadOnlyList<string> NarrowedBy => [.. this.narrowedBy];
 
     /// <inheritdoc />
     public Task<EmailKnowledgeLookup> FindPassagesAsync(
@@ -93,6 +99,11 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
         ArgumentNullException.ThrowIfNull(query);
 
         this.queries.Enqueue(query.QueryText);
+
+        if (query.Category is { } category)
+        {
+            this.narrowedBy.Enqueue(category);
+        }
 
         return this.search.FindPassagesAsync(scope, query, cancellationToken);
     }
@@ -120,7 +131,9 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
                 SensitiveContentEgressGuards.Inactive(),
                 unobserved,
                 authorization,
-                StubMailCategories.OfferingNothing),
+                StubMailCategories.Offering(new StubMailCategories(
+                    new Dictionary<MailAccountId, MailCategoryOffer> { [Account] = MailCategoryOffer.Of([], []) },
+                    corpus.ToDictionary(static message => message.Id, static message => message.Provenance.Categories)))),
             StubEmailProvenanceReader.Answering(corpus.ToDictionary(static message => message.Id, static message => message.Provenance)),
             EmailKnowledgeBounds.Default);
     }
@@ -231,21 +244,31 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
 
         /// <summary>Writes a message as the row a deployment would have stored, carrying what the selection predicate reads.</summary>
         /// <remarks>An agent's read never reaches the folder binding, which only the person's own junk exclusion reads.</remarks>
-        private static StoredEmailEntity RowOf(CorpusMessage message) => new()
+        private static StoredEmailEntity RowOf(CorpusMessage message)
         {
-            Id = message.Id.Value,
-            MailboxAccountId = Account.Value,
-            MailFolderBinding = null!,
-            FolderId = InboxFolder.Id.Value,
-            Folder = InboxRow,
-            Subject = message.Subject,
-            SentAt = message.ReceivedAt,
-            ReceivedAt = message.ReceivedAt,
-            SenderNormalizedAddress = CorpusMailbox.NormalizedAddressOf(message.Sender),
-            ToAddresses = [.. message.Recipients.Select(CorpusMailbox.NormalizedAddressOf).OfType<string>()],
-            AttachmentCount = message.Attachments.Count,
-            SettledAt = message.ReceivedAt,
-        };
+            var row = new StoredEmailEntity
+            {
+                Id = message.Id.Value,
+                MailboxAccountId = Account.Value,
+                MailFolderBinding = null!,
+                FolderId = InboxFolder.Id.Value,
+                Folder = InboxRow,
+                Subject = message.Subject,
+                SentAt = message.ReceivedAt,
+                ReceivedAt = message.ReceivedAt,
+                SenderNormalizedAddress = CorpusMailbox.NormalizedAddressOf(message.Sender),
+                ToAddresses = [.. message.Recipients.Select(CorpusMailbox.NormalizedAddressOf).OfType<string>()],
+                AttachmentCount = message.Attachments.Count,
+                SettledAt = message.ReceivedAt,
+            };
+
+            foreach (var category in message.Provenance.Categories)
+            {
+                row.Categories.Add(new EmailCategoryEntity { Category = category, Origin = "corpus", QuestionRevision = "corpus" });
+            }
+
+            return row;
+        }
 
         /// <summary>Cuts the message down to the extracts a deployment's <c>ts_headline</c> returns: a few short windows around the matched words, those carrying the most of them first.</summary>
         /// <remarks>

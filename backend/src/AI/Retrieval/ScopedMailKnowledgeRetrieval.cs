@@ -57,6 +57,14 @@ internal sealed class ScopedMailKnowledgeRetrieval
     /// <remarks>Published as a constant because the framework reads it off a parameter, and a test scripting a tool call has to name the same thing the schema does.</remarks>
     internal const string QueryArgumentName = "queryText";
 
+    /// <summary>When a lookup may name a category, which every agent offered this tool is told in the same words.</summary>
+    internal const string CategoryFilterRule =
+        "Set the category filter only when the question is about that sort of mail, such as what bills came or which "
+        + "newsletters arrived, and never to find one message or one matter, however it would be filed: a model sorted "
+        + "the mail and may have sorted it wrongly, so asking for the invoice from one supplier is not asking for a "
+        + "category. A lookup narrowed by a category that finds nothing proves nothing, so run it again without the "
+        + "category before saying the mail is not there.";
+
     /// <summary>What the model is told the tool does, and what it needs in order to write a usable lookup.</summary>
     /// <remarks>
     /// <para>
@@ -92,6 +100,7 @@ internal sealed class ScopedMailKnowledgeRetrieval
         + "received bound, and one asking about no attachment takes no attachment filter, because a filter nobody asked "
         + "for hides mail that could answer the question. Naming a document — an invoice, a contract, a report — is not "
         + "asking about an attachment. "
+        + CategoryFilterRule + " "
         + "Which accounts and folders are searched is fixed by the caller and is not yours to set. Each call returns one "
         + "window of the most relevant results that nothing continues, so call it again with a different query or "
         + "narrower filters to reach other mail. Matching nothing is an ordinary empty result rather than an error.";
@@ -213,6 +222,8 @@ internal sealed class ScopedMailKnowledgeRetrieval
         string? keyword = null,
         [Description("Return only mail that carries attachments (true) or that carries none (false). Omit to match either. Inline images and cryptographic signature parts do not count as attachments.")]
         bool? hasAttachments = null,
+        [Description("Return only mail sorted into this category: a default category such as finance or shopping, or a subject the account named for itself. Matched as a whole name without regard to case. A name nothing in scope offers is refused, and the refusal lists what is offered. Omit to match any category.")]
+        string? category = null,
         CancellationToken cancellationToken = default)
     {
         // Read against the run's own anchor rather than bound by the framework, because a wall clock the model wrote
@@ -243,6 +254,7 @@ internal sealed class ScopedMailKnowledgeRetrieval
             IsFlagged = isFlagged,
             Keyword = keyword,
             HasAttachments = hasAttachments,
+            Category = category,
         };
 
         EmailKnowledgeLookup found;

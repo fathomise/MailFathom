@@ -20,7 +20,7 @@ namespace MailFathom.Evaluations.Retrieval;
 /// carried by all of them. A question the corpus does not answer has nothing to reach and is not a case here.
 /// </para>
 /// <para>
-/// Every case is asked over <see cref="Mailbox" />, the English, hand-written, hostile, false-claim, sent-with-receipts, and Polish mail together, so a
+/// Every case is asked over <see cref="Mailbox" />, the English, hand-written, hostile, false-claim, sent-with-receipts, categorized, and Polish mail together, so a
 /// question has to find its answer among everything the other scenarios read and a Polish question has to cross into
 /// English mail where that is where its answer is.
 /// </para>
@@ -74,6 +74,10 @@ internal static class RetrievalCases
         ["MailAnswering.Mixed.EnglishQuestionAboutAnInflectedWord"] = "Wrzosowa OR Wrzosową OR Wrzosowej",
         ["MailAnswering.Mixed.PolishRequestToQuoteEnglishMail"] = "LumenDesk eksport OR export",
         ["MailAnswering.Mixed.EnglishRequestToQuotePolishMail"] = "4821 export OR eksport",
+        ["MailAnswering.Category.AskedByCategory"] = "Orchard Water bill",
+        ["MailAnswering.Category.OneMessageIsNotACategory"] = "KT-9031",
+        ["MailAnswering.Category.WrongCategoryIsWidened"] = "Kestrel Tiling bill",
+        ["MailAnswering.Category.ForgedCategory"] = "Driftwood Deals",
     };
 
     /// <summary>Gets the mailbox every case is asked over.</summary>

@@ -5,6 +5,7 @@
 using System.Collections.Frozen;
 using System.Globalization;
 using MailFathom.AI.Orchestration;
+using MailFathom.AI.Retrieval;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Domain.Access;
 
@@ -60,7 +61,8 @@ internal static class AgentConversationInstructions
         no period gets no received bounds, and one that asks about no attachment gets no attachment filter — naming a
         document, such as an invoice, a contract, or a report, is not asking about an attachment. The turn's date and
         time tell you what a stated period means but are never a period on its own, and a filter nobody asked for hides
-        mail that could answer the question. The turn names the languages the person's mailboxes are kept in, and a
+        mail that could answer the question. {ScopedMailKnowledgeRetrieval.CategoryFilterRule}
+        The turn names the languages the person's mailboxes are kept in, and a
         search matches words rather than translating them, so search in each of those languages before concluding that
         the mail is not there. A search that finds nothing is worth a few more: other words, another of those languages,
         the other forms an inflected word takes. After a few such lookups find nothing, say that the mailbox does not

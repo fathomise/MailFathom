@@ -67,6 +67,7 @@ public sealed class ScopedMailKnowledgeRetrievalTests
             ["isFlagged"] = true,
             ["keyword"] = "$Label",
             ["hasAttachments"] = false,
+            ["category"] = "finance",
         });
 
         // Assert
@@ -85,8 +86,20 @@ public sealed class ScopedMailKnowledgeRetrievalTests
                 IsFlagged = true,
                 Keyword = "$Label",
                 HasAttachments = false,
+                Category = "finance",
             },
             query);
+    }
+
+    /// <summary>A filter nobody asked for hides mail, and a category is a model's reading that may be wrong, so the tool itself says when to set one.</summary>
+    [Fact]
+    public void SearchTool_ItsDescription_StatesWhenACategoryMayNarrowALookup()
+    {
+        // Act
+        var tool = ToolOver(new RecordingEmailKnowledgeSearch());
+
+        // Assert
+        Assert.Contains(ScopedMailKnowledgeRetrieval.CategoryFilterRule, tool.Description, StringComparison.Ordinal);
     }
 
     /// <summary>

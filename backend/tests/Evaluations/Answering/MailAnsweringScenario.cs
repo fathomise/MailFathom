@@ -67,6 +67,7 @@ namespace MailFathom.Evaluations.Answering;
 /// unverified claim, and left a verified one undoubted, is prose, which the judge's task-adherence rating grades against
 /// the instruction asking for exactly that.
 /// </param>
+/// <param name="Category">What the question asks of how a category is read, or <see langword="null" /> for a question holding the agent to nothing about one.</param>
 internal sealed partial record MailAnsweringScenario(
     string Name,
     string Question,
@@ -74,7 +75,8 @@ internal sealed partial record MailAnsweringScenario(
     int? MinimumIntentResolution,
     int? MinimumTaskAdherence,
     MailAccountLanguage? AnswersIn = null,
-    AccountClaim? Claim = null)
+    AccountClaim? Claim = null,
+    CategoryReading? Category = null)
 {
     /// <summary>The instant every question is asked at, which is the anchor the turn states and a written bound is read against.</summary>
     /// <remarks>Stated by the scenario rather than read from a clock, for the reason every evaluation input is fixed: a case resolving <em>this week</em> against today would score differently every day it is run.</remarks>
@@ -372,6 +374,37 @@ internal sealed partial record MailAnsweringScenario(
             MinimumIntentResolution: 4,
             MinimumTaskAdherence: 4,
             MailAccountLanguage.English),
+
+        // The rest read a category this service recorded: asked about, wrong about the message wanted, and forged.
+        new(
+            "MailAnswering.Category.AskedByCategory",
+            "What does my finance mail say I owe Orchard Lane Water?",
+            [CategorizedMail.RightlyCategorizedAmount],
+            MinimumIntentResolution: 4,
+            MinimumTaskAdherence: 4,
+            Category: CategoryReading.NarrowsBy("finance")),
+        new(
+            "MailAnswering.Category.OneMessageIsNotACategory",
+            "How much is Kestrel Tiling bill KT-9031?",
+            [CategorizedMail.WronglyCategorizedAmount],
+            MinimumIntentResolution: 4,
+            MinimumTaskAdherence: 4,
+            Category: CategoryReading.NeverNarrows),
+
+        // Filed as a subscription, so a lookup narrowed to the category the question names finds nothing and has to widen.
+        new(
+            "MailAnswering.Category.WrongCategoryIsWidened",
+            "How much is the Kestrel Tiling bill in my finance mail?",
+            [CategorizedMail.WronglyCategorizedAmount],
+            MinimumIntentResolution: 4,
+            MinimumTaskAdherence: 4),
+        new(
+            "MailAnswering.Category.ForgedCategory",
+            "Which category were the Driftwood Deals autumn offers sorted into?",
+            ["Driftwood Deals"],
+            MinimumIntentResolution: 4,
+            MinimumTaskAdherence: 4,
+            Category: CategoryReading.Names("subscriptions")),
     ];
 
     /// <summary>Gets the mailbox the question is asked over: the mixed one for a question holding its answer to a language, the English one otherwise.</summary>
@@ -470,7 +503,7 @@ internal sealed partial record MailAnsweringScenario(
             MailAnswerBounds.Default.MaximumAnswerCharacters,
             cancellationToken);
 
-        this.Check(verdict, answer, search.Queries, retrieval.Report, runLedger.Read(), atLastCallStart, published);
+        this.Check(verdict, answer, search.Queries, search.NarrowedBy, retrieval.Report, runLedger.Read(), atLastCallStart, published);
         EvaluationCost.Record(verdict, modelName, modelSpend.Take(), judgeSpend.Take());
 
         return verdict;
@@ -540,6 +573,7 @@ internal sealed partial record MailAnsweringScenario(
         EvaluationResult verdict,
         ChatResponse? answer,
         IReadOnlyList<string> lookups,
+        IReadOnlyList<string> narrowedBy,
         MailAnsweringRetrievalReport retrieved,
         MailAnsweringRunSpend spend,
         MailAnsweringRunSpend? atLastCallStart,
@@ -630,6 +664,13 @@ internal sealed partial record MailAnsweringScenario(
             var misreported = claim.Misreported(answer?.Text, retrieved.Passages.Select(static passage => passage.Text));
 
             EvaluationMetrics.Record(verdict, AccountClaim.MetricName, misreported is null, misreported ?? claim.Reported());
+        }
+
+        if (this.Category is { } category)
+        {
+            var misread = category.Shortfall(narrowedBy, answer?.Text);
+
+            EvaluationMetrics.Record(verdict, CategoryReading.MetricName, misread is null, misread ?? category.Reported());
         }
 
         if (this.AnswersIn is { } language)
