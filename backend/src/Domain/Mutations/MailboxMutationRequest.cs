@@ -310,7 +310,7 @@ public sealed record MailboxMutationRequest
             serverDisposition: null);
     }
 
-    /// <summary>Asks for one email's keywords to become exactly the set that was named.</summary>
+    /// <summary>Asks for one email's keywords to be replaced with the set that was named.</summary>
     /// <param name="storedEmailId">The local email being relabelled.</param>
     /// <param name="occurrence">Where the email is now.</param>
     /// <param name="requester">The authored act asking.</param>
@@ -345,10 +345,11 @@ public sealed record MailboxMutationRequest
     /// <returns><see langword="true" /> when sending only this change leaves the server as sending both in order would.</returns>
     /// <remarks>
     /// A <c>\Seen</c> change replaces an earlier <c>\Seen</c> change and a <c>\Flagged</c> change an earlier one, because
-    /// each states the whole of its field. A replacement of the keywords replaces every earlier keyword change, and an
-    /// addition or a removal replaces an earlier addition or removal that named no keyword it does not name. A move, a
-    /// copy, and a delete replace nothing: each acts on the occurrence rather than on a value of it, so the earlier change
-    /// still has to reach the server first.
+    /// each states the whole of its field. An addition or a removal of keywords replaces an earlier addition or removal
+    /// that named no keyword it does not name, compared without regard to case as RFC 9051 compares them. A move, a copy,
+    /// and a delete replace nothing: each acts on the occurrence rather than on a value of it, so the earlier change still
+    /// has to reach the server first. A replacement of the keywords is only ever asked here as the removal and the
+    /// addition it was carried as, so it is not a case of its own.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="earlier" /> is <see langword="null" />.</exception>
     public bool Supersedes(MailboxMutationRequest earlier)
@@ -365,14 +366,9 @@ public sealed record MailboxMutationRequest
             return earlier.Mutation == this.Mutation;
         }
 
-        if (this.Mutation == MailboxMutation.SetKeywords)
-        {
-            return IsKeywordChange(earlier.Mutation);
-        }
-
         return (this.Mutation == MailboxMutation.AddKeywords || this.Mutation == MailboxMutation.RemoveKeywords)
             && (earlier.Mutation == MailboxMutation.AddKeywords || earlier.Mutation == MailboxMutation.RemoveKeywords)
-            && earlier.Keywords!.Values.All(keyword => this.Keywords!.Values.Contains(keyword, StringComparer.Ordinal));
+            && earlier.Keywords!.Values.All(keyword => this.Keywords!.Values.Contains(keyword, StringComparer.OrdinalIgnoreCase));
     }
 
     /// <summary>Reports whether a mutation writes the message's keywords.</summary>

@@ -546,7 +546,8 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             return;
         }
 
-        var held = keywordChanges.SelectMany(static mutation => mutation.Keywords ?? []).ToHashSet(StringComparer.Ordinal);
+        // Folded because a change names keywords as they were written, and the row holds them in upper case.
+        var held = keywordChanges.SelectMany(static mutation => mutation.Keywords ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         row.Keywords =
         [

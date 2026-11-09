@@ -141,6 +141,7 @@ internal sealed class SyntheticMailAccount(
         "persistence-session-race",
         "persistence-session-retry",
         "push-watched",
+        "reconciliation-difference",
         "reconciliation-erasure",
         "reconciliation-keywords",
         "reconciliation-local-delete",

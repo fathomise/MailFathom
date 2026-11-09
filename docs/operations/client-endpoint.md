@@ -2519,7 +2519,11 @@ Content-Type: application/json
 
 **A record per value rather than per message**, because a record is the unit convergence resumes, abandons, and
 attributes an observation back to. A message whose `\Seen` change completes while its keywords are still converging
-reports exactly that.
+reports exactly that. A `replace` of the keywords on a mirrored account is written down as what it changed, so it
+answers with a `remove-keywords` record, an `add-keywords` record, both, or neither where nothing differed, and a
+client withdrawing it names each record it was answered with. It answers with one `set-keywords` record on a
+`Restoring` account where the message holds a source occurrence, and on a mirrored account while a replica does not
+yet know how a change is committed locally first.
 
 **`flags` and `tags` are two different things and the response keeps them apart.** `flags` are the IMAP system flags
 `\Seen` and `\Flagged`; `tags` are IMAP keywords, which is what a mail server calls a label. Both reach the mailbox —

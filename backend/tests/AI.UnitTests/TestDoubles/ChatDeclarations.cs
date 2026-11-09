@@ -12,7 +12,11 @@ namespace MailFathom.AI.UnitTests.TestDoubles;
 internal static class ChatDeclarations
 {
     /// <summary>The deadline every plan below applies to one request unless a test says otherwise.</summary>
-    public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(5);
+    /// <remarks>
+    /// The deadline runs on the real clock, so it is long enough that a loaded machine cannot reach it: a test about the
+    /// deadline itself declares its own.
+    /// </remarks>
+    public static readonly TimeSpan RequestTimeout = TimeSpan.FromMinutes(5);
 
     /// <summary>Builds the declared endpoint.</summary>
     public static ChatEndpoint Endpoint(

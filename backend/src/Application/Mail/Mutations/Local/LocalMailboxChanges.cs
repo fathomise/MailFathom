@@ -219,8 +219,10 @@ public sealed class LocalMailboxChanges
     /// server is. A request already recorded commits nothing a second time.
     /// </para>
     /// <para>
-    /// A delete writes no field: the record hides its message from every reader while it is outstanding, and the
-    /// disposition the delete carries retires it once the server has removed it. A move and a copy commit locally only
+    /// A replacement of the keywords opens the removal and the addition its difference from the stored keywords needs,
+    /// and no record where there is none. A delete writes no field: the record hides its message from every reader
+    /// while it is outstanding, and the disposition the delete carries retires it once the server has removed it. A
+    /// move and a copy commit locally only
     /// into a folder the account synchronizes, and a copy only with its payload placed beforehand; anything else is
     /// answered with <see langword="null" />. A person's move into the folder the message is stored in is refused as
     /// already there, and a rule's is answered with <see langword="null" />, which records it as it always was.
@@ -243,6 +245,11 @@ public sealed class LocalMailboxChanges
         }
 
         var mutation = request.Mutation;
+
+        if (mutation == MailboxMutation.SetKeywords)
+        {
+            return await this.CommitKeywordDifferenceAsync(session, change, state, cancellationToken);
+        }
 
         if (IsFlagChange(mutation) || mutation == MailboxMutation.Delete)
         {
@@ -345,6 +352,77 @@ public sealed class LocalMailboxChanges
                 request.StoredEmailId,
                 SignalledFlagsOf(request)),
             opened.Record);
+    }
+
+    /// <summary>Commits a replacement of a mirrored message's keywords as the removal and the addition it differs from the stored keywords by.</summary>
+    /// <remarks>
+    /// <para>
+    /// Each record names only what the act changed, so a keyword another client sets while the act is outstanding stays
+    /// on the message, and where both change one keyword the command last to reach the server decides it. The stored
+    /// keywords are the base because they are read in the transaction that commits the act, which an observation on a
+    /// record is not: reconciliation overwrites that.
+    /// </para>
+    /// <para>
+    /// A replacement that changes nothing opens nothing.
+    /// </para>
+    /// </remarks>
+    private async Task<SubmittedMailboxChange> CommitKeywordDifferenceAsync(
+        IPersistenceSession session,
+        MailboxChange change,
+        LocalEmailState before,
+        CancellationToken cancellationToken)
+    {
+        var request = change.Request;
+        var opened = new List<OpenedMailboxMutationRecord>(2);
+        var difference = KeywordDifferenceOf(request, before.Keywords);
+
+        foreach (var half in difference)
+        {
+            opened.Add(await this.records.OpenOverlayAsync(session, half, change.HeldUntil, Replaced(before), cancellationToken));
+        }
+
+        if (opened.Exists(static half => half.IsNew))
+        {
+            await this.states.WriteAsync(
+                session,
+                request.Account,
+                request.StoredEmailId,
+                before with { Keywords = difference.Aggregate(before.Keywords, static (carried, half) => KeywordsAfter(half, carried)) },
+                isHeldFolder: false,
+                cancellationToken);
+        }
+
+        return SubmittedMailboxChange.Applied(
+            new AppliedMailboxChange(request.Account, before.Folder, request.StoredEmailId, Flags: null),
+            [.. opened.Select(static half => half.Record)]);
+    }
+
+    /// <summary>Builds the removal and the addition that take a message from the keywords it carries to the ones a replacement names.</summary>
+    /// <remarks>
+    /// A carried keyword that is not an IMAP atom came from a server and cannot be named in a command, so it stays where
+    /// it is rather than failing the replacement.
+    /// </remarks>
+    private static List<MailboxMutationRequest> KeywordDifferenceOf(MailboxMutationRequest request, EmailKeywords carried)
+    {
+        var named = request.Keywords!.Values;
+        var kept = named.Select(EmailKeywords.Normalized).ToHashSet(StringComparer.Ordinal);
+        var removed = AuthoredMailKeywords.Create(
+            carried.Values.Where(keyword => !kept.Contains(keyword) && AuthoredMailKeywords.IsWritable(keyword)));
+        var added = AuthoredMailKeywords.Create(
+            named.Where(keyword => !carried.Values.Contains(EmailKeywords.Normalized(keyword), StringComparer.Ordinal)));
+        var difference = new List<MailboxMutationRequest>(2);
+
+        if (!removed.IsEmpty)
+        {
+            difference.Add(MailboxMutationRequest.RemoveKeywords(request.StoredEmailId, request.Occurrence, request.Requester, removed));
+        }
+
+        if (!added.IsEmpty)
+        {
+            difference.Add(MailboxMutationRequest.AddKeywords(request.StoredEmailId, request.Occurrence, request.Requester, added));
+        }
+
+        return difference;
     }
 
     /// <summary>Writes the second stored message a copy produces on a mirrored account, beside the record whose placement binds it.</summary>

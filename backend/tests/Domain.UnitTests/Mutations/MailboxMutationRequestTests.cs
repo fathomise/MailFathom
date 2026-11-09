@@ -524,6 +524,7 @@ public sealed class MailboxMutationRequestTests
     [Theory]
     [InlineData(new[] { "project" }, new[] { "project", "urgent" }, true)]
     [InlineData(new[] { "project", "urgent" }, new[] { "project" }, false)]
+    [InlineData(new[] { "project" }, new[] { "PROJECT" }, true)]
     public void Supersedes_AKeywordChangeAfterAnother_ReplacesItWhereItNamesEveryKeywordItDid(
         string[] earlierKeywords,
         string[] laterKeywords,

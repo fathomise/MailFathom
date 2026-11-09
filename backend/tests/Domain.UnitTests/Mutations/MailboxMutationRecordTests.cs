@@ -668,6 +668,46 @@ public sealed class MailboxMutationRecordTests
         Assert.False(starAccountsForSeenState);
     }
 
+    /// <summary>A replacement carried as a removal and an addition is MailFathom's own change, though neither half explains the reading alone.</summary>
+    [Fact]
+    public void AccountingTogetherForKeywordsOf_TheRemovalAndTheAdditionOfAReplacement_RecognizesThemTogether()
+    {
+        // Arrange
+        var removal = CompletedKeywordChange(MailboxMutation.RemoveKeywords, "$Todo");
+        var addition = CompletedKeywordChange(MailboxMutation.AddKeywords, "$Done");
+
+        // Act
+        var accounting = MailboxMutationRecord.AccountingTogetherForKeywordsOf(
+            [removal, addition],
+            SourceOccurrence(),
+            EmailKeywords.Create(["$Todo"]),
+            EmailKeywords.Create(["$Done"]),
+            ObservedBeforeTheStore);
+
+        // Assert
+        Assert.Same(removal, accounting);
+    }
+
+    /// <summary>A keyword nothing here named is somebody else's change, so the reading is not attributed to the records.</summary>
+    [Fact]
+    public void AccountingTogetherForKeywordsOf_AReadingCarryingAKeywordNoRecordNamed_AccountsForNothing()
+    {
+        // Arrange
+        var removal = CompletedKeywordChange(MailboxMutation.RemoveKeywords, "$Todo");
+        var addition = CompletedKeywordChange(MailboxMutation.AddKeywords, "$Done");
+
+        // Act
+        var accounting = MailboxMutationRecord.AccountingTogetherForKeywordsOf(
+            [removal, addition],
+            SourceOccurrence(),
+            EmailKeywords.Create(["$Todo"]),
+            EmailKeywords.Create(["$Done", "$Invoice"]),
+            ObservedBeforeTheStore);
+
+        // Assert
+        Assert.Null(accounting);
+    }
+
     /// <summary>An addition leaves what the message carried plus what it named, and that reading is the addition completing.</summary>
     [Fact]
     public void AccountsForKeywordsOf_AnAdditionThatExplainsTheWholeReading_IsRecognized()

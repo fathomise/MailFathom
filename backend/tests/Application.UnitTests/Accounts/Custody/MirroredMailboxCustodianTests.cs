@@ -301,6 +301,134 @@ public sealed class MirroredMailboxCustodianTests
         Assert.Equal(1, this.records.OpenedRecordCount);
     }
 
+    /// <summary>A replacement sends only what it changed against the stored keywords, so a keyword it did not touch stays out of every command.</summary>
+    /// <param name="carried">What the stored message carries, comma-separated.</param>
+    /// <param name="named">What the act names, comma-separated.</param>
+    /// <param name="removal">What the removal should name, comma-separated, or empty where none is opened.</param>
+    /// <param name="addition">What the addition should name, comma-separated, or empty where none is opened.</param>
+    [Theory]
+    [InlineData("a", "something1", "A", "something1")]
+    [InlineData("a,b", "a,c", "B", "c")]
+    [InlineData("a", "", "A", "")]
+    [InlineData("", "a", "", "a")]
+    public async Task SubmitAsync_AKeywordReplacementCommittedLocallyFirst_OpensOnlyTheRemovalAndTheAdditionItsDifferenceNeeds(
+        string carried,
+        string named,
+        string removal,
+        string addition)
+    {
+        // Arrange
+        this.StoreKeywords(Words(carried));
+
+        // Act
+        var submitted = await this.LocalFirstCustodian().SubmitAsync(this.session, Change(Replacement("call-1", Words(named))), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Applied, submitted.Outcome);
+        Assert.Equal(EmailKeywords.Create(Words(named)).Values, this.states.States[Email].Keywords.Values);
+        Assert.Equal(Words(removal), NamedBy(submitted, MailboxMutation.RemoveKeywords));
+        Assert.Equal(Words(addition), NamedBy(submitted, MailboxMutation.AddKeywords));
+        Assert.All(submitted.Records, record => Assert.Equal(EmailKeywords.Create(Words(carried)).Values, record.Overlay!.ObservedKeywords!.Values));
+    }
+
+    /// <summary>A replacement naming what the message already carries, in whatever spelling, has nothing to tell the server.</summary>
+    [Fact]
+    public async Task SubmitAsync_AKeywordReplacementWithNoDifference_OpensNoRecord()
+    {
+        // Arrange
+        this.StoreKeywords("a", "b");
+
+        // Act
+        var submitted = await this.LocalFirstCustodian().SubmitAsync(this.session, Change(Replacement("call-1", "B", "a")), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Applied, submitted.Outcome);
+        Assert.Empty(submitted.Records);
+        Assert.Equal(0, this.records.OpenedRecordCount);
+    }
+
+    /// <summary>A keyword a server reported that no command can name is left where it is rather than failing the act.</summary>
+    [Fact]
+    public async Task SubmitAsync_AKeywordReplacementOverAKeywordThatIsNotAnAtom_LeavesItOutOfTheRemoval()
+    {
+        // Arrange
+        this.StoreKeywords("a(b", "c");
+
+        // Act
+        var submitted = await this.LocalFirstCustodian().SubmitAsync(this.session, Change(Replacement("call-1")), Token);
+
+        // Assert
+        Assert.Equal(["C"], NamedBy(submitted, MailboxMutation.RemoveKeywords));
+        Assert.Equal(["A(B"], this.states.States[Email].Keywords.Values);
+    }
+
+    /// <summary>While the stored row may not have moved, it is no base for a difference, so the replacement stays one exact record.</summary>
+    [Fact]
+    public async Task SubmitAsync_AKeywordReplacementWhileAnOlderBuildHoldsALease_RecordsTheReplacementAlone()
+    {
+        // Arrange
+        this.StoreKeywords("a");
+        var custodian = this.Composition(
+            MailboxCustodianComposition.LeasesHeldBy(WorkLeaseHolder.ForBuild("0.9.0"), WorkLeaseHolder.NewHold()),
+            capabilities: null).Mirrored;
+
+        // Act
+        var submitted = await custodian.SubmitAsync(this.session, Change(Replacement("call-1", "b")), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Recorded, submitted.Outcome);
+        Assert.Equal(MailboxMutation.SetKeywords, Assert.Single(submitted.Records).Request.Mutation);
+        Assert.Equal(["A"], this.states.States[Email].Keywords.Values);
+    }
+
+    /// <summary>
+    /// A run of quick replacements leaves whatever records survive superseding, and the server they reach ends on what
+    /// the last one named, with a keyword another client set never touched.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAsync_ARunOfQuickReplacements_ReachesTheServerAsWhatTheLastOneNamed()
+    {
+        // Arrange
+        this.StoreKeywords("a");
+        var custodian = this.LocalFirstCustodian();
+        var server = new HashSet<string>(["A", "ANOTHER-CLIENT"], StringComparer.OrdinalIgnoreCase);
+
+        // Act
+        await custodian.SubmitAsync(this.session, Change(Replacement("call-1", "b")), Token);
+        await custodian.SubmitAsync(this.session, Change(Replacement("call-2", "a", "c")), Token);
+        await custodian.SubmitAsync(this.session, Change(Replacement("call-3", "c")), Token);
+
+        var outstanding = await this.records.ReadOutstandingAsync(Account, limit: 100, Token);
+
+        foreach (var request in outstanding.OrderBy(static candidate => candidate.Record.RecordedAt).Select(static candidate => candidate.Record.Request))
+        {
+            if (request.Mutation == MailboxMutation.AddKeywords)
+            {
+                server.UnionWith(request.Keywords!.Values);
+            }
+            else
+            {
+                server.ExceptWith(request.Keywords!.Values);
+            }
+        }
+
+        // Assert
+        Assert.Equal(["ANOTHER-CLIENT", "C"], server.Select(static keyword => keyword.ToUpperInvariant()).Order(StringComparer.Ordinal));
+        Assert.Equal(["C"], this.states.States[Email].Keywords.Values);
+    }
+
+    private static string[] Words(string list) => list.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+    private static IEnumerable<string> NamedBy(SubmittedMailboxChange submitted, MailboxMutation mutation) =>
+        submitted.Records.Where(record => record.Request.Mutation == mutation).SelectMany(static record => record.Request.Keywords!.Values);
+
+    private static MailboxMutationRequest Replacement(string requester, params string[] keywords) =>
+        MailboxMutationRequest.SetKeywords(Email, Occurrence, MailboxMutationRequester.Command(requester), AuthoredMailKeywords.Create(keywords));
+
+    private void StoreKeywords(params string[] keywords) => this.states.Store(
+        Email,
+        new LocalEmailState(Inbox, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, EmailKeywords.Create(keywords)));
+
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     private static MailboxMutationRequest SeenRequest() => MailboxMutationRequest.SetSeen(Email, Occurrence, Requester, true);

@@ -171,10 +171,16 @@ public sealed record MailRuleAction
         desiredFlaggedState: null,
         NamedKeywords(keywords, MailboxMutation.RemoveKeywords));
 
-    /// <summary>Asks for the matching email's keywords to become exactly the set that was named.</summary>
-    /// <param name="keywords">The keywords it should end up carrying, which may be none and then clears them all.</param>
+    /// <summary>Asks for the matching email's keywords to be replaced with the set that was named.</summary>
+    /// <param name="keywords">The keywords to replace them with, which may be none and then clears the ones MailFathom knows of.</param>
     /// <returns>The action.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="keywords" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// On a mirrored account the change is carried as its difference from the keywords MailFathom has stored, so a keyword
+    /// another client set that MailFathom has not seen yet stays on the message. See
+    /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0039-one-folder-model-and-one-implementation-per-custody-phase.md">ADR 0039</see>
+    /// axis F.
+    /// </remarks>
     public static MailRuleAction SetKeywords(AuthoredMailKeywords keywords)
     {
         ArgumentNullException.ThrowIfNull(keywords);

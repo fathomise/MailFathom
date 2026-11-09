@@ -3,10 +3,13 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Access;
+using MailFathom.Application.Coordination;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Mail.Mutations.Authoring;
 using MailFathom.Application.Mail.Mutations.Authoring.Failures;
 using MailFathom.Application.Mail.Mutations.Authoring.Idempotency;
+using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -152,6 +155,57 @@ public sealed class MailFlagChangeRecorderTests
 
         // Assert
         Assert.Equal([MailboxMutation.SetKeywords], result.Recorded.Select(recorded => recorded.Mutation));
+    }
+
+    /// <summary>A replacement carried as two records is one act, so its answer and what a repeat is answered from name both.</summary>
+    [Fact]
+    public async Task RecordAsync_AReplacementCommittedLocallyFirst_AnswersAndKeepsEachRecordOfItsDifference()
+    {
+        // Arrange
+        var records = new InMemoryMailboxMutationRecordStore();
+        var states = new InMemoryLocalEmailStateStore(Account);
+        var folders = new InMemoryLocalMailFolderStore(Account, MailAccountCustodyPhase.Mirrored);
+        states.Store(
+            LocalEmail,
+            new LocalEmailState(
+                MailFolderResolution.FirstBindingOf(Inbox, RemoteFolderPath.Create("INBOX")),
+                HoldsSourceOccurrence: true,
+                Folder: null,
+                IsSeen: false,
+                IsFlagged: false,
+                EmailKeywords.Create(["old"])));
+        var keys = Substitute.For<IMailActKeyStore>();
+        MailActOutcome? kept = null;
+        keys
+            .StageAsync(
+                Arg.Any<IPersistenceSession>(),
+                Arg.Any<UserId>(),
+                Arg.Any<MailActIdempotencyKey>(),
+                Arg.Any<StoredEmailId>(),
+                Arg.Do<MailActOutcome>(outcome => kept = outcome),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+        var submission = new MailboxCustodianComposition(new FakeTimeProvider())
+        {
+            Records = records,
+            States = states,
+            LocalFolders = folders,
+            Custody = folders.Custody,
+            Leases = MailboxCustodianComposition.LeasesHeldBy(WorkLeaseHolder.ForBuild("0.9.0")),
+        }.Submission;
+        var recorder = RecorderOver(records, TargetIn(Inbox), submission: submission, keys: keys);
+        var change = AuthoredMailFlagChange.Create(LocalEmail, null, null, MailKeywordChangeDirection.Replace, ["new"]);
+        var key = MailActIdempotencyKey.Create("act-1", "flags:false", ["asked"]);
+
+        // Act
+        var result = await recorder.RecordAsync(change, Requester, MailboxReaderKind.Person, key, TestContext.Current.CancellationToken);
+
+        // Assert
+        MailboxMutation[] halves = [MailboxMutation.RemoveKeywords, MailboxMutation.AddKeywords];
+        Assert.True(result.IsApplied);
+        Assert.Equal(halves, result.Recorded.Select(recorded => recorded.Mutation));
+        Assert.Equal(halves, kept!.Changes.Select(recorded => recorded.Mutation));
     }
 
     /// <summary>The person is who the junk keywords belong to, so their own change naming one is recorded as any other.</summary>
@@ -440,7 +494,9 @@ public sealed class MailFlagChangeRecorderTests
         AccessAuthorization? authorization = null,
         Func<IPersistenceSession>? sessionFactory = null,
         FakeTimeProvider? clock = null,
-        MailAccountRunSignal? runSignal = null)
+        MailAccountRunSignal? runSignal = null,
+        MailboxChangeSubmission? submission = null,
+        IMailActKeyStore? keys = null)
     {
         var callerAuthorization =
             authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailFlagsWrite);
@@ -468,13 +524,13 @@ public sealed class MailFlagChangeRecorderTests
                 StubDeploymentMailFolders.Of(participation),
                 StubMailFolderMappings.ResolvingNothing),
             targets,
-            MailboxChangeSubmissions.Over(records),
+            submission ?? MailboxChangeSubmissions.Over(records),
             new OptimisticConcurrencyRetryPolicy(
                 sessions,
                 new PersistenceConcurrencyOptions(),
                 clock ?? new FakeTimeProvider()),
             runSignal ?? new MailAccountRunSignal(),
-            new MailActIdempotency(callerAuthorization, Substitute.For<IMailActKeyStore>(), clock ?? new FakeTimeProvider()));
+            new MailActIdempotency(callerAuthorization, keys ?? Substitute.For<IMailActKeyStore>(), clock ?? new FakeTimeProvider()));
     }
 
     private static AuthoredMailboxTarget TargetIn(MailFolderAlias folderAlias)

@@ -169,6 +169,9 @@ public sealed class MailRuleActionRecorder
                 applied.Add(change);
             }
 
+            // A replacement carried as a removal and an addition has two records and the history keeps one row per action,
+            // so it points at the first and the other is found among the message's mutation records. Pointing at both
+            // would take a second column on the executed action.
             if (submitted.Outcome is MailboxChangeSubmissionOutcome.Recorded
                 or MailboxChangeSubmissionOutcome.Applied
                 or MailboxChangeSubmissionOutcome.AlreadyInDestination)

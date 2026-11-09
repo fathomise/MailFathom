@@ -728,6 +728,24 @@ public sealed class MailboxChangeSubmissionTests
         Assert.Equal(MailboxMutation.AddKeywords, Assert.Single(this.records.OpenedRequests).Mutation);
     }
 
+    /// <summary>MailFathom's state is the truth while restoring, so a replacement stays exact against the source rather than merged.</summary>
+    [Fact]
+    public async Task SubmitAsync_AKeywordReplacementOnARestoringAccount_RecordsItWhole()
+    {
+        // Arrange
+        this.Store(keywords: ["kept"]);
+        this.folders.Phase = MailAccountCustodyPhase.Restoring;
+        var request = MailboxMutationRequest.SetKeywords(Email, Occurrence, Requester, AuthoredMailKeywords.Create(["named"]));
+
+        // Act
+        var submitted = await this.Submission().SubmitAsync(this.session, request, null, null, Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Applied, submitted.Outcome);
+        Assert.Equal(["NAMED"], this.states.States[Email].Keywords.Values);
+        Assert.Equal(MailboxMutation.SetKeywords, Assert.Single(this.records.OpenedRequests).Mutation);
+    }
+
     /// <summary>A move files the message into the local folder at once and leaves the source the relocation to make.</summary>
     [Fact]
     public async Task SubmitAsync_AMoveOnARestoringAccountHoldingAnOccurrence_CommitsItAndRecordsItForTheSource()
