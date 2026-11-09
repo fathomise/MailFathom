@@ -60,7 +60,8 @@ internal static class EmailCategoryQuestions
         new(DefaultMailCategory.Other.ToString(), "Nothing above fits."),
     ];
 
-    private static readonly DecisionQuestion DefaultQuestion = DecisionQuestion.Choice(
+    /// <summary>Gets the question choosing the one default category.</summary>
+    internal static DecisionQuestion Default { get; } = DecisionQuestion.Choice(
         DefaultQuestionId,
         $"""
         {DefaultDataClause}
@@ -70,10 +71,7 @@ internal static class EmailCategoryQuestions
         DefaultOptions);
 
     /// <summary>Gets the revision the default choice is asked under.</summary>
-    internal static string DefaultRevision { get; } = DecisionQuestionSet.RevisionOf([DefaultQuestion]);
-
-    /// <summary>Gets the question choosing the one default category.</summary>
-    internal static DecisionQuestion Default => DefaultQuestion;
+    internal static string DefaultRevision { get; } = DecisionQuestionSet.RevisionOf([Default]);
 
     /// <summary>Asks whether a message matches one own category.</summary>
     /// <param name="category">The category.</param>

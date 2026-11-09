@@ -223,7 +223,8 @@ internal sealed class DecisionModelOptions : IValidatableObject
         }
 
         // A function that names its own model needs no default, so the default is required only where some function
-        // would fall through to it — which, with one function today, is exactly when that function names none.
+        // would fall through to it. Whether any account uses that function is not known here: it is a per-account setting
+        // in a record this start has not read, and a model chosen at the first message would be a failure no start reported.
         var fallsThrough = Enum.GetValues<DecisionFunction>().Any(function => !this.ReferenceFor(function).NamesModel);
 
         if (fallsThrough && !this.DefaultModel.NamesModel && this.FindDefaultModel() is null)

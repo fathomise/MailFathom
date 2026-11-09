@@ -618,7 +618,7 @@ internal static class SynchronizationTestHost
         return reader;
     }
 
-    /// <summary>Answers with classification switched off, which is what a deployment configuring none of it runs with.</summary>
+    /// <summary>Answers with categorization switched off, which is what an account declaring none of it runs with.</summary>
     private static IEmailCategorizationSettingsReader CreateCategorizationSettingsReader()
     {
         var reader = Substitute.For<IEmailCategorizationSettingsReader>();
@@ -627,6 +627,7 @@ internal static class SynchronizationTestHost
         return reader;
     }
 
+    /// <summary>Answers with classification switched off, which is what a deployment configuring none of it runs with.</summary>
     private static ISpamClassificationSettingsReader CreateClassificationSettingsReader()
     {
         var reader = Substitute.For<ISpamClassificationSettingsReader>();

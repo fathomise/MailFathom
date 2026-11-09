@@ -1031,7 +1031,8 @@ holds the decision and its reasoning.
 **The section is a declared array and the references into it**, the way `Chat` is. A model is written once under
 `Decisions:Models` beneath an alias, and a function names that alias. `SpamClassification` and `EmailCategorization` are the functions a
 reference may name. With one model declared nothing has to name it; with several, `Decisions:DefaultModel` says
-which one a function naming none is asked through. A reference is an alias and nothing else: there is no fallback
+which one a function naming none is asked through, so a deployment declaring several models refuses to start without it
+unless both functions name their own — whether or not any account has switched categorization on. A reference is an alias and nothing else: there is no fallback
 model, because a verdict from a second model is a verdict calibrated against a different build.
 
 **What leaves the deployment is fixed in the adapter rather than in configuration.** Every request asks the router for

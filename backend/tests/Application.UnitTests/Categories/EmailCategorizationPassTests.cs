@@ -200,16 +200,21 @@ public sealed class EmailCategorizationPassTests
         var fixture = new Fixture();
         var first = fixture.Awaiting();
         fixture.Awaiting();
-        fixture.Judge.OnAsked = leaseLost.Cancel;
+        fixture.Store.SaveAsync(default!, default, default!, TestContext.Current.CancellationToken).ReturnsForAnyArgs(_ =>
+        {
+            leaseLost.Cancel();
+
+            return Task.FromResult(true);
+        });
 
         // Act
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => fixture.Pass().RunAsync(Account, leaseLost.Token));
 
         // Assert
         Assert.Single(fixture.Judge.Asked);
-        await fixture.Store.DidNotReceive().SaveAsync(
+        await fixture.Store.Received(1).SaveAsync(
             Arg.Any<IPersistenceSession>(),
-            Arg.Is<StoredEmailId>(id => id != first.Id),
+            first.Id,
             Arg.Any<IReadOnlyList<EmailCategoryAssignment>>(),
             Arg.Any<CancellationToken>());
     }

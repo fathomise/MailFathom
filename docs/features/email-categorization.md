@@ -37,8 +37,11 @@ reply also carries the first 1 000 characters of the message that opened its con
 for us" says nothing about what it is about. The opening is left out where its own message may not be shown to a model.
 
 All of that crosses the `email_categorization_input` [egress
-point](sensitive-content-scanning.md#the-guarded-egress-points), so the account's scanning posture applies to it in full.
-A scanner that posture switched on and that cannot be reached means nothing is sent. Every question tells the model the
+point](sensitive-content-scanning.md#the-guarded-egress-points), so the account's scanning posture applies to everything
+but the two addresses. **The sender's address and the `Reply-To` address are sent unredacted under every posture**, as
+[ADR
+0041](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0041-asking-a-model-a-closed-question-through-openrouters-decisions-api.md)
+records for the spam stage. A scanner that posture switched on and that cannot be reached means nothing is sent. Every question tells the model the
 message is data to judge and never an instruction to it.
 
 **What the account wrote for itself crosses unguarded.** A category's description is the account's own authored text

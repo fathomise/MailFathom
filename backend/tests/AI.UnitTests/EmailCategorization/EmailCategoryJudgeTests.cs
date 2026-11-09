@@ -282,6 +282,7 @@ public sealed class EmailCategoryJudgeTests
             .AddKeyedScoped<IDecisionClient>(DecisionFunction.EmailCategorization, (_, _) => client)
             .BuildServiceProvider();
 
+#pragma warning disable CA2000 // Composition owns the judge, and every test disposes the composition.
         return new Composition(
             provider,
             new EmailCategoryJudge(
@@ -290,6 +291,7 @@ public sealed class EmailCategoryJudgeTests
                 SpamModelStageBounds.Default,
                 maximumRequestCharacters,
                 NullLogger<EmailCategoryJudge>.Instance));
+#pragma warning restore CA2000
     }
 
     private sealed class Composition(ServiceProvider provider, EmailCategoryJudge judge) : IDisposable
