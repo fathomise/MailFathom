@@ -81,8 +81,9 @@ public sealed class StoredEmailSelectionPredicateCommandTests
             category: new EmailCategorySelection("FINANCE", ["finance"], [MailAccountId.Create("primary")])));
 
         // Assert
+        const string AccountTest = "\"MailboxAccountId\" = ANY";
         Assert.Contains("email_categories", narrowing, StringComparison.Ordinal);
-        Assert.Contains("\"MailboxAccountId\" = ANY", narrowing, StringComparison.Ordinal);
+        Assert.Equal(Occurrences(NarrowingOf(SelectionWith()), AccountTest) + 1, Occurrences(narrowing, AccountTest));
         Assert.Contains("\"Category\" = ANY", narrowing, StringComparison.Ordinal);
     }
 

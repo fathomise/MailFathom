@@ -616,7 +616,7 @@ information somebody's server or mail app chose to send, not proof, and its abse
 [Delivery and read receipts](delivery-and-read-receipts.md) records how a report is matched and what is kept.
 `get_email_content` and `search_emails` carry the same field, the latter inside each match's summary.
 
-Six parts of it are worth reading before a caller writes against them:
+Seven parts of it are worth reading before a caller writes against them:
 
 - **`senderVerification` is three answers, never one.** `senderAddress` beside it is a claim the email wrote about itself,
   and nothing on the way to a listing verified it. `authorAuthentication` is what was established about the author the
