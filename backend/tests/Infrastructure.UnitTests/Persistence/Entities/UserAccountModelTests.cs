@@ -49,6 +49,30 @@ public sealed class UserAccountModelTests
             entityType.FindPrimaryKey()!.GetName());
     }
 
+    /// <summary>
+    /// An account in no organization is held to one assignment by a unique index over the assignments whose flag says
+    /// so, and the flag is the database's to write: the model sends no value for it and reads back what was computed.
+    /// </summary>
+    [Fact]
+    public void MailAccountAssignmentModel_AccountInNoOrganization_HoldsSuchAnAccountToOneUserUnderAFlagTheDatabaseWrites()
+    {
+        // Arrange
+        using var context = CreateContext();
+        var entityType = EntityTypeOf<MailAccountAssignmentEntity>(context);
+
+        // Act
+        var flag = entityType.FindProperty(nameof(MailAccountAssignmentEntity.AccountInNoOrganization))!;
+        var index = entityType.GetIndexes()
+            .Single(candidate => candidate.GetDatabaseName() == PersistenceConstraintNames.MailAccountAssignmentSoleUserIndexName);
+
+        // Assert
+        Assert.False(flag.IsNullable);
+        Assert.Equal(ValueGenerated.OnAddOrUpdate, flag.ValueGenerated);
+        Assert.True(index.IsUnique);
+        Assert.Equal([nameof(MailAccountAssignmentEntity.MailAccountId)], index.Properties.Select(property => property.Name));
+        Assert.Equal("\"AccountInNoOrganization\"", index.GetFilter());
+    }
+
     /// <summary>One row per user, keyed by an identity whoever provisions the user decides.</summary>
     [Fact]
     public void UserAccountModel_Key_IsTheProvisionedUserIdentity()
