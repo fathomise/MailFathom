@@ -26,14 +26,14 @@ namespace MailFathom.Domain.Mutations;
 public enum MailboxMutationLocalChange
 {
     /// <summary>Nothing happens locally, now or later: the record names a change a mail server is to be told about.</summary>
-    /// <remarks>Every record a mirrored account opens is this, and so is the one a restoring account opens for a message the drain has not yet reached.</remarks>
+    /// <remarks>Every record a mirrored account opens for a message its server holds is this, and so is the one a restoring account opens for a message the drain has not yet reached.</remarks>
     None = 0,
 
     /// <summary>The record erases MailFathom's own copy once its window has passed, and reaches no mail server at all.</summary>
     /// <remarks>
-    /// The second delete of a message already in the local trash, on an account holding or restoring its mailbox. It is
-    /// the one act that is local in every phase, and the local copy is still there while the record waits, which is what
-    /// leaves the person their window.
+    /// The second delete of a message already in the local trash, on an account holding or restoring its mailbox, and a
+    /// person's delete of a message the server lost, on a mirrored account. It is the one act that is local in every
+    /// phase, and the local copy is still there while the record waits, which is what leaves the person their window.
     /// </remarks>
     Erasure = 1,
 

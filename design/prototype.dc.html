@@ -1427,7 +1427,7 @@ Project repository: https://github.com/fathomise/MailFathom
                           <div style="display:flex;align-items:center;gap:7px;padding:7px 11px;border-top:1px solid var(--line);background:var(--sub);font-size:11px;color:var(--muted)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:14px;line-height:1">lock</span><span data-fit-status="{{ m.htmlFrameId }}">Fitting height to content…</span></div>
                         </div>
                       </sc-if>
-                      <sc-if value="{{ m.localOnly }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" title="Local only" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)">cloud_off</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">Local only</span></sc-if><sc-if value="{{ m.hasAtts }}" hint-placeholder-val="{{ false }}">
+                      <sc-if value="{{ m.hasAtts }}" hint-placeholder-val="{{ false }}">
                         <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
                           <sc-for list="{{ m.atts }}" as="a" hint-placeholder-count="1">
                             <div style="display:flex;align-items:stretch;background:var(--sub);border:1px solid var(--line);border-radius:8px;overflow:hidden">

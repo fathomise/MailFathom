@@ -12,7 +12,7 @@ import { useLocalization } from '../localization/useLocalization';
 // What the mail server said about the message, in the order a reader scans for it. Each carries its own words, because
 // a mark with no name is a mark nobody using a screen reader can see at all.
 //
-// It sits here rather than beside the mail list for the reason `ReceivedAt` does: the conversation draws the same three
+// It sits here rather than beside the mail list for the reason `ReceivedAt` does: the conversation draws the same
 // marks about the same message, and a second copy of them is how one screen comes to say a message carries a file and
 // the other says it carries none.
 
@@ -34,7 +34,7 @@ export function MessageMarkers({
      */
     readonly flagged: boolean;
 
-    /** A mark the surface draws first, ahead of the three — what came back for a message on a Sent row. */
+    /** A mark the surface draws first, ahead of the others — what came back for a message on a Sent row. */
     readonly lead?: ReactNode;
 }) {
     const { translate } = useLocalization();

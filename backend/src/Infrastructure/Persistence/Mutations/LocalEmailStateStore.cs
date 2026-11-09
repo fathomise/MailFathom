@@ -97,6 +97,10 @@ internal sealed class LocalEmailStateStore(TimeProvider timeProvider) : ILocalEm
         if (await FindAsync(session, account, email, cancellationToken) is { } row)
         {
             row.IsRetainedAfterRemoteDelete = false;
+
+            // A tombstone ages from when it became one. The server may have lost this message long ago, and an age
+            // read from that would erase the record of this delete on the next nightly run.
+            row.RemoteExpungeObservedAt = timeProvider.GetUtcNow();
         }
     }
 

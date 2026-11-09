@@ -25,7 +25,12 @@ namespace MailFathom.Application.Mail.Mutations.Local;
 /// on it and the cascade runs only once the window has passed.
 /// </para>
 /// <para>
-/// It serves both custodians whose local folders are the truth. What tells them apart is whether the source is owed the
+/// A mirrored account reaches this type for one kind of message alone, through <see cref="CommitOnLocalOnlyAsync" />: one
+/// the mail server lost and the account keeps. A person's delete of it opens that same erasure record, for a message in
+/// no trash, and the message stays listed until the window passes, which is what the record's withdrawal has to undo.
+/// </para>
+/// <para>
+/// Otherwise it serves both custodians whose local folders are the truth. What tells them apart is whether the source is owed the
 /// act as well, which the caller states rather than this type reading it: a held account's source is drained and owed
 /// nothing, while a restoring account's source is being filled back up and is owed every act on a message it already
 /// holds.

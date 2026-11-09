@@ -486,18 +486,24 @@ set it to `Expunge` first.
 ### How long an account keeps its mail — `Retention`
 
 `Retention` states an age for the mail a person sees, `Messages`, and another for the rows kept as tombstones,
-`Tombstones`. Both are off, so an account stating nothing removes nothing, and they read the same whatever the account's
-custody phase. **`Tombstones` acts on the account's mail; nothing acts on `Messages` yet, so turning that half on removes
+`Tombstones`. Both are off, so an account stating nothing removes nothing under them, and they read the same whatever the
+account's custody phase. **`Tombstones` acts on the account's mail; nothing acts on `Messages` yet, so turning that half on removes
 nothing.** Both are validated and resolved through a settings policy.
 
 With `Tombstones` on, [the nightly retention run](configuration-runtime.md#the-nightly-retention-walk) erases each row
 that has been a tombstone for longer than `After`, with its raw MIME and everything derived from it, as `EraseLocalCopy`
-erases. The age is measured from when the server was first seen to have removed or flagged the message, and it is read
-from the configuration as it stands, so switching this on clears the tombstones the account already holds. **This is the
+erases. The age is measured from when the server was first seen to have removed or flagged the message, or, for a local-only
+message a person deleted, from that delete, and it is read from the configuration as it stands, so switching this on clears the tombstones the account already holds. **This is the
 grace period before a local copy goes:** an account wanting one states `RetainTombstone` and an age, and `EraseLocalCopy`
 stays immediate. A delete still being worked on is not a tombstone yet, a row kept by `RemotelyDeletedEmailDisposition: RetainLocalCopy` is a message
 rather than a tombstone, and a row in an excluded folder stays. Under object storage the record goes with the transaction
 and the bytes immediately afterwards in the ordinary case, and within one reclamation interval otherwise.
+
+The same nightly run also settles, whatever `Retention` states, the rows an earlier release kept readable after a delete
+MailFathom performed under the removed `AuthoredDeleteEmailDisposition` value `RetainLocalCopy`. Under `EraseLocalCopy`,
+the default, it erases each with its raw MIME and everything derived from it, and under `RetainTombstone` it leaves each
+as a tombstone. It takes them in the batches and under the nightly bound the tombstone erasure has, and passes over an
+account being restored until the restore ends.
 
 `After` has a floor and no ceiling, because a typing mistake in a forced policy must not empty every account and a long
 age endangers nothing. An age under its floor is refused when a record or a policy is written and at start, in a sentence
