@@ -411,8 +411,8 @@ uphold the rule: a second user written for an account in none — by this build,
 or by a statement typed at the database — is refused, and so is an account leaving every organization while two users
 hold it, because the move rewrites both flags in its own statement and the second one violates the index. The stores
 still count an account's users under its row lock before they write, so the refusal an operator meets names an
-organization as the way to share the mailbox, and a write that loses to the index anyway is answered with the same
-refusal. The migration that created the index ended every assignment beyond the earliest of an account in none that
+organization as the way to share the mailbox, and an assignment whose conflict clause meets the index anyway inserts
+nothing and is answered with the same refusal. The migration that created the index ended every assignment beyond the earliest of an account in none that
 already held several, the way an unassignment ends one. **One address is one account,
 and the index is the guarantee**: `ix_settings_mail_accounts_normalized_email_address` is unique over
 `NormalizedEmailAddress` where it is not null, so two writers claiming one address at once are separated by PostgreSQL

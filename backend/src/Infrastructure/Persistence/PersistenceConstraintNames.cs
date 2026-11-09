@@ -782,7 +782,7 @@ internal static class PersistenceConstraintNames
     internal const string MailAccountAssignmentAccountIndexName = "ix_mail_account_assignments_mail_account_id";
 
     /// <summary>The index that holds a mail account in no organization to one assigned user.</summary>
-    /// <remarks>Stated rather than left to convention because the stores read it: a write that violates it is a second user for an account in none, which is a refusal rather than a failure.</remarks>
+    /// <remarks>Stated rather than left to convention because the model and integration tests read it, and the assignment's conflict clause is what turns meeting it into the refusal rather than a failure.</remarks>
     internal const string MailAccountAssignmentSoleUserIndexName = "ix_mail_account_assignments_sole_user_outside_organization";
 
     /// <summary>The foreign key that ends a user's assignments with the user.</summary>

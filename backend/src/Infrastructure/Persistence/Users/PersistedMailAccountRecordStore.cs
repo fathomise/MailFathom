@@ -268,7 +268,7 @@ internal sealed class PersistedMailAccountRecordStore(
                 },
                 cancellationToken);
         }
-        catch (Exception failure) when (Violates(failure, PersistenceConstraintNames.MailAccountRecordAddressUniqueIndexName))
+        catch (Exception failure) when (ViolatesTheAddressIndex(failure))
         {
             // The race the condition above cannot see: another writer took the address in a transaction that had not
             // committed when this one read. The index is what refused it.
@@ -277,27 +277,7 @@ internal sealed class PersistedMailAccountRecordStore(
     }
 
     /// <inheritdoc />
-    public async Task<MailAccountWrite> AssignAsync(
-        Guid accountId,
-        UserId user,
-        long expectedUserVersion,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await this.AssignCountedAsync(accountId, user, expectedUserVersion, cancellationToken);
-        }
-        catch (Exception failure) when (Violates(failure, PersistenceConstraintNames.MailAccountAssignmentSoleUserIndexName))
-        {
-            // The count below runs under the account's lock, which the index's own trigger waits on as well, so a store
-            // does not reach this; a refusal by the index is still answered as the count answers it rather than as a
-            // provider failure.
-            return new MailAccountWrite(MailAccountWriteResult.SharedOnlyInOrganization, 0);
-        }
-    }
-
-    /// <summary>Assigns the account within the bound its organization sets, counted under the account's lock.</summary>
-    private Task<MailAccountWrite> AssignCountedAsync(
+    public Task<MailAccountWrite> AssignAsync(
         Guid accountId,
         UserId user,
         long expectedUserVersion,
@@ -347,6 +327,8 @@ internal sealed class PersistedMailAccountRecordStore(
                 // assignment already standing, or the account is assigned to as many users as it may be where it
                 // belongs. Inside an organization somebody else's assignment is not a conflict — the key is the pair —
                 // so an account several members are assigned takes each of them without the others being consulted.
+                // Outside every organization it is: the clause names no target, so it covers the sole-user index too,
+                // and an assignment the count could not see still inserts nothing and is answered the same way.
                 if (assigned == 0)
                 {
                     return new MailAccountWrite(await WhyNotAssignedAsync(context, accountId, userId, organization, token), 0);
@@ -686,15 +668,16 @@ internal sealed class PersistedMailAccountRecordStore(
         };
     }
 
-    /// <summary>Reports whether a failure, or one beneath it, is the named unique index refusing the write.</summary>
-    /// <param name="failure">What the write raised.</param>
-    /// <param name="uniqueIndexName">The index whose refusal is an answer rather than a fault.</param>
-    internal static bool Violates(Exception failure, string uniqueIndexName)
+    /// <summary>Reports whether a failure is the address index refusing a second account one address.</summary>
+    internal static bool ViolatesTheAddressIndex(Exception failure)
     {
         for (var current = failure; current is not null; current = current.InnerException)
         {
-            if (current is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } violation
-                && violation.ConstraintName == uniqueIndexName)
+            if (current is PostgresException
+                {
+                    SqlState: PostgresErrorCodes.UniqueViolation,
+                    ConstraintName: PersistenceConstraintNames.MailAccountRecordAddressUniqueIndexName,
+                })
             {
                 return true;
             }

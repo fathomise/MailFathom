@@ -2374,8 +2374,8 @@ The mail account is assigned to 3 users, and an account in no organization is as
 
 The count is not the guarantee. PostgreSQL holds the rule itself, with a unique index over an account's assignments
 while it is in no organization, so a second user written past the endpoint — by a statement typed at the database, or
-by a writer added later — is refused there as well, and a write that loses to the index is answered with the same
-refusal. The schema page's [users a mailbox serves](../architecture/stored-email-schema.md#the-users-a-mailbox-serves) holds the
+by a writer added later — is refused there as well, and an assignment through the endpoint that meets the index is
+answered with the same refusal. The schema page's [users a mailbox serves](../architecture/stored-email-schema.md#the-users-a-mailbox-serves) holds the
 index and what keeps it in step with the account.
 
 The migration that brought the index ended the assignments an account in none still held beyond its first: the account

@@ -737,20 +737,6 @@ internal sealed class PersistedOrganizations(
         {
             return OrganizationWriteResult.Of(OrganizationWriteOutcome.UnknownOrganization);
         }
-        catch (PostgresException violation) when (PersistedMailAccountRecordStore.Violates(
-            violation,
-            PersistenceConstraintNames.MailAccountAssignmentSoleUserIndexName))
-        {
-            // The count above runs under the lock every assignment waits on, so nothing a store writes reaches this; a
-            // refusal by the index is still answered as the count answers it rather than as a provider failure,
-            // counted again once the failed transaction is gone.
-            await move.RollbackAsync(CancellationToken.None);
-
-            return new OrganizationWriteResult(
-                OrganizationWriteOutcome.SharedOnlyInOrganization,
-                StandingAssignments: await dbContext.MailAccountAssignments
-                    .CountAsync(assignment => assignment.MailAccountId == mailAccountId, cancellationToken));
-        }
 
         return new OrganizationWriteResult(OrganizationWriteOutcome.Written, organizationId ?? Guid.Empty);
     }
