@@ -141,7 +141,7 @@ public sealed class StoredEmailSearchIndexReaderCommandTests
         var command = CommandBody(GeneratedCommand(QueryTextFor("water damage").MatchedUnder(EmailSearchRetrievalMode.Lexical)));
 
         // Assert
-        Assert.DoesNotContain("NOT (", command, StringComparison.Ordinal);
+        Assert.DoesNotMatch(@"NOT \([^()]*@@", command);
     }
 
     /// <summary>The ranking query reads no body at all: it decides an order, and an order needs no extract.</summary>
@@ -220,8 +220,8 @@ public sealed class StoredEmailSearchIndexReaderCommandTests
             subjectFragment: null,
             receivedOnOrAfter: null,
             receivedBefore: null,
-            isRemotelySeen: null,
-            isRemotelyFlagged: null,
+            isMarkedSeen: null,
+            isFlagged: null,
             keyword: null,
             hasAttachments: false);
 
@@ -249,8 +249,8 @@ public sealed class StoredEmailSearchIndexReaderCommandTests
             subjectFragment: null,
             receivedOnOrAfter: null,
             receivedBefore: null,
-            isRemotelySeen: null,
-            isRemotelyFlagged: null,
+            isMarkedSeen: null,
+            isFlagged: null,
             keyword: null,
             hasAttachments: true);
 
@@ -287,8 +287,8 @@ public sealed class StoredEmailSearchIndexReaderCommandTests
         subjectFragment: null,
         receivedOnOrAfter: null,
         receivedBefore: null,
-        isRemotelySeen: null,
-        isRemotelyFlagged: null,
+        isMarkedSeen: null,
+        isFlagged: null,
         keyword: null,
         hasAttachments: null);
 

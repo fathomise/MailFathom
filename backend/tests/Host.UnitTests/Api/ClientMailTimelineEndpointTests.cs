@@ -297,7 +297,7 @@ public sealed class ClientMailTimelineEndpointTests
         // Assert
         await this.timeline.Received(1).ReadPageAsync(
             Arg.Is<EmailTimelineFilter>(filter =>
-                filter != null && filter.Selection.IsRemotelySeen == false),
+                filter != null && filter.Selection.IsMarkedSeen == false),
             Arg.Any<EmailTimelinePosition?>(),
             Arg.Any<int>(),
             Arg.Any<CancellationToken>());
@@ -445,7 +445,7 @@ public sealed class ClientMailTimelineEndpointTests
     {
         // Arrange
         var row = new BrowsedEmail(
-            SyntheticListedEmail(isRemotelySeen: true),
+            SyntheticListedEmail(isMarkedSeen: true),
             Preview: null,
             Enrichment: null,
             ThreadMessageCount: null);
@@ -667,7 +667,7 @@ public sealed class ClientMailTimelineEndpointTests
 
     private static EmailSummary SyntheticListedEmail(
         string? subject = null,
-        bool isRemotelySeen = false,
+        bool isMarkedSeen = false,
         int attachmentCount = 0) => new()
         {
             StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
@@ -690,14 +690,14 @@ public sealed class ClientMailTimelineEndpointTests
                 CarriesUnverifiedSignature: false,
                 ContainsUnexpandedTnefPart: false),
             ContentAvailability = StoredEmailContentAvailability.Available,
-            RemoteFlags = new RemoteEmailFlagSnapshot(
+            Flags = new StoredEmailFlags(
                 FirstJuly,
-                isRemotelySeen,
+                isMarkedSeen,
                 IsAnswered: false,
                 IsFlagged: false,
                 IsDraft: false,
                 IsDeleted: false,
-                RemoteEmailKeywords.None),
+                EmailKeywords.None),
         };
 
     private Task<Results<Ok<ClientMailTimelineResponse>, ProblemHttpResult>> ReadAsync(

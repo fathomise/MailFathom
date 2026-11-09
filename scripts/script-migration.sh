@@ -47,10 +47,16 @@ if [[ "${#existing_migrations[@]}" -eq 0 ]]; then
   exit 1
 fi
 
-newest_migration="${existing_migrations[-1]%.cs}"
+# A migration is named by the identifier its Designer file declares, never by its file name: a release migration is named
+# after its release and carries the identifier of the last migration it folds.
+migration_identifier_of() {
+  sed -n 's/^ *\[Migration("\([^"]*\)")\].*/\1/p' "${migrations_directory}/${1%.cs}.Designer.cs"
+}
+
+newest_migration="$(migration_identifier_of "${existing_migrations[-1]}")"
 
 if [[ "${#existing_migrations[@]}" -ge 2 ]]; then
-  migration_before_the_newest="${existing_migrations[-2]%.cs}"
+  migration_before_the_newest="$(migration_identifier_of "${existing_migrations[-2]}")"
 else
   migration_before_the_newest='0'
 fi

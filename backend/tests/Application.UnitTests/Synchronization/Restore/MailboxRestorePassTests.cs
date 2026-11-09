@@ -759,7 +759,7 @@ public sealed class MailboxRestorePassTests
         IEnumerable<string>? keywords = null) => new(
         StoredEmailId.Create(Guid.CreateVersion7()),
         folder,
-        new RestoredEmailState(seen, answered, flagged, draft, RemoteEmailKeywords.Create(keywords)),
+        new RestoredEmailState(seen, answered, flagged, draft, EmailKeywords.Create(keywords)),
         ArrivedAt);
 
     private static MailboxRestoredStateCandidate StillOnTheSource(
@@ -772,7 +772,7 @@ public sealed class MailboxRestorePassTests
         EmailOccurrenceId.Create(Account, folder.Id, ImapUidValidity.Create(1), ImapUid.Create(11)),
         folder,
         destination,
-        new RestoredEmailState(seen, IsAnswered: false, flagged, IsDraft: false, RemoteEmailKeywords.Create(keywords)));
+        new RestoredEmailState(seen, IsAnswered: false, flagged, IsDraft: false, EmailKeywords.Create(keywords)));
 
     private sealed class RestoreContext
     {

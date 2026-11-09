@@ -44,6 +44,12 @@ public sealed class DiscoveryCompositionAgentTests
     /// <summary>The literal the scanner in the guarded-egress test reports, standing in for a credential in an extract.</summary>
     private const string Marker = "AKIAEXAMPLEKEY";
 
+    /// <summary>A composition as a model held to the schema writes it, every array written and empty where it does not apply.</summary>
+    private const string StructuredComposition = """
+        {"answer": "They accepted the revised figure.", "confidence": "high", "sources": ["s1"], "conflict": [],
+        "events": [], "columns": [], "rows": []}
+        """;
+
     private static readonly DateTimeOffset ObservedAt = new(2026, 8, 8, 12, 0, 0, TimeSpan.Zero);
 
     private static readonly MailAccountId Primary = MailAccountId.Create("primary");
@@ -291,6 +297,60 @@ public sealed class DiscoveryCompositionAgentTests
         // Assert
         Assert.Equal(MailAnsweringBudgetScope.Run, refusal.Scope);
         Assert.Equal(0, provider.RequestCount);
+    }
+
+    /// <summary>A model whose server honours a strict schema is asked for one, citing only the names the run minted.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task ComposeAsync_AModelDeclaringStructuredOutputs_AsksForAStrictSchemaCitingTheDeclaredSources(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredComposition));
+        var composer = provider.ComposerOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api), structuredOutputs: true));
+
+        // Act
+        var plan = await composer.ComposeAsync(
+            Question(),
+            Plan(DiscoveryIntent.FindFact),
+            Evidence("we accept the revised figure", "the figure is final"),
+            Coverage(),
+            UserLanguage.English,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var format = StructuredRequests.SchemaFormatOf(provider.RequestBodies[0], api);
+        var cited = format.Schema.GetProperty("properties").GetProperty("sources").GetProperty("items").GetProperty("enum");
+        var block = Assert.IsType<AnswerBlock>(plan.Blocks[0]);
+
+        Assert.Equal(PresentationSupport.Supported, block.Evidence.Support);
+        Assert.Equal(("json_schema", DiscoveryCompositionSchema.Name, true), (format.Type, format.Name, format.Strict));
+        Assert.Equal(["s1", "s2"], cited.EnumerateArray().Select(static name => name.GetString()));
+        Assert.DoesNotContain("the rest are ignored", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>Without the declaration the request is the one every composition sent before, the shape told in prose instead.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task ComposeAsync_AModelDeclaringNoStructuredOutputs_SendsNoResponseFormat(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredComposition));
+        var composer = provider.ComposerOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api)));
+
+        // Act
+        await composer.ComposeAsync(
+            Question(),
+            Plan(DiscoveryIntent.FindFact),
+            Evidence("we accept the revised figure"),
+            Coverage(),
+            UserLanguage.English,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(StructuredRequests.CarriesResponseFormat(provider.RequestBodies[0]));
+        Assert.Contains("the rest are ignored", provider.RequestBodies[0], StringComparison.Ordinal);
     }
 
     private static MailQuestion Question(string text = "which supplier quoted least") =>

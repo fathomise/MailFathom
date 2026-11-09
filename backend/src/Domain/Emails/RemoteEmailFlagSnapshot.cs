@@ -37,7 +37,7 @@ public sealed record RemoteEmailFlagSnapshot(
     bool IsFlagged,
     bool IsDraft,
     bool IsDeleted,
-    RemoteEmailKeywords Keywords)
+    EmailKeywords Keywords)
 {
     /// <summary>Gets the snapshot of an email whose remote flags no run has read yet.</summary>
     public static RemoteEmailFlagSnapshot NeverObserved { get; } = new(
@@ -47,7 +47,7 @@ public sealed record RemoteEmailFlagSnapshot(
         IsFlagged: false,
         IsDraft: false,
         IsDeleted: false,
-        RemoteEmailKeywords.None);
+        EmailKeywords.None);
 
     /// <summary>Gets whether these flags were read from a server rather than never observed.</summary>
     public bool WasObserved => this.ObservedAt is not null;

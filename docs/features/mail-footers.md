@@ -27,8 +27,8 @@ person's own.
 
 **What goes out is what is in force when the message is sent**, not when it was written. A draft sent days after it
 was saved and each occasion of a recurring send carry the footer of that moment. A send held for later is different:
-it is footed, screened, and signed when it is queued, so it carries the footer in force then, and a footer changed while
-it waits does not reach it.
+it is footed and screened when it is queued, so it carries the footer in force then, and a footer changed while it
+waits does not reach it; only its `Date` and the organization's signature are written when it leaves.
 
 ## Where it goes in a message
 
@@ -39,9 +39,9 @@ through keeps — so the sent copy, read back out of the Sent folder, still mark
 answer, the footer sits between what the person wrote and the attribution line that opens the quotation.
 
 **Reading it back, the document names it.** The document a reader is served for the copy MailFathom filed of their own
-send says which of its blocks are the footer, so the client folds it under each message they wrote; the mark is
-honoured on that copy alone, never on a message from anybody else. [The message body
-route](../operations/client-endpoint.md#the-message-body-route) states the field.
+send, and for a message [the organization's signature](sender-authentication.md) proves a colleague wrote, says which of
+its blocks are the footer, so the client folds it; the mark is honoured on those alone, never on a message nothing
+proves. [The message body route](../operations/client-endpoint.md#the-message-body-route) states the field.
 
 **Every outgoing path carries it, and none carries it twice.** The footer goes in at the one place every send passes
 through, the moment the outbox writes the message down: a new message, a reply, a forward, a draft sent from the
@@ -92,9 +92,12 @@ draft, because the service appends it on sending, and a footer the client could 
 written and sent without it.
 
 Reading back what was sent, the footer folds the same way, and there it is part of the message: the simplified view of
-a message the person sent, in Sent and in a conversation alike, draws the blocks the document names as the footer as
-that one line under their words and above the conversation they quoted. A message whose document names no footer is
-drawn whole, and the sender's own markup, which is the message exactly as it went out, folds nothing.
+a message the person sent or a proven colleague wrote, in Sent and in a conversation alike, draws the blocks the
+document names as the footer as that one line under the words and above the conversation they quoted. The line there
+shows the footer's first line of text rather than a fixed sentence, because on a shared mailbox the footer is the only
+thing naming the person, and a footer with no line of text, nothing but a picture, is drawn whole rather than folded
+behind nothing. A message whose document names no footer is drawn whole, and the sender's own markup, which is the
+message exactly as it went out, folds nothing.
 
 ## What an agent drafting for the person is told
 

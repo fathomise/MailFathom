@@ -47,11 +47,11 @@ public sealed record ListEmailsRequest
     /// <summary>Gets the exclusive end of the received range, or <see langword="null" /> for no end.</summary>
     public DateTimeOffset? ReceivedBefore { get; init; }
 
-    /// <summary>Gets the remote <c>\Seen</c> state to require, or <see langword="null" /> for either.</summary>
-    public bool? IsRemotelySeen { get; init; }
+    /// <summary>Gets the <c>\Seen</c> mark to require, or <see langword="null" /> for either.</summary>
+    public bool? IsMarkedSeen { get; init; }
 
-    /// <summary>Gets the remote <c>\Flagged</c> state to require, or <see langword="null" /> for either.</summary>
-    public bool? IsRemotelyFlagged { get; init; }
+    /// <summary>Gets the <c>\Flagged</c> state to require, or <see langword="null" /> for either.</summary>
+    public bool? IsFlagged { get; init; }
 
     /// <summary>Gets the keyword an email must carry, in any case, or <see langword="null" /> for any keyword.</summary>
     public string? Keyword { get; init; }

@@ -38,11 +38,12 @@ internal static class ThreadStateScenario
         var thread = scenario.Thread;
         var messages = thread.Messages;
         var language = scenario.Language ?? MailAccountLanguage.English;
-        var instruction = AgentComposition.InstructionFor(ThreadStateInstructions.TextFor(language));
+        string Instruction(bool constrainedBySchema) =>
+            AgentComposition.InstructionFor(ThreadStateInstructions.TextFor(language, constrainedBySchema));
 
         return new StructuredAnswerRequest(
             $"{Name}.{scenario.Name}",
-            instruction,
+            Instruction,
             (plan, cancellationToken) => ThreadStateAgent.ComposeTurnAsync(
                 thread,
                 SensitiveContentEgressGuards.Inactive(),
@@ -52,10 +53,11 @@ internal static class ThreadStateScenario
                 model,
                 plan,
                 language,
+                thread,
                 new EmptyAgentInstructionEnvelope(),
                 NullLoggerFactory.Instance),
-            answer => HostileMail.Obeyed(answer, instruction)
-                ?? Held(scenario, ThreadStateReading.Read(answer, messages), messages),
+            (answer, constrainedBySchema) => HostileMail.Obeyed(answer, Instruction(constrainedBySchema))
+                ?? Held(scenario, ThreadStateReading.Read(answer, messages, topicShown: thread.KeptTopic is not null), messages),
             ExpectationMetricName,
             StructuredAnswerScenario.JudgedWhen(scenario.ReadsTwoWays));
     }

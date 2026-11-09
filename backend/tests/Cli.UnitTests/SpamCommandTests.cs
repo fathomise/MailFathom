@@ -49,6 +49,27 @@ public sealed class SpamCommandTests : IDisposable
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("spam run-status", StringComparison.Ordinal));
     }
 
+    /// <summary>Naming no folder is sent as naming none, because the deployment refuses an empty list as a request that named nothing.</summary>
+    [Fact]
+    public async Task Run_NoFolderNamed_SendsNoFoldersSoTheDeploymentWalksItsConfiguredScope()
+    {
+        // Arrange
+        using var deployment = FakeSpamRoutes.Answering(
+            runStart: (HttpStatusCode.OK, RunStart(started: true, acting: false)));
+
+        // Act
+        var exitCode = await this.RunAsync(deployment, "spam", "run", "--account", Account, "--endpoint", Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+
+        var body = deployment.RecordedRequests
+            .Single(request => request.Method == HttpMethod.Post)
+            .ContentAsUtf8String();
+
+        Assert.Contains("\"folders\": null", body, StringComparison.Ordinal);
+    }
+
     /// <summary>What the terminal asked for reaches the deployment as the request body, which is the whole agreement.</summary>
     [Fact]
     public async Task Run_ApplyAndFoldersNamed_SendsThemAsTheTermsOfTheRun()

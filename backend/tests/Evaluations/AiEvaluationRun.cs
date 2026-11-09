@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace MailFathom.Evaluations;
@@ -48,7 +49,19 @@ internal static class AiEvaluationRun
 
     /// <summary>Fails the test naming every shortfall in full, one to a line.</summary>
     /// <param name="shortfalls">What each model fell short on, each case under a header naming the case and the model.</param>
-    /// <remarks>Rather than <c>Assert.Empty</c>, which cuts every item it prints to a few dozen characters and so names the model and nothing of why.</remarks>
+    /// <remarks>
+    /// <para>
+    /// Rather than <c>Assert.Empty</c>, which cuts every item it prints to a few dozen characters and so names the model and
+    /// nothing of why.
+    /// </para>
+    /// <para>
+    /// <c>scripts/decide-ai-evaluation-run.sh</c> tells a failure this wrote from any other by the header the message
+    /// opens with, <c>&lt;n&gt; shortfall(s):</c>, so the two change together; <c>scripts/test-agent-workflow.sh</c> holds
+    /// them to each other. The method is never inlined, so its frame stays in the stack trace for whoever reads one, but
+    /// the run's gate reads the header alone: the runtime inlined it often enough to drop the frame from some failures.
+    /// </para>
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void AssertNoShortfalls(IEnumerable<string> shortfalls)
     {
         var named = shortfalls.ToList();

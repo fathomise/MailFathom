@@ -632,7 +632,6 @@ public sealed class SendEmailToolTests
                 OutgoingMailGovernors.Permitting(),
                 MailFootings.SendingNone(),
                 screening ?? OutgoingMailScreenings.Inactive(),
-                OrganizationMailSigners.SigningNothing(),
                 new FakeTimeProvider(Recorded),
                 ClientSignalPublishers.ReachingNobody),
             AuthoredSendGovernors.Permitting(granted),

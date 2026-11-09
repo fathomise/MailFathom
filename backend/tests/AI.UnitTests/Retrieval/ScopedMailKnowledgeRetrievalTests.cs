@@ -4,6 +4,7 @@
 
 using System.Text.Json;
 using System.Xml.Linq;
+using MailFathom.AI.Orchestration;
 using MailFathom.AI.Retrieval;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Emails.AttachmentText;
@@ -62,8 +63,8 @@ public sealed class ScopedMailKnowledgeRetrievalTests
             ["subjectFragment"] = "claim",
             ["receivedOnOrAfter"] = "2026-07-01T00:00",
             ["receivedBefore"] = "2026-07-08T00:00",
-            ["isRemotelySeen"] = true,
-            ["isRemotelyFlagged"] = true,
+            ["isMarkedSeen"] = true,
+            ["isFlagged"] = true,
             ["keyword"] = "$Label",
             ["hasAttachments"] = false,
         });
@@ -80,8 +81,8 @@ public sealed class ScopedMailKnowledgeRetrievalTests
                 SubjectFragment = "claim",
                 ReceivedOnOrAfter = new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.FromHours(2)),
                 ReceivedBefore = new DateTimeOffset(2026, 7, 8, 0, 0, 0, TimeSpan.FromHours(2)),
-                IsRemotelySeen = true,
-                IsRemotelyFlagged = true,
+                IsMarkedSeen = true,
+                IsFlagged = true,
                 Keyword = "$Label",
                 HasAttachments = false,
             },
@@ -254,6 +255,44 @@ public sealed class ScopedMailKnowledgeRetrievalTests
         Assert.Empty(knowledgeSearch.Calls);
     }
 
+    /// <summary>
+    /// A query holding no words ranks nothing, and an address filter written as a name or a fragment matches no whole
+    /// address: each would answer with an empty mailbox, so each is refused naming the argument, as an unreadable bound
+    /// is, and the lookup reaches no search.
+    /// </summary>
+    [Theory]
+    [InlineData("queryText", "", null)]
+    [InlineData("queryText", "   ", null)]
+    [InlineData("senderAddress", Query, "Anna Kowalska")]
+    [InlineData("recipientAddress", Query, "example.test")]
+    public async Task SearchTool_ABlankQueryOrAnAddressWithoutAnAtSign_IsRefusedNamingTheArgumentAndReachesNoSearch(
+        string filterName,
+        string queryText,
+        string? address)
+    {
+        // Arrange
+        var knowledgeSearch = new RecordingEmailKnowledgeSearch();
+        var tool = ToolOver(knowledgeSearch);
+        var arguments = new Dictionary<string, object?> { [ScopedMailKnowledgeRetrieval.QueryArgumentName] = queryText };
+
+        if (address is not null)
+        {
+            arguments[filterName] = address;
+        }
+
+        // Act
+        var document = await InvokeAsync(tool, arguments);
+
+        // Assert
+        var root = RootOf(document);
+
+        Assert.Equal(RetrievedMailContextFormatter.RefusalElementName, root.Name.LocalName);
+        Assert.Equal(
+            filterName,
+            root.Attribute(RetrievedMailContextFormatter.RefusedFilterAttributeName)?.Value);
+        Assert.Empty(knowledgeSearch.Calls);
+    }
+
     /// <summary>A run may be handed no more mail than its ceiling allows, whatever the lookup narrowed to.</summary>
     [Fact]
     public async Task SearchTool_MoreMailThanTheRunMaySend_HandsOverWhatFitsAndSaysThereIsNoMore()
@@ -344,6 +383,38 @@ public sealed class ScopedMailKnowledgeRetrievalTests
         Assert.Equal(
             "re: [redacted:CloudKey]",
             message.Element(RetrievedMailContextFormatter.SubjectElementName)?.Value);
+    }
+
+    /// <summary>The sender is mail a stranger wrote and reaches the provider beside the extract, so it is scanned on the same terms.</summary>
+    [Fact]
+    public async Task SearchTool_ASwitchedOnScanner_RedactsTheSendersNameAndAddressBeforeTheyReachTheModel()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        using var actingFor = egress.Guard.ActingFor(await egress.ReadUserPostureAsync(TestContext.Current.CancellationToken));
+        var knowledgeSearch = new RecordingEmailKnowledgeSearch().Returning(
+            Query,
+            KnowledgePassages.Create("I look after the network.") with
+            {
+                SenderDisplayName = $"Key {Marker}",
+                SenderAddress = $"{Marker}@example.org",
+            });
+        var retrieval = new ScopedMailKnowledgeRetrieval(
+            knowledgeSearch,
+            OnePrimaryAccount,
+            new MailAnsweringRunLedger(MailAnsweringRunBounds.Default),
+            egress.Guard,
+            AskedAt);
+
+        // Act
+        var envelope = await InvokeAsync(retrieval.CreateSearchTool(), OneQuery);
+
+        // Assert
+        var message = Assert.Single(
+            RootOf(envelope).Elements(RetrievedMailContextFormatter.MessageElementName));
+
+        Assert.Equal("Key [redacted:CloudKey]", message.Attribute(AgentTurnDocument.FromNameAttributeName)?.Value);
+        Assert.Equal("[redacted:CloudKey]@example.org", message.Attribute(AgentTurnDocument.FromAttributeName)?.Value);
     }
 
     /// <summary>
@@ -453,6 +524,50 @@ public sealed class ScopedMailKnowledgeRetrievalTests
                 .Elements(RetrievedMailContextFormatter.MessageElementName)
                 .Single()
                 .Element(RetrievedMailContextFormatter.ExtractElementName)?.Value);
+    }
+
+    /// <summary>The tool's own description is read beside the instruction, so it must not ask for a filter the instruction withholds.</summary>
+    [Fact]
+    public void SearchTool_ItsDescription_SetsNoReceivedBoundOrAttachmentFilterTheQuestionDoesNotState()
+    {
+        // Act
+        var description = ToolOver(new RecordingEmailKnowledgeSearch()).Description;
+
+        // Assert
+        Assert.Contains("a question naming no period takes no received bound", description, StringComparison.Ordinal);
+        Assert.Contains("one asking about no attachment takes no attachment filter", description, StringComparison.Ordinal);
+    }
+
+    /// <summary>A question naming only a document set the attachment filter, so the description no longer invites one for it.</summary>
+    [Fact]
+    public void SearchTool_ItsDescription_SaysNamingADocumentIsNotAskingAboutAnAttachment()
+    {
+        // Act
+        var description = ToolOver(new RecordingEmailKnowledgeSearch()).Description;
+
+        // Assert
+        Assert.DoesNotContain("or mail carrying an attachment is answered far better", description, StringComparison.Ordinal);
+        Assert.Contains("Naming a document — an invoice, a contract, a report — is not asking about an attachment.", description, StringComparison.Ordinal);
+    }
+
+    /// <summary>A question whether a recipient read a message was answered with the stored read state, which says nothing about a recipient.</summary>
+    [Fact]
+    public void SearchTool_TheReadStateArgument_IsThisMailboxOpeningTheMessageNeverARecipientReadingIt()
+    {
+        // Arrange
+        var tool = ToolOver(new RecordingEmailKnowledgeSearch());
+
+        // Act
+        var description = tool.JsonSchema
+            .GetProperty("properties")
+            .GetProperty("isMarkedSeen")
+            .GetProperty("description")
+            .GetString();
+
+        // Assert
+        Assert.NotNull(description);
+        Assert.Contains("whether the person whose mailbox this is opened the message", description, StringComparison.Ordinal);
+        Assert.Contains("never whether a recipient read mail the person sent", description, StringComparison.Ordinal);
     }
 
     private static Dictionary<string, object?> OneQuery =>

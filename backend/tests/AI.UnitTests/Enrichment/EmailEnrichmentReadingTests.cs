@@ -2,7 +2,9 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Text.Json;
 using MailFathom.AI.Enrichment;
+using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Enrichment;
 using Xunit;
@@ -24,6 +26,8 @@ public sealed class EmailEnrichmentReadingTests
 
     private static readonly EmailChunkId SecondPassage =
         EmailChunkId.Create(Guid.Parse("22222222-2222-2222-2222-222222222222"));
+
+    private static readonly string[] Readings = ["sense", "significance", "commitment"];
 
     private static readonly IReadOnlyList<EnrichablePassage> Passages =
     [
@@ -344,4 +348,50 @@ public sealed class EmailEnrichmentReadingTests
         Assert.Equal(EmailTaskProposal.MaximumPerEmail, derivation.Tasks.Count);
         Assert.Equal("Task 0", derivation.Tasks[0].Title);
     }
+
+    /// <summary>
+    /// Every answer a model wrote to this agent in the last evaluation run, replayed through the reading. There is one
+    /// reading whether or not the request carried a schema, so this is the replay under both: every reading written with
+    /// words, a reason, and a passage is a mark, and every task written with a title is a proposal, up to the bound.
+    /// </summary>
+    [Fact]
+    public void Read_EveryAnswerRecordedInTheLastEvaluationRun_KeepsEveryReadingAndTaskItCarries()
+    {
+        // Arrange
+        var recorded = RecordedAnswers.Of("EmailEnrichment");
+
+        // Act
+        var lost = recorded
+            .Where(answer => !KeepsWhatItCarries(answer.Answer, EmailEnrichmentReading.Read(answer.Answer, Passages, AgentName)))
+            .Select(static answer => answer.Scenario);
+
+        // Assert
+        Assert.NotEmpty(recorded);
+        Assert.Empty(lost);
+    }
+
+    private static bool KeepsWhatItCarries(string answer, EmailEnrichmentDerivation derivation)
+    {
+        using var parsed = JsonDocument.Parse(answer);
+        var root = parsed.RootElement;
+
+        var readings = Readings.Count(name =>
+            root.TryGetProperty(name, out var reading)
+            && reading.ValueKind is JsonValueKind.Object
+            && Written(reading, "text")
+            && Written(reading, "reason")
+            && reading.TryGetProperty("passages", out var cited)
+            && cited.GetArrayLength() > 0);
+        var tasks = root.TryGetProperty("tasks", out var written) && written.ValueKind is JsonValueKind.Array
+            ? written.EnumerateArray().Count(static task => Written(task, "title"))
+            : 0;
+
+        return derivation.Marks.Count == readings
+            && derivation.Tasks.Count == Math.Min(tasks, EmailTaskProposal.MaximumPerEmail);
+    }
+
+    private static bool Written(JsonElement element, string member) =>
+        element.TryGetProperty(member, out var value)
+        && value.ValueKind is JsonValueKind.String
+        && !string.IsNullOrWhiteSpace(value.GetString());
 }

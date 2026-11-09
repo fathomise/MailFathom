@@ -77,14 +77,21 @@ internal sealed class ScopedMailKnowledgeRetrieval
         + $"and every result says which in the {RetrievedMailContextFormatter.RetrievalModeAttributeName} attribute of "
         + $"the <{RetrievedMailContextFormatter.RetrievalElementName}> element: lexical finds the words a query "
         + "contains rather than what they mean, while hybrid also finds mail whose meaning is close and combines the "
-        + "two rankings. A document attached to a message is searched on the same terms its body is, and an extract "
+        + "two rankings. Each <" + RetrievedMailContextFormatter.MessageElementName + "> element names the author the "
+        + $"message displays in its {AgentTurnDocument.FromNameAttributeName} and {AgentTurnDocument.FromAttributeName} "
+        + "attributes, so who wrote an extract — who \"I\" is in it — is read there rather than looked up again. "
+        + "A document attached to a message is searched on the same terms its body is, and an extract "
         + $"drawn from one arrives in an <{RetrievedMailContextFormatter.AttachmentExtractElementName}> element naming "
         + "the file and the page, slide, or sheet it was read from; cite those rather than the covering note. An "
         + $"<{RetrievedMailContextFormatter.ImageDescriptionElementName}> element is a model's account of a picture "
         + "that nobody wrote, reachable by meaning alone, so a claim resting on one is a claim about a guess and is "
         + "worth saying so. Narrow with the "
-        + "filters rather than by describing the narrowing in the query: a question about one person's mail, one period, "
-        + "or mail carrying an attachment is answered far better by the matching filter than by words that have to rank. "
+        + "filters rather than by describing the narrowing in the query: a question about one person's mail or one "
+        + "period is answered far better by the matching filter than by words that have to rank. "
+        + "Set a filter only for what the question states or plainly implies: a question naming no period takes no "
+        + "received bound, and one asking about no attachment takes no attachment filter, because a filter nobody asked "
+        + "for hides mail that could answer the question. Naming a document — an invoice, a contract, a report — is not "
+        + "asking about an attachment. "
         + "Which accounts and folders are searched is fixed by the caller and is not yours to set. Each call returns one "
         + "window of the most relevant results that nothing continues, so call it again with a different query or "
         + "narrower filters to reach other mail. Matching nothing is an ordinary empty result rather than an error.";
@@ -198,10 +205,10 @@ internal sealed class ScopedMailKnowledgeRetrieval
         string? receivedOnOrAfter = null,
         [Description("Return only mail received strictly before this moment, written as yyyy-MM-ddTHH:mm against the date and time the turn states, with no zone and no Z. Omit for no upper bound.")]
         string? receivedBefore = null,
-        [Description("Return only mail the mail server last reported as read (true) or unread (false). Omit to match either. Searching never changes this state.")]
-        bool? isRemotelySeen = null,
-        [Description("Return only mail the mail server last reported as flagged (true) or unflagged (false), which is the star most mail clients show. Omit to match either. This is the \\Flagged flag on a message and is unrelated to the Flagged folder role.")]
-        bool? isRemotelyFlagged = null,
+        [Description("Return only mail this mailbox has opened (true) or not opened (false). It is whether the person whose mailbox this is opened the message, never whether a recipient read mail the person sent. Omit to match either. Searching never changes this state.")]
+        bool? isMarkedSeen = null,
+        [Description("Return only mail flagged (true) or unflagged (false), which is the star most mail clients show. Omit to match either. This is the \\Flagged flag on a message and is unrelated to the Flagged folder role.")]
+        bool? isFlagged = null,
         [Description("Return only mail carrying this keyword, which is a flag a mail client or server set rather than one of the five standard ones, such as $Junk or a label. Matched as a whole keyword without regard to case, up to 64 characters. Omit to match any keyword.")]
         string? keyword = null,
         [Description("Return only mail that carries attachments (true) or that carries none (false). Omit to match either. Inline images and cryptographic signature parts do not count as attachments.")]
@@ -213,12 +220,15 @@ internal sealed class ScopedMailKnowledgeRetrieval
         // never heard of the asking person, would answer one belonging to nobody. A bound written in some other form
         // is reported back rather than dropped: this caller is a tool loop, so a model that wrote an unusable value
         // can write a usable one, while a silently missing bound would answer the wrong question convincingly.
-        var refusedBound = this.RefusedBound(receivedOnOrAfter, "receivedOnOrAfter")
+        var refused = RefusedQueryText(queryText)
+            ?? RefusedAddress(senderAddress, "senderAddress")
+            ?? RefusedAddress(recipientAddress, "recipientAddress")
+            ?? this.RefusedBound(receivedOnOrAfter, "receivedOnOrAfter")
             ?? this.RefusedBound(receivedBefore, "receivedBefore");
 
-        if (refusedBound is not null)
+        if (refused is not null)
         {
-            return refusedBound;
+            return refused;
         }
 
         var query = new EmailKnowledgeQuery
@@ -229,8 +239,8 @@ internal sealed class ScopedMailKnowledgeRetrieval
             SubjectFragment = subjectFragment,
             ReceivedOnOrAfter = AnchoredInstant.Read(receivedOnOrAfter, this.askedAt),
             ReceivedBefore = AnchoredInstant.Read(receivedBefore, this.askedAt),
-            IsRemotelySeen = isRemotelySeen,
-            IsRemotelyFlagged = isRemotelyFlagged,
+            IsMarkedSeen = isMarkedSeen,
+            IsFlagged = isFlagged,
             Keyword = keyword,
             HasAttachments = hasAttachments,
         };
@@ -280,6 +290,29 @@ internal sealed class ScopedMailKnowledgeRetrieval
                 $"Write this bound as {AnchoredInstant.WrittenForm} against the date and time the turn states, with no zone and no Z.")
             : null;
 
+    /// <summary>Reports a query holding no words, which ranks nothing, or nothing where it holds some.</summary>
+    /// <remarks>Refused rather than run, because an empty lookup reads to the model as a mailbox holding no such mail.</remarks>
+    private static string? RefusedQueryText(string? written) =>
+        string.IsNullOrWhiteSpace(written)
+            ? RetrievedMailContextFormatter.FormatRefusal(
+                QueryArgumentName,
+                "Write the words you expect the mail itself to contain; a lookup needs at least one.")
+            : null;
+
+    /// <summary>Reports an address filter that is not a whole mail address, or nothing where it is one or is omitted.</summary>
+    /// <param name="written">What the model wrote for the filter.</param>
+    /// <param name="filterName">The filter's own name, as the tool publishes it.</param>
+    /// <remarks>
+    /// The filter matches a whole address, so a name or a fragment matches no mail at all and would answer the question
+    /// with an empty mailbox. Like a refused bound, the refusal names the filter and never the value.
+    /// </remarks>
+    private static string? RefusedAddress(string? written, string filterName) =>
+        !string.IsNullOrWhiteSpace(written) && !written.Contains('@', StringComparison.Ordinal)
+            ? RetrievedMailContextFormatter.FormatRefusal(
+                filterName,
+                "Write a whole mail address, such as name@example.org, or omit this filter to match anybody.")
+            : null;
+
     /// <summary>Scans every extract this lookup is about to hand to a model.</summary>
     /// <remarks>
     /// <para>
@@ -289,10 +322,11 @@ internal sealed class ScopedMailKnowledgeRetrieval
     /// inheriting this one.
     /// </para>
     /// <para>
-    /// The extract, the subject, and everything an attachment contributed are guarded, and the envelope is written
-    /// afterwards from the guarded values. Guarding the written envelope instead would let one detection cover the end
-    /// of an extract and the element that closes it, and replacing that region would take the document's structure with
-    /// it.
+    /// The extract, the subject, the sender's name and address, and everything an attachment contributed are guarded, and
+    /// the envelope is written afterwards from the guarded values. Guarding the written envelope instead would let one
+    /// detection cover the end of an extract and the element that closes it, and replacing that region would take the
+    /// document's structure with it. The sender adds two scans per passage, which the lookup's own passage count
+    /// already bounds.
     /// </para>
     /// <para>
     /// An attachment's extract and the name its sender gave it are guarded on the same terms the message's own extract
@@ -324,6 +358,14 @@ internal sealed class ScopedMailKnowledgeRetrieval
                 Subject = await this.egressGuard.GuardOptionalAsync(
                     SensitiveContentEgressPoint.ChatPrompt,
                     passage.Subject,
+                    cancellationToken),
+                SenderDisplayName = await this.egressGuard.GuardOptionalAsync(
+                    SensitiveContentEgressPoint.ChatPrompt,
+                    passage.SenderDisplayName,
+                    cancellationToken),
+                SenderAddress = await this.egressGuard.GuardOptionalAsync(
+                    SensitiveContentEgressPoint.ChatPrompt,
+                    passage.SenderAddress,
                     cancellationToken),
                 Text = await this.egressGuard.GuardAsync(
                     SensitiveContentEgressPoint.ChatPrompt,

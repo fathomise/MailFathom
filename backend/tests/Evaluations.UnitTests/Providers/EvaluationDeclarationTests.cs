@@ -26,6 +26,7 @@ public sealed class EvaluationDeclarationTests
             Enum.GetValues<ChatCapability>(),
             capability => Assert.Equal("main-model", Assert.Single(declaration.ModelsFor(capability)).Name));
         Assert.Equal(1, declaration.Repetitions);
+        Assert.Equal(ProviderCallLimit.Default, declaration.ConcurrentProviderCalls);
         Assert.Empty(declaration.EmbeddingModels);
         Assert.Null(declaration.EmbeddingDimension);
     }
@@ -39,6 +40,30 @@ public sealed class EvaluationDeclarationTests
         // Assert
         Assert.Contains(EvaluationDeclaration.Variable, failure.Message, StringComparison.Ordinal);
         Assert.Contains(EvaluationDeclaration.MainModelVariable, failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_ALimitOnCallsInFlight_RunsUnderThatLimit()
+    {
+        // Act
+        var declaration = EvaluationDeclaration.Parse("{ConcurrentProviderCalls: 4}", "main-model", Address);
+
+        // Assert
+        Assert.Equal(4, declaration.ConcurrentProviderCalls);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("257")]
+    [InlineData("many")]
+    public void Parse_NoLimitOnCallsInFlightTheRunAccepts_FailsNamingTheVariable(string declared)
+    {
+        // Act
+        var failure = Assert.Throws<InvalidOperationException>(
+            () => EvaluationDeclaration.Parse($"{{ConcurrentProviderCalls: {declared}}}", "main-model", Address));
+
+        // Assert
+        Assert.Contains(EvaluationDeclaration.Variable, failure.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -62,7 +87,7 @@ public sealed class EvaluationDeclarationTests
         // Arrange
         const string Block =
             "{MainModel: {Model: vendor/model, Alias: careful, Api: Responses, ReasoningEffort: high, Temperature: 0.5, TopP: 0.9, "
-            + "ExtraHeaders: [{Name: X-Title, Value: MailFathom}], AdditionalProperties: {provider: {order: [first, second]}, top_k: 40}}}";
+            + "StructuredOutputs: true, ExtraHeaders: [{Name: X-Title, Value: MailFathom}], AdditionalProperties: {provider: {order: [first, second]}, top_k: 40}}}";
 
         // Act
         var model = Assert.Single(EvaluationDeclaration.Parse(Block, fallbackMainModel: null, Address).ModelsFor(ChatCapability.Agent));
@@ -75,6 +100,7 @@ public sealed class EvaluationDeclarationTests
         Assert.Equal("high", model.Plan.ReasoningEffort);
         Assert.Equal(0.5f, model.Plan.Temperature);
         Assert.Equal(0.9f, model.Plan.TopP);
+        Assert.True(model.Plan.StructuredOutputs);
         Assert.Equal("""{"order":["first","second"]}""", model.Plan.AdditionalProperties["provider"].GetRawText());
         Assert.Equal("40", model.Plan.AdditionalProperties["top_k"].GetRawText());
 
@@ -85,6 +111,7 @@ public sealed class EvaluationDeclarationTests
     [Theory]
     [InlineData("{MainModel: model-a, Repeat: 2}", "Repeat")]
     [InlineData("{MainModel: {Model: model-a, Thinking: high}}", "Thinking")]
+    [InlineData("{MainModel: model-a, Section: Discovery}", "Section")]
     public void Parse_AKeyTheRunDoesNotRead_FailsNamingIt(string block, string key)
     {
         // Act
@@ -154,6 +181,57 @@ public sealed class EvaluationDeclarationTests
         Assert.Equal(3, declaration.Repetitions);
         Assert.Equal(["embed-a", "embed-b"], declaration.EmbeddingModels);
         Assert.Equal(256, declaration.EmbeddingDimension);
+    }
+
+    [Fact]
+    public void Parse_ABlockStyleDeclaration_ReadsWhatTheSameRunInFlowStyleDeclares()
+    {
+        // Arrange
+        const string BlockStyle = """
+            Ref: main
+            MainModel:
+              Model: vendor/reasoner
+              Api: Responses
+              ReasoningEffort: medium
+            ImageDescription:
+              - model-b
+              - Model: vendor/vision
+                Alias: vision
+            Repetitions: 2
+            Sections:
+              - Descriptions
+              - ReplyDrafts
+            """;
+        const string FlowStyle =
+            "{Ref: main, MainModel: {Model: vendor/reasoner, Api: Responses, ReasoningEffort: medium}, "
+            + "ImageDescription: [model-b, {Model: vendor/vision, Alias: vision}], Repetitions: 2, Sections: [Descriptions, ReplyDrafts]}";
+
+        // Act
+        var block = EvaluationDeclaration.Parse(BlockStyle, fallbackMainModel: null, Address);
+        var flow = EvaluationDeclaration.Parse(FlowStyle, fallbackMainModel: null, Address);
+
+        // Assert
+        Assert.Equal(flow.Repetitions, block.Repetitions);
+        Assert.All(
+            Enum.GetValues<ChatCapability>(),
+            capability => Assert.Equal(
+                flow.ModelsFor(capability).Select(static model => (model.Name, model.Plan.Endpoint.RoutedModelName, model.Plan.Endpoint.Api, model.Plan.ReasoningEffort)),
+                block.ModelsFor(capability).Select(static model => (model.Name, model.Plan.Endpoint.RoutedModelName, model.Plan.Endpoint.Api, model.Plan.ReasoningEffort))));
+        Assert.Equal(["model-b", "vision"], block.ModelsFor(ChatCapability.ImageDescription).Select(static model => model.Name));
+        Assert.Equal(ChatProviderApi.Responses, Assert.Single(block.ModelsFor(ChatCapability.Agent)).Plan.Endpoint.Api);
+    }
+
+    [Theory]
+    [InlineData("{MainModel: model-a, Sections: [Discovery, SpamClassification]}")]
+    [InlineData("{MainModel: model-a, sections: Discovery}")]
+    public void Parse_SectionsTheScriptSelects_AcceptsTheKeyAndMeasuresAsWithout(string block)
+    {
+        // Act
+        var declaration = EvaluationDeclaration.Parse(block, fallbackMainModel: null, Address);
+
+        // Assert
+        Assert.Equal("model-a", Assert.Single(declaration.ModelsFor(ChatCapability.ImageDescription)).Name);
+        Assert.Equal(1, declaration.Repetitions);
     }
 
     [Fact]

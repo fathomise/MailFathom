@@ -17,6 +17,9 @@ was merely offered, and what accepting or dismissing a proposal does — is [Cal
 | Mail | One arriving message, as the [enrichment pass](message-enrichment.md) already holds it | Up to four events | Stored as proposals on the calendar of every user the account is assigned to |
 | A typed sentence | Up to 500 characters somebody typed, with the instant they typed it at | One event | Answered to the client, stored nowhere |
 
+The mail half reads only what the enrichment pass selects, so a draft or a send that has not left proposes nothing:
+[mail nobody received](mailbox-queries.md#mail-nobody-received-read-by-the-persons-own-agent-alone) states why.
+
 Neither half puts anything on anybody's calendar. A proposal is a row a person still has to accept, and a drafted
 event is fields answered to whoever asked, which they submit themselves over a route of their own — so the worst a
 wrong reading costs is something to dismiss, never an appointment somebody finds they are committed to.
@@ -47,6 +50,13 @@ proposal carries no reminders for the same reason.
 is dropped while the event is kept — what the text fixed was when the thing begins, so the length is the part to
 discard rather than the occasion.
 
+**A title that only runs long is cut and marked as cut**, because the event it names is still the one the text
+described; an event with no title, or a start that is not an instant, is dropped.
+
+**Where the model declares `StructuredOutputs`, the shape is asked for rather than described.** The request carries a
+strict schema in which every event writes its title and start and writes an end as `null` where the text gives none.
+The reading is the same either way. [Chat generation § An answer in one document can be constrained by a schema](chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema) says what the request carries.
+
 ## Which clock an hour is in
 
 The model writes a local wall clock and never a zone, and MailFathom supplies the offset. That division is deliberate:
@@ -55,11 +65,11 @@ offset the text was written in, so neither is asked to guess the other's half.
 
 | Half | The instant every relative day is resolved against, and whose offset an hour is read in |
 | --- | --- |
-| Mail | When the message arrived, from its own metadata |
+| Mail | The message's own metadata: when it arrived, or when it was sent where no receiving server dated it — and for mail the person sent, when it was sent, whichever provider filed the copy |
 | A typed sentence | This deployment's own clock, read in the [time zone the asking person's record states](../operations/configuration-sources.md#the-zone-this-persons-days-are-read-in--timezone) |
 
-Reading the message's own arrival rather than the current time is what makes the same message, read again next month,
-resolve *Friday* to the same day it did the first time. A message that carries no arrival instant is read into nothing
+Reading the message's own dating instant rather than the current time is what makes the same message, read again next month,
+resolve *Friday* to the same day it did the first time. A message that carries neither instant is read into nothing
 at all, because every relative day in it would otherwise be resolved against whenever the pass happened to run.
 
 An answer that carries an offset anyway — a `Z`, a `+02:00`, a day with no time — is refused rather than honoured,

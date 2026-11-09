@@ -247,6 +247,7 @@ internal sealed class StoredEmailEmbeddingBackfillStore(
             dbContext.StoredEmails
                 .AsNoTracking()
                 .Where(StoredEmailTombstone.IsNotTombstoned)
+                .Where(UnsentStoredEmails.IsSentOrReceived)
                 .Where(email => email.Chunks.Any(chunk =>
                         !chunk.Embeddings.Any(vector => vector.EmbeddingProfileId == profileId)
                         || chunk.RuleSetVersion < rules.RuleSetVersion)

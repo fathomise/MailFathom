@@ -59,6 +59,7 @@ public sealed class MailOutboxDelivery
     private readonly IMailDeliverySessionFactory sessions;
     private readonly IOutgoingEmailStore outgoingEmails;
     private readonly IEmailContentStore contentStore;
+    private readonly TransmittedEmailForm transmittedForm;
     private readonly IOutgoingSenderIdentityReader senderIdentities;
     private readonly OptimisticConcurrencyRetryPolicy commitPolicy;
     private readonly LocalMailFiler localFiler;
@@ -71,6 +72,7 @@ public sealed class MailOutboxDelivery
     /// <param name="sessions">Opens the one session able to reach a submission server.</param>
     /// <param name="outgoingEmails">Holds the durable record this attempt advances.</param>
     /// <param name="contentStore">Holds the stored MIME the attempt transmits.</param>
+    /// <param name="transmittedForm">Dates and signs the stored MIME as the attempt transmits it.</param>
     /// <param name="senderIdentities">Resolves the address the account's mail is sent from.</param>
     /// <param name="commitPolicy">Commits each movement of the record.</param>
     /// <param name="localFiler">Files the sent copy of a held account's delivery in the commit that records it.</param>
@@ -83,6 +85,7 @@ public sealed class MailOutboxDelivery
         IMailDeliverySessionFactory sessions,
         IOutgoingEmailStore outgoingEmails,
         IEmailContentStore contentStore,
+        TransmittedEmailForm transmittedForm,
         IOutgoingSenderIdentityReader senderIdentities,
         OptimisticConcurrencyRetryPolicy commitPolicy,
         LocalMailFiler localFiler,
@@ -94,6 +97,7 @@ public sealed class MailOutboxDelivery
         ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(outgoingEmails);
         ArgumentNullException.ThrowIfNull(contentStore);
+        ArgumentNullException.ThrowIfNull(transmittedForm);
         ArgumentNullException.ThrowIfNull(senderIdentities);
         ArgumentNullException.ThrowIfNull(commitPolicy);
         ArgumentNullException.ThrowIfNull(localFiler);
@@ -105,6 +109,7 @@ public sealed class MailOutboxDelivery
         this.sessions = sessions;
         this.outgoingEmails = outgoingEmails;
         this.contentStore = contentStore;
+        this.transmittedForm = transmittedForm;
         this.senderIdentities = senderIdentities;
         this.commitPolicy = commitPolicy;
         this.localFiler = localFiler;
@@ -240,12 +245,23 @@ public sealed class MailOutboxDelivery
                 replyCode: null);
         }
 
+        // Dated with the instant this attempt begins rather than the one the send was asked at, so a send held until its
+        // due instant or deferred by a refusal reaches its recipients dated when it left. The record keeps the instant
+        // with the stage below, and the sent copy is dated with it again when it is filed — the latest attempt's, so a
+        // recipient an earlier attempt of a partly accepted send reached holds an earlier Date and signature than the copy.
+        var transmittedAt = TransmittedEmailForm.TransmissionInstantAt(this.timeProvider.GetUtcNow());
+        var transmittedMime = await this.transmittedForm.ComposeAsync(
+            record.AccountId,
+            content.RawMime,
+            transmittedAt,
+            attemptToken.Token);
+
         await using var session = await this.sessions.OpenForDeliveryAsync(
             record.AccountId,
             transportSecurityPolicy,
             attemptToken.Token);
 
-        if (!session.Capabilities.PermitsMessageOfSize(record.MimeByteLength))
+        if (!session.Capabilities.PermitsMessageOfSize(transmittedMime.Length))
         {
             // Asked before the body is offered rather than discovered after the whole of it crossed the network. The
             // answer will not change while this server advertises what it advertises, so the send ends here.
@@ -265,17 +281,20 @@ public sealed class MailOutboxDelivery
                 record.ReceiptRequests.DeliveryNotification
                     ? session.Capabilities.AcceptsDeliveryStatusNotifications
                     : null,
+                transmittedAt,
                 token));
 
         var transmission = await session.TransmitAsync(
-            MailTransmissionRequest.Create(record.Id, sender.Address, outstanding, content.RawMime) with
+            MailTransmissionRequest.Create(record.Id, sender.Address, outstanding, transmittedMime) with
             {
                 RequestsDeliveryNotification = record.ReceiptRequests.DeliveryNotification,
             },
             envelope,
             attemptToken.Token);
 
-        return await this.SettleAnsweredAsync(claimed, envelope, transmission, stoppingToken);
+        var transmitted = claimed with { Record = record with { TransmittedAt = transmittedAt } };
+
+        return await this.SettleAnsweredAsync(transmitted, envelope, transmission, stoppingToken);
     }
 
     /// <summary>Settles a send the server answered about, which is the case where nothing is left to infer.</summary>

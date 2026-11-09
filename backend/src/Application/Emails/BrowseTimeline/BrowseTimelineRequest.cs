@@ -35,11 +35,11 @@ public sealed record BrowseTimelineRequest
     /// <summary>Gets whether the account's junk folder is drawn too, which it is not unless the screen asks.</summary>
     public bool IncludeJunkMail { get; init; }
 
-    /// <summary>Gets the remote <c>\Seen</c> state to require, or <see langword="null" /> for either.</summary>
-    public bool? IsRemotelySeen { get; init; }
+    /// <summary>Gets the <c>\Seen</c> mark to require, or <see langword="null" /> for either.</summary>
+    public bool? IsMarkedSeen { get; init; }
 
-    /// <summary>Gets the remote <c>\Flagged</c> state to require, or <see langword="null" /> for either.</summary>
-    public bool? IsRemotelyFlagged { get; init; }
+    /// <summary>Gets the <c>\Flagged</c> state to require, or <see langword="null" /> for either.</summary>
+    public bool? IsFlagged { get; init; }
 
     /// <summary>Gets whether attachments are required, or <see langword="null" /> for either.</summary>
     public bool? HasAttachments { get; init; }
@@ -91,8 +91,8 @@ public sealed record BrowseTimelineRequest
         subjectFragment: null,
         this.ReceivedOnOrAfter,
         this.ReceivedBefore,
-        this.IsRemotelySeen,
-        this.IsRemotelyFlagged,
+        this.IsMarkedSeen,
+        this.IsFlagged,
         keyword: null,
         this.HasAttachments,
         this.Order,

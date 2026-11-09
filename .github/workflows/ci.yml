@@ -343,12 +343,13 @@ jobs:
       # question the `frontend` filter answers, and whether it is worth asking again on a merge is this one.
       run-format: ${{ github.event_name != 'push' }}
 
-  # The two checks that read the half of the repository the build, formatting, and model jobs cannot see, in
+  # The three checks that read the half of the repository the build, formatting, and model jobs cannot see, in
   # `repository-contracts.yml` for the reason the two build workflows are called workflows: a nightly and a release
   # assert them against the tree they publish, from one definition rather than from a copy of these steps.
   #
   # `Workflow contracts` runs on every event and under every condition but one: a tree whose verdict `Detect changes`
-  # found already earned, where both jobs skip with the rest of the run. `Detect changes` routes `.github/**`,
+  # found already earned, where every job skips with the rest of the run. `Shell and workflow lint` runs exactly when it
+  # does, for the same reason. `Detect changes` routes `.github/**`,
   # `docs/**`, `scripts/**`, and `.agents/**` to nothing, because none of them can move a build, a formatting verdict,
   # or the EF Core model, so without this a pull request touching only those would clear `Required CI` having verified
   # nothing about them. It takes no path filter, and that is the point rather than an omission: the suite asserts the
@@ -357,14 +358,13 @@ jobs:
   # tree at once. Narrowing it to the changed files would report green on contracts it never evaluated, which is worse
   # than not running it.
   #
-  # `Helm chart` is the one of the two a change can fail to reach, so it is the one `run-helm` switches. What it
+  # `Helm chart` is the one of the three a change can fail to reach, so it is the one `run-helm` switches. What it
   # renders against is committed under `deploy/helm/mailfathom/ci/golden/`, which is why it can be narrowed where the
   # suite above cannot: a chart no file in the change touches renders to the manifests it already rendered to.
   #
-  # No draft condition on either, unlike `backend` above. A draft-exempt contract check would not run over the interval
+  # No draft condition on any of them, unlike `backend` above. A draft-exempt contract check would not run over the interval
   # during which the change is actually being written — which is the whole interval in which a broken contract is cheap
-  # to fix — and neither job installs anything or costs more than seconds, so there is nothing to save by deferring
-  # them.
+  # to fix — and none of them costs more than seconds, so there is nothing to save by deferring them.
   contracts:
     name: Repository contracts
     needs:

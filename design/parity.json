@@ -250,7 +250,9 @@
         },
         {
           "expect": {
-            "text": "Notifications"
+            "role": "heading",
+            "name": "Notifications",
+            "exact": true
           }
         }
       ]
@@ -995,14 +997,52 @@
         {
           "click": {
             "role": "button",
-            "name": "Your footer is hidden",
+            "name": "Karolina Kowalska",
             "exact": true
           }
         },
         {
           "expect": {
             "role": "button",
-            "name": "Hide your footer",
+            "name": "Hide the footer",
+            "exact": true
+          }
+        }
+      ]
+    },
+    "mail-written-headers": {
+      "file": "prototype.dc.html",
+      "properties": {
+        "theme": null,
+        "connection": "online"
+      },
+      "steps": [
+        {
+          "click": {
+            "text": "Mail"
+          }
+        },
+        {
+          "click": {
+            "text": "Contract addendum - signatures"
+          }
+        },
+        {
+          "click": {
+            "text": "Show 5 earlier messages"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Ewa Zielińska, Mon, 24 Aug 2026 at 16:02",
+            "exact": true
+          }
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Hide these header lines",
             "exact": true
           }
         }

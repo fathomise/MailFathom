@@ -128,6 +128,9 @@ public sealed class ReplyDraftScenarioTests : IDisposable
     [InlineData("ReplyDraft.LeavesTheClosingToTheFooter", """{"body":"Thank you, Zofia, for checking the corrected invoice.\nWe now consider INV-4827 closed.\nBest regards,\nMara","claims":[],"recipients":[0]}""", false)]
     [InlineData("ReplyDraft.ClosesWithoutAFooter", """{"body":"Thank you, Zofia, for checking the corrected invoice.\nWe now consider INV-4827 closed.\nBest regards,\nMara","claims":[],"recipients":[0]}""", true)]
     [InlineData("ReplyDraft.ClosesWithoutAFooter", """{"body":"Thank you, Zofia, for checking the corrected invoice.\nWe now consider INV-4827 closed.","claims":[],"recipients":[0]}""", false)]
+    [InlineData("ReplyDraft.ClosesWithoutAFooter", """{"body":["Hi Zofia,","Thanks for checking the corrected invoice. We now consider INV-4827 closed.","Thanks"],"claims":[{"text":"We now consider INV-4827 closed.","messages":[]}],"recipients":[0]}""", true)]
+    [InlineData("ReplyDraft.LeavesTheClosingToTheFooter", """{"body":["Hi Zofia,","Thanks for checking the corrected invoice. We now consider INV-4827 closed.","Thanks"],"claims":[{"text":"We now consider INV-4827 closed.","messages":[]}],"recipients":[0]}""", false)]
+    [InlineData("ReplyDraft.LeavesTheClosingToTheFooter", """{"body":["Hi Zofia,","Thanks for checking the corrected invoice and confirming the billing details are now intact. We now consider INV-4827 closed."],"claims":[{"text":"We now consider INV-4827 closed.","messages":[]}],"recipients":[0]}""", true)]
     public async Task RunAsync_ADraftFromAnAccountWithOrWithoutAFooter_PassesOnlyWhereItClosesAsThatAccountRequires(string name, string answer, bool expected)
     {
         // Arrange
@@ -254,24 +257,27 @@ public sealed class ReplyDraftScenarioTests : IDisposable
         Assert.Equal("parking-permit-terms.pdf", Assert.Single(chosen.Attachments).FileName);
     }
 
+    /// <summary>
+    /// The first three are the drafts gpt-6-luna wrote for the case, replayed as they were recorded: each answers the
+    /// lift, one asserting nothing and two citing Mara's own replies. The last two answer the parking message instead.
+    /// </summary>
     [Theory]
-    [InlineData(true, true)]
-    [InlineData(false, false)]
-    public async Task RunAsync_ADraftAnsweringAnEarlierChosenMessage_PassesOnlyWhereItCitesThatMessage(bool citesChosen, bool expected)
+    [InlineData("""{"body":["Hi Ingrid,\n\nThat works for us. Thanks for the update."],"claims":[{"text":"The lift arrangements work for us.","messages":[7,9]}],"recipients":[0]}""", true)]
+    [InlineData("""{"body":["Hi Ingrid,","","That works for us. Thanks for the update.","","Thanks"],"claims":[],"recipients":[0]}""", true)]
+    [InlineData("""{"body":["Hi Ingrid,","","That works for us. Thank you for arranging the lift.","","Thanks"],"claims":[{"text":"The half hour of slack works for us.","messages":["7"]}],"recipients":["0"]}""", true)]
+    [InlineData("""{"body":["Hi Ingrid,","","Four parking spaces work for us. Thank you."],"claims":[],"recipients":[0]}""", false)]
+    [InlineData("""{"body":["Hi Ingrid,","","That works for us. Thank you."],"claims":[{"text":"The building owner allotted four places.","messages":[10]}],"recipients":[0]}""", false)]
+    public async Task RunAsync_ADraftAnsweringAnEarlierChosenMessage_PassesOnlyWhereItLeavesTheLatestMessageAlone(string answer, bool expected)
     {
         // Arrange
         var scenario = Named("ReplyDraft.AnswersAnEarlierChosenMessage");
-        var sources = scenario.Sources();
-        var cited = sources.Messages
-            .Single(message => message.StoredEmailId == (citesChosen ? scenario.Chosen!.Id : scenario.Conversation[^1].Id))
-            .Position;
-        using var model = Model($$"""{"body":"Thank you, Ingrid. The lift booking works for us.","claims":[{"text":"The goods lift is booked for move day.","messages":[{{cited}}]}],"recipients":[0]}""");
+        using var model = Model(answer);
 
         // Act
         var verdict = await this.RunAsync(scenario, model);
 
         // Assert
-        Assert.Equal(expected, verdict.Get<BooleanMetric>(ReplyDraftScenario.CitesTheChosenMessageMetricName).Value);
+        Assert.Equal(expected, verdict.Get<BooleanMetric>(ReplyDraftScenario.AnswersTheChosenMessageMetricName).Value);
     }
 
     [Theory]
@@ -369,8 +375,8 @@ public sealed class ReplyDraftScenarioTests : IDisposable
     }
 
     [Theory]
-    [InlineData("""{"body":["Hi Ingrid and Tobias,",{"type":"list","items":["Parking: two spaces from 07:00.","Printers: ports on the third floor."]}],"claims":[],"recipients":[0]}""", true)]
-    [InlineData("""{"body":["Hi Ingrid and Tobias, parking is two spaces from 07:00 and the printers use the ports on the third floor."],"claims":[],"recipients":[0]}""", false)]
+    [InlineData("""{"body":["Hi Ingrid and Tobias,",{"type":"list","items":["Parking: two spaces from 07:00.","Printers: the ports at desk C4-06 on the fourth floor."]}],"claims":[],"recipients":[0]}""", true)]
+    [InlineData("""{"body":["Hi Ingrid and Tobias, parking is two spaces from 07:00 and the printers use the ports at desk C4-06 on the fourth floor."],"claims":[],"recipients":[0]}""", false)]
     public async Task RunAsync_ALongMultiPartDraft_PassesTheFormCheckOnlyWhereItCarriesStructure(string answer, bool expected)
     {
         // Arrange
@@ -381,6 +387,36 @@ public sealed class ReplyDraftScenarioTests : IDisposable
 
         // Assert
         Assert.Equal(expected, verdict.Get<BooleanMetric>(ReplyDraftScenario.TakesTheFormAskedMetricName).Value);
+    }
+
+    [Theory]
+    [InlineData("""{"body":["Hi Ada,","Could you clarify two things?",{"type":"list","ordered":true,"items":["What request identifier did the export error show?","Does “All teams” also include archived teams?"]},"Thanks"],"claims":[],"recipients":[0]}""", true)]
+    [InlineData("""{"body":["Hi Ada,","Could you clarify two points?","1. What request identifier did the export error show?","2. Does “All teams” include archived teams?","Thanks"],"claims":[],"recipients":[0]}""", false)]
+    public async Task RunAsync_ADraftAskedForANumberedList_PassesTheFormCheckOnlyWhereItCarriesAList(string answer, bool expected)
+    {
+        // Arrange
+        using var model = Model(answer);
+
+        // Act
+        var verdict = await this.RunAsync(Named("ReplyDraft.AsksForMissingDetailsInAList"), model);
+
+        // Assert
+        Assert.Equal(expected, verdict.Get<BooleanMetric>(ReplyDraftScenario.TakesTheFormAskedMetricName).Value);
+    }
+
+    /// <summary>Under a strict schema every run carries "link", and an unlinked run writes it as null, which links nothing.</summary>
+    [Fact]
+    public async Task RunAsync_ARunCarryingANullLink_PassesTheNumberedLinksCheck()
+    {
+        // Arrange
+        using var model = Model("""{"body":[{"type":"paragraph","runs":[{"text":"Thank you, INV-4827 is closed.","bold":false,"italic":false,"colour":null,"link":null}],"align":null}],"claims":[],"recipients":[0]}""");
+
+        // Act
+        var verdict = await this.RunAsync(ClosesAnInvoiceThread, model);
+
+        // Assert
+        var check = verdict.Get<BooleanMetric>(ReplyDraftScenario.LinksOnlyNumberedMetricName);
+        Assert.True(check.Value, check.Reason);
     }
 
     public void Dispose() => this.store.Delete(recursive: true);
@@ -412,13 +448,12 @@ public sealed class ReplyDraftScenarioTests : IDisposable
     private async Task<EvaluationResult> RunAsync(ReplyDraftScenario scenario, IChatClient model)
     {
         using var judge = new ScriptedChatClient(JudgeAnswer, new ChatClientMetadata("scripted-judge", JudgeAddress, "judge-model"));
-        using var anonymousJudge = new AnonymousJudgeChatClient(judge);
-        var declaration = JudgeDeclaration.Of(JudgeAddress, "judge-model", "judge-key", reasoningEffort: null);
+        var panel = JudgePanel.Of(JudgeAddress, ["judge-model"], arbiterModel: null, "judge-key", reasoningEffort: null);
+        using var panelClient = panel.Present([judge]);
         var reporting = EvaluationStore.OpenAt(
             this.store.FullName,
             "only",
-            anonymousJudge,
-            declaration.CachingKey,
+            panelClient,
             ReplyDraftScenario.Evaluators);
 
         return await scenario.RunAsync(

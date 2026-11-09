@@ -12,11 +12,21 @@ metadata:
 Appends one EF Core migration for the current model and reviews it as SQL. Applying it is the pipeline's: nothing here
 starts Docker, the orchestration, or a database.
 
-**Every migration in this repository is permanent.** Nothing regenerates, renames, reorders, or deletes one, and no
-command here does either. A migration identifier is written into `__EFMigrationsHistory` on every database that applies
-it, so a regenerated baseline leaves that database recording an identifier no later migration can reach — it can then
+**Between releases every migration is permanent.** Nothing here regenerates, renames, reorders, or deletes one. A
+migration identifier is written into `__EFMigrationsHistory` on every database that applies it — a nightly's included —
+so a regenerated baseline leaves that database recording an identifier no later migration can reach, and it can then
 only be recreated, which means destroying whatever mail it held. The workflow is additive for every database that
 exists, which includes the persistent local one, not only the ones a release will create.
+
+**A release folds its cycle into one migration**, and that is the release pull request's step, never this workflow's:
+`$prepare-release` runs `scripts/squash-migrations.sh`, which nests every migration the cycle added into one
+`Release_<version>` migration carrying the identifier of the last of them, and `scripts/compare-migration-squash.sh`,
+which proves the result cannot be told apart from what it replaced. [ADR 0050](../../../docs/decisions/0050-folding-each-releases-migrations-into-one.md)
+records the lifecycle. So the folder holds one migration per release, starting with `Release_0_8_0`, and the migrations
+added since the newest release; a migration added here is folded at the next release, which is why its name is refused
+when it repeats one a release already folded. A local database caught in the middle of a cycle when that release
+merges records some of the folded identifiers and not the last one, so it no longer upgrades: reset it with the command
+below.
 
 Clearing local data is a different operation with a different command, and it touches no file:
 
@@ -47,9 +57,9 @@ scripts/add-migration.sh <MigrationName>
 ```
 
 The name describes what the migration does to the schema, in PascalCase — `AddEmailRetentionPolicy`, not `Update2`. It
-becomes part of a permanent identity, so it is chosen once. The script refuses `Initial`, refuses a name already in
-use, builds the startup project so the tool reads the current model, generates the migration, and writes the copyright
-and license header into it.
+becomes part of an identity databases record, so it is chosen once. The script refuses a name already in use, by a
+migration or by one a release folded, builds the startup project so the tool reads the current model, generates the
+migration, and writes the copyright and license header into it.
 
 Nothing here starts the orchestration or touches a database. Generating a migration compares the model against the
 committed model snapshot and writes files, which has the same answer whether or not PostgreSQL is running, so the
@@ -83,7 +93,8 @@ constraints the documented query shapes need; `ON DELETE` behavior on each forei
 and its text search configuration; and the lock and duration a statement implies on a table that already holds mail.
 
 Fix the model and regenerate rather than hand-editing the generated migration — but once a migration has merged, it is
-fixed forward by another migration instead.
+fixed forward by another migration instead. A release fold does not change that: it carries a merged migration's
+statements into the release migration unchanged, mistakes included, and the next migration is still what fixes them.
 
 ### 3. Commit it with the model change
 

@@ -13,8 +13,13 @@ namespace MailFathom.Evaluations.Languages;
 /// closing stands and where a sentence that merely thanks somebody does not.
 /// </para>
 /// <para>
-/// The list is the closings the models measured here write. A closing it misses passes a footer case it should fail;
-/// the list is widened then, never the check.
+/// A word that closes only when it stands alone — <c>Thanks</c>, or the name the person signs their own mail with —
+/// is a closing only as the whole line. Found inside a line, the same word opens the sentence
+/// <c>Thanks for the update.</c>, which is short enough to stand among the last lines and closes nothing.
+/// </para>
+/// <para>
+/// The lists are the closings the models measured here write. A closing they miss passes a footer case it should fail;
+/// they are widened then, never the check.
 /// </para>
 /// </remarks>
 internal static class SignOff
@@ -51,26 +56,54 @@ internal static class SignOff
         "serdecznie",
     ];
 
+    private static readonly string[] StandaloneClosings = ["thanks", "thank you", "dzięki", "dziękuję"];
+
+    /// <summary>Reads the closings the person's own mail ends with: the last line of each message, where it is short enough to be one.</summary>
+    /// <param name="sentMail">What the person wrote in messages of their own, each with any quoted history already left out.</param>
+    /// <returns>The closings, without duplicates, for <see cref="Shortfall" /> to recognise as the whole of a line.</returns>
+    public static IReadOnlyList<string> ClosingsOf(IEnumerable<string> sentMail) =>
+    [
+        .. sentMail
+            .Select(static text => LinesOf(text).LastOrDefault())
+            .OfType<string>()
+            .Where(static line => line.Length <= LongestClosingLine && Unpunctuated(line).Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase),
+    ];
+
     /// <summary>Reads the closing a message ends with, if it ends with one.</summary>
     /// <param name="body">The message as a draft writes it.</param>
+    /// <param name="ownClosings">The closings the person's own mail ends with, each a closing only as the whole of a line.</param>
     /// <returns>The line that closes it, or <see langword="null" /> where it ends at its own words.</returns>
-    public static string? Of(string? body) =>
-        (body ?? string.Empty)
-            .ReplaceLineEndings("\n")
-            .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+    public static string? Of(string? body, IReadOnlyCollection<string> ownClosings) =>
+        LinesOf(body)
             .TakeLast(ClosingLines)
-            .FirstOrDefault(static line =>
+            .FirstOrDefault(line =>
                 line.Length <= LongestClosingLine
-                && ClosingPhrases.Any(phrase => line.Contains(phrase, StringComparison.OrdinalIgnoreCase)));
+                && (ClosingPhrases.Any(phrase => line.Contains(phrase, StringComparison.OrdinalIgnoreCase))
+                    || StandaloneClosings.Concat(ownClosings).Any(closing => string.Equals(
+                        Unpunctuated(line),
+                        Unpunctuated(closing),
+                        StringComparison.OrdinalIgnoreCase))));
 
     /// <summary>States what is wrong with how a message closes, given whether its account appends the person's footer.</summary>
     /// <param name="body">The message as a draft writes it.</param>
     /// <param name="closesWithFooter">Whether the account the message is sent from appends the person's footer.</param>
+    /// <param name="ownClosings">The closings the person's own mail ends with, which <see cref="ClosingsOf" /> reads.</param>
     /// <returns>The shortfall, or <see langword="null" /> where the message closes as it should.</returns>
-    public static string? Shortfall(string? body, bool closesWithFooter) => (Of(body), closesWithFooter) switch
-    {
-        ({ } closing, true) => $"The draft closes itself with \"{closing}\" although its account's footer carries the closing.",
-        (null, false) => "The draft ends without a closing although its account appends no footer.",
-        _ => null,
-    };
+    public static string? Shortfall(
+        string? body,
+        bool closesWithFooter,
+        IReadOnlyCollection<string> ownClosings) => (Of(body, ownClosings), closesWithFooter) switch
+        {
+            ({ } closing, true) => $"The draft closes itself with \"{closing}\" although its account's footer carries the closing.",
+            (null, false) => "The draft ends without a closing although its account appends no footer.",
+            _ => null,
+        };
+
+    private static string[] LinesOf(string? text) =>
+        (text ?? string.Empty)
+            .ReplaceLineEndings("\n")
+            .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+    private static string Unpunctuated(string line) => line.TrimEnd('.', ',', '!', ';', ':', ' ');
 }

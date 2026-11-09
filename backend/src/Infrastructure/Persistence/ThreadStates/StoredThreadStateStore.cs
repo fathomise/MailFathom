@@ -221,6 +221,7 @@ internal sealed class StoredThreadStateStore(
         AccountScopedMailFolders.Admitting(
             emails
                 .Where(StoredEmailTombstone.IsNotTombstoned)
+                .Where(UnsentStoredEmails.IsSentOrReceived)
                 .Where(email => email.MailboxAccountId == mailboxAccountId
                     && email.EmailThreadId != null
                     && email.SearchDocument != null

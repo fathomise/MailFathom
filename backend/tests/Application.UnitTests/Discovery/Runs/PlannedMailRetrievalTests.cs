@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Discovery.Planning;
+using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Runs;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
@@ -10,6 +11,7 @@ using MailFathom.Application.Retrieval;
 using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using NSubstitute;
 using Xunit;
 
 namespace MailFathom.Application.UnitTests.Discovery.Runs;
@@ -398,6 +400,171 @@ public sealed class PlannedMailRetrievalTests
                 stopping.Token));
 
         Assert.Equal(["invoice"], search.Lookups.Select(lookup => lookup.QueryText));
+    }
+
+    /// <summary>A follow-up lookup's passages join what the plan found, and its progress counts the plan's lookups and its own together.</summary>
+    [Fact]
+    public async Task RetrieveFollowUpAsync_ALookupReachingANewMessage_AddsItAndReportsTheFollowUpAsPlanned()
+    {
+        // Arrange
+        var search = new ScriptedEmailKnowledgeSearch()
+            .Returning("invoice", ScriptedEmailKnowledgeSearch.Passage("the invoice"))
+            .Returning("RX-58213", ScriptedEmailKnowledgeSearch.Passage("the delivery date"));
+        var retrieval = new PlannedMailRetrieval(search, DiscoveryRuns.NewRunLedger());
+        var plan = PlanOf(sufficientPassages: 5, "invoice");
+        var reported = new List<DiscoveryRetrievalProgress>();
+        var earlier = await retrieval.RetrieveAsync(Question(WholeMailbox), plan, progress: null, TestContext.Current.CancellationToken);
+
+        // Act
+        var evidence = await retrieval.RetrieveFollowUpAsync(
+            Question(WholeMailbox),
+            plan,
+            [EmailKnowledgeQuery.ForText("RX-58213")],
+            earlier,
+            Recording(reported),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["the invoice", "the delivery date"], evidence.Passages.Select(passage => passage.Text));
+        Assert.Equal(["RX-58213"], evidence.FollowUpLookups.Select(lookup => lookup.QueryText));
+        Assert.Equal(new DiscoveryRetrievalProgress(LookupsRun: 2, LookupsRefused: 0, LookupsPlanned: 2, PassagesFound: 2), reported.Single());
+    }
+
+    /// <summary>
+    /// The plan's own lookups usually fill its allowance, and a follow-up lookup exists for the message they did not
+    /// reach, so it is assured messages of its own beside a further cut of a message already found.
+    /// </summary>
+    [Fact]
+    public async Task RetrieveFollowUpAsync_AnAllowanceThePlanFilled_AdmitsTheLookupsOwnShareOfNewMessagesAndACutOfOneAlreadyFound()
+    {
+        // Arrange
+        var first = Guid.CreateVersion7();
+        var search = new ScriptedEmailKnowledgeSearch()
+            .Returning("invoice", [ScriptedEmailKnowledgeSearch.Passage("first", first), .. PassagesNamed("second", "third", "fourth")])
+            .Returning(
+                "patch",
+                [
+                    ScriptedEmailKnowledgeSearch.Passage("the patch was deployed", first),
+                    .. PassagesNamed("fifth", "sixth", "seventh", "eighth", "ninth"),
+                ]);
+        var retrieval = new PlannedMailRetrieval(search, DiscoveryRuns.NewRunLedger());
+        var plan = PlanOf(sufficientPassages: 1, "invoice");
+        var earlier = await retrieval.RetrieveAsync(Question(WholeMailbox), plan, progress: null, TestContext.Current.CancellationToken);
+
+        // Act
+        var evidence = await retrieval.RetrieveFollowUpAsync(
+            Question(WholeMailbox),
+            plan,
+            [EmailKnowledgeQuery.ForText("patch")],
+            earlier,
+            progress: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(plan.MessageAllowance, earlier.Passages.Count);
+        Assert.Equal(
+            ["first", "second", "third", "fourth", "the patch was deployed", "fifth", "sixth", "seventh", "eighth"],
+            evidence.Passages.Select(passage => passage.Text));
+    }
+
+    /// <summary>A message the composition could not be shown is not worth reading, so the round adds none past the sources one result may declare.</summary>
+    [Fact]
+    public async Task RetrieveFollowUpAsync_APlanThatFoundNearlyAsManyMessagesAsAResultMayCite_AddsOnlyUpToThatMany()
+    {
+        // Arrange
+        var planWords = new[] { "one", "two", "three", "four", "five" };
+        var followUpWords = new[] { "RX-58213", "RX-58214", "RX-58215" };
+        var search = planWords.Concat(followUpWords).Aggregate(
+            new ScriptedEmailKnowledgeSearch(),
+            (scripted, word) => scripted.Returning(word, [.. Enumerable.Range(0, 8).Select(number => ScriptedEmailKnowledgeSearch.Passage($"{word} {number}"))]));
+        var retrieval = new PlannedMailRetrieval(search, DiscoveryRuns.NewRunLedger());
+        var plan = PlanOf(sufficientPassages: 20, planWords);
+        var earlier = await retrieval.RetrieveAsync(Question(WholeMailbox), plan, progress: null, TestContext.Current.CancellationToken);
+
+        // Act
+        var evidence = await retrieval.RetrieveFollowUpAsync(
+            Question(WholeMailbox),
+            plan,
+            [.. followUpWords.Select(EmailKnowledgeQuery.ForText)],
+            earlier,
+            progress: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(20, earlier.Passages.Count);
+        Assert.Equal(PresentationEvidence.MaxCitations, evidence.Passages.Select(passage => passage.StoredEmailId).Distinct().Count());
+    }
+
+    /// <summary>A refused follow-up leaves the run what the plan found rather than failing a run that has something to answer from.</summary>
+    [Fact]
+    public async Task RetrieveFollowUpAsync_EveryLookupRefused_EndsWithWhatThePlanFound()
+    {
+        // Arrange
+        var search = new ScriptedEmailKnowledgeSearch()
+            .Returning("invoice", ScriptedEmailKnowledgeSearch.Passage("the invoice"))
+            .Refusing("not-an-address");
+        var retrieval = new PlannedMailRetrieval(search, DiscoveryRuns.NewRunLedger());
+        var plan = PlanOf(sufficientPassages: 5, "invoice");
+        var earlier = await retrieval.RetrieveAsync(Question(WholeMailbox), plan, progress: null, TestContext.Current.CancellationToken);
+
+        // Act
+        var evidence = await retrieval.RetrieveFollowUpAsync(
+            Question(WholeMailbox),
+            plan,
+            [EmailKnowledgeQuery.ForText("not-an-address")],
+            earlier,
+            progress: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["the invoice"], evidence.Passages.Select(passage => passage.Text));
+        Assert.Equal((1, 1), (evidence.LookupsRun, evidence.LookupsRefused));
+    }
+
+    /// <summary>A round that added nothing, or a retrieval already at the run's ceiling, leaves the evidence as the plan left it and reads no mail.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RetrieveFollowUpAsync_NoLookupOrARetrievalAtTheCeiling_ReturnsWhatThePlanFoundWithoutSearching(bool truncated)
+    {
+        // Arrange
+        var search = Substitute.For<IEmailKnowledgeSearch>();
+        var retrieval = new PlannedMailRetrieval(search, DiscoveryRuns.NewRunLedger());
+        var plan = PlanOf(sufficientPassages: 5, "invoice");
+        var earlier = new DiscoveryEvidence([ScriptedEmailKnowledgeSearch.Passage("the invoice")], EmailSearchRetrievalMode.Lexical, 1, 0, truncated);
+        IReadOnlyList<EmailKnowledgeQuery> lookups = truncated ? [EmailKnowledgeQuery.ForText("RX-58213")] : [];
+
+        // Act
+        var evidence = await retrieval.RetrieveFollowUpAsync(
+            Question(WholeMailbox),
+            plan,
+            lookups,
+            earlier,
+            progress: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Same(earlier, evidence);
+        Assert.Empty(search.ReceivedCalls());
+    }
+
+    [Fact]
+    public async Task RetrieveFollowUpAsync_MoreLookupsThanTheRoundMayAdd_IsRefused()
+    {
+        // Arrange
+        var retrieval = new PlannedMailRetrieval(new ScriptedEmailKnowledgeSearch(), DiscoveryRuns.NewRunLedger());
+        var plan = PlanOf(sufficientPassages: 5, "invoice");
+        var earlier = await retrieval.RetrieveAsync(Question(WholeMailbox), plan, progress: null, TestContext.Current.CancellationToken);
+        IReadOnlyList<EmailKnowledgeQuery> tooMany = [.. Enumerable.Range(0, RetrievalPlan.MaximumFollowUpLookups + 1).Select(number => EmailKnowledgeQuery.ForText($"lookup {number}"))];
+
+        // Act, Assert
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => retrieval.RetrieveFollowUpAsync(
+            Question(WholeMailbox),
+            plan,
+            tooMany,
+            earlier,
+            progress: null,
+            TestContext.Current.CancellationToken));
     }
 
     /// <summary>Records each report the retrieval awaits, which is what a run's journal does with one.</summary>

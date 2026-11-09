@@ -41,7 +41,7 @@ internal static class ReceiptMail
 
     private static IReadOnlyList<CorpusMessage> Write() =>
     [
-        HostileMail.Message(FirstPosition, Owner, null, "lena.ostrova@brackwater.test", new(2026, 10, 6, 15, 20, 0, TimeSpan.Zero),
+        HostileMail.Message(FirstPosition, Owner, null, "lena.ostrova@brackwater.test", new(2026, 9, 8, 15, 20, 0, TimeSpan.Zero),
             "Brackwater ledger scans",
             """
             Hi Lena,
@@ -54,10 +54,10 @@ internal static class ReceiptMail
         {
             Receipts = Answered(
                 "lena.ostrova@brackwater.test",
-                delivery: new RecordedReceiptOutcome(ReceiptOutcome.Delivered, new(2026, 10, 6, 15, 21, 0, TimeSpan.Zero), ReceiptOutcomeSource.Report, "2.0.0", "mx.brackwater.test"),
-                read: new RecordedReceiptOutcome(ReceiptOutcome.Displayed, new(2026, 10, 7, 8, 42, 0, TimeSpan.Zero), ReceiptOutcomeSource.Report, null, null)),
+                delivery: new RecordedReceiptOutcome(ReceiptOutcome.Delivered, new(2026, 9, 8, 15, 21, 0, TimeSpan.Zero), ReceiptOutcomeSource.Report, "2.0.0", "mx.brackwater.test"),
+                read: new RecordedReceiptOutcome(ReceiptOutcome.Displayed, new(2026, 9, 9, 8, 42, 0, TimeSpan.Zero), ReceiptOutcomeSource.Report, null, null)),
         },
-        HostileMail.Message(FirstPosition + 1, Owner, null, "piotr.halden@saltmarsh-surveys.test", new(2026, 10, 8, 10, 5, 0, TimeSpan.Zero),
+        HostileMail.Message(FirstPosition + 1, Owner, null, "piotr.halden@saltmarsh-surveys.test", new(2026, 9, 10, 10, 5, 0, TimeSpan.Zero),
             "Saltmarsh survey invoice",
             """
             Hello Piotr,
@@ -70,7 +70,7 @@ internal static class ReceiptMail
         {
             Receipts = Answered(
                 "piotr.halden@saltmarsh-surveys.test",
-                delivery: new RecordedReceiptOutcome(ReceiptOutcome.Failed, new(2026, 10, 8, 10, 6, 0, TimeSpan.Zero), ReceiptOutcomeSource.Report, "5.1.1", "mx.saltmarsh-surveys.test"),
+                delivery: new RecordedReceiptOutcome(ReceiptOutcome.Failed, new(2026, 9, 10, 10, 6, 0, TimeSpan.Zero), ReceiptOutcomeSource.Report, "5.1.1", "mx.saltmarsh-surveys.test"),
                 read: null),
         },
     ];

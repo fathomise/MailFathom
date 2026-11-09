@@ -66,6 +66,36 @@ internal sealed class DiscoveryAgentsUnderTest(
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<EmailKnowledgeQuery>> FollowUpAsync(
+        MailQuestion question,
+        DiscoveryRunPlan plan,
+        DiscoveryEvidence evidence,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(question);
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(evidence);
+
+        var turn = await DiscoveryPlanningAgent.ComposeFollowUpTurnAsync(
+            question,
+            plan,
+            evidence,
+            SensitiveContentEgressGuards.Inactive(),
+            cancellationToken);
+
+        // A turn past the model's bound is never sent and adds no lookup, as the deployment's planner adds none.
+        if (!DiscoveryCompositionAgent.FitsOneRequest(turn, planningGeneration))
+        {
+            return [];
+        }
+
+        var agent = DiscoveryPlanningAgentComposition.Compose(planningModel, planningGeneration, new EmptyAgentInstructionEnvelope(), NullLoggerFactory.Instance);
+        var answer = await agent.RunAsync(turn, session: null, options: null, cancellationToken);
+
+        return DiscoveryPlanReading.ReadFollowUp(answer.Text, plan, question.AskedAt);
+    }
+
+    /// <inheritdoc />
     public async Task<PresentationPlan> ComposeAsync(
         MailQuestion question,
         DiscoveryRunPlan plan,
@@ -90,7 +120,7 @@ internal sealed class DiscoveryAgentsUnderTest(
         // composing agent hands it none.
         if (DiscoveryCompositionAgent.FitsOneRequest(turn, compositionGeneration))
         {
-            var agent = DiscoveryCompositionAgentComposition.Compose(compositionModel, compositionGeneration, new EmptyAgentInstructionEnvelope(), NullLoggerFactory.Instance);
+            var agent = DiscoveryCompositionAgentComposition.Compose(compositionModel, compositionGeneration, sources, new EmptyAgentInstructionEnvelope(), NullLoggerFactory.Instance);
             var answer = await agent.RunAsync(turn, session: null, options: null, cancellationToken);
 
             this.Composition = DiscoveryCompositionAgent.CompositionOf(answer.Text);

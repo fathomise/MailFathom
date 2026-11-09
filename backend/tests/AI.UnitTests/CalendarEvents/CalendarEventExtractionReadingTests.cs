@@ -3,7 +3,10 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.CalendarEvents;
+using MailFathom.AI.Orchestration;
+using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Calendar.Extraction;
+using MailFathom.Domain.Calendar;
 using Xunit;
 
 namespace MailFathom.AI.UnitTests.CalendarEvents;
@@ -139,6 +142,45 @@ public sealed class CalendarEventExtractionReadingTests
 
         // Assert
         Assert.Empty(events);
+    }
+
+    /// <summary>A title only past its length still names the occasion the text fixed, so it is cut there rather than costing the event.</summary>
+    [Fact]
+    public void Read_AnEventWhoseTitleOnlyRunsLong_KeepsTheEventWithTheTitleCutAndMarked()
+    {
+        // Arrange
+        var title = new string('a', CalendarEventTitle.MaximumLength + 20);
+        var answer = $$"""{ "events": [ { "title": "{{title}}", "start": "2026-09-24T10:00", "end": null } ] }""";
+
+        // Act
+        var read = Assert.Single(CalendarEventExtractionReading.Read(answer, Anchor, CalendarEventExtraction.MaximumEvents));
+
+        // Assert
+        Assert.Equal(CalendarEventTitle.MaximumLength, read.Title.Value.Length);
+        Assert.EndsWith("…", read.Title.Value, StringComparison.Ordinal);
+        Assert.Null(read.End);
+    }
+
+    /// <summary>
+    /// Every answer a model wrote to this agent in the last evaluation run, replayed through the reading. There is one
+    /// reading whether or not the request carried a schema, so this is the replay under both: each still reads as the
+    /// document it was, rather than as an answer holding nothing.
+    /// </summary>
+    [Fact]
+    public void Read_EveryAnswerRecordedInTheLastEvaluationRun_StillReadsAsADocument()
+    {
+        // Arrange
+        var recorded = RecordedAnswers.Of("CalendarEventExtraction");
+
+        // Act
+        var unreadable = recorded
+            .Where(static answer => AgentJsonAnswer.Read(answer.Answer, CalendarEventExtractionJsonContext.Default.CalendarEventExtractionDocument) is null)
+            .Select(static answer => answer.Scenario);
+
+        // Assert
+        Assert.NotEmpty(recorded);
+        Assert.Empty(unreadable);
+        Assert.All(recorded, answer => CalendarEventExtractionReading.Read(answer.Answer, Anchor, CalendarEventExtraction.MaximumEvents));
     }
 
     /// <summary>One unusable event does not take the ones beside it, which is what dropping rather than failing means.</summary>

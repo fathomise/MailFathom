@@ -126,21 +126,21 @@ public readonly record struct MailRuleFact
 
     #endregion
 
-    #region What the server says about it
+    #region What is recorded about its flags
 
-    /// <summary>Gets whether the server reports the email as read.</summary>
+    /// <summary>Gets whether the email is marked read.</summary>
     public static MailRuleFact IsSeen { get; } = new("isSeen", MailRuleFactType.Boolean);
 
     /// <summary>Gets whether the server reports the email as answered.</summary>
     public static MailRuleFact IsAnswered { get; } = new("isAnswered", MailRuleFactType.Boolean);
 
-    /// <summary>Gets whether the server reports the email as flagged.</summary>
+    /// <summary>Gets whether the email is flagged.</summary>
     public static MailRuleFact IsFlagged { get; } = new("isFlagged", MailRuleFactType.Boolean);
 
-    /// <summary>Gets whether the server reports the email as a draft.</summary>
+    /// <summary>Gets whether the email is marked a draft.</summary>
     public static MailRuleFact IsDraft { get; } = new("isDraft", MailRuleFactType.Boolean);
 
-    /// <summary>Gets the keywords the server reports the email as carrying.</summary>
+    /// <summary>Gets the keywords the email carries.</summary>
     /// <remarks>
     /// The set a rule's own keyword actions write to, read back under the case-insensitive comparison those actions
     /// are declared under, so a rule adding <c>$Todo</c> is selected by a later rule naming <c>$todo</c>. An email

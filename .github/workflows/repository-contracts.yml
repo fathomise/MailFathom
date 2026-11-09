@@ -4,19 +4,20 @@
 
 name: Repository contracts
 
-# The two checks that read the half of the repository no build reads: the workflow contract suite, which asserts the
+# The three checks that read the half of the repository no build reads: the workflow contract suite, which asserts the
 # licensing headers, the `describes:` markers, the table of contents, and every rule `scripts/test-agent-workflow.sh`
-# holds, and the chart rendering, which is the deployment contract ADR 0004 names. Defined once, like the two build
+# holds, the linters that read the scripts and the workflows as code, and the chart rendering, which is the deployment
+# contract ADR 0004 names. Defined once, like the two build
 # workflows beside it, because `CI` is no longer the only caller: a nightly and a release publish a tree, and a tree
 # whose contracts nobody asserted is exactly the tree those two channels hand to an operator.
 #
-# Both cost seconds and install nothing — the suite fakes `dotnet` with a symlink to itself and reaches no network, and
-# Helm is the runner image's preinstalled copy — which is why neither has ever been worth deferring past a draft and
-# why adding both to a publication costs nothing worth measuring.
+# All three cost seconds — the suite fakes `dotnet` with a symlink to itself and reaches no network, the linters are
+# three checksum-pinned downloads, and Helm is the runner image's preinstalled copy — which is why none has ever been
+# worth deferring past a draft and why adding them to a publication costs nothing worth measuring.
 #
 # What is not here is the decision about whether to run, for the reason the build workflows state: that needs the pull
-# request the caller has and this workflow does not. It arrives as `run-helm` below. The suite takes no such switch,
-# because it reads the whole tree at once rather than the changed files — narrowing it would report green on contracts
+# request the caller has and this workflow does not. It arrives as `run-helm` below. The suite and the linters take no
+# such switch, because each reads the whole tree at once rather than the changed files — narrowing it would report green on contracts
 # it never evaluated — so there is nothing a caller could tell it that it does not already know.
 on:
   workflow_call:
@@ -58,6 +59,30 @@ jobs:
       # which is the only cost this file is about.
       - name: Run the workflow contracts
         run: bash scripts/test-agent-workflow.sh
+
+  # The suite asserts what the workflows and scripts are made of — permissions, checkout flags, headers, which owners an
+  # action may come from — and never reads a line of them as shell, nor a workflow as something with expressions and a
+  # token to hand out. That is these three tools' half: ShellCheck over every tracked script, actionlint over every
+  # workflow and the shell in its `run:` blocks, and zizmor over the workflows and composite actions for injection,
+  # credentials, and triggers. It is a job beside the suite rather than a contract inside it because the suite installs
+  # nothing and runs in the full gate on any machine, while these are binaries to download; the script pins each one by
+  # version and checksum, and is the same command a contributor runs locally.
+  #
+  # No path filter, for the reason the suite takes none: it reads the whole tree in about fifteen seconds, and a pull
+  # request that touches only `.github/` or `scripts/` is exactly the one nothing else verifies.
+  shell-and-workflow-lint:
+    name: Shell and workflow lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Lint the shell scripts and the workflows
+        run: bash scripts/lint-shell-and-workflows.sh
 
   # The deployment contract, which is one of the four public surfaces ADR 0004 names and the one no build here can see.
   # Until this existed `helm lint` and `helm template` ran for the first time inside `Publish Helm chart` — after the

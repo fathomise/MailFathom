@@ -509,7 +509,7 @@ public sealed class ClientMailMessageEndpointTests
         Assert.Null(withheld.AddToContacts);
     }
 
-    /// <summary>The flags a pane draws are the ones the mail server last showed, and unread is the absence of the seen flag.</summary>
+    /// <summary>The flags a pane draws are the ones stored for the message, and unread is the absence of the seen flag.</summary>
     [Fact]
     public void For_AReadMessage_CarriesTheFlagsTheServerLastShowed()
     {
@@ -684,7 +684,7 @@ public sealed class ClientMailMessageEndpointTests
             Attachment("invoice.pdf", "application/pdf", 2_048),
             Attachment("photo.jpg", "image/jpeg", 100),
         ],
-        RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved,
+        Flags = StoredEmailFlags.NeverObserved,
         SenderVerification = new SenderVerification
         {
             AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,

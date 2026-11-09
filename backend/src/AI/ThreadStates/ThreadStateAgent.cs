@@ -162,14 +162,14 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
             this.plan.MaximumRequestCharacters,
             this.plan.MaximumRequestImageOctets);
 
-        var answer = await this.AskAsync(turn, language, cancellationToken);
+        var answer = await this.AskAsync(turn, thread, language, cancellationToken);
 
         if (answer is not { Text: { } answerText })
         {
             return this.Withhold(ThreadStateWithholding.ProviderUnavailable, answer?.Alias);
         }
 
-        var derivation = ThreadStateReading.Read(answerText, thread.Messages);
+        var derivation = ThreadStateReading.Read(answerText, thread.Messages, topicShown: thread.KeptTopic is not null);
 
         if (derivation.IsSettled)
         {
@@ -251,6 +251,7 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
     /// </remarks>
     private async Task<ChatModelAnswer?> AskAsync(
         string turn,
+        DerivableThread thread,
         MailAccountLanguage language,
         CancellationToken cancellationToken)
     {
@@ -263,7 +264,7 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
             return await ChatModelFallThrough.RunAsync(
                 this.plan,
                 this.logger,
-                (model, attemptToken) => this.AskModelAsync(model, turn, language, runLedger, attemptToken),
+                (model, attemptToken) => this.AskModelAsync(model, turn, thread, language, runLedger, attemptToken),
                 cancellationToken);
         }
         catch (ChatGenerationFailedException failure)
@@ -286,6 +287,7 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
     private async Task<ChatModelAnswer> AskModelAsync(
         ChatGenerationPlan model,
         string turn,
+        DerivableThread thread,
         MailAccountLanguage language,
         MailAnsweringRunLedger runLedger,
         CancellationToken cancellationToken)
@@ -320,6 +322,7 @@ internal sealed class ThreadStateAgent : IThreadStateDeriver
             chatClient,
             model,
             language,
+            thread,
             this.instructionEnvelope,
             this.loggerFactory);
 

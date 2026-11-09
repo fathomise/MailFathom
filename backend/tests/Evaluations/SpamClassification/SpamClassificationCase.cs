@@ -132,6 +132,30 @@ internal sealed record SpamClassificationCase(
                 Links = [new("Pay the fee and reschedule delivery", new Uri("https://parcel-redelivery-fee.test/pay"))],
             }),
 
+        // A lookalike domain authenticates as itself, so passing authentication does not make a message posing as a bank ordinary mail.
+        new(
+            "Phishing.AuthenticatedLookalikeBank",
+            MailAccountLanguage.English,
+            SpamModelJob.DecideVerdict,
+            SpamSubcategory.Phishing,
+            new(
+                "Harbourline Bank",
+                "statements@harbourline-online-statements.test",
+                "Your October statement is on hold",
+                """
+                Hello,
+
+                Your October statement could not be released because your online banking details have expired.
+
+                Sign in with your customer number and password on the page below within 24 hours, and enter the one-time code we send to your phone, or your online banking will be suspended.
+
+                Harbourline Bank
+                """,
+                Passing("harbourline-online-statements.test"))
+            {
+                Links = [new("Release my statement", new Uri("https://harbourline-online-statements.test/release"))],
+            }),
+
         new(
             "Polish.Phishing.BankLogin",
             MailAccountLanguage.Polish,

@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
 import type {
     MailBlockAlignment,
     MailDocumentBlock,
@@ -16,7 +16,10 @@ import type {
     MailTableBlock,
     MailTextSize,
 } from '@mailfathom/client-backend';
+import { readsOnBothThemes } from '../composer/textColours';
 import { useLocalization } from '../localization/useLocalization';
+import { AuthorsPresentation } from './authorsPresentation';
+import { FoldedWrittenHeaders } from './FoldedWrittenHeaders';
 import { MessageLink } from './MessageLink';
 import { senderColourRole } from './senderColour';
 import {
@@ -67,13 +70,29 @@ const alignments: Readonly<Record<MailBlockAlignment, string>> = {
 const headingElements = ['h3', 'h4', 'h5', 'h6', 'h6', 'h6'] as const;
 
 export function MessageBlocks({ blocks }: { readonly blocks: readonly MailDocumentBlock[] }) {
-    return (
-        <>
-            {blocks.map((block, position) => (
-                <MessageBlock key={position} block={block} />
-            ))}
-        </>
-    );
+    const drawn: ReactNode[] = [];
+
+    for (let position = 0; position < blocks.length;) {
+        const block = blocks[position];
+        const headers = block?.type === 'paragraph' || block?.type === 'separator' ? block.writtenHeaders : undefined;
+        const blockCount = headers?.blockCount ?? 1;
+        const parts = blocks
+            .slice(position, position + blockCount)
+            .map((part, offset) => <MessageBlock key={offset} block={part} />);
+
+        drawn.push(
+            headers === undefined ? (
+                parts
+            ) : (
+                <FoldedWrittenHeaders key={position} headers={headers}>
+                    {parts}
+                </FoldedWrittenHeaders>
+            ),
+        );
+        position += blockCount;
+    }
+
+    return <>{drawn}</>;
 }
 
 function MessageBlock({ block }: { readonly block: MailDocumentBlock }) {
@@ -196,7 +215,9 @@ function MessageTable({ block }: { readonly block: MailTableBlock }) {
 function MessageQuote({ block }: { readonly block: MailQuoteBlock }) {
     return (
         <blockquote className={quoteShape}>
-            <MessageBlocks blocks={block.blocks} />
+            <AuthorsPresentation value={false}>
+                <MessageBlocks blocks={block.blocks} />
+            </AuthorsPresentation>
         </blockquote>
     );
 }
@@ -303,6 +324,8 @@ function MessageRunGroup({ runs }: { readonly runs: readonly MailInlineRun[] }) 
 }
 
 function MessageRun({ run }: { readonly run: MailInlineRun }) {
+    const authorsPresentation = useContext(AuthorsPresentation);
+
     // A `<br>` the sender wrote survives as a newline inside the run rather than as a block of its own, which is what
     // `MailInlineRun` states — so a signature, a postal address, and a poem are all line breaks this has to keep.
     //
@@ -310,13 +333,22 @@ function MessageRun({ run }: { readonly run: MailInlineRun }) {
     // in the way emphasis is. It is drawn as a step of this client's own scale relative to the text around the words,
     // never at a length the sender wrote, and on the words themselves rather than around their emphasis — inline code
     // sets a size of its own, so a step outside it would be overridden rather than applied.
-    const words = <span className={wordsShape(run.size)}>{run.text}</span>;
+    //
+    // A proven author's colour is drawn as written where it reads on both themes, on the words themselves so that the
+    // colour a link or inline code sets for itself does not stand over it. Outside that band it is the body colour.
+    const written =
+        authorsPresentation && run.foreground !== null && readsOnBothThemes(run.foreground) ? run.foreground : null;
+    const words = (
+        <span className={wordsShape(run.size)} style={written === null ? undefined : { color: written }}>
+            {run.text}
+        </span>
+    );
     const emphasized = emphasize(run, words);
 
-    // The sender's colour decides which of this client's own two it is drawn in rather than what it is drawn in, for the
-    // reason `messageBody/senderColour.ts` holds: a reading surface is drawn in the reader's theme, and what survives
-    // of the sender's own presentation is the emphasis above, which means something a colour does not.
-    const receding = run.foreground !== null && senderColourRole(run.foreground) === 'receding';
+    // Anybody else's colour decides which of this client's own two it is drawn in rather than what it is drawn in, for
+    // the reason `messageBody/senderColour.ts` holds: a reading surface is drawn in the reader's theme, and what survives
+    // of a stranger's own presentation is the emphasis above, which means something a colour does not.
+    const receding = !authorsPresentation && run.foreground !== null && senderColourRole(run.foreground) === 'receding';
     return receding ? <span className="text-muted">{emphasized}</span> : emphasized;
 }
 

@@ -26,8 +26,9 @@ public static class DiscoveryRunBounds
     /// <summary>The greatest number of events one run publishes.</summary>
     /// <remarks>
     /// <para>
-    /// Derived rather than chosen: a run publishes one start, at most one progress report per lookup a plan may hold,
-    /// at most one citation per source a run may declare, at most one block per block a plan may hold, and one ending.
+    /// Derived rather than chosen: a run publishes one start, at most one progress report per lookup a plan and its
+    /// follow-up round may hold, at most one citation per source a run may declare, at most one block per block a plan
+    /// may hold, and one ending.
     /// So a run that reaches this bound has published everything the contract lets it publish.
     /// </para>
     /// <para>
@@ -39,6 +40,7 @@ public static class DiscoveryRunBounds
     /// </remarks>
     public const int MaximumEvents = 1
         + RetrievalPlan.MaximumLookups
+        + RetrievalPlan.MaximumFollowUpLookups
         + PresentationPlan.MaxCitations
         + PresentationPlan.MaxBlocks
         + 1;

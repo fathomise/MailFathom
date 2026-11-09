@@ -21,4 +21,13 @@ namespace MailFathom.AI.Orchestration;
 /// <param name="Name">What a run of this operation reports itself as.</param>
 /// <param name="Instruction">What the operation tells the model about its task, before the envelope is placed around it.</param>
 /// <param name="Tools">Everything the operation may do besides answer, which for a reading operation is what it may look up.</param>
-internal sealed record AgentOperation(string Name, string Instruction, IReadOnlyList<AITool> Tools);
+/// <param name="ResponseSchema">
+/// The JSON schema the operation's answer is a document of, or <see langword="null" /> for an answer of free text. It is
+/// sent only to a model declaring that its server honours one, which is why the operation's instruction is decided from
+/// the same declaration.
+/// </param>
+internal sealed record AgentOperation(
+    string Name,
+    string Instruction,
+    IReadOnlyList<AITool> Tools,
+    ChatResponseFormatJson? ResponseSchema = null);

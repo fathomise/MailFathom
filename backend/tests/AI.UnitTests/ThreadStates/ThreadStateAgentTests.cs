@@ -4,6 +4,7 @@
 
 using System.Net;
 using System.Text;
+using MailFathom.AI.Chat;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ProviderAdapters;
 using MailFathom.AI.Providers;
@@ -38,6 +39,9 @@ public sealed class ThreadStateAgentTests
     private const string Statements = """
         {\"agreements\": [{\"text\": \"The response time stays at two hours.\", \"messages\": [0]}]}
         """;
+
+    private const string StructuredStatements =
+        """{"agreements": [{"text": "The response time stays at two hours.", "messages": [0]}], "openQuestions": [], "commitments": [], "differences": [], "title": {"topic": "Response time", "subjectChanged": false, "standing": ""}}""";
 
     /// <summary>This one is registered only where the switch is on, so the pass in front of it queries rather than stopping.</summary>
     [Fact]
@@ -271,6 +275,47 @@ public sealed class ThreadStateAgentTests
         Assert.Equal(1, provider.RequestCount);
     }
 
+    /// <summary>A model whose server honours a strict schema is asked for one, limited to the conversation's own positions.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task DeriveAsync_AModelDeclaringStructuredOutputs_AsksForAStrictSchemaOfTheConversationsOwnPositions(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredStatements));
+        var agent = provider.DeriverOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api), structuredOutputs: true));
+
+        // Act
+        var derivation = await agent.DeriveAsync(Derivable(), MailAccountLanguage.English, TestContext.Current.CancellationToken);
+
+        // Assert
+        var format = StructuredRequests.SchemaFormatOf(provider.RequestBodies[0], api);
+        var cited = format.Schema.GetProperty("$defs").GetProperty("statement").GetProperty("properties").GetProperty("messages").GetProperty("items");
+
+        Assert.True(derivation.IsSettled);
+        Assert.Equal(("json_schema", ThreadStateSchema.Name, true), (format.Type, format.Name, format.Strict));
+        Assert.Equal([0], cited.GetProperty("enum").EnumerateArray().Select(static position => position.GetInt32()));
+        Assert.DoesNotContain("Every entry is an object with two required fields", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>Without the declaration the request is the one every derivation sent before, the shape told in prose instead.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task DeriveAsync_AModelDeclaringNoStructuredOutputs_SendsNoResponseFormat(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredStatements));
+        var agent = provider.DeriverOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api)));
+
+        // Act
+        await agent.DeriveAsync(Derivable(), MailAccountLanguage.English, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(StructuredRequests.CarriesResponseFormat(provider.RequestBodies[0]));
+        Assert.Contains("Every entry is an object with two required fields", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
     private static DerivableThread Derivable() =>
         new(
             EmailThreadId.Create(Guid.CreateVersion7()),
@@ -333,7 +378,8 @@ public sealed class ThreadStateAgentTests
         public ThreadStateAgent DeriverOver(
             SensitiveContentEgressGuard? egressGuard = null,
             Exception? credentialFailure = null,
-            IMailAnsweringSpendLedger? spendLedger = null)
+            IMailAnsweringSpendLedger? spendLedger = null,
+            ChatGenerationPlan? plan = null)
         {
             var transportFactory = Substitute.For<IHttpClientFactory>();
             transportFactory
@@ -364,7 +410,7 @@ public sealed class ThreadStateAgentTests
                 });
 
             return new ThreadStateAgent(
-                ChatDeclarations.Plan(),
+                plan ?? ChatDeclarations.Plan(),
                 MailAnsweringRunBounds.Default,
                 spendLedger ?? AdmittingSpendLedger(),
                 credentialSource,

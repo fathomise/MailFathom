@@ -37,41 +37,6 @@ export function mailBodyRoute(storedEmailId: string, ask: MailBodyAsk): string {
     return `/messages/${encodeURIComponent(storedEmailId)}/body${query}`;
 }
 
-/** The route one message's cleaned body is served at, relative to the client prefix. */
-export function cleanedMailBodyRoute(storedEmailId: string, remoteImages: boolean): string {
-    const query = remoteImages ? '?remoteImages=true' : '';
-
-    return `/messages/${encodeURIComponent(storedEmailId)}/body/cleaned${query}`;
-}
-
-/**
- * What came of one cleaning, as the service names it.
- *
- * Six of the seven say the cleaning did not happen, and each is a different sentence on the screen: a deployment that
- * never turned it on, a period whose allowance is spent, an endpoint that did not answer, an answer the service could
- * not use, a message withheld from AI — in a folder withheld from it, or judged spam — and a message with no document to clean at all. The reduced document comes back beside every one of them, where the message had one to reduce.
- */
-export type MailBodyCleaning =
-    | 'Cleaned'
-    | 'NothingToClean'
-    | 'NotActivated'
-    | 'AllowanceExhausted'
-    | 'ProviderUnavailable'
-    | 'AnswerRejected'
-    | 'WithheldFromAI';
-
-/**
- * One message's body as the third rendering, or the reduced one beside the reason the cleaning did not happen.
- *
- * It carries no words, because a screen asking for this has already read the body: what it replaces is the document the
- * pane was drawing, block for block, with the blocks a cleaning dropped absent.
- */
-export interface CleanedMailBody {
-    readonly storedEmailId: string;
-    readonly cleaning: MailBodyCleaning;
-    readonly document: MailDocument | null;
-}
-
 /** Whether the body could be read at all, or why the deployment holds nothing to draw. */
 export type MailBodyAvailability =
     'Readable' | 'EncryptedNotReadableLocally' | 'NotStoredExceededSizeLimit' | 'NotStoredAwaitingStorageHeadroom';
@@ -139,6 +104,9 @@ export interface MailParagraphBlock {
     readonly type: 'paragraph';
     readonly content: readonly MailInlineRun[];
     readonly alignment: MailBlockAlignment;
+
+    /** The block of header lines the message typed that starts here, absent where none does. */
+    readonly writtenHeaders?: MailWrittenHeaders;
 }
 
 export interface MailHeadingBlock {
@@ -196,6 +164,9 @@ export interface MailImageBlock {
 
 export interface MailSeparatorBlock {
     readonly type: 'separator';
+
+    /** The block of header lines the message typed that starts here, absent where none does. */
+    readonly writtenHeaders?: MailWrittenHeaders;
 }
 
 export interface MailPreformattedBlock {
@@ -228,12 +199,34 @@ export type MailDocumentBlock =
     | MailUnimplementedBlock;
 
 /**
- * Which of a document's top-level blocks are the footer MailFathom appended to a message the reader sent.
+ * A block of header lines a message typed into its own body, which a forward or a quoted reply from another mail client
+ * carries. Its author and date are the sender's words as written, so they prove nothing and are drawn as message text.
+ */
+export interface MailWrittenHeaders {
+    /** How many consecutive sibling blocks, starting at the one carrying this, form it. At least one. */
+    readonly blockCount: number;
+
+    readonly author: string;
+
+    readonly date: string;
+}
+
+/**
+ * Which of a document's top-level blocks are the footer MailFathom appended to a message whose author is proven.
  *
  * A statement about blocks the document still carries rather than a removal of them, so the range always lies inside
  * `blocks` and spans at least one of them.
  */
 export interface MailDocumentFooter {
+    readonly firstBlock: number;
+    readonly blockCount: number;
+}
+
+/**
+ * Which of a document's top-level blocks are the quotation MailFathom wrote into a message whose author is proven, from
+ * the attribution line to the end of the document. A statement rather than a removal, as a footer is.
+ */
+export interface MailDocumentQuotation {
     readonly firstBlock: number;
     readonly blockCount: number;
 }
@@ -248,8 +241,14 @@ export interface MailDocument {
     readonly undrawnInlineImageCount: number;
     readonly truncated: boolean;
 
-    /** The reader's own footer, named only on the copy MailFathom filed of a message it sent for them. */
+    /** The footer MailFathom appended, named only where the author is proven and the message carries its mark. */
     readonly footer: MailDocumentFooter | null;
+
+    /** The quotation MailFathom wrote, named only where the author is proven and the message carries its mark. */
+    readonly quotation: MailDocumentQuotation | null;
+
+    /** Whether this message's presentation is its proven author's, which the service decides and this client never does. */
+    readonly authorIsProven: boolean;
 }
 
 /** The message as words, which is a rendering in its own right rather than only what a refusal falls back to. */
@@ -321,6 +320,7 @@ const bounds = {
     maximumLinkTargetLength: 4096,
     maximumPictureEdge: 10_000,
     maximumAlternativeTextLength: 1024,
+    maximumWrittenHeaderLength: 1024,
 } as const;
 
 const availabilities: readonly MailBodyAvailability[] = [
@@ -339,16 +339,6 @@ const truncations: readonly MailBodyTruncation[] = [
 ];
 
 const refusals: readonly MailDocumentRefusal[] = ['None', 'NoHtmlPart', 'ReductionFailed', 'NothingRenderable'];
-
-const cleanings: readonly MailBodyCleaning[] = [
-    'Cleaned',
-    'NothingToClean',
-    'NotActivated',
-    'AllowanceExhausted',
-    'ProviderUnavailable',
-    'AnswerRejected',
-    'WithheldFromAI',
-];
 
 const alignments: readonly MailBlockAlignment[] = ['Inherited', 'Start', 'Center', 'End', 'Justify'];
 
@@ -417,85 +407,6 @@ export function readMailBody(
 
         return body === null ? failed('unreadable', response.status) : read(body);
     });
-}
-
-/**
- * Reads one message's body as the third rendering, answering an expected failure as a value rather than by throwing.
- *
- * The reader's ask for remote pictures travels here as well as on the body read, because a cleaned document composed out
- * of a different read would disagree with what is on the screen about what the message asked to fetch. It is a second
- * read rather than a widened first one for the same reason the service serves it from a route of its own: the reduced
- * body is drawable while this one is still in flight, which is what lets a pane wait without ever being empty.
- */
-export function readCleanedMailBody(
-    session: ClientSession,
-    transport: MailFathomTransport,
-    storedEmailId: string,
-    remoteImages: boolean,
-): Promise<ClientResult<CleanedMailBody>> {
-    return spanned('GET /messages/{storedEmailId}/body/cleaned', async () => {
-        const response = await send(transport, {
-            method: 'GET',
-            path: routeFor(session, cleanedMailBodyRoute(storedEmailId, remoteImages)),
-            headers: headersFor(session),
-            longestAnswer: longestBodyAnswer,
-        });
-
-        if (response === null) {
-            return failed('unavailable', null);
-        }
-
-        if (response.status !== 200) {
-            return failed(failureReasonForStatus(response.status), response.status);
-        }
-
-        const cleaned = parseCleanedMailBody(parsed(response.body), remoteImages);
-
-        return cleaned === null ? failed('unreadable', response.status) : read(cleaned);
-    });
-}
-
-/**
- * Reads one cleaned body out of an answer that already carries it as a value.
- *
- * The document is held to the same walk and the same bounds the body read holds one to, so the blocks a pane draws after
- * a cleaning are admitted by the one parser rather than by a second one written to the same contract.
- *
- * @param value The answer as it arrived, in whatever shape it arrived in.
- * @param remoteImages Whether the read asked this message's remote references to be resolved.
- * @returns The cleaned body, or `null` where what arrived is not one.
- */
-export function parseCleanedMailBody(value: unknown, remoteImages: boolean): CleanedMailBody | null {
-    const record = asRecord(value);
-    if (record === null) {
-        return null;
-    }
-
-    const storedEmailId = record['storedEmailId'];
-    const cleaning = record['cleaning'];
-
-    if (typeof storedEmailId !== 'string' || !isOneOf(cleaning, cleanings)) {
-        return null;
-    }
-
-    const carried = record['document'] ?? null;
-    if (carried !== null && !isRecord(carried)) {
-        return null;
-    }
-
-    const document = carried === null ? null : parseDocument(carried, remoteImages);
-    if (carried !== null && document === null) {
-        return null;
-    }
-
-    // A cleaning that happened and dropped every block is an answer the service does not compose, so one arriving here
-    // is an answer this client cannot draw: the pane is never empty, and refusing it is what keeps that true from the
-    // parser down rather than from each screen's own check.
-    if (cleaning === 'Cleaned' && (document === null || document.blocks.length === 0)) {
-        return null;
-    }
-
-    return { storedEmailId, cleaning, document };
 }
 
 // How much of the document's own budget the walk has left. One object threaded through the walk rather than counters
@@ -642,8 +553,17 @@ function parseDocument(record: Readonly<Record<string, unknown>>, remoteImages: 
         return null;
     }
 
-    const footer = parseFooter(record['footer'], blocks.length);
-    if (footer === undefined) {
+    const footer = parseBlockRange(record['footer'], blocks.length);
+    const quotation = parseBlockRange(record['quotation'], blocks.length);
+    const authorIsProven = record['authorIsProven'] ?? false;
+
+    // The composer writes a footer above the quotation, so one reaching into the other names neither correctly.
+    if (
+        footer === undefined ||
+        quotation === undefined ||
+        typeof authorIsProven !== 'boolean' ||
+        (footer !== null && quotation !== null && quotation.firstBlock < footer.firstBlock + footer.blockCount)
+    ) {
         return null;
     }
 
@@ -656,13 +576,18 @@ function parseDocument(record: Readonly<Record<string, unknown>>, remoteImages: 
         undrawnInlineImageCount,
         truncated,
         footer,
+        quotation,
+        authorIsProven,
     };
 }
 
-// A footer is a range over the blocks this same document carries, so one reaching past them names blocks that are not
-// there, and folding by it would hide words the reader wrote or show a fold over nothing. A deployment that predates
-// the member sends none, which is a document naming no footer rather than one to refuse.
-function parseFooter(value: unknown, blockCount: number): MailDocumentFooter | null | undefined {
+// A footer and a quotation are ranges over the blocks this same document carries, so one reaching past them names blocks
+// that are not there, and folding by it would hide words somebody wrote or show a fold over nothing. A deployment that
+// predates the member sends none, which is a document naming none rather than one to refuse.
+function parseBlockRange(
+    value: unknown,
+    blockCount: number,
+): { readonly firstBlock: number; readonly blockCount: number } | null | undefined {
     if (value === undefined || value === null) {
         return null;
     }
@@ -671,7 +596,7 @@ function parseFooter(value: unknown, blockCount: number): MailDocumentFooter | n
     const firstBlock = record?.['firstBlock'];
     const count = record?.['blockCount'];
 
-    return isCount(firstBlock) && isCount(count) && count > 0 && firstBlock + count <= blockCount
+    return isCount(firstBlock) && isSpanOfBlocks(count, blockCount - firstBlock)
         ? { firstBlock, blockCount: count }
         : undefined;
 }
@@ -689,7 +614,7 @@ function parseBlocks(entries: readonly unknown[], walk: Walk): MailDocumentBlock
     }
 
     const blocks: MailDocumentBlock[] = [];
-    for (const entry of entries) {
+    for (const [position, entry] of entries.entries()) {
         if (walk.budget.blocks <= 0) {
             return null;
         }
@@ -701,10 +626,42 @@ function parseBlocks(entries: readonly unknown[], walk: Walk): MailDocumentBlock
             return null;
         }
 
-        blocks.push(block);
+        const writtenHeaders = parseWrittenHeaders(asRecord(entry)?.['writtenHeaders'], entries.length - position);
+        if (writtenHeaders === undefined) {
+            return null;
+        }
+
+        if (writtenHeaders === null) {
+            blocks.push(block);
+        } else if (block.type === 'paragraph' || block.type === 'separator') {
+            blocks.push({ ...block, writtenHeaders });
+        } else {
+            return null;
+        }
     }
 
     return blocks;
+}
+
+// A run of sibling blocks counted from the one carrying it, so one reaching past them names blocks that are not there
+// and folding by it would hide words or draw a fold over nothing. A deployment that predates the member sends none.
+function parseWrittenHeaders(value: unknown, blocksLeft: number): MailWrittenHeaders | null | undefined {
+    if (value === undefined || value === null) {
+        return null;
+    }
+
+    const record = asRecord(value);
+    const blockCount = record?.['blockCount'];
+    const author = record?.['author'];
+    const date = record?.['date'];
+
+    return isSpanOfBlocks(blockCount, blocksLeft) && isWrittenHeaderText(author) && isWrittenHeaderText(date)
+        ? { blockCount, author, date }
+        : undefined;
+}
+
+function isWrittenHeaderText(value: unknown): value is string {
+    return typeof value === 'string' && value.length > 0 && value.length <= bounds.maximumWrittenHeaderLength;
 }
 
 function parseBlock(value: unknown, walk: Walk): MailDocumentBlock | null {
@@ -1139,6 +1096,11 @@ function parsed(body: string): unknown {
 
 function isCount(value: unknown): value is number {
     return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+/** Whether a stated run of consecutive blocks holds at least one and stays within the blocks there are. */
+function isSpanOfBlocks(value: unknown, blocksLeft: number): value is number {
+    return isCount(value) && value > 0 && value <= blocksLeft;
 }
 
 function isShare(value: unknown): value is number {

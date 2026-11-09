@@ -37,4 +37,4 @@ public sealed record RestoredEmailState(
     bool IsAnswered,
     bool IsFlagged,
     bool IsDraft,
-    RemoteEmailKeywords Keywords);
+    EmailKeywords Keywords);

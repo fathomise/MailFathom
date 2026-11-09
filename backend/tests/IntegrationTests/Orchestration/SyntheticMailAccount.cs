@@ -113,6 +113,7 @@ internal sealed class SyntheticMailAccount(
         "email-chunks",
         "email-chunks-unembedded",
         "email-embeddings",
+        "email-enrichment",
         "embedding-backfill",
         "embedding-generation",
         "embedding-generations",

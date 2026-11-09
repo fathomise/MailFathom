@@ -1,6 +1,6 @@
 # Applying the database schema
 
-<!-- describes: backend/src/Infrastructure/Persistence/Migrations/**, backend/src/AppHost/**, scripts/build-schema-artifact.sh -->
+<!-- describes: backend/src/Infrastructure/Persistence/Migrations/**, backend/src/AppHost/**, scripts/build-schema-artifact.sh, scripts/squash-migrations.sh, scripts/compare-migration-squash.sh -->
 
 MailFathom never applies a schema change while starting, in any environment. It verifies the migration history and
 refuses to serve against a schema it does not recognize, so bringing a new version up *tells* you a migration is
@@ -26,35 +26,24 @@ the image labels, as [what a release records](#what-a-release-records) describes
 It is an **idempotent** script: every migration is wrapped in a check against the `__EFMigrationsHistory` table, so a
 database that already carries some of them takes only what it is missing. You do not have to know which migrations a
 given installation holds in order to know which file to apply — there is one file, and applying it twice is applying it
-once.
+once. Which installations that one file upgrades is narrower than every installation ever made, and
+[which installations the script upgrades](#which-installations-the-script-upgrades) states where the line falls.
 
 It can write rows as well as creating tables, and what it wrote keeps the meaning a deployment has since given it.
 A fresh database gets the two built-in roles — `User` and `Administrator` — with the permissions [the stored schema](../architecture/stored-email-schema.md#the-roles-groups-and-assignments-a-grant-is-read-from)
-lists for each. An upgraded one gets them only where the rows seeded before were still as the earlier migrations left
+lists for each. An upgraded one gets them only where the rows seeded before were still as the `v0.8.0` schema left
 them: a `Mail user` an operator renamed or edited, or one beside a role already called `User`, keeps its name and list,
-and an `Organization administrator` somebody holds or edited stays, as the stored schema states. The built-in roles are ordinary rows a deployment may rename, edit, or delete, and no migration changes what a list
-a deployment has changed grants. One migration does rewrite names: where a release publishes a permission under another
-name, or publishes apart what one name used to reach, every stored list — a role's, a credential's narrowing, a
-session's — is carried to the names its holders already acted under, seeded or not, and gains nothing beyond them.
-`User` lists one pattern per user-facing domain and `Administrator` the pattern `*`, so their holders hold every
-permission the release being upgraded to publishes within that reach without a row being written.
-Where it upgrades
-a database that already holds mail, or anything recorded about it, from a release before users were recorded, the chain
-provisions the **user** that mail is bound to — one record, labelled `user`, with the mail accounts this deployment already
-holds carried onto it — because a mailbox belongs to somebody from the moment its row exists. A fresh database gets no
-user row: its first user is the one an administrator records with
-[`mfctl user add`](admin-endpoint.md#users-and-their-records). The label is what an administrator tells users
-apart by rather than anything that resolves one, so a deployment is free to rename it. It also provisions the singleton row of
-`settings_root`, the deployment's **persisted configuration** document, as an empty document at version 1, because the
-host reads that row before it opens any endpoint and a deployment that has configured nothing still has to start. Both
-inserts are guarded against a row already being there, so applying the file twice still provisions at most one user and
-one configuration document, and neither apply writes over what a running deployment has since put in them.
+and an `Organization administrator` somebody holds or edited stays, as the stored schema states. The built-in roles are
+ordinary rows a deployment may rename, edit, or delete, and no migration changes what a list a deployment has changed
+grants. `User` lists one pattern per user-facing domain and `Administrator` the pattern `*`, so their holders hold
+every permission the release being upgraded to publishes within that reach without a row being written.
 
-Some migrations in the chain carry existing data onto a new shape as well, and one of them reads a table rather than
-only rewriting a column: the per-account stored-content counter is seeded from what the message payloads already hold, so
-that apply scans the content table once. It reads the recorded lengths rather than the payloads beside them, so the cost
-is a sequential scan rather than a detoast, but on a mailbox of hundreds of thousands of messages it is the part of the
-apply that takes noticeable time.
+A fresh database gets no user row: its first user is the one an administrator records with
+[`mfctl user add`](admin-endpoint.md#users-and-their-records). It does get the singleton row of `settings_root`, the
+deployment's **persisted configuration** document, as an empty document at version 1, because the host reads that row
+before it opens any endpoint and a deployment that has configured nothing still has to start. That insert is guarded
+against a row already being there, so applying the file twice still provisions one configuration document, and no
+apply writes over what a running deployment has since put in it.
 
 It is also **only forward**. The script carries no reverse migrations, so it cannot undo anything, and nothing in
 MailFathom can. [Rolling back](#rolling-back) is what that leaves.
@@ -225,67 +214,15 @@ already serving:
 - **Index creation on a large table takes time proportional to the table.** Stop MailFathom, or accept that its writes
   wait, for the duration.
 
-- **`AddAttachmentTextAndAttachmentChunks` rebuilds one index over the passage table and builds one over the largest
-  table in the schema.** It drops `ix_email_chunks_email_ordinal` first, then builds five indexes in this order:
-  `ix_stored_emails_awaiting_attachment_text`, which scans `stored_emails` in full under a lock that blocks writes to
-  it; the three that replace the dropped one, `ix_email_chunks_email`, `ix_email_chunks_email_attachment_ordinal` and
-  `ix_email_chunks_email_ordinal`, each of which reads `email_chunks` once — proportional to the passages a deployment
-  has cut, and under a lock that blocks writes to that table for the duration; and the GIN index over the new table
-  last. The passage table is therefore read three times rather than twice, the two indexes over the pair having gained
-  filters that leave neither covering a statement naming the message alone. Unlike the other partial indexes above, the `stored_emails` one is not built empty, because
-  `AttachmentTextDerivedAt` is null on every row an upgrading deployment already holds, so it is written holding every
-  message that carries an attachment. Budget a window against the message table rather than against the passage table
-  alone. Nothing else in the migration is proportional to anything already stored: the two
-  added columns are nullable with no default, which is a catalog change rather than a rewrite, and the table and GIN
-  index it creates are both empty until an attachment is read.
-
-- **`FileHeldAccountDraftsAndSentCopiesLocally` reads `stored_emails` once to build an index that holds nothing.**
-  `ix_stored_emails_filed_sent_copy` is filtered to a sent copy filed locally that no server has returned yet, which no
-  earlier version wrote, so it is built empty — but building it still scans the message table under a lock that blocks
-  writes to it. The two columns the migration adds to `mail_drafts` are nullable with no default and rewrite nothing.
-
-- **A `CHECK` constraint added to a table that already holds rows is validated by scanning it.**
-  `AddContentStorageBackendAndObjectLocator` adds one to each of the four tables that hold raw MIME, and
-  `IndexObjectBackedContentAndRequireItsPayloadEmpty` replaces all four with a stricter form, so each table is scanned
-  under `ACCESS EXCLUSIVE` twice across the two. What a scan costs follows the row count rather than the mail volume:
-  the predicate asks which backend a row names and whether its payload column is null, and neither question
-  dereferences a payload PostgreSQL stored out of line. Nothing else in the pair is proportional to the table — the
-  columns are added without a rewrite, since a column default is recorded in the catalog rather than written into every
-  row, which is what makes `ADD COLUMN "Backend" … NOT NULL DEFAULT 'Database'` fast on a table of any size and what
-  leaves every row written before that column existed reading as the thing it is; and the four indexes the second
-  migration creates are partial, filtered to a backend no row on an upgrading deployment names, so each is built empty.
-  `IndexContentObjectLocators` then drops those four and creates four in their place, keyed on the locator rather than
-  on the backend and unique; the same filter makes each of the new ones empty on a deployment that stored nothing in an
-  endpoint, and proportional to the object-backed rows rather than to the table on one that did. Uniqueness is what a
-  deployment that already wrote such rows is held to at that moment, and a duplicate locator would fail the migration
-  rather than be created — no writer this schema has ever carried could produce one, since every placement mints its
-  own key. `RetainDatabaseCopyUntilReleased` replaces those four `CHECK` constraints once more, relaxing them so that an
-  object-backed row may hold the payload the move left beside its object, and adds a nullable
-  `ObjectVerifiedAt` column to each table. Each table is therefore scanned under `ACCESS EXCLUSIVE` once more, on the
-  same terms as before — the predicate compares the backend name and null-tests the locator, the payload, and the new
-  column, none of which dereferences a payload PostgreSQL stored out of line — and the column is added without a
-  rewrite, since a nullable column with no default is a catalog change.
-  `MakeStoredEmailOccurrenceOptional` adds `ck_stored_emails_occurrence_complete` to `stored_emails`, so the message
-  table is scanned under `ACCESS EXCLUSIVE` once; dropping `NOT NULL` from `uid_validity` and `uid` beside it is a
-  catalog change. `SplitContactBooksByHolder` adds `ck_contacts_book_holder` to `contacts` and rebuilds both contact
-  indexes, so each of those two tables is scanned under `ACCESS EXCLUSIVE` — both are proportional to how many people
-  the books hold rather than to how much mail is stored, which is the smallest thing on this page.
-  `AddOrganizationContactBook` replaces `ck_contacts_book_holder` once more, for the organization's book beside the
-  other two, and adds a nullable `OrganizationId` column with an index and a foreign key onto `organizations`: the
-  constraint, the index, and the key's validation each scan `contacts` once, and adding the column is a catalog change.
-  `AddContactPhoto` does the same for a contact's photo: a nullable `PhotoFileId` column, a partial index over the rows
-  carrying one, `ck_contacts_photo_holder`, and a foreign key onto `stored_files` — each a scan of `contacts` once, and
-  the column a catalog change. Every one of those is again sized by the contact book rather than by the mail.
-
-- **A foreign key added to a table that already holds rows is validated by scanning it.** `AddLocalMailFolders` adds
-  `FK_stored_emails_local_mail_folders_LocalMailFolderId` to `stored_emails`, so the message table is read once under a
-  lock that blocks writes to it; the column it constrains is added in the same migration and is null on every row, so
-  the scan finds nothing to look up. It also builds `IX_stored_emails_LocalMailFolderId`, a partial index over that
-  column, which scans `stored_emails` in full under a lock that blocks writes to it even though it is written empty,
-  because PostgreSQL evaluates the filter against every row — so budget two passes over the message table. Nothing
-  else in it is proportional to what is stored: the column is nullable with no default, the two columns
-  `mailbox_accounts` gains carry constant defaults recorded in the catalog, and the `local_mail_folders` table and its
-  indexes are empty until an account is held.
+- **A `CHECK` constraint or a foreign key added to a table that already holds rows is validated by scanning it**, under
+  a lock that blocks writes to that table for the duration, while adding a nullable column with no default beside one
+  is a catalog change rather than a rewrite. `AddOrganizationContactBook` replaces `ck_contacts_book_holder` so that an
+  organization's book may hold a contact beside a user's and a mail account's, and adds a nullable `OrganizationId`
+  column with an index and a foreign key onto `organizations`: the constraint, the index, and the key's validation each
+  scan `contacts` once, and adding the column is a catalog change. `AddContactPhoto` does the same for a contact's
+  photo: a nullable `PhotoFileId` column, a partial index over the rows carrying one, `ck_contacts_photo_holder`, and a
+  foreign key onto `stored_files` — each a scan of `contacts` once, and the column a catalog change. Every one of those
+  is sized by the contact book, how many people it holds, rather than by the mail.
 
 - **`GiveEveryMailAccountFolderRows` writes every stored message once, and is the one migration here whose window is
   sized by the whole message table.** It gives every account folder rows — on a mirrored account one per alias it
@@ -301,7 +238,8 @@ already serving:
   this release writes `stored_emails."LocalMailFolderId"` equal to the new column where it writes it, so a replica still
   on the previous release reads the same folder during a rolling upgrade.
 
-The first release's script creates a schema from nothing, so none of these applies to an empty database.
+On an empty database every table these migrations touch is empty when they run, so none of these costs applies to a
+fresh install.
 
 ## Ordering a deployment
 
@@ -315,178 +253,29 @@ carrying *more* migrations than a build defines has no pending migration for tha
 version keeps serving. What it does not do is use the new columns, which is why the window is a rollout rather than a
 resting state.
 
-**Four migrations narrow that window rather than closing it.** `AddUserAccounts` makes the user of a mail account a
-required column, and a build older than the release carrying it does not know the column exists — so against this
-schema such a build serves the mail already stored and still fails the moment it has to bind a folder for an account it
-has never synchronized, because the row it writes states no user. `AddContactUser` does the same for the contact
-book: an older build reads and amends the contacts already stored and fails the moment it records a new person or adds
-an address, because the row it writes states no user either. `KeyMailAccountByUserAndIdentifier` moves the user into
-seven primary keys, and the one an older build writes through by name is the sealed OAuth refresh token: its upsert
-names the account identifier as the conflict target, no unique constraint matches that column alone any more, and the
-statement is refused — so a rotation an older build receives against this schema is logged as a failure to store rather
-than stored. `SplitContactBooksByHolder` is `AddContactUser`'s shape a second time: which book holds a contact becomes a
-required column that a check constraint governs, and an older build states neither side of it — so such a build reads and
-amends the contacts already stored and fails the moment it records a new person or an address, and the contact collection
-of every mailbox it synchronizes fails with it. Keep the middle of the rollout short on these releases, and do not treat
-a previous image as something that can be left running against them.
+### Which installations the script upgrades
 
-**`SplitContactBooksByHolder` is the one migration that deletes rows it cannot carry over.** A contact book stops being
-one user's and becomes either a user's own or a mail account's, and every row has to say which. A contact somebody wrote
-down carries over unchanged, filed under the user it was already filed under. A collected one has no mailbox recorded
-against it — nothing in the old schema recorded which one picked the address up — so it carries over only where the
-deployment answers that on its own: where the user it was filed under is assigned exactly one mailbox and that mailbox
-is assigned exactly that one user, the mailbox it arrived on is the only one it can have arrived on, and the row moves
-into that account's book. **Everything else collected is deleted** rather than attributed to a mailbox the migration
-would have to guess, because a wrong guess would publish one user's correspondents to everybody else assigned a shared
-mailbox. So a deployment where each person has their own mailbox loses nothing, and one that already shares a mailbox,
-or assigns somebody several, loses what those accounts had collected. **Nothing an operator or a user wrote down is
-touched either way**, and collection rebuilds what was deleted from the mail that arrives next, exactly as it does after
-`mfctl contact delete-collected`. There is no way back to them afterwards, so an operator who wants them kept reads
-them **before** the upgrade — and which reading is available depends on the deployment being upgraded from, because on
-the release being upgraded from, every `mfctl contact` command still reaches the book of the one user that deployment
-serves. A deployment serving one user reads them with `mfctl contact list --origin Collected` and exports each with
-`mfctl contact export`. A deployment serving several — which is exactly the shape that loses rows — cannot, so it reads
-them from the database instead, before the migration runs:
+**A release's script upgrades an installation of the release before it, and creates a schema on an empty database.**
+Each release folds the migrations its cycle added into one migration, which keeps the identifier of the last migration
+it replaces, and everything up to and including `v0.8.0` is one such migration, `20261011174705_Release_0_8_0`. A
+database that recorded that identifier skips the migration whole, and an empty one applies it whole; a database that recorded some of a cycle's migrations but not the last would apply the
+whole release migration again over a schema that already holds part of it, and the script fails there. That migration's
+transaction rolls it back, nothing after it is applied, and a host started against the database refuses with `32001`,
+naming the release migration's identifier among the ones it is missing.
+[ADR 0050](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0050-folding-each-releases-migrations-into-one.md)
+records the decision and what proves each fold equivalent to the migrations it replaced.
 
-```sql
-SELECT c."Id", c."UserId", c."DisplayName", c."Note", a."Address"
-FROM contacts c
-JOIN contact_addresses a ON a."ContactId" = c."Id"
-WHERE c."Origin" = 'Collected'
-ORDER BY c."UserId", c."DisplayName";
-```
+Three installations are outside that line, and each has its own way across it:
 
-**The release carrying `MakeStoredEmailOccurrenceOptional` leaves queued classifications alone.** Arriving mail is
-now classified under a job type of its own, `classify-stored-email-spam`, which names the stored email; a replica of
-the previous build does not declare that type and so never claims one. `classify-email-spam` keeps its contract and a
-handler, so the jobs a previous build queued — and still queues in the middle of the rollout — are claimed and run by
-either build. Nothing in the queue is rewritten and nothing waits on the rollout finishing.
-
-**`AddMailboxMutationWithdrawalHold` shortens a way back rather than failing anything.** It adds `HeldUntil` to
-`mailbox_mutations`, nullable with no default, so it is a catalog change on a table of any size. A build older than the
-release carrying it does not read the column, so a replica of that build still running in the middle of the rollout
-issues a deletion from the trash as soon as it finds one, before the hold a client asked for has run out — and pressing
-*Undo* on that deletion is then refused as already under way, which is the answer a deletion somebody else's replica
-has taken in hand always gets. Nothing is deleted that was not asked for; what the window costs is the moment to change
-one's mind.
-
-**`FlagOnlyAuthoredDeletes` expunges a flag-only delete for as long as an older replica is running.** It adds three
-nullable columns and an empty table, and writes `Expunge` onto the delete rows `mailbox_mutations` already holds, so it
-is quick on a table of any size. A build older than the release carrying it knows only expunging: a delete recorded
-under `FlagDeleted` that such a replica takes in hand is expunged rather than flagged, and a kept row a newer replica
-marked flagged is served by the older one's queries. Nothing is lost that the delete did not ask to remove from the
-server. An account that relies on `FlagDeleted` finishes the rollout before its user deletes anything.
-
-**`AddMailboxMutationLocalChange` asks a held account's rollout to be short.** It adds `LocalChange` to
-`mailbox_mutations`, not null with a `None` default, so it is a catalog change on a table of any size and every row
-already written arrives as the ordinary change it was. What the column records is what each record has to do with
-MailFathom's own copy — nothing, the erasure a second delete opens, or a change a restoring account has already made
-and is only carrying to the source — and a build older than the release carrying it decides the first of those from the
-account's phase instead: on a held account it erases every outstanding delete. So a delete opened while an account was
-being restored to its source — a change the source is still owed, whose own disposition asked for the local copy to be
-kept — is erased rather than left alone if an older replica takes it in hand while the account is held again. The same
-older replica also lets such a record be withdrawn, which strands the local change it was carrying. Only an account
-that is held or being restored is exposed to either, and only for as long as two builds are running. Finish the rollout
-before restoring a mailbox, or leave the account held until it has finished.
-
-**It backfills nothing, and that is the right answer rather than an omission.** Every row written by a release older
-than this one is a change a server is owed, which is what the `None` default says. The local commit that opens an
-erasure record has never shipped — it arrived after the last release and no deployed build writes one — and neither has
-the one that opens a record beside a change already committed, which arrived with it. So there is no row a backfill
-would be correcting, and the only predicate one could use for the first of them — every outstanding delete of a held
-account, which is what the previous build erased — would mark the deletes an account inherited from before its hold as
-erasures and destroy exactly the local copies their own `LocalDisposition` asked to keep. That is the defect the column
-exists to remove, so the migration leaves the default alone.
-
-**`AddMailboxRestoreAppends` asks a restoring account's rollout to be short.** It creates an empty table and adds two
-columns to `mailbox_accounts` — `RestoreStatePosition`, nullable with no default, and `RestoreGeneration`, an integer
-defaulting to zero — so it is a catalog change on a table of any size and an older build reads none of the three. What
-such a build does write is the custody phase, and it writes it without either column. Both omissions cost the same
-thing and cost it silently. A switch out of `Restoring` performed by a replica of the previous build leaves the walk
-position where the restore left it, so a later restore of that account resumes from it and never revisits the mail
-below it; and a switch *into* `Restoring` performed by one leaves the generation where it was, so that restore asks for
-its records under a name an earlier restore of the same account already used and finds the earlier one's completed
-records standing in place of its own. So a mailbox restored to its source is restored by a deployment whose replicas
-are all on this release. Nothing is lost by the columns being there, and no mail is at risk: what goes unwritten is the
-read, the star, the labels, and the move somebody gave a message while the account was held, which MailFathom still
-holds and which a support request can put back.
-
-**`HoldMailAccountSettingsInColumns` reads an older build's account writes again rather than refusing them.** It adds
-six columns to `settings_mail_accounts`, each with a default, and an empty `mail_account_folder_settings` table, then
-fills both from every account's document, so it reads each account record once and rewrites nothing else. A build older
-than the release carrying it writes an account's document alone: an account it saves keeps the settings the columns held
-before, and an account it creates holds none. Every replica of this release reads such accounts again from their
-documents a hundred per convergence interval, in identifier order, so one is read within an interval of its write
-while no more than a hundred trail, and a larger backlog drains at that rate whatever the replica count. Until then, the answers
-asked of every account at once — which mail is classified as spam, which folders a mailbox query admits, and which
-scanners a search across one user's accounts redacts for — answer from what the columns held, and an account the older
-build created takes part in none of them. So a scanner switched on, or a folder withheld from AI, through a replica
-of the previous build reaches those answers one interval later rather than at once. Finish the rollout before changing
-what an account is scanned for. The migration's own reading of each document is an approximation of the host's binding
-and is replaced the same way: every row it fills is read again, so a deployment of N accounts runs on it for about
-N / 100 intervals after the new build starts.
-
-**`StampEndpointSwitchesOnUserRecords` puts back what an older build's write undoes.** It adds two columns to
-`settings_accounts` — `EndpointSwitchesVersion`, defaulting to zero, and `EndpointSwitchesOrganizationId`, nullable —
-and fills both from the row's own `Version` and `OrganizationId`, so it rewrites every user's row once and reads no
-document. Together they say which version of a user's record, under which organization, the two endpoint switches on
-the row were derived from. A build older than the release carrying it writes neither: where a
-[settings policy](configuration-sources.md#how-a-settings-policy-resolves-a-users-record) forces a switch or supplies
-one, a record such a build saves, or a user it moves between organizations, has the record's own switches on its row
-and a stamp that no longer matches it. Every replica of this release reads such rows a hundred per convergence
-interval, in identifier order, derives the switches again from the record as the policies resolve it, and stamps the
-row — so a force an older replica undid is back within an interval while no more than a hundred rows trail, and a
-larger backlog drains at that rate whatever the replica count. An older replica can undo it again with its next write
-for as long as it runs, so state a policy that closes an endpoint once the rollout has finished. The migration stamps
-every row as current rather than leaving it to be derived: it arrives in the release that introduces settings
-policies, so no policy is stored when it runs and what each row holds is what its record resolves to.
-
-**`KeyMailAccountByUserAndIdentifier` also asks one thing of you after the rollout: authorize every OAuth mailbox
-again.** A sealed refresh token is bound to the account it was stored for, and the account was then the user and the
-identifier together rather than the identifier alone — so a token sealed by an earlier release **does not open**. The
-account's next token request fails with a cryptographic error rather than with `invalid_grant`, and nothing falls back
-to the configured reference, which is why [mailbox OAuth](mailbox-oauth.md#troubleshooting) carries a row of its own
-for that symptom. The repair is the ordinary one and needs no database access: `mfctl mailbox authorize --account <id>`
-for each of them.
-
-**`KeyTheMailGraphByTheAccountIdentifier` asks for that same authorization once more, and for the same reason.** It
-takes the user out of every mail key, so a mail row, a derived row, a job payload, a lease scope, and a settings
-lookup all name the generated identifier and nothing else. The binding a refresh token is sealed under moves with
-them — from the user and the identifier together to the identifier alone — so a token sealed by the release before
-this one **does not open** either, and `mfctl mailbox authorize --account <id>` is the whole repair again.
-
-**No mail is discarded by it.** An account was served to one user before this release, so taking the user out of a key
-can collide with nothing: every row keeps its account, its folder, and its message, and nothing is rewritten or
-refetched. What the release permits rather than performs is discarding stored mail and resynchronizing, which stays an
-operator's choice on any release. The one table that loses its meaning is `stored_content_claims`, whose rows gain an
-account column with an empty default: a claim lives five minutes and is swept by the next one, so a claim outstanding
-across the upgrade reserves nothing and blocks nothing.
-
-**What it costs while it runs is locks rather than a rewrite, again.** Eighteen tables drop a `UserId` column,
-fourteen have a primary key rebuilt, and fifty-six indexes are rebuilt around the account. Dropping a column is a
-catalog change on a table of any size in PostgreSQL and an index build changes no row, so nothing here is proportional
-to the bytes a row holds — but the two corpus-proportional tables, `email_thread_identifiers` and `stored_emails`, are
-what to size the window from, and everything runs in one transaction so a deployment that cannot take a lock retries
-rather than resuming a half-applied migration.
-
-**What the migration costs while it runs is locks rather than a rewrite.** No column is added, dropped, or filled and
-no table is rewritten, so nothing is proportional to the bytes a row holds. It locks **ten** tables inside one
-transaction:
-
-- Seven have a primary key rebuilt — `mailbox_accounts`, `email_thread_identifiers`, `mailbox_refresh_tokens`,
-  `mail_rederivation_positions`, `mail_rederivation_runs`, `mail_rule_evaluation_runs`, and
-  `spam_classification_runs`. `ALTER TABLE … ADD PRIMARY KEY` builds the new index and changes no row. Only
-  `email_thread_identifiers` is proportional to the size of the mail corpus; the other six hold roughly one row per
-  account, or per account and folder.
-- Three have their foreign key onto `mailbox_accounts` dropped and re-added as the pair — `email_threads`, `jobs`, and
-  `mail_folders` — and `jobs` takes the new `ck_jobs_account_user` beside it. A foreign key and a check are both
-  validated by a full scan of the table they are added to, so each of those three is scanned once and `jobs` twice.
-  `email_threads` holds one row per conversation and grows with the mail corpus, `jobs` grows with the queue's
-  history, and `mail_folders` holds one row per bound folder.
-
-So size the window from two corpus-proportional tables, `email_thread_identifiers` and `email_threads`, rather than
-from one. Everything runs in one transaction, so a deployment that cannot take a lock retries the migration rather
-than resuming a half-applied one.
+- **An installation older than the previous release** upgrades one release at a time. One older than `v0.8.0` applies
+  `v0.8.0`'s own schema artifact first, following
+  [this page as that release shipped it](https://github.com/fathomise/MailFathom/blob/v0.8.0/docs/operations/database-schema.md),
+  and only then the next release's.
+- **A nightly from the middle of a cycle** cannot be upgraded across the release that folds that cycle. Move it to the
+  last nightly of the cycle first, whose database has recorded the identifier the release migration keeps, or reinstall
+  onto an empty database.
+- **A persistent local development database** caught in the middle of a cycle is the same case, and is reset with
+  `ef-database-reset`, as [local development](local-development.md#ef-core-design-time-commands) describes.
 
 ## When the host refuses to start
 
@@ -532,39 +321,9 @@ That leaves two answers, and which one applies is decided before the upgrade rat
 - **Fix forward.** The previous version's build starts against a schema ahead of it, as [ordering a
   deployment](#ordering-a-deployment) describes, so a defect in the new version can be answered by rolling the image
   back while leaving the schema where it is, and shipping the correction in the next release. This is the cheaper
-  answer whenever the migration itself was not the problem. **It is not an answer for the release that carries
-  `AddUserAccounts`**: a build older than that release cannot bind a folder for an account this deployment has never
-  synchronized against a schema whose mail accounts require a user, so rolling the image back leaves a deployment
-  that serves the mail it holds and takes on no new mailbox. Restoring from the backup is the way back there.
+  answer whenever the migration itself was not the problem.
 
-  **Nor for the release that carries `AddContactUser`**, for the same reason one table over: a build older than that
-  release reads and amends the contacts already stored and fails the moment it records a new person or adds an address,
-  because the row it writes states no user. Rolling the image back leaves a deployment whose contact book can be read
-  and not written — including by the collection pass, which writes a contact per correspondent it recognizes — so
-  restoring from the backup is the way back there too.
-
-  **Nor for the release that carries `SplitContactBooksByHolder`.** A build older than that release writes a contact row
-  stating only a user, which the check constraint on `contacts` now refuses, so its contact book can be read and not
-  written — and the collection pass, which writes a contact per correspondent it recognizes, fails with it. The rows
-  that migration deleted are gone whichever image is running, so restoring from the backup is the only way back to them
-  as well as to a writable book.
-
-  **`AddContentStorageBackendAndObjectLocator` narrows it conditionally**, and which way depends on what the deployment
-  did rather than on the migration. A build older than that release reads a payload column it expects to be filled, and
-  a row written to the object backend leaves that column empty — so rolling the image back is a complete answer for a
-  deployment that configured no object endpoint and never wrote such a row, and is no answer at all for one that did.
-  The schema alone does not say which: `SELECT count(*) FROM email_message_contents WHERE "Backend" <> 'Database'`, and
-  the same over `outgoing_email_contents`, `mail_draft_contents`, and `recurring_send_drafts`, is the question to ask
-  before choosing. The running deployment answers it too — the `object-backed-content` readiness check reports the same
-  fact, as [health endpoints](health-endpoints.md) describes.
-
-  **`RetainDatabaseCopyUntilReleased` costs a rollback nothing**, and is recorded here because it looks as though it
-  should. A build older than that release reads an object-backed row from its object exactly as the newer one does, so a
-  row still carrying the copy the move left beside it is served correctly; what such a build does not have is the
-  fallback, the release, and the column, so it empties that copy at the next repoint rather than retaining it. Nothing
-  is lost either way — the object is the authoritative copy under both builds.
-
-  **`AddContactPhoneNumbers` costs a rollback nothing either.** It adds `contact_phone_numbers`, a table of its own
+  **`AddContactPhoneNumbers` costs a rollback nothing.** It adds `contact_phone_numbers`, a table of its own
   hanging from `contacts`, and changes no column an older build writes. Such a build reads and amends a contact without
   knowing its numbers exist, so an amendment it writes leaves them in place, and erasing a contact still takes them
   through the foreign key's cascade. What it does not do is show or accept a number, and the ones recorded meanwhile are

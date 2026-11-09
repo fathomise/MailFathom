@@ -264,7 +264,7 @@ internal static class ClientPreferencesEndpoint
 /// <param name="OpenMailInTabs">Whether opening a message opens a tab, or nothing for the unset answer.</param>
 /// <param name="MarkReadOnOpen">Whether opening a message marks it read on their mail server, or nothing for the unset answer.</param>
 /// <param name="ExpandWholeThread">Whether a conversation opens with every message drawn, or nothing for the unset answer.</param>
-/// <param name="MessageView">The name of which of the three renderings an open message is drawn on, or nothing for the unset answer.</param>
+/// <param name="MessageView">The name of which of the two renderings an open message is drawn on, or nothing for the unset answer.</param>
 /// <param name="AiFiltersShown">Whether the folder tree carries the standing views of what a derivation read, or nothing for the unset answer.</param>
 /// <param name="NotificationSeconds">How long one of the client's own notifications stands, in whole seconds, or nothing for the unset answer.</param>
 /// <param name="TrustedLinkDomains">The domains whose links open without the client asking first, each a bare domain name, or nothing to leave the list they stored as it is.</param>
@@ -400,7 +400,7 @@ internal sealed record ClientPreferencesRequest(
 /// <param name="OpenMailInTabs">Whether opening a message opens a tab rather than replacing what is on the screen.</param>
 /// <param name="MarkReadOnOpen">Whether opening a message marks it read on the user's own mail server.</param>
 /// <param name="ExpandWholeThread">Whether a conversation opens with every message drawn rather than at the one it was opened at.</param>
-/// <param name="MessageView">The name of which of the three renderings an open message is drawn on.</param>
+/// <param name="MessageView">The name of which of the two renderings an open message is drawn on.</param>
 /// <param name="AiFiltersShown">Whether the folder tree carries the standing views of what a derivation read in the mail.</param>
 /// <param name="NotificationSeconds">How long one of the client's own notifications stands before it takes itself away.</param>
 /// <param name="TrustedLinkDomains">The domains whose links, and their subdomains' links, the client opens without asking first, as lowercase ASCII names.</param>

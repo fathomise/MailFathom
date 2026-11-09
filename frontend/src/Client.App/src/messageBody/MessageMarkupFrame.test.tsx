@@ -6,6 +6,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalizationProvider } from '../localization/Localization';
 import { LinkOpenerContext, type FollowedLink, type OpenLink } from '../shellOperations/linkOpener';
+import type { Theme } from '../theme/themeChoice';
+import { ThemeContext } from '../theme/useTheme';
 import { EmbeddedMessageMarkup, MessageMarkupFrame } from './MessageMarkupFrame';
 
 // The `sandbox` attribute is the one thing asserted here that is not what a person sees, and it is asserted anyway:
@@ -36,6 +38,31 @@ function frame(): HTMLIFrameElement {
 function reporting(reported: unknown, source: Window | null = frame().contentWindow): void {
     fireEvent(window, new MessageEvent('message', { data: reported, source }));
 }
+
+const sent = '<html><head></head><body>Sender.</body></html>';
+
+// Both surfaces are told the theme in what is written into the frame, since a framed document inherits nothing from the
+// page. What the script then does to a message's colours needs a browser, so it is the browser suite's.
+describe.each([
+    ['MessageMarkupFrame', <MessageMarkupFrame key="preview" markup={sent} />],
+    ['EmbeddedMessageMarkup', <EmbeddedMessageMarkup key="inline" markup={sent} />],
+])('%s under a theme', (_, surface) => {
+    it.each<Theme>(['light', 'dark'])('moves the markup onto the %s surface, ahead of the message', (theme) => {
+        render(
+            <LocalizationProvider>
+                <ThemeContext value={{ choice: theme, theme, setThemeChoice: () => undefined }}>
+                    <LinkOpenerContext value={() => Promise.resolve()}>{surface}</LinkOpenerContext>
+                </ThemeContext>
+            </LocalizationProvider>,
+        );
+
+        const framed = frame().getAttribute('srcdoc') ?? '';
+
+        expect(framed).toContain(`color-scheme:${theme}`);
+        expect(framed.indexOf('getComputedStyle')).toBeGreaterThan(-1);
+        expect(framed.indexOf('getComputedStyle')).toBeLessThan(framed.indexOf('Sender.'));
+    });
+});
 
 describe('MessageMarkupFrame', () => {
     function drawing(markup: string, openLink: OpenLink = () => Promise.resolve()): void {

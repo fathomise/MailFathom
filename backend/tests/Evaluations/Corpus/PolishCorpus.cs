@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Domain.Accounts;
+
 namespace MailFathom.Evaluations.Corpus;
 
 /// <summary>The committed Polish corpus, <c>office-pl.zip</c>, read beside the English one and never into it.</summary>
@@ -36,6 +38,9 @@ internal static class PolishCorpus
 
     /// <summary>Gets the mailbox a question in either language is asked over: the English mailbox, then the Polish corpus.</summary>
     public static IReadOnlyList<CorpusMessage> MixedMailbox => [.. HostileMail.Mailbox, .. All];
+
+    /// <summary>Gets the languages a deployment names for <see cref="MixedMailbox" />, which stands for an English account beside a Polish one.</summary>
+    public static IReadOnlyList<MailAccountLanguage> MixedMailboxLanguages { get; } = [MailAccountLanguage.English, MailAccountLanguage.Polish];
 
     /// <summary>Reads one message of the corpus.</summary>
     /// <param name="position">Where the message falls in the corpus's own delivery order, from zero.</param>

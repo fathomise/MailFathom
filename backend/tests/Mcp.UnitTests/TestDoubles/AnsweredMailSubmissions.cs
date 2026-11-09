@@ -165,7 +165,7 @@ internal static class AnsweredMailSubmissions
             SizeOctets = 4096,
             Attachments = StoredEmailAttachmentSummary.None,
             ContentAvailability = contentAvailability,
-            RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved,
+            Flags = StoredEmailFlags.NeverObserved,
             SenderVerification = SenderVerification.NotEstablished,
             MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
             SenderAuthenticationEvidence = SenderAuthenticationEvidence.None,
@@ -285,7 +285,6 @@ internal static class AnsweredMailSubmissions
             OutgoingMailGovernors.Permitting(),
             MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
-            OrganizationMailSigners.SigningNothing(),
             new FakeTimeProvider(RecordedAt),
             ClientSignalPublishers.ReachingNobody);
     }

@@ -309,6 +309,25 @@ public sealed class StoredEmailEnrichmentSelectionTests
         Assert.Empty(selected);
     }
 
+    /// <summary>A draft, or a send still waiting in or refused by the outbox, is a word nobody received, so nothing is derived from it.</summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Selecting_MailTheMailboxHasNotSent_LeavesItOut(bool flaggedDraft, bool inDraftsFolder)
+    {
+        // Arrange
+        var email = Email("work", "INBOX");
+        email.IsDraft = flaggedDraft;
+        email.Folder.Role = inDraftsFolder ? MailFolderSpecialUse.Drafts : null;
+        email.Chunks.Add(BodyPassage(email, 0));
+
+        // Act
+        var selected = Select(email);
+
+        // Assert
+        Assert.Empty(selected);
+    }
+
     /// <summary>A row the local mailbox no longer holds is not worth a provider call.</summary>
     [Fact]
     public void Selecting_TombstonedMail_LeavesItOut()

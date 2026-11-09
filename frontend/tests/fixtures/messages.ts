@@ -206,6 +206,13 @@ export function senderMarkup(remoteImages: boolean): string {
     return (
         `<html><body><h1>${newsletterHeading}</h1>` +
         `<p><a href="${senderLink}"><span>Read the offers</span></a></p>` +
+        '<p style="background:#ffffff;color:#333333">Written for a white page</p>' +
+        '<p style="background:#ffeb3b;color:#b36b00">A yellow notice</p>' +
+        '<p style="background:#0b3d91;color:#ffffff">A dark band</p>' +
+        '<p style="background:rgba(0,0,0,.7);color:#ffffff">A translucent band</p>' +
+        '<p style="background-image:linear-gradient(#ffffff,#eeeeee);color:#333333">Over a gradient</p>' +
+        '<p style="border:1px solid #dddddd">Between light rules</p>' +
+        '<div style="background:#1a1a1a"><p style="background:#ffffff;color:#333333">A card on a dark wrapper</p></div>' +
         `<img src="${picture}" alt="A mark">` +
         '</body></html>'
     );

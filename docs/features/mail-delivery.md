@@ -338,7 +338,8 @@ authored contract carries no sender at all, which is a stronger guarantee than v
 comes from the account's `Delivery` block instead. The `Message-ID` is minted here from a cryptographically secure
 random half and the account's own domain, so nothing outside this deployment can predict the identity of a message it
 has not seen and forge a reply into its thread. The `Date` comes from the injected clock, as every timestamp in this
-system does. Every message names the product that wrote it as `User-Agent: Fathomise MailFathom`, and nothing beyond
+system does, and is written again by each attempt that transmits the message, as
+[a message is dated when it leaves](#a-message-is-dated-when-it-leaves) states. Every message names the product that wrote it as `User-Agent: Fathomise MailFathom`, and nothing beyond
 the name: a version, a runtime, or a platform would tell every recipient which build a deployment runs, which is a
 fingerprint nobody reading the header needs. No `X-Mailer` is written beside it. An [automatic reply](automatic-reply.md) also carries
 `Auto-Submitted: auto-replied`, which is what RFC 3834 asks of a responder so that one on the other side does not
@@ -655,11 +656,41 @@ scanning § outgoing mail is screened rather than
 redacted](sensitive-content-scanning.md#outgoing-mail-is-screened-rather-than-redacted) holds the whole of it. With no
 scanner switched on nothing here runs, and an enqueue costs exactly what it did before.
 
-**A message that clears the screen is signed before it is stored** when the sending account belongs to an organization:
-the outbox adds the organization's signature above the composed bytes, and the signed bytes are the ones stored, sent on
-every attempt, and filed into the sent folder. A refused message is never signed, and nothing about signing can refuse
-one. [Organization signing keys § what is signed, and when](../operations/organization-signing-keys.md#what-is-signed-and-when)
+**A message that clears the screen is stored as composed, and is signed each time it leaves** when the sending account
+belongs to an organization: every attempt dates the stored bytes with its own instant and signs that form, and the sent
+copy is that same form. A refused message is never signed, and nothing about signing can refuse one.
+[Organization signing keys § what is signed, and when](../operations/organization-signing-keys.md#what-is-signed-and-when)
 holds the whole of it.
+
+### A message is dated when it leaves
+
+**The `Date` a recipient reads is the instant of the attempt that transmitted the message**, for a message sent at once
+and for one held until a later time alike. A send scheduled for nine o'clock and composed the evening before arrives
+dated nine o'clock, and one a server put off with a temporary refusal arrives dated by the attempt that delivered it,
+not by the first one. A send a server accepted for some recipients and put off for others is offered again to the rest
+alone, so each recipient's copy is dated by the attempt that reached them, and the two can differ. The instant is the attempt's own clock reading in UTC, to the whole second a `Date` header can
+carry.
+
+**The stored message is never rewritten.** The outbox stores the composed bytes once, and every attempt derives the form
+it transmits from them: the stored bytes with their `Date` replaced, then signed where the account's organization signs.
+So the stored byte length and the content digest stay those of the stored bytes, and what an attempt checks against
+[`MailDelivery:MaxMessageBytes`](../operations/configuration-mail.md#maildelivery) is the form it is about to transmit.
+Each attempt records its instant on the outgoing record, as `TransmittedAt`, in the commit that marks the transmission
+begun, before the message is offered.
+
+**The sent copy carries the same instant.** It is the transmitted form derived again from the stored bytes and the
+recorded instant, so while the organization's signing key stands it is byte for byte the message the recipients
+received, whether a held account files it locally or a mirrored or restoring account appends it to the source, and the
+stored message it becomes reads that instant as its `SentAt`. A key rotated or revoked between the send and the filing
+gives a copy whose [organization signature](../operations/organization-signing-keys.md) differs or is absent; its date
+and body do not. The record keeps the latest attempt's instant, so the copy of a partly accepted send is the message its
+last attempt transmitted, and a recipient an earlier attempt reached holds one dated and signed earlier. A send an earlier build transmitted recorded no instant, and its copy is the stored bytes, which is then
+what it sent.
+
+**An attempt whose answer never came back is not repeated, and the instant it recorded stands.** The outbox does not
+offer a message a server may already hold a second time, so no later attempt can write a second instant over the one
+the recipients may have received. An attempt the server refused before accepting anything leaves its instant on the
+record until the next attempt writes its own, and the copy is dated by whichever attempt delivered the message.
 
 ## Asking for a message to be sent
 
@@ -1060,7 +1091,8 @@ A message's own state is what decides that, and an outgoing message has one stat
 
 The flags travel with the role rather than being chosen by a caller, so a sent copy cannot arrive as unread mail
 somebody has to open. The copy's internal date is the instant the injected clock reports,
-which is the same clock everything else in this system is stamped from.
+which is the same clock everything else in this system is stamped from; its `Date` header is the instant the
+transmission recorded, as [a message is dated when it leaves](#a-message-is-dated-when-it-leaves) states.
 
 **The outgoing record stays the truth about what will be sent.** A copy in a folder is a view of it: deleting the copy
 in a mail client cancels nothing, cancelling is [a command of its own](#holding-a-send-until-the-time-it-names),

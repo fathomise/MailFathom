@@ -2,8 +2,22 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.AI.AgentConversations;
+using MailFathom.AI.Discovery;
 using MailFathom.AI.Orchestration;
+using MailFathom.AI.ReplyDrafts;
+using MailFathom.AI.Retrieval;
+using MailFathom.AI.ThreadStates;
 using MailFathom.AI.UnitTests.TestDoubles;
+using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.ThreadStates;
+using MailFathom.Application.Retrieval.AskMail;
+using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
+using MailFathom.TestSupport;
+using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -42,6 +56,29 @@ public sealed class AgentCompositionTests
         Assert.Equal(
             $"{Instruction}\n\n{AgentTurnDocument.DataClause}",
             Assert.Single(chatClient.Calls).Options?.Instructions);
+    }
+
+    /// <summary>
+    /// Three agents wrote out the account an unverified sender asked money to go to, beside a warning. The rule is stated
+    /// once, in the shared clause, so every agent reading mail is composed carrying it.
+    /// </summary>
+    /// <param name="agentName">The agent composed, as <see cref="MailReadingAgents" /> names it.</param>
+    [Theory]
+    [MemberData(nameof(MailReadingAgentNames))]
+    public async Task Compose_EveryAgentReadingMail_CarriesTheUnverifiedPaymentRule(string agentName)
+    {
+        // Arrange
+        using var chatClient = ScriptedChatClient.Answering("answered");
+        var agent = MailReadingAgents[agentName](chatClient);
+
+        // Act
+        await agent.RunAsync("a question", session: null, options: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(
+            AgentTurnDocumentTests.UnverifiedPaymentRule,
+            Assert.Single(chatClient.Calls).Options?.Instructions?.ReplaceLineEndings(" "),
+            StringComparison.Ordinal);
     }
 
     /// <summary>The whole of what this build ships: a composition over the registered default is the operation's own instruction as composed.</summary>
@@ -172,6 +209,40 @@ public sealed class AgentCompositionTests
             (Assert.Single(chatClient.Calls).Options?.Tools ?? []).Select(offered => offered.Name));
     }
 
+    /// <summary>
+    /// Every tool is held to its schema by the composition rather than by itself, so a key the model invented is refused
+    /// before the tool runs, whichever operation offered it.
+    /// </summary>
+    [Fact]
+    public async Task Compose_AToolCalledWithAnArgumentOutsideItsSchema_RefusesTheCallWithoutRunningTheTool()
+    {
+        // Arrange
+        using var chatClient = ScriptedChatClient.Answering("answered");
+        var ran = false;
+        var tool = AIFunctionFactory.Create((string word) => ran = word.Length > 0, "count_words");
+        var agent = AgentComposition.Compose(
+            chatClient,
+            ChatDeclarations.Plan(),
+            new AgentOperation("an-operation", Instruction, [tool]),
+            new EmptyAgentInstructionEnvelope(),
+            NullLoggerFactory.Instance);
+        await agent.RunAsync("a question", session: null, options: null, TestContext.Current.CancellationToken);
+        var offered = Assert.IsType<AIFunction>(
+            Assert.Single(Assert.Single(chatClient.Calls).Options?.Tools ?? []),
+            exactMatch: false);
+
+        // Act
+        var answer = await offered.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?> { ["word"] = "invoice", ["receivedOnOrBefore"] = "2026-09-14T12:00" }),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            "count_words takes no argument named \"receivedOnOrBefore\". Its arguments are word. Call it again without that one.",
+            answer);
+        Assert.False(ran);
+    }
+
     /// <summary>An envelope with something to say in both positions.</summary>
     private sealed class StubAgentInstructionEnvelope(string preamble, string postamble) : IAgentInstructionEnvelope
     {
@@ -189,4 +260,55 @@ public sealed class AgentCompositionTests
 
         public string Postamble => string.Empty;
     }
+
+    /// <summary>Gets the names of the agents <see cref="MailReadingAgents" /> composes, as theory data.</summary>
+    public static TheoryData<string> MailReadingAgentNames => [.. MailReadingAgents.Keys];
+
+    /// <summary>The agents that read mail and answer about it, each composed over a substituted client.</summary>
+    private static Dictionary<string, Func<ScriptedChatClient, ChatClientAgent>> MailReadingAgents => new()
+    {
+        ["mail answering"] = static chatClient => MailAnsweringAgentComposition.Compose(
+            chatClient,
+            ChatDeclarations.Plan(),
+            new ScopedMailKnowledgeRetrieval(
+                new RecordingEmailKnowledgeSearch(),
+                MailboxScope.Create([MailAccountId.Create("primary")], [MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3"))]),
+                new MailAnsweringRunLedger(MailAnsweringRunBounds.Default),
+                SensitiveContentEgressGuards.Inactive(),
+                DateTimeOffset.UnixEpoch),
+            new EmptyAgentInstructionEnvelope(),
+            NullLoggerFactory.Instance),
+        ["agent"] = static chatClient => AgentConversationComposition.Compose(
+            chatClient,
+            ChatDeclarations.Plan(),
+            UserLanguage.English,
+            [],
+            new EmptyAgentInstructionEnvelope(),
+            NullLoggerFactory.Instance),
+        ["discovery composition"] = static chatClient => DiscoveryCompositionAgentComposition.Compose(
+            chatClient,
+            ChatDeclarations.Plan(),
+            [],
+            new EmptyAgentInstructionEnvelope(),
+            NullLoggerFactory.Instance),
+        ["reply draft"] = static chatClient => ReplyDraftAgentComposition.Compose(
+            chatClient,
+            ChatDeclarations.Plan(),
+            UserLanguage.English,
+            new ReplyDraftTurn("a turn", [], [], []),
+            new EmptyAgentInstructionEnvelope(),
+            NullLoggerFactory.Instance),
+        ["thread state"] = static chatClient => ThreadStateAgentComposition.Compose(
+            chatClient,
+            ChatDeclarations.Plan(),
+            MailAccountLanguage.English,
+            new DerivableThread(
+                EmailThreadId.Create(Guid.CreateVersion7()),
+                Subject: null,
+                new ThreadStateRevision(1, DateTimeOffset.UnixEpoch),
+                [],
+                ExceedsBound: false),
+            new EmptyAgentInstructionEnvelope(),
+            NullLoggerFactory.Instance),
+    };
 }

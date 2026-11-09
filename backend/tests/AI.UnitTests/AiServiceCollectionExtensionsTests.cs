@@ -4,7 +4,6 @@
 
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using MailFathom.AI.BodyCleanup;
 using MailFathom.AI.CalendarEvents;
 using MailFathom.AI.Chat;
 using MailFathom.AI.DayLayout;
@@ -19,12 +18,12 @@ using MailFathom.AI.Providers;
 using MailFathom.AI.SpamClassification;
 using MailFathom.AI.ThreadStates;
 using MailFathom.AI.UnitTests.TestDoubles;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Calendar.Extraction;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Discovery.Planning;
 using MailFathom.Application.Discovery.Runs;
-using MailFathom.Application.EmailContent.Cleaning;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Enrichment;
@@ -662,65 +661,6 @@ public sealed class AiServiceCollectionExtensionsTests
             () => AiServiceCollectionExtensions.AddThreadStateAgent(null!, isActivated: false));
     }
 
-    /// <summary>
-    /// The reading pane needs a reason it can draw, so a deployment that turned the third rendering off resolves the
-    /// cleaner that proposes nothing rather than meeting a service nobody registered.
-    /// </summary>
-    [Fact]
-    public void AddMailBodyCleanupAgent_NotActivated_ResolvesTheCleanerThatSendsNothing()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-
-        // Act
-        services.AddMailBodyCleanupAgent(isActivated: false);
-
-        // Assert
-        using var provider = services.BuildServiceProvider();
-
-        Assert.IsType<InactiveMailBodyCleaner>(provider.GetRequiredService<IMailBodyCleaner>());
-    }
-
-    /// <summary>Scoped where it is active, because each proposal opens its own credential, transport, and client.</summary>
-    [Fact]
-    public void AddMailBodyCleanupAgent_Activated_ResolvesTheAgentOncePerScope()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddLogging();
-        ChatDeclarations.AddPlans(services);
-        services.AddScoped(_ => MailAnsweringRunBounds.Default);
-        services.AddScoped(_ => Substitute.For<IMailAnsweringSpendLedger>());
-        services.AddScoped(_ => Substitute.For<IProviderEndpointCredentialSource>());
-        services.AddScoped(_ => Substitute.For<IHttpClientFactory>());
-        services.AddScoped(_ => Substitute.For<IOutboundOperationRunner>());
-        services.AddScoped(_ => Substitute.For<IAiProviderHealthRecorder>());
-        services.AddScoped(_ => SensitiveContentEgressGuards.Inactive());
-
-        // Act
-        services.AddMailBodyCleanupAgent(isActivated: true);
-
-        // Assert
-        using var provider = services.BuildServiceProvider();
-        using var scope = provider.CreateScope();
-        var cleaner = scope.ServiceProvider.GetRequiredService<IMailBodyCleaner>();
-
-        Assert.IsType<MailBodyCleanupAgent>(cleaner);
-        Assert.Same(cleaner, scope.ServiceProvider.GetRequiredService<IMailBodyCleaner>());
-
-        using var second = provider.CreateScope();
-
-        Assert.NotSame(cleaner, second.ServiceProvider.GetRequiredService<IMailBodyCleaner>());
-    }
-
-    [Fact]
-    public void AddMailBodyCleanupAgent_WithoutAServiceCollection_IsRefused()
-    {
-        // Act, Assert
-        Assert.Throws<ArgumentNullException>(
-            () => AiServiceCollectionExtensions.AddMailBodyCleanupAgent(null!, isActivated: false));
-    }
-
     /// <summary>A ceiling that admits no image would refuse every one of them while reading as a bound somebody chose.</summary>
     [Fact]
     public void AddImageAttachmentDescription_WithAGridCeilingThatIsNotPositive_IsRefused()
@@ -824,6 +764,7 @@ public sealed class AiServiceCollectionExtensionsTests
         services.AddSingleton(Substitute.For<IAiProviderHealthRecorder>());
         services.AddSingleton(SensitiveContentEgressGuards.Inactive());
         services.AddSingleton(Substitute.For<IMailAnsweringSpendLedger>());
+        services.AddSingleton<IMailAccountLanguages>(new SyntheticAccountLanguages());
         services.AddScoped<IEmailKnowledgeSearch, RecordingEmailKnowledgeSearch>();
 
         // Beside the adapter, as the composition root registers them: a run sends over the transport that call names.

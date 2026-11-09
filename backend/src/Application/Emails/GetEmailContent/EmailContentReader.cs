@@ -20,6 +20,7 @@ using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 
 namespace MailFathom.Application.Emails.GetEmailContent;
 
@@ -291,7 +292,7 @@ public sealed class EmailContentReader
                 IncludeMailDocument = request.IncludeMailDocument,
                 IncludeSelfContainedHtml = request.IncludeSelfContainedHtml,
                 RetainRemoteImageReferences = request.RetainRemoteImageReferences,
-                NamesAppendedFooter = summary.IsFiledSentCopy,
+                AuthorIsProven = IsAuthorProven(summary),
                 RemainingInlineImageOctetsForRead = Math.Max(remainingImageOctets, 0),
             },
             cancellationToken);
@@ -531,7 +532,7 @@ public sealed class EmailContentReader
                     rendering.BodyForms),
             AttachmentSummary = SummaryOf(rendering.AttachmentSummary),
             Attachments = attachments,
-            RemoteFlags = summary.RemoteFlags,
+            Flags = summary.Flags,
             SenderVerification = summary.SenderVerification,
             SenderAuthenticationEvidence = summary.SenderAuthenticationEvidence,
             MachineAuthorship = summary.MachineAuthorship,
@@ -541,6 +542,15 @@ public sealed class EmailContentReader
             Receipts = summary.Receipts,
         };
     }
+
+    /// <summary>Says whether anything but the message's own claims establishes who wrote it.</summary>
+    /// <remarks>
+    /// The organization's signature proves the bytes, and the filed copy is MailFathom's own record of what it sent. A
+    /// directory, an account's domain, and a contact only recognize an address and prove nothing about these bytes.
+    /// </remarks>
+    private static bool IsAuthorProven(EmailSummary summary) =>
+        summary.IsFiledSentCopy
+        || summary.SenderVerification.DeploymentTrustGrantedBy == SenderTrustSource.OrganizationMember;
 
     private static StoredEmailAttachmentSummary SummaryOf(EmailAttachmentSummary attachments) => new(
         attachments.AttachmentCount,
@@ -588,7 +598,7 @@ public sealed class EmailContentReader
             Body = body,
             AttachmentSummary = null,
             Attachments = [],
-            RemoteFlags = summary.RemoteFlags,
+            Flags = summary.Flags,
             SenderVerification = summary.SenderVerification,
             SenderAuthenticationEvidence = summary.SenderAuthenticationEvidence,
             MachineAuthorship = summary.MachineAuthorship,

@@ -44,8 +44,8 @@ divergence neither copy would look wrong for on its own.
 | `SubjectFragment` | Text the subject must contain, compared without regard to case | any subject |
 | `ReceivedOnOrAfter` | Inclusive start of the received range | no start |
 | `ReceivedBefore` | Exclusive end of the received range | no end |
-| `IsRemotelySeen` | The remote `\Seen` state to require | either state |
-| `IsRemotelyFlagged` | The remote `\Flagged` state to require | either state |
+| `IsMarkedSeen` | The `\Seen` mark to require | either state |
+| `IsFlagged` | The `\Flagged` state to require | either state |
 | `Keyword` | One keyword the email must carry, compared without regard to case | any keyword |
 | `HasAttachments` | Whether attachments are required | either |
 | `Mark` | The reading an enrichment must have left, and the range a commitment falls due in | any reading, and mail with none |
@@ -233,6 +233,26 @@ contact's correspondence. Nothing is written beside the message, so a message ma
 marked not spam returns to it with nothing reindexed. A read that reaches one email by its identifier asks the resolver
 the same question about that email's summary, and a withheld message is answered exactly as one that does not exist.
 
+### Mail nobody received, read by the person's own Agent alone
+
+A draft, a send waiting in the outbox, and a send the outbox refused are the mailbox's own words that reached nobody,
+and no agent reads them but the person's own Agent. A message is such mail when it carries `\Draft` or sits in the
+folder its account maps as drafts, which is where a draft promoted to a send is filed until it leaves. An agent's scope
+leaves it out by the same predicate that leaves out spam, so `ask_mail`, Discover, the timeline and search tools,
+reply drafting, a contact's correspondence, and a conversation's state never reach it, and a read that names one by
+its identifier answers as if it did not exist. Nothing is derived from it either: no passage is cut from it and no
+vector embedded, no reading or mark is derived, no date is read out of it, so no proposed event of the calendar the day
+layout arranges comes from it, no spam stage judges it, and no conversation's state counts it. What earlier releases derived from such mail was removed when the database was brought to this release.
+
+The Agent reads it under a reader of its own, `ConversationAgent`, which sees the folders an agent sees and admits
+this mail where an agent's scope does not, so it can answer what the person wrote and has not sent. Its `search_mail`
+reaches such mail lexically — it carries no vector — and `read_thread` reads it in a conversation, each message marked
+with the state it is in, as [where a message came from](mail-answering.md#where-a-message-came-from) describes. The
+Agent's thread state and reply proposal still read as an agent does.
+
+The person's own search over drafts is unchanged: the person's read is not an agent's, and a draft's search document
+is still written, so the client finds it by its words as before.
+
 The person's read through the client is not an agent's. It reaches spam like any other mail, and the junk folder is a
 default it may lift: the client's browse and search requests carry their own junk override, which takes part in the
 cursor's fingerprint because including junk adds rows in the middle of an ordering.
@@ -268,7 +288,7 @@ values, beside the total attachment size and the encrypted, unverified-signature
 email by, its account and folder — the folder's identity and its place in the account's hierarchy — the message identifier, the identifier of the
 [conversation](../architecture/stored-email-schema.md#the-conversation-a-message-belongs-to) it belongs to, subject,
 sent and received timestamps, size, the sender's display name and address, the sender verdict, the machine-authorship
-reading, the `To` addresses, the attachment summary, whether raw MIME is stored locally, the remote flag snapshot, and
+reading, the `To` addresses, the attachment summary, whether raw MIME is stored locally, the stored flags, and
 the spam verdict where one is recorded.
 
 The conversation identifier is absent for a message nothing has assembled one for, which is what a mailbox stored before
@@ -412,12 +432,12 @@ receipt. `Receipts` is present on the account's own sent copy where the send ask
 for every summary of a page in one batch from the outcomes recorded against the send, so a list of sent mail costs
 three queries more, not three per row.
 
-### The remote flag snapshot
+### The stored flags
 
-`RemoteEmailFlagSnapshot` reports the flags a server last showed, together with when they were read. The timestamp is
+`StoredEmailFlags` reports the flags MailFathom holds, together with when a server last reported them. The timestamp is
 what separates "the server reported none of these flags" from "nobody has looked yet", which no combination of the
-booleans can express on its own. Reconciliation refreshes the snapshot one bounded window per run, so a row it has not
-reached yet still carries the never-observed value and matches the unseen side of `IsRemotelySeen` — and `WasObserved` is
+booleans can express on its own. Reconciliation refreshes the flags one bounded window per run, so a row it has not
+reached yet still carries the never-observed value and matches the unseen side of `IsMarkedSeen` — and `WasObserved` is
 how a caller tells the two apart.
 
 Beside the five system flags the snapshot carries `RemoteEmailKeywords`, the flags the protocol leaves to whoever set

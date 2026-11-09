@@ -27,21 +27,51 @@ internal static class EvaluationMetrics
                 reason),
         };
 
+    /// <summary>Holds one of the judge's ratings to the lowest score a scenario records for it, where it records one.</summary>
+    /// <param name="verdict">The verdict the rating is in.</param>
+    /// <param name="metricName">The name the judge's evaluator reports the rating under.</param>
+    /// <param name="minimum">The lowest rating, from one to five, a model may score, or <see langword="null" /> where the scenario does not ask the judge for it.</param>
+    public static void HoldToThreshold(EvaluationResult verdict, string metricName, int? minimum)
+    {
+        if (minimum is { } held)
+        {
+            HoldToThreshold(verdict, metricName, held);
+        }
+    }
+
     /// <summary>Holds one of the judge's ratings to the lowest score a scenario records for it.</summary>
     /// <param name="verdict">The verdict the rating is in.</param>
     /// <param name="metricName">The name the judge's evaluator reports the rating under.</param>
     /// <param name="minimum">The lowest rating, from one to five, a model may score.</param>
-    /// <remarks>A rating the judge did not give fails, because a verdict nobody reached proves nothing about the answer.</remarks>
+    /// <remarks>
+    /// A rating the judge did not give fails, because a verdict nobody reached proves nothing about the answer. That holds
+    /// whatever shape the missing rating takes — a number with no value, a metric of another type, which is how the
+    /// evaluation library records an evaluator that threw, or no metric at all — and the reason names the first error the
+    /// metric carries, so a judge or provider that did not answer reads as that rather than as the model's shortfall.
+    /// </remarks>
     public static void HoldToThreshold(EvaluationResult verdict, string metricName, int minimum)
     {
-        var rating = verdict.Get<NumericMetric>(metricName);
+        ArgumentNullException.ThrowIfNull(verdict);
 
-        rating.Interpretation = rating.Value is { } value
-            ? new EvaluationMetricInterpretation(
+        verdict.Metrics.TryGetValue(metricName, out var metric);
+
+        if (metric is NumericMetric { Value: { } value } rating)
+        {
+            rating.Interpretation = new EvaluationMetricInterpretation(
                 value >= minimum ? EvaluationRating.Good : EvaluationRating.Unacceptable,
                 failed: value < minimum,
-                $"Rated {value} against the scenario's threshold of {minimum}.")
-            : new EvaluationMetricInterpretation(EvaluationRating.Inconclusive, failed: true, "The judge did not rate it.");
+                $"Rated {value} against the scenario's threshold of {minimum}.");
+
+            return;
+        }
+
+        var unrated = metric ?? (verdict.Metrics[metricName] = new NumericMetric(metricName));
+        var firstError = unrated.Diagnostics?.FirstOrDefault(static diagnostic => diagnostic.Severity is EvaluationDiagnosticSeverity.Error);
+
+        unrated.Interpretation = new EvaluationMetricInterpretation(
+            EvaluationRating.Inconclusive,
+            failed: true,
+            firstError is null ? "The judge did not rate it." : $"The judge did not rate it. {firstError.Message}");
     }
 
     /// <summary>Names every check and rating the verdict falls short on.</summary>

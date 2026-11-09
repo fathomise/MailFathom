@@ -41,7 +41,7 @@ internal static class ClassifyMailCommand
         var endpointOption = CliOptions.Endpoint();
         var accountOption = CliOptions.MailAccount();
 
-        Option<string[]?> foldersOption = new("--folder")
+        Option<string[]> foldersOption = new("--folder")
         {
             Description = "Classify only this folder, named by its alias. Repeatable. Defaults to the folders the deployment classifies.",
             AllowMultipleArgumentsPerToken = true,
@@ -70,7 +70,8 @@ internal static class ClassifyMailCommand
             context,
             new SpamClassificationRunRequest(
                 result.GetValue(accountOption) ?? string.Empty,
-                result.GetValue(foldersOption),
+                // An option left out reads as an empty array, and the deployment refuses an empty list as naming nothing.
+                result.GetValue(foldersOption) is { Length: > 0 } folders ? folders : null,
                 result.GetValue(applyOption),
                 result.GetValue(rescoreOption)),
             CliOptions.RequestedDeployment(result.GetValue(endpointOption), context.Variable(CliOptions.EndpointVariable)),

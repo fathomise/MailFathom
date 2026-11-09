@@ -330,8 +330,8 @@ public sealed class MailSearchBrowser
         request.RecipientAddress,
         request.ReceivedOnOrAfter,
         request.ReceivedBefore,
-        request.IsRemotelySeen,
-        request.IsRemotelyFlagged,
+        request.IsMarkedSeen,
+        request.IsFlagged,
         request.HasAttachments);
 
     /// <summary>Scans everything a result carries that a message's author, a sender, or a model composed.</summary>

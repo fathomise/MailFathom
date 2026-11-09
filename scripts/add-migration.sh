@@ -5,14 +5,14 @@
 
 set -euo pipefail
 
-# Appends one EF Core migration for the current model. It preserves every migration already in the repository: the
-# baseline is immutable, and a migration records how a schema got from one shape to the next rather than describing the
-# shape it currently has.
+# Appends one EF Core migration for the current model. It preserves every migration already in the repository: a
+# migration records how a schema got from one shape to the next rather than describing the shape it currently has.
 #
-# Nothing in this repository deletes a migration. The workflow that regenerated a single `Initial` baseline is gone,
-# because a migration identity that can be regenerated is one a database may have recorded and no later migration can
-# reach. Clearing local data is a different operation and keeps its own command, which drops the database and replays
-# the migrations rather than touching the files:
+# Nothing here deletes a migration, and no change but a release's touches one. A release folds the migrations its cycle
+# added into one, under the identifier of the last of them, through scripts/squash-migrations.sh — ADR 0050 records why
+# that keeps every identifier a database may have recorded, where regenerating a baseline would not. Clearing local data
+# is a different operation and keeps its own command, which drops the database and replays the migrations rather than
+# touching the files:
 #
 #     aspire resource mailfathom-migrations ef-database-reset --apphost backend/src/AppHost/AppHost.csproj --non-interactive
 #
@@ -61,15 +61,12 @@ if [[ ! "$migration_name" =~ ^[A-Z][A-Za-z0-9]*$ ]]; then
   fail "'${migration_name}' is not a usable migration name. Use PascalCase letters and digits, for example AddEmailRetentionPolicy."
 fi
 
-# `Initial` is the baseline. EF would refuse the duplicate anyway, but refusing it here says why rather than reporting
-# a name collision, because the reason someone reaches for it is usually the retired regeneration habit.
-if [[ "$migration_name" == 'Initial' ]]; then
-  fail "'Initial' is the baseline migration and is immutable. A model change adds a new migration beside it with a name
-describing the change."
-fi
-
-if compgen -G "${migrations_directory}/*_${migration_name}.cs" >/dev/null; then
-  fail "A migration named '${migration_name}' already exists. Choose a name describing this change."
+# A name a release folded is still the name of a nested class in its release migration and of a row in every database
+# that applied it before the fold, so it is refused like the name of a migration standing on its own. `Initial` is the
+# one reached for most, out of the retired habit of regenerating a baseline.
+if compgen -G "${migrations_directory}/*_${migration_name}.cs" >/dev/null ||
+  grep --quiet --extended-regexp "^ *(public partial|private static) class ${migration_name}\$" "$migrations_directory"/*.cs; then
+  fail "A migration named '${migration_name}' already exists or was folded into a release. Choose a name describing this change."
 fi
 
 # The migration this one will follow, read before the new file exists, because it names the range the review has to
@@ -80,8 +77,12 @@ mapfile -t existing_migrations < <(
   find "$migrations_directory" -maxdepth 1 -name '*_*.cs' ! -name '*.Designer.cs' -printf '%f\n' | sort
 )
 
+# Read from the newest migration's Designer file rather than from its file name, because a release migration is named
+# after its release and carries the identifier of the last migration it folds.
 if [[ "${#existing_migrations[@]}" -gt 0 ]]; then
-  migration_this_one_follows="${existing_migrations[-1]%.cs}"
+  migration_this_one_follows="$(
+    sed -n 's/^ *\[Migration("\([^"]*\)")\].*/\1/p' "${migrations_directory}/${existing_migrations[-1]%.cs}.Designer.cs"
+  )"
 fi
 
 # A migration is generated for exactly one text search configuration, because the value is compiled into the search

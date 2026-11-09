@@ -30,6 +30,6 @@ namespace MailFathom.Domain.Mutations;
 public sealed record MailboxMutationOverlay(
     bool? ObservedSeenState,
     bool? ObservedFlaggedState,
-    RemoteEmailKeywords? ObservedKeywords,
+    EmailKeywords? ObservedKeywords,
     MailFolderId? ObservedFolder,
     StoredEmailId? LocalCopy);

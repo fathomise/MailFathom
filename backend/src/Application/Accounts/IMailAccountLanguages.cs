@@ -26,6 +26,11 @@ namespace MailFathom.Application.Accounts;
 /// held from before the language was asked for reads as, so one value covers both: a pass deriving text about a
 /// mailbox always has a language, and never one it had to decide for itself.
 /// </para>
+/// <para>
+/// Mail answering and the Agent read it too, the other way round: an operator sets an account's language to the one
+/// its mail is in, so a run is told the languages of the accounts it may search and looks each of them up before
+/// concluding mail is absent, since a lookup matches words rather than translating them.
+/// </para>
 /// </remarks>
 public interface IMailAccountLanguages
 {

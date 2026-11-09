@@ -546,25 +546,25 @@ public sealed class MailboxTimelineReaderTests
         var neverObserved = SyntheticEmailSummaries.Create(FirstJuly);
         var observedUnseen = SyntheticEmailSummaries.Create(
             FirstJuly.AddDays(1),
-            isRemotelySeen: false,
-            remoteFlagsObservedAt: FirstJuly.AddDays(3));
+            isMarkedSeen: false,
+            flagsObservedAt: FirstJuly.AddDays(3));
         var observedSeen = SyntheticEmailSummaries.Create(
             FirstJuly.AddDays(2),
-            isRemotelySeen: true,
-            remoteFlagsObservedAt: FirstJuly.AddDays(3));
+            isMarkedSeen: true,
+            flagsObservedAt: FirstJuly.AddDays(3));
         var reader = ReaderOver(
             new InMemoryStoredEmailTimeline().WithAll([neverObserved, observedUnseen, observedSeen]));
 
         // Act
         var result = await reader.ListEmailsAsync(
-            new ListEmailsRequest { IsRemotelySeen = false },
+            new ListEmailsRequest { IsMarkedSeen = false },
             TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(
             [observedUnseen.StoredEmailId, neverObserved.StoredEmailId],
             result.Emails.Select(email => email.StoredEmailId));
-        Assert.False(result.Emails[^1].RemoteFlags.WasObserved);
+        Assert.False(result.Emails[^1].Flags.WasObserved);
     }
 
     /// <summary>Attachment presence follows the extraction classification, so an inline-only message is not mail with attachments.</summary>

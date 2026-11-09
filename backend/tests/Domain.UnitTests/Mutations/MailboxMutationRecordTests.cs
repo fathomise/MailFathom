@@ -678,8 +678,8 @@ public sealed class MailboxMutationRecordTests
         // Act
         var accountsForKeywords = record.AccountsForKeywordsOf(
             SourceOccurrence(),
-            RemoteEmailKeywords.Create(["$Invoice"]),
-            RemoteEmailKeywords.Create(["$todo", "$Invoice"]),
+            EmailKeywords.Create(["$Invoice"]),
+            EmailKeywords.Create(["$todo", "$Invoice"]),
             ObservedBeforeTheStore);
 
         // Assert
@@ -696,8 +696,8 @@ public sealed class MailboxMutationRecordTests
         // Act
         var accountsForKeywords = record.AccountsForKeywordsOf(
             SourceOccurrence(),
-            RemoteEmailKeywords.Create(["$Invoice"]),
-            RemoteEmailKeywords.Create(["$Invoice"]),
+            EmailKeywords.Create(["$Invoice"]),
+            EmailKeywords.Create(["$Invoice"]),
             ObservedBeforeTheStore);
 
         // Assert
@@ -714,8 +714,8 @@ public sealed class MailboxMutationRecordTests
         // Act
         var accountsForKeywords = record.AccountsForKeywordsOf(
             SourceOccurrence(),
-            RemoteEmailKeywords.None,
-            RemoteEmailKeywords.Create(["$Todo", "$Invoice"]),
+            EmailKeywords.None,
+            EmailKeywords.Create(["$Todo", "$Invoice"]),
             ObservedBeforeTheStore);
 
         // Assert
@@ -732,8 +732,8 @@ public sealed class MailboxMutationRecordTests
         // Act
         var accountsForKeywords = record.AccountsForKeywordsOf(
             SourceOccurrence(),
-            RemoteEmailKeywords.Create(["$TODO", "$Invoice"]),
-            RemoteEmailKeywords.Create(["$Invoice"]),
+            EmailKeywords.Create(["$TODO", "$Invoice"]),
+            EmailKeywords.Create(["$Invoice"]),
             ObservedBeforeTheStore);
 
         // Assert
@@ -750,8 +750,8 @@ public sealed class MailboxMutationRecordTests
         // Act
         var accountsForKeywords = record.AccountsForKeywordsOf(
             SourceOccurrence(),
-            RemoteEmailKeywords.Create(["$Todo", "$Invoice"]),
-            RemoteEmailKeywords.Create(["$TODO"]),
+            EmailKeywords.Create(["$Todo", "$Invoice"]),
+            EmailKeywords.Create(["$TODO"]),
             ObservedBeforeTheStore);
 
         // Assert
@@ -768,8 +768,8 @@ public sealed class MailboxMutationRecordTests
         // Act
         var accountsForKeywords = record.AccountsForKeywordsOf(
             SourceOccurrence(),
-            RemoteEmailKeywords.None,
-            RemoteEmailKeywords.Create(["$Invoice"]),
+            EmailKeywords.None,
+            EmailKeywords.Create(["$Invoice"]),
             ObservedBeforeTheStore);
 
         // Assert
@@ -786,8 +786,8 @@ public sealed class MailboxMutationRecordTests
         // Act
         var accountsForKeywords = record.AccountsForKeywordsOf(
             SourceOccurrence(),
-            RemoteEmailKeywords.Create(["$Invoice"]),
-            RemoteEmailKeywords.Create(["$todo"]),
+            EmailKeywords.Create(["$Invoice"]),
+            EmailKeywords.Create(["$todo"]),
             ObservedBeforeTheStore);
 
         // Assert
@@ -804,8 +804,8 @@ public sealed class MailboxMutationRecordTests
         // Act
         var accountsForKeywords = record.AccountsForKeywordsOf(
             SourceOccurrence(),
-            RemoteEmailKeywords.None,
-            RemoteEmailKeywords.Create(["$Todo", "$Invoice"]),
+            EmailKeywords.None,
+            EmailKeywords.Create(["$Todo", "$Invoice"]),
             ObservedBeforeTheStore);
 
         // Assert
@@ -831,8 +831,8 @@ public sealed class MailboxMutationRecordTests
         // Act
         var accountsForKeywords = record.AccountsForKeywordsOf(
             SourceOccurrence(),
-            RemoteEmailKeywords.Create(["$Todo"]),
-            RemoteEmailKeywords.None,
+            EmailKeywords.Create(["$Todo"]),
+            EmailKeywords.None,
             ObservedBeforeTheStore);
 
         // Assert
@@ -849,8 +849,8 @@ public sealed class MailboxMutationRecordTests
         // Act
         var accountsForKeywords = record.AccountsForKeywordsOf(
             SourceOccurrence(),
-            RemoteEmailKeywords.None,
-            RemoteEmailKeywords.Create(["$Todo"]),
+            EmailKeywords.None,
+            EmailKeywords.Create(["$Todo"]),
             ObservedBeforeTheStore);
 
         // Assert
@@ -870,8 +870,8 @@ public sealed class MailboxMutationRecordTests
         // Act
         var accountsForKeywords = record.AccountsForKeywordsOf(
             SourceOccurrence(),
-            RemoteEmailKeywords.None,
-            RemoteEmailKeywords.Create(["$Todo"]),
+            EmailKeywords.None,
+            EmailKeywords.Create(["$Todo"]),
             ObservedBeforeTheStore);
 
         // Assert

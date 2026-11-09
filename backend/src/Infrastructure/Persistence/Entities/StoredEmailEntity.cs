@@ -474,15 +474,16 @@ internal sealed class StoredEmailEntity
     public DateTimeOffset? ContentVerifiedAt { get; set; }
 
     /// <summary>
-    /// Gets or sets when the remote flags below were last read from the server, or <see langword="null" /> while they
-    /// have never been read. The timestamp is what separates "the server reports none of these flags" from "nobody has
-    /// looked yet", which no combination of the booleans can express on its own.
+    /// Gets or sets when the flags below were last reported by a server, or <see langword="null" /> while none has. On a
+    /// row stored with no occurrence on any server it is the moment the row was stored, with nothing observed. The
+    /// timestamp is what separates "the server reports none of these flags" from "nobody has looked yet", which no
+    /// combination of the booleans can express on its own.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The snapshot records server state and is never written towards the server: MailFathom reads mail read-only, so no
-    /// application path turns any of these into an IMAP <c>STORE</c>. Reconciliation refreshes them one bounded window
-    /// per run, and a row nobody has reached yet carries the never-observed value.
+    /// Reconciliation refreshes the flags one bounded window per run, and a row nobody has reached yet carries the
+    /// never-observed value. Stored in the column <c>RemoteFlagsObservedAt</c>, the name it was created with: renaming
+    /// a column would break the previous build, which a rolling upgrade runs against the same table.
     /// </para>
     /// <para>
     /// The column is also the reconciliation queue. Windows are selected by the oldest value first with the
@@ -490,7 +491,7 @@ internal sealed class StoredEmailEntity
     /// makes the pass advance without a cursor of its own.
     /// </para>
     /// </remarks>
-    public DateTimeOffset? RemoteFlagsObservedAt { get; set; }
+    public DateTimeOffset? FlagsObservedAt { get; set; }
 
     /// <summary>
     /// Gets or sets when reconciliation found this occurrence gone from its remote folder, or <see langword="null" />
@@ -613,27 +614,38 @@ internal sealed class StoredEmailEntity
     /// </remarks>
     public DateTimeOffset? ReadReceiptSentAt { get; set; }
 
-    public bool IsRemotelySeen { get; set; }
+    /// <summary>Gets or sets whether the <c>\Seen</c> mark is set on this message, whoever set it.</summary>
+    /// <remarks>
+    /// On a mirrored account this is what the server last reported, or the value a person's act wrote while its mutation
+    /// record is outstanding; on a held account it is MailFathom's own state. It says the mark is set and makes no claim
+    /// that a person saw the message. Stored in the column <c>IsRemotelySeen</c>, the name it was created with.
+    /// </remarks>
+    public bool IsMarkedSeen { get; set; }
 
     public bool IsRemotelyAnswered { get; set; }
 
-    public bool IsRemotelyFlagged { get; set; }
+    /// <summary>Gets or sets whether <c>\Flagged</c> is set on this message, held the way <see cref="IsMarkedSeen" /> is.</summary>
+    /// <remarks>Stored in the column <c>IsRemotelyFlagged</c>, the name it was created with.</remarks>
+    public bool IsFlagged { get; set; }
 
-    public bool IsRemotelyDraft { get; set; }
+    /// <summary>Gets or sets whether <c>\Draft</c> is set on this message, including one stored with no occurrence on any server.</summary>
+    /// <remarks>Stored in the column <c>IsRemotelyDraft</c>, the name it was created with.</remarks>
+    public bool IsDraft { get; set; }
 
     public bool IsRemotelyDeleted { get; set; }
 
     /// <summary>
-    /// Gets or sets the keywords the server reported beside the five flags above, in the normalized form
-    /// <see cref="RemoteEmailKeywords" /> produces, which is the form a keyword filter matches on.
+    /// Gets or sets the keywords held beside the five flags above, in the normalized form
+    /// <see cref="EmailKeywords" /> produces, which is the form a keyword filter matches on.
     /// </summary>
     /// <remarks>
     /// An empty array is what both an email carrying no keyword and an email nobody has observed hold, which is the same
     /// ambiguity the five booleans carry and is resolved by the same timestamp. The column sits on the email's own row
     /// rather than in a table of its own, so every tombstone, retention, erasure, and export path that already carries
-    /// the row carries the keywords with it and none of them gains a second thing to account for.
+    /// the row carries the keywords with it and none of them gains a second thing to account for. Stored in the column
+    /// <c>RemoteKeywords</c>, the name it was created with.
     /// </remarks>
-    public string[] RemoteKeywords { get; set; } = [];
+    public string[] Keywords { get; set; } = [];
 
     /// <summary>
     /// Gets or sets when a rule pass last evaluated this email, or <see langword="null" /> while none has.

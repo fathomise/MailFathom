@@ -92,12 +92,12 @@ internal static class StructuredAnswerScenario
         StructuredAnswerRequest request,
         CancellationToken cancellationToken)
     {
-        var judge = JudgeDeclaration.Read();
+        var panel = JudgePanel.Read();
         var apiKey = EvaluationEndpoint.ApiKey();
         var repetitions = EvaluationRepetitions.Declared();
 
         var shortfalls = await Task.WhenAll(
-            [.. ModelsUnderTest.For(capability).Select(model => MeasureAsync(judge, model, apiKey, repetitions, request, cancellationToken))]);
+            [.. ModelsUnderTest.For(capability).Select(model => MeasureAsync(panel, model, apiKey, repetitions, request, cancellationToken))]);
 
         return [.. shortfalls.SelectMany(static modelShortfalls => modelShortfalls)];
     }
@@ -177,17 +177,25 @@ internal static class StructuredAnswerScenario
         var agent = request.Compose(cachedModel, plan);
         var turn = await request.ComposeTurnAsync(plan, cancellationToken);
         var answer = await agent.RunAsync(turn, session: null, options: null, cancellationToken);
-        var shortfall = request.Shortfall(answer.Text);
+        var shortfall = request.Shortfall(answer.Text, plan.StructuredOutputs);
 
         // The instruction travels as the system turn so the judge grades an answer against the job the agent was given,
         // rather than faulting it for not doing what it was told not to. The answer goes as the model wrote it, because
         // every instruction here asks for one JSON object and a judge shown anything else grades the format.
         var verdict = await scenarioRun.EvaluateAsync(
-            [new ChatMessage(ChatRole.System, request.Instruction), new ChatMessage(ChatRole.User, turn)],
+            [new ChatMessage(ChatRole.System, request.Instruction(plan.StructuredOutputs)), new ChatMessage(ChatRole.User, turn)],
             new ChatResponse(new ChatMessage(ChatRole.Assistant, answer.Text)) { ModelId = modelName },
-            cancellationToken: cancellationToken);
+            [new JudgeThresholds((IntentResolutionMetricName, IntentResolutionThreshold))],
+            cancellationToken);
 
         RecordExpectation(verdict, request.ExpectationMetricName, shortfall);
+
+        // The library's own reading fails a rating under four, so a row the scenario counts as passed would read as failed.
+        if (verdict.Metrics.ContainsKey(IntentResolutionMetricName))
+        {
+            EvaluationMetrics.HoldToThreshold(verdict, IntentResolutionMetricName, (int)IntentResolutionThreshold);
+        }
+
         EvaluationCost.Record(verdict, modelName, modelSpend.Take(), judgeSpend.Take());
 
         return new StructuredAnswer(modelName, shortfall, verdict);
@@ -195,7 +203,7 @@ internal static class StructuredAnswerScenario
 
     /// <summary>Measures one model, each repetition over clients, meters, and a store handle of its own, which is what lets the models and the repetitions run at once.</summary>
     private static Task<IReadOnlyList<string>> MeasureAsync(
-        JudgeDeclaration judge,
+        JudgePanel panel,
         ModelUnderTest modelUnderTest,
         string apiKey,
         int repetitions,
@@ -212,9 +220,9 @@ internal static class StructuredAnswerScenario
                 var judgeSpend = new SpendMeter();
 
                 using var model = ProviderChatClient.Open(modelUnderTest, apiKey, modelSpend);
-                using var judgeClient = judge.Open(judgeSpend);
+                using var panelClient = panel.Open(judgeSpend);
 
-                var reporting = EvaluationStore.Open(judgeClient, judge.CachingKey, request.Evaluators);
+                var reporting = EvaluationStore.Open(panelClient, request.Evaluators);
 
                 return [.. ShortfallsOf(await RunAsync(reporting, model, modelUnderTest.Plan, repetition, request, modelSpend, judgeSpend, cancellationToken))];
             },

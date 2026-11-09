@@ -9,11 +9,13 @@ using MailFathom.AI.Chat;
 using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Decisions;
 using MailFathom.AI.Providers;
+using MailFathom.Evaluations.Judging;
 using MailFathom.Evaluations.Providers;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Reporting;
 using Microsoft.Extensions.AI.Evaluation.Reporting.Storage;
+using Xunit;
 
 namespace MailFathom.Evaluations.Reporting;
 
@@ -26,12 +28,18 @@ namespace MailFathom.Evaluations.Reporting;
 /// the run, and the <c>AI evaluations</c> workflow carries the directory from one run to the next.
 /// </para>
 /// <para>
-/// Everything written here is published with the workflow's artefacts, which is why the judge reaches it only through
-/// <see cref="Judging.AnonymousJudgeChatClient" /> and why every input is synthetic mail.
+/// Everything written here is published with the workflow's artefacts, which is why every judge reaches it only through
+/// <see cref="AnonymousJudgeChatClient" /> and why every input is synthetic mail.
 /// </para>
 /// </remarks>
 internal static class EvaluationStore
 {
+    /// <summary>The tag a case reading mail written to take the agent over carries.</summary>
+    public const string HostileMailTag = "mail:hostile";
+
+    /// <summary>The tag a case reading mail stating something false carries.</summary>
+    public const string FalseClaimMailTag = "mail:false-claim";
+
     private const string RootVariable = "MAILFATHOM_AI_EVALUATIONS_STORE";
     private const string ExecutionVariable = "MAILFATHOM_AI_EVALUATIONS_EXECUTION";
 
@@ -46,20 +54,17 @@ internal static class EvaluationStore
     private static readonly ConcurrentDictionary<(string Root, string ExecutionName, int Repetitions), TallyingResponseCacheProvider> ResponseCaches = new();
 
     /// <summary>Opens the store a requested run was pointed at.</summary>
-    /// <param name="judge">The judge, already anonymous.</param>
-    /// <param name="judgeCachingKey">The key the judge's verdicts are filed under.</param>
-    /// <param name="evaluators">What every scenario in the run is judged on.</param>
+    /// <param name="panelClient">The panel of judges, already anonymous.</param>
+    /// <param name="evaluators">What every scenario in the run is judged on, each of which asks the judge.</param>
     /// <returns>The configuration each scenario opens its run from.</returns>
     /// <exception cref="InvalidOperationException">Thrown, naming the variable, when the run was not given a store or a name.</exception>
     public static ReportingConfiguration Open(
-        IChatClient judge,
-        string judgeCachingKey,
+        JudgePanelChatClient panelClient,
         IEnumerable<IEvaluator> evaluators) =>
         OpenAt(
             AiEvaluationRun.Required(RootVariable),
             AiEvaluationRun.Required(ExecutionVariable),
-            judge,
-            judgeCachingKey,
+            panelClient,
             evaluators,
             EvaluationRepetitions.Declared());
 
@@ -81,25 +86,27 @@ internal static class EvaluationStore
     /// <summary>Opens a store at a given directory, under a given run name.</summary>
     /// <param name="root">The directory holding the results and the cache.</param>
     /// <param name="executionName">The name this run's results are filed and compared under.</param>
-    /// <param name="judge">The judge, already anonymous.</param>
-    /// <param name="judgeCachingKey">The key the judge's verdicts are filed under.</param>
-    /// <param name="evaluators">What every scenario in the run is judged on.</param>
+    /// <param name="panelClient">The panel of judges, already anonymous.</param>
+    /// <param name="evaluators">What every scenario in the run is judged on, each of which asks the judge.</param>
     /// <param name="repetitions">How many times the run asks each case of each model.</param>
     /// <returns>The configuration each scenario opens its run from.</returns>
+    /// <remarks>
+    /// Every evaluator is put behind <see cref="JudgePanelEvaluator" />, which names a judge on each request it sends. The
+    /// run declares no caching key of its own for the judge: each judge's verdicts are keyed by the identity that request
+    /// names, so a panel that changed one judge re-asks only that one.
+    /// </remarks>
     public static ReportingConfiguration OpenAt(
         string root,
         string executionName,
-        IChatClient judge,
-        string judgeCachingKey,
+        JudgePanelChatClient panelClient,
         IEnumerable<IEvaluator> evaluators,
         int repetitions = 1) =>
         new(
-            evaluators,
+            [.. evaluators.Select(evaluator => new JudgePanelEvaluator(evaluator, panelClient.Panel))],
             new DiskBasedResultStore(root),
-            new ChatConfiguration(judge),
+            new ChatConfiguration(panelClient),
             ResponseCacheAt(root, executionName, repetitions),
-            [judgeCachingKey],
-            executionName);
+            executionName: executionName);
 
     /// <summary>Opens a store at a given directory, under a given run name, for a scenario that no model judges.</summary>
     /// <param name="root">The directory holding the results and the cache.</param>
@@ -151,7 +158,7 @@ internal static class EvaluationStore
     /// <summary>Names the tags a scenario run carries, which are what the report's cases are filtered by.</summary>
     /// <param name="scenarioName">The scenario's dotted name, whose first segment names the agent or scenario family and whose later segments name the kind of mail a case reads.</param>
     /// <param name="modelName">The model under test, as its iteration is named after.</param>
-    /// <returns><c>model:</c> and <c>family:</c>, then one <c>mail:</c> tag for each kind of mail the name carries.</returns>
+    /// <returns><c>model:</c> and <c>family:</c>, <c>section:</c> where a paid scenario's test is running, then one <c>mail:</c> tag for each kind of mail the name carries.</returns>
     /// <remarks>
     /// <para>
     /// The kind of mail is read from the segments a case is already named with — <c>Hostile</c>, <c>FalseClaim</c>,
@@ -162,18 +169,32 @@ internal static class EvaluationStore
     /// A tag only labels a result. The store files it beside the verdict and no cache key reads it, so tagging a run asks
     /// no model again.
     /// </para>
+    /// <para>
+    /// The section is read from the test running the scenario rather than from the name, because a family's name is not
+    /// its section's — <c>MailAnswering</c> lives in <c>Answering</c> — and the section is what a run's <c>Sections</c>
+    /// key and <c>scripts/run-ai-evaluations.sh</c>'s per-section share are written in.
+    /// </para>
     /// </remarks>
     public static string[] TagsFor(string scenarioName, string modelName)
     {
         var segments = scenarioName.Split('.');
+        string?[] labels = [$"model:{modelName}", $"family:{segments[0]}", SectionTagOf(TestContext.Current.TestClass?.TestClassName)];
 
         return
         [
-            $"model:{modelName}",
-            $"family:{segments[0]}",
+            .. labels.OfType<string>(),
             .. segments.Skip(1).Select(KindOfMailNamedBy).OfType<string>().Distinct(),
         ];
     }
+
+    /// <summary>Names the section a paid scenario's test class sits in, as a tag.</summary>
+    /// <param name="testClassName">The running test's class, fully qualified, or <see langword="null" /> outside a test.</param>
+    /// <returns><c>section:</c> and the namespace segment under <c>MailFathom.Evaluations</c>, for a <c>&lt;Subject&gt;Evaluations</c> class directly in a section; <see langword="null" /> for anything else, a free test included.</returns>
+    public static string? SectionTagOf(string? testClassName) =>
+        testClassName?.Split('.') is ["MailFathom", "Evaluations", var section, var className]
+            && className.EndsWith("Evaluations", StringComparison.Ordinal)
+            ? $"section:{section}"
+            : null;
 
     /// <summary>Puts the run's response cache in front of the model under test, filed under the model, its address, and the tools a request offers.</summary>
     /// <param name="reporting">The run's store.</param>
@@ -304,8 +325,8 @@ internal static class EvaluationStore
 
     private static string? KindOfMailNamedBy(string segment) => segment switch
     {
-        "Hostile" => "mail:hostile",
-        "FalseClaim" => "mail:false-claim",
+        "Hostile" => HostileMailTag,
+        "FalseClaim" => FalseClaimMailTag,
         "Polish" => "mail:polish",
         "Mixed" => "mail:mixed-language",
         _ => null,

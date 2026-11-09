@@ -129,8 +129,8 @@ internal static class ClientMailSearchEndpoint
             RecipientAddress = Named(recipient),
             ReceivedOnOrAfter = receivedOnOrAfter,
             ReceivedBefore = receivedBefore,
-            IsRemotelySeen = unread is { } wanted ? !wanted : null,
-            IsRemotelyFlagged = flagged,
+            IsMarkedSeen = unread is { } wanted ? !wanted : null,
+            IsFlagged = flagged,
             HasAttachments = hasAttachments,
             PageSize = pageSize,
             Cursor = cursor,
@@ -269,8 +269,8 @@ internal sealed record ClientMailSearchResponse(
 /// <param name="SenderAddress">The sender's address as the message wrote it, or <see langword="null" /> where no usable sender was found.</param>
 /// <param name="SenderDisplayName">The display name the sender wrote, or <see langword="null" /> where the header carried none.</param>
 /// <param name="ToAddresses">The comparison forms of the <c>To</c> addresses, in header order.</param>
-/// <param name="Unread">Whether the mail server last reported the message without <c>\Seen</c>.</param>
-/// <param name="Flagged">Whether the mail server last reported it with <c>\Flagged</c>.</param>
+/// <param name="Unread">Whether the message is stored without the <c>\Seen</c> mark.</param>
+/// <param name="Flagged">Whether the message is stored with <c>\Flagged</c>.</param>
 /// <param name="Answered">Whether the mail server last reported it with <c>\Answered</c>.</param>
 /// <param name="HasAttachments">Whether the message carries anything besides its body and its inline resources.</param>
 /// <param name="AttachmentCount">How many of those there are.</param>
@@ -353,9 +353,9 @@ internal sealed record ClientMailSearchResultResponse(
         result.Email.SenderAddress,
         result.Email.SenderDisplayName,
         result.Email.ToAddresses,
-        !result.Email.RemoteFlags.IsSeen,
-        result.Email.RemoteFlags.IsFlagged,
-        result.Email.RemoteFlags.IsAnswered,
+        !result.Email.Flags.IsSeen,
+        result.Email.Flags.IsFlagged,
+        result.Email.Flags.IsAnswered,
         result.Email.Attachments.HasAttachments,
         result.Email.Attachments.AttachmentCount,
         result.Email.SizeOctets,

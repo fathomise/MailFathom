@@ -23,7 +23,7 @@ public sealed class JudgeDeclarationTests
     public async Task Present_WithNoDeclaredEffort_LeavesTheRequestAsTheEvaluatorComposedIt()
     {
         // Arrange
-        var declaration = JudgeDeclaration.Of(JudgeAddress, JudgeModel, JudgeApiKey, reasoningEffort: null);
+        var declaration = JudgeDeclaration.Of("juror 1", JudgeAddress, JudgeModel, JudgeApiKey, reasoningEffort: null);
         using var provider = JudgeProvider();
         using var judge = declaration.Present(provider);
 
@@ -43,7 +43,7 @@ public sealed class JudgeDeclarationTests
     public async Task Present_WithADeclaredEffort_StatesItOnEveryCall()
     {
         // Arrange
-        var declaration = JudgeDeclaration.Of(JudgeAddress, JudgeModel, JudgeApiKey, reasoningEffort: "low");
+        var declaration = JudgeDeclaration.Of("juror 1", JudgeAddress, JudgeModel, JudgeApiKey, reasoningEffort: "low");
         using var provider = JudgeProvider();
         using var judge = declaration.Present(provider);
 
@@ -59,7 +59,7 @@ public sealed class JudgeDeclarationTests
     public async Task Present_WithADeclaredEffort_LeavesTheVerdictRoomBesideTheReasoning()
     {
         // Arrange
-        var declaration = JudgeDeclaration.Of(JudgeAddress, JudgeModel, JudgeApiKey, reasoningEffort: "xhigh");
+        var declaration = JudgeDeclaration.Of("juror 1", JudgeAddress, JudgeModel, JudgeApiKey, reasoningEffort: "xhigh");
         using var provider = JudgeProvider();
         using var judge = declaration.Present(provider);
 
@@ -80,7 +80,7 @@ public sealed class JudgeDeclarationTests
         string?[] efforts = [null, "low", "high"];
 
         // Act
-        var keys = efforts.Select(effort => JudgeDeclaration.Of(JudgeAddress, JudgeModel, JudgeApiKey, effort).CachingKey).ToArray();
+        var keys = efforts.Select(effort => JudgeDeclaration.Of("juror 1", JudgeAddress, JudgeModel, JudgeApiKey, effort).CachingKey).ToArray();
 
         // Assert
         Assert.Equal(efforts.Length, keys.Distinct(StringComparer.Ordinal).Count());
@@ -94,7 +94,7 @@ public sealed class JudgeDeclarationTests
 
         // Act
         var refusal = Assert.Throws<InvalidOperationException>(
-            () => JudgeDeclaration.Of(JudgeAddress, JudgeModel, JudgeApiKey, Effort));
+            () => JudgeDeclaration.Of("juror 1", JudgeAddress, JudgeModel, JudgeApiKey, Effort));
 
         // Assert
         Assert.Contains("MAILFATHOM_JUDGE_REASONING_EFFORT", refusal.Message, StringComparison.Ordinal);

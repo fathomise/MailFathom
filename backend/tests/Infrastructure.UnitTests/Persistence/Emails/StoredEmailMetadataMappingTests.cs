@@ -322,7 +322,7 @@ public sealed class StoredEmailMetadataMappingTests
         Assert.Null(entity.InternetMessageId);
     }
 
-    /// <summary>The remote flags are an observation nothing has made yet, and the row must say so rather than imply a read server.</summary>
+    /// <summary>The stored flags are an observation nothing has made yet, and the row must say so rather than imply a read server.</summary>
     [Fact]
     public void ApplyExtractedMetadata_AnyMessage_LeavesTheRemoteFlagSnapshotUnobserved()
     {
@@ -333,11 +333,11 @@ public sealed class StoredEmailMetadataMappingTests
         StoredEmailMetadataMapping.ApplyExtractedMetadata(entity, CreateExtractedMetadata());
 
         // Assert
-        Assert.Null(entity.RemoteFlagsObservedAt);
-        Assert.False(entity.IsRemotelySeen);
+        Assert.Null(entity.FlagsObservedAt);
+        Assert.False(entity.IsMarkedSeen);
         Assert.False(entity.IsRemotelyAnswered);
-        Assert.False(entity.IsRemotelyFlagged);
-        Assert.False(entity.IsRemotelyDraft);
+        Assert.False(entity.IsFlagged);
+        Assert.False(entity.IsDraft);
         Assert.False(entity.IsRemotelyDeleted);
     }
 

@@ -198,7 +198,7 @@ public sealed class ClientMailSourceEndpointTests
         SenderAddress = "billing@example.test",
         ToAddresses = ["reader@example.test"],
         SizeOctets = 1024,
-        RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved,
+        Flags = StoredEmailFlags.NeverObserved,
         SenderVerification = SenderVerification.NotEstablished,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
         SenderAuthenticationEvidence = SenderAuthenticationEvidence.None,

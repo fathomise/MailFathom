@@ -86,9 +86,9 @@ public sealed record ReadEmailContent
     /// </remarks>
     public required IReadOnlyList<ReadEmailAttachment> Attachments { get; init; }
 
-    /// <summary>Gets the flags a mail server last showed for the email, and when they were read.</summary>
+    /// <summary>Gets the flags MailFathom holds for the email, and when a server last reported them.</summary>
     /// <remarks>Reading content never changes them: the whole operation is served from local storage and speaks to no mail server.</remarks>
-    public required RemoteEmailFlagSnapshot RemoteFlags { get; init; }
+    public required StoredEmailFlags Flags { get; init; }
 
     /// <summary>Gets what was established about the author the message displays, and what this deployment made of it.</summary>
     /// <remarks>

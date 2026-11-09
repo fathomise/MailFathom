@@ -103,7 +103,7 @@ public sealed class OrchestratedSpamVerdictFloorTests(MailFathomOrchestrationFix
             floorCase => classifier.LiftToFloor(
                 DeterministicSpamReading.Nothing,
                 floorCase.FolderAlias == JunkFolderAlias ? (MailFolderAlias?)Junk : null,
-                RemoteEmailKeywords.Create(floorCase.Keywords),
+                EmailKeywords.Create(floorCase.Keywords),
                 floorCase.OwnJunkKeyword ? new HashSet<SpamVerdictAct> { SpamVerdictAct.MarkedJunk } : []).Verdict
                 is SpamVerdict.Spam);
         var selected = cases.ToDictionary(
@@ -362,7 +362,7 @@ public sealed class OrchestratedSpamVerdictFloorTests(MailFathomOrchestrationFix
                                 RemoteEmailFlagSnapshot.NeverObserved with
                                 {
                                     ObservedAt = EvaluatedAt,
-                                    Keywords = RemoteEmailKeywords.Create(keywords),
+                                    Keywords = EmailKeywords.Create(keywords),
                                 }),
                         ],
                         ConfirmedUnchanged: [],

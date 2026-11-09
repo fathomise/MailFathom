@@ -13,9 +13,9 @@ set -euo pipefail
 #   scripts/update-dependencies.sh --apply              and rewrite the pins that can be written mechanically
 #   scripts/update-dependencies.sh --apply --verify     and then run scripts/verify-full.sh over the result
 #   scripts/update-dependencies.sh --only <family>      restrict to one of: nuget, npm, crates, tools, sdk, actions,
-#                                                       images
+#                                                       images, linters
 #
-# A version reaches a run from one of nine files, in eight syntaxes, and nothing until now read them together. The
+# A version reaches a run from one of ten files, in nine syntaxes, and nothing until now read them together. The
 # question this answers is the one no tooling here answers otherwise: which pins are behind, and did any of them change
 # licence since somebody reviewed it. Dependabot version updates were removed deliberately in #304/#305 and are not
 # coming back — the pull request they produced carried a version number while the work that costs something, reading
@@ -28,7 +28,7 @@ set -euo pipefail
 # is current *now*, and the register side is read out of prose by pattern, so a disagreement is a place to look rather
 # than a conclusion. Exiting non-zero on a row would turn "read this" into "this is wrong".
 #
-# Two pin families are surveyed and never rewritten, and the report says so where they appear:
+# Three pin families are surveyed and never rewritten, and the report says so where they appear:
 #
 #   * `global.json`'s `sdk.version` is a floor rather than a version. `rollForward: latestFeature` means the toolchain a
 #     run executes is chosen on the machine, so moving the floor changes what the gates *require* rather than what they
@@ -38,6 +38,9 @@ set -euo pipefail
 #     one also obliges the golden manifests under `deploy/helm/mailfathom/ci/golden/`, which only
 #     `scripts/render-helm-manifests.sh --update` may write. The report names every file carrying each reference so the
 #     blast radius is visible; the edit stays a human one.
+#   * A linter `scripts/lint-shell-and-workflows.sh` downloads is pinned by version beside the checksum of its release
+#     archive, and a new version is worth a new checksum only once somebody has downloaded it and read what it now
+#     reports. Rewriting the version alone would only make the next lint refuse the download.
 #
 # It never edits `THIRD_PARTY_LICENSES.md` either. A row there is a completed review written as prose — what a component
 # is used for, what its terms oblige, which of them a distribution has to discharge — and a machine cannot restate one.
@@ -55,7 +58,7 @@ set -euo pipefail
 # `unresolved` beside the pin rather than failing the run, because a survey that stops at the first unreachable host is
 # worth less than a partial one.
 
-readonly usage='Usage: scripts/update-dependencies.sh [--apply] [--verify] [--only nuget|npm|crates|tools|sdk|actions|images]'
+readonly usage='Usage: scripts/update-dependencies.sh [--apply] [--verify] [--only nuget|npm|crates|tools|sdk|actions|images|linters]'
 
 # Ordered longest first, because a shorter alternative that is a prefix of a longer one would otherwise win: without it
 # `Apache-2.0` in a register row reads as no match at all and `BSD-3-Clause` reads as `BSD`. `PostgreSQL License` sits
@@ -63,7 +66,7 @@ readonly usage='Usage: scripts/update-dependencies.sh [--apply] [--verify] [--on
 # metadata declares the SPDX identifier, and both have to resolve to the same thing. `MIT-0` sits ahead of `MIT` on that
 # rule too: it is a different grant, and reading one as the other would report a package the register never reviewed as
 # already recorded.
-readonly licence_pattern='Apache-2\.0|BlueOak-1\.0\.0|BSD-3-Clause|BSD-2-Clause|PostgreSQL License|AGPL-[0-9.]+(-or-later|-only)?|LGPL-[0-9.]+(-or-later|-only)?|NOASSERTION|PostgreSQL|Unlicense|MPL-2\.0|CC-BY-[0-9.]+|Unicode|MS-PL|MIT-0|MIT|ISC|CC0|Zlib|0BSD'
+readonly licence_pattern='Apache-2\.0|BlueOak-1\.0\.0|BSD-3-Clause|BSD-2-Clause|PostgreSQL License|AGPL-[0-9.]+(-or-later|-only)?|LGPL-[0-9.]+(-or-later|-only)?|GPL-[0-9.]+(-or-later|-only)?|NOASSERTION|PostgreSQL|Unlicense|MPL-2\.0|CC-BY-[0-9.]+|Unicode|MS-PL|MIT-0|MIT|ISC|CC0|Zlib|0BSD'
 
 readonly register_file='THIRD_PARTY_LICENSES.md'
 readonly global_json='global.json'
@@ -76,6 +79,7 @@ readonly backend_pins='backend/Directory.Packages.props'
 readonly backend_solution='backend/MailFathom.slnx'
 readonly client_workspace='frontend'
 readonly desktop_manifest='frontend/src-tauri/Cargo.toml'
+readonly linter_script='scripts/lint-shell-and-workflows.sh'
 
 apply_pins='false'
 run_verification='false'
@@ -88,7 +92,7 @@ while [[ $# -gt 0 ]]; do
     --only)
       shift
       case "${1:-}" in
-        nuget | npm | crates | tools | sdk | actions | images) selected_family="$1" ;;
+        nuget | npm | crates | tools | sdk | actions | images | linters) selected_family="$1" ;;
         *)
           printf 'Unknown family %s.\n%s\n' "${1:-<missing>}" "$usage" >&2
           exit 1
@@ -322,35 +326,34 @@ register_lines_naming() {
 survey_nuget_pins() {
   local pin_file package_id pinned latest allow_prerelease licence recorded note stable
 
-  for pin_file in "$backend_pins"; do
-    [[ -f "$pin_file" ]] || continue
+  pin_file="$backend_pins"
+  [[ -f "$pin_file" ]] || return 0
 
-    while IFS=$'\t' read -r package_id pinned; do
-      [[ -n "$package_id" ]] || continue
+  while IFS=$'\t' read -r package_id pinned; do
+    [[ -n "$package_id" ]] || continue
 
-      allow_prerelease='false'
-      [[ "$pinned" == *-* ]] && allow_prerelease='true'
+    allow_prerelease='false'
+    [[ "$pinned" == *-* ]] && allow_prerelease='true'
 
-      latest="$(nuget_latest_version "$package_id" "$allow_prerelease")"
-      licence="$(nuget_licence "$package_id" "$latest")"
-      recorded="$(register_recorded_licences "$package_id")"
-      note="$pin_file"
+    latest="$(nuget_latest_version "$package_id" "$allow_prerelease")"
+    licence="$(nuget_licence "$package_id" "$latest")"
+    recorded="$(register_recorded_licences "$package_id")"
+    note="$pin_file"
 
-      # A prerelease pin is the one case where the interesting answer is not the newest build of its own line. The
-      # register carries a live obligation to leave one as soon as a stable release exists, so say whether one does.
-      if [[ "$allow_prerelease" == 'true' ]]; then
-        stable="$(nuget_latest_stable_version "$package_id")"
-        if [[ "$stable" != 'unresolved' ]]; then
-          note="$note; stable release available: $stable"
-        else
-          note="$note; still no stable release"
-        fi
+    # A prerelease pin is the one case where the interesting answer is not the newest build of its own line. The
+    # register carries a live obligation to leave one as soon as a stable release exists, so say whether one does.
+    if [[ "$allow_prerelease" == 'true' ]]; then
+      stable="$(nuget_latest_stable_version "$package_id")"
+      if [[ "$stable" != 'unresolved' ]]; then
+        note="$note; stable release available: $stable"
+      else
+        note="$note; still no stable release"
       fi
+    fi
 
-      record 'nuget' "$package_id" "$pinned" "$latest" "$licence" "$recorded" "$note" "$pin_file"
-    done < <(grep -oE '<PackageVersion Include="[^"]+" Version="[^"]+"' "$pin_file" \
-      | sed -E 's|<PackageVersion Include="([^"]+)" Version="([^"]+)"|\1\t\2|')
-  done
+    record 'nuget' "$package_id" "$pinned" "$latest" "$licence" "$recorded" "$note" "$pin_file"
+  done < <(grep -oE '<PackageVersion Include="[^"]+" Version="[^"]+"' "$pin_file" \
+    | sed -E 's|<PackageVersion Include="([^"]+)" Version="([^"]+)"|\1\t\2|')
 }
 
 # Every exact version the client workspace declares, from the root manifest and from each package's own. A workspace
@@ -511,6 +514,28 @@ survey_action_references() {
 
     record 'actions' "$reference" "$pinned" "$latest" "$licence" "$recorded" "$note" "$workflow_directory"
   done < <(grep -rhoE 'uses: [A-Za-z0-9][^ ]*@[^ ]+' "$workflow_directory" "${workflow_directory%/*}/actions" 2> /dev/null | sed 's|^uses: ||' | sort -u)
+}
+
+# The three linters, each pinned in the lint script as `readonly <tool>_version='…'` beside its archive's checksum, and
+# each released on GitHub with a tag that is the version and a leading `v`.
+survey_linter_pins() {
+  local component repository pinned latest licence recorded
+
+  [[ -f "$linter_script" ]] || return 0
+
+  while read -r component repository; do
+    pinned="$(sed -nE "s/^readonly ${component,,}_version='([^']+)'$/\\1/p" "$linter_script")"
+    [[ -n "$pinned" ]] || continue
+
+    latest="$(gh api "repos/$repository/releases/latest" --jq '.tag_name' 2> /dev/null)" || true
+    latest="${latest#v}"
+    [[ -n "$latest" ]] || latest='unresolved'
+    licence="$(github_licence "$repository")"
+    recorded="$(register_recorded_licences "$component")"
+
+    record 'linters' "$component" "$pinned" "$latest" "$licence" "$recorded" \
+      "$linter_script — a new version needs its archive's checksum beside it, written by a person" "$linter_script"
+  done <<< $'ShellCheck koalaman/shellcheck\nactionlint rhysd/actionlint\nzizmor zizmorcore/zizmor'
 }
 
 # Every image reference this repository pins, read from the places that write one whole: the Dockerfile's `FROM` lines,
@@ -826,6 +851,7 @@ report() {
       sdk-floor) heading='.NET SDK floor — surveyed, never rewritten' ;;
       actions) heading='GitHub Action references' ;;
       images) heading='Container images — surveyed, never rewritten' ;;
+      linters) heading='Linters — surveyed, never rewritten' ;;
       *) heading="$family" ;;
     esac
 
@@ -964,7 +990,7 @@ apply_moved_pins() {
 
   while IFS=$'\t' read -r family component pinned latest source; do
     case "$family" in
-      sdk-floor | images)
+      sdk-floor | images | linters)
         printf '  left alone  %-48s %s -> %s\n' "$component" "$pinned" "$latest"
         skipped=$((skipped + 1))
         continue
@@ -1006,7 +1032,7 @@ lock_tool_for() {
 # which is why none of the three is among the commands the run refuses to start without: a survey answers on a machine
 # that has never built this repository.
 regenerate_lock_files() {
-  local family component pinned latest source solution crate
+  local family component pinned latest source crate
   local -a moved_crates=()
   local dotnet_moved='false' pnpm_moved='false'
 
@@ -1029,16 +1055,14 @@ regenerate_lock_files() {
   if [[ "$dotnet_moved" == 'true' ]]; then
     require_lock_tool 'dotnet'
 
-    for solution in "$backend_solution"; do
-      [[ -f "$solution" ]] || continue
+    if [[ -f "$backend_solution" ]]; then
+      printf '  %s\n' "$backend_solution"
 
-      printf '  %s\n' "$solution"
-
-      if ! dotnet restore "$solution" --force-evaluate; then
-        printf '\nThe restore of %s failed. The pins are written; the lock files are not.\n' "$solution" >&2
+      if ! dotnet restore "$backend_solution" --force-evaluate; then
+        printf '\nThe restore of %s failed. The pins are written; the lock files are not.\n' "$backend_solution" >&2
         exit 1
       fi
-    done
+    fi
   fi
 
   if [[ "$pnpm_moved" == 'true' ]]; then
@@ -1128,6 +1152,7 @@ selected 'tools' && survey_tool_manifest
 selected 'sdk' && survey_sdk_pins
 selected 'actions' && survey_action_references
 selected 'images' && survey_image_pins
+selected 'linters' && survey_linter_pins
 
 report
 

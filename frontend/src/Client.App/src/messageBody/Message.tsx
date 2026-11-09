@@ -189,8 +189,6 @@ export function Message({
             body={body.drawn.value}
             asking={body.askingForPictures}
             embeddedHtml={body.embeddedHtml}
-            cleaned={body.cleaned}
-            cleaning={body.cleaning}
             quotedHistoryOnRequest={quotedHistoryOnRequest}
             readOnly={readOnly}
             answer={answer}

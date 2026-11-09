@@ -624,7 +624,7 @@ public sealed class MailRuleActionRecorderTests
                 Folder: null,
                 IsSeen: false,
                 IsFlagged: false,
-                RemoteEmailKeywords.Create([])));
+                EmailKeywords.Create([])));
         MailRuleActionRecording recording;
 
         // Act
@@ -728,7 +728,7 @@ public sealed class MailRuleActionRecorderTests
                 Folder: null,
                 IsSeen: false,
                 IsFlagged: false,
-                RemoteEmailKeywords.Create([])));
+                EmailKeywords.Create([])));
         var recorder = new MailRuleActionRecorder(
             MailboxChangeSubmissions.Over(
                 this.records,
@@ -785,7 +785,7 @@ public sealed class MailRuleActionRecorderTests
                 Folder: null,
                 IsSeen: false,
                 IsFlagged: false,
-                RemoteEmailKeywords.Create([])));
+                EmailKeywords.Create([])));
 
         return new MailRuleActionRecorder(
             MailboxChangeSubmissions.Over(

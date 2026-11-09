@@ -70,7 +70,7 @@ public sealed class StoredMailFolderReaderCommandTests
         var command = CommandFor(StoredMailFolderReader.FolderCountsIn);
 
         // Assert
-        Assert.Contains(nameof(StoredEmailEntity.IsRemotelySeen), ProjectionIn(command), StringComparison.Ordinal);
+        Assert.Contains("IsRemotelySeen", ProjectionIn(command), StringComparison.Ordinal);
     }
 
     /// <summary>

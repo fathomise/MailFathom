@@ -274,6 +274,28 @@ public sealed class EvaluationStoreTests : IDisposable
         Assert.False(reached);
     }
 
+    /// <summary>A reply-draft schema reaches the provider on the options the key reads, so an answer written to one is never replayed for a request without it, or for another schema.</summary>
+    [Fact]
+    public async Task CacheOverAsync_ARequestCarryingAResponseSchema_AsksAgainRatherThanReadingTheAnswerCachedWithoutItOrUnderAnother()
+    {
+        // Arrange
+        var reporting = EvaluationStore.OpenUnjudgedAt(this.store.FullName, "only", []);
+        var schema = ChatResponseFormat.ForJsonSchema(JsonElement.Parse(SearchSchema), "reply_draft");
+        var otherSchema = ChatResponseFormat.ForJsonSchema(JsonElement.Parse("""{"type":"object","properties":{"body":{"type":"array"}}}"""), "reply_draft");
+
+        // Act
+        bool[] reached =
+        [
+            await ReachesTheModelAsync(reporting, Held),
+            await ReachesTheModelAsync(reporting, Held, responseFormat: schema),
+            await ReachesTheModelAsync(reporting, Held, responseFormat: schema),
+            await ReachesTheModelAsync(reporting, Held, responseFormat: otherSchema),
+        ];
+
+        // Assert
+        Assert.Equal([true, true, false, true], reached);
+    }
+
     /// <summary>A decision is filed under the questions it answered, so rewording one asks the model again.</summary>
     [Fact]
     public async Task CacheDecisionsOverAsync_AChangedQuestion_AsksTheModelAgainRatherThanReadingTheAnswerGivenToTheOldOne()
@@ -362,6 +384,21 @@ public sealed class EvaluationStoreTests : IDisposable
         Assert.Equal(expected, tags);
     }
 
+    [Theory]
+    [InlineData("MailFathom.Evaluations.Answering.MailAnsweringEvaluations", "section:Answering")]
+    [InlineData("MailFathom.Evaluations.Retrieval.SemanticRetrievalEvaluations", "section:Retrieval")]
+    [InlineData("MailFathom.Evaluations.UnitTests.Reporting.EvaluationStoreTests", null)]
+    [InlineData("MailFathom.Evaluations.Answering.MailAnsweringScenario", null)]
+    [InlineData(null, null)]
+    public void SectionTagOf_TheRunningTestClass_NamesTheSectionOnlyForAPaidEvaluationClass(string? testClassName, string? sectionTag)
+    {
+        // Act
+        var tag = EvaluationStore.SectionTagOf(testClassName);
+
+        // Assert
+        Assert.Equal(sectionTag, tag);
+    }
+
     /// <inheritdoc />
     public void Dispose() => this.store.Delete(recursive: true);
 
@@ -402,7 +439,8 @@ public sealed class EvaluationStoreTests : IDisposable
         ReportingConfiguration reporting,
         string scenarioName,
         ChatGenerationPlan? plan = null,
-        AITool[]? tools = null)
+        AITool[]? tools = null,
+        ChatResponseFormat? responseFormat = null)
     {
         using var model = ScriptedStructuredAnswerRun.Model("{}");
         var asked = plan ?? ScriptedStructuredAnswerRun.PlanFor(ScriptedStructuredAnswerRun.ModelUnderTest);
@@ -417,7 +455,7 @@ public sealed class EvaluationStoreTests : IDisposable
 
         await cached.GetResponseAsync(
             [Question],
-            tools is null ? null : new ChatOptions { Tools = tools },
+            tools is null && responseFormat is null ? null : new ChatOptions { Tools = tools, ResponseFormat = responseFormat },
             TestContext.Current.CancellationToken);
 
         return model.Requests > 0;

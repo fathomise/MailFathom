@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import { cleanedMailBodyRoute, mailBodyRoute, readCleanedMailBody, readMailBody } from './mailBody';
+import { mailBodyRoute, readMailBody } from './mailBody';
 import type { ClientSession } from './session';
 import type { ClientRequest, ClientResponse, MailFathomTransport } from './transport';
 
@@ -78,8 +78,12 @@ function recording(response: Answer): { transport: MailFathomTransport; requests
     };
 }
 
-async function readingDocument(blocks: readonly unknown[], remoteImages = false) {
-    const document = documentWith(blocks);
+async function readingDocument(
+    blocks: readonly unknown[],
+    remoteImages = false,
+    members: Readonly<Record<string, unknown>> = {},
+) {
+    const document = documentWith(blocks, members);
     const body = bodyWith(document, { remoteImagesRequested: remoteImages });
 
     return readMailBody(session, answering({ status: 200, body }), storedEmailId, { remoteImages, fullHtml: false });
@@ -224,6 +228,8 @@ describe('readMailBody', () => {
                     undrawnInlineImageCount: 0,
                     truncated: false,
                     footer: null,
+                    quotation: null,
+                    authorIsProven: false,
                 },
                 selfContainedHtml: null,
                 remoteImagesRequested: false,
@@ -585,6 +591,84 @@ describe('readMailBody reading the reader own footer', () => {
     });
 });
 
+describe('readMailBody reading a block of header lines the message typed', () => {
+    const headers = { blockCount: 2, author: 'Ewa', date: 'Mon, 24 Aug' };
+
+    it('reads what a paragraph and a separator name, and leaves a block naming nothing without it', async () => {
+        const result = await readingDocument([
+            { type: 'separator', version: 1, writtenHeaders: headers },
+            paragraph(run('From: Ewa')),
+            paragraph(run('The words under it.')),
+        ]);
+
+        const blocks = result.outcome === 'read' ? result.value.document?.blocks : undefined;
+        expect(blocks?.[0]).toMatchObject({ writtenHeaders: headers });
+        expect(blocks?.[2]).not.toHaveProperty('writtenHeaders');
+    });
+
+    it.each([
+        ['reaching past the blocks beside it', { ...headers, blockCount: 3 }],
+        ['spanning no block', { ...headers, blockCount: 0 }],
+        ['with an empty author', { ...headers, author: '' }],
+        ['with a date past the bound', { ...headers, date: 'd'.repeat(1025) }],
+        ['that is not an object', 'the first two blocks'],
+    ])('refuses a document naming a block %s', async (_, writtenHeaders) => {
+        const result = await readingDocument([
+            { ...paragraph(run('From: Ewa')), writtenHeaders },
+            paragraph(run('Date: Monday')),
+        ]);
+
+        expect(result.outcome).toBe('failed');
+    });
+
+    it('refuses the member on a block that cannot start such a run', async () => {
+        const result = await readingDocument([
+            { type: 'preformatted', version: 1, text: 'From: Ewa', writtenHeaders: { ...headers, blockCount: 1 } },
+        ]);
+
+        expect(result.outcome).toBe('failed');
+    });
+});
+
+describe('readMailBody reading what the service states about a proven author', () => {
+    const fourParagraphs = [
+        paragraph(run('Thanks.')),
+        paragraph(run('Iris Marlow')),
+        paragraph(run('On Monday, Sam wrote:')),
+        paragraph(run('The report.')),
+    ];
+
+    it('reads the quotation the document names and that its author is proven', async () => {
+        const result = await readingDocument(fourParagraphs, false, {
+            quotation: { firstBlock: 2, blockCount: 2 },
+            authorIsProven: true,
+        });
+
+        expect(result.outcome === 'read' && result.value.document?.quotation).toEqual({ firstBlock: 2, blockCount: 2 });
+        expect(result.outcome === 'read' && result.value.document?.authorIsProven).toBe(true);
+    });
+
+    it('reads a document from a deployment that states neither as one whose author nothing proves', async () => {
+        const result = await readingDocument(fourParagraphs, false, {});
+
+        expect(result.outcome === 'read' && result.value.document?.quotation).toBeNull();
+        expect(result.outcome === 'read' && result.value.document?.authorIsProven).toBe(false);
+    });
+
+    it.each([
+        ['a quotation past the last block', { quotation: { firstBlock: 4, blockCount: 1 } }],
+        [
+            'a quotation reaching into the footer',
+            { footer: { firstBlock: 1, blockCount: 2 }, quotation: { firstBlock: 2, blockCount: 2 } },
+        ],
+        ['a statement of proof that is not a boolean', { authorIsProven: 'yes' }],
+    ])('refuses %s', async (_, members) => {
+        const result = await readingDocument(fourParagraphs, false, members);
+
+        expect(result.outcome).toBe('failed');
+    });
+});
+
 describe('readMailBody meeting a deployment ahead of this client', () => {
     it('draws a placeholder for a block type this build does not implement, and keeps the rest of the message', async () => {
         const blocks = [{ type: 'chart', version: 1 }, paragraph(run('After it.'))];
@@ -869,158 +953,5 @@ describe('readMailBody refusing a malformed answer', () => {
         ['a link that is neither absent nor an object', paragraph(run('x', { link: 'https://example.invalid/' }))],
     ])('refuses %s', async (_, block) => {
         expect(await refusing([block])).toBe('failed');
-    });
-});
-describe('cleanedMailBodyRoute', () => {
-    it('asks for the cleaned rendering beneath the message own body', () => {
-        expect(cleanedMailBodyRoute(storedEmailId, false)).toBe(`/messages/${storedEmailId}/body/cleaned`);
-    });
-
-    it('carries the reader ask for remote pictures, so the cleaned document matches what is on the screen', () => {
-        expect(cleanedMailBodyRoute(storedEmailId, true)).toBe(
-            `/messages/${storedEmailId}/body/cleaned?remoteImages=true`,
-        );
-    });
-
-    it('escapes an identifier rather than writing it into the path as it arrived', () => {
-        expect(cleanedMailBodyRoute('../accounts', false)).toBe('/messages/..%2Faccounts/body/cleaned');
-    });
-});
-
-describe('readCleanedMailBody', () => {
-    function cleanedBody(overrides: Readonly<Record<string, unknown>> = {}): string {
-        return JSON.stringify({
-            storedEmailId,
-            cleaning: 'Cleaned',
-            document: documentWith([paragraph(run('Your code is 558132.'))]),
-            ...overrides,
-        });
-    }
-
-    async function reading(body: string, remoteImages = false) {
-        return readCleanedMailBody(session, answering({ status: 200, body }), storedEmailId, remoteImages);
-    }
-
-    it('reads the cleaned route under the caller own credential', async () => {
-        const { transport, requests } = recording({ status: 200, body: cleanedBody() });
-
-        await readCleanedMailBody(session, transport, storedEmailId, false);
-
-        expect(requests[0]?.method).toBe('GET');
-        expect(requests[0]?.path).toBe(
-            `https://mail.example.invalid/api/client/messages/${storedEmailId}/body/cleaned`,
-        );
-        expect(requests[0]?.headers['Authorization']).toBe('Basic dGVzdA==');
-    });
-
-    it('reads the cleaned document the deployment composed', async () => {
-        const answer = await reading(cleanedBody());
-
-        expect(answer.outcome).toBe('read');
-        expect(answer.outcome === 'read' && answer.value.cleaning).toBe('Cleaned');
-        expect(answer.outcome === 'read' && answer.value.document?.blocks).toHaveLength(1);
-    });
-
-    // Every one of these is a sentence the pane says over the ordinary reduced document, which is why the reason
-    // travels as itself rather than as an absence somebody has to interpret.
-    it.each([
-        'NothingToClean',
-        'NotActivated',
-        'AllowanceExhausted',
-        'ProviderUnavailable',
-        'AnswerRejected',
-        'WithheldFromAI',
-    ])('reads %s as the reason the cleaning did not happen', async (cleaning) => {
-        const answer = await reading(cleanedBody({ cleaning }));
-
-        expect(answer.outcome === 'read' && answer.value.cleaning).toBe(cleaning);
-    });
-
-    it('reads a message that carried no document at all as an absence rather than refusing it', async () => {
-        const answer = await reading(cleanedBody({ cleaning: 'NothingToClean', document: null }));
-
-        expect(answer.outcome === 'read' && answer.value.document).toBeNull();
-    });
-
-    it('holds the document to the walk the body read holds one to', async () => {
-        const malformed = documentWith([{ type: 'paragraph', version: 1, content: {}, alignment: 'Start' }]);
-        const answer = await reading(cleanedBody({ document: malformed }));
-
-        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
-    });
-
-    it('admits a retained remote picture only where the reader asked for one', async () => {
-        const withPicture = documentWith(
-            [
-                {
-                    type: 'image',
-                    version: 1,
-                    image: {
-                        source: 'https://sender.invalid/banner.png',
-                        alternativeText: null,
-                        width: null,
-                        height: null,
-                    },
-                    link: null,
-                    alignment: 'Start',
-                },
-            ],
-            { retainedRemoteImageCount: 1 },
-        );
-
-        const declined = await reading(cleanedBody({ document: withPicture }), false);
-        const asked = await reading(cleanedBody({ document: withPicture }), true);
-
-        expect(declined.outcome).toBe('failed');
-        expect(asked.outcome).toBe('read');
-    });
-
-    // The pane is never empty, and that is held from the parser down rather than by each screen checking for itself.
-    it('refuses a cleaning that reports itself as done and carries nothing to draw', async () => {
-        const answer = await reading(cleanedBody({ document: documentWith([]) }));
-
-        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
-    });
-
-    it('refuses a cleaning that reports itself as done and carries no document', async () => {
-        const answer = await reading(cleanedBody({ document: null }));
-
-        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
-    });
-
-    it.each([
-        ['a body that is not JSON', 'not json'],
-        ['a body that is not an object', '"Cleaned"'],
-        [
-            'an outcome this build does not publish',
-            JSON.stringify({ storedEmailId, cleaning: 'Tidied', document: null }),
-        ],
-        ['an outcome that is not a string', JSON.stringify({ storedEmailId, cleaning: 3, document: null })],
-        ['an answer naming no message', JSON.stringify({ cleaning: 'NotActivated', document: null })],
-    ])('refuses %s as unreadable', async (_, body) => {
-        const answer = await reading(body);
-
-        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
-    });
-
-    it('reports a deployment that did not answer as unavailable rather than throwing', async () => {
-        const answer = await readCleanedMailBody(
-            session,
-            () => Promise.reject(new Error('nothing there')),
-            storedEmailId,
-            false,
-        );
-
-        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: null } });
-    });
-
-    it.each([
-        [401, 'unauthenticated'],
-        [403, 'unauthorized'],
-        [500, 'unavailable'],
-    ])('reports status %i as %s', async (status, reason) => {
-        const answer = await readCleanedMailBody(session, answering({ status, body: '' }), storedEmailId, false);
-
-        expect(answer).toStrictEqual({ outcome: 'failed', failure: { reason, status } });
     });
 });

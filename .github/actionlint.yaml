@@ -1,0 +1,19 @@
+# Copyright © 2026 Krzysztof Kasprowicz
+# Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
+# Project repository: https://github.com/fathomise/MailFathom
+
+# Read by `scripts/lint-shell-and-workflows.sh`, which is what `Repository contracts` runs. Every entry silences one
+# finding that is wrong about this repository rather than one that is inconvenient, and says which.
+paths:
+  .github/workflows/**/*.yml:
+    ignore:
+      # actionlint's bundled metadata for `actions/create-github-app-token@v3` predates that version's `client-id`
+      # input, which its own `action.yml` defines and which replaced the deprecated `app-id`. Both halves of the one
+      # stale fact are reported: the input it does not know, and the one it still believes is required.
+      - 'input "client-id" is not defined in action "actions/create-github-app-token@v3"'
+      - 'missing input "app-id" which is required by action "actions/create-github-app-token@v3"'
+  .github/workflows/release.yml:
+    ignore:
+      # The winget submission is paused with `if: false` on purpose, and the comment above it says why the job is kept
+      # in the run graph rather than deleted.
+      - 'constant expression "false" in condition'

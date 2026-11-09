@@ -842,8 +842,21 @@ describe('readDiscoveryRunTail', () => {
         expect(answered).toEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
     });
 
+    it('reads every event one run may publish, its follow-up lookups included', async () => {
+        const events = Array.from({ length: 231 }, (_, at) => ({ event: 'other', sequence: at + 1 }));
+
+        const answered = await readDiscoveryRunTail(
+            session,
+            answering({ status: 200, body: bodyOf(events) }),
+            runId,
+            0,
+        );
+
+        expect(answered.outcome).toBe('read');
+    });
+
     it('refuses more events than one run may publish', async () => {
-        const events = Array.from({ length: 229 }, (_, at) => ({ event: 'other', sequence: at + 1 }));
+        const events = Array.from({ length: 232 }, (_, at) => ({ event: 'other', sequence: at + 1 }));
 
         const answered = await readDiscoveryRunTail(
             session,

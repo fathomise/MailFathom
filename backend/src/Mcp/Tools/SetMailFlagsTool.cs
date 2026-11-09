@@ -169,7 +169,7 @@ internal sealed class SetMailFlagsTool(MailFlagChangeRecorder flagChangeRecorder
     /// <exception cref="MailFlagChangeInvalidException">Thrown when the list names more keywords than a message may carry.</exception>
     private static IReadOnlyList<string>? NamedKeywords(IReadOnlyList<string>? keywords)
     {
-        if (keywords is { Count: > RemoteEmailKeywords.MaximumKeywords })
+        if (keywords is { Count: > EmailKeywords.MaximumKeywords })
         {
             throw MailFlagChangeInvalidException.KeywordNotWritable();
         }

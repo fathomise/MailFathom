@@ -461,6 +461,22 @@ public sealed class ChatModelDeclarationOptionsTests
         Assert.Equal(stickySessions, endpoint.StickySessions);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ToPlan_ADeclaredStructuredOutputsSetting_ReachesThePlan(bool structuredOutputs)
+    {
+        // Arrange
+        var model = DeclaredChatModels.Model();
+        model.StructuredOutputs = structuredOutputs;
+
+        // Act
+        var plan = model.ToPlan();
+
+        // Assert
+        Assert.Equal(structuredOutputs, plan.StructuredOutputs);
+    }
+
     /// <summary>A header's own rules name a property of the header, so the reported key carries the header's index and not the block's alone.</summary>
     /// <remarks>
     /// Without the element's index an operator is sent to <c>Chat:Models:0:Name</c>, which nothing binds — the key they

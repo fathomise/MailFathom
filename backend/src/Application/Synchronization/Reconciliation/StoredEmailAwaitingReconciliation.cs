@@ -52,4 +52,4 @@ public sealed record RemoteWritableFlagObservation(
     DateTimeOffset ObservedAt,
     bool IsSeen,
     bool IsFlagged,
-    RemoteEmailKeywords Keywords);
+    EmailKeywords Keywords);

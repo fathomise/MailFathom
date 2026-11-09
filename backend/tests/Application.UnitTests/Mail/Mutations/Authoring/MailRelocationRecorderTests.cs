@@ -644,7 +644,7 @@ public sealed class MailRelocationRecorderTests
                 IdOf(Inbox),
                 IsSeen: false,
                 IsFlagged: false,
-                RemoteEmailKeywords.Create([])));
+                EmailKeywords.Create([])));
         var recorder = this.Recorder(TargetIn(Inbox), phase: phase, states: states);
 
         // Act

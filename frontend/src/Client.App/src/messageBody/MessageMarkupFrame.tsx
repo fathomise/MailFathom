@@ -2,12 +2,13 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useContext, useEffect, useRef, useState, type RefObject } from 'react';
 import { Icon } from '../controls/Icon';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useLinkOpener, type FollowedLink } from '../shellOperations/linkOpener';
-import { linkScript, measuringScript } from './frameScripts';
+import { ThemeContext } from '../theme/useTheme';
+import { linkScript, measuringScript, themeColoursScript } from './frameScripts';
 
 // The one file in this client that writes an `iframe`'s `srcDoc`, and the only place a message's own markup is drawn
 // as markup. Everywhere else under `src/` the lint rule refuses it outright, and the exception is written into
@@ -40,10 +41,11 @@ import { linkScript, measuringScript } from './frameScripts';
 // on the desktop head. So the two heads answer a link in the sender's markup exactly as they answer one in the reading
 // pane, through the one operation `shellOperations/linkOpener.ts` resolves, and no screen here learns which head it is.
 //
-// What both are drawn on is `--color-sender-markup`, which is the one token in this client that stays the same in both
-// themes, and `styles.css` carries the reason beside the declaration rather than here.
+// Both are drawn on nothing: a transparent frame shows the surface the message stands on, and `themeColoursScript` has
+// moved the message's own colours onto it. A frame's document inherits nothing from the page, so it is told the theme in
+// what is written into it, which is the one reason a surface here asks which theme is in force.
 //
-// Neither draws anything where there is no markup to draw. A frame with an empty document is a white rectangle that
+// Neither draws anything where there is no markup to draw. A frame with an empty document is an empty space that
 // says nothing, and what a reader is owed instead is a sentence — which is the surface's to say, because only the
 // surface knows why the markup is absent.
 
@@ -51,6 +53,7 @@ export function MessageMarkupFrame({ markup }: { readonly markup: string }) {
     const { translate } = useLocalization();
     const frame = useRef<HTMLIFrameElement>(null);
     const refused = useFollowedLinks(frame);
+    const themeElements = useThemeElements();
 
     if (markup === '') {
         return null;
@@ -65,8 +68,8 @@ export function MessageMarkupFrame({ markup }: { readonly markup: string }) {
                 ref={frame}
                 title={translate('fullHtml.frame')}
                 sandbox="allow-scripts"
-                srcDoc={documentAround(markup, linkScriptElement)}
-                className="min-h-0 w-full flex-1 border-0 bg-sender-markup"
+                srcDoc={documentAround(markup, themeElements + linkScriptElement)}
+                className="min-h-0 w-full flex-1 border-0"
             />
             {refused ? <p className="px-3 py-1.5 text-sm text-warning">{translate('link.couldNotOpen')}</p> : null}
         </>
@@ -98,6 +101,8 @@ const settledWithin = 3;
 // and what each does, and says why that text has to stay exactly what the content security policy hashed.
 const linkScriptElement = `<script>${linkScript}</script>`;
 const measuringScriptElement = `<script>${measuringScript}</script>`;
+
+const themeColoursScriptElement = `<script>${themeColoursScript}</script>`;
 
 /** How the frame arrived at the height it is drawn at, which is the whole of what the strip beneath it says. */
 type Fitting = 'measuring' | 'measured' | 'unreported';
@@ -139,6 +144,7 @@ export function EmbeddedMessageMarkup({ markup }: { readonly markup: string }) {
     const frame = useRef<HTMLIFrameElement>(null);
     const [fitted, setFitted] = useState<Fitted>(beforeAnythingReported);
     const refused = useFollowedLinks(frame);
+    const themeElements = useThemeElements();
 
     // The one thing outside React this surface synchronizes with, and it is two: a report arriving from inside the
     // frame, and the wait running out before one does. Both are registered once, because a frame belongs to the
@@ -173,7 +179,7 @@ export function EmbeddedMessageMarkup({ markup }: { readonly markup: string }) {
     }
 
     return (
-        <div className="flex flex-col overflow-hidden rounded-md border border-line bg-sender-markup">
+        <div className="flex flex-col overflow-hidden rounded-md border border-line">
             {/* The one case this surface scrolls inside itself is a frame that never reported: the conversation is
                 what scrolls otherwise, and a message drawn at a guessed height would be cut off or leave a gap. */}
             <div
@@ -184,9 +190,9 @@ export function EmbeddedMessageMarkup({ markup }: { readonly markup: string }) {
                     ref={frame}
                     title={translate('fullHtml.frame')}
                     sandbox="allow-scripts"
-                    srcDoc={documentAround(markup, linkScriptElement + measuringScriptElement)}
+                    srcDoc={documentAround(markup, themeElements + linkScriptElement + measuringScriptElement)}
                     style={{ height: `${String(fitted.height)}px` }}
-                    className="block w-full border-0 bg-sender-markup"
+                    className="block w-full border-0"
                 />
             </div>
 
@@ -197,6 +203,16 @@ export function EmbeddedMessageMarkup({ markup }: { readonly markup: string }) {
             </p>
         </div>
     );
+}
+
+// What a frame is given for the theme in force. The style makes the document's own canvas transparent, and its
+// `color-scheme` is what has to match the frame element's for the browser not to paint an opaque one. Read from the
+// context rather than `useTheme`, so a surface drawn with no provider above it, as in a test of something else, is
+// drawn under the light theme rather than failing.
+function useThemeElements(): string {
+    const theme = useContext(ThemeContext)?.theme ?? 'light';
+
+    return `<style>html,body{background:transparent!important}html{color-scheme:${theme}!important}</style>${themeColoursScriptElement}`;
 }
 
 // The script goes ahead of the message markup, inside the document's own head where it has one, so that it is parsed

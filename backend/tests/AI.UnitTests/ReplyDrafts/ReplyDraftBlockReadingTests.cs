@@ -74,11 +74,13 @@ public sealed class ReplyDraftBlockReadingTests
         Assert.All(table.Rows, static row => Assert.Equal(2, row.Cells.Count));
     }
 
-    [Fact]
-    public void Read_ALinkCitingAPublishedNumber_LinksTheWordsToThatTarget()
+    [Theory]
+    [InlineData("""[{ "type": "paragraph", "runs": [{ "text": "the sheet", "link": 0 }] }]""")]
+    [InlineData("""[{ "type": "paragraph", "runs": [{ "text": "the sheet", "link": "0" }] }]""")]
+    public void Read_ALinkCitingAPublishedNumber_LinksTheWordsToThatTarget(string body)
     {
         // Act
-        var run = SingleRun("""[{ "type": "paragraph", "runs": [{ "text": "the sheet", "link": 0 }] }]""");
+        var run = SingleRun(body);
 
         // Assert
         Assert.Equal(Target, run.Link?.Target);
@@ -89,6 +91,9 @@ public sealed class ReplyDraftBlockReadingTests
     [InlineData("""[{ "type": "paragraph", "runs": [{ "text": "the sheet", "link": -1 }] }]""")]
     [InlineData("""[{ "type": "paragraph", "runs": [{ "text": "the sheet", "link": "https://attacker.example/sheet" }] }]""")]
     [InlineData("""[{ "type": "paragraph", "runs": [{ "text": "the sheet", "href": "https://attacker.example/sheet" }] }]""")]
+    [InlineData("""[{ "type": "paragraph", "runs": [{ "text": "the sheet", "link": "1" }] }]""")]
+    [InlineData("""[{ "type": "paragraph", "runs": [{ "text": "the sheet", "link": "-0" }] }]""")]
+    [InlineData("""[{ "text": "the sheet", "link": 1 }]""")]
     public void Read_ALinkNamingNoPublishedNumber_KeepsTheWordsAndNoLink(string body)
     {
         // Act
@@ -97,6 +102,110 @@ public sealed class ReplyDraftBlockReadingTests
         // Assert
         Assert.Equal("the sheet", run.Text);
         Assert.Null(run.Link);
+    }
+
+    [Fact]
+    public void Read_ARunWrittenDirectlyInTheBody_ReadsItWithTheStringsBesideItAsOneLinkedSentence()
+    {
+        // Arrange
+        const string body = """
+            [
+              { "type": "paragraph", "runs": ["Hi Petra,"] },
+              "Thanks for confirming. Please use our ",
+              { "text": "seating plan", "link": 0 },
+              " to set the room.",
+              "Thanks"
+            ]
+            """;
+
+        // Act
+        var document = Read(body);
+
+        // Assert
+        var paragraphs = document.Blocks.Cast<MailParagraphBlock>().ToArray();
+        var sentence = paragraphs[1].Content;
+
+        Assert.Equal(3, paragraphs.Length);
+        Assert.Equal(["Thanks for confirming. Please use our ", "seating plan", " to set the room."], sentence.Select(static run => run.Text));
+        Assert.Equal([false, true, false], sentence.Select(static run => run.Link is not null));
+        Assert.Equal(Target, sentence[1].Link?.Target);
+        Assert.Equal("Thanks", Assert.Single(paragraphs[2].Content).Text);
+    }
+
+    /// <summary>A strict schema has every run carry "link", so an unlinked run arrives with it as null and keeps its words unlinked.</summary>
+    [Fact]
+    public void Read_ARunCarryingANullLink_IsReadAsAnUnlinkedRunWithItsWords()
+    {
+        // Arrange
+        const string body = """
+            [
+              { "type": "paragraph", "runs": [{ "text": "Thanks for confirming.", "bold": false, "italic": false, "colour": null, "link": null }], "align": null }
+            ]
+            """;
+
+        // Act
+        var paragraph = Assert.IsType<MailParagraphBlock>(Assert.Single(Read(body).Blocks));
+
+        // Assert
+        var run = Assert.Single(paragraph.Content);
+        Assert.Equal("Thanks for confirming.", run.Text);
+        Assert.Null(run.Link);
+    }
+
+    [Theory]
+    [InlineData("""["You can file the [archived copy](link 0)."]""")]
+    [InlineData("""["You can file the [archived copy](0)."]""")]
+    [InlineData("""[{ "type": "paragraph", "runs": ["You can file the [archived copy](Link 0)."] }]""")]
+    public void Read_WordsMarkedUpAsALinkToAPublishedNumber_LinksThoseWords(string body)
+    {
+        // Act
+        var paragraph = Assert.IsType<MailParagraphBlock>(Assert.Single(Read(body).Blocks));
+
+        // Assert
+        Assert.Equal(["You can file the ", "archived copy", "."], paragraph.Content.Select(static run => run.Text));
+        Assert.Equal([false, true, false], paragraph.Content.Select(static run => run.Link is not null));
+        Assert.Equal(Target, paragraph.Content[1].Link?.Target);
+    }
+
+    [Theory]
+    [InlineData("You can file the [archived copy](link 1).")]
+    [InlineData("You can file the [archived copy](-1).")]
+    [InlineData("You can file the [archived copy](https://attacker.example/copy).")]
+    public void Read_WordsMarkedUpAsALinkToNoPublishedNumber_KeepsThemAsWritten(string text)
+    {
+        // Act
+        var run = SingleRun($$"""["{{text}}"]""");
+
+        // Assert
+        Assert.Equal(text, run.Text);
+        Assert.Null(run.Link);
+    }
+
+    [Fact]
+    public void Read_ABlockWrittenAsAStringHoldingIt_ReadsItAsThatBlock()
+    {
+        // Act
+        var document = Read("""["Two points remain open:", "{\"type\":\"list\",\"ordered\":false,\"items\":[\"Training room\",\"VPN tokens\"]}"]""");
+
+        // Assert
+        var list = Assert.IsType<MailListBlock>(document.Blocks[1]);
+
+        Assert.Equal(
+            ["Training room", "VPN tokens"],
+            list.Items.Select(static item => Assert.Single(Assert.IsType<MailParagraphBlock>(Assert.Single(item.Blocks)).Content).Text));
+    }
+
+    [Theory]
+    [InlineData("""["{\"type\":\"heading\",\"runs\":[\"Open points\"]}"]""", """{"type":"heading","runs":["Open points"]}""")]
+    [InlineData("""["{\"runs\":[\"Open points\"]}"]""", """{"runs":["Open points"]}""")]
+    [InlineData("""["{ Open points }"]""", "{ Open points }")]
+    public void Read_AStringHoldingNoBlockOfTheClosedSet_KeepsItAsWritten(string body, string text)
+    {
+        // Act
+        var run = SingleRun(body);
+
+        // Assert
+        Assert.Equal(text, run.Text);
     }
 
     [Theory]

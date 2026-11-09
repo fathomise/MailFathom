@@ -3,11 +3,11 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { createHash } from 'node:crypto';
-import { linkScript, measuringScript } from './src/messageBody/frameScripts';
+import { themeColoursScript, linkScript, measuringScript } from './src/messageBody/frameScripts';
 
 // The content security policy the client is served under, read by Node alone: `vite.config.ts` writes the web head's
 // into the bundle, which is how the service attaches it to every file it serves beneath `/app/`, and
-// `src-tauri/run-tauri.ts` spreads the directives both heads share into the desktop head's own. So the two scripts the
+// `src-tauri/run-tauri.ts` spreads the directives both heads share into the desktop head's own. So the scripts the
 // markup frame prepends are admitted by hashes computed from their own text at build time, and no digest is ever copied
 // by hand into a second place to disagree with the first.
 //
@@ -30,10 +30,15 @@ function admittedByHash(script: string): string {
 export const directivesBothHeadsShare: ContentSecurityPolicyDirectives = {
     'default-src': "'self'",
 
-    // The bundle, and the two scripts `MessageMarkupFrame.tsx` writes into a frame's `srcdoc`. A `srcdoc` document
+    // The bundle, and the scripts `MessageMarkupFrame.tsx` writes into a frame's `srcdoc`. A `srcdoc` document
     // inherits the policy of the page embedding it, so without their hashes the embedded view could never measure its
     // height and a link the sender wrote would report nothing — and neither failure says anything on the screen.
-    'script-src': ["'self'", admittedByHash(linkScript), admittedByHash(measuringScript)].join(' '),
+    'script-src': [
+        "'self'",
+        admittedByHash(linkScript),
+        admittedByHash(measuringScript),
+        admittedByHash(themeColoursScript),
+    ].join(' '),
 
     // `'unsafe-inline'` because the sender's own `style` attributes and `<style>` elements are what the full-HTML
     // dialog and the embedded view exist to show, and a framed document inherits this directive with the rest.

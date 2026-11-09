@@ -35,6 +35,9 @@ passages removed.
 [Junk is kept out of what a deployment derives from mail](spam-classification.md#junk-is-kept-out-of-what-a-deployment-derives-from-mail)
 holds all of it, including what a message waiting on a verdict costs.
 
+Mail nobody received — a draft, or a send waiting in or refused by the outbox — is never cut on any path either, whether
+the classification runs or not, because its words reached nobody; [mail nobody received](mailbox-queries.md#mail-nobody-received-read-by-the-persons-own-agent-alone) states which mail that is.
+
 A message that yielded no text is cut into nothing. That covers a body that carried no words and a body that arrived
 encrypted: both keep the search document that makes them findable on their subject and participants, and neither gains a
 chunk.

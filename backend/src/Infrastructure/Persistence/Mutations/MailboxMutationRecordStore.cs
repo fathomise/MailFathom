@@ -818,7 +818,7 @@ internal sealed class MailboxMutationRecordStore(
             mutation == MailboxMutation.SetSeen ? seen?.ObservedSeenState ?? replaced.ObservedSeenState : null,
             mutation == MailboxMutation.SetFlagged ? flagged?.ObservedFlaggedState ?? replaced.ObservedFlaggedState : null,
             MailboxMutationRequest.IsKeywordChange(mutation)
-                ? keywords?.ObservedKeywords is { } carried ? RemoteEmailKeywords.Create(carried) : replaced.ObservedKeywords
+                ? keywords?.ObservedKeywords is { } carried ? EmailKeywords.Create(carried) : replaced.ObservedKeywords
                 : null,
             mutation == MailboxMutation.Relocate
                 ? folder?.ObservedFolderId is { } carriedFolder ? MailFolderId.Create(carriedFolder) : replaced.ObservedFolder
@@ -882,13 +882,13 @@ internal sealed class MailboxMutationRecordStore(
             && ended.ObservedSeenState is { } seen
             && !others.Any(entity => entity.Mutation == ended.Mutation))
         {
-            email.IsRemotelySeen = seen;
+            email.IsMarkedSeen = seen;
         }
         else if (ended.Mutation == MailboxMutation.SetFlagged.Name
             && ended.ObservedFlaggedState is { } flagged
             && !others.Any(entity => entity.Mutation == ended.Mutation))
         {
-            email.IsRemotelyFlagged = flagged;
+            email.IsFlagged = flagged;
         }
         else if (ended.Mutation == MailboxMutation.Relocate.Name
             && ended.ObservedFolderId is { } folder
@@ -898,7 +898,7 @@ internal sealed class MailboxMutationRecordStore(
         }
         else if (WritesKeywords(ended.Mutation) && ended.ObservedKeywords is { } observed)
         {
-            email.RemoteKeywords = KeywordsRestored(ended, email.RemoteKeywords, observed, others);
+            email.Keywords = KeywordsRestored(ended, email.Keywords, observed, others);
         }
         else if (ended.Mutation == MailboxMutation.Delete.Name
             && !others.Any(entity => entity.Mutation == ended.Mutation
@@ -945,7 +945,7 @@ internal sealed class MailboxMutationRecordStore(
 
         return
         [
-            .. RemoteEmailKeywords.Create(
+            .. EmailKeywords.Create(
                 stored.Where(keyword => !Restored(keyword)).Concat(observed.Where(Restored))).Values,
         ];
     }

@@ -266,6 +266,7 @@ public sealed class OutboxDeliveryWorkerTests
             collection.AddScoped<MailFolderReferenceResolver>();
             collection.AddScoped<MailFolderResolver>();
             collection.AddScoped<MailboxDestinationResolver>();
+            collection.AddScoped(_ => TransmittedEmailForms.Unchanged());
             collection.AddScoped<MailboxCopyAppender>();
 
             // Every filing and draft act asks the resolver which custodian carries it, and a substituted custody store

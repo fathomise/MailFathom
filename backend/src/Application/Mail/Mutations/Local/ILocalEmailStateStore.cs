@@ -76,4 +76,4 @@ public sealed record LocalEmailState(
     MailFolderId? Folder,
     bool IsSeen,
     bool IsFlagged,
-    RemoteEmailKeywords Keywords);
+    EmailKeywords Keywords);

@@ -80,6 +80,28 @@ public sealed class MailAnsweringRunLedgerTests
         Assert.True(ledger.RetrievalWasTruncated);
     }
 
+    /// <summary>The sender's name and address reach the provider beside the extract, so they spend the run's allowance as the extract does.</summary>
+    [Theory]
+    [InlineData("Ewa Nowak of the network team", null)]
+    [InlineData(null, "ewa.nowak@network.example.org")]
+    public void AdmitPassages_APassageWhoseSenderTakesItPastTheCeiling_IsNotHandedOver(string? displayName, string? address)
+    {
+        // Arrange
+        var ledger = LedgerAllowing(retrievedCharacters: 120);
+        var passage = ScriptedEmailKnowledgeSearch.Passage(new string('a', 100)) with
+        {
+            SenderDisplayName = displayName,
+            SenderAddress = address,
+        };
+
+        // Act
+        var admitted = ledger.AdmitPassages([passage]);
+
+        // Assert
+        Assert.Empty(admitted);
+        Assert.True(ledger.RetrievalWasTruncated);
+    }
+
     [Fact]
     public void AdmitPassages_WithoutALookupResult_IsRefused()
     {

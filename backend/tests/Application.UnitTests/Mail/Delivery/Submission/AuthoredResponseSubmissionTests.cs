@@ -758,7 +758,6 @@ public sealed class AuthoredResponseSubmissionTests
             OutgoingMailGovernors.Permitting(),
             MailFootings.SendingNone(),
             OutgoingMailScreenings.Inactive(),
-            OrganizationMailSigners.SigningNothing(),
             new FakeTimeProvider(Recorded),
             ClientSignalPublishers.ReachingNobody);
     }

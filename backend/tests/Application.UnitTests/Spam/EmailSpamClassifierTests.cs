@@ -239,7 +239,7 @@ public sealed class EmailSpamClassifierTests
     public async Task ClassifyAsync_AFirstVerdict_SignalsTheMessageOnlyWhereItHasSettled(bool settled)
     {
         // Arrange
-        var email = new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, settled);
+        var email = new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, EmailKeywords.None, settled);
 
         // Act
         var published = await this.SignalledWhenClassifyingAsync(email, SpamClassificationMode.FirstTimeOnly);
@@ -259,7 +259,7 @@ public sealed class EmailSpamClassifierTests
     public async Task ClassifyAsync_AMessageThatSettledWhileItWasClassified_SignalsTheVerdict()
     {
         // Arrange
-        var settling = new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: false);
+        var settling = new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, EmailKeywords.None, IsSettled: false);
 
         // Act
         var published = await this.SignalledWhenClassifyingAsync(
@@ -283,7 +283,7 @@ public sealed class EmailSpamClassifierTests
     {
         // Arrange
         this.store.Hold(Recorded(recordedBefore, subcategoryBefore));
-        var email = new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: true);
+        var email = new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, EmailKeywords.None, IsSettled: true);
 
         // Act
         var published = await this.SignalledWhenClassifyingAsync(email, SpamClassificationMode.Reclassify);
@@ -462,7 +462,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None, IsSettled: true),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, EmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -493,7 +493,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Inbox),
             FactsSaying("X-Spam-Flag", "NO"),
-            email: new ClassifiableEmail(Occurrence, Account, Inbox, Junk, RemoteEmailKeywords.None, IsSettled: true),
+            email: new ClassifiableEmail(Occurrence, Account, Inbox, Junk, EmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -519,7 +519,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk, Inbox, RemoteEmailKeywords.None, IsSettled: true),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Inbox, EmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -554,7 +554,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None, IsSettled: true),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, EmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -582,7 +582,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Inbox),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.Create(["$Junk"]), IsSettled: true));
+            email: new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, EmailKeywords.Create(["$Junk"]), IsSettled: true));
 
         // Act
         await classifier.ClassifyAsync(
@@ -608,7 +608,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None, IsSettled: true),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, EmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -654,7 +654,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SpamClassificationSettings.Create(true, [Junk], SpamModelStageSettings.Consulted(true, 0.5)),
             SpamHeaderFacts.None,
-            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None, IsSettled: true),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, EmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)),
             modelStage: SpamModelStages.Over(judge));
 
@@ -691,7 +691,7 @@ public sealed class EmailSpamClassifierTests
         var classifier = this.Classifier(
             SettingsCovering(Junk),
             FactsSaying("X-Spam-Flag", "NO"),
-            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, RemoteEmailKeywords.None, IsSettled: true),
+            email: new ClassifiableEmail(Occurrence, Account, Junk, Junk, EmailKeywords.None, IsSettled: true),
             junkFolders: StubJunkMailFolderCatalog.Naming(new MailFolderIdentity(Account, Junk)));
 
         // Act
@@ -738,13 +738,13 @@ public sealed class EmailSpamClassifierTests
         var inTheArchive = this.Classifier(
             SettingsCovering(Inbox),
             flagged,
-            new ClassifiableEmail(Occurrence, Archive, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: true),
+            new ClassifiableEmail(Occurrence, Archive, Inbox, Inbox, EmailKeywords.None, IsSettled: true),
             classifying: Account);
 
         var inTheClassifiedMailbox = this.Classifier(
             SettingsCovering(Inbox),
             flagged,
-            new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: true),
+            new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, EmailKeywords.None, IsSettled: true),
             classifying: Account);
 
         // Act
@@ -824,7 +824,7 @@ public sealed class EmailSpamClassifierTests
         ClientSignals? signals = null,
         ClassifiableEmail? readAgain = null)
     {
-        var found = withEmail ? email ?? new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, RemoteEmailKeywords.None, IsSettled: true) : null;
+        var found = withEmail ? email ?? new ClassifiableEmail(Occurrence, Account, Inbox, Inbox, EmailKeywords.None, IsSettled: true) : null;
         var emailReader = Substitute.For<IClassifiableEmailReader>();
         emailReader
             .FindAsync(Arg.Any<MailAccountId>(), Arg.Any<StoredEmailId>(), Arg.Any<CancellationToken>())

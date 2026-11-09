@@ -21,4 +21,4 @@ namespace MailFathom.Domain.Emails;
 /// the message is, and a copy is a message nobody has answered and nothing has marked for expunge.
 /// </para>
 /// </remarks>
-public readonly record struct CopiedMailFlags(bool IsSeen, bool IsFlagged, RemoteEmailKeywords Keywords);
+public readonly record struct CopiedMailFlags(bool IsSeen, bool IsFlagged, EmailKeywords Keywords);

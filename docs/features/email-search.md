@@ -100,8 +100,8 @@ the same reason. It stays distinguishable from a message whose body was genuinel
 | `SubjectFragment` | Text the stored subject must contain, compared without regard to case | any subject |
 | `ReceivedOnOrAfter` | Inclusive start of the received range | no start |
 | `ReceivedBefore` | Exclusive end of the received range | no end |
-| `IsRemotelySeen` | The remote `\Seen` state to require | either state |
-| `IsRemotelyFlagged` | The remote `\Flagged` state to require | either state |
+| `IsMarkedSeen` | The `\Seen` mark to require | either state |
+| `IsFlagged` | The `\Flagged` state to require | either state |
 | `Keyword` | One keyword the email must carry, compared without regard to case | any keyword |
 | `HasAttachments` | Whether attachments are required | either |
 | `ResultLimit` | How many ranked results to return | the default of 20 |
@@ -501,7 +501,9 @@ Five things follow from reading it that way:
   everything else is drawn. Only an answer nothing survives of becomes the plain word search the sentence was typed as.
   A sentence naming two senders is the case this is worth most for: the instruction asks for no sender filter at all
   there, because either address written alone hides the other's mail, and what the sentence named ranks from the
-  criteria instead.
+  criteria instead. Where the model declares `StructuredOutputs` the request carries a strict schema, in which a filter
+  the sentence did not state is `null`; the reading is the same either way, as
+  [chat generation](chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema) describes.
 - **Its absence costs the search nothing.** A deployment with no chat provider, one whose operator turned the reading
   off, and one whose provider is unreachable each serve the plain search over the words that were typed. The one thing
   that is not silently absorbed is a spend ceiling, which is reported rather than fallen back from.

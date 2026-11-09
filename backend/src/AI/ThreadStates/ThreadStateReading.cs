@@ -3,8 +3,9 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Globalization;
-using System.Text.Json;
+using MailFathom.AI.Orchestration;
 using MailFathom.Application.Emails.ThreadStates;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.AI.ThreadStates;
 
@@ -36,20 +37,20 @@ namespace MailFathom.AI.ThreadStates;
 /// </remarks>
 internal static class ThreadStateReading
 {
-    private const string JsonFence = "```";
-
     /// <summary>Reads an agent's answer into a derivation.</summary>
     /// <param name="answerText">What the agent wrote, which may be empty, fenced, or surrounded by prose.</param>
     /// <param name="messages">The messages the turn published, in the order it numbered them.</param>
+    /// <param name="topicShown">Whether the turn carried the topic the conversation was given before, which is the only topic an answer may keep.</param>
     /// <returns>
     /// A settled derivation of the statements that survived, in aspect order and empty where none did, beside the title
     /// the answer proposed — or one withheld as <see cref="ThreadStateWithholding.AnswerUnreadable" /> where the answer
-    /// carries no object this build reads, or a title it does not draw.
+    /// carries no object this build reads, or a title line that is not plain text.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="messages" /> is <see langword="null" />.</exception>
     internal static ThreadStateDerivation Read(
         string? answerText,
-        IReadOnlyList<DerivableThreadMessage> messages)
+        IReadOnlyList<DerivableThreadMessage> messages,
+        bool topicShown)
     {
         ArgumentNullException.ThrowIfNull(messages);
 
@@ -66,12 +67,12 @@ internal static class ThreadStateReading
             .. Aspect(ThreadStateAspect.VersionDifference, document.Differences, messages),
         ];
 
-        if (document.Title is not { } writtenTitle)
+        if (document.Title is not { } writtenTitle || ProposesNothing(writtenTitle))
         {
             return ThreadStateDerivation.Settled(entries);
         }
 
-        return ReadTitle(writtenTitle, entries) is { } title
+        return ReadTitle(writtenTitle, entries, topicShown) is { } title
             ? ThreadStateDerivation.Settled(entries, title)
             : ThreadStateDerivation.Withholding(ThreadStateWithholding.AnswerUnreadable);
     }
@@ -79,10 +80,19 @@ internal static class ThreadStateReading
     /// <summary>Reads the title the model wrote, or nothing where either of its lines is not one this build draws.</summary>
     /// <remarks>
     /// <para>
-    /// A refusal rather than a repair, unlike a statement that runs long. A title is the line a row is recognized by,
-    /// so a topic with markup, a link, or a second line in it is a model not answering what it was asked, and the
-    /// answer is withheld exactly as one that does not parse is. An answer carrying no title at all is the other case
-    /// and settles proposing none, which leaves the conversation the topic it already had.
+    /// A line that only runs long is repaired, as a statement that runs long is: it is cut at its bound and marked as
+    /// cut, because a topic two characters past the limit is still the line the row is recognized by, and withholding
+    /// the whole answer for it threw away every statement beside it. Anything else is a refusal. A topic with markup, a
+    /// link, or a second line in it is a model not answering what it was asked, and the answer is withheld exactly as
+    /// one that does not parse is. An answer carrying no title at all is the other case and settles proposing none,
+    /// which leaves the conversation the topic it already had.
+    /// </para>
+    /// <para>
+    /// Keeping the topic is an answer only where the turn showed one. Written where it showed none, it keeps nothing and
+    /// would leave the conversation untitled, so it is read as no answer about the topic at all and the title stands or
+    /// falls on the topic written beside it. Where the turn did show one, a title naming no new topic keeps it whether or
+    /// not it says so: the one shown is the topic until the conversation moves on, and a model writing only a standing
+    /// has proposed nothing that would replace it.
     /// </para>
     /// <para>
     /// The standing is kept only beside a statement it can be reading: an open question or a commitment. A standing
@@ -90,31 +100,56 @@ internal static class ThreadStateReading
     /// which is also what a conversation with nothing left open is owed.
     /// </para>
     /// </remarks>
-    private static ThreadTitleProposal? ReadTitle(ThreadTitleDocument written, IReadOnlyList<ThreadStateEntry> entries)
+    private static ThreadTitleProposal? ReadTitle(
+        ThreadTitleDocument written,
+        IReadOnlyList<ThreadStateEntry> entries,
+        bool topicShown)
     {
         var standing = written.Standing?.Trim() ?? string.Empty;
 
-        if (standing.Length > 0 && !ThreadTitle.IsPlainLine(standing, ThreadTitle.MaximumStandingLength))
+        if (standing.Length > 0 && !IsPlainWhole(standing))
         {
             return null;
         }
+
+        standing = Shortened(standing, ThreadTitle.MaximumStandingLength);
 
         if (!entries.Any(static entry => entry.Aspect is ThreadStateAspect.OpenQuestion or ThreadStateAspect.Commitment))
         {
             standing = string.Empty;
         }
 
-        if (written.KeepTopic is true)
+        var topic = written.Topic?.Trim();
+
+        if (topicShown && (written.KeepTopic is true || string.IsNullOrEmpty(topic)))
         {
             return new ThreadTitleProposal(Topic: null, StatesSubjectChange: false, standing);
         }
 
-        var topic = written.Topic?.Trim();
-
-        return ThreadTitle.IsPlainLine(topic, ThreadTitle.MaximumTopicLength)
-            ? new ThreadTitleProposal(topic, written.SubjectChanged is true, standing)
+        return topic is not null && IsPlainWhole(topic)
+            ? new ThreadTitleProposal(
+                Shortened(topic, ThreadTitle.MaximumTopicLength),
+                written.SubjectChanged is true,
+                standing)
             : null;
     }
+
+    /// <summary>Whether a title says nothing at all, every member left out or written as <c>null</c> or blank.</summary>
+    /// <remarks>
+    /// Read as no title rather than as a title naming no topic, because it is the empty answer a strict schema's required
+    /// members stand for: an answer that left the title out settles proposing none, and so does one that wrote it empty.
+    /// </remarks>
+    private static bool ProposesNothing(ThreadTitleDocument written) =>
+        string.IsNullOrWhiteSpace(written.Topic) && written.KeepTopic is not true && string.IsNullOrWhiteSpace(written.Standing);
+
+    /// <summary>Judges a whole title line as written, before any cut, so markup or a break past the bound is still refused.</summary>
+    private static bool IsPlainWhole(string line) => ThreadTitle.IsPlainLine(line, line.Length);
+
+    /// <summary>Cuts a title line past its bound and marks it as cut, on a text-element boundary.</summary>
+    private static string Shortened(string line, int maximumLength) =>
+        line.Length <= maximumLength
+            ? line
+            : MailTextBounds.TruncateAtTextElementBoundary(line, maximumLength - 1).TrimEnd() + "…";
 
     /// <summary>Reads one array of written statements into the statements of one aspect.</summary>
     /// <remarks>
@@ -178,40 +213,6 @@ internal static class ThreadStateReading
             ? parsed
             : null;
 
-    private static ThreadStateDocument? ReadDocument(string? answerText)
-    {
-        if (Unfenced(answerText) is not { } json)
-        {
-            return null;
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize(json, ThreadStateJsonContext.Default.ThreadStateDocument);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>Finds the JSON object inside whatever the model wrote around it.</summary>
-    /// <remarks>
-    /// A model told to answer with one object still fences it, prefaces it, or writes a sentence after it often enough
-    /// that treating any of those as a failed derivation would throw away usable statements. The outermost braces are
-    /// what is read; anything either side of them is discarded unexamined.
-    /// </remarks>
-    private static string? Unfenced(string? answerText)
-    {
-        if (string.IsNullOrWhiteSpace(answerText))
-        {
-            return null;
-        }
-
-        var text = answerText.Replace(JsonFence, string.Empty, StringComparison.Ordinal);
-        var opening = text.IndexOf('{', StringComparison.Ordinal);
-        var closing = text.LastIndexOf('}');
-
-        return opening >= 0 && closing > opening ? text[opening..(closing + 1)] : null;
-    }
+    private static ThreadStateDocument? ReadDocument(string? answerText) =>
+        AgentJsonAnswer.Read(answerText, ThreadStateJsonContext.Default.ThreadStateDocument);
 }

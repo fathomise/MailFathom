@@ -24,7 +24,7 @@ namespace MailFathom.Application.Folders;
 /// <para>
 /// Both counts are of the local copy rather than of a mailbox. A folder the deployment is still backfilling holds fewer
 /// than the server does, which is why nothing reading this may present it as the mailbox's own figure without the
-/// folder's freshness beside it. The unread count is read from the flag snapshot and never written back towards a
+/// folder's freshness beside it. The unread count is read from the stored flags and never written back towards a
 /// server: counting what is unread sets nothing.
 /// </para>
 /// </remarks>

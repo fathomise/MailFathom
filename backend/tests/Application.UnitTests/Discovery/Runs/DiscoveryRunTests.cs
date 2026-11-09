@@ -147,6 +147,97 @@ public sealed class DiscoveryRunTests
         Assert.Equal(["quotation", "oferta"], search.Lookups.Select(lookup => lookup.QueryText));
     }
 
+    /// <summary>
+    /// The follow-up may only add lookups: they run after the plan's, inside the question's scope, and what they find is
+    /// composed under the plan the question was first read as.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_AFollowUpAddingALookup_RunsItInTheQuestionsScopeAndKeepsThePlansIntent()
+    {
+        // Arrange
+        var search = new ScriptedEmailKnowledgeSearch()
+            .Returning("quotation", ScriptedEmailKnowledgeSearch.Passage("the quotation"))
+            .Returning("RX-58213", ScriptedEmailKnowledgeSearch.Passage("the delivery date"));
+        var run = DiscoveryRuns.Composing(
+            DiscoveryRuns.PlannerDerivingAndFollowingUp(DiscoveryIntent.CompareTerms, SufficientPassages, ["quotation"], ["RX-58213"]),
+            search);
+
+        // Act
+        var result = await run.RunAsync(Question, progress: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["quotation", "RX-58213"], search.Lookups.Select(lookup => lookup.QueryText));
+        Assert.Equal(Question.Scope, search.LastScope);
+        Assert.Equal(["the quotation", "the delivery date"], result.Evidence.Passages.Select(passage => passage.Text));
+        Assert.Equal(["RX-58213"], result.Evidence.FollowUpLookups.Select(lookup => lookup.QueryText));
+        Assert.Equal(DiscoveryIntent.CompareTerms, result.Plan.Intent);
+        Assert.Equal(["quotation"], result.Plan.Retrieval.Lookups.Select(lookup => lookup.QueryText));
+    }
+
+    /// <summary>The follow-up is shown what the plan found, which is what it reads to decide whether anything else is worth searching for.</summary>
+    [Fact]
+    public async Task RunAsync_AnyPlan_HandsTheFollowUpWhatThePlansLookupsFound()
+    {
+        // Arrange
+        var planner = DiscoveryRuns.PlannerDeriving(DiscoveryIntent.FindFact, SufficientPassages, "quotation");
+        var run = DiscoveryRuns.Composing(
+            planner,
+            new ScriptedEmailKnowledgeSearch().Returning("quotation", ScriptedEmailKnowledgeSearch.Passage("the quotation")));
+
+        // Act
+        await run.RunAsync(Question, progress: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        await planner.Received(1).FollowUpAsync(
+            Question,
+            Arg.Any<DiscoveryRunPlan>(),
+            Arg.Is<DiscoveryEvidence>(evidence => evidence.Passages.Single().Text == "the quotation"),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Nothing a further lookup found could be handed over once retrieval reached the run's ceiling, so no turn is paid for one.</summary>
+    [Fact]
+    public async Task RunAsync_ARetrievalThatReachedTheRunsCeiling_AsksForNoFollowUp()
+    {
+        // Arrange
+        var planner = DiscoveryRuns.PlannerDeriving(DiscoveryIntent.FindFact, SufficientPassages, "quotation");
+        var run = DiscoveryRuns.Composing(
+            planner,
+            new ScriptedEmailKnowledgeSearch().Returning(
+                "quotation",
+                ScriptedEmailKnowledgeSearch.Passage("first"),
+                ScriptedEmailKnowledgeSearch.Passage("second")),
+            ledger: DiscoveryRuns.NewRunLedger(retrievedCharacters: "first".Length));
+
+        // Act
+        await run.RunAsync(Question, progress: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        await planner.DidNotReceive().FollowUpAsync(
+            Arg.Any<MailQuestion>(),
+            Arg.Any<DiscoveryRunPlan>(),
+            Arg.Any<DiscoveryEvidence>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A ceiling the follow-up's call reaches ends the run as one the plan's call reaches does, rather than composing past it.</summary>
+    [Fact]
+    public async Task RunAsync_AFollowUpRefusedByASpendCeiling_EndsTheRunStatingIt()
+    {
+        // Arrange
+        var refusal = MailAnsweringBudgetExhaustedException.RunSpent();
+        var planner = DiscoveryRuns.PlannerDeriving(DiscoveryIntent.FindFact, SufficientPassages, "quotation");
+        planner.FollowUpAsync(Arg.Any<MailQuestion>(), Arg.Any<DiscoveryRunPlan>(), Arg.Any<DiscoveryEvidence>(), Arg.Any<CancellationToken>())
+            .Returns<IReadOnlyList<EmailKnowledgeQuery>>(_ => throw refusal);
+        var run = DiscoveryRuns.Composing(planner, new ScriptedEmailKnowledgeSearch());
+
+        // Act, Assert
+        var thrown = await Assert.ThrowsAsync<MailAnsweringBudgetExhaustedException>(() =>
+            run.RunAsync(Question, progress: null, TestContext.Current.CancellationToken));
+
+        Assert.Same(refusal, thrown);
+    }
+
     /// <summary>An instance that declared no chat endpoint answers no question and says so rather than failing to resolve.</summary>
     [Fact]
     public async Task RunAsync_NoPlannerRegistered_RefusesAsNotServed()
@@ -350,5 +441,12 @@ public sealed class DiscoveryRunTests
                     [EmailKnowledgeQuery.ForText("quotation")],
                     sufficientPassages: 5));
         }
+
+        public Task<IReadOnlyList<EmailKnowledgeQuery>> FollowUpAsync(
+            MailQuestion question,
+            DiscoveryRunPlan plan,
+            DiscoveryEvidence evidence,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<EmailKnowledgeQuery>>([]);
     }
 }

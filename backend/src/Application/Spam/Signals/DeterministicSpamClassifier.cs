@@ -81,7 +81,7 @@ public sealed class DeterministicSpamClassifier
         SpamHeaderFacts facts,
         MailFolderAlias folderAlias,
         bool isJunkFolder,
-        RemoteEmailKeywords keywords,
+        EmailKeywords keywords,
         IReadOnlySet<SpamVerdictAct> ownActs)
     {
         ArgumentNullException.ThrowIfNull(facts);
@@ -133,7 +133,7 @@ public sealed class DeterministicSpamClassifier
     public DeterministicSpamReading LiftToFloor(
         DeterministicSpamReading reading,
         MailFolderAlias? junkFolder,
-        RemoteEmailKeywords keywords,
+        EmailKeywords keywords,
         IReadOnlySet<SpamVerdictAct> ownActs)
     {
         ArgumentNullException.ThrowIfNull(reading);
@@ -178,7 +178,7 @@ public sealed class DeterministicSpamClassifier
         SpamSignalProvenance.FromMailboxKeyword(keyword));
 
     /// <summary>Reads the junk keywords the message carries that somebody other than this deployment's verdict set.</summary>
-    private static IReadOnlyList<string> MarksSetByOthers(RemoteEmailKeywords keywords, IReadOnlySet<SpamVerdictAct> ownActs)
+    private static IReadOnlyList<string> MarksSetByOthers(EmailKeywords keywords, IReadOnlySet<SpamVerdictAct> ownActs)
     {
         (string Keyword, SpamVerdictAct? WrittenAs)[] junkKeywords =
         [

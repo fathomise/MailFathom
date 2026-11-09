@@ -167,6 +167,7 @@ export function ThreadMessage({
                             onShowFullHtml={onShowFullHtml}
                             receiptsShown={receiptsShown}
                             answersReadReceipt={answersReadReceipt}
+                            quotedHistoryOnRequest
                             marks={
                                 fresh ? (
                                     <span className="shrink-0 rounded-sm bg-accent px-1.75 py-px text-xs/4 font-semibold whitespace-nowrap text-on-accent">

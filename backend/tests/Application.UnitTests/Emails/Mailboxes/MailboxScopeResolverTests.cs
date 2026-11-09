@@ -10,6 +10,7 @@ using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery.Receipts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Spam;
 using MailFathom.Domain.Synchronization;
@@ -657,6 +658,51 @@ public sealed class MailboxScopeResolverTests
         Assert.Equal(expected, readable);
     }
 
+    /// <summary>
+    /// A draft, or a send still waiting in or refused by the outbox, is a word nobody received: no agent reads it, while
+    /// the person and the person's own Agent do, the Agent so it can say what state each one is in.
+    /// </summary>
+    [Theory]
+    [InlineData(MailboxReaderKind.Agent, false)]
+    [InlineData(MailboxReaderKind.ConversationAgent, true)]
+    [InlineData(MailboxReaderKind.Person, true)]
+    public void IsReadable_AMessageFlaggedDraft_IsReadableByEveryReaderButAnAgent(MailboxReaderKind reader, bool expected)
+    {
+        // Arrange
+        var resolver = ResolverOverAnInboxAndADraftsFolder();
+        var email = EmailIn("INBOX", verdict: null, decidedBy: null) with
+        {
+            Flags = StoredEmailFlags.NeverObserved with { IsDraft = true },
+        };
+
+        // Act
+        var readable = resolver.IsReadable(reader, [Work.Id], email);
+
+        // Assert
+        Assert.Equal(expected, readable);
+    }
+
+    /// <summary>
+    /// A send waiting to leave sits in the folder the account maps as drafts whether or not the server kept its
+    /// <c>\Draft</c> flag, so the folder alone withholds it from an agent.
+    /// </summary>
+    [Theory]
+    [InlineData(MailboxReaderKind.Agent, false)]
+    [InlineData(MailboxReaderKind.ConversationAgent, true)]
+    [InlineData(MailboxReaderKind.Person, true)]
+    public void IsReadable_MailInTheDraftsFolder_IsReadableByEveryReaderButAnAgent(MailboxReaderKind reader, bool expected)
+    {
+        // Arrange
+        var resolver = ResolverOverAnInboxAndADraftsFolder();
+        var email = EmailIn("DRAFTS", verdict: null, decidedBy: null);
+
+        // Act
+        var readable = resolver.IsReadable(reader, [Work.Id], email);
+
+        // Assert
+        Assert.Equal(expected, readable);
+    }
+
     /// <summary>The person reads spam like any other mail, because the client draws it rather than hiding it.</summary>
     [Fact]
     public void IsReadable_AMessageJudgedSpam_IsReadableByThePerson()
@@ -999,6 +1045,18 @@ public sealed class MailboxScopeResolverTests
             StubMailFolderMappings.Nothing.With(
                 Work.Id,
                 MailFolderMapping.ToSpecialUse(MailFolderAlias.Create("JUNK"), MailFolderSpecialUse.Junk)),
+            Work);
+
+    /// <summary>Serves one account mapping an inbox and the folder it keeps its drafts in, both admitted to every reader.</summary>
+    private static MailboxScopeResolver ResolverOverAnInboxAndADraftsFolder() =>
+        Resolver(
+            StubMailFolderParticipation.Mapping(
+                new MailFolderIdentity(Work.Id, MailFolderAlias.Create("INBOX")),
+                new MailFolderIdentity(Work.Id, MailFolderAlias.Create("DRAFTS"))),
+            StubJunkMailFolderCatalog.None,
+            StubMailFolderMappings.Nothing.With(
+                Work.Id,
+                MailFolderMapping.ToSpecialUse(MailFolderAlias.Create("DRAFTS"), MailFolderSpecialUse.Drafts)),
             Work);
 
     private static EmailSummary EmailIn(string folderAlias, SpamVerdict? verdict, SpamClassificationStage? decidedBy) =>

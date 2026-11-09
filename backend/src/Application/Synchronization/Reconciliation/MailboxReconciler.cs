@@ -624,7 +624,7 @@ public sealed class MailboxReconciler
 
         /// <summary>Gets whether the occurrence carries keywords other than the ones it last carried.</summary>
         /// <remarks>
-        /// The whole set is compared, folded, by the equality <see cref="RemoteEmailKeywords" /> defines: a keyword
+        /// The whole set is compared, folded, by the equality <see cref="EmailKeywords" /> defines: a keyword
         /// gained and a keyword lost are the same finding here, because that is the granularity a server reports and the
         /// granularity a replacement writes. Absent a previous reading it reports no movement, for the reason the
         /// <c>\Seen</c> question gives.

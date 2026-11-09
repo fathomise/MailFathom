@@ -165,7 +165,7 @@ internal sealed record DiscoveryPlanningCase(
             "AsksForFlagAndReadState",
             "Which of my starred messages from the movers have I still not read?",
             IsAmbiguous: false,
-            static plan => plan.Retrieval.Lookups.Any(static lookup => lookup is { IsRemotelyFlagged: true, IsRemotelySeen: false })
+            static plan => plan.Retrieval.Lookups.Any(static lookup => lookup is { IsFlagged: true, IsMarkedSeen: false })
                 ? null
                 : "no lookup is narrowed to starred mail that is still unread."),
         new(

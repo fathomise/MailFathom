@@ -77,6 +77,7 @@ public sealed class DiscoveryCompositionAgentCompositionTests
         DiscoveryCompositionAgentComposition.Compose(
             chatClient,
             ChatDeclarations.Plan(),
+            [],
             new EmptyAgentInstructionEnvelope(),
             NullLoggerFactory.Instance);
 }

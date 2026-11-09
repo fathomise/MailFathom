@@ -14,6 +14,7 @@ using MailFathom.Infrastructure.Mail.Mime.Composition;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Time.Testing;
 using MimeKit;
+using MimeKit.Utils;
 using NSubstitute;
 using Xunit;
 
@@ -1340,6 +1341,31 @@ public sealed class MimeKitAuthoredEmailComposerTests
         using var stream = new MemoryStream(composition.Draft!.RawMime.ToArray());
 
         return MimeMessage.Load(stream);
+    }
+
+    /// <summary>
+    /// A stored message dated with the instant it leaves reads back that instant as its date, and nothing but its
+    /// <c>Date</c> changes.
+    /// </summary>
+    [Fact]
+    public void DateAt_AStoredMessage_ReadsBackTheTransmissionInstantAndKeepsEveryOtherHeader()
+    {
+        // Arrange
+        var rawMime = Encoding.ASCII.GetBytes(
+            "From: anna@example.test\r\nDate: Fri, 06 Nov 2026 16:00:00 +0000\r\nMessage-ID: <one@example.test>\r\n\r\nHello.\r\n");
+        var transmittedAt = new DateTimeOffset(2026, 11, 9, 9, 0, 0, TimeSpan.Zero);
+
+        // Act
+        var dated = CreateComposer().DateAt(rawMime, transmittedAt);
+
+        // Assert
+        using var stream = new MemoryStream(dated.ToArray());
+        using var message = MimeMessage.Load(stream, TestContext.Current.CancellationToken);
+        Assert.Equal(transmittedAt, message.Date);
+        Assert.Equal("one@example.test", message.MessageId);
+        Assert.Equal(
+            Encoding.ASCII.GetString(rawMime).Replace("Date: Fri, 06 Nov 2026 16:00:00 +0000", $"Date: {DateUtils.FormatDate(transmittedAt)}", StringComparison.Ordinal),
+            Encoding.ASCII.GetString(dated.Span));
     }
 
     private static string[] UserAgentsOf(HeaderList headers) =>

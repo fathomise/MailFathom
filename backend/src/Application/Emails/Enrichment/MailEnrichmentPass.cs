@@ -49,7 +49,7 @@ namespace MailFathom.Application.Emails.Enrichment;
 /// </para>
 /// <para>
 /// <b>Reading the dates a message names runs here too</b>, on a deployment that turned it on, because it wants exactly
-/// what this pass already selected: the subject, the arrival instant, and the opening passages of mail that has been
+/// what this pass already selected: the subject, the instant the message is dated by, and the opening passages of mail that has been
 /// cut and settled. Running it as a pass of its own would mean a second selection over the same rows and a second
 /// record of which messages it had reached, and would make proposing events a second category of unattended spend
 /// rather than one more thing derived from a message this run already pays to read. It is admitted against the same

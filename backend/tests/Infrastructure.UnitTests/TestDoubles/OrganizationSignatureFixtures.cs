@@ -71,7 +71,7 @@ internal static class OrganizationSignatureFixtures
         using var unsigned = new MemoryStream();
         message.WriteTo(format, unsigned);
 
-        var signed = OrganizationMailSigner.Sign(unsigned.ToArray(), key.KeyId, key.PrivateKey.GetEncoded())
+        var signed = OrganizationMailSigner.Sign(unsigned.ToArray(), key.KeyId, key.PrivateKey.GetEncoded(), DateTimeOffset.UnixEpoch)
             ?? throw new InvalidOperationException("The message names no author to sign for.");
         using var source = new MemoryStream(signed, writable: false);
         using var parsed = MimeMessage.Load(source);

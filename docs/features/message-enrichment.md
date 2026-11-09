@@ -30,8 +30,9 @@ A mark is never a sentence on its own. Each one carries:
 
 A message carries at most one mark of each aspect, so a row drawing the sense has one candidate rather than a choice
 between two answers to one question. Where the message asks its reader for something, its commitment is that request
-rather than whatever the sender or a third party owes, so the row a reader skims names their own deadline; and a
-signature names who wrote the message, never who owes what it describes. A reading with no evidence is refused rather than stored: it would read on a
+rather than whatever the sender or a third party owes, so the row a reader skims names their own deadline; where it
+asks its reader for nothing, a dated undertaking it states — a payment scheduled, a document promised by a day — is the
+commitment even where the message does not say who owes it; and a signature names who wrote the message, never who owes what it describes. A reading with no evidence is refused rather than stored: it would read on a
 screen exactly like one a passage supports, and no reader could tell them apart.
 
 The evidence names passages in the same terms the Discover run's citations name them, so the same reader resolves both
@@ -71,7 +72,9 @@ exist.
 message reached while its body was still uncut, or while an attachment it names was still unread, would be recorded for
 good as a reading of the half that happened to exist. Such a message waits here instead, and the next run takes it once
 the stage in front has finished with it. A deployment that reads no attachments waits for none. A delivery report or a
-read receipt is never selected at all: it is shown to no agent, so nothing is derived from one.
+read receipt is never selected at all: it is shown to no agent, so nothing is derived from one. Neither is mail
+nobody received — a draft, or a send waiting in or refused by the outbox — so no mark, task, or calendar proposal is
+read out of a reply the person has not sent; [mail nobody received](mailbox-queries.md#mail-nobody-received-read-by-the-persons-own-agent-alone) states which mail that is.
 
 It is a step of the account's synchronization run rather than a schedule of its own, for the reason every other pass is
 one: that run already has per-account isolation, a slot count, a jittered backoff, and a failure path that defers the
@@ -166,14 +169,26 @@ of its own.
 in the turn, so an agent that could look something up would be an agent able to reach mail beyond the message it was
 asked about.
 
-What leaves the deployment is the subject, the arrival instant, where the message came from, and the selected passages —
+What leaves the deployment is the subject, the instant the message is dated by, where the message came from, and the selected passages —
 nothing else, and every quoted one of them scanned first by whatever [sensitive-content scanning](sensitive-content-scanning.md) the deployment switched
 on. The passages are **numbered in the turn and cited by number**, and the model is shown no identifier at all, so a
 citation is a position in a list this deployment composed: an answer naming a passage it was not given names nothing,
 and its mark is dropped.
 
-The arrival instant is in the turn because a message saying "by Friday" is resolved against when it arrived rather than
-against now, which is what makes the same message derived again next month resolve to the same day.
+**Where the model declares `StructuredOutputs`, the shape is asked for rather than described.** The request carries a
+strict schema in which every cited passage is one of the message's own positions, and a reading or a day the model
+cannot support is written as `null`. The reading is the same either way: a text that runs long is cut, and a reading
+citing no passage is still dropped. [Chat generation § An answer in one document can be constrained by a schema](chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema)
+says what the request carries.
+
+The dating instant is in the turn because a message saying "by Friday" is resolved against when it was dated rather
+than against now, which is what makes the same message derived again next month resolve to the same day. Mail somebody
+else wrote is dated by its arrival, a server's own clock, and by its `Date` header only where no receiving hop recorded
+one. Mail the mailbox wrote is dated by when it was sent, because that is what the person's own "I'll send it before
+Monday" is relative to — and because whether the copy filed in Sent carries an arrival at all depends on the provider,
+so preferring one would date the same message differently from one provider to the next. Its arrival stands in only
+where its `Date` header is missing or unreadable. A message carrying neither instant is handed over undated, and
+nothing relative in it is resolved.
 
 The message is data rather than an instruction, and the instruction says so. Mail is the most adversarial text this
 system reads: a message asking to be marked urgent is a sender writing on a row somebody else's triage depends on.
@@ -181,9 +196,21 @@ system reads: a message asking to be marked urgent is a sender writing on a row 
 Where it came from is written by the service on the message's `<message>` element, as the same attributes
 [answering writes](mail-answering.md#where-a-message-came-from) — the sender verdict always, and the junk and first-contact
 flags where they hold. The instruction asks the model to read a request from a sender nobody authenticated, or from junk
-or a first contact, as a claim: a request there to change payment details or credentials, or to act urgently, becomes
+or a first contact, as a claim: a request there to change payment details or credentials, to make or approve a payment
+or a transfer, or to act urgently, becomes
 no commitment the person owes and no task on their list. A message whose provenance can no longer be read was erased
 since it was selected, and is not derived.
+
+**A message the person wrote is read from their side.** Mail they sent is enriched too, and in it the roles invert: what
+the message asks of its recipients is the recipients' work, and what the person undertook in it is the commitment worth
+reminding them of. The agent is shown no sender, no addressee, and no folder, so it cannot tell the two apart from the
+message alone; the service tells it instead, with the `written-by-mailbox` attribute
+[answering describes](mail-answering.md#where-a-message-came-from) — set from the account's sent folder and, where the
+account's record holds its address, from a `From` matching it — which names nobody. On such a message the commitment is
+what the person undertook, with its day resolved the same way, the tasks are only what they undertook to do and never
+what they asked somebody else to do, and the sense and significance say what they sent and why it may matter to them.
+The unverified-sender reading above does not apply to it: the person is not an unverified sender of their own mail. A
+message without the attribute is read as received mail, exactly as before.
 
 ## What it costs, and turning it on
 
@@ -222,6 +249,10 @@ A mark is a sentence derived from somebody's mail and inherits its classificatio
   it is.
 - **Deleting a message deletes its marks.** The record hangs off the stored message with a cascading delete, so an
   erasure removes the readings with the mail rather than leaving them behind.
+- **Whether the person wrote a message reaches the provider as one fact and nothing more.** The direction is derived
+  from the folder's role and the account's own address inside the deployment, and the turn carries only
+  `written-by-mailbox="true"`: no address, no folder name, and no participant leaves for a reading that does not need
+  one.
 - **The evidence is published as passage identifiers rather than as text**, because following one is a request of its
   own — a list page carrying the passages themselves would be publishing a body it had no reason to.
 - **A proposed task is not a mark and is not deleted with the message.** It is a row on somebody's own list, carrying a

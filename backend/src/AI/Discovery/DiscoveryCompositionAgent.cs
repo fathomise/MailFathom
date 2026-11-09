@@ -128,7 +128,7 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
 
         var turn = await ComposeTurnAsync(question, plan, sources, this.egressGuard, cancellationToken);
 
-        var answer = await this.AskAsync(turn, cancellationToken);
+        var answer = await this.AskAsync(turn, sources, cancellationToken);
         var composed = DiscoveryCompositionReading.Read(answer?.Text, plan, sources, evidence, coverage, language);
 
         if (answer is { Text: not null })
@@ -200,7 +200,7 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
     /// the user's own mail going back to the user, and redacting it there would hide from somebody what they already
     /// have. A guard that is inactive returns the same text, so a deployment scanning nothing pays nothing here.
     /// </remarks>
-    private static async Task<IReadOnlyList<DiscoveryTurnSource>> GuardAsync(
+    internal static async Task<IReadOnlyList<DiscoveryTurnSource>> GuardAsync(
         IReadOnlyList<DiscoveryComposedSource> sources,
         SensitiveContentEgressGuard egressGuard,
         CancellationToken cancellationToken)
@@ -214,7 +214,9 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
                     source.Citation.Label.Value,
                     source.Extract,
                     source.ReceivedAt,
-                    source.Provenance)),
+                    source.Provenance,
+                    source.SenderDisplayName,
+                    source.SenderAddress)),
             ];
         }
 
@@ -233,7 +235,15 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
                     source.Extract,
                     cancellationToken),
                 source.ReceivedAt,
-                source.Provenance));
+                source.Provenance,
+                await egressGuard.GuardOptionalAsync(
+                    SensitiveContentEgressPoint.ChatPrompt,
+                    source.SenderDisplayName,
+                    cancellationToken),
+                await egressGuard.GuardOptionalAsync(
+                    SensitiveContentEgressPoint.ChatPrompt,
+                    source.SenderAddress,
+                    cancellationToken)));
         }
 
         return guarded;
@@ -253,7 +263,10 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
     /// be a composition that failed, which is the one thing this one does not do.
     /// </para>
     /// </remarks>
-    private async Task<ChatModelAnswer?> AskAsync(string turn, CancellationToken cancellationToken)
+    private async Task<ChatModelAnswer?> AskAsync(
+        string turn,
+        IReadOnlyList<DiscoveryComposedSource> sources,
+        CancellationToken cancellationToken)
     {
         var endpoint = this.plan.Endpoint;
 
@@ -272,7 +285,7 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
             return await ChatModelFallThrough.RunAsync(
                 this.plan,
                 this.logger,
-                (model, attemptToken) => this.AskModelAsync(model, turn, attemptToken),
+                (model, attemptToken) => this.AskModelAsync(model, turn, sources, attemptToken),
                 cancellationToken);
         }
         catch (ChatGenerationFailedException failure)
@@ -298,6 +311,7 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
     private async Task<ChatModelAnswer> AskModelAsync(
         ChatGenerationPlan model,
         string turn,
+        IReadOnlyList<DiscoveryComposedSource> sources,
         CancellationToken cancellationToken)
     {
         // Against this model's own bounds rather than the main model's, because a fallback may be declared
@@ -322,12 +336,14 @@ internal sealed class DiscoveryCompositionAgent : IDiscoveryResultComposer
 
         // Outside the resilience decorator rather than inside it, so a call this deployment's own ceiling refused
         // never reaches the endpoint's circuit, its concurrency budget, or its health record. The two ledgers are
-        // the run's and the period's: this call is one of the two a Discover run makes, and both are charged.
+        // the run's and the period's: this call is the last of the at most three a Discover run makes, and both
+        // are charged.
         await using var chatClient = new BudgetedChatClient(resilientClient, this.runLedger, this.spendLedger);
 
         var agent = DiscoveryCompositionAgentComposition.Compose(
             chatClient,
             model,
+            sources,
             this.instructionEnvelope,
             this.loggerFactory);
 

@@ -25,4 +25,16 @@ internal static partial class DiscoveryPlanningEvents
         Level = LogLevel.Warning,
         Message = "The planning agent at {EndpointAlias} answered with nothing this build could read as a plan, so the question's own words are being searched for instead.")]
     internal static partial void LogPlanUnreadable(ILogger logger, string endpointAlias);
+
+    [LoggerMessage(
+        EventId = 3,
+        Level = LogLevel.Debug,
+        Message = "The planning agent at {EndpointAlias} added {LookupCount} lookups after reading what the plan found.")]
+    internal static partial void LogFollowUpRead(ILogger logger, string endpointAlias, int lookupCount);
+
+    [LoggerMessage(
+        EventId = 4,
+        Level = LogLevel.Debug,
+        Message = "What the plan found is too large to show the planning agent at {EndpointAlias} in one request, so no lookup was added.")]
+    internal static partial void LogFollowUpTooLarge(ILogger logger, string endpointAlias);
 }

@@ -1109,14 +1109,9 @@ internal static class HostComposition
         builder.Services.AddCalendarEventExtractionAgent(
             declaredChat?.IsConfigured is true && declaredChat.CalendarEventExtraction.Enabled);
 
-        // And again for the cleaned rendering a reading pane offers as its third, where what turns it on is the chat
-        // endpoint alone: which readers want it is their own preference rather than a key an operator writes. The model
-        // it runs on is its own capability's, resolved from the keyed plans above like every other.
-        builder.Services.AddMailBodyCleanupAgent(declaredChat?.IsConfigured is true);
-
-        // And once more for the day somebody asks to have arranged, where what turns it on is the chat endpoint alone
-        // for the reason the cleaned rendering is: pressing the control is a person's decision rather than a key an
-        // operator writes, and an instance that declared no model says so when it is asked.
+        // And again for the day somebody asks to have arranged, where what turns it on is the chat endpoint alone:
+        // pressing the control is a person's decision rather than a key an operator writes, and an instance that
+        // declared no model says so when it is asked.
         builder.Services.AddDayLayoutAgent(declaredChat?.IsConfigured is true);
 
         builder.Services.AddInfrastructure(

@@ -53,12 +53,29 @@ public sealed record MailDocument(
 
     /// <summary>Gets which top-level blocks are the footer MailFathom appended, or <see langword="null" /> where the document names none.</summary>
     /// <remarks>
-    /// Named only on the copy MailFathom filed of a message it sent from one of the reader's own accounts, and only
-    /// where that message carries the footer's mark. It is an addition to the document rather than a change to its
-    /// shape, so <see cref="CurrentSchemaVersion" /> does not move for it: a reader of the first revision ignores it
-    /// and draws every block, which is the message exactly as it was sent.
+    /// Named only where <see cref="AuthorIsProven" /> holds and only where the message carries the footer's mark. It is
+    /// an addition to the document rather than a change to its shape, so <see cref="CurrentSchemaVersion" /> does not
+    /// move for it: a reader of the first revision ignores it and draws every block, which is the message exactly as
+    /// it was sent.
     /// </remarks>
     public MailDocumentFooter? Footer { get; init; }
+
+    /// <summary>Gets which top-level blocks are the quotation MailFathom wrote into the message, or <see langword="null" /> where the document names none.</summary>
+    /// <remarks>
+    /// Named only where <see cref="AuthorIsProven" /> holds and only where the message carries the quotation's mark, and
+    /// additive for the reason <see cref="Footer" /> is. It begins at the attribution line MailFathom wrote and runs to
+    /// the end of the document.
+    /// </remarks>
+    public MailDocumentQuotation? Quotation { get; init; }
+
+    /// <summary>Gets whether this document's presentation is its proven author's to choose.</summary>
+    /// <remarks>
+    /// True only for a message the organization's signature proves or the copy MailFathom filed of its own send, which is
+    /// the use case's decision and is stated here so a pane never evaluates it. A signature covers what its author
+    /// quoted and vouches only for what they wrote, so this says nothing about a quotation block. It is additive like
+    /// <see cref="Footer" />: a reader of the first revision draws the message as it always did.
+    /// </remarks>
+    public bool AuthorIsProven { get; init; }
 
     /// <summary>Creates the document of a body that was reduced.</summary>
     /// <param name="blocks">The blocks, in reading order.</param>

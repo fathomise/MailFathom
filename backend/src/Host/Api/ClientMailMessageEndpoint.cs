@@ -128,8 +128,8 @@ internal static class ClientMailMessageEndpoint
 /// <param name="Signature">What verifying the message's own S/MIME or OpenPGP signature found, beside the verdict and never folded into it.</param>
 /// <param name="Attachments">One entry per file the message carries, described and carrying none of what it holds.</param>
 /// <param name="Carried">The counts for everything the message carries besides its body, or <see langword="null" /> where nothing has ever read its parts.</param>
-/// <param name="Unread">Whether the mail server last showed the message as unseen.</param>
-/// <param name="Flagged">Whether the mail server last showed the message as flagged.</param>
+/// <param name="Unread">Whether the message is stored without the <c>\Seen</c> mark.</param>
+/// <param name="Flagged">Whether the message is stored with <c>\Flagged</c>.</param>
 /// <param name="Answered">Whether the mail server last showed the message as answered.</param>
 /// <param name="Spam">What spam classification concluded about the message, or <see langword="null" /> where nothing has classified it.</param>
 /// <param name="SenderPhoto">The photo the author the message displays — its first <c>From</c> mailbox — is drawn by, or <see langword="null" /> where they are drawn by their initials.</param>
@@ -206,9 +206,9 @@ internal sealed record ClientMailMessageResponse(
             [.. message.Attachments.Select((attachment, position) =>
                 ClientMailAttachmentResponse.For(attachment, position))],
             message.AttachmentSummary is { } carried ? ClientMailCarriedResponse.For(carried) : null,
-            !message.RemoteFlags.IsSeen,
-            message.RemoteFlags.IsFlagged,
-            message.RemoteFlags.IsAnswered,
+            !message.Flags.IsSeen,
+            message.Flags.IsFlagged,
+            message.Flags.IsAnswered,
             ClientMailSpamVerdictResponse.For(message.Spam),
             PersonPhotoResponse.For(AuthorOf(message), authorPhotos),
             ClientMailReportResponse.For(message.Report),

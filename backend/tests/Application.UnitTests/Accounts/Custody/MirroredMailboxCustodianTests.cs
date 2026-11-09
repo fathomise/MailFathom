@@ -349,7 +349,7 @@ public sealed class MirroredMailboxCustodianTests
 
     private void StoreUnread() => this.states.Store(
         Email,
-        new LocalEmailState(Inbox, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, RemoteEmailKeywords.Create([])));
+        new LocalEmailState(Inbox, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, EmailKeywords.Create([])));
 
     private MirroredMailboxCustodian Custodian() =>
         MailboxChangeSubmissions.Composing(this.records, states: this.states).Mirrored;

@@ -79,8 +79,8 @@ internal sealed record RetrievedEmailContent
     [Description("The counts for what the email carries besides its body, returned whether or not attachment details were asked for, or null when nothing has ever read this email's parts — the case of an email whose content the size limit kept out of storage. Null rather than zero, because zero would claim the email carries no attachments and no local copy exists to support that claim.")]
     public EmailAttachmentCounts? AttachmentCounts { get; init; }
 
-    /// <summary>Gets the flags a mail server last showed for the email.</summary>
-    public required ObservedRemoteFlags RemoteFlags { get; init; }
+    /// <summary>Gets the flags MailFathom holds for the email.</summary>
+    public required PublishedEmailFlags Flags { get; init; }
 
     /// <summary>Gets the conversation this email belongs to, or <see langword="null" /> when it is in none.</summary>
     [Description("The conversation this email belongs to, or null when nothing has placed it in one — which is the case for mail stored before this deployment assembled conversations at all.")]
@@ -113,7 +113,7 @@ internal sealed record RetrievedEmailContent
             AttachmentCounts = content.AttachmentSummary is { } attachmentSummary
                 ? EmailAttachmentCounts.From(attachmentSummary)
                 : null,
-            RemoteFlags = ObservedRemoteFlags.From(content.RemoteFlags),
+            Flags = PublishedEmailFlags.From(content.Flags),
             Thread = content.Thread is { } thread ? RetrievedEmailThread.From(thread) : null,
             Receipts = SentEmailReceipts.From(content.Receipts),
         };

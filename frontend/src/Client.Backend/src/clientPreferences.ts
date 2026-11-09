@@ -17,15 +17,14 @@ export type ClientThemePreference = 'system' | 'light' | 'dark';
 const themePreferences: readonly ClientThemePreference[] = ['system', 'light', 'dark'];
 
 /**
- * Which of the three renderings a message opens on, as the deployment names it.
+ * Which of the two renderings a message opens on, as the deployment names it.
  *
  * `reduced` is the closed document tree the service reduces a body to and is what an unset preference reads as.
- * `cleaned` is that same tree with what the sender wrapped it in dropped, derived per open by a model that answers in
- * block indices. `embeddedHtml` is the sender's own markup, with everything that runs or reports removed.
+ * `embeddedHtml` is the sender's own markup, with everything that runs or reports removed.
  */
-export type ClientMessageView = 'reduced' | 'cleaned' | 'embeddedHtml';
+export type ClientMessageView = 'reduced' | 'embeddedHtml';
 
-const messageViews: readonly ClientMessageView[] = ['reduced', 'cleaned', 'embeddedHtml'];
+const messageViews: readonly ClientMessageView[] = ['reduced', 'embeddedHtml'];
 
 /** Whether the mail list draws one message or one conversation per row, as the deployment names it. */
 export type ClientMailListMode = 'messages' | 'threads';
@@ -50,7 +49,7 @@ export interface ClientPreferences {
     /** Whether opening a conversation draws every message in it rather than the one it was opened at. */
     readonly expandWholeThread: boolean;
 
-    /** Which of the three renderings an open message is drawn on. */
+    /** Which of the two renderings an open message is drawn on. */
     readonly messageView: ClientMessageView;
 
     /** Whether the folder tree carries the standing views of what a derivation read in the mail. */
@@ -220,7 +219,12 @@ function parsePreferences(body: string): ClientPreferences | null {
     const openMailInTabs = record['openMailInTabs'];
     const markReadOnOpen = record['markReadOnOpen'];
     const expandWholeThread = record['expandWholeThread'];
-    const messageView = record['messageView'];
+    // A name this build does not publish is a rendering an older replica still stores for somebody who chose it before
+    // it was withdrawn, which a rolling upgrade puts beside this build. It reads as the unset one rather than refusing
+    // the document, which would leave every other preference read as its default too.
+    const statedView = record['messageView'];
+    const messageView =
+        typeof statedView === 'string' && !isMessageView(statedView) ? unsetClientPreferences.messageView : statedView;
     const aiFiltersShown = record['aiFiltersShown'];
     const notificationSeconds = record['notificationSeconds'];
     // Absent is an answer from a replica built before the list existed, which a rolling upgrade puts beside one built

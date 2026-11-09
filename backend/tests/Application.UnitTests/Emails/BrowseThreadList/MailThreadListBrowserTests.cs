@@ -286,7 +286,7 @@ public sealed class MailThreadListBrowserTests
                 Accounts = [MailAccountSelector.For(SecondAccount)],
                 CarriesMarkOfAspect = EmailEnrichmentAspect.Commitment,
                 MarkDueBefore = dueBefore,
-                IsRemotelySeen = false,
+                IsMarkedSeen = false,
                 HasAttachments = true,
                 Order = EmailTimelineDirection.OldestFirst,
             },
@@ -300,7 +300,7 @@ public sealed class MailThreadListBrowserTests
         Assert.Empty(filter.Selection.Scope.SelectedFolders);
         Assert.Equal(
             (EmailEnrichmentAspect.Commitment, (DateTimeOffset?)dueBefore, (bool?)false, (bool?)true, EmailTimelineDirection.OldestFirst),
-            (filter.Selection.Mark?.Aspect, filter.Selection.Mark?.DueBefore, filter.Selection.IsRemotelySeen, filter.Selection.HasAttachments, filter.Direction));
+            (filter.Selection.Mark?.Aspect, filter.Selection.Mark?.DueBefore, filter.Selection.IsMarkedSeen, filter.Selection.HasAttachments, filter.Direction));
     }
 
     /// <summary>A conversation has no folder, so a folder beside the grouping, or a request for junk mail, is refused before anything is read.</summary>

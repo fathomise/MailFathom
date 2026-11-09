@@ -22,8 +22,9 @@ namespace MailFathom.Evaluations.Providers;
 /// one a deployment sends and a refusal is classified as a deployment classifies it — which is what the spam model stage
 /// reads an outcome from. What it leaves out is what <see cref="ProviderChatClient" /> leaves out: the deployment's
 /// retry budget and ledgers, because a scenario is not a deployment's spend. The middleware runs each call once, and a
-/// failure it calls worth repeating — a rate limit, a timeout, a transport fault — is asked again here after a jittered
-/// delay, the way <see cref="TransientProviderRetryChatClient" /> asks a chat model again.
+/// failure it calls worth repeating — a rate limit, a timeout, a transport fault — is asked again here after the delay and
+/// up to the attempts <see cref="TransientProviderRetryChatClient" /> gives a chat model failing the same way, under the
+/// same limit on the run's calls in flight.
 /// </para>
 /// <para>
 /// Every answer passes through <see cref="ProviderSpendHandler" />, beneath the run's response cache, so an answer the
@@ -60,7 +61,7 @@ internal sealed class ProviderDecisionClient : DelegatingDecisionClient
             new AiProviderHealthTracker(TimeProvider.System, NullLogger<AiProviderHealthTracker>.Instance),
             NullLogger.Instance);
 
-        return new ProviderDecisionClient(new TransientRetryDecisionClient(classified, TimeProvider.System), transport);
+        return new ProviderDecisionClient(new TransientRetryDecisionClient(classified, TimeProvider.System, ProviderCallLimit.Shared), transport);
     }
 
     /// <inheritdoc />
@@ -99,7 +100,11 @@ internal sealed class ProviderDecisionClient : DelegatingDecisionClient
     }
 
     /// <summary>Asks again when the classified failure says the same request may succeed later, and never otherwise.</summary>
-    private sealed class TransientRetryDecisionClient(IDecisionClient innerClient, TimeProvider timeProvider)
+    /// <remarks>The classified failure carries no response, so a provider's <c>Retry-After</c> does not reach it and a rate limit takes the longer delay of one that named no time.</remarks>
+    private sealed class TransientRetryDecisionClient(
+        IDecisionClient innerClient,
+        TimeProvider timeProvider,
+        SemaphoreSlim callsInFlight)
         : DelegatingDecisionClient(innerClient)
     {
         public override async Task<DecisionResponse> DecideAsync(
@@ -114,19 +119,38 @@ internal sealed class ProviderDecisionClient : DelegatingDecisionClient
             {
                 try
                 {
-                    return await base.DecideAsync(asked, questions, options, cancellationToken);
+                    return await this.SendAsync(asked, questions, options, cancellationToken);
                 }
-                catch (DecisionFailedException failure) when (attempt < TransientProviderRetryChatClient.MaxAttempts && failure.IsWorthRepeating)
+                catch (DecisionFailedException failure) when (failure.IsWorthRepeating
+                    && attempt < TransientProviderRetryChatClient.AttemptsFor(AsProviderFailure(failure)))
                 {
                     await Task.Delay(
-                        JitteredRetryBackoff.DelayBeforeNextAttempt(
-                            TransientProviderRetryChatClient.BaseDelay,
-                            TransientProviderRetryChatClient.MaxDelay,
-                            minimumDelay: TimeSpan.Zero,
-                            attempt),
+                        TransientProviderRetryChatClient.DelayBeforeRetry(AsProviderFailure(failure), requested: null, attempt),
                         timeProvider,
                         cancellationToken);
                 }
+            }
+        }
+
+        /// <summary>Reads a decision failure as the provider failure the chat retry sizes its delay by: a rate limit, or a fault.</summary>
+        private static ProviderCallFailure AsProviderFailure(DecisionFailedException failure) =>
+            failure.Failure is DecisionFailure.RateLimited ? ProviderCallFailure.RateLimited : ProviderCallFailure.TransportFaulted;
+
+        private async Task<DecisionResponse> SendAsync(
+            IReadOnlyList<ChatMessage> input,
+            IReadOnlyList<DecisionQuestion> questions,
+            DecisionOptions? options,
+            CancellationToken cancellationToken)
+        {
+            await callsInFlight.WaitAsync(cancellationToken);
+
+            try
+            {
+                return await base.DecideAsync(input, questions, options, cancellationToken);
+            }
+            finally
+            {
+                callsInFlight.Release();
             }
         }
     }

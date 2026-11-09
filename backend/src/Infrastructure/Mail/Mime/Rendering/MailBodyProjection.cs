@@ -36,7 +36,7 @@ internal static class MailBodyProjection
     /// <param name="htmlParts">The HTML the message displays, in the order the walk found the parts.</param>
     /// <param name="plainText">What the message says where it displays no markup, which is a document of its own.</param>
     /// <param name="retainRemoteImages">Whether the reader asked for this message's remote pictures.</param>
-    /// <param name="namesAppendedFooter">Whether the document names the footer MailFathom appended, which only the reader's own sent copy is asked for.</param>
+    /// <param name="authorIsProven">Whether the use case established who wrote the message, which is what lets the document read the marks MailFathom wrote into it.</param>
     /// <param name="maximumCharacters">How much markup is reduced before the source is cut.</param>
     /// <param name="maximumImageOctets">How many octets of its own pictures this document may still inline.</param>
     /// <param name="cancellationToken">Cancels the decode of the message's own pictures.</param>
@@ -47,7 +47,7 @@ internal static class MailBodyProjection
         IReadOnlyList<string> htmlParts,
         string plainText,
         bool retainRemoteImages,
-        bool namesAppendedFooter,
+        bool authorIsProven,
         int maximumCharacters,
         int maximumImageOctets,
         CancellationToken cancellationToken)
@@ -60,7 +60,7 @@ internal static class MailBodyProjection
         {
             return FromPlainText(
                 plainText,
-                namesAppendedFooter,
+                authorIsProven,
                 message.Headers.Contains(HeaderId.InReplyTo),
                 maximumCharacters);
         }
@@ -97,7 +97,7 @@ internal static class MailBodyProjection
             bounds.MaximumInlineImageOctetsPerDocument,
             cancellationToken);
 
-        var reducer = new MailBodyReducer(bounds, inlineImages, retainRemoteImages, namesAppendedFooter);
+        var reducer = new MailBodyReducer(bounds, inlineImages, retainRemoteImages, authorIsProven);
 
         // The cut happens before the parse, so the reducer never meets the words it removed and would report a whole
         // document. Telling it here is what keeps every way a body is shortened readable as one flag.
@@ -131,7 +131,7 @@ internal static class MailBodyProjection
     /// </remarks>
     private static MailDocument FromPlainText(
         string plainText,
-        bool namesAppendedFooter,
+        bool authorIsProven,
         bool answers,
         int maximumCharacters)
     {
@@ -145,11 +145,11 @@ internal static class MailBodyProjection
 
         var truncated = source.Length < normalized.Length;
         var blocks = new List<MailDocumentBlock>();
-        var footer = namesAppendedFooter ? FindTextFooter(source, answers) : null;
+        var footer = authorIsProven ? FindTextFooter(source, answers) : null;
         int? footerFirstBlock = null;
         var footerBlockCount = 0;
 
-        foreach (var (paragraph, inFooter) in ParagraphsIn(source, footer))
+        foreach (var (paragraph, inFooter) in ParagraphsIn(source, footer).SelectMany(WithWrittenHeadersApart))
         {
             if (blocks.Count >= bounds.MaximumBlocks)
             {
@@ -179,7 +179,7 @@ internal static class MailBodyProjection
         return blocks.Count == 0
             ? MailDocument.Refused(MailDocumentRefusal.NoHtmlPart)
             : MailDocument.Reduced(
-                blocks,
+                MailWrittenHeaderBlocks.Marked(blocks),
                 removedRemoteReferenceCount: 0,
                 retainedRemoteImageCount: 0,
                 inlineImageCount: 0,
@@ -189,6 +189,7 @@ internal static class MailBodyProjection
                 Footer = footerFirstBlock is { } firstBlock && footerBlockCount > 0
                     ? new MailDocumentFooter(firstBlock, footerBlockCount)
                     : null,
+                AuthorIsProven = authorIsProven,
             };
     }
 
@@ -233,6 +234,11 @@ internal static class MailBodyProjection
             .Concat(ParagraphsIn(source.Substring(start, length)).Select(static paragraph => (paragraph, true)))
             .Concat(ParagraphsIn(source[(start + length)..]).Select(static paragraph => (paragraph, false)));
     }
+
+    private static IEnumerable<(string Paragraph, bool InFooter)> WithWrittenHeadersApart(
+        (string Paragraph, bool InFooter) written) => written.InFooter
+            ? [written]
+            : MailWrittenHeaderBlocks.SeparatedFromTheWordsAround(written.Paragraph).Select(static piece => (piece, false));
 
     private static IEnumerable<string> ParagraphsIn(string source) => source
         .Split("\n\n", StringSplitOptions.None)

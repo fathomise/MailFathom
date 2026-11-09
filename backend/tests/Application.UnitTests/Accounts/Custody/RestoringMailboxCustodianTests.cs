@@ -80,7 +80,7 @@ public sealed class RestoringMailboxCustodianTests
         // Arrange
         this.states.Store(
             Email,
-            new LocalEmailState(Inbox, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, RemoteEmailKeywords.Create([])));
+            new LocalEmailState(Inbox, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, EmailKeywords.Create([])));
         var change = new MailboxChange(
             MailboxMutationRequest.SetSeen(Email, Occurrence, MailboxMutationRequester.Command("call-1"), true),
             Destination: null,

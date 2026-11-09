@@ -7,7 +7,7 @@ using Microsoft.Extensions.AI;
 
 namespace MailFathom.Evaluations.UnitTests.Discovery;
 
-/// <summary>A model that answers the Discover planning agent with a fixed plan and the composing agent with a result written from its turn.</summary>
+/// <summary>A model that answers the Discover planning agent with a fixed plan, its follow-up with what the turn shows, and the composing agent with a result written from its turn.</summary>
 /// <remarks>
 /// Which agent is asking is read from the instruction the request carries rather than from how often it was asked, so a
 /// run replayed from the store's cache reaches the same answers. The composition is a function of the turn because the
@@ -15,8 +15,15 @@ namespace MailFathom.Evaluations.UnitTests.Discovery;
 /// </remarks>
 /// <param name="plan">What the planning agent is answered with.</param>
 /// <param name="composition">What the composing agent is answered with, given the turn it was handed.</param>
-internal sealed class ScriptedDiscoveryChatClient(string plan, Func<string, string> composition) : IChatClient
+/// <param name="followUp">What the planning agent is answered with in its follow-up turn, given that turn; no further lookup where omitted.</param>
+internal sealed class ScriptedDiscoveryChatClient(
+    string plan,
+    Func<string, string> composition,
+    Func<string, string>? followUp = null) : IChatClient
 {
+    /// <summary>A follow-up answer adding no lookup.</summary>
+    public const string NoFurtherLookup = """{"intent":"findFact","sufficientPassages":1,"lookups":[]}""";
+
     private const string ModelName = "scripted-discovery-model";
 
     /// <summary>Gets how many requests reached this model.</summary>
@@ -32,9 +39,15 @@ internal sealed class ScriptedDiscoveryChatClient(string plan, Func<string, stri
 
         var conversation = messages.ToList();
         var instructed = string.Concat(options?.Instructions, string.Concat(conversation.Select(static message => message.Text)));
-        var answer = instructed.Contains(DiscoveryPlanningInstructions.Text, StringComparison.Ordinal)
-            ? plan
-            : composition(conversation[^1].Text);
+        var planning = instructed.Contains(DiscoveryPlanningInstructions.TextFor(constrainedBySchema: false), StringComparison.Ordinal)
+            || instructed.Contains(DiscoveryPlanningInstructions.TextFor(constrainedBySchema: true), StringComparison.Ordinal);
+        var turn = conversation[^1].Text;
+        var answer = (planning, turn.Contains(DiscoveryPlanningInstructions.FollowUpOpening, StringComparison.Ordinal)) switch
+        {
+            (true, true) => followUp?.Invoke(turn) ?? NoFurtherLookup,
+            (true, false) => plan,
+            _ => composition(turn),
+        };
 
         return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, answer))
         {

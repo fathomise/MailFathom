@@ -157,13 +157,13 @@ public sealed class ClientMailThreadListResponsesTests
                 CarriesUnverifiedSignature: false,
                 ContainsUnexpandedTnefPart: false),
             ContentAvailability = StoredEmailContentAvailability.Available,
-            RemoteFlags = new RemoteEmailFlagSnapshot(
+            Flags = new StoredEmailFlags(
                 receivedAt,
                 IsSeen: false,
                 IsAnswered: false,
                 IsFlagged: false,
                 IsDraft: false,
                 IsDeleted: false,
-                RemoteEmailKeywords.None),
+                EmailKeywords.None),
         };
 }

@@ -70,12 +70,15 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.False(verdict.Get<BooleanMetric>(AgentConversationScenario.ProposesOnlyWhatWasAskedMetricName).Value);
     }
 
-    /// <summary>A proposed message is judged by how it closes against whether its account appends the person's footer.</summary>
+    /// <summary>A proposed message is judged by how it closes against whether its account appends the person's footer, the name the person signs their mail with closing it as the whole of a line.</summary>
     [Theory]
     [InlineData("Agent.Footer.MessageLeavesTheClosingToTheFooter", "You may collect the archive boxes between 14:00 and 16:00.", true)]
     [InlineData("Agent.Footer.MessageLeavesTheClosingToTheFooter", "You may collect the archive boxes between 14:00 and 16:00.\n\nBest regards,\nMara", false)]
     [InlineData("Agent.Footer.MessageClosesWithoutAFooter", "You may collect the archive boxes between 14:00 and 16:00.\n\nBest regards,\nMara", true)]
     [InlineData("Agent.Footer.MessageClosesWithoutAFooter", "You may collect the archive boxes between 14:00 and 16:00.", false)]
+    [InlineData("Agent.Footer.MessageClosesWithoutAFooter", "Hello,\n\nYou may collect the archive boxes between 14:00 and 16:00.\n\nMara", true)]
+    [InlineData("Agent.Footer.MessageLeavesTheClosingToTheFooter", "Hello,\n\nYou may collect the archive boxes between 14:00 and 16:00.\n\nMara", false)]
+    [InlineData("Agent.Footer.MessageLeavesTheClosingToTheFooter", "You may collect the archive boxes between 14:00 and 16:00.\n\nThanks for the update.", true)]
     public async Task RunAsync_AMessageFromAnAccountWithOrWithoutAFooter_PassesOnlyWhereItClosesAsThatAccountRequires(
         string scenario,
         string body,
@@ -333,6 +336,26 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.Equal(expected, verdict.Get<BooleanMetric>(AgentConversationScenario.FollowUpsOnSubjectMetricName).Value);
     }
 
+    /// <summary>The follow-ups a recorded run suggested name the subject in an inflected form or in a word of its own, and still pass only on it.</summary>
+    [Theory]
+    [InlineData("Agent.Tasks.Polish.WhatIsLeft", "Które z tych zadań są najpilniejsze?", true)]
+    [InlineData("Agent.QuotesMailUntranslated", "Czy problem został naprawiony?", true)]
+    [InlineData("Agent.Tasks.Polish.WhatIsLeft", "Jaka będzie jutro pogoda?", false)]
+    public async Task RunAsync_ARecordedFollowUpOrOneOffTheSubject_PassesTheFollowUpCheckOnlyWhereItStaysOnIt(
+        string scenario,
+        string followUp,
+        bool expected)
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient([Search("LumenDesk export error"), Suggest(followUp)], "Gotowe.");
+
+        // Act
+        var verdict = await this.RunAsync(Named(scenario), model);
+
+        // Assert
+        Assert.Equal(expected, verdict.Get<BooleanMetric>(AgentConversationScenario.FollowUpsOnSubjectMetricName).Value);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -374,6 +397,35 @@ public sealed class AgentConversationScenarioTests : IDisposable
 
         // Assert
         Assert.False(verdict.Get<BooleanMetric>(AgentConversationScenario.WithinBoundsMetricName).Value);
+    }
+
+    [Fact]
+    public async Task RunAsync_AModelWhoseLastCallAloneCrossesTheDefaultTokenCeiling_PassesTheBoundsCheck()
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient([Search("LumenDesk export error")], "Never graded.", inputTokensPerReply: 50_000);
+
+        // Act
+        var verdict = await this.RunAsync(Quoting, model);
+
+        // Assert
+        var withinBounds = verdict.Get<BooleanMetric>(AgentConversationScenario.WithinBoundsMetricName);
+        Assert.True(withinBounds.Value, withinBounds.Reason);
+    }
+
+    [Fact]
+    public async Task RunAsync_AModelWhoseCallStartsPastTheDefaultTokenCeiling_FailsTheBoundsCheckNamingTheTokens()
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient([Search("LumenDesk export error")], "Never graded.", inputTokensPerReply: 90_000);
+
+        // Act
+        var verdict = await this.RunAsync(Quoting, model);
+
+        // Assert
+        var withinBounds = verdict.Get<BooleanMetric>(AgentConversationScenario.WithinBoundsMetricName);
+        Assert.False(withinBounds.Value);
+        Assert.Contains("started at 90005 tokens", withinBounds.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -566,6 +618,32 @@ public sealed class AgentConversationScenarioTests : IDisposable
 
         // Assert
         Assert.False(verdict.Get<BooleanMetric>(AccountClaim.MetricName).Value);
+    }
+
+    /// <summary>An answer about a reply that has not left passes only where it says which state the reply is in, and fails where it reads the reply as delivered.</summary>
+    [Theory]
+    [InlineData("ScheduledReply", "Hollis filing cabinets", "Your confirmation of Thursday 17 September is scheduled and has not been sent yet, so Hollis Supplies has not received it.", true)]
+    [InlineData("ScheduledReply", "Hollis filing cabinets", "Yes, you confirmed delivery of the 40 filing cabinets on Thursday 17 September between 09:00 and 11:00.", false)]
+    [InlineData("DraftedReply", "Rafael trade fair stand", "Only in a draft: it says you will pay the 2,150 EUR fee by Friday 25 September, but you have not sent it.", true)]
+    [InlineData("DraftedReply", "Rafael trade fair stand", "Yes, you told Rafael Duarte you would pay the 2,150 EUR stand fee by Friday 25 September.", false)]
+    [InlineData("ReplyBeingSent", "Elias workshop room", "Your reply choosing the Fjord room is still being sent, so Elias Varga may not have it yet.", true)]
+    [InlineData("ReplyBeingSent", "Elias workshop room", "Yes, you told Elias Varga you would take the Fjord room for 18 people.", false)]
+    [InlineData("FailedReply", "Mei lobby signage", "No: your acceptance of the 3,800 EUR quote failed to send, so send it again.", true)]
+    [InlineData("FailedReply", "Mei lobby signage", "Yes, you accepted Mei Tanaka's 3,800 EUR quote for the lobby signage.", false)]
+    public async Task RunAsync_AnAnswerAboutAReplyNotSent_PassesTheUnsentCheckOnlyWhereItNamesTheState(
+        string caseName,
+        string lookup,
+        string answer,
+        bool expected)
+    {
+        // Arrange
+        using var model = new ScriptedAgentChatClient([Search(lookup)], answer);
+
+        // Act
+        var verdict = await this.RunAsync(Named($"Agent.Unsent.{caseName}"), model);
+
+        // Assert
+        Assert.Equal(expected, verdict.Get<BooleanMetric>(UnsentMessage.MetricName).Value);
     }
 
     [Fact]
@@ -787,14 +865,13 @@ public sealed class AgentConversationScenarioTests : IDisposable
     private async Task<EvaluationResult> RunAsync(AgentConversationScenario scenario, IChatClient model)
     {
         using var judge = Judge();
-        using var anonymousJudge = new AnonymousJudgeChatClient(judge);
-        var declaration = JudgeDeclaration.Of(new Uri("https://planted-judge-host.invalid/v1/"), "planted-judge-model", "planted-judge-key", reasoningEffort: null);
+        var panel = JudgePanel.Of(new Uri("https://planted-judge-host.invalid/v1/"), ["planted-judge-model"], arbiterModel: null, "planted-judge-key", reasoningEffort: null);
+        using var panelClient = panel.Present([judge]);
         var reporting = EvaluationStore.OpenAt(
             this.store.FullName,
             "only",
-            anonymousJudge,
-            declaration.CachingKey,
-            AgentConversationScenario.Evaluators);
+            panelClient,
+            scenario.Evaluators);
 
         return await scenario.RunAsync(
             reporting,

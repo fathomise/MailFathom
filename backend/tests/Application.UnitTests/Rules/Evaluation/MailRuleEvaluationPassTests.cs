@@ -147,7 +147,7 @@ public sealed class MailRuleEvaluationPassTests
                 Folder: null,
                 IsSeen: false,
                 IsFlagged: false,
-                RemoteEmailKeywords.Create([])));
+                EmailKeywords.Create([])));
         var pass = this.CreatePass(
             RuleSetOf(CopyingRule("keep-a-copy")),
             submission: MailboxChangeSubmissions.Over(

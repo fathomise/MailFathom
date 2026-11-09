@@ -6,7 +6,9 @@ using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Folders;
 using MailFathom.CodeCoverage;
+using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authentication;
 using MailFathom.Domain.Folders;
 using MailFathom.Infrastructure.Persistence.Contacts;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +18,8 @@ namespace MailFathom.Infrastructure.Persistence.Emails;
 [RequiresIntegrationCoverage]
 internal sealed class StoredEmailProvenanceReader(
     MailFathomDbContext dbContext,
-    IDeploymentMailFolders deploymentFolders) : IEmailProvenanceReader
+    IDeploymentMailFolders deploymentFolders,
+    TimeProvider timeProvider) : IEmailProvenanceReader
 {
     /// <inheritdoc />
     public async Task<IReadOnlyDictionary<StoredEmailId, EmailProvenance>> ReadAsync(
@@ -36,10 +39,13 @@ internal sealed class StoredEmailProvenanceReader(
             dbContext,
             [.. rows.Select(static row => row.SenderTrust)],
             cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        var unsent = (await UnsentOf(dbContext, emails).ToArrayAsync(cancellationToken))
+            .ToDictionary(static row => row.StoredEmailId, row => StateOf(row.Stage, row.DueAt, now));
 
         return rows.Zip(verdicts).ToDictionary(
             static pair => StoredEmailId.Create(pair.First.StoredEmailId),
-            static pair => new EmailProvenance
+            pair => new EmailProvenance
             {
                 Sender = new SenderVerification
                 {
@@ -49,7 +55,59 @@ internal sealed class StoredEmailProvenanceReader(
                 },
                 IsInJunkFolder = pair.First.IsInJunkFolder,
                 IsFirstContact = !pair.First.HasEarlierCorrespondence,
+                IsWrittenByMailbox = pair.First.IsWrittenByMailbox,
+                Unsent = unsent.TryGetValue(pair.First.StoredEmailId, out var state) ? state : null,
             });
+    }
+
+    /// <summary>Reads where a message the mailbox has not sent stands, from the stage of the send its draft was promoted to.</summary>
+    /// <param name="stage">The stage of that send, or <see langword="null" /> where the draft was promoted to none.</param>
+    /// <param name="dueAt">The instant that send was written to leave at, or <see langword="null" /> where it was written to leave at once.</param>
+    /// <param name="now">The instant the read happens at.</param>
+    /// <returns>The state the person's own Agent is told.</returns>
+    /// <remarks>
+    /// A send already delivered still has its copy in the drafts folder until the draft pass removes it, and it is read as
+    /// still leaving rather than as delivered, because the copy shown is not the one that left. A withdrawn send is a
+    /// working copy again, which nobody is asking to send.
+    /// </remarks>
+    internal static UnsentEmailState StateOf(OutgoingEmailStage? stage, DateTimeOffset? dueAt, DateTimeOffset now) => stage switch
+    {
+        null or OutgoingEmailStage.Cancelled => UnsentEmailState.Draft,
+        OutgoingEmailStage.Recorded when dueAt > now => UnsentEmailState.Scheduled,
+        OutgoingEmailStage.Refused => UnsentEmailState.Failed,
+        _ => UnsentEmailState.Sending,
+    };
+
+    /// <summary>Composes the query that reads, for those of a set of emails the mailbox has not sent, the send each one's draft was promoted to.</summary>
+    /// <param name="context">The scoped context the read runs on.</param>
+    /// <param name="emails">The emails whose provenance is wanted.</param>
+    /// <returns>One row per unsent email, naming the stage and the due instant of its send where its draft was promoted to one.</returns>
+    /// <remarks>
+    /// A draft names the stored copy filed for it and the send it was promoted to, so the copy reaches its send through
+    /// the draft. A draft another client wrote names no copy of ours and no send, and reads as a draft.
+    /// </remarks>
+    internal static IQueryable<StoredUnsentEmailRow> UnsentOf(
+        MailFathomDbContext context,
+        IReadOnlyCollection<StoredEmailId> emails)
+    {
+        var identities = emails.Select(static email => email.Value).ToArray();
+        var sends = context.OutgoingEmails.AsNoTracking();
+        var drafts = context.MailDrafts.AsNoTracking();
+
+        return context.StoredEmails
+            .AsNoTracking()
+            .Where(email => identities.Contains(email.Id))
+            .Where(UnsentStoredEmails.IsUnsent)
+            .Select(email => new StoredUnsentEmailRow(
+                email.Id,
+                sends
+                    .Where(send => drafts.Any(draft => draft.FiledStoredEmailId == email.Id && draft.PromotedToOutgoingEmailId == send.Id))
+                    .Select(send => (OutgoingEmailStage?)send.Stage)
+                    .FirstOrDefault(),
+                sends
+                    .Where(send => drafts.Any(draft => draft.FiledStoredEmailId == email.Id && draft.PromotedToOutgoingEmailId == send.Id))
+                    .Select(send => send.DueAt)
+                    .FirstOrDefault()));
     }
 
     /// <summary>Composes the one query the provenance of a set of emails is read from.</summary>
@@ -77,6 +135,16 @@ internal sealed class StoredEmailProvenanceReader(
     /// an operator unmapped or a server expunged must not decide it — a sender whose only earlier message is hidden is a
     /// first contact, rather than a hint that the hidden mail exists. The account is already the email's own, which
     /// the caller read.
+    /// </para>
+    /// <para>
+    /// The mailbox wrote an email that sits in its account's sent folder, or whose <c>From</c> address is the comparison
+    /// address the account's own record holds — provided either the email reached no receiving server, which leaves its
+    /// arrival instant unknown and is how a copy the person's client filed elsewhere looks, or the receiving server
+    /// authenticated that author. A received message that only displays the mailbox's address is neither, so a forged
+    /// one keeps every qualification. The record is reached by its identifier written as the account identifier is, and
+    /// an account declared only in configuration has no record, so for it the sent folder is the one signal. Aliases
+    /// and sending addresses live in the record's document rather than in a column a query can compare, so a message
+    /// written under one of them and filed outside the sent folder is read as received.
     /// </para>
     /// </remarks>
     internal static IQueryable<StoredEmailProvenanceRow> ProvenanceOf(
@@ -140,6 +208,13 @@ internal sealed class StoredEmailProvenanceReader(
                     email.SignerPublicKeyAlgorithm,
                     email.SignerDigestAlgorithm),
                 email.Folder.Role == MailFolderSpecialUse.Junk,
+                email.Folder.Role == MailFolderSpecialUse.Sent
+                    || (email.SenderTrustAddress != null
+                        && (email.ReceivedAt == null
+                            || email.AuthorAuthenticationOutcome == AuthorAuthenticationOutcome.Authenticated)
+                        && context.MailAccountRecords.Any(record =>
+                            record.Id.ToString() == email.MailboxAccountId
+                            && record.NormalizedEmailAddress == email.SenderTrustAddress)),
                 email.SenderNormalizedAddress != null
                     && correspondence.Any(earlier =>
                         earlier.MailboxAccountId == email.MailboxAccountId
@@ -161,10 +236,18 @@ internal sealed class StoredEmailProvenanceReader(
 /// <param name="SenderTrust">The stored half of the trust verdict, beside what the receiving server established about the displayed author.</param>
 /// <param name="Signature">What verifying the email's own signature found.</param>
 /// <param name="IsInJunkFolder">Whether the email sits in its account's junk folder.</param>
+/// <param name="IsWrittenByMailbox">Whether the email sits in its account's sent folder or carries the account's own address as its author.</param>
 /// <param name="HasEarlierCorrespondence">Whether the mailbox held earlier mail written by or addressed to the sender.</param>
 internal sealed record StoredEmailProvenanceRow(
     Guid StoredEmailId,
     StoredSenderTrustRow SenderTrust,
     StoredEmailSignatureRow Signature,
     bool IsInJunkFolder,
+    bool IsWrittenByMailbox,
     bool HasEarlierCorrespondence);
+
+/// <summary>What the store recorded about where one email the mailbox has not sent stands.</summary>
+/// <param name="StoredEmailId">The email.</param>
+/// <param name="Stage">The stage of the send its draft was promoted to, or <see langword="null" /> where it was promoted to none.</param>
+/// <param name="DueAt">The instant that send was written to leave at, or <see langword="null" /> where it was written to leave at once or there is no send.</param>
+internal sealed record StoredUnsentEmailRow(Guid StoredEmailId, OutgoingEmailStage? Stage, DateTimeOffset? DueAt);

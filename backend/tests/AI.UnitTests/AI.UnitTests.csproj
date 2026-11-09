@@ -34,6 +34,7 @@
     <Compile Include="..\shared\StubMailFolderMappings.cs" Link="StubMailFolderMappings.cs" />
     <Compile Include="..\shared\StubMailAccountAssignments.cs" Link="StubMailAccountAssignments.cs" />
     <Compile Include="..\shared\MailFootings.cs" Link="MailFootings.cs" />
+    <Compile Include="..\shared\SyntheticAccountLanguages.cs" Link="SyntheticAccountLanguages.cs" />
     <Compile Include="..\shared\StatedAdministrativeTargets.cs" Link="StatedAdministrativeTargets.cs" />
     <Compile Include="..\shared\ContactBookOwnerships.cs" Link="ContactBookOwnerships.cs" />
     <!-- Every boundary holding a guarded egress point asserts the same three states of the guard, so the three are
@@ -47,6 +48,13 @@
          telemetry, which it opens over a source and a meter it is handed, so the rules are linked without the recorder
          that listens to the process-wide pair. -->
     <Compile Include="..\shared\TelemetryRedactionContract.cs" Link="TelemetryRedactionContract.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Answers models wrote to the agents in an evaluation run, replayed through each reader to show a change in how
+         answers are read never makes one that used to be read unreadable. Read as resources rather than files, which
+         keeps the suite off the file system. -->
+    <EmbeddedResource Include="RecordedAnswers\*.json" LogicalName="RecordedAnswers.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

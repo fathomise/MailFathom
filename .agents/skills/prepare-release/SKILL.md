@@ -289,7 +289,9 @@ On a branch off the release branch, and touching nothing else:
 - **bring the Registry metadata and the files that name a version in prose onto `x.y.z`**, per the list below;
 - **read the two registry overviews against what this release publishes**, per the subsection after it;
 - **read the root `README.md` end to end and prune it**, per the subsection after that;
-- **sweep the tree for prose that describes the release state**, per the pass after that.
+- **sweep the tree for prose that describes the release state**, per the pass after that;
+- **fold the cycle's migrations into one and prove the fold**, per the subsection after that, and publish the pull
+  request only once the proof passes.
 
 Nothing else belongs in this diff. **This is the pull request whose merge commit is tagged and published**, so it is
 both the last point at which the release's contents are read as a whole and the thing the published artifact is built
@@ -474,6 +476,46 @@ deciding whether to depend on it.
 Report the count and the disposition — swept, corrected, left — in the pull request body, so a reviewer can see the
 pass happened without re-running it. A release that corrects nothing is an ordinary outcome and is stated as one.
 
+#### The cycle's migrations
+
+[ADR 0050](../../../docs/decisions/0050-folding-each-releases-migrations-into-one.md) decides that each release adds
+exactly one migration to the folder: between releases `$add-migration` appends one per model change, and this pull
+request folds every migration the cycle added into one migration named for the release. It belongs here for the same
+reason the changelog does — this merge commit is what gets tagged, so the tagged tree is the one whose schema artifact
+an operator applies.
+
+```bash
+git fetch origin
+scripts/squash-migrations.sh <x.y.z> <previous tag>                    # e.g. 0.9.0 v0.8.0
+scripts/compare-migration-squash.sh origin/<release branch> <previous tag> "$WORK_DIR/squash-comparison"
+```
+
+The first nests every migration added after the newest one the previous tag carries into
+`<timestamp>_Release_<x>_<y>_<z>.cs`, under the identifier of the last of them, and keeps that migration's Designer file
+as the release migration's. It refuses a range holding no migration: a release whose cycle added none folds nothing,
+which is also every patch, since a patch changes no schema. Commit the result as its own commit of this pull request,
+named for what it is, so the fold reads apart from the changelog in review.
+
+The second is the proof, and **this pull request is not published until it passes**. It builds the schema artifact
+from the release branch as it stood and from the fold, runs them against the PostgreSQL image the app model declares,
+and requires five comparisons identical: a fresh install, the fold applied a second time, an upgrade from the previous
+release's published artifact, an upgrade from a database that recorded every individual migration, and the generated
+SQL statement by statement with the history guards set aside. It needs a container engine, `gh`, the SDK, and the
+pinned Aspire CLI, and it runs long enough to go through the session's long-run wrapper.
+
+A difference is fixed in the release migration, never accepted. EF Core generates every folded operation against the
+model at the end of the cycle rather than its own, and the two known ways that moves the SQL are an `AlterColumn` that
+emits a redundant `ALTER COLUMN … TYPE` and a generated `tsvector` column whose source column the final model no longer
+has. Resolve each in the nested class that carries it — the explicit type or computed expression its own model would
+have produced — rerun the comparison, and fold the fix into the same commit. A difference that is neither of those is a
+question for the owner rather than an edit.
+
+Report all five lines the comparison printed in the pull request body, with the number of migrations folded and the
+identifier the release migration keeps. **And write the upgrades a fold no longer supports into the changelog
+section**, under the database schema, with the operator's action for each: an installation older than the previous
+release upgrades to it first; a nightly from the middle of the cycle moves to the cycle's last nightly first, or is
+reinstalled.
+
 ### 5. Open the version-bump pull request
 
 **Its title is `[#<issue>] Bump main version to <next>`, naming the same issue the changelog pull request does, and it
@@ -609,6 +651,9 @@ The next milestone <next> is open and carries its own tracking issue (#D), which
   carries is copied across by digest, so the artifact that reaches the second registry is the one the first published.
   A rebuild would produce a second artifact for one version, which is what the immutability assertion exists to
   prevent. `docs/operations/release-procedure.md` records the whole sequence and what each failure means.
+- **The migration comparison differs.** The fold changed what a database ends up holding or what SQL it runs. Read the
+  difference it names, fix it in the release migration as **The cycle's migrations** says, and run it again; never
+  publish over a difference, and never fold by hand around the script.
 - **The release is abandoned before the tag.** Close both pull requests. Nothing was published and no tag exists, so
   there is nothing to undo. The tracking issue stays open and keeps its milestone: the release it names has not
   happened, and the run that eventually cuts it is what closes it. The milestone work of step 3 is not undone either —

@@ -40,18 +40,18 @@ public sealed class StoredEmailSelectionPredicateCommandTests
     [InlineData(true, "True")]
     [InlineData(false, "False")]
     public void Matching_FlaggedFilter_ComparesTheStoredFlagColumnAgainstTheRequestedValue(
-        bool isRemotelyFlagged,
+        bool isFlagged,
         string boundValue)
     {
         // Act
-        var command = CommandFor(SelectionWith(isRemotelyFlagged: isRemotelyFlagged));
+        var command = CommandFor(SelectionWith(isFlagged: isFlagged));
 
         // Assert
         Assert.Contains(
-            $"\"{nameof(StoredEmailEntity.IsRemotelyFlagged)}\" = @isRemotelyFlagged",
+            "\"IsRemotelyFlagged\" = @isFlagged",
             NarrowingIn(command),
             StringComparison.Ordinal);
-        Assert.Contains($"@isRemotelyFlagged='{boundValue}'", DeclarationsIn(command), StringComparison.Ordinal);
+        Assert.Contains($"@isFlagged='{boundValue}'", DeclarationsIn(command), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -65,7 +65,7 @@ public sealed class StoredEmailSelectionPredicateCommandTests
         var narrowing = NarrowingOf(SelectionWith(keyword: "$Junk"));
 
         // Assert
-        Assert.Contains(nameof(StoredEmailEntity.RemoteKeywords), narrowing, StringComparison.Ordinal);
+        Assert.Contains("RemoteKeywords", narrowing, StringComparison.Ordinal);
         Assert.Contains("@>", narrowing, StringComparison.Ordinal);
     }
 
@@ -91,8 +91,8 @@ public sealed class StoredEmailSelectionPredicateCommandTests
         var narrowing = NarrowingOf(SelectionWith());
 
         // Assert
-        Assert.DoesNotContain(nameof(StoredEmailEntity.IsRemotelyFlagged), narrowing, StringComparison.Ordinal);
-        Assert.DoesNotContain(nameof(StoredEmailEntity.RemoteKeywords), narrowing, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsRemotelyFlagged", narrowing, StringComparison.Ordinal);
+        Assert.DoesNotContain("RemoteKeywords", narrowing, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -159,6 +159,30 @@ public sealed class StoredEmailSelectionPredicateCommandTests
 
         // Assert
         Assert.Equal(narrowed, narrowing.Contains($"\"{nameof(StoredEmailEntity.ReportKind)}\"", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A draft, or a send still waiting in or refused by the outbox, is a word nobody received, so an agent's scope
+    /// leaves it out by its <c>\Draft</c> flag and by the folder it sits in. The person reads their own drafts, and the
+    /// person's own Agent reads them to be told what state each is in, so neither of those scopes reads the flag.
+    /// </summary>
+    [Theory]
+    [InlineData(MailboxReaderKind.Agent, true)]
+    [InlineData(MailboxReaderKind.ConversationAgent, false)]
+    [InlineData(MailboxReaderKind.Person, false)]
+    public void WithinScope_EachReader_LeavesUnsentMailOutOfAnAgentsScopeAlone(MailboxReaderKind reader, bool narrowed)
+    {
+        // Arrange
+        var scope = WholeMailbox
+            .RestrictedTo([new MailFolderIdentity(MailAccountId.Create("primary"), MailFolderAlias.Create("INBOX"))])
+            .AnsweringFor(reader, []);
+
+        // Act
+        var narrowing = ScopeNarrowingOf(scope);
+
+        // Assert
+        Assert.Equal(narrowed, narrowing.Contains("\"IsRemotelyDraft\"", StringComparison.Ordinal));
+        Assert.Equal(narrowed, narrowing.Contains($"\"{nameof(MailFolderEntity.Role)}\"", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -323,7 +347,7 @@ public sealed class StoredEmailSelectionPredicateCommandTests
     }
 
     private static MailboxEmailSelection SelectionWith(
-        bool? isRemotelyFlagged = null,
+        bool? isFlagged = null,
         string? keyword = null,
         EmailMarkSelection? mark = null) => MailboxEmailSelection.Create(
         MailboxScope.NothingReadable,
@@ -332,8 +356,8 @@ public sealed class StoredEmailSelectionPredicateCommandTests
         subjectFragment: null,
         receivedOnOrAfter: null,
         receivedBefore: null,
-        isRemotelySeen: null,
-        isRemotelyFlagged,
+        isMarkedSeen: null,
+        isFlagged,
         keyword,
         hasAttachments: null,
         mark);

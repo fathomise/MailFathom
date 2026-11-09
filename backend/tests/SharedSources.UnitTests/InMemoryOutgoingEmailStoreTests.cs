@@ -154,6 +154,7 @@ public sealed class InMemoryOutgoingEmailStoreTests
                 claimed[0].Lease,
                 opened.Record.Id,
                 deliveryNotificationCarried: null,
+                transmittedAt: DateTimeOffset.UnixEpoch,
                 TestContext.Current.CancellationToken));
 
         // Assert

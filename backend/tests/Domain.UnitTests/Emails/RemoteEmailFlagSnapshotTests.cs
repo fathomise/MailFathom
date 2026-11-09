@@ -42,7 +42,7 @@ public sealed class RemoteEmailFlagSnapshotTests
             IsFlagged: true,
             IsDraft: false,
             IsDeleted: false,
-            Keywords: RemoteEmailKeywords.None);
+            Keywords: EmailKeywords.None);
 
         // Assert
         Assert.True(snapshot.WasObserved);
@@ -62,7 +62,7 @@ public sealed class RemoteEmailFlagSnapshotTests
             IsFlagged: true,
             IsDraft: false,
             IsDeleted: false,
-            Keywords: RemoteEmailKeywords.Create(["$Junk"]));
+            Keywords: EmailKeywords.Create(["$Junk"]));
 
         // Assert
         Assert.Equal(["$JUNK"], snapshot.Keywords.Values);
@@ -80,7 +80,7 @@ public sealed class RemoteEmailFlagSnapshotTests
             IsFlagged: false,
             IsDraft: false,
             IsDeleted: false,
-            Keywords: RemoteEmailKeywords.None);
+            Keywords: EmailKeywords.None);
 
         // Assert
         Assert.Equal(RemoteEmailFlagSnapshot.NeverObserved, built);

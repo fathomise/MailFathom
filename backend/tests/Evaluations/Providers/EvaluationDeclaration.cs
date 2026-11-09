@@ -16,12 +16,13 @@ using Microsoft.Extensions.Configuration;
 
 namespace MailFathom.Evaluations.Providers;
 
-/// <summary>The run a dispatch declares in one YAML block: the models per agent, how often each case is asked, and the embedding models.</summary>
+/// <summary>The run a dispatch declares in one YAML block: the models per agent, how often each case is asked, how many provider calls it has in flight, and the embedding models.</summary>
 /// <remarks>
 /// <para>
 /// One block rather than a variable per setting, because a workflow dispatch carries few inputs and each is one line, so
-/// a new setting is a key here rather than a new input. Flow style keeps it on that one line:
-/// <c>{MainModel: {Model: openai/gpt-5.6-luna, ReasoningEffort: medium}, ImageDescription: [model-a, model-b]}</c>.
+/// a new setting is a key here rather than a new input. Either YAML style is read: block style over several lines, as the
+/// repository variable a workflow keeps its default block in reads best, and flow style on the one line a dispatch input
+/// takes: <c>{MainModel: {Model: openai/gpt-5.6-luna, ReasoningEffort: medium}, ImageDescription: [model-a, model-b]}</c>.
 /// </para>
 /// <para>
 /// A model is routed the way a deployment routes it: <c>MainModel</c> is the fallback, and each <see cref="ChatCapability" />
@@ -29,7 +30,7 @@ namespace MailFathom.Evaluations.Providers;
 /// <c>ImageDescription</c> runs the image evaluations once per model and leaves every other evaluation on the main model.
 /// A model is its routed name, or a mapping carrying the keys a <c>Chat:Models</c> declaration carries for what a
 /// request asks for — <c>Model</c>, <c>Alias</c>, <c>Api</c>, <c>ReasoningEffort</c>, <c>Temperature</c>, <c>TopP</c>,
-/// <c>ExtraHeaders</c>, and <c>AdditionalProperties</c> — and each is built into a plan through
+/// <c>StructuredOutputs</c>, <c>ExtraHeaders</c>, and <c>AdditionalProperties</c> — and each is built into a plan through
 /// <see cref="ChatModelDeclarationOptions" />, so a value is refused here as a deployment refuses it.
 /// </para>
 /// <para>
@@ -60,17 +61,23 @@ internal sealed class EvaluationDeclaration
 
     private const string MainModelKey = "MainModel";
     private const string RepetitionsKey = "Repetitions";
+    private const string ConcurrentProviderCallsKey = "ConcurrentProviderCalls";
     private const string EmbeddingModelsKey = "EmbeddingModels";
     private const string EmbeddingDimensionKey = "EmbeddingDimension";
 
     /// <summary>The commit the workflow evaluates, which it reads before this suite exists and which this suite ignores.</summary>
     private const string RefKey = "Ref";
 
+    /// <summary>The sections the run measures, which the script turns into the test host's namespace filter and which this suite ignores.</summary>
+    private const string SectionsKey = "Sections";
+
     private static readonly HashSet<string> RunKeys = new(
         [
             RefKey,
+            SectionsKey,
             MainModelKey,
             RepetitionsKey,
+            ConcurrentProviderCallsKey,
             EmbeddingModelsKey,
             EmbeddingDimensionKey,
             .. Enum.GetNames<ChatCapability>(),
@@ -87,6 +94,7 @@ internal sealed class EvaluationDeclaration
         Dictionary<ChatCapability, IReadOnlyList<ModelUnderTest>> capabilityModels,
         Dictionary<DecisionFunction, IReadOnlyList<DecisionModelPlan>> decisionModels,
         int repetitions,
+        int concurrentProviderCalls,
         IReadOnlyList<string> embeddingModels,
         int? embeddingDimension)
     {
@@ -94,12 +102,16 @@ internal sealed class EvaluationDeclaration
         this.capabilityModels = capabilityModels;
         this.decisionModels = decisionModels;
         this.Repetitions = repetitions;
+        this.ConcurrentProviderCalls = concurrentProviderCalls;
         this.EmbeddingModels = embeddingModels;
         this.EmbeddingDimension = embeddingDimension;
     }
 
     /// <summary>Gets how many times each case is asked of each model, which is one where the block declares none.</summary>
     public int Repetitions { get; }
+
+    /// <summary>Gets how many provider calls the run has in flight at once, which is <see cref="ProviderCallLimit.Default" /> where the block declares none.</summary>
+    public int ConcurrentProviderCalls { get; }
 
     /// <summary>Gets the embedding models the block names, empty where it names none.</summary>
     public IReadOnlyList<string> EmbeddingModels { get; }
@@ -166,6 +178,7 @@ internal sealed class EvaluationDeclaration
             capabilityModels,
             decisionModels,
             EvaluationRepetitions.Parse(run[RepetitionsKey]),
+            ProviderCallLimit.Parse(run[ConcurrentProviderCallsKey]),
             [.. NamesOf(run.GetSection(EmbeddingModelsKey))],
             EmbeddingModelsUnderTest.ParseDimension(run[EmbeddingDimensionKey]));
     }
@@ -364,6 +377,7 @@ internal sealed class EvaluationDeclaration
             ReasoningEffort = declared.ReasoningEffort,
             Temperature = declared.Temperature,
             TopP = declared.TopP,
+            StructuredOutputs = declared.StructuredOutputs,
             AdditionalProperties = declared.AdditionalProperties,
         };
 
@@ -396,6 +410,8 @@ internal sealed class EvaluationDeclaration
         public float? Temperature { get; set; }
 
         public float? TopP { get; set; }
+
+        public bool StructuredOutputs { get; set; }
 
         public IList<DeclaredHeader> ExtraHeaders { get; } = [];
 

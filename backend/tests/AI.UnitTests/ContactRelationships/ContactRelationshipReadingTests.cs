@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.ContactRelationships;
+using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Contacts.Correspondence;
 using MailFathom.Application.Contacts.Relationship;
 using MailFathom.Domain.Emails;
@@ -13,6 +14,9 @@ namespace MailFathom.AI.UnitTests.ContactRelationships;
 /// <summary>Covers what survives an answer about a correspondence: which citations resolve, which statements fall away, and what makes a card no card.</summary>
 public sealed class ContactRelationshipReadingTests
 {
+    /// <summary>More conversations than any recorded answer cites.</summary>
+    private const int RecordedSourceBound = 16;
+
     private static readonly DateTimeOffset FirstJuly = new(2026, 7, 1, 8, 0, 0, TimeSpan.Zero);
 
     private static readonly StoredEmailId FirstMessage = StoredEmailId.Create(Guid.CreateVersion7());
@@ -153,6 +157,40 @@ public sealed class ContactRelationshipReadingTests
         // Assert
         Assert.False(card.WasDerived);
     }
+
+    /// <summary>
+    /// Every answer a model wrote to this agent in the last evaluation run, replayed through the reading. There is one
+    /// reading whether or not the request carried a schema, so this is the replay under both: an answer whose note has
+    /// words and a source is a card, and only the empty answer is no card.
+    /// </summary>
+    [Fact]
+    public void Read_EveryAnswerRecordedInTheLastEvaluationRun_IsACardWhereItWroteANote()
+    {
+        // Arrange
+        var recorded = RecordedAnswers.Of("ContactRelationship");
+        var correspondence = CorrespondenceOf(RecordedSourceBound);
+
+        // Act
+        var lost = recorded
+            .Where(static answer => answer.Answer.Contains("\"note\"", StringComparison.Ordinal))
+            .Where(answer => !ContactRelationshipReading.Read(answer.Answer, correspondence).WasDerived)
+            .Select(static answer => answer.Scenario);
+
+        // Assert
+        Assert.NotEmpty(recorded);
+        Assert.Empty(lost);
+    }
+
+    /// <summary>As many conversations as a recorded answer may cite, so every number it wrote names one.</summary>
+    private static ContactCorrespondence CorrespondenceOf(int count) => new(
+        [
+            .. Enumerable.Range(0, count).Select(static position => new CorrespondingThread(
+                EmailThreadId.Create(Guid.CreateVersion7()),
+                StoredEmailId.Create(Guid.CreateVersion7()),
+                $"conversation {position}",
+                FirstJuly)),
+        ],
+        []);
 
     /// <summary>Two conversations and one document, which is the numbering the turn publishes: conversations from zero, documents on from the end of them.</summary>
     private static ContactCorrespondence Correspondence() => new(

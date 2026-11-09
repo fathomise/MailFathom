@@ -58,16 +58,23 @@ the pass and an administrator rotating by hand — reads back the key the winner
 ## What is signed, and when
 
 **Every message sent from a mail account that belongs to an organization is signed with that organization's active
-key**, whoever its recipients are. A message is signed once, when the outbox first stores it as a send — a composed
-message, a reply, each occasion of a recurring send, and a draft promoted to a send alike — and the stored, signed bytes
-are what every submission attempt sends and what is filed into the sent folder, so the sent copy is byte for byte the
-message the recipients received, whether the account is mirrored, held, or restoring. A draft that is only saved is
-never signed: it is not sent. A send asked for again with the same identity keeps the bytes it stored the first time. The
-sender's [footer](../features/mail-footers.md) goes into the message before it is signed, so the signature covers the
-message as it carries the footer.
+key**, whoever its recipients are. A message is signed each time it leaves — a composed message, a reply, each occasion
+of a recurring send, and a draft promoted to a send alike — because the attempt that transmits it first dates it with
+its own instant, as [the message is dated when it leaves](../features/mail-delivery.md#a-message-is-dated-when-it-leaves)
+states, and `Date` is among the signed headers. The outbox stores the message unsigned; each attempt signs the dated
+form it transmits, with `t=` set to that same instant, and the sent copy is that form derived again, so it is byte for
+byte the message the recipients received, whether the account is mirrored, held, or restoring — as long as the key that
+signed the send is still the active one when the copy is filed. A copy filed after a rotation or a revocation is signed
+with the key active then, or not at all, while its date and body still match what was sent. The copy is the message
+the send's latest attempt transmitted, so a recipient an earlier attempt of a partly accepted send reached holds one
+dated and signed earlier. Signing a message twice
+at one instant writes the same bytes, because Ed25519 signatures are deterministic, and a signature a message already
+carries is replaced rather than kept beside the new one. A draft that is only saved is never signed: it is not sent.
+The sender's [footer](../features/mail-footers.md) goes into the message before it is stored, so the signature covers
+the message as it carries the footer.
 
-The organization is the one the sending account belongs to when the message is stored, and the key is that
-organization's active key at that moment, so a scheduled send is signed when it is queued rather than when it leaves.
+The organization is the one the sending account belongs to when the message leaves, and the key is that organization's
+active key at that moment, so a scheduled send is signed when it leaves rather than when it is queued.
 **An account in no organization signs nothing.**
 
 The signature is one header added above the message, `MailFathom-Organization-Signature`, carrying a DKIM signature

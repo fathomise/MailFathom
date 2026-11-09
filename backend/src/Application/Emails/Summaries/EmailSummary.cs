@@ -108,8 +108,8 @@ public sealed record EmailSummary
     /// <remarks>A caller reads this before asking for content, because a listing is served from local state whether or not a mail server is reachable.</remarks>
     public required StoredEmailContentAvailability ContentAvailability { get; init; }
 
-    /// <summary>Gets the flags a mail server last showed for the email, and when they were read.</summary>
-    public required RemoteEmailFlagSnapshot RemoteFlags { get; init; }
+    /// <summary>Gets the flags MailFathom holds for the email, and when a server last reported them.</summary>
+    public required StoredEmailFlags Flags { get; init; }
 
     /// <summary>Gets what spam classification concluded about the email, or <see langword="null" /> where nothing has classified it.</summary>
     /// <remarks>

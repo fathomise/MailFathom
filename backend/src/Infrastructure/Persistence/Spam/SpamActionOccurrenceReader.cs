@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Spam;
 
-/// <summary>Reads where one stored occurrence is, whether its server already reports it read, and which keywords it carries.</summary>
+/// <summary>Reads where one stored occurrence is, whether it is already marked read, and which keywords it carries.</summary>
 /// <remarks>
 /// A bounded projection rather than the entity, for the reason every read model here is one: acting on a verdict needs
 /// the occurrence, one flag, and the keywords, and loading the row would put a subject and a set of addresses into
@@ -41,8 +41,8 @@ internal sealed class SpamActionOccurrenceReader(MailFathomDbContext dbContext) 
                 email.MailFolderBinding.ResolutionGeneration,
                 email.UidValidity,
                 email.Uid,
-                email.IsRemotelySeen,
-                email.RemoteKeywords,
+                email.IsMarkedSeen,
+                email.Keywords,
             })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -63,7 +63,7 @@ internal sealed class SpamActionOccurrenceReader(MailFathomDbContext dbContext) 
                 ImapUidValidity.Create(uidValidity),
                 ImapUid.Create(uid)),
             folderAlias,
-            row.IsRemotelySeen,
-            RemoteEmailKeywords.Create(row.RemoteKeywords));
+            row.IsMarkedSeen,
+            EmailKeywords.Create(row.Keywords));
     }
 }

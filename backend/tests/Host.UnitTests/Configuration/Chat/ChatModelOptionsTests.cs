@@ -38,7 +38,7 @@ public sealed class ChatModelOptionsTests
     [InlineData("enrichment")]
     [InlineData("thread-state")]
     [InlineData("relevance-filter")]
-    [InlineData("body-cleanup-model")]
+    [InlineData("day-layout-model")]
     public void Validate_SettingsWithNoDeclaredModel_AreRefusedRatherThanIgnored(string writtenSetting)
     {
         // Arrange
@@ -189,7 +189,7 @@ public sealed class ChatModelOptionsTests
     {
         // Arrange
         var settings = DeclaredChatModels.Section();
-        settings.BodyCleanup.Model.Fallback = "answering";
+        settings.DayLayout.Model.Fallback = "answering";
 
         // Act
         var errors = Validate(settings);
@@ -303,7 +303,7 @@ public sealed class ChatModelOptionsTests
                 settings.RelevanceFilter = new PassageRelevanceFilterOptions { Enabled = true };
                 break;
             default:
-                settings.BodyCleanup.Model.Alias = "a-small-fast-model";
+                settings.DayLayout.Model.Alias = "a-small-fast-model";
                 break;
         }
 

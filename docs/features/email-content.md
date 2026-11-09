@@ -5,8 +5,8 @@
 MailFathom serves the content of the emails one call names, from its local copy. `EmailContentReader` is the second read
 use case: it takes the stable local identifiers a listing returned and answers for each of them with normalized headers,
 the body as plain text, optionally a sanitized HTML representation, attachment counts, every attachment described and
-optionally carrying a short-lived link that fetches it, the source account and folder, and the remote flag
-snapshot.
+optionally carrying a short-lived link that fetches it, the source account and folder, and the stored
+flags.
 
 It reaches no mail server. That is structural rather than a rule someone keeps: the use case is constructed from a
 summary reader, a content store, a renderer, a repair-request store, the account catalog, and the link issuer, and none
@@ -121,7 +121,7 @@ fact whether it named one email or ten.
 | `Body` | The representations, or the reason there are none |
 | `AttachmentSummary` | The counts for what the message carries besides its body, absent when nobody has counted them |
 | `Attachments` | One entry per attachment, re-derived from the stored raw MIME, each carrying a link to fetch it or the reason it carries none |
-| `RemoteFlags` | The flags a server last showed, and when they were read |
+| `Flags` | The flags MailFathom holds for the email, and when a server last reported them |
 | `Thread` | The conversation this email belongs to, with the other messages named rather than reproduced, or absent when nothing has assembled one |
 | `SenderVerification` | What was established about the author the message displays, what this deployment made of them, and what the message's own S/MIME or OpenPGP signature proves |
 | `SenderAuthenticationEvidence` | What that conclusion was reached from: the authenticated domain, the displayed author's domain, the check that established the first, the DMARC result, and which reading produced all of it |
@@ -644,6 +644,20 @@ an anchor is left alone, because the sender already said where those words go. A
 one supplied for it is `https` — the reader is the one who will follow it, and that is the only choice here that cannot
 expose what they were reading. What the sender wrote is never rewritten: a written `http://` stays one.
 
+**A link over a picture the document does not draw stays a link.** That is how a newsletter writes a banner or a button
+made of an image, and the picture is usually remote, so until the reader loads remote content the anchor would hold
+nothing at all. Where an anchor draws neither words nor a picture, and at least one picture inside it was left undrawn —
+remote, unresolvable, or past the octet bound — the reduction emits one paragraph holding one linked run. Its words are
+the first such picture's `alt`, or the link's host where the `alt` is empty, so the service writes no sentence and needs
+no language. The link is judged against those words, so an `alt` naming another host than the target carries
+`DisplayedHostDiffers` as worded text would. A picture declaring a width or a height of at most one pixel is a spacer or
+a tracking pixel and names nothing, a hidden picture is never reached, and a `mailto` link over a picture with no `alt`
+has no host to be named by, so none of those produces a link. No address but the anchor's own target enters the
+document, nothing is fetched for it, and the removed and retained counts are what they would have been. Loading remote
+content produces the document again, and the picture is then drawn with its link in place of the words.
+`MailDocumentLinks.Of` reads these as links with words like any other, so the reply drafter may cite one and leaves it
+out where the warning applies, and the spam stage reads the host the `alt` claimed.
+
 ### A refusal is a value rather than an exception
 
 `MailDocumentRefusal` says why a document holds nothing: `NoHtmlPart` where the message carried no body at all,
@@ -655,15 +669,46 @@ with a reason it can show rather than to an empty frame. `Truncated` says a boun
 of the body, the way `EmailBodyTruncation` says the same about a representation, and it says the same about a scan that
 withheld what it could not reach — every way a document is cut short reads as one flag.
 
-### The reader's own footer is named, never removed
+### A block of header lines a message typed is named, never removed
+
+A forwarded or answered message from another mail client usually carries a block of header lines inside its body, and
+a chain of forwards opens with screens of addresses. `MailDocumentBlock.WrittenHeaders` — a `MailWrittenHeaders` holding
+how many consecutive sibling blocks form the block, the author's name, and the date as written — names one on the first
+block forming it, on the HTML and the plain-text path alike and at any quotation depth, so a chain nested through
+several quotations has each of its blocks named. The blocks stay in `Blocks` and their words do not change, so this is a
+statement a pane may fold by, and every other reader of the document sees what it always saw.
+
+Mail has no mark for this block, so recognition is deliberately narrow: a wrong miss costs a few lines, and a wrong fold
+costs a reader words they never saw. A block is named only where consecutive lines are each a closed label and a value,
+each line at most 1024 characters, with at least an author, a date, and a recipient or a subject, and no role written
+twice. The labels and the separators an optional first line or a rule directly above may be are those Gmail, Outlook,
+and Apple Mail write in English, Polish, and German, and one block may mix them because Gmail localizes only some of its
+labels. A run with an unknown label in it, or directly under it, is left as written, and so is a run sharing a paragraph
+with other words. The plain-text path is the one exception to that last rule, because a quoted message there has a
+marker on every blank line and so arrives as one paragraph: the document cuts such a paragraph either side of a
+recognized block, keeping every line and its markers, so that only the block folds and the forwarded words stay visible.
+
+What the block says is not what MailFathom verified. Its lines are text the sender typed, so `From: The CEO` proves
+nothing, and the author and date are carried for a pane to draw as message text rather than as a header. They are
+copies of the sender's words, so the sensitive-content scan a read runs before mail leaves the deployment reads them
+beside the runs they came from; where the scan's own bound leaves either one empty, the block stops being named and is
+drawn as written. The folding itself is the client's, and nothing is folded in the sender's own markup.
+
+### A proven author's marks are named, never removed
+
+`AuthorIsProven` says the use case established who wrote the message: the summary's `IsFiledSentCopy`, which the send
+recorded and nothing in a message can claim, or a verdict granted by `OrganizationMember`, which only the
+organization's signature reaches. An organization directory, an account's domain, and a contact recognize an address
+and prove nothing about these bytes, so none of them qualifies. Only where it holds does the document read the marks
+MailFathom wrote, because every mark is ordinary markup any sender could copy.
 
 `Footer` is a `MailDocumentFooter` — the position of its first top-level block and how many consecutive blocks it
-spans, that first one included — on the copy MailFathom filed of
-a message it sent from the account being read, where that message carries [the footer it
-appended](mail-footers.md#where-it-goes-in-a-message), and `null` everywhere else. What decides it is the summary's
-`IsFiledSentCopy`, which the send recorded and nothing in a message can claim, rather than the mark itself, which any
-sender could copy. The blocks stay in `Blocks`, so this is a statement a pane may fold by rather than a reduction, and
-the self-contained markup beside it is unchanged. [The message body
+spans, that first one included — where that message carries [the footer it
+appended](mail-footers.md#where-it-goes-in-a-message), and `null` everywhere else. `Quotation` is a
+`MailDocumentQuotation` of the same shape, from the attribution line under `<!--mailfathom-quotation-->` to the end of
+the document, where that comment stands directly under the body, and `null` everywhere else. The blocks stay in
+`Blocks`, so these are statements a pane may fold by rather than a reduction, a message without a mark is drawn as it
+always was, and the self-contained markup beside it is unchanged. [The message body
 route](../operations/client-endpoint.md#the-message-body-route) states how a client reads it.
 
 ## The markup a full-HTML surface reads

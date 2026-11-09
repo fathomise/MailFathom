@@ -13,8 +13,8 @@ namespace MailFathom.Evaluations.Discovery;
 /// <summary>Has every declared model run every question in <see cref="DiscoveryEndToEndScenario.All" /> through a whole Discover run.</summary>
 /// <remarks>
 /// Shaped like the composition evaluation for the reasons it gives, with the one difference the relevance filter's makes:
-/// nothing here is judged, so no judge is declared, read, or opened, and the run's only provider calls are the two each
-/// question makes of the model under test.
+/// nothing here is judged, so no judge is declared, read, or opened, and the run's only provider calls are the at most three
+/// each question makes of the model under test: the plan, its follow-up, and the composition.
 /// </remarks>
 public sealed class DiscoveryEndToEndEvaluations
 {

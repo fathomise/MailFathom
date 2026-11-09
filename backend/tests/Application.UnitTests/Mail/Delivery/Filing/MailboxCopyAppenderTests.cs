@@ -8,6 +8,7 @@ using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Folders;
 using MailFathom.Application.Mail;
 using MailFathom.Application.Mail.Delivery.Filing;
+using MailFathom.Application.Mail.Delivery.Transmission;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization.Sessions;
@@ -53,6 +54,26 @@ public sealed class MailboxCopyAppenderTests
 
     private static readonly OutgoingEmailId Send = OutgoingEmailId.Create(Guid.NewGuid());
 
+    private static readonly OutgoingEmailRecord SentSend = new()
+    {
+        Id = Send,
+        AccountId = Account,
+        Requester = OutgoingEmailRequester.Command("send-1"),
+        Principal = null,
+        Recipients = [],
+        Stage = OutgoingEmailStage.Sent,
+        MimeByteLength = 512,
+        AttemptCount = 1,
+        RecordedAt = Moment,
+        StageChangedAt = Moment,
+        AvailableAt = Moment,
+        DueAt = null,
+        LastFailure = null,
+        LastReplyCode = null,
+        Filings = [],
+        LastFilingFailure = null,
+    };
+
     private static readonly MailDraftId Draft = MailDraftId.Create(Guid.NewGuid());
 
     private readonly FakeTimeProvider clock = new(Moment);
@@ -78,7 +99,7 @@ public sealed class MailboxCopyAppenderTests
         var appender = this.Appender();
 
         // Act
-        var appended = await this.AppendAsync(appender, MailboxCopySource.OutgoingEmail(Send));
+        var appended = await this.AppendAsync(appender, MailboxCopySource.SentCopy(SentSend));
 
         // Assert
         Assert.Equal(MailboxCopyAppendOutcome.DestinationUnavailable, appended.Outcome);
@@ -112,7 +133,7 @@ public sealed class MailboxCopyAppenderTests
         var appender = this.Appender();
 
         // Act
-        var appended = await this.AppendAsync(appender, MailboxCopySource.OutgoingEmail(Send));
+        var appended = await this.AppendAsync(appender, MailboxCopySource.SentCopy(SentSend));
 
         // Assert
         Assert.Equal(MailboxCopyAppendOutcome.MessageUnavailable, appended.Outcome);
@@ -143,7 +164,7 @@ public sealed class MailboxCopyAppenderTests
         var appender = this.Appender();
 
         // Act
-        var appended = await this.AppendAsync(appender, MailboxCopySource.OutgoingEmail(Send));
+        var appended = await this.AppendAsync(appender, MailboxCopySource.SentCopy(SentSend));
 
         // Assert
         Assert.Equal(MailboxCopyAppendOutcome.Appended, appended.Outcome);
@@ -153,6 +174,31 @@ public sealed class MailboxCopyAppenderTests
         Assert.Equal(binding, this.IssuedInto);
         await this.writeSession.Received(1).AppendAsync(
             Arg.Any<ReadOnlyMemory<byte>>(),
+            OutgoingMailFiling.Sent.Flags,
+            Moment,
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A sent copy is the message as its latest transmission left, dated with the instant the record kept.</summary>
+    [Fact]
+    public async Task AppendAsync_ASentCopyOfATransmittedSend_AppendsTheMessageDatedWithTheTransmission()
+    {
+        // Arrange
+        this.MapSentFolder();
+        var stored = this.StoreOutgoingMessage();
+        this.AnswerAppendWith(new AppendedMailCopy(
+            RemoteEmailPlacement.Reported(ImapUidValidity.Create(7), ImapUid.Create(32)),
+            InternetMessageId: null));
+        var transmittedAt = Moment.AddHours(-2);
+        var appender = this.Appender(TransmittedEmailForms.Dating());
+
+        // Act
+        await this.AppendAsync(appender, MailboxCopySource.SentCopy(SentSend with { TransmittedAt = transmittedAt }));
+
+        // Assert
+        var expected = TransmittedEmailForms.DatedAt(stored, transmittedAt);
+        await this.writeSession.Received(1).AppendAsync(
+            Arg.Is<ReadOnlyMemory<byte>>(appended => appended.ToArray().SequenceEqual(expected)),
             OutgoingMailFiling.Sent.Flags,
             Moment,
             Arg.Any<CancellationToken>());
@@ -214,7 +260,7 @@ public sealed class MailboxCopyAppenderTests
         var appender = this.Appender();
 
         // Act
-        var appended = await this.AppendAsync(appender, MailboxCopySource.OutgoingEmail(Send));
+        var appended = await this.AppendAsync(appender, MailboxCopySource.SentCopy(SentSend));
 
         // Assert
         Assert.Equal(MailboxCopyAppendOutcome.OutcomeUnknown, appended.Outcome);
@@ -243,7 +289,7 @@ public sealed class MailboxCopyAppenderTests
         var appended = await appender.AppendAsync(
             Account,
             OutgoingMailFiling.Sent,
-            MailboxCopySource.OutgoingEmail(Send),
+            MailboxCopySource.SentCopy(SentSend),
             this.RecordIssuedAsync,
             _ => throw new PersistenceConcurrencyConflictException("every attempt conflicted"),
             TestContext.Current.CancellationToken);
@@ -299,7 +345,7 @@ public sealed class MailboxCopyAppenderTests
         var appended = await appender.AppendAsync(
             Account,
             OutgoingMailFiling.Sent,
-            MailboxCopySource.OutgoingEmail(Send),
+            MailboxCopySource.SentCopy(SentSend),
             this.RecordIssuedAsync,
             _ =>
             {
@@ -333,7 +379,7 @@ public sealed class MailboxCopyAppenderTests
         var appender = this.Appender();
 
         // Act
-        var appended = await this.AppendAsync(appender, MailboxCopySource.OutgoingEmail(Send));
+        var appended = await this.AppendAsync(appender, MailboxCopySource.SentCopy(SentSend));
 
         // Assert
         Assert.Equal(MailboxCopyAppendOutcome.OutcomeUnknown, appended.Outcome);
@@ -351,7 +397,7 @@ public sealed class MailboxCopyAppenderTests
         var refusal = await Assert.ThrowsAsync<ArgumentException>(() => appender.AppendAsync(
             Account,
             default,
-            MailboxCopySource.OutgoingEmail(Send),
+            MailboxCopySource.SentCopy(SentSend),
             this.RecordIssuedAsync,
             this.RecordConfirmedAsync,
             TestContext.Current.CancellationToken));
@@ -378,14 +424,14 @@ public sealed class MailboxCopyAppenderTests
         var missingIssuedWrite = await Assert.ThrowsAsync<ArgumentNullException>(() => appender.AppendAsync(
             Account,
             OutgoingMailFiling.Sent,
-            MailboxCopySource.OutgoingEmail(Send),
+            MailboxCopySource.SentCopy(SentSend),
             null!,
             this.RecordConfirmedAsync,
             TestContext.Current.CancellationToken));
         var missingConfirmation = await Assert.ThrowsAsync<ArgumentNullException>(() => appender.AppendAsync(
             Account,
             OutgoingMailFiling.Sent,
-            MailboxCopySource.OutgoingEmail(Send),
+            MailboxCopySource.SentCopy(SentSend),
             this.RecordIssuedAsync,
             null!,
             TestContext.Current.CancellationToken));
@@ -396,11 +442,19 @@ public sealed class MailboxCopyAppenderTests
             new[] { missingSource, missingIssuedWrite, missingConfirmation }.Select(refusal => refusal.ParamName));
     }
 
-    /// <summary>Reading a source's bytes needs the port they are held behind.</summary>
+    /// <summary>Reading a source's bytes needs the port they are held behind and the form a sent copy is derived in.</summary>
     [Fact]
-    public async Task FindContentAsync_NoContentStore_IsRefused() =>
-        await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            MailboxCopySource.OutgoingEmail(Send).FindContentAsync(null!, CancellationToken.None));
+    public async Task FindContentAsync_NoContentStoreOrForm_IsRefused()
+    {
+        // Act
+        var missingStore = await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            MailboxCopySource.SentCopy(SentSend).FindContentAsync(null!, TransmittedEmailForms.Unchanged(), CancellationToken.None));
+        var missingForm = await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            MailboxCopySource.SentCopy(SentSend).FindContentAsync(Substitute.For<IEmailContentStore>(), null!, CancellationToken.None));
+
+        // Assert
+        Assert.Equal(["contentStore", "transmittedForm"], new[] { missingStore.ParamName, missingForm.ParamName });
+    }
 
     /// <summary>A copy is reported with what the server said about it, which a result cannot be built without.</summary>
     [Fact]
@@ -415,7 +469,7 @@ public sealed class MailboxCopyAppenderTests
     private static StoredEmailContent Stored(ReadOnlyMemory<byte> rawMime) =>
         new(rawMime, rawMime.Length, SHA256.HashData(rawMime.Span));
 
-    private MailboxCopyAppender Appender()
+    private MailboxCopyAppender Appender(TransmittedEmailForm? transmittedForm = null)
     {
         this.transportSecurityPolicies.GetPolicy(Arg.Any<MailAccountId>()).Returns(RequiredTlsPolicy);
         this.writeSessions
@@ -444,6 +498,7 @@ public sealed class MailboxCopyAppenderTests
             this.writeSessions,
             destinations,
             this.contentStore,
+            transmittedForm ?? TransmittedEmailForms.Unchanged(),
             this.transportSecurityPolicies,
             this.clock);
     }
@@ -495,10 +550,15 @@ public sealed class MailboxCopyAppenderTests
         return this.folderResolutions.Bind(Account, folderAlias, remotePath);
     }
 
-    private void StoreOutgoingMessage() =>
+    private byte[] StoreOutgoingMessage()
+    {
+        var stored = Encoding.ASCII.GetBytes("Subject: a send\r\n\r\nbody");
         this.contentStore
             .FindOutgoingContentAsync(Send, Arg.Any<CancellationToken>())
-            .Returns(Stored(Encoding.ASCII.GetBytes("Subject: a send\r\n\r\nbody")));
+            .Returns(Stored(stored));
+
+        return stored;
+    }
 
     private void AnswerAppendWith(AppendedMailCopy copy) =>
         this.writeSession

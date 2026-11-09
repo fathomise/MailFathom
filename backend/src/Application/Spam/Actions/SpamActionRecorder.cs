@@ -229,7 +229,7 @@ public sealed class SpamActionRecorder
                 : ActionDecision.Refused(refusal);
         }
 
-        var marksRead = settings.MarksJunkRead && !occurrence.IsRemotelySeen;
+        var marksRead = settings.MarksJunkRead && !occurrence.IsMarkedSeen;
 
         // A pair standing together is cleared in place of an addition: $Junk is already there, and RFC 9051 reads the
         // message as carrying neither until somebody takes them off.

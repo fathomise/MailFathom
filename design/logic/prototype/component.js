@@ -20,7 +20,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     nextDefault: NEXT_DEFAULT, seedConversations: SEED_CONVS, agentReplies: AGENT_REPLIES, agentFallback: AGENT_FALLBACK,
     agentDraftHtml: AGENT_DRAFT_HTML,
     notifications: NOTIFS, incomingNotifications: INCOMING, demoBatches: DEMO_BATCHES,
-    senderMarks: SENDER_MARKS, receipts: RECEIPTS, receiptRequests: RECEIPT_REQUESTS, trustedLinkDomains: TRUSTED_LINK_DOMAINS, messageSources: MESSAGE_SOURCES,
+    senderMarks: SENDER_MARKS, categories: CATEGORIES, receipts: RECEIPTS, receiptRequests: RECEIPT_REQUESTS, trustedLinkDomains: TRUSTED_LINK_DOMAINS, messageSources: MESSAGE_SOURCES,
   } = MailFathomDesign.data;
   const { mdPlain, mdView, MDTXT, MDSIZE } = MailFathomDesign.markdown;
   const { HTML_SHELL, embedHtml, embedLinks, htmlFallback } = MailFathomDesign.mailHtml;
@@ -260,7 +260,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
   const segStyle = (on) => "flex:1;text-align:center;padding:6px 8px;border-radius:8px;font-size:13px;white-space:nowrap;" + (on ? "background:var(--accent);color:var(--onaccent)" : "color:var(--muted)");
 
-  /* `footer` says the message names the footer MailFathom appended to it; `quoted` is the conversation it quoted. */
+  /* `footer` says the message names the footer MailFathom appended to it, and `footerLines` is that footer where the
+     message is a proven colleague's rather than the reader's; `quoted` is the conversation it quoted. */
   const M = (from, when, paras, atts, html, extra) => Object.assign({ from, when, initials: initialsOf(from), mine: from === ME, paras, atts: atts || [], html: html || "", footer: false, quoted: [] }, extra);
 
   /* The originals wrapped in the document shell they arrive in, and the earlier messages built as the newest one is. */
@@ -270,7 +271,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   Object.keys(threadMailBodies).forEach(t => { THREAD_HTML[t] = MAIL_HTML[threadMailBodies[t]]; });
   const HERO_MSGS = {};
   Object.keys(earlierMessages).forEach(t => {
-    HERO_MSGS[t] = earlierMessages[t].map(m => M(m.from, m.when, m.paras, m.attachments, m.html && MAIL_HTML[m.html], { footer: !!m.footer, quoted: m.quoted || [] }));
+    HERO_MSGS[t] = earlierMessages[t].map(m => M(m.from, m.when, m.paras, m.attachments, m.html && MAIL_HTML[m.html], { footer: !!m.footer, footerLines: m.footerLines || null, quoted: m.quoted || [] }));
   });
 
   const msgsFor = (t) => {
@@ -305,6 +306,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     warnAuth: { glyph: "gpp_bad", word: "Suspicious", tone: "err", name: "Suspicious - sender authentication failed" },
     neutral: { glyph: "shield", word: "", tone: "plain", name: "Sender not recognized" },
   };
+  /* THE CATEGORIES — what sort of mail a message is (data/prototype/categories.js). The square label a spam kind and the
+     AI tag already use, in the quiet tone whatever the category, since none of them is a warning. A default that draws
+     no label is left out here, so everything past this point has only names to draw. */
+  const CATEGORY_LABEL = "display:block;box-sizing:border-box;min-width:0;font-size:12px;line-height:16px;border-radius:4px;padding:0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);border:1px solid var(--border2);";
+  const orderedCategories = (keys) => Object.keys(CATEGORIES.names).filter(k => CATEGORIES.names[k] && keys.includes(k)).map(k => CATEGORIES.names[k]);
+  /* `newer` counts the thread's messages newer than this one, so the newest message is 0. */
+  const messageCategories = (threadId, newer) => orderedCategories((CATEGORIES.messages[threadId] || [])[newer] || []);
+  const conversationCategories = (threadId) => orderedCategories((CATEGORIES.messages[threadId] || []).flat());
+  /* A name only says more than its label where the label may have ended in an ellipsis. */
+  const categoryLabel = (name, width) => ({ name, tip: name.length > 18 ? name : undefined, style: CATEGORY_LABEL + (name.length > 18 ? "flex:0 1 auto;" : "flex:0 0 auto;") + "max-width:" + width + "px;" });
+
   const MARK_INK = { err: "var(--err-text)", ok: "var(--ok-text)", accent: "var(--accent-d)", known: "var(--muted)", plain: "var(--muted)" };
   const MARK_PILL = {
     err: "color:var(--err-text);background:var(--err-soft);border:1px solid var(--err);",
@@ -1722,7 +1734,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     signOffHtml = () => (this.composeFooter().length ? "" : '<p style="margin:12px 0 0 0">' + COMPOSE_DRAFTS.signOff + "</p>");
     /* The one quiet line a footer folds to wherever it is drawn — sent mail, the composer, the Agent's draft. */
     footerFoldStyle = (touch) => "display:inline-flex;align-self:flex-start;align-items:center;gap:4px;box-sizing:border-box;min-height:" + (touch ? 44 : 28) +
-      "px;padding:0 10px 0 4px;margin-left:-4px;border-radius:8px;font-size:13px;line-height:1.3;color:var(--muted)";
+      "px;max-width:100%;padding:0 10px 0 4px;margin-left:-4px;border-radius:8px;font-size:13px;line-height:1.3;color:var(--muted)";
     /* A footer line drawn as sent mail draws it: the name line strong, the fine print small. */
     footerLineStyle = (l) => l.strong ? "font-size:14px;line-height:1.5;font-weight:600;color:var(--text)"
       : l.small ? "font-size:12px;line-height:1.5;color:var(--muted);margin-top:6px;text-wrap:pretty"
@@ -2108,7 +2120,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.setState({
         ctxMenu: {
           x: p.x, y: p.y, kind: "mail", id: id, title: th.subject || "Message",
+          detailWraps: !sp.spam && (this.state.convMail ? conversationCategories(id) : messageCategories(id, 0)).length > 0,
           detail: th.from + (sp.spam ? " - " + (spamKind(sp.kind) ? spamKind(sp.kind).label + " spam" : "Spam") : "") +
+            /* A finger has no hover, and the hold that would ask a label for its whole name opens this menu. */
+            (sp.spam ? "" : (this.state.convMail ? conversationCategories(id) : messageCategories(id, 0)).map(n => " - " + n).join("")) +
             (/·(Sent|Drafts)$/.test(this.state.folderKey || "") || !senderRecord(id, null) ? "" : " - " + MARKS[markKeyOf(senderRecord(id, null))].name) +
             (rcpt ? " - " + rcpt.word : ""),
           items: [
@@ -4480,6 +4495,25 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const k = markKeyOf(r);
         return Object.assign({ k, open: (e) => this.openSenderMark(threadId, from, e) }, MARKS[k]);
       };
+      /* A row draws two categories at most, one where the list is narrow, and +N naming the rest. On a message row they
+         close the third line, after the AI reading, which gives way first; read by conversation they take the second of the
+         two lines the newest message's opening has, so what a model titled keeps its room, and the row grows by its own gap. */
+      const withCategories = (t, row) => {
+        const names = this.spamOf(t.id).spam ? [] : convMail ? conversationCategories(t.id) : messageCategories(t.id, 0);
+        const shown = names.slice(0, listCompact ? 1 : 2);
+        const rest = names.slice(shown.length);
+        return Object.assign(row, {
+          thirdLineShown: !!row.showAi || (!convMail && names.length > 0),
+          catsShown: names.length > 0,
+          cats: shown.map(n => categoryLabel(n, 132)),
+          catsMoreShown: rest.length > 0,
+          catsMore: "+" + rest.length,
+          catsRest: rest.join(", "),
+          catsMoreStyle: CATEGORY_LABEL + "flex:0 0 auto;overflow:visible;",
+          catsStyle: "display:flex;align-items:center;gap:4px;min-width:0;flex:0 0 auto;" + (convMail ? "" : "max-width:" + (listCompact ? 50 : 62) + "%;" + (row.showAi ? "margin-left:auto;" : "")),
+          ...(convMail && names.length > 0 ? { convSnippetStyle: row.convSnippetStyle.replace("line-clamp:2", "line-clamp:1") } : {}),
+        });
+      };
       const withMark = (t, row) => {
         const M = recipientList ? null : markOf(t.id, null);
         if (!M) return Object.assign(row, { markShown: false });
@@ -4711,7 +4745,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const folding = st.histFolding === thread.id;
         /* The original is what went out, footer and quoted conversation included, so nothing in it is folded. */
         const original = Object.assign({}, m, { paras: m.paras
-          .concat(m.mine && m.footer ? (FOOTERS[thread.acc || "acc1"] || []).map(l => ({ text: l.text })) : [], m.quoted) });
+          .concat((m.footerLines || (m.mine && m.footer ? FOOTERS[thread.acc || "acc1"] || [] : [])).map(l => ({ text: l.text })), m.quoted) });
         /* A mailbox change the server never took, on the message it was asked for, until it is asked again or let go. */
         const chg = i === lastIdx && !(st.changeDecided || {})[thread.id] ? CHANGE_NOTICES[thread.id] : null;
         const chgBoth = !!chg && chg.fate === "both";
@@ -4731,6 +4765,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           aiBtnStyle: "display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" + (touch ? "width:44px;height:44px;margin:-12px -8px;font-size:20px" : "width:26px;height:26px;margin:-5px -3px;font-size:17px"),
           ...(m.mine ? { rptShown: false } : reportLine(thread)),
           ...(m.mine ? { markShown: false } : badgeOf(thread.id, m.from)),
+          ...(() => {
+            /* A reply read by thread alone (`sentLast`) stands past the sample's newest message and holds none. */
+            const names = threadSpam.spam ? [] : messageCategories(thread.id, msgs.length - 1 - i - (convMail && SENT_LAST[thread.id] ? 1 : 0));
+            return {
+              catsShown: names.length > 0,
+              cats: names.map(n => categoryLabel(n, 240)),
+              catsStyle: "display:inline-flex;flex-wrap:wrap;align-self:center;gap:4px;min-width:0;max-width:100%",
+            };
+          })(),
           // What came back belongs to the newest message the account sent in the conversation.
           ...(m.mine && i === msgs.map(x => x.mine).lastIndexOf(true) ? receiptBadge(thread.id) : { rcptShown: false }),
           ...(!m.mine && i === lastIdx && !threadSpam.spam ? readReceiptAsk(thread, m.from) : { mdnAskShown: false, mdnSentShown: false }),
@@ -4784,7 +4827,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           simpleView: !htmlViewMode || threadSpam.spam,
           htmlView: htmlViewMode && !threadSpam.spam,
           htmlFrameId: "fit:" + thread.id + ":" + i,
-          htmlEmbedSrc: htmlViewMode && !threadSpam.spam ? embedHtml(m.html || htmlFallback(original, thread.subject), "fit:" + thread.id + ":" + i) : "",
+          htmlEmbedSrc: htmlViewMode && !threadSpam.spam ? embedHtml(m.html || htmlFallback(original, thread.subject), "fit:" + thread.id + ":" + i, theme === "dark") : "",
           htmlFrameRef: this.htmlFrameRef,
           htmlRich: !!m.html,
           htmlTitle: m.html ? "Show the original message (rich content)" : "Show the original message",
@@ -4810,34 +4853,64 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           avatarStyle:
             "width:30px;height:30px;flex:0 0 30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;letter-spacing:0.02em;" +
             (m.mine ? "background:var(--accent);color:var(--onaccent);" : "background:var(--border2);color:var(--text2);"),
-          /* The reader's own footer, named by the message, folds to one quiet line under their words; the conversation
-             it quoted folds under that, behind a line of its own. A message naming no footer is drawn whole. */
+          /* A footer the message names — the reader's own, or a proven colleague's — folds to one quiet line under the
+             words, showing the footer's first line; the conversation it quoted folds under that, behind the attribution
+             MailFathom wrote. A message naming no footer is drawn whole. */
           ...(() => {
-            const lines = m.mine && m.footer ? FOOTERS[thread.acc || "acc1"] || [] : [];
+            let bodyHeaders;
+            return Object.assign({}, (() => {
+            const lines = m.footerLines || (m.mine && m.footer ? FOOTERS[thread.acc || "acc1"] || [] : []);
+            const attribution = m.quoted[0] && m.quoted[0].attribution ? m.quoted[0].text : null;
             const footOpen = !!(st.footerOpen || {})[k];
             const quoteOpen = !!(st.quotedOpen || {})[k];
             const flip = (key) => () => this.setState(s2 => ({ [key]: Object.assign({}, s2[key], { [k]: !(s2[key] || {})[k] }) }));
             const foldLine = this.footerFoldStyle(touch);
+            /* A block of header lines the message typed folds to who it says wrote it and when, in the message's own
+               words and measure: no avatar, no mark, nothing a verified header carries. */
+            const writtenHeaders = (headers, place) => {
+              const key = k + ":" + place;
+              const open = !!(st.headersOpen || {})[key];
+              return {
+                isHeaders: true, headersOpen: open,
+                toggleHeaders: () => this.setState(s2 => ({ headersOpen: Object.assign({}, s2.headersOpen, { [key]: !open }) })),
+                headersGlyph: open ? "expand_more" : "chevron_right",
+                headersLabel: open ? "Hide these header lines" : headers.author + ", " + headers.date,
+                headersFoldStyle: "display:inline-flex;align-self:flex-start;align-items:center;gap:4px;box-sizing:border-box;min-height:" + (touch ? 44 : 28) +
+                  "px;padding:0 10px 0 4px;margin-left:-4px;border-radius:8px;font-size:15px;line-height:1.3;color:var(--text2);text-wrap:pretty",
+                headersGlyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)",
+                headerLines: headers.lines.map(text => ({ text, style: "font-size:15px;line-height:1.65;color:var(--text2);overflow-wrap:anywhere" })),
+              };
+            };
+            bodyHeaders = writtenHeaders;
             return {
               foldsShown: lines.length > 0 || m.quoted.length > 0,
               footerShown: lines.length > 0, footerOpen: footOpen, toggleFooter: flip("footerOpen"),
-              footerLabel: footOpen ? "Hide your footer" : "Your footer is hidden",
+              footerLabel: footOpen ? "Hide the footer" : (lines[0] || {}).text,
               footerGlyph: footOpen ? "expand_more" : "chevron_right",
               footerLines: lines.map(l => ({ text: l.text, style: this.footerLineStyle(l) })),
               quotedShown: m.quoted.length > 0, quotedOpen: quoteOpen, toggleQuoted: flip("quotedOpen"),
               quotedGlyph: quoteOpen ? "expand_more" : "chevron_right",
-              quotedParas: m.quoted.map(q => ({ text: q.text, style: "font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty" })),
+              quotedLabel: attribution || "The conversation this message quoted",
+              quotedParas: m.quoted.slice(attribution ? 1 : 0).map((q, at) => q.headers
+                ? writtenHeaders(q.headers, "q" + at)
+                : ({ isText: true, text: q.text, style: "font-size:14px;line-height:1.6;color:var(--text2);text-wrap:pretty" })),
               foldLineStyle: foldLine,
               foldGlyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1",
             };
+            })(), {
+              paras: m.paras.reduce((acc, bb, at) => bb.headers ? acc.concat([bodyHeaders(bb.headers, "p" + at)]) : bb.md ? acc.concat(threadSpam.spam ? unlinked(mdView(bb.md)) : mdView(bb.md)) : acc.concat([{
+                isText: true,
+                /* `runs` is a proven author's own colours, drawn as the value: only what is inside the readable band is
+                   written with one, and everything else is the body colour. */
+                runs: bb.runs
+                  ? bb.runs.map(r => ({ text: r.text, plain: true, isLink: false, href: "", style: r.colour ? "color:" + r.colour : "" }))
+                  : [{ text: bb.text, plain: true, isLink: false, href: "", style: "" }],
+                style: bb.hl && st.cameFrom
+                  ? "font-size:16px;line-height:1.55;background:var(--hl);border-left:3px solid var(--hl-line);padding:13px 16px;text-wrap:pretty"
+                  : MDTXT + (bb.text.indexOf("\n") >= 0 ? ";white-space:pre-line" : ""),
+              }]), []),
+            });
           })(),
-          paras: m.paras.reduce((acc, bb) => bb.md ? acc.concat(threadSpam.spam ? unlinked(mdView(bb.md)) : mdView(bb.md)) : acc.concat([{
-            isText: true,
-            runs: [{ text: bb.text, plain: true, isLink: false, href: "", style: "" }],
-            style: bb.hl && st.cameFrom
-              ? "font-size:16px;line-height:1.55;background:var(--hl);border-left:3px solid var(--hl-line);padding:13px 16px;text-wrap:pretty"
-              : MDTXT + (bb.text.indexOf("\n") >= 0 ? ";white-space:pre-line" : ""),
-          }]), []),
         });
       });
       const selectionOn = sel.length > 0;
@@ -5425,6 +5498,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ctxMenuOpen: !!st.ctxMenu,
         ctxMenuTitle: st.ctxMenu ? st.ctxMenu.title : "",
         ctxMenuDetail: (st.ctxMenu && st.ctxMenu.detail) || "",
+        ctxMenuDetailFit: st.ctxMenu && st.ctxMenu.detailWraps ? "white-space:normal;overflow-wrap:anywhere" : "overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
         ctxMenuHasDetail: !!(st.ctxMenu && st.ctxMenu.detail),
         closeCtxMenu: () => { if (this.ctxArmed()) this.closeCtxMenuFocus(); },
         /* A checkable item reads its state from the render rather than from when the menu opened, and pressing it
@@ -7902,7 +7976,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         cameFromResult: st.cameFrom,
         fromCitation: st.fromCite || "",
         backToResult: () => this.setState({ screen: "discover", cameFrom: false }),
-        threads: listedThreads.map(t => withReceipt(t, withMark(t, spamRowOf(t, {
+        threads: listedThreads.map(t => withReceipt(t, withMark(t, withCategories(t, spamRowOf(t, {
           ...(convMail ? convRowOf(t) : {}),
           msgShown: !convMail,
           convShown: convMail,
@@ -7974,7 +8048,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             rowWash(t.id),
           count: parseInt(((t.meta || "").match(/thread: (\d+)/) || [])[1] || "1", 10),
           multi: parseInt(((t.meta || "").match(/thread: (\d+)/) || [])[1] || "1", 10) > 1,
-        })))),
+        }))))),
         activeSubject: thread.subject,
         activeMeta: thread.meta,
         activeState: thread.state.map((s, i) => {
@@ -8266,7 +8340,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         htmlOpen: !!st.htmlDoc && (!tabsMode || htmlInPane),
         htmlTitleText: st.htmlDoc ? st.htmlDoc.title : "",
         htmlMeta: st.htmlDoc ? st.htmlDoc.from + " · " + st.htmlDoc.when : "",
-        htmlSrc: st.htmlDoc ? embedLinks(st.htmlDoc.src) : "",
+        htmlSrc: st.htmlDoc ? embedLinks(st.htmlDoc.src, theme === "dark") : "",
         closeHtml: () => (htmlInPane ? this.closeTab(st.activeTab) : this.setState({ htmlDoc: null })),
         htmlOverlayStyle: htmlInPane
           ? "flex:1;display:flex;min-height:0;min-width:0;background:var(--sub)"
@@ -8278,9 +8352,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         htmlWindowStyle: htmlInPane || singlePane
           ? "flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel)"
           : "width:min(1000px,100%);height:" + (tall ? "min(90dvh,1100px,100%)" : "min(90dvh,100%)") + ";display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 26px 60px var(--scrim);overflow:hidden",
-        htmlFrameStyle: "flex:1;min-height:0;width:100%;border:0;background:#ffffff" + (st.htmlLoading ? ";visibility:hidden" : ""),
+        htmlFrameStyle: "flex:1;min-height:0;width:100%;border:0;background:transparent" + (st.htmlLoading ? ";visibility:hidden" : ""),
         htmlLoading: !!st.htmlLoading,
-        htmlSkelStyle: "position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;gap:14px;background:#ffffff;padding:26px 30px",
+        htmlSkelStyle: "position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;gap:14px;background:transparent;padding:26px 30px",
         htmlSkelLines: [{ w: 46, h: 15 }, { w: 28, h: 10 }, { w: 0, h: 0 }, { w: 98, h: 11 }, { w: 94, h: 11 }, { w: 99, h: 11 }, { w: 62, h: 11 }, { w: 0, h: 0 }, { w: 100, h: 90 }, { w: 88, h: 11 }, { w: 51, h: 11 }].map(l => ({
           style: l.w
             ? "border-radius:6px;background:linear-gradient(90deg,#e9edf2 0%,#f6f8fa 42%,#e9edf2 78%);background-size:260% 100%;animation:mfshim 1.05s linear infinite;height:" + l.h + "px;width:" + l.w + "%"
@@ -8429,17 +8503,13 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           else this.setState({ htmlDoc: ask.doc, htmlSrcMode: false, htmlLoading: true });
           this.loadHtml();
         },
-        setViewAi: () => this.setState({ msgView: "ai" }),
         setViewSimple: () => this.setState({ msgView: "simple" }),
         setViewHtml: () => this.setState({ msgView: "html", htmlDoc: null }),
-        viewAiStyle: segStyle(st.msgView === "ai"),
-        viewSimpleStyle: segStyle(st.msgView !== "ai" && st.msgView !== "html"),
+        viewSimpleStyle: segStyle(st.msgView !== "html"),
         viewHtmlStyle: segStyle(st.msgView === "html"),
         viewHint: st.msgView === "html"
           ? "Messages show the original as its sender wrote it, inline; the control on the message head goes."
-          : st.msgView === "ai"
-            ? "The same deterministic cleanup as Simplified, with AI deciding only what to keep and what to drop - it never rewrites a word, so the text stays exactly as the sender wrote it; only the presentation changes. Usually cleaner than plain Simplified, especially on newsletters and long reply chains."
-            : "Messages are shown as cleaned-up text; the original is one control away on the message head.",
+          : "Messages are shown as cleaned-up text; the original is one control away on the message head.",
         telemetryOptOut: !!st.telemetryOptOut,
         telemetrySwitchStyle: "flex:0 0 auto;margin-top:2px;width:30px;height:17px;border-radius:8px;display:flex;align-items:center;padding:2px;background:var(" + (st.telemetryOptOut ? "--accent" : "--border2") + ");justify-content:" + (st.telemetryOptOut ? "flex-end" : "flex-start"),
         toggleTelemetry: () => this.setState(s => ({ telemetryOptOut: !s.telemetryOptOut })),

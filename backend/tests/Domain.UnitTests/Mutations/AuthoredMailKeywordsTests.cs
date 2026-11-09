@@ -92,14 +92,14 @@ public sealed class AuthoredMailKeywordsTests
     public void IsWritable_AKeywordPastTheLengthBound_IsRefused()
     {
         // Arrange
-        var overlong = new string('a', RemoteEmailKeywords.MaximumKeywordLength + 1);
+        var overlong = new string('a', EmailKeywords.MaximumKeywordLength + 1);
 
         // Act
         var writable = AuthoredMailKeywords.IsWritable(overlong);
 
         // Assert
         Assert.False(writable);
-        Assert.True(AuthoredMailKeywords.IsWritable(overlong[..RemoteEmailKeywords.MaximumKeywordLength]));
+        Assert.True(AuthoredMailKeywords.IsWritable(overlong[..EmailKeywords.MaximumKeywordLength]));
     }
 
     /// <summary>
@@ -182,7 +182,7 @@ public sealed class AuthoredMailKeywordsTests
     {
         // Arrange
         var atTheBound = Enumerable
-            .Range(0, RemoteEmailKeywords.MaximumKeywords)
+            .Range(0, EmailKeywords.MaximumKeywords)
             .Select(position => $"label{position}")
             .ToArray();
         string[] pastTheBound = [.. atTheBound, "onemore"];
@@ -193,7 +193,7 @@ public sealed class AuthoredMailKeywordsTests
 
         // Assert
         Assert.True(readAtTheBound);
-        Assert.Equal(RemoteEmailKeywords.MaximumKeywords, kept.Values.Count);
+        Assert.Equal(EmailKeywords.MaximumKeywords, kept.Values.Count);
         Assert.False(readPastTheBound);
     }
 

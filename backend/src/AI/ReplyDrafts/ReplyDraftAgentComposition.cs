@@ -28,17 +28,31 @@ internal static class ReplyDraftAgentComposition
     /// <param name="chatClient">The client the one call is made through.</param>
     /// <param name="plan">The generation parameters this deployment configured.</param>
     /// <param name="language">The language the person writing reads, which the instruction states for a draft answering no correspondence.</param>
+    /// <param name="turn">The turn the agent is put, whose numbers the response schema is built from.</param>
     /// <param name="instructionEnvelope">The preamble and postamble every agent here carries.</param>
     /// <param name="loggerFactory">The factory the agent logs through.</param>
     /// <returns>The composed agent.</returns>
+    /// <remarks>
+    /// The schema and the instruction are decided by the same declaration: a model whose server honours a strict schema is
+    /// sent one and told only what each field means, and any other model is sent none and told the shape in prose. A
+    /// fallback is composed for its own declaration, so a chain mixing the two asks each model the way it can answer.
+    /// </remarks>
     internal static ChatClientAgent Compose(
         IChatClient chatClient,
         ChatGenerationPlan plan,
         UserLanguage language,
+        ReplyDraftTurn turn,
         IAgentInstructionEnvelope instructionEnvelope,
         ILoggerFactory loggerFactory)
     {
-        var operation = new AgentOperation(AgentName, ReplyDraftInstructions.TextFor(language), []);
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(turn);
+
+        var operation = new AgentOperation(
+            AgentName,
+            ReplyDraftInstructions.TextFor(language, plan.StructuredOutputs),
+            [],
+            plan.StructuredOutputs ? ReplyDraftSchema.For(turn) : null);
 
         return AgentComposition.Compose(chatClient, plan, operation, instructionEnvelope, loggerFactory);
     }

@@ -44,7 +44,7 @@ public sealed class MailboxChangeSubmissionTests
 
     private static readonly ReadOnlyMemory<byte> RawMime = "Subject: copied\r\n\r\nbody"u8.ToArray();
 
-    private static readonly RemoteEmailKeywords CarriedKeywords = RemoteEmailKeywords.Create(["$label1"]);
+    private static readonly EmailKeywords CarriedKeywords = EmailKeywords.Create(["$label1"]);
 
     private static readonly EmailOccurrenceId Occurrence =
         EmailOccurrenceId.Create(Account, Inbox.Id, ImapUidValidity.Create(1), ImapUid.Create(41));
@@ -940,7 +940,7 @@ public sealed class MailboxChangeSubmissionTests
             Folder: null,
             IsSeen: false,
             IsFlagged: false,
-            RemoteEmailKeywords.Create(keywords ?? [])));
+            EmailKeywords.Create(keywords ?? [])));
 
     private MailFolderId FolderWithRole(MailFolderSpecialUse role) =>
         this.folders.Folders.Single(folder => folder.Role == role).Id;

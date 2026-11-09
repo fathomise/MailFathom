@@ -195,6 +195,7 @@ internal sealed class StoredEmailAttachmentTextStore(
         AccountScopedMailFolders.Admitting(
             emails
                 .Where(StoredEmailTombstone.IsNotTombstoned)
+                .Where(UnsentStoredEmails.IsSentOrReceived)
                 .Where(email => email.AttachmentCount > 0)
                 .Where(MailAwaitingRuleEvaluation.IsFinishedWith)
                 .Where(MailAwaitingRelocation.IsSettledWhereItIs),

@@ -11,6 +11,7 @@
     <Compile Include="..\shared\LocalMailCopiers.cs" Link="LocalMailCopiers.cs" />
     <Compile Include="..\shared\SenderTrustJudges.cs" Link="SenderTrustJudges.cs" />
     <Compile Include="..\shared\MailboxCustodianComposition.cs" Link="MailboxCustodianComposition.cs" />
+    <Compile Include="..\shared\TransmittedEmailForms.cs" Link="TransmittedEmailForms.cs" />
     <Compile Include="..\shared\AdversarialMessage.cs" Link="AdversarialMessage.cs" />
     <Compile Include="..\shared\ExceptionHierarchyAssertion.cs" Link="ExceptionHierarchyAssertion.cs" />
     <!-- Every use case behind a protected surface takes the authorization, so the principal a test states is composed

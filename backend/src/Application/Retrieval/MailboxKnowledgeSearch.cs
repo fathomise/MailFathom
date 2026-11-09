@@ -7,6 +7,7 @@ using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
 using MailFathom.Application.Emails.SearchEmails;
+using MailFathom.Domain.Contacts;
 using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Retrieval;
@@ -27,9 +28,9 @@ namespace MailFathom.Application.Retrieval;
 /// </para>
 /// <para>
 /// What this adds is the shape a model's context needs rather than a reader's: one bounded extract per message instead
-/// of a summary and several highlighted fragments, carrying only the identity an answer is traced through. Everything a
-/// listing publishes and an answer does not need — the participants, the size, the flags, the attachment summary — is
-/// dropped here rather than sent to a provider.
+/// of a summary and several highlighted fragments, carrying the identity an answer is traced through and the sender an
+/// answer about who said what is drawn from. Everything else a listing publishes and an answer does not need — the
+/// recipients, the size, the flags, the attachment summary — is dropped here rather than sent to a provider.
 /// </para>
 /// <para>
 /// What a file the message carried contributed is kept, and kept separate. It is what lets an answer draw on a
@@ -93,8 +94,8 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
             SubjectFragment = query.SubjectFragment,
             ReceivedOnOrAfter = query.ReceivedOnOrAfter,
             ReceivedBefore = query.ReceivedBefore,
-            IsRemotelySeen = query.IsRemotelySeen,
-            IsRemotelyFlagged = query.IsRemotelyFlagged,
+            IsMarkedSeen = query.IsMarkedSeen,
+            IsFlagged = query.IsFlagged,
             Keyword = query.Keyword,
             HasAttachments = query.HasAttachments,
             ResultLimit = this.bounds.MaximumPassages,
@@ -155,6 +156,8 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
             Folder = summary.Folder,
             Subject = summary.Subject,
             ReceivedAt = summary.ReceivedAt,
+            SenderDisplayName = BoundedSenderName(summary.SenderDisplayName),
+            SenderAddress = summary.SenderAddress,
             Provenance = provenance,
             MachineAuthorship = summary.MachineAuthorship,
             Text = Bounded(string.Join(SnippetSeparator, match.Snippets), bounds),
@@ -176,6 +179,16 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
         match.Kind,
         match.Segment,
         Bounded(string.Join(SnippetSeparator, match.Extracts), bounds));
+
+    /// <summary>Cuts the name a sender wrote to the length a correspondent's name is held to anywhere in this deployment.</summary>
+    /// <remarks>
+    /// The extract is cut and the address is held to its column, but nothing stored bounds the display name, and a
+    /// sender writing a name longer than the run's whole allowance would otherwise spend it on one passage and push every
+    /// more relevant one out of the run. Cut here, so the scan, the run's count, and the written attribute all see the
+    /// same bounded value.
+    /// </remarks>
+    private static string? BoundedSenderName(string? name) =>
+        name is null ? null : MailTextBounds.TruncateAtTextElementBoundary(name, ContactDisplayName.MaximumLength);
 
     /// <summary>Cuts an extract to the size one passage may carry.</summary>
     /// <remarks>

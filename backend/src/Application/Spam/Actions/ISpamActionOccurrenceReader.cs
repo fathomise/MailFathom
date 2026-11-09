@@ -6,7 +6,7 @@ using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Spam.Actions;
 
-/// <summary>Reads where a classified email currently is and whether its mail server already reports it read.</summary>
+/// <summary>Reads where a classified email currently is and whether it is already marked read.</summary>
 /// <remarks>
 /// A port of its own rather than a widening of <see cref="IClassifiableEmailReader" />, because the two are asked at
 /// different moments and about different things: that one is asked before a verdict exists and answers what the verdict

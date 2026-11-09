@@ -8,6 +8,7 @@ using MailFathom.AI.Orchestration;
 using MailFathom.AI.ProviderAdapters;
 using MailFathom.AI.Providers;
 using MailFathom.AI.Retrieval;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Application.AiProviders;
@@ -20,6 +21,7 @@ using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using Microsoft.Extensions.DependencyInjection;
@@ -55,6 +57,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     private readonly IOutboundOperationRunner operationRunner;
     private readonly IAiProviderHealthRecorder healthRecorder;
     private readonly SensitiveContentEgressGuard egressGuard;
+    private readonly IMailAccountLanguages accountLanguages;
     private readonly IAgentInstructionEnvelope instructionEnvelope;
     private readonly AgentConversationReaders readers;
     private readonly ILoggerFactory loggerFactory;
@@ -70,6 +73,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     /// <param name="operationRunner">Applies the provider resilience budget to every call.</param>
     /// <param name="healthRecorder">Records what each call established about the provider.</param>
     /// <param name="egressGuard">Scans every text sent to the provider.</param>
+    /// <param name="accountLanguages">Answers the language each account the turn names is kept in.</param>
     /// <param name="instructionEnvelope">Supplies the text every composed agent's instruction is wrapped in.</param>
     /// <param name="readers">The use cases the tools read and propose through.</param>
     /// <param name="loggerFactory">Creates the loggers the framework's own components record through.</param>
@@ -84,6 +88,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         IOutboundOperationRunner operationRunner,
         IAiProviderHealthRecorder healthRecorder,
         SensitiveContentEgressGuard egressGuard,
+        IMailAccountLanguages accountLanguages,
         IAgentInstructionEnvelope instructionEnvelope,
         AgentConversationReaders readers,
         ILoggerFactory loggerFactory,
@@ -98,6 +103,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         this.operationRunner = operationRunner;
         this.healthRecorder = healthRecorder;
         this.egressGuard = egressGuard;
+        this.accountLanguages = accountLanguages;
         this.instructionEnvelope = instructionEnvelope;
         this.readers = readers;
         this.loggerFactory = loggerFactory;
@@ -110,7 +116,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         ArgumentNullException.ThrowIfNull(brief);
         ArgumentNullException.ThrowIfNull(journal);
 
-        var scope = await this.readers.ScopeResolver.ReadableScopeAsync(MailboxReaderKind.Agent, [], [], JunkMailInclusion.Excluded, cancellationToken);
+        var scope = await this.readers.ScopeResolver.ReadableScopeAsync(MailboxReaderKind.ConversationAgent, [], [], JunkMailInclusion.Excluded, cancellationToken);
         var runLedger = new MailAnsweringRunLedger(this.runBounds);
         var retrieval = new ScopedMailKnowledgeRetrieval(
             this.readers.KnowledgeSearch,
@@ -120,13 +126,14 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             brief.Question.AskedAt);
         var tools = new AgentConversationTools(journal, retrieval, this.readers, this.egressGuard, scope.AccountIds);
         var accounts = await tools.NameAccountsAsync(cancellationToken);
+        var languages = MailboxLanguages.Of(accounts.Select(static account => account.Id), this.accountLanguages);
         var zone = this.readers.Clock.Zone();
         var stickySession = StickySessionOf(brief.Question.Conversation);
 
         var answer = await ChatModelFallThrough.RunAsync(
             this.plan,
             this.logger,
-            (model, attemptToken) => this.AskAsync(model, brief, accounts, zone, tools, journal, runLedger, stickySession, attemptToken),
+            (model, attemptToken) => this.AskAsync(model, brief, accounts, languages, zone, tools, journal, runLedger, stickySession, attemptToken),
             () => !tools.HasProposed,
             cancellationToken);
 
@@ -186,18 +193,21 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     /// <summary>Composes what the model is sent: every earlier turn of the conversation, then the question's own turn.</summary>
     /// <param name="brief">The question, the language it is answered in, and the conversation before it.</param>
     /// <param name="accounts">The accounts the turn names, which are the ones a tool the model is offered takes.</param>
+    /// <param name="languages">The languages those accounts are kept in, each once, which the turn names.</param>
     /// <param name="zone">The zone the person's own days are read in, which the turn names.</param>
     /// <returns>The conversation, oldest turn first.</returns>
     internal static IReadOnlyList<ChatMessage> ComposeMessages(
         AgentAnswerBrief brief,
         IReadOnlyList<AgentNamedAccount> accounts,
+        IReadOnlyList<MailAccountLanguage> languages,
         UserTimeZone zone) =>
-        ComposeMessages(brief, accounts, zone, brief.History, brief.Question.Text.Value);
+        ComposeMessages(brief, accounts, languages, zone, brief.History, brief.Question.Text.Value);
 
     /// <summary>Composes the conversation from a history and a question standing in for the ones the brief carries.</summary>
     private static IReadOnlyList<ChatMessage> ComposeMessages(
         AgentAnswerBrief brief,
         IReadOnlyList<AgentNamedAccount> accounts,
+        IReadOnlyList<MailAccountLanguage> languages,
         UserTimeZone zone,
         IReadOnlyList<AgentHistoryTurn> history,
         string question) =>
@@ -209,6 +219,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
                 brief.Question.AskedAt,
                 zone,
                 accounts,
+                languages,
                 brief.Question.Scope,
                 brief.NamedEmails,
                 question)),
@@ -241,6 +252,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
     private async Task<IReadOnlyList<ChatMessage>> GuardAsync(
         AgentAnswerBrief brief,
         IReadOnlyList<AgentNamedAccount> accounts,
+        IReadOnlyList<MailAccountLanguage> languages,
         UserTimeZone zone,
         CancellationToken cancellationToken)
     {
@@ -250,13 +262,14 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             brief.Question.Text.Value,
             cancellationToken);
 
-        return ComposeMessages(brief, accounts, zone, history, question);
+        return ComposeMessages(brief, accounts, languages, zone, history, question);
     }
 
     private async Task<PresentationText> AskAsync(
         ChatGenerationPlan model,
         AgentAnswerBrief brief,
         IReadOnlyList<AgentNamedAccount> accounts,
+        IReadOnlyList<MailAccountLanguage> languages,
         UserTimeZone zone,
         AgentConversationTools tools,
         AgentAnswerJournal journal,
@@ -265,10 +278,10 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
         CancellationToken cancellationToken)
     {
         // Against this model's own bounds, and before the scan, so a conversation refused by a ceiling costs no scan.
-        ChatRequestBounds.RequireForAttempt(ComposeMessages(brief, accounts, zone), model);
+        ChatRequestBounds.RequireForAttempt(ComposeMessages(brief, accounts, languages, zone), model);
         tools.ForgetEndingReports();
 
-        var guarded = await this.GuardAsync(brief, accounts, zone, cancellationToken);
+        var guarded = await this.GuardAsync(brief, accounts, languages, zone, cancellationToken);
 
         var endpoint = model.Endpoint;
 

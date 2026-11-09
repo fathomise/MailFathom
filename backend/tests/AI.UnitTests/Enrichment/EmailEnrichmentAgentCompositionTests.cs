@@ -2,11 +2,17 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.AI.Chat;
 using MailFathom.AI.Enrichment;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.UnitTests.TestDoubles;
+using MailFathom.Application.Emails.Chunking;
+using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
+using MailFathom.TestSupport;
 using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -66,6 +72,31 @@ public sealed class EmailEnrichmentAgentCompositionTests
             call => Assert.Equal(AgentComposition.InstructionFor(EmailEnrichmentInstructions.TextFor(language)), call.Options?.Instructions));
     }
 
+    /// <summary>A model declaring structured outputs is handed the schema and the instruction that leaves the shape to it.</summary>
+    [Fact]
+    public async Task Compose_AModelDeclaringStructuredOutputs_AsksForTheSchemaAndDropsTheShapeFromTheInstruction()
+    {
+        // Arrange
+        using var chatClient = ScriptedChatClient.Answering(Answer);
+        var agent = AgentOver(chatClient, plan: ChatDeclarations.Plan(structuredOutputs: true));
+
+        // Act
+        await agent.RunAsync(
+            "Subject: the racking quotation",
+            session: null,
+            options: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var call = Assert.Single(chatClient.Calls);
+        var format = Assert.IsType<ChatResponseFormatJson>(call.Options?.ResponseFormat);
+
+        Assert.Equal(EmailEnrichmentSchema.Name, format.SchemaName);
+        Assert.Equal(
+            AgentComposition.InstructionFor(EmailEnrichmentInstructions.TextFor(MailAccountLanguage.English, constrainedBySchema: true)),
+            call.Options?.Instructions);
+    }
+
     /// <summary>The name is what every mark records as its origin, so it is this agent's alone.</summary>
     [Fact]
     public void Compose_TheEnrichmentAgent_IsNamedApartFromEveryOtherAgent()
@@ -81,13 +112,23 @@ public sealed class EmailEnrichmentAgentCompositionTests
         Assert.NotEqual(MailAnsweringAgentComposition.AgentName, agent.Name);
     }
 
+    private static EnrichableEmail Enrichable() =>
+        new(
+            StoredEmailId.Create(Guid.CreateVersion7()),
+            "The racking quotation",
+            new DateTimeOffset(2026, 9, 5, 12, 0, 0, TimeSpan.Zero),
+            [new EnrichablePassage(EmailChunkId.Create(Guid.CreateVersion7()), 0, "the quotation is attached")],
+            StubEmailProvenanceReader.KnownCorrespondent);
+
     private static ChatClientAgent AgentOver(
         ScriptedChatClient chatClient,
-        MailAccountLanguage language = MailAccountLanguage.English) =>
+        MailAccountLanguage language = MailAccountLanguage.English,
+        ChatGenerationPlan? plan = null) =>
         EmailEnrichmentAgentComposition.Compose(
             chatClient,
-            ChatDeclarations.Plan(),
+            plan ?? ChatDeclarations.Plan(),
             language,
+            Enrichable(),
             new EmptyAgentInstructionEnvelope(),
             NullLoggerFactory.Instance);
 }

@@ -5,7 +5,10 @@
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ThreadStates;
 using MailFathom.AI.UnitTests.TestDoubles;
+using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
+using MailFathom.TestSupport;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -82,6 +85,22 @@ public sealed class ThreadStateAgentCompositionTests
         Assert.NotEqual(MailAnsweringAgentComposition.AgentName, agent.Name);
     }
 
+    private static DerivableThread Thread() =>
+        new(
+            EmailThreadId.Create(Guid.CreateVersion7()),
+            "The racking quotation",
+            new ThreadStateRevision(1, new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero)),
+            [
+                new DerivableThreadMessage(
+                    StoredEmailId.Create(Guid.CreateVersion7()),
+                    0,
+                    "Karolina",
+                    new DateTimeOffset(2026, 9, 7, 9, 0, 0, TimeSpan.Zero),
+                    "we can hold the two-hour response time",
+                    StubEmailProvenanceReader.KnownCorrespondent),
+            ],
+            ExceedsBound: false);
+
     private static ChatClientAgent AgentOver(
         ScriptedChatClient chatClient,
         MailAccountLanguage language = MailAccountLanguage.English) =>
@@ -89,6 +108,7 @@ public sealed class ThreadStateAgentCompositionTests
             chatClient,
             ChatDeclarations.Plan(),
             language,
+            Thread(),
             new EmptyAgentInstructionEnvelope(),
             NullLoggerFactory.Instance);
 }

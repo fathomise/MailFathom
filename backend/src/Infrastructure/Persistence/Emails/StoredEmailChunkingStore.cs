@@ -124,6 +124,7 @@ internal sealed class StoredEmailChunkingStore(
         AccountScopedMailFolders.Admitting(
             emails
                 .Where(StoredEmailTombstone.IsNotTombstoned)
+                .Where(UnsentStoredEmails.IsSentOrReceived)
                 .Where(email => email.MailboxAccountId == mailboxAccountId
                     // A body passage rather than any passage. email_chunks also holds what an attachment yielded, and
                     // the two passes walk different sets from the front of their own queues, so nothing orders them:

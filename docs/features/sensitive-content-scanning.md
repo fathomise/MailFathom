@@ -139,7 +139,7 @@ the list below answerable by reading it.
 
 | Egress point | What crosses it |
 | --- | --- |
-| `chat_prompt` | Everything a model is sent: the question a client asked, and the subjects and passages of the mail retrieved to answer it |
+| `chat_prompt` | Everything a model is sent: the question a client asked, and the subjects, senders, and passages of the mail retrieved to answer it |
 | `hosted_embedding_input` | Every passage sent to a hosted embedding endpoint |
 | `mcp_snippet` | The mail text an MCP tool answers with: the subjects and sender display names of a listing, the same plus the extracts of a search, and an answer with its citations |
 | `mcp_email_content` | The message `get_email_content` returns: both body representations, the subject, and every participant's display name |

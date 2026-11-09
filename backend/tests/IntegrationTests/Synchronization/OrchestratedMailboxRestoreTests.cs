@@ -94,7 +94,7 @@ public sealed class OrchestratedMailboxRestoreTests(MailFathomOrchestrationFixtu
                             IsAnswered: true,
                             IsFlagged: true,
                             IsDraft: false,
-                            RemoteEmailKeywords.Create(["$Label1"])),
+                            EmailKeywords.Create(["$Label1"])),
                         ReadArrivedAt,
                         token),
                     await session.AppendRestoredAsync(
@@ -104,7 +104,7 @@ public sealed class OrchestratedMailboxRestoreTests(MailFathomOrchestrationFixtu
                             IsAnswered: false,
                             IsFlagged: false,
                             IsDraft: false,
-                            RemoteEmailKeywords.None),
+                            EmailKeywords.None),
                         UnreadArrivedAt,
                         token),
                 };
@@ -126,7 +126,7 @@ public sealed class OrchestratedMailboxRestoreTests(MailFathomOrchestrationFixtu
         Assert.True(read.IsAnswered);
         Assert.True(read.IsFlagged);
         // Without regard to case, as RFC 9051 compares a flag: the held copy kept the keyword in the form
-        // RemoteEmailKeywords folds it to, and that form is what the append carries back.
+        // EmailKeywords folds it to, and that form is what the append carries back.
         Assert.Contains("$Label1", read.Keywords, StringComparer.OrdinalIgnoreCase);
 
         var unread = Assert.Single(restored, email => email.Subject == unreadSubject);

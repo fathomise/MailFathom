@@ -20,14 +20,14 @@ namespace MailFathom.Infrastructure.Persistence.Spam;
 /// on every run, ahead of the mail behind it. The junk folder is the one the message is in now
 /// (<c>Folder</c>), which is right in every custody phase; whether classification still awaits it is read against the
 /// binding, which is what classification's own scope is read against. The keywords are compared in the folded form
-/// <see cref="RemoteEmailKeywords" /> stores them in, which the column's GIN index serves.
+/// <see cref="EmailKeywords" /> stores them in, which the column's GIN index serves.
 /// </remarks>
 [RequiresIntegrationCoverage]
 internal sealed class SpamVerdictFloorCandidateReader(MailFathomDbContext dbContext) : ISpamVerdictFloorCandidateReader
 {
-    private static readonly string Junk = RemoteEmailKeywords.Normalized(JunkKeywords.Junk)!;
+    private static readonly string Junk = EmailKeywords.Normalized(JunkKeywords.Junk)!;
 
-    private static readonly string NotJunk = RemoteEmailKeywords.Normalized(JunkKeywords.NotJunk)!;
+    private static readonly string NotJunk = EmailKeywords.Normalized(JunkKeywords.NotJunk)!;
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<SpamVerdictFloorCandidate>> GetCandidatesAsync(
@@ -52,11 +52,11 @@ internal sealed class SpamVerdictFloorCandidateReader(MailFathomDbContext dbCont
                 || (email.SpamClassification.Verdict != SpamVerdict.Spam
                     && email.SpamClassification.DecidedBy != SpamClassificationStage.Person))
             .Where(email =>
-                (email.RemoteKeywords.Contains(Junk) && !email.RemoteKeywords.Contains(NotJunk))
+                (email.Keywords.Contains(Junk) && !email.Keywords.Contains(NotJunk))
                 || (email.Folder.Alias != null
                     && junkFolders.Contains(email.Folder.Alias)
-                    && !(email.RemoteKeywords.Contains(NotJunk)
-                        && (!email.RemoteKeywords.Contains(Junk)
+                    && !(email.Keywords.Contains(NotJunk)
+                        && (!email.Keywords.Contains(Junk)
                             || dbContext.EmailSpamVerdictActs.Any(act =>
                                 act.StoredEmailId == email.Id && act.Act == SpamVerdictAct.MarkedJunk)))))
             .Where(email => !(email.SpamClassification == null
@@ -74,7 +74,7 @@ internal sealed class SpamVerdictFloorCandidateReader(MailFathomDbContext dbCont
         var rows = await emails
             .OrderBy(email => email.Id)
             .Take(batchSize)
-            .Select(email => new { email.Id, email.Folder.Alias, email.RemoteKeywords })
+            .Select(email => new { email.Id, email.Folder.Alias, email.Keywords })
             .ToArrayAsync(cancellationToken);
 
         return
@@ -82,7 +82,7 @@ internal sealed class SpamVerdictFloorCandidateReader(MailFathomDbContext dbCont
             .. rows.Select(static row => new SpamVerdictFloorCandidate(
                 StoredEmailId.Create(row.Id),
                 row.Alias is { } alias ? (MailFolderAlias?)MailFolderAlias.Create(alias) : null,
-                RemoteEmailKeywords.Create(row.RemoteKeywords))),
+                EmailKeywords.Create(row.Keywords))),
         ];
     }
 }

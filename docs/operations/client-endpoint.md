@@ -1,6 +1,6 @@
 # The client endpoint
 
-<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientAutomaticReplyEndpoint.cs, backend/src/Host/Api/ClientMailFooterEndpoints.cs, backend/src/Host/Api/MailFooterContracts.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadListResponses.cs, backend/src/Application/Emails/BrowseThreadList/**, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailCleanedBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientPersonPhotoEndpoint.cs, backend/src/Host/Api/PersonPhotoResponse.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Api/ClientPresenceEndpoints.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.App/src/deployment/requestsInFlight.ts, frontend/src/Client.App/src/shell/livenessProbe.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
+<!-- describes: backend/src/AppHost/Program.cs, backend/src/AppHost/OrchestrationContract.cs, backend/src/Host/Configuration/Endpoints/ClientEndpointOptions.cs, backend/src/Host/Configuration/Endpoints/ClientApplicationOptions.cs, backend/src/Host/Configuration/Endpoints/TransportHttpsEndpointOptions.cs, backend/src/Host/Api/ClientApiEndpoints.cs, backend/src/Host/Api/ClientAutomaticReplyEndpoint.cs, backend/src/Host/Api/ClientMailFooterEndpoints.cs, backend/src/Host/Api/MailFooterContracts.cs, backend/src/Host/Api/ClientSignInMethodsEndpoint.cs, backend/src/Host/Api/ClientSessionTokenEndpoints.cs, backend/src/Host/Security/Sessions/**, backend/src/Application/Access/Sessions/**, backend/src/Host/Api/ClientMailAccountsEndpoint.cs, backend/src/Host/Api/ClientMailFoldersEndpoint.cs, backend/src/Host/Api/ClientManagedMailFoldersEndpoint.cs, backend/src/Host/Api/ClientMailTimelineEndpoint.cs, backend/src/Host/Api/ClientMailThreadEndpoint.cs, backend/src/Host/Api/ClientMailThreadListResponses.cs, backend/src/Application/Emails/BrowseThreadList/**, backend/src/Host/Api/ClientMailThreadStateEndpoint.cs, backend/src/Host/Api/ClientMailMessageEndpoint.cs, backend/src/Host/Api/ClientMailBodyEndpoint.cs, backend/src/Host/Api/ClientMailAttachmentEndpoint.cs, backend/src/Host/Api/ClientMailSourceEndpoint.cs, backend/src/Application/Emails/ReadSource/**, backend/src/Host/Api/ClientMailSearchPhraseEndpoint.cs, backend/src/Host/Api/ClientTimeZoneEndpoint.cs, backend/src/Host/Api/ClientReplyDraftingEndpoint.cs, backend/src/Host/Api/ClientCalendarEventDraftEndpoint.cs, backend/src/Host/Api/AttachmentContentResponse.cs, backend/src/Host/Api/ProtectedResourceMetadataEndpoint.cs, backend/src/Host/Security/Endpoints/ClientTransportSecurityExtensions.cs, backend/src/Infrastructure/Security/Transport/BrowserOriginPolicy.cs, backend/src/Host/Hosting/ClientApplicationFiles.cs, backend/src/Host/Hosting/Startup/ClientResponseCompression.cs, backend/src/Host/Hosting/Warnings/ClientTransportSecurityWarning.cs, backend/src/Host/Hosting/Warnings/PasswordClearTextTransportWarning.cs, backend/src/Host/Api/ClientUserRecordEndpoint.cs, backend/src/Host/Api/ClientPortraitEndpoint.cs, backend/src/Host/Api/ClientDisplayNameEndpoint.cs, backend/src/Host/Api/ClientPreferencesEndpoint.cs, backend/src/Host/Configuration/UserSettings/Administration/OwnDisplayName.cs, backend/src/Host/Api/ClientMailMutationsEndpoint.cs, backend/src/Host/Api/ClientDraftEndpoints.cs, backend/src/Host/Api/ClientDraftResponses.cs, backend/src/Host/Api/ClientOutboxEndpoints.cs, backend/src/Host/Api/ClientContactEndpoints.cs, backend/src/Host/Api/ClientContactPhotoEndpoint.cs, backend/src/Host/Api/ClientPersonPhotoEndpoint.cs, backend/src/Host/Api/PersonPhotoResponse.cs, backend/src/Host/Api/ClientColleagueEndpoints.cs, backend/src/Host/Api/ColleagueResponses.cs, backend/src/Host/Api/ClientPresenceEndpoints.cs, backend/src/Host/Api/ClientContactAmendmentRequest.cs, backend/src/Host/Api/ClientCalendarEndpoints.cs, backend/src/Host/Api/ClientCalendarImportEndpoints.cs, backend/src/Host/Api/ClientCalendarResponses.cs, backend/src/Host/Api/ClientContactCorrespondenceEndpoint.cs, backend/src/Host/Api/ClientContactRelationshipEndpoint.cs, backend/src/Host/Api/ClientNotificationEndpoints.cs, backend/src/Host/Api/ClientTaskEndpoints.cs, backend/src/Host/Api/ClientTelemetryEndpoint.cs, backend/src/Host/Api/ClientCitationEndpoint.cs, backend/src/Host/Api/ClientDiscoveryRunEndpoints.cs, backend/src/Host/Api/ClientAgentConversationEndpoints.cs, backend/src/Host/Observability/ClientTelemetry/**, backend/src/Host/Signals/**, backend/src/Application/Signals/**, backend/src/Application/Mail/Mutations/MailboxMutationPerformer.cs, frontend/src/Client.App/contentSecurityPolicy.ts, frontend/src/Client.App/vite.config.ts, frontend/src/Client.Backend/src/signInMethods.ts, frontend/src/Client.App/src/signIn/oauthFlow.ts, frontend/src/Client.App/src/shellOperations/signInRedirect.ts, frontend/src-tauri/src/redirects.rs, frontend/src-tauri/run-tauri.ts, frontend/src/Client.App/src/deployment/deploymentFetch.ts, frontend/src/Client.App/src/deployment/requestsInFlight.ts, frontend/src/Client.App/src/shell/livenessProbe.ts, frontend/src/Client.Backend/src/transientFailures.ts -->
 
 Where the MailFathom client reaches the service, what a deployment has to enable before it answers, and what a person's
 mail client presents to get in.
@@ -79,7 +79,6 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `GET /api/client/threads/{threadId}/state` | `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}` | `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}/body` | `mailfathom.mail.read` |
-| `GET /api/client/messages/{storedEmailId}/body/cleaned` | `mailfathom.assistant.use` with `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}/attachments/{position}` | `mailfathom.mail.read` |
 | `GET /api/client/messages/{storedEmailId}/source` | `mailfathom.mail.read` |
 | `POST /api/client/messages/{storedEmailId}/read-receipt` | `mailfathom.mail.send` with `mailfathom.mail.read` |
@@ -679,7 +678,7 @@ make a fourth — but this surface neither imposes that ceiling nor promises one
 it where it falls. Folders arrive ordered by `path`, so a parent precedes its children.
 
 **The counts are of the local copy, not of the mailbox.** `storedEmailCount` is what this deployment holds and would
-serve, and `unreadEmailCount` is how many of those the mail server last reported without `\Seen`. A folder still being
+serve, and `unreadEmailCount` is how many of those are stored without the `\Seen` mark. A folder still being
 backfilled holds fewer than the server does, which is why the three freshness fields travel in the same object: a count
 read without them is a figure somebody would take for the mailbox's own. Reading the unread count sets nothing — the
 flags are a snapshot reconciliation wrote, and this endpoint speaks no mail protocol at all.
@@ -1995,6 +1994,8 @@ layout reads:
     "undrawnInlineImageCount": 0,
     "truncated": false,
     "footer": null,
+    "quotation": null,
+    "authorIsProven": false,
     "blocks": [
       {
         "type": "heading",
@@ -2058,18 +2059,41 @@ level whatever its words carry. The member is an addition rather than a change o
 [ADR 0047](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0047-what-the-composer-may-write-beyond-its-closed-set-and-how-it-reads-a-formatted-paste.md)
 holds the scale.
 
-**`footer` names the reader's own footer, and only theirs.** On the copy MailFathom filed of a message it sent from
-one of the reader's accounts — a shared mailbox they are assigned to included — it reads
-`{ "firstBlock": 1, "blockCount": 2 }`: the top-level blocks, counted from zero, that are the footer MailFathom appended
-to that message, so a pane can fold them under each message the reader wrote, in Sent and in a conversation alike. The
-blocks themselves stay in `blocks`, so the footer can be unfolded, and a client that does not read `footer` draws the
-message exactly as before, which is why `schemaVersion` did not move for it. In a message with markup the footer is
-found by the `footer` element the composer wraps it in, above any quotation — a footer the quoted history carries sits
-inside the `quote` block and is never the one named — and in a message without markup by the `-- ` line it opens with,
-up to the quotation or the end. On every other message `footer` is `null`: one MailFathom sent before footers existed,
-one written in another mail client, and above all one from anybody else, because the mark is ordinary markup a sender
-could copy and the copy MailFathom filed of its own send is the one thing nothing in a message can claim to be. The
+**`authorIsProven` says the service established who wrote the message, and a client never evaluates it.** It is `true`
+on the copy MailFathom filed of a message it sent from one of the reader's accounts — a shared mailbox they are assigned
+to included — and on a message the organization's signature proves a colleague wrote, and `false` on everything else,
+a member of the organization's directory, an account's own domain, and a contact among them, because each of those
+recognizes an address rather than these bytes. Where it is `true`, a run's `foreground` inside the readable band is the
+author's to have drawn; a signature covers what its author quoted and vouches only for what they wrote, so nothing inside
+a `quote` block is ever drawn that way.
+
+**`footer` names the footer MailFathom appended, and `quotation` the quotation it wrote, only where `authorIsProven` is
+`true`.** `footer` reads `{ "firstBlock": 1, "blockCount": 2 }`: the top-level blocks, counted from zero, that are the
+footer MailFathom appended to that message, so a pane can fold them, in Sent and in a conversation alike. `quotation`
+has the same shape and runs from the attribution line to the end of the document, so a pane can fold the quotation
+behind that line. The blocks themselves stay in `blocks`, so both can be unfolded, and a client that reads neither draws
+the message exactly as before, which is why `schemaVersion` did not move for them. In a message with markup the footer
+is found by the `footer` element the composer wraps it in, above any quotation — a footer the quoted history carries
+sits inside the `quote` block and is never the one named — and in a message without markup by the `-- ` line it opens
+with, up to the quotation or the end. The quotation is found by the `<!--mailfathom-quotation-->` comment written directly
+under the body, so a message without markup, or without that comment, names none. On every other message both are
+`null`: one MailFathom sent before footers existed, one written in another mail client, and above all one nothing proves,
+because the marks are ordinary markup a sender could copy and neither the organization's signature nor the copy
+MailFathom filed of its own send is something a message can claim to be. The
 sender's own markup under `fullHtml` is unchanged by any of it.
+
+**`writtenHeaders` names a block of header lines the message typed, and proves nothing.** A forward or a quoted reply
+from another mail client usually carries one: a separator such as `---------- Forwarded message ---------`, then
+`From:`, `Date:`, `To:`, and `Subject:` in that client's language. The first block forming it carries
+`{ "blockCount": 2, "author": "Ewa Zielińska", "date": "Mon, 24 Aug 2026 at 16:02" }`: how many consecutive blocks at
+that level form it, that one included, the name its author line gives, and its date line as written and never parsed.
+It appears at any quotation depth, inside a `quote` block's own `blocks` as well as at the top level, and only on a
+`paragraph` or a `separator`; a block naming nothing leaves the member out. The blocks stay where they are, so a pane
+can fold them to one line and unfold every original line, and a client that does not read the member draws the message
+exactly as before, which is why neither `schemaVersion` nor any block's revision moved for it. Those lines are what the
+sender typed, so `From: The CEO` is a claim rather than a fact: a pane draws the line as message text, with no avatar,
+no sender mark, and nothing a verified header carries. [What is recognized](../features/email-content.md#a-block-of-header-lines-a-message-typed-is-named-never-removed)
+is deliberately narrow, and whatever is not stays ordinary blocks.
 
 **Nothing in a body reaches somebody else's server unless the reader asked.** Every reference to a remote address is
 removed while the tree is built rather than left for a renderer to decline to follow, so a tracking pixel is defeated by
@@ -2150,85 +2174,6 @@ exactly as it applies to what a model reads.
 
 [The mail document](../features/email-content.md) holds the reasoning for every paragraph above, and states what a
 client is left to render.
-
-### The cleaned message body route
-
-```http
-GET /api/client/messages/0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90/body/cleaned
-```
-
-It answers the same message as the third rendering: the document above with the blocks a model decided were the sender's
-frame rather than their message absent, and every block it keeps identical to what the body route already served.
-
-```jsonc
-{
-  "storedEmailId": "0198f4a1-2b6c-7a1d-9f3e-4c5d6e7f8a90",
-  "cleaning": "Cleaned",
-  "document": {
-    "schemaVersion": 1,
-    "refusal": "None",
-    "removedRemoteReferenceCount": 2,
-    "retainedRemoteImageCount": 0,
-    "inlineImageCount": 1,
-    "undrawnInlineImageCount": 0,
-    "truncated": false,
-    "footer": null,
-    "blocks": [ /* the blocks the cleaning kept, in the order they were in */ ]
-  }
-}
-```
-
-`footer` is `null` on a `Cleaned` document even where the body route names the reader's own footer, because it counts
-the blocks the body route served and the cleaning kept only some of them. Every other value serves the body route's
-document unchanged, `footer` included.
-
-**`cleaning` says what happened, and `document` is what to draw whichever value it carries.**
-
-| Value | What it means |
-| --- | --- |
-| `Cleaned` | A model answered, the answer described the document, and `document` is the rendering |
-| `NothingToClean` | There was nothing to clean: no document, a reduction that refused the body, or a document of no blocks |
-| `NotActivated` | This deployment declares no chat endpoint, so it cleans no bodies |
-| `AllowanceExhausted` | The period's `MailAnswering` ceilings are spent, so nothing was asked of the provider |
-| `ProviderUnavailable` | The provider was asked and did not answer |
-| `AnswerRejected` | Two answers arrived and neither described the document |
-| `WithheldFromAI` | The message is in a folder mapped `VisibleToAI: false`, so nothing of it was put to a model |
-
-**A route of its own rather than a query on the body route, because what it costs is different in kind.** The body route
-reads a local copy and is published under `mailfathom.mail.read`; this one sends an outline to a chat provider and is
-charged to the period allowance a question is charged to, so it is published under **`mailfathom.assistant.use`** — a reading
-grant is not a way to spend a deployment's provider budget. A caller holds both, the read behind this needing the reading
-grant as every read does. That read answers for an agent rather than for the person, because what it reads goes to a
-model; a message only the person may read — one in a folder mapped `VisibleToAI: false` — is then read for the person,
-and answered with its ordinary reduced document and `WithheldFromAI` beside it, without a model being asked.
-
-**It never answers an empty pane, and it never fails the read to report a cost.** A spent allowance is `200` with the
-ordinary reduced document and `AllowanceExhausted` beside it rather than `429`: the message is on the screen either way,
-and taking it away to report a cost would be the worse answer. That is the difference from
-[the reply drafting routes](#the-reply-drafting-routes), where somebody pressed a button and has nothing at all unless
-the call is made.
-
-**The model is sent an outline and answers in block indices.** What leaves the deployment is each block's kind, its link
-count and the opening of its text, beside the envelope sender and the subject — never the source markup and never the
-message whole — and what comes back is ranges of block indices. An answer whose ranges overlap, leave a gap, reach past
-the last block, arrive renumbered, or carry any message text is refused; the body is put once more and a second refusal
-answers `AnswerRejected`. That is what makes the rendering incapable of rewriting a word.
-
-**It is asked per open and remembered nowhere.** Nothing is derived when a message arrives, nothing is stored, and opening
-the message again asks again — which is why the reader's own answer about remote pictures travels here too: a cleaning
-composed out of a different read would disagree with the body on their screen about what the message asked to fetch.
-
-| Parameter | Accepts | Default |
-| --- | --- | --- |
-| `storedEmailId` | The message's identifier, as a list row or a conversation published it | required, in the path |
-| `remoteImages` | `true` where the body on the reader's screen was read with the sender's pictures | `false` |
-
-**A message this user does not hold is answered `404`**, under the same rule the body route states, and a credential whose
-grant does not carry `mailfathom.assistant.use` is answered `403`. Nothing here contacts a mail server, so no screen waits on
-IMAP and no read can set the remote `\Seen` flag.
-
-[AI configuration § Cleaning a message body](configuration-ai.md#cleaning-a-message-body--chatbodycleanup) holds what an
-declared chat endpoint turns this on, which model the decision is routed to, and what it spends.
 
 ### The attachment route
 
@@ -3171,8 +3116,8 @@ who holds the first, [as described below](#a-settings-policy-may-hold-the-teleme
 state it. Whether this deployment may be told what the person's client is doing;
 what the client is painted in, which is `system`, `light`, or `dark`; whether opening a message opens a tab rather
 than replacing what is on the screen; whether opening a message marks it read on the person's own mail server; whether
-opening a conversation draws every message in it rather than the one it was opened at; which of the three renderings an
-open message is drawn as, which is `reduced`, `cleaned`, or `embeddedHtml`; whether the client offers the standing views
+opening a conversation draws every message in it rather than the one it was opened at; which of the two renderings an
+open message is drawn as, which is `reduced` or `embeddedHtml`; whether the client offers the standing views
 of the mailbox beneath its folder tree; how long one of the client's own notifications stands before it takes itself
 away; which domains the person trusts the links to; and whether the mail list draws one message or one conversation
 per row, which is `messages` or `threads`. Each of them says how
@@ -3205,29 +3150,28 @@ what the client does, and what a reader who came from a search result wants. Wit
 with all of them drawn. It is read when a conversation opens rather than watched while one is on the screen, so moving
 the switch changes the next conversation rather than the one being read, and the control is still there either way.
 
-**`messageView` decides which of the three renderings an open message is drawn as.** It replaces the
-`embeddedHtmlMessages` switch that decided between two of them, and a document written under that key reads as `reduced`
-rather than being translated: a switch that was on says nothing about which of the two other renderings it now means.
+**`messageView` decides which of the two renderings an open message is drawn as.** A stored document naming a
+rendering this build does not publish reads as `reduced`, and a write naming one is refused with the two that are.
 
 - **`reduced`**, which is what an unset document answers, is the closed document tree
   [ADR 0024](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0024-rendering-mail-in-the-client-as-a-closed-document-tree.md)
-  takes. The other two are each one control away — the cleaned one in the settings, the sender's own markup on the
-  message head.
-- **`cleaned`** is that same tree with the blocks a model decided were the sender's frame rather than their message
-  absent, and every block it keeps identical to what `reduced` would have drawn. It is derived per open by
-  [the cleaned body route](#the-cleaned-message-body-route) below, which is what makes it the one rendering a reader
-  waits for. A deployment that does not clean bodies, a spent allowance, and an answer that could not be used each serve
-  the ordinary reduced document with the reason named.
+  takes. The sender's own markup is one control away on the message head.
 - **`embeddedHtml`** draws the sender's own markup inline and takes the control on the message head away, having nowhere
-  left to take anybody. It changes what a read asks for rather than only what is drawn: a client in either of the other
-  two never asks for the self-contained representation, so choosing this is what puts `fullHtml=true` on
+  left to take anybody. It changes what a read asks for rather than only what is drawn: a client in the other one never
+  asks for the self-contained representation, so choosing this is what puts `fullHtml=true` on
   [the body route](#the-message-body-route). A message whose markup this deployment holds none of, or served cut short,
   falls back to the reduced tree with the reason named rather than to an empty frame.
 
-**The two renderings drawn from the document tree are drawn in the client's own colours.** A colour the tree carries was
+**The sender's own markup stands on the theme's surface in both themes.** Its frames are transparent, and a script the
+client writes into them, the only part of this that sees the sender's colours, takes away a near-white fill, moves text
+under 4.5:1 until it reads, and leaves text over a picture or a gradient as the sender paired it. Under the dark theme a
+remaining light fill keeps a hint of its hue and a light rule becomes a hairline; a picture is never altered. Nothing
+about it reaches the service, which serves the same representation in either theme.
+
+**The rendering drawn from the document tree is drawn in the client's own colours.** A colour the tree carries was
 picked by the sender against the white page their composer drew, so reproducing it is how a reading pane ends up with
 every message in a different colour, each of them legible by luck and several of them invisible under a dark theme. What
-survives of a sender's own presentation on those two surfaces is their formatting — bold, italic, underline, monospace, a
+survives of a sender's own presentation on that surface is their formatting — bold, italic, underline, monospace, a
 strikethrough, the alignment and the structure — because each of those says something a decorative colour does not. One
 distinction is kept: a colour a sender used to step *back* from their own body text draws as the client's own small
 print, so a disclaimer stays a disclaimer rather than competing with the message above it, and a cell they filled keeps
@@ -5952,7 +5896,7 @@ picture's or a font's address.
 | Directive | What it admits | Why |
 | --- | --- | --- |
 | `default-src` | `'self'` | Anything not named below comes from the deployment that served the page or not at all |
-| `script-src` | `'self'` and two `'sha256-…'` hashes | The bundle, and the two scripts the client writes into the frames that draw a sender's own markup — one reports a clicked link, one measures the embedded view's height. A framed `srcdoc` document inherits this policy, so each is admitted by the hash of its exact text, computed when the bundle is built; nothing a message carries runs |
+| `script-src` | `'self'` and three `'sha256-…'` hashes | The bundle, and the three scripts the client writes into the frames that draw a sender's own markup — one reports a clicked link, one measures the embedded view's height, and one moves the message's colours onto the theme. A framed `srcdoc` document inherits this policy, so each is admitted by the hash of its exact text, computed when the bundle is built; nothing a message carries runs |
 | `style-src` | `'self' 'unsafe-inline'` | A sender's own inline styles are what the full-HTML dialog and the embedded view exist to show, and a framed document inherits this directive too |
 | `img-src` | `'self' data: blob: https: http:` | A message's pictures come from whatever server its sender named, and asking to load them re-reads that message with those addresses left in, so no host can be named. `data:` is a picture the message or an attachment carried inline, and `blob:` a picture pasted into the composer, drawn from an object URL the page made |
 | `font-src` | `'self' data: https: http:` | The client's own typeface ships inside the bundle; the other sources are a sender's web font, which asking to load a message's remote content restores beside its pictures |

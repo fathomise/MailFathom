@@ -240,7 +240,7 @@ internal sealed record MailRuleActionsRequest(
 
         if (keywords.Any(keyword => keyword is null) || !AuthoredMailKeywords.TryCreate(keywords, out var authored))
         {
-            return $"The rule's {key} names a keyword a mail server cannot store. A keyword is one unbroken token with no space or control character that does not begin with a backslash, and at most {RemoteEmailKeywords.MaximumKeywords} may be named.";
+            return $"The rule's {key} names a keyword a mail server cannot store. A keyword is one unbroken token with no space or control character that does not begin with a backslash, and at most {EmailKeywords.MaximumKeywords} may be named.";
         }
 
         if (authored.IsEmpty && !permitsNone)

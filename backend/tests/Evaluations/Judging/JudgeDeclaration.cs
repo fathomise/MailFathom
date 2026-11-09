@@ -2,7 +2,6 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 using MailFathom.AI.Chat;
@@ -13,12 +12,12 @@ using Microsoft.Extensions.AI;
 
 namespace MailFathom.Evaluations.Judging;
 
-/// <summary>The one model every scenario is judged by, declared apart from the models under test.</summary>
+/// <summary>One judge of the <see cref="JudgePanel" />, declared apart from the models under test.</summary>
 /// <remarks>
 /// <para>
 /// Apart, because a model grading its own answers measures nothing. Pinned, because a verdict is only comparable with
-/// another from the same judge: changing it invalidates every earlier result, so it is declared once, through
-/// <c>vars.JUDGE_PROVIDER_MODEL</c>, and left alone. That model and how hard it reasons are the whole of the declaration —
+/// another from the same judge: changing it invalidates every earlier result, so the panel is declared once and left
+/// alone. A judge's model, how hard it reasons, and the role it holds on the panel are the whole of the declaration —
 /// the endpoint and the key are the run's own, read from <see cref="EvaluationEndpoint" /> exactly as the models under
 /// test read them.
 /// </para>
@@ -30,13 +29,12 @@ namespace MailFathom.Evaluations.Judging;
 /// </para>
 /// <para>
 /// Neither the model nor the effort may appear in the store, the report, a log line, or a failure message. The client this opens is
-/// therefore wrapped in <see cref="AnonymousJudgeChatClient" />, and the key its cached verdicts are filed under is
-/// <see cref="CachingKey" /> rather than the model's name.
+/// therefore wrapped in <see cref="AnonymousJudgeChatClient" />, which names it by its <see cref="Role" /> alone, and the
+/// key its cached verdicts are filed under is <see cref="CachingKey" /> rather than the model's name.
 /// </para>
 /// </remarks>
 internal sealed class JudgeDeclaration
 {
-    private const string ModelVariable = "MAILFATHOM_JUDGE_MODEL";
     private const string ReasoningEffortVariable = "MAILFATHOM_JUDGE_REASONING_EFFORT";
 
     /// <summary>The output budget a verdict is asked for under a declared effort, reasoning and answer together.</summary>
@@ -52,52 +50,52 @@ internal sealed class JudgeDeclaration
     private readonly string apiKey;
     private readonly string? reasoningEffort;
 
-    private JudgeDeclaration(ChatEndpoint endpoint, string apiKey, string? reasoningEffort)
+    private JudgeDeclaration(string role, ChatEndpoint endpoint, string apiKey, string? reasoningEffort)
     {
+        this.Role = role;
         this.endpoint = endpoint;
         this.apiKey = apiKey;
         this.reasoningEffort = reasoningEffort;
     }
 
+    /// <summary>Gets the role the judge holds on the panel, which is the only name it is recorded under.</summary>
+    public string Role { get; }
+
     /// <summary>Gets the key the judge's cached verdicts are filed under.</summary>
     /// <remarks>
     /// <para>
-    /// Keyed by the judge's own credential over its address, its model, and its reasoning effort, so a changed judge files
+    /// Keyed by the judge's own credential over its role, its address, its model, and its reasoning effort, so a changed judge files
     /// its verdicts apart from the previous one's and none is reused across the change, while the key reveals none of
     /// them: a plain hash of a model name is reversed by guessing the name. The cost is that rotating the key re-asks
     /// every verdict once.
     /// </para>
     /// <para>
-    /// The effort joins the key only where one is declared, so a judge that declares none keeps the verdicts it cached
-    /// before the effort could be declared at all. The output budget joins it beside the effort, because the budget is
-    /// set beneath the response cache and so never reaches the key the cache derives from a request: without it, a
-    /// verdict cut short under a smaller budget would be served again after the budget was raised.
+    /// The role, the address, and the model always join the key; the effort joins it only where one is declared, and the
+    /// output budget joins it beside the effort, because the budget is set beneath the response cache and so never
+    /// reaches the key the cache derives from a request: without it, a verdict cut short under a smaller budget would be
+    /// served again after the budget was raised.
+    /// </para>
+    /// <para>
+    /// The role joins it too, because <see cref="AnonymousJudgeChatClient" /> records the role beneath the response cache,
+    /// so a cached verdict carries the seat it was asked from. A model moved to another seat is therefore asked afresh
+    /// rather than replayed under the name of the seat it left.
     /// </para>
     /// </remarks>
     public string CachingKey => Convert.ToHexString(HMACSHA256.HashData(
         Encoding.UTF8.GetBytes(this.apiKey),
         Encoding.UTF8.GetBytes(this.reasoningEffort is null
-            ? $"{this.endpoint.Address}\n{this.endpoint.RoutedModelName}"
-            : $"{this.endpoint.Address}\n{this.endpoint.RoutedModelName}\n{this.reasoningEffort}\n{ReasonedVerdictOutputTokens}")));
-
-    /// <summary>Reads the declaration a requested run was given.</summary>
-    /// <returns>The declaration.</returns>
-    /// <exception cref="InvalidOperationException">Thrown, naming the variable, when the run was asked for without the model or the key, or with an effort no provider could read as a level.</exception>
-    public static JudgeDeclaration Read() =>
-        Of(
-            EvaluationEndpoint.Address(),
-            AiEvaluationRun.Required(ModelVariable),
-            EvaluationEndpoint.ApiKey(),
-            AiEvaluationRun.Optional(ReasoningEffortVariable));
+            ? $"{this.Role}\n{this.endpoint.Address}\n{this.endpoint.RoutedModelName}"
+            : $"{this.Role}\n{this.endpoint.Address}\n{this.endpoint.RoutedModelName}\n{this.reasoningEffort}\n{ReasonedVerdictOutputTokens}")));
 
     /// <summary>Declares a judge from its values.</summary>
+    /// <param name="role">The role the judge holds on the panel, such as <c>juror 1</c> or <c>arbiter</c>.</param>
     /// <param name="address">Where the judge is reached, or <see langword="null" /> for the provider's own address.</param>
     /// <param name="model">The model that judges.</param>
     /// <param name="apiKey">The key the judge's provider authenticates with.</param>
     /// <param name="reasoningEffort">How hard the judge reasons, or <see langword="null" /> to send nothing and leave the provider's default.</param>
     /// <returns>The declaration.</returns>
     /// <exception cref="InvalidOperationException">Thrown, naming the variable and never the value, when the effort is not shaped like a level.</exception>
-    public static JudgeDeclaration Of(Uri? address, string model, string apiKey, string? reasoningEffort)
+    public static JudgeDeclaration Of(string role, Uri? address, string model, string apiKey, string? reasoningEffort)
     {
         if (reasoningEffort is not null && !ChatGenerationPlan.IsUsableReasoningEffort(reasoningEffort))
         {
@@ -106,6 +104,7 @@ internal sealed class JudgeDeclaration
         }
 
         return new(
+            role,
             new ChatEndpoint(
                 AnonymousJudgeChatClient.Name,
                 address,
@@ -116,30 +115,11 @@ internal sealed class JudgeDeclaration
             reasoningEffort);
     }
 
-    /// <summary>Opens the judge, already anonymous.</summary>
+    /// <summary>Opens the judge's provider, not yet carrying the declaration; <see cref="Present" /> puts it on.</summary>
     /// <param name="spend">What every verdict's tokens and charge are recorded against.</param>
-    /// <returns>The client, which the caller disposes.</returns>
-    [SuppressMessage(
-        "Reliability",
-        "CA2000:Dispose objects before losing scope",
-        Justification = "Present takes ownership of the provider's client, and the finally block disposes it only when Present never returned; the analyzer does not follow ownership through a method call.")]
-    public IChatClient Open(SpendMeter spend)
-    {
-        ProviderChatClient? judge = null;
-
-        try
-        {
-            judge = ProviderChatClient.Open(this.endpoint, this.apiKey, TimeSpan.FromMinutes(2), spend);
-            var presented = this.Present(judge);
-            judge = null;
-
-            return presented;
-        }
-        finally
-        {
-            judge?.Dispose();
-        }
-    }
+    /// <returns>The provider's client, which the caller disposes or hands to <see cref="Present" />.</returns>
+    public IChatClient OpenProvider(SpendMeter spend) =>
+        ProviderChatClient.Open(this.endpoint, this.apiKey, TimeSpan.FromMinutes(2), spend);
 
     /// <summary>Puts the declaration onto the judge's own client: its reasoning effort and the room it needs on every call, and its anonymity.</summary>
     /// <param name="judge">The judge's own client, which the result takes ownership of.</param>
@@ -153,7 +133,7 @@ internal sealed class JudgeDeclaration
     {
         var requestOptions = ChatGenerationParameterMapping.RequestOptionsFactoryFor(this.endpoint.Api, this.reasoningEffort);
 
-        var pipeline = judge.AsBuilder().Use(static inner => new AnonymousJudgeChatClient(inner));
+        var pipeline = judge.AsBuilder().Use(inner => new AnonymousJudgeChatClient(inner, this.Role));
 
         return requestOptions is null
             ? pipeline.Build()

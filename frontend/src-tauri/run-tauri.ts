@@ -81,7 +81,7 @@ const forwardedArguments = process.argv.slice(2);
 const configurationPatch: Record<string, unknown> = { version: declaredVersion };
 
 // The content security policy is merged in rather than written into `tauri.conf.json`, for the same reason the version
-// is: it is computed. It admits the two scripts the reading pane's frames run by hashes of their text, which
+// is: it is computed. It admits the scripts the reading pane's frames run by hashes of their text, which
 // `Client.App/contentSecurityPolicy.ts` derives once for both heads, and that module is where the reason each shared
 // directive admits what it does sits next to it — which a JSON file has no way to carry.
 //

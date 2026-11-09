@@ -199,6 +199,8 @@ describe('draftMailReply', () => {
             undrawnInlineImageCount: 0,
             truncated: false,
             footer: null,
+            quotation: null,
+            authorIsProven: false,
         });
     });
 

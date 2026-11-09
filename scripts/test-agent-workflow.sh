@@ -9235,6 +9235,43 @@ install_script_refuses_a_platform_no_release_publishes() {
   assert_contains 'linux-x64, linux-arm64, win-x64, and win-arm64' "$output_file"
 }
 
+# The linters run with the token a workflow holds, so an archive that is not the one whose checksum was pinned is
+# refused before anything in it is unpacked, and no tool is left behind for the next run to trust without checking.
+lint_script_refuses_an_archive_its_checksum_disowns() {
+  local stub_directory="$test_directory/lint-tampered-bin"
+  local tool_directory="$test_directory/lint-tampered-tools"
+  local output_file="$test_directory/lint-tampered-log"
+
+  mkdir -p "$stub_directory"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'while [[ $# -gt 0 ]]; do' \
+    '  if [[ "$1" == --output ]]; then printf "bytes nobody pinned" > "$2"; shift; fi' \
+    '  shift' \
+    'done' \
+    > "$stub_directory/curl"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'case "$1" in -s) printf "Linux\n" ;; -m) printf "x86_64\n" ;; esac' \
+    > "$stub_directory/uname"
+  chmod +x "$stub_directory/curl" "$stub_directory/uname"
+
+  if (
+    cd "$source_repository_root"
+    PATH="$stub_directory:$PATH" MAILFATHOM_LINT_TOOLS="$tool_directory" bash scripts/lint-shell-and-workflows.sh
+  ) > "$output_file" 2>&1; then
+    printf 'The linters ran from an archive that does not match its pinned checksum\n' >&2
+    return 1
+  fi
+
+  assert_contains 'does not match the checksum pinned in this script' "$output_file"
+
+  if [[ -n "$(find "$tool_directory" -mindepth 1 -print -quit 2> /dev/null)" ]]; then
+    printf 'The refusal left something behind in %s\n' "$tool_directory" >&2
+    return 1
+  fi
+}
+
 # The guided Compose setup, which is the one script here that writes a deployment's credentials. Every contract below
 # runs the committed script against a checkout of its own — a fixture carrying `deploy/compose/`, never this
 # repository's own — because what it writes is exactly what must never be written over somebody's prepared deployment.
@@ -10583,11 +10620,14 @@ merge_groups_carry_only_a_successful_newest_check_run() {
   local newest_success='{"check_runs":[
     {"app":{"slug":"github-actions"},"started_at":"2026-10-17T10:00:00Z","conclusion":"failure"},
     {"app":{"slug":"github-actions"},"started_at":"2026-10-17T10:05:00Z","conclusion":"success"}]}'
+  # shellcheck disable=SC2034  # read through ${!check_name} below
   local newest_failure='{"check_runs":[
     {"app":{"slug":"github-actions"},"started_at":"2026-10-17T10:00:00Z","conclusion":"success"},
     {"app":{"slug":"github-actions"},"started_at":"2026-10-17T10:05:00Z","conclusion":"failure"}]}'
+  # shellcheck disable=SC2034  # read through ${!check_name} below
   local in_progress='{"check_runs":[
     {"app":{"slug":"github-actions"},"started_at":"2026-10-17T10:05:00Z","conclusion":null}]}'
+  # shellcheck disable=SC2034  # read through ${!check_name} below
   local missing='{"check_runs":[]}'
 
   for workflow in protected-paths.yml typo-check.yml; do
@@ -11350,6 +11390,7 @@ CARGO
 
   outcome="$(
     set -uo pipefail
+    # shellcheck source=/dev/null  # functions cut out of the script under test
     source <(
       sed -n \
         -e '/^as_pattern() {$/,/^}$/p' \
@@ -11358,6 +11399,7 @@ CARGO
         "$script"
     )
 
+    # shellcheck disable=SC2034  # read by the rewrite_pin sourced above, for its temporary files
     work_directory="$fixture"
     workflow_directory="$fixture/workflows"
 
@@ -11500,6 +11542,7 @@ the_dependency_survey_names_the_bump_that_may_break() {
 
   outcome="$(
     set -uo pipefail
+    # shellcheck source=/dev/null  # functions cut out of the script under test
     source <(sed -n '/^breaking_move_of() {$/,/^}$/p' "$script")
 
     for pair in \
@@ -12413,6 +12456,10 @@ mail.ts conversation GET /api/client/threads/{threadId}
 mail.ts conversationEmail GET /api/client/threads/{threadId}
 mail.ts conversationContent GET /api/client/threads/{threadId}
 mail.ts conversationBody GET /api/client/messages/{storedEmailId}/body
+mail.ts signedReplyBody GET /api/client/messages/{storedEmailId}/body
+mail.ts plainParagraph GET /api/client/messages/{storedEmailId}/body
+mail.ts forwardingBody GET /api/client/messages/{storedEmailId}/body
+mail.ts forwardedHeaders - -
 mail.ts answeredReplyCounted GET /api/client/threads/{threadId}
 mail.ts answeredReplyReceipts GET /api/client/threads/{threadId}
 mail.ts conversationState GET /api/client/threads/{threadId}/state
@@ -12767,6 +12814,103 @@ None'
   (( failures == 0 ))
 }
 
+# `scripts/decide-ai-evaluation-run.sh` is what ends a paid evaluation run, so it is driven over TRX results written
+# the way the test platform writes them: several results to a line, a message running over several, and a stack trace
+# that may or may not carry `AiEvaluationRun.AssertNoShortfalls`, which the runtime has inlined away before.
+evaluation_result() {
+  local outcome="$1" message="${2:-}" stack="${3:-}"
+
+  printf '<UnitTestResult testName="MailFathom.Evaluations.Case(caseName: &quot;%s&quot;)" outcome="%s">' "$RANDOM" "$outcome"
+  if [[ "$outcome" == 'Failed' ]]; then
+    printf '<Output><ErrorInfo><Message>%s</Message><StackTrace>%s</StackTrace></ErrorInfo></Output>' "$message" "$stack"
+  fi
+  printf '</UnitTestResult>'
+}
+
+write_evaluation_trx() {
+  local file="$1"
+  shift
+
+  {
+    printf '<?xml version="1.0" encoding="utf-8"?><TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010"><Results>'
+    printf '%s' "$@"
+    printf '</Results><ResultSummary outcome="Failed" /></TestRun>\n'
+  } > "$file"
+}
+
+evaluation_shortfall_message=$'2 shortfall(s):\nCase under vendor/model: 3 of 3 repetition(s) fell short; 0 of its 3 answer(s) were replayed from an earlier run.\n  repetition 1: missed the point'
+evaluation_method_frame='   at MailFathom.Evaluations.Answering.MailAnsweringEvaluations.Answer_AQuestion(String caseName) in /_/backend/tests/Evaluations/Answering/MailAnsweringEvaluations.cs:line 40'
+evaluation_assertion_frame='   at MailFathom.Evaluations.AiEvaluationRun.AssertNoShortfalls(IEnumerable`1 shortfalls) in /_/backend/tests/Evaluations/AiEvaluationRun.cs:line 60'
+
+the_evaluation_gate_counts_a_shortfall_failure_by_its_message() {
+  local trx="$test_directory/evaluation-inlined.trx" output="$test_directory/evaluation-inlined.out" exit_code=0
+
+  write_evaluation_trx "$trx" \
+    "$(evaluation_result Passed)" \
+    "$(evaluation_result Failed "$evaluation_shortfall_message" "$evaluation_method_frame")"
+
+  bash "$source_repository_root/scripts/decide-ai-evaluation-run.sh" 2 95 100 90 "$trx" > "$output" || exit_code=$?
+
+  [[ "$exit_code" -eq 0 ]]
+  assert_contains 'Every one of the 1 failed test(s) fell short' "$output"
+}
+
+the_evaluation_gate_fails_a_failure_that_is_not_a_shortfall() {
+  local trx="$test_directory/evaluation-exception.trx" output="$test_directory/evaluation-exception.out" exit_code=0
+
+  # The exception's trace carries the assertion's frame as well, which a count of frames would have read as a shortfall.
+  write_evaluation_trx "$trx" \
+    "$(evaluation_result Failed "$evaluation_shortfall_message" "$evaluation_assertion_frame")" \
+    "$(evaluation_result Failed 'System.InvalidOperationException : MAILFATHOM_JUDGE_MODELS is not set.' \
+      "$evaluation_assertion_frame"$'\n'"$evaluation_method_frame")"
+
+  bash "$source_repository_root/scripts/decide-ai-evaluation-run.sh" 2 100 100 90 "$trx" > "$output" || exit_code=$?
+
+  [[ "$exit_code" -eq 2 ]]
+  assert_contains '1 of 2 failed test(s) ended other than on their shortfalls' "$output"
+}
+
+the_evaluation_gate_holds_a_run_of_shortfall_failures_to_the_floor() {
+  local first="$test_directory/evaluation-first.trx" second="$test_directory/evaluation-second.trx"
+  local output="$test_directory/evaluation-floor.out" at_floor=0 under_floor=0 other_exit=0
+
+  write_evaluation_trx "$first" \
+    "$(evaluation_result Failed "$evaluation_shortfall_message" "$evaluation_method_frame")" \
+    "$(evaluation_result Passed)" \
+    "$(evaluation_result Failed "$evaluation_shortfall_message" "$evaluation_assertion_frame"$'\n'"$evaluation_method_frame")"
+  write_evaluation_trx "$second" \
+    "$(evaluation_result NotExecuted)" \
+    "$(evaluation_result Failed "$evaluation_shortfall_message" "$evaluation_method_frame")"
+
+  bash "$source_repository_root/scripts/decide-ai-evaluation-run.sh" 2 90 100 90 "$first" "$second" > "$output" || at_floor=$?
+  bash "$source_repository_root/scripts/decide-ai-evaluation-run.sh" 2 89 100 90 "$first" "$second" >> "$output" || under_floor=$?
+  bash "$source_repository_root/scripts/decide-ai-evaluation-run.sh" 8 100 100 90 "$first" > /dev/null || other_exit=$?
+
+  [[ "$at_floor" -eq 0 && "$under_floor" -eq 2 && "$other_exit" -eq 8 ]]
+  assert_contains 'Every one of the 3 failed test(s) fell short, and 90 of 100 repetitions passed' "$output"
+  assert_contains '89 of 100 repetitions passed, under 90%, so the run fails.' "$output"
+}
+
+# The header is written in C# and read in shell, so the message is built from the format string the suite itself
+# carries: a header reworded on one side and not the other fails here rather than turning every shortfall red.
+the_shortfall_header_the_suite_writes_is_the_one_the_gate_reads() {
+  local trx="$test_directory/evaluation-header.trx" header exit_code=0
+
+  header=$(sed -nE 's/.*Assert\.Fail\(\$"\{named\.Count\}( shortfall\(s\):)\\n.*/3\1/p' \
+    "$source_repository_root/backend/tests/Evaluations/AiEvaluationRun.cs")
+
+  if [[ -z "$header" ]]; then
+    printf 'AiEvaluationRun.AssertNoShortfalls no longer writes Assert.Fail($"{named.Count} shortfall(s):\\n..."); scripts/decide-ai-evaluation-run.sh reads that header.\n' >&2
+    return 1
+  fi
+
+  write_evaluation_trx "$trx" "$(evaluation_result Failed "$header"$'\n''Case under vendor/model: fell short.' "$evaluation_method_frame")"
+
+  bash "$source_repository_root/scripts/decide-ai-evaluation-run.sh" 2 100 100 90 "$trx" > /dev/null || exit_code=$?
+
+  [[ "$exit_code" -eq 0 ]]
+}
+
 run_test verify_fast_runs_restore_build_tests_and_formatting
 run_test verify_fast_stops_when_head_is_behind_origin_main
 run_test verify_fast_accepts_a_branch_behind_origin_main_when_told_to
@@ -13099,6 +13243,7 @@ run_test winget_manifests_refuse_a_missing_windows_binary
 run_test install_script_installs_the_binary_the_release_published
 run_test install_script_refuses_a_binary_the_checksum_file_disowns
 run_test install_script_refuses_a_platform_no_release_publishes
+run_test lint_script_refuses_an_archive_its_checksum_disowns
 run_test quick_start_prepares_the_deployment_the_documentation_describes
 run_test quick_start_keeps_the_mailbox_password_out_of_everything_but_its_own_file
 run_test quick_start_refuses_to_overwrite_a_prepared_deployment
@@ -13164,6 +13309,10 @@ run_test every_workflow_parses_as_yaml
 run_test no_two_tracked_paths_differ_only_by_case
 run_test the_client_corpus_states_what_the_contract_records
 run_test the_corpus_comparison_names_the_route_the_field_and_both_spellings
+run_test the_evaluation_gate_counts_a_shortfall_failure_by_its_message
+run_test the_evaluation_gate_fails_a_failure_that_is_not_a_shortfall
+run_test the_evaluation_gate_holds_a_run_of_shortfall_failures_to_the_floor
+run_test the_shortfall_header_the_suite_writes_is_the_one_the_gate_reads
 
 printf '%s passed, %s failed\n' "$passed_count" "$failed_count"
 

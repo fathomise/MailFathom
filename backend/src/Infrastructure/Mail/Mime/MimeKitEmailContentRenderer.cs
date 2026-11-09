@@ -157,7 +157,7 @@ internal sealed class MimeKitEmailContentRenderer : IEmailContentRenderer
                 htmlParts,
                 plainTextBody.Text,
                 bounds.RetainRemoteImageReferences,
-                bounds.NamesAppendedFooter,
+                bounds.AuthorIsProven,
                 EmailBodyCharacterAllowance.Of(bounds.MaxCharactersPerRepresentation, remainingCharacters).MaxCharacters,
                 bounds.RemainingInlineImageOctetsForRead,
                 cancellationToken)

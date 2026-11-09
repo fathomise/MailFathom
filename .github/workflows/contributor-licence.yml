@@ -20,9 +20,9 @@ name: Contributor licence
 # is interpreted. A step added here that clones the head, restores it, or runs anything out of it
 # hands the App's token to whoever opened the pull request.
 on:
-  pull_request_target:
+  pull_request_target: # zizmor: ignore[dangerous-triggers] checks nothing out, as the header says
     types: [opened, reopened, synchronize]
-  issue_comment:
+  issue_comment: # zizmor: ignore[dangerous-triggers] checks nothing out, as the header says
     types: [created]
 
 # The workflow token is unused: every call below carries the App's installation token instead, so
@@ -54,7 +54,9 @@ jobs:
       # long-lived credential in the secret store is a signing key rather than something that can
       # call the API on its own. The `Fathom license` App needs exactly three permissions:
       # `Pull requests: Read and write` to comment, `Commit statuses: Read and write` to publish the
-      # verdict, and `Contents: Read and write` to append to the register branch.
+      # verdict, and `Contents: Read and write` to append to the register branch. The token asks for
+      # those three by name rather than inheriting whatever the installation holds, so a permission
+      # granted to the App later does not reach this job unasked.
       #
       # `client-id` rather than `app-id`: the action deprecated the numeric App id in v3 and warns on
       # every run that still passes it. A variable rather than a secret, because an identifier is not
@@ -66,6 +68,9 @@ jobs:
         with:
           client-id: ${{ vars.LICENSE_APP_CLIENT_ID }}
           private-key: ${{ secrets.LICENSE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-statuses: write
 
       # Both events are reduced to the same five facts here rather than read out of two different
       # payload shapes further down. The pull request is fetched even under `pull_request_target`,
@@ -122,11 +127,12 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           REPOSITORY: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           USER_ID: ${{ steps.subject.outputs.user_id }}
         run: |
           set -euo pipefail
 
-          agreement=$(gh api "repos/$REPOSITORY/contents/CLA.md?ref=${{ github.event.repository.default_branch }}")
+          agreement=$(gh api "repos/$REPOSITORY/contents/CLA.md?ref=$DEFAULT_BRANCH")
           agreement_blob=$(printf '%s' "$agreement" | jq -r '.sha')
           agreement_version=$(printf '%s' "$agreement" | jq -r '.content' | base64 -d \
             | sed -n 's/^\*\*Version \(.*\)\*\*$/\1/p' | head -n 1)
@@ -312,6 +318,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           REPOSITORY: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           HEAD_SHA: ${{ steps.subject.outputs.head_sha }}
           EXEMPT: ${{ steps.subject.outputs.exempt }}
           SIGNED: ${{ steps.register.outputs.signed }}
@@ -360,7 +367,7 @@ jobs:
             -f state="$state" \
             -f context='license/cla' \
             -f description="$description" \
-            -f target_url="https://github.com/$REPOSITORY/blob/${{ github.event.repository.default_branch }}/CLA.md" \
+            -f target_url="https://github.com/$REPOSITORY/blob/$DEFAULT_BRANCH/CLA.md" \
             >/dev/null
 
           printf 'license/cla = %s (%s)\n' "$state" "$description"
@@ -390,6 +397,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           REPOSITORY: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           NUMBER: ${{ steps.subject.outputs.number }}
           LOGIN: ${{ steps.subject.outputs.login }}
           VERSION: ${{ steps.register.outputs.version }}
@@ -423,9 +431,9 @@ jobs:
           asked_before=$(printf '%s' "$comments" \
             | jq '[.[][] | select(.body | contains("<!-- mailfathom:contributor-licence:"))] | length')
 
-          opening="Thanks for the contribution, @$LOGIN. Before it can be merged, this repository asks you to accept its [contributor licence agreement](https://github.com/$REPOSITORY/blob/${{ github.event.repository.default_branch }}/CLA.md), version $VERSION."
+          opening="Thanks for the contribution, @$LOGIN. Before it can be merged, this repository asks you to accept its [contributor licence agreement](https://github.com/$REPOSITORY/blob/$DEFAULT_BRANCH/CLA.md), version $VERSION."
           if [ "$asked_before" != '0' ]; then
-            opening="@$LOGIN — the [contributor licence agreement](https://github.com/$REPOSITORY/blob/${{ github.event.repository.default_branch }}/CLA.md) has been revised since you were asked on this pull request, and is now at version $VERSION. A new version is a new acceptance, so the \`license/cla\` status has gone back to red until you accept this one. Nothing you already agreed to is withdrawn by that."
+            opening="@$LOGIN — the [contributor licence agreement](https://github.com/$REPOSITORY/blob/$DEFAULT_BRANCH/CLA.md) has been revised since you were asked on this pull request, and is now at version $VERSION. A new version is a new acceptance, so the \`license/cla\` status has gone back to red until you accept this one. Nothing you already agreed to is withdrawn by that."
           fi
 
           cat > comment.md <<COMMENT

@@ -52,8 +52,8 @@ internal static class PassageRelevanceInstructions
     /// <summary>Names the element carrying the exclusive end of the received range the lookup narrowed to.</summary>
     internal const string ReceivedBeforeElementName = "received-before";
 
-    /// <summary>Names the element carrying the remote seen state the lookup narrowed to.</summary>
-    internal const string IsRemotelySeenElementName = "is-remotely-seen";
+    /// <summary>Names the element carrying the seen mark the lookup narrowed to.</summary>
+    internal const string IsMarkedSeenElementName = "is-marked-seen";
 
     /// <summary>Names the element carrying the attachment presence the lookup narrowed to.</summary>
     internal const string HasAttachmentsElementName = "has-attachments";
@@ -145,7 +145,7 @@ internal static class PassageRelevanceInstructions
         WriteNarrowing(document, SubjectFragmentElementName, query.SubjectFragment);
         WriteNarrowing(document, ReceivedOnOrAfterElementName, Written(query.ReceivedOnOrAfter));
         WriteNarrowing(document, ReceivedBeforeElementName, Written(query.ReceivedBefore));
-        WriteNarrowing(document, IsRemotelySeenElementName, Written(query.IsRemotelySeen));
+        WriteNarrowing(document, IsMarkedSeenElementName, Written(query.IsMarkedSeen));
         WriteNarrowing(document, HasAttachmentsElementName, Written(query.HasAttachments));
 
         document.EndElement();

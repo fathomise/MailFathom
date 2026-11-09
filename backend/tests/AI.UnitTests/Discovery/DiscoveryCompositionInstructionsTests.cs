@@ -50,6 +50,17 @@ public sealed class DiscoveryCompositionInstructionsTests
         Assert.Contains("Leave it empty when the extracts do not answer", text, StringComparison.Ordinal);
     }
 
+    /// <summary>An answer saying the extracts do not answer rests on none of them, so a neighbouring extract is not its source.</summary>
+    [Fact]
+    public void Text_TheInstruction_SaysAnAnswerThatTheExtractsDoNotAnswerCitesNothing()
+    {
+        // Act
+        var text = DiscoveryCompositionInstructions.Text.ReplaceLineEndings(" ");
+
+        // Assert
+        Assert.Contains("An answer saying the extracts do not answer the question cites nothing", text, StringComparison.Ordinal);
+    }
+
     /// <summary>A correction replaces what it corrects, so reporting the two as a disagreement leaves the question unanswered.</summary>
     [Fact]
     public void Text_TheInstruction_AnswersWithACorrectionRatherThanReportingAConflict()
@@ -70,6 +81,48 @@ public sealed class DiscoveryCompositionInstructionsTests
 
         // Assert
         Assert.Contains("Give an event even where only one point in the change carries a date", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>An answer one step of inference away was given with a disclaimer that the extracts do not say it, and judged as not answering.</summary>
+    [Fact]
+    public void Text_TheInstruction_GivesAnAnswerOneStepOfInferenceAwayAtModerateConfidenceWithoutADisclaimer()
+    {
+        // Act
+        var text = string.Join(' ', DiscoveryCompositionInstructions.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains("Where the answer follows from an extract by one step of inference", text, StringComparison.Ordinal);
+        Assert.Contains("give it at \"moderate\" and without a disclaimer", text, StringComparison.Ordinal);
+        Assert.Contains("that step never supplies a fact no extract states", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>The account an authenticated sender gave was withheld beside the unverified message contradicting it.</summary>
+    [Fact]
+    public void Text_TheInstruction_WritesOutAnAccountAnAuthenticatedSenderGave()
+    {
+        // Act
+        var text = string.Join(' ', DiscoveryCompositionInstructions.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains(
+            $"or one an extract from an {AgentTurnDocument.AuthenticatedSender} sender gives in a message that is neither junk nor a first contact, is written out in full in \"answer\" where the question asks for it.",
+            text,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>The person's own message is not an unverified sender's, so neither its claims are qualified nor an account it gives withheld.</summary>
+    [Fact]
+    public void Text_TheInstruction_DoesNotQualifyAnExtractTheMailboxWrote()
+    {
+        // Act
+        var text = string.Join(' ', DiscoveryCompositionInstructions.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains(
+            $"junk or a first contact, and that does not carry {AgentTurnDocument.WrittenByMailboxAttributeName}=\"true\", say so in \"answer\" beside the claim",
+            text,
+            StringComparison.Ordinal);
+        Assert.Contains("An account an extract the mailbox wrote gives,", text, StringComparison.Ordinal);
     }
 
     /// <summary>A quotation keeps the extract's language, so an answer that is only a quotation is not written in the question's.</summary>
@@ -120,6 +173,36 @@ public sealed class DiscoveryCompositionInstructionsTests
         Assert.Contains("\"sources\"", turn, StringComparison.Ordinal);
     }
 
+    /// <summary>A model that has just read extracts in another language drifts into it, so the turn says again which language answers.</summary>
+    [Theory]
+    [InlineData("findFact")]
+    [InlineData("trackChange")]
+    [InlineData("compareTerms")]
+    [InlineData("unclassified")]
+    public void ComposeCompositionTurn_AnyIntent_RestatesThatTheAnswerIsInTheQuestionsLanguage(string intentIdentity)
+    {
+        // Arrange
+        var intent = DiscoveryIntent.All.Single(candidate => candidate.Identity == intentIdentity);
+
+        // Act
+        var turn = DiscoveryCompositionInstructions.ComposeCompositionTurn("which quote", intent, [Source()]);
+
+        // Assert
+        Assert.Contains("in the language the question above is written in, whatever language the extracts are in", turn, StringComparison.Ordinal);
+    }
+
+    /// <summary>A question about how something changed is answered by every step of the change, not by where it ended.</summary>
+    [Fact]
+    public void ComposeCompositionTurn_AQuestionAboutAChangeOverTime_AsksForEveryStepInDateOrder()
+    {
+        // Act
+        var turn = DiscoveryCompositionInstructions.ComposeCompositionTurn("how did it change", DiscoveryIntent.TrackChange, [Source()]);
+
+        // Assert
+        Assert.Contains("Follow the change in date order across every extract you were given", turn, StringComparison.Ordinal);
+        Assert.Contains("A workaround, an interim measure, and what was still to be verified are steps too.", turn, StringComparison.Ordinal);
+    }
+
     /// <summary>Which of two messages came later is what tells a correction from the statement it corrects.</summary>
     [Fact]
     public void ComposeCompositionTurn_ASourceWhoseMessageArrivedOnADay_ShowsThatDayBesideItsName()
@@ -139,6 +222,30 @@ public sealed class DiscoveryCompositionInstructionsTests
         Assert.Equal(
             "2026-08-04",
             (string?)Assert.Single(Sources(turn)).Attribute(DiscoveryCompositionInstructions.ArrivedAttributeName));
+    }
+
+    /// <summary>A Discover answer about who promised what is drawn from the same author the answering run is shown.</summary>
+    [Fact]
+    public void ComposeCompositionTurn_ASourceCarryingItsSender_NamesTheAuthorOnTheSource()
+    {
+        // Arrange
+        var source = new DiscoveryTurnSource(
+            "s1",
+            "Network",
+            "I look after the network",
+            ReceivedAt: null,
+            StubEmailProvenanceReader.KnownCorrespondent,
+            SenderDisplayName: "Ewa Nowak",
+            SenderAddress: "ewa@example.org");
+
+        // Act
+        var turn = DiscoveryCompositionInstructions.ComposeCompositionTurn("who looks after the network", DiscoveryIntent.FindFact, [source]);
+
+        // Assert
+        var written = Assert.Single(Sources(turn));
+
+        Assert.Equal("Ewa Nowak", (string?)written.Attribute(AgentTurnDocument.FromNameAttributeName));
+        Assert.Equal("ewa@example.org", (string?)written.Attribute(AgentTurnDocument.FromAttributeName));
     }
 
     /// <summary>Each source carries where its message came from, so a finding resting on an unverifiable sender is qualified.</summary>
@@ -227,6 +334,31 @@ public sealed class DiscoveryCompositionInstructionsTests
             Sources(turn).Select(static source => (
                 (string?)source.Attribute(DiscoveryCompositionInstructions.NameAttributeName),
                 source.Element(DiscoveryCompositionInstructions.ExtractElementName)?.Value)));
+    }
+
+    /// <summary>A schema writes every field, so what prose tells a model to leave out it is told to leave empty or null instead.</summary>
+    [Fact]
+    public void TextFor_ARequestCarryingTheSchema_SaysToLeaveAFieldEmptyRatherThanOut()
+    {
+        // Act
+        var text = string.Join(' ', DiscoveryCompositionInstructions.TextFor(constrainedBySchema: true).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains("Leave it empty where the extracts agree", text, StringComparison.Ordinal);
+        Assert.Contains("has a null \"value\" and an empty \"sources\"", text, StringComparison.Ordinal);
+        Assert.Contains("leave the rest empty", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("leave \"conflict\" out", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>Without a schema the instruction is the prose every composition was sent before.</summary>
+    [Fact]
+    public void TextFor_ARequestCarryingNoSchema_IsTheProseInstruction()
+    {
+        // Act
+        var text = DiscoveryCompositionInstructions.TextFor(constrainedBySchema: false);
+
+        // Assert
+        Assert.Same(DiscoveryCompositionInstructions.Text, text);
     }
 
     private static IEnumerable<XElement> Sources(string turn) =>

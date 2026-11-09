@@ -46,7 +46,7 @@ public sealed class DiscoveryPlanningScenarioTests : IDisposable
     [InlineData("StatesARecipient", """{"intent":"findFact","sufficientPassages":3,"lookups":[{"queryText":"VPN certificate","senderAddress":"it-desk@tidewater.example"}]}""", false)]
     [InlineData("NamesADateRange", """{"intent":"findDocuments","sufficientPassages":5,"lookups":[{"queryText":"Brightwater invoice","receivedOnOrAfter":"2026-08-01T00:00","receivedBefore":"2026-08-16T00:00"}]}""", true)]
     [InlineData("NamesADateRange", """{"intent":"findDocuments","sufficientPassages":5,"lookups":[{"queryText":"Brightwater invoice","receivedOnOrAfter":"2026-08-01T00:00","receivedBefore":"2026-09-01T00:00"}]}""", false)]
-    [InlineData("AsksForFlagAndReadState", """{"intent":"findFact","sufficientPassages":5,"lookups":[{"queryText":"movers","isRemotelyFlagged":true,"isRemotelySeen":false}]}""", true)]
+    [InlineData("AsksForFlagAndReadState", """{"intent":"findFact","sufficientPassages":5,"lookups":[{"queryText":"movers","isFlagged":true,"isMarkedSeen":false}]}""", true)]
     [InlineData("AsksForFlagAndReadState", """{"intent":"findFact","sufficientPassages":5,"lookups":[{"queryText":"movers starred unread"}]}""", false)]
     [InlineData("NoScope", "I would look for the venue confirmation.", false)]
     [InlineData("Polish.ExplicitScope", """{"intent":"findFact","sufficientPassages":5,"lookups":[{"queryText":"nieopłacone faktury","senderAddress":"Billing@Northwind.example"}]}""", true)]
@@ -113,6 +113,26 @@ public sealed class DiscoveryPlanningScenarioTests : IDisposable
         Assert.Equal(ScriptedStructuredAnswerRun.ModelUnderTest, outcome.Model);
         Assert.NotNull(outcome.Verdict.Get<NumericMetric>(EvaluationCost.MetricName));
         Assert.Empty(StructuredAnswerScenario.ShortfallsOf(outcome));
+    }
+
+    [Theory]
+    [InlineData(3, false)]
+    [InlineData(2, true)]
+    public async Task RunAsync_AnAmbiguousQuestionRatedNearTheThreshold_FilesTheRatingAsTheScenarioHoldsIt(int score, bool fallsShort)
+    {
+        // Arrange
+        using var judgedRun = new ScriptedStructuredAnswerRun(resolutionScore: score);
+        using var model = ScriptedStructuredAnswerRun.Model("""{"intent":"findDocuments","sufficientPassages":4,"lookups":[{"queryText":"Q3 figures","hasAttachments":true}]}""");
+
+        // Act
+        var outcome = await judgedRun.RunAsync(
+            DiscoveryPlanningScenario.RequestFor(DiscoveryPlanningCase.Named("AmbiguousDocumentOrFact")),
+            model);
+
+        // Assert
+        var resolution = outcome.Verdict.Get<NumericMetric>(StructuredAnswerScenario.IntentResolutionMetricName);
+
+        Assert.Equal((fallsShort, fallsShort), (resolution.Interpretation!.Failed, StructuredAnswerScenario.ShortfallsOf(outcome).Any()));
     }
 
     public void Dispose() => this.run.Dispose();

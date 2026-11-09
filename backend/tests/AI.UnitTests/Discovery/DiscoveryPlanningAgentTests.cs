@@ -4,6 +4,7 @@
 
 using System.Net;
 using System.Text;
+using MailFathom.AI.Chat;
 using MailFathom.AI.Discovery;
 using MailFathom.AI.Orchestration;
 using MailFathom.AI.ProviderAdapters;
@@ -12,13 +13,17 @@ using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Discovery.Planning;
+using MailFathom.Application.Discovery.Runs;
 using MailFathom.Application.Emails.Mailboxes;
+using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Emails.Authorship;
+using MailFathom.Domain.Folders;
 using MailFathom.TestSupport;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -35,6 +40,13 @@ public sealed class DiscoveryPlanningAgentTests
 {
     /// <summary>The literal the scanner in the guarded-egress test reports, standing in for a credential in a question.</summary>
     private const string Marker = "AKIAEXAMPLEKEY";
+
+    /// <summary>A plan as a model held to the schema writes it, every filter written and null where it does not apply.</summary>
+    private const string StructuredPlan = """
+        {"intent": "compareTerms", "sufficientPassages": 6, "lookups": [{"queryText": "quotation", "senderAddress": null,
+        "recipientAddress": null, "subjectFragment": null, "receivedOnOrAfter": null, "receivedBefore": null,
+        "isMarkedSeen": null, "isFlagged": null, "keyword": null, "hasAttachments": null}]}
+        """;
 
     private static readonly MailboxScope WholeMailbox = MailboxScope.Create(
         [MailAccountId.Create("primary")],
@@ -215,6 +227,163 @@ public sealed class DiscoveryPlanningAgentTests
         Assert.Equal(0, provider.RequestCount);
     }
 
+    /// <summary>The follow-up adds only lookups the plan did not run, and is charged to the run and the period like the plan's own call.</summary>
+    [Fact]
+    public async Task FollowUpAsync_AProviderAnsweringWithFurtherLookups_AddsTheOnesNotRunAndChargesTheCall()
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Completion(
+            """{\"intent\": \"compareTerms\", \"lookups\": [{\"queryText\": \"invoice\"}, {\"queryText\": \"RX-58213\"}]}""",
+            inputTokens: 11,
+            outputTokens: 7));
+        var runLedger = new MailAnsweringRunLedger(MailAnsweringRunBounds.Default);
+        var spendLedger = Substitute.For<IMailAnsweringSpendLedger>();
+        var planner = provider.PlannerOver(runLedger: runLedger, spendLedger: spendLedger);
+
+        // Act
+        var lookups = await planner.FollowUpAsync(Question(), PlanOf("invoice"), EvidenceOf("the invoice"), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["RX-58213"], lookups.Select(lookup => lookup.QueryText));
+        Assert.Equal(new MailAnsweringRunSpend(1, 18, 0, 0), runLedger.Read());
+        await spendLedger.Received(1).RecordSpendAsync(new ChatTokenUsage(11, 7), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>The follow-up is the planning call shown mail, so what a deployment withholds from a provider is withheld from the extracts too.</summary>
+    [Fact]
+    public async Task FollowUpAsync_AnExtractCarryingASecret_SendsTheProviderTheGuardedExtract()
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Completion("""{\"lookups\": []}"""));
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        using var actingFor = egress.Guard.ActingFor(await egress.ReadUserPostureAsync(TestContext.Current.CancellationToken));
+        var planner = provider.PlannerOver(egressGuard: egress.Guard);
+
+        // Act
+        await planner.FollowUpAsync(Question(), PlanOf("invoice"), EvidenceOf($"the key is {Marker}"), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.DoesNotContain(Marker, provider.RequestBodies[0], StringComparison.Ordinal);
+        Assert.Contains(DiscoveryPlanningInstructions.FollowUpOpening, provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>A follow-up the provider could not answer adds nothing rather than failing a run that already holds what the plan found.</summary>
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, null)]
+    [InlineData(HttpStatusCode.OK, "Search for the delivery date next.")]
+    public async Task FollowUpAsync_AFailedOrUnreadableAnswer_AddsNoLookup(HttpStatusCode status, string? content)
+    {
+        // Arrange
+        using var provider = content is null ? ScriptedTransport.Refusing(status) : ScriptedTransport.Answering(Completion(content));
+        var planner = provider.PlannerOver();
+
+        // Act
+        var lookups = await planner.FollowUpAsync(Question(), PlanOf("invoice"), EvidenceOf("the invoice"), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(lookups);
+    }
+
+    /// <summary>A follow-up turn past the model's bound is never sent, and adds nothing rather than failing a run that already holds what the plan found.</summary>
+    [Fact]
+    public async Task FollowUpAsync_ATurnTooLargeForOneRequest_AddsNoLookupWithoutReachingTheProvider()
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Completion("""{\"lookups\": [{\"queryText\": \"RX-58213\"}]}"""));
+        var planner = provider.PlannerOver(plan: ChatDeclarations.Plan(maximumRequestCharacters: 100));
+
+        // Act
+        var lookups = await planner.FollowUpAsync(Question(), PlanOf("invoice"), EvidenceOf(new string('x', 400)), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(lookups);
+        Assert.Equal(0, provider.RequestCount);
+    }
+
+    /// <summary>A run that spent its calls on the plan and the composition's share is refused the follow-up before anything leaves.</summary>
+    [Fact]
+    public async Task FollowUpAsync_ARunThatHasSpentItsCallAllowance_RefusesBeforeReachingTheProvider()
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(Completion("""{\"lookups\": []}"""));
+        var runLedger = new MailAnsweringRunLedger(MailAnsweringRunBounds.Create(20_000, maximumProviderCalls: 1, 80_000));
+        runLedger.RequireAllowanceForNextCall();
+        var planner = provider.PlannerOver(runLedger: runLedger);
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailAnsweringBudgetExhaustedException>(() =>
+            planner.FollowUpAsync(Question(), PlanOf("invoice"), EvidenceOf("the invoice"), TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MailAnsweringBudgetScope.Run, refusal.Scope);
+        Assert.Equal(0, provider.RequestCount);
+    }
+
+    /// <summary>A model whose server honours a strict schema is asked for one, its intents the catalogue's own.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task DerivePlanAsync_AModelDeclaringStructuredOutputs_AsksForAStrictSchemaOfTheCataloguesIntents(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredPlan));
+        var planner = provider.PlannerOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api), structuredOutputs: true));
+
+        // Act
+        var plan = await planner.DerivePlanAsync(Question(), TestContext.Current.CancellationToken);
+
+        // Assert
+        var format = StructuredRequests.SchemaFormatOf(provider.RequestBodies[0], api);
+        var intents = format.Schema.GetProperty("properties").GetProperty("intent").GetProperty("enum");
+
+        Assert.Equal(DiscoveryIntent.CompareTerms, plan.Intent);
+        Assert.Equal(["quotation"], plan.Retrieval.Lookups.Select(static lookup => lookup.QueryText));
+        Assert.Equal(("json_schema", DiscoveryPlanningSchema.Name, true), (format.Type, format.Name, format.Strict));
+        Assert.Equal(DiscoveryIntent.All.Select(static intent => intent.Identity), intents.EnumerateArray().Select(static intent => intent.GetString()));
+        Assert.DoesNotContain("whose only required field is", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>Without the declaration the request is the one every derivation sent before, the shape told in prose instead.</summary>
+    [Theory]
+    [InlineData(ChatProviderApi.ChatCompletions)]
+    [InlineData(ChatProviderApi.Responses)]
+    public async Task DerivePlanAsync_AModelDeclaringNoStructuredOutputs_SendsNoResponseFormat(ChatProviderApi api)
+    {
+        // Arrange
+        using var provider = ScriptedTransport.Answering(StructuredRequests.AnswerOver(api, StructuredPlan));
+        var planner = provider.PlannerOver(plan: ChatDeclarations.Plan(ChatDeclarations.Endpoint(api: api)));
+
+        // Act
+        await planner.DerivePlanAsync(Question(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(StructuredRequests.CarriesResponseFormat(provider.RequestBodies[0]));
+        Assert.Contains("whose only required field is", provider.RequestBodies[0], StringComparison.Ordinal);
+    }
+
+    private static DiscoveryRunPlan PlanOf(params string[] queries) => DiscoveryRunPlan.Compose(
+        DiscoveryIntent.FindFact,
+        RetrievalPlan.Create(EmailKnowledgeBounds.Default, [.. queries.Select(EmailKnowledgeQuery.ForText)], sufficientPassages: 5));
+
+    private static DiscoveryEvidence EvidenceOf(string text) => new(
+        [
+            new EmailKnowledgePassage
+            {
+                StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
+                AccountId = MailAccountId.Create("primary"),
+                Folder = new StoredEmailFolder(MailFolderId.Create(Guid.Parse("83ecb521-bf32-7f67-8287-e8b923809bb3")), "INBOX", MailFolderAlias.Create("INBOX")),
+                Subject = "Invoice",
+                ReceivedAt = null,
+                Provenance = StubEmailProvenanceReader.KnownCorrespondent,
+                MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
+                Text = text,
+            },
+        ],
+        EmailSearchRetrievalMode.Lexical,
+        LookupsRun: 1,
+        LookupsRefused: 0,
+        RetrievalTruncated: false);
+
     private static MailQuestion Question() =>
         new(MailQuestionText.Create("which supplier quoted least"), WholeMailbox, new DateTimeOffset(2026, 9, 14, 10, 0, 0, TimeSpan.FromHours(2)));
 
@@ -262,6 +431,7 @@ public sealed class DiscoveryPlanningAgentTests
             new() { status = status, payload = "{\"error\":{\"message\":\"no\"}}" };
 
         public DiscoveryPlanningAgent PlannerOver(
+            ChatGenerationPlan? plan = null,
             SensitiveContentEgressGuard? egressGuard = null,
             Exception? credentialFailure = null,
             MailAnsweringRunLedger? runLedger = null,
@@ -296,7 +466,7 @@ public sealed class DiscoveryPlanningAgentTests
                 });
 
             return new DiscoveryPlanningAgent(
-                ChatDeclarations.Plan(),
+                plan ?? ChatDeclarations.Plan(),
                 EmailKnowledgeBounds.Default,
                 runLedger ?? new MailAnsweringRunLedger(MailAnsweringRunBounds.Default),
                 spendLedger ?? Substitute.For<IMailAnsweringSpendLedger>(),

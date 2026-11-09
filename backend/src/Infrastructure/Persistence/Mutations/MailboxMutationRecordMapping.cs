@@ -118,7 +118,7 @@ internal static class MailboxMutationRecordMapping
             ? new MailboxMutationOverlay(
                 entity.ObservedSeenState,
                 entity.ObservedFlaggedState,
-                entity.ObservedKeywords is { } keywords ? RemoteEmailKeywords.Create(keywords) : null,
+                entity.ObservedKeywords is { } keywords ? EmailKeywords.Create(keywords) : null,
                 entity.ObservedFolderId is { } folder ? MailFolderId.Create(folder) : null,
                 entity.LocalCopyStoredEmailId is { } copy ? StoredEmailId.Create(copy) : null)
             : null;
@@ -153,7 +153,7 @@ internal static class MailboxMutationRecordMapping
         // reporting the commoner one for both.
         var cause = keywords.Any(keyword => !AuthoredMailKeywords.IsWritable(keyword))
             ? "names a keyword that no mail server can be asked to store"
-            : $"names more than the {RemoteEmailKeywords.MaximumKeywords} keywords one email keeps";
+            : $"names more than the {EmailKeywords.MaximumKeywords} keywords one email keeps";
 
         throw new InvalidOperationException($"Mailbox mutation record {entity.Id} {cause}.");
     }

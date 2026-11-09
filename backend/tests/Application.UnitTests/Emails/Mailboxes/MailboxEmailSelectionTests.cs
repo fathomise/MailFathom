@@ -113,7 +113,7 @@ public sealed class MailboxEmailSelectionTests
     public void Create_KeywordLongerThanTheLimit_IsRejected()
     {
         // Arrange
-        var overlyLongKeyword = new string('a', RemoteEmailKeywords.MaximumKeywordLength + 1);
+        var overlyLongKeyword = new string('a', EmailKeywords.MaximumKeywordLength + 1);
 
         // Act
         var failure = Assert.Throws<MailboxQueryFilterInvalidException>(() =>
@@ -133,8 +133,8 @@ public sealed class MailboxEmailSelectionTests
     {
         // Act
         var unfiltered = SelectionWith();
-        var flagged = SelectionWith(isRemotelyFlagged: true);
-        var unflagged = SelectionWith(isRemotelyFlagged: false);
+        var flagged = SelectionWith(isFlagged: true);
+        var unflagged = SelectionWith(isFlagged: false);
         var keyworded = SelectionWith(keyword: "$Junk");
 
         // Assert
@@ -349,8 +349,8 @@ public sealed class MailboxEmailSelectionTests
             subjectFragment: null,
             receivedOnOrAfter: null,
             receivedBefore: null,
-            isRemotelySeen: null,
-            isRemotelyFlagged: null,
+            isMarkedSeen: null,
+            isFlagged: null,
             keyword: null,
             hasAttachments: null));
     }
@@ -424,8 +424,8 @@ public sealed class MailboxEmailSelectionTests
         string? subjectFragment = null,
         DateTimeOffset? receivedOnOrAfter = null,
         DateTimeOffset? receivedBefore = null,
-        bool? isRemotelySeen = null,
-        bool? isRemotelyFlagged = null,
+        bool? isMarkedSeen = null,
+        bool? isFlagged = null,
         string? keyword = null,
         bool? hasAttachments = null,
         EmailMarkSelection? mark = null) => MailboxEmailSelection.Create(
@@ -435,8 +435,8 @@ public sealed class MailboxEmailSelectionTests
         subjectFragment,
         receivedOnOrAfter,
         receivedBefore,
-        isRemotelySeen,
-        isRemotelyFlagged,
+        isMarkedSeen,
+        isFlagged,
         keyword,
         hasAttachments,
         mark);

@@ -394,6 +394,7 @@ internal sealed class InMemoryOutgoingEmailStore(
         OutgoingEmailLease lease,
         OutgoingEmailId outgoingEmailId,
         bool? deliveryNotificationCarried,
+        DateTimeOffset transmittedAt,
         CancellationToken cancellationToken)
     {
         var row = this.RequireLeased(lease, outgoingEmailId);
@@ -412,6 +413,7 @@ internal sealed class InMemoryOutgoingEmailStore(
             Stage = OutgoingEmailStage.TransmissionBegun,
             StageChangedAt = this.clock.GetUtcNow(),
             DeliveryNotificationCarried = deliveryNotificationCarried,
+            TransmittedAt = transmittedAt,
         };
 
         return Task.CompletedTask;

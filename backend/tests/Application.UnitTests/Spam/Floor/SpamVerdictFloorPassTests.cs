@@ -341,7 +341,7 @@ public sealed class SpamVerdictFloorPassTests
     {
         var emailId = StoredEmailId.Create(Guid.CreateVersion7());
 
-        this.candidates.Add(Account, new SpamVerdictFloorCandidate(emailId, folder, RemoteEmailKeywords.Create(keywords)));
+        this.candidates.Add(Account, new SpamVerdictFloorCandidate(emailId, folder, EmailKeywords.Create(keywords)));
 
         return emailId;
     }

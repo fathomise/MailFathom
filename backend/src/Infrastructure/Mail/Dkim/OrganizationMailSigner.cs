@@ -10,6 +10,7 @@ using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Signing;
 using MailFathom.Domain.Accounts;
 using MailFathom.Infrastructure.DataEncryption;
+using MailFathom.Infrastructure.Mail.Mime;
 using MailFathom.Infrastructure.Security.SigningKeys;
 using MimeKit;
 using MimeKit.Cryptography;
@@ -26,8 +27,9 @@ namespace MailFathom.Infrastructure.Mail.Dkim;
 /// leaves DKIM's own path; the verifier rebuilds a <c>DKIM-Signature</c> from the value in memory.
 /// </para>
 /// <para>
-/// The message is parsed only to compute the signature. What is stored is the signature header followed by the bytes it
-/// was handed, untouched, so nothing already in the message is rewritten, refolded, replaced, or removed.
+/// The message is parsed only to compute the signature. What is sent is the signature header followed by the bytes it
+/// was handed, untouched but for a signature an earlier build wrote into them, which is removed first, so nothing else
+/// already in the message is rewritten, refolded, replaced, or removed.
 /// </para>
 /// <para>
 /// <see href="https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0042-signing-an-organizations-mail-and-trusting-a-sender-its-signature-proves.md">ADR 0042</see>
@@ -67,8 +69,13 @@ internal sealed class OrganizationMailSigner(
     public async Task<ReadOnlyMemory<byte>> SignAsync(
         MailAccountId account,
         ReadOnlyMemory<byte> rawMime,
+        DateTimeOffset signedAt,
         CancellationToken cancellationToken)
     {
+        // A message signed before is signed afresh rather than carrying two signatures, the older of which no longer
+        // covers the headers a later dating rewrote.
+        rawMime = RawHeaderFields.Replace(rawMime.Span, SignatureHeaderName, value: null);
+
         var reading = await keys.ReadAsync(account, cancellationToken);
 
         if (reading is AccountSigningKeyReading.Unaffiliated)
@@ -77,7 +84,7 @@ internal sealed class OrganizationMailSigner(
         }
 
         if (reading is AccountSigningKeyReading.SigningKey key
-            && await this.SignWithAsync(key, rawMime, cancellationToken) is { } signed)
+            && await this.SignWithAsync(key, rawMime, signedAt, cancellationToken) is { } signed)
         {
             return signed;
         }
@@ -91,9 +98,10 @@ internal sealed class OrganizationMailSigner(
     /// <param name="rawMime">The message.</param>
     /// <param name="keyId">The key's identifier, written as the selector.</param>
     /// <param name="privateHalf">The 32-byte Ed25519 private key.</param>
+    /// <param name="signedAt">The instant written as <c>t=</c>.</param>
     /// <returns>The signed message, or <see langword="null" /> when the message names no author whose domain <c>d=</c> could carry.</returns>
     /// <remarks>Every tag is ASCII — the domain is written in its ASCII form — so the header's bytes are read and written as ASCII.</remarks>
-    internal static byte[]? Sign(ReadOnlyMemory<byte> rawMime, Guid keyId, byte[] privateHalf)
+    internal static byte[]? Sign(ReadOnlyMemory<byte> rawMime, Guid keyId, byte[] privateHalf, DateTimeOffset signedAt)
     {
         using var source = new MemoryStream(rawMime.ToArray(), writable: false);
         using var message = MimeMessage.Load(source);
@@ -107,11 +115,11 @@ internal sealed class OrganizationMailSigner(
         format.NewLineFormat = NewLineFormat.Dos;
 
         // The parameters keep a copy of the key that nothing here can erase; it lives only as long as this call.
-        var signer = new DkimSigner(
+        var signer = new TimestampedDkimSigner(
             new Ed25519PrivateKeyParameters(privateHalf),
             authorDomain,
             keyId.ToString("D"),
-            DkimSignatureAlgorithm.Ed25519Sha256)
+            signedAt)
         {
             HeaderCanonicalizationAlgorithm = DkimCanonicalizationAlgorithm.Relaxed,
             BodyCanonicalizationAlgorithm = DkimCanonicalizationAlgorithm.Relaxed,
@@ -120,7 +128,7 @@ internal sealed class OrganizationMailSigner(
         signer.Sign(format, message, SignedHeaders);
 
         // MimeKit inserts its DKIM-Signature first. Its raw value keeps MimeKit's folding, and relaxed canonicalization
-        // reads past any refolding anyway; only the line endings are made the ones the stored bytes carry.
+        // reads past any refolding anyway; only the line endings are made the ones the message's bytes carry.
         var foldedValue = Encoding.ASCII.GetString(message.Headers[0].RawValue).ReplaceLineEndings("\r\n");
 
         return [.. Encoding.ASCII.GetBytes($"{SignatureHeaderName}:{foldedValue}"), .. rawMime.Span];
@@ -148,11 +156,12 @@ internal sealed class OrganizationMailSigner(
     /// <summary>Signs a message with an organization's key, answering with nothing where the key or the message cannot be signed.</summary>
     /// <remarks>
     /// A message the composer measured within the deployment's bound is refused a signature that would carry it past
-    /// the bound, rather than being stored and sent larger than the operator allowed.
+    /// the bound, rather than being sent larger than the operator allowed.
     /// </remarks>
     private async Task<byte[]?> SignWithAsync(
         AccountSigningKeyReading.SigningKey key,
         ReadOnlyMemory<byte> rawMime,
+        DateTimeOffset signedAt,
         CancellationToken cancellationToken)
     {
         if (await this.OpenAsync(key, cancellationToken) is not { } privateHalf)
@@ -162,7 +171,7 @@ internal sealed class OrganizationMailSigner(
 
         try
         {
-            return Sign(rawMime, key.KeyId, privateHalf) is { } signed && signed.Length <= bounds.MaxMessageBytes
+            return Sign(rawMime, key.KeyId, privateHalf, signedAt) is { } signed && signed.Length <= bounds.MaxMessageBytes
                 ? signed
                 : null;
         }
@@ -190,5 +199,20 @@ internal sealed class OrganizationMailSigner(
         {
             return null;
         }
+    }
+
+    /// <summary>A DKIM signer whose <c>t=</c> is the instant it is handed rather than the wall clock.</summary>
+    /// <remarks>
+    /// Ed25519 signs deterministically, so with the time fixed the same message signed twice under one key is the same
+    /// bytes: the copy filed in the sent folder is then the message that was transmitted, however much later it is filed.
+    /// </remarks>
+    private sealed class TimestampedDkimSigner(
+        Ed25519PrivateKeyParameters key,
+        string domain,
+        string selector,
+        DateTimeOffset signedAt)
+        : DkimSigner(key, domain, selector, DkimSignatureAlgorithm.Ed25519Sha256)
+    {
+        protected override long GetTimestamp() => signedAt.ToUnixTimeSeconds();
     }
 }

@@ -72,19 +72,19 @@ public sealed record MailRuleEmailFacts
     /// <summary>Gets whether the email carries a signature part anywhere, which states nothing about whether it verified.</summary>
     public bool CarriesUnverifiedSignature { get; init; }
 
-    /// <summary>Gets whether the server reports the email as read.</summary>
+    /// <summary>Gets whether the email is marked read.</summary>
     public bool IsSeen { get; init; }
 
     /// <summary>Gets whether the server reports the email as answered.</summary>
     public bool IsAnswered { get; init; }
 
-    /// <summary>Gets whether the server reports the email as flagged.</summary>
+    /// <summary>Gets whether the email is flagged.</summary>
     public bool IsFlagged { get; init; }
 
-    /// <summary>Gets whether the server reports the email as a draft.</summary>
+    /// <summary>Gets whether the email is marked a draft.</summary>
     public bool IsDraft { get; init; }
 
-    /// <summary>Gets the keywords the server reports the email as carrying.</summary>
+    /// <summary>Gets the keywords the email carries.</summary>
     public IReadOnlyList<string> Keywords { get; init; } = [];
 
     /// <summary>Gets whether text has been extracted from the email's body.</summary>

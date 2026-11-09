@@ -3,7 +3,6 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using System.Globalization;
-using System.Text.Json;
 using MailFathom.AI.Orchestration;
 using MailFathom.Application.Emails.Search.Phrasing;
 
@@ -66,22 +65,8 @@ internal static class MailSearchPhraseDocumentReading
             : new MailSearchPhraseReading(filters, criteria, unaccounted, WasRead: true);
     }
 
-    private static MailSearchPhraseDocument? ReadDocument(string? answerText)
-    {
-        if (AgentJsonAnswer.Unfenced(answerText) is not { } json)
-        {
-            return null;
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize(json, MailSearchPhraseJsonContext.Default.MailSearchPhraseDocument);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
+    private static MailSearchPhraseDocument? ReadDocument(string? answerText) =>
+        AgentJsonAnswer.Read(answerText, MailSearchPhraseJsonContext.Default.MailSearchPhraseDocument);
 
     /// <summary>Reads the constraints half, keeping each field only where it is one this screen can draw and remove.</summary>
     /// <remarks>

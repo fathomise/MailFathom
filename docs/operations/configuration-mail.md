@@ -71,7 +71,7 @@ than met later by a run.
 | --- | --- | --- | --- | --- |
 | `…:EmailAddress` | string | — | Required; one `@` between a local part and a domain, no white space, at most 320 characters; unique across the deployment, compared without regard to case or surrounding white space. An account's identifier is generated rather than stated, and a declaration stating `AccountId` is refused | reload |
 | `…:DisplayName` | string | — | Required, with no default; at most 128 characters, no control characters, and it may not be another account's identifier or display name compared without regard to case | reload |
-| `…:Language` | enum | — | Required of a declaration being written; `English` or `Polish`, read however it was capitalized. The language everything MailFathom writes about this mailbox's mail comes out in; [the language this mailbox is read in](#the-language-this-mailbox-is-read-in--language) holds the rule and both refusals | reload; the next derivation is written in it |
+| `…:Language` | enum | — | Required of a declaration being written; `English` or `Polish`, read however it was capitalized. The language everything MailFathom writes about this mailbox's mail comes out in, and the one mail answering and the Agent search it in; [the language this mailbox is read in](#the-language-this-mailbox-is-read-in--language) holds the rule and both refusals | reload; the next derivation is written in it |
 | `…:Host` | string | — | Required | reload |
 | `…:Port` | int | `993` | 1 – 65535 | reload |
 | `…:UserName` | string | — | Required; an identifier, not a secret | reload |
@@ -472,17 +472,18 @@ set it to `Expunge` first.
 
 `…:Language` is the language every automatic reading of this mailbox's mail comes out in — the [mark on a message
 row](../features/message-enrichment.md), the [statement about a
-conversation](../features/thread-state.md) — whatever language the message itself was written in. It is not a claim
-about the mail, which is mixed by nature, and it changes nothing about an answer to a question somebody asked: that is
-still written in the language the question was.
+conversation](../features/thread-state.md) — whatever language the message itself was written in. It changes nothing
+about the language an answer to a question somebody asked is written in: that is still the language the question was.
+What it does tell [mail answering and the Agent](../features/mail-answering.md#a-question-in-one-language-mail-in-another)
+is which language to search this mailbox in, since a lookup matches words rather than translating them, so set it to
+the language most of the mailbox's mail is written in.
 
 It is the account's rather than its user's for the reason the two blocks below are: the derived text is one copy. A
 mailbox two people are assigned is enriched once, and the sentence written onto a message row is the sentence both of
 them read, so a value held on the person would have to pick one of them at derivation time and would then be wrong for
 the other.
 
-It settles nothing outside those derivations, and one case that looks as though it should belongs to the person
-instead. A [reply draft](../features/reply-drafting.md) answering a message takes the language of the correspondence it
+It settles nothing else, and one case that looks as though it should belongs to the person instead. A [reply draft](../features/reply-drafting.md) answering a message takes the language of the correspondence it
 answers, because what decides that is who will read it; one answering nothing has no correspondence to read, and what
 it is written in is then [the language the person writing it
 reads](configuration-sources.md#the-language-this-person-reads--language), from their own user record rather than from

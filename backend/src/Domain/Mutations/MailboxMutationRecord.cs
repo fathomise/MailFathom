@@ -367,8 +367,8 @@ public sealed record MailboxMutationRecord
     /// </remarks>
     public bool AccountsForKeywordsOf(
         EmailOccurrenceId occurrence,
-        RemoteEmailKeywords previouslyObservedKeywords,
-        RemoteEmailKeywords observedKeywords,
+        EmailKeywords previouslyObservedKeywords,
+        EmailKeywords observedKeywords,
         DateTimeOffset previouslyObservedAt)
     {
         ArgumentNullException.ThrowIfNull(previouslyObservedKeywords);
@@ -460,7 +460,7 @@ public sealed record MailboxMutationRecord
     /// </remarks>
     private static HashSet<string>? ExpectedKeywordsOf(
         MailboxMutation mutation,
-        RemoteEmailKeywords previouslyObservedKeywords,
+        EmailKeywords previouslyObservedKeywords,
         AuthoredMailKeywords authored)
     {
         if (mutation == MailboxMutation.SetKeywords)

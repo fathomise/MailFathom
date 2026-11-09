@@ -73,8 +73,8 @@ internal sealed class SearchEmailsTool(
     /// <param name="subjectFragment">Text the subject must contain.</param>
     /// <param name="receivedOnOrAfter">The inclusive start of the received range.</param>
     /// <param name="receivedBefore">The exclusive end of the received range.</param>
-    /// <param name="isRemotelySeen">The remote <c>\Seen</c> state to require.</param>
-    /// <param name="isRemotelyFlagged">The remote <c>\Flagged</c> state to require.</param>
+    /// <param name="isMarkedSeen">The <c>\Seen</c> mark to require.</param>
+    /// <param name="isFlagged">The <c>\Flagged</c> state to require.</param>
     /// <param name="keyword">The keyword an email must carry.</param>
     /// <param name="hasAttachments">Whether attachments are required.</param>
     /// <param name="resultLimit">How many ranked results to return, or none to take the default.</param>
@@ -106,7 +106,7 @@ internal sealed class SearchEmailsTool(
         + "matching a word, and a result reached that way is marked isDepictedMatch and always sits below every result "
         + "any query word or any written text reached — so a photograph never displaces a message that contains the "
         + "word you searched for. Narrows by account, folder, sender address, recipient address, subject text, "
-        + "received date range, remote seen state, remote flagged (starred) state, a keyword the mail server reported, "
+        + "received date range, read state, flagged (starred) state, a keyword the email carries, "
         + "and attachment presence. Reads the local copy only: it never contacts "
         + "a mail server, never marks mail as read, and never returns whole bodies, raw MIME, whole attachments, or a "
         + "whole attachment's text — every extract it returns is bounded. "
@@ -131,10 +131,10 @@ internal sealed class SearchEmailsTool(
         DateTimeOffset? receivedOnOrAfter = null,
         [Description(MailboxFilterDescriptions.ReceivedBefore)]
         DateTimeOffset? receivedBefore = null,
-        [Description("Return only emails the mail server last reported as read (true) or unread (false). Omit to match either. Searching never changes this state. An email whose flags no run has observed yet counts as unread.")]
-        bool? isRemotelySeen = null,
-        [Description(MailboxFilterDescriptions.IsRemotelyFlagged)]
-        bool? isRemotelyFlagged = null,
+        [Description("Return only emails marked read (true) or unread (false). Omit to match either. Searching never changes this state. An email whose flags no run has observed yet counts as unread.")]
+        bool? isMarkedSeen = null,
+        [Description(MailboxFilterDescriptions.IsFlagged)]
+        bool? isFlagged = null,
         [Description(MailboxFilterDescriptions.Keyword)]
         string? keyword = null,
         [Description(MailboxFilterDescriptions.HasAttachments)]
@@ -153,8 +153,8 @@ internal sealed class SearchEmailsTool(
             SubjectFragment = subjectFragment,
             ReceivedOnOrAfter = receivedOnOrAfter,
             ReceivedBefore = receivedBefore,
-            IsRemotelySeen = isRemotelySeen,
-            IsRemotelyFlagged = isRemotelyFlagged,
+            IsMarkedSeen = isMarkedSeen,
+            IsFlagged = isFlagged,
             Keyword = keyword,
             HasAttachments = hasAttachments,
             ResultLimit = resultLimit,

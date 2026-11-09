@@ -57,6 +57,11 @@ shown what was left out rather than told about it afterwards. A placement falls 
 and lasts between 5 minutes and 8 hours, a task stands in at most one of the two lists, and an arrangement naming a
 task nobody asked about is dropped rather than drawn.
 
+**Where the model declares `StructuredOutputs`, the shape is asked for rather than described.** The request carries a
+strict schema in which every task number is one of the tasks the turn listed and both lists are always present, empty
+where nothing belongs in one. The reading is the same either way: a length outside its range is brought within it, and
+a placement outside the day is dropped. [Chat generation § An answer in one document can be constrained by a schema](chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema) says what the request carries.
+
 **Nothing is written by asking.** No task is rescheduled, no due day is rewritten, no proposal is accepted, and no
 event reaches a calendar — each of those is an act of the person's own through the route that owns it, and laying a
 day out twice leaves the same two lists it started with.

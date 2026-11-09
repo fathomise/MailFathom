@@ -42,6 +42,14 @@ public sealed class ContactRelationshipInstructionsTests
         AssertSays("never cite a position the turn did not publish");
     }
 
+    /// <summary>A thin correspondence was answered with a note restating a subject behind a hedge, where an empty object was the answer.</summary>
+    [Fact]
+    public void TextFor_TheInstruction_LeavesOutANoteThatOnlyRestatesWhatTheListShows()
+    {
+        AssertSays("A note that only restates a subject or a file name, gives the latest date, or says what the subjects do not show is that sentence: leave it out and answer with an empty object.");
+        AssertSays("is written wherever the instants show a pattern");
+    }
+
     /// <summary>A language this deployment does not write in is a composition mistake rather than a value to fall back from.</summary>
     [Fact]
     public void TextFor_ALanguageThisDeploymentDoesNotWriteIn_IsRefused() =>

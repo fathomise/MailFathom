@@ -44,8 +44,9 @@ adds none on its own.
 **A draft is plain paragraphs unless formatting earns its place.** It is formatted in two cases and no other: the person
 asked for it in what they typed — a table, a list, bullets, bold, a colour, an alignment — or the reply is long and
 covers several separate points that structure makes easier to read, which is when a list or a bold lead-in opening each
-part is written without being asked. A short reply asked to look polished stays plain, and mail asking for a format is
-not the person asking.
+part is written without being asked. A short reply or a personal note asked to look polished stays plain, and mail
+asking for a format is not the person asking. The person's own sent mail, shown as style samples, sets the voice of a
+reply and not whether a long reply of separate points is structured, so plain samples leave such a reply structured.
 
 The model answers the body as blocks of a closed set, and the service reads them into the document:
 
@@ -57,7 +58,17 @@ The model answers the body as blocks of a closed set, and the service reads them
 A run carries a **colour only where the person named one**, and only one of nine hue names, each written as that hue's vivid shade in the composer's palette; an
 **alignment** likewise only where the person asked for it. There is no size, no picture, and no heading — a section
 opens with a bold lead-in instead. Anything outside the set is kept as its words rather than refused, so a model that
-answers a plain string or a shape nobody published still yields the reply it wrote.
+answers a plain string or a shape nobody published still yields the reply it wrote. Three slips a model makes are read
+as what it meant: a block written as a string holding the block's JSON is read as that block, a run written straight
+into the body beside plain strings is read with them as one paragraph that keeps its link, and every position — a cited
+message, a recipient, a link — is read whether it was written as a number or as a string holding one.
+
+**Where the drafting model's declaration sets `StructuredOutputs`, the shape is asked for rather than described.** The
+request carries a strict JSON schema built for the turn, in which every message, person, and link number is one the turn
+published, and the instruction then says only what each field means. Every other model is told the shape in prose, with
+one worked paragraph carrying a link. The reading above is the same for both and keeps every bound, which a strict
+schema cannot state. [Chat generation § An answer in one document can be constrained by a schema](chat-generation.md#an-answer-in-one-document-can-be-constrained-by-a-schema)
+says what the request carries.
 
 **A link is a number the turn published, never an address the model wrote.** The turn carries a numbered `<links>`
 element: first every web address the person typed, then every link the correspondence's own bodies already carry,
@@ -65,7 +76,8 @@ read from the stored message, deduplicated and at most forty. A link whose words
 goes to, or whose host is a look-alike, is left out of that list, and so is anything that is not `http` or `https`.
 Each entry shows the model the host and the words and never the address itself, and both pass through the outbound
 scan like everything else the turn carries. A run links by naming a number; a number outside the list, an address, or
-anything else is dropped and the words are kept. Until a draft is accepted, the composer names each link's host beside
+anything else is dropped and the words are kept. Words written inside text as `[words](n)` or `[words](link n)` link
+the same way, and only where `n` is a published number; any other bracketed text stays as written. Until a draft is accepted, the composer names each link's host beside
 its words, so the person sees where every link goes before the draft becomes theirs.
 
 The words of the document are scanned on the way back exactly as the plain body was, and the plain reading is derived
@@ -89,7 +101,8 @@ together into one correspondence; with a single message that is exactly the one 
 - **Which messages were chosen.** Every context message is marked as one the person chose — the message being
   answered, or one picked out in the list — and the drafting is told to answer those first and to read the rest of the
   conversation as what explains them, so a reply to an early message of a long exchange answers that message rather
-  than the latest one.
+  than the latest one, even where a later message already answered it, and "this" or "it" in what the person typed
+  means the chosen message.
 - **The attachments** of each message the correspondence carries, where this deployment reads attachments: the words
   each one yielded, under its file name, inside the same 4 000 characters as the message's own text — what the body
   leaves unused is what its attachments may fill, in the order the message carries them, so reading them never makes a

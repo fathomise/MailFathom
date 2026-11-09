@@ -49,6 +49,40 @@ public sealed class MailDocumentTextsTests
         Assert.Equal(guarded, MailDocumentTexts.Collect(rewritten));
     }
 
+    /// <summary>A named block of header lines survives the guard, with its author and date scanned like the words they copy.</summary>
+    [Fact]
+    public void Rewrite_ABlockOfHeaderLinesAtAnyDepth_KeepsItsNameWithTheGuardedAuthorAndDate()
+    {
+        // Arrange
+        var document = WithWrittenHeaders("Ewa", "today");
+
+        // Act
+        var texts = MailDocumentTexts.Collect(document);
+        var rewritten = MailDocumentTexts.Rewrite(document, [.. texts.Select(text => text.ToUpperInvariant())]);
+
+        // Assert
+        Assert.Equal(["Ewa", "today", "From: Ewa", "Ewa", "today", "Quoted: From: Ewa"], texts);
+        Assert.Equal(new MailWrittenHeaders(1, "EWA", "TODAY"), rewritten.Blocks[0].WrittenHeaders);
+        var quote = Assert.IsType<MailQuoteBlock>(rewritten.Blocks[1]);
+        Assert.Equal(new MailWrittenHeaders(1, "EWA", "TODAY"), quote.Blocks[0].WrittenHeaders);
+    }
+
+    /// <summary>A text the guard withheld comes back empty, and a fold naming nobody would say nothing.</summary>
+    [Fact]
+    public void Rewrite_AnAuthorTheGuardWithheld_StopsNamingTheBlockAndKeepsItsWords()
+    {
+        // Arrange
+        var document = WithWrittenHeaders("Ewa", "today");
+        var withheld = MailDocumentTexts.Collect(document).Select((text, position) => position == 0 ? string.Empty : text).ToList();
+
+        // Act
+        var rewritten = MailDocumentTexts.Rewrite(document, withheld);
+
+        // Assert
+        Assert.Null(rewritten.Blocks[0].WrittenHeaders);
+        Assert.Equal("From: Ewa", Assert.IsType<MailParagraphBlock>(rewritten.Blocks[0]).Content[0].Text);
+    }
+
     /// <summary>Handing back what was read changes nothing, which is the case a guard that found nothing produces.</summary>
     /// <remarks>
     /// Asserted as the words and the shape rather than as the document, because a record holding lists compares those
@@ -165,6 +199,27 @@ public sealed class MailDocumentTextsTests
         removedRemoteReferenceCount: 0,
         retainedRemoteImageCount: 0,
         inlineImageCount: 1,
+        undrawnInlineImageCount: 0,
+        truncated: false);
+
+    private static MailDocument WithWrittenHeaders(string author, string date) => MailDocument.Reduced(
+        [
+            new MailParagraphBlock([Run("From: Ewa")], MailBlockAlignment.Inherited)
+            {
+                WrittenHeaders = new MailWrittenHeaders(1, author, date),
+            },
+            new MailQuoteBlock(
+                1,
+                [
+                    new MailParagraphBlock([Run("Quoted: From: Ewa")], MailBlockAlignment.Inherited)
+                    {
+                        WrittenHeaders = new MailWrittenHeaders(1, author, date),
+                    },
+                ]),
+        ],
+        removedRemoteReferenceCount: 0,
+        retainedRemoteImageCount: 0,
+        inlineImageCount: 0,
         undrawnInlineImageCount: 0,
         truncated: false);
 

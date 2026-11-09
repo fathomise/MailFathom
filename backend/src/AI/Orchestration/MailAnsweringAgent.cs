@@ -6,12 +6,14 @@ using MailFathom.AI.Chat;
 using MailFathom.AI.ProviderAdapters;
 using MailFathom.AI.Providers;
 using MailFathom.AI.Retrieval;
+using MailFathom.Application.Accounts;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Resilience;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Answering.Audit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -57,6 +59,7 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
     private readonly IAiProviderHealthRecorder healthRecorder;
     private readonly IMailAnsweringSpendLedger spendLedger;
     private readonly SensitiveContentEgressGuard egressGuard;
+    private readonly IMailAccountLanguages accountLanguages;
     private readonly IAgentInstructionEnvelope instructionEnvelope;
     private readonly ILoggerFactory loggerFactory;
     private readonly ILogger<MailAnsweringAgent> logger;
@@ -72,6 +75,7 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
     /// <param name="healthRecorder">Records what each call established about the provider.</param>
     /// <param name="spendLedger">Counts what every call of this run added to the current period.</param>
     /// <param name="egressGuard">Scans the question and every retrieved extract before either reaches the provider.</param>
+    /// <param name="accountLanguages">Answers the language each account in a question's scope is kept in, which the turn names.</param>
     /// <param name="instructionEnvelope">Supplies the text every composed agent's instruction is wrapped in, asked once per run.</param>
     /// <param name="loggerFactory">Creates the loggers the framework's own components record through.</param>
     /// <param name="logger">Records the outcome without recording any question, answer, or passage.</param>
@@ -87,6 +91,7 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
         IAiProviderHealthRecorder healthRecorder,
         IMailAnsweringSpendLedger spendLedger,
         SensitiveContentEgressGuard egressGuard,
+        IMailAccountLanguages accountLanguages,
         IAgentInstructionEnvelope instructionEnvelope,
         ILoggerFactory loggerFactory,
         ILogger<MailAnsweringAgent> logger)
@@ -101,6 +106,7 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
         ArgumentNullException.ThrowIfNull(healthRecorder);
         ArgumentNullException.ThrowIfNull(spendLedger);
         ArgumentNullException.ThrowIfNull(egressGuard);
+        ArgumentNullException.ThrowIfNull(accountLanguages);
         ArgumentNullException.ThrowIfNull(instructionEnvelope);
         ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(logger);
@@ -115,6 +121,7 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
         this.healthRecorder = healthRecorder;
         this.spendLedger = spendLedger;
         this.egressGuard = egressGuard;
+        this.accountLanguages = accountLanguages;
         this.instructionEnvelope = instructionEnvelope;
         this.loggerFactory = loggerFactory;
         this.logger = logger;
@@ -134,13 +141,15 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
         // attempt below, so a run the fallback model answered names that model rather than the one that could not.
         observation.RecordComposition(this.plan.Endpoint.Alias, MailAnsweringInstructions.Version);
 
+        var languages = MailboxLanguages.Of(question.Scope.AccountIds, this.accountLanguages);
+
         // The question and the anchor are one turn, so the bound on what one call may carry is the bound on that turn
         // rather than on the question alone: a ceiling applied before the anchor is prepended is a ceiling the anchor
         // then carries the request past. What the retrieval adds beside it is bounded where the passages are built, and
         // the run's instruction is this build's own text inside the envelope registration supplied rather than
         // anything a caller composes.
         ChatRequestBounds.Require(
-            [new ChatMessage(ChatRole.User, ComposeTurn(question.AskedAt, question.Text.Value))],
+            [new ChatMessage(ChatRole.User, ComposeTurn(question.AskedAt, languages, question.Text.Value))],
             this.plan.MaximumMessagesPerRequest,
             this.plan.MaximumRequestCharacters,
             this.plan.MaximumRequestImageOctets);
@@ -160,6 +169,7 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
                 this.logger,
                 (model, attemptToken) => this.ConductAsync(
                     question,
+                    languages,
                     model,
                     observation,
                     retrieval,
@@ -184,6 +194,7 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
     /// </remarks>
     private async Task<MailAnswer> ConductAsync(
         MailQuestion question,
+        IReadOnlyList<MailAccountLanguage> languages,
         ChatGenerationPlan model,
         MailAnsweringRunObservation observation,
         ScopedMailKnowledgeRetrieval retrieval,
@@ -193,7 +204,7 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
         // Against this model's own bounds rather than the main model's, because a fallback may be declared narrower
         // and a question too wide for it is refused here rather than sent and billed for.
         ChatRequestBounds.RequireForAttempt(
-            [new ChatMessage(ChatRole.User, ComposeTurn(question.AskedAt, question.Text.Value))],
+            [new ChatMessage(ChatRole.User, ComposeTurn(question.AskedAt, languages, question.Text.Value))],
             model);
 
         var endpoint = model.Endpoint;
@@ -229,7 +240,7 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
             question.Text.Value,
             cancellationToken);
 
-        var turn = ComposeTurn(question.AskedAt, questionText);
+        var turn = ComposeTurn(question.AskedAt, languages, questionText);
 
         var agent = MailAnsweringAgentComposition.Compose(
             chatClient,
@@ -268,7 +279,11 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
     /// <returns>The answer, or <see langword="null" /> where the text is blank, which the run fails as an empty answer.</returns>
     internal static MailAnswer? AnswerOf(string? text) => string.IsNullOrWhiteSpace(text) ? null : new MailAnswer(text);
 
-    /// <summary>Composes the one turn a run sends: the instant the question was asked at, and the question itself.</summary>
+    /// <summary>The sentence closing every turn, restating the language the answer is written in.</summary>
+    internal const string AnswerLanguageStatement =
+        "Write the answer in the language this question is written in, whatever language the mail you find is in.";
+
+    /// <summary>Composes the one turn a run sends: the instant the question was asked at, the languages the mailboxes in scope are kept in, and the question itself.</summary>
     /// <remarks>
     /// The anchor is stated on the turn beside the question and never in the instruction: the instruction is this run's
     /// audited policy, recorded as the digest of its own text, so a value that changes per call would make that digest
@@ -276,17 +291,21 @@ internal sealed class MailAnsweringAgent : IMailQuestionAnswerer
     /// absolute instants, as a date the model recalled rather than one it was given. Composed through one method so the
     /// bounds above are applied to the turn that is actually sent rather than to the question the anchor expands. The
     /// question is written in the person's ask element, which is the one place the composed instruction says the
-    /// person's wishes are read from.
+    /// person's wishes are read from. The answer's language is restated after it because a model that has just read
+    /// mail in another language drifts into that language, and the turn is the text read last. The mailboxes' languages
+    /// ride beside the anchor for the reason it does, which <see cref="MailboxLanguages" /> gives.
     /// </remarks>
     /// <param name="askedAt">The instant the question was asked at.</param>
+    /// <param name="languages">The languages the mailboxes in the question's scope are kept in, each once.</param>
     /// <param name="questionText">The question, as guarded for the provider.</param>
     /// <returns>The turn.</returns>
-    internal static string ComposeTurn(DateTimeOffset askedAt, string questionText)
+    internal static string ComposeTurn(DateTimeOffset askedAt, IReadOnlyList<MailAccountLanguage> languages, string questionText)
     {
         using var document = new AgentTurnDocument();
 
-        document.WriteStatement($"{AgentTimeAnchor.Stated(askedAt)}\n\n");
+        document.WriteStatement($"{AgentTimeAnchor.Stated(askedAt)}\n{MailboxLanguages.Stated(languages)}\n");
         document.WriteAsk(questionText);
+        document.WriteStatement($"\n\n{AnswerLanguageStatement}");
 
         return document.Complete();
     }

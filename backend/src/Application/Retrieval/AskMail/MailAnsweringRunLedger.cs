@@ -87,7 +87,9 @@ public sealed class MailAnsweringRunLedger
 
             foreach (var passage in found)
             {
-                if (this.retrievedCharacters + passage.Text.Length > this.Bounds.MaximumRetrievedCharacters)
+                var characters = RetrievedCharactersOf(passage);
+
+                if (this.retrievedCharacters + characters > this.Bounds.MaximumRetrievedCharacters)
                 {
                     // Stopping at the first passage that does not fit rather than searching the rest for a smaller one:
                     // retrieval handed these over in relevance order, and skipping ahead would silently prefer short
@@ -97,7 +99,7 @@ public sealed class MailAnsweringRunLedger
                     break;
                 }
 
-                this.retrievedCharacters += passage.Text.Length;
+                this.retrievedCharacters += characters;
                 this.retrievedMessages.Add(passage.StoredEmailId.Value);
                 admitted.Add(passage);
             }
@@ -105,6 +107,14 @@ public sealed class MailAnsweringRunLedger
             return admitted;
         }
     }
+
+    /// <summary>Counts what one passage spends of the run's allowance: its extract and the sender written beside it.</summary>
+    /// <remarks>
+    /// The sender counts because it is mail the passage hands a provider exactly as the extract is, written by whoever
+    /// wrote the message; the identity and the coordinates beside them are this deployment's own and count for nothing.
+    /// </remarks>
+    private static int RetrievedCharactersOf(EmailKnowledgePassage passage) =>
+        passage.Text.Length + (passage.SenderDisplayName?.Length ?? 0) + (passage.SenderAddress?.Length ?? 0);
 
     /// <summary>Takes this run's allowance for one more provider call.</summary>
     /// <exception cref="MailAnsweringBudgetExhaustedException">Thrown when the run has made every call it may make, or has consumed every token it may consume.</exception>

@@ -197,7 +197,7 @@ public sealed class OrchestratedOutgoingEmailStoreTests(MailFathomOrchestrationF
         // Act
         var announced = await services.CommitAsync(
             (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
-                .RecordTransmissionBegunAsync(session, claimed.Lease, enqueued.Id, deliveryNotificationCarried: null, token),
+                .RecordTransmissionBegunAsync(session, claimed.Lease, enqueued.Id, deliveryNotificationCarried: null, DateTimeOffset.UnixEpoch, token),
             cancellationToken);
 
         // Assert
@@ -294,7 +294,7 @@ public sealed class OrchestratedOutgoingEmailStoreTests(MailFathomOrchestrationF
         // Act
         var announced = await services.CommitAsync(
             (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
-                .RecordTransmissionBegunAsync(session, claimed.Lease, enqueued.Id, carried, token),
+                .RecordTransmissionBegunAsync(session, claimed.Lease, enqueued.Id, carried, DateTimeOffset.UnixEpoch, token),
             cancellationToken);
 
         // Assert
@@ -489,6 +489,41 @@ public sealed class OrchestratedOutgoingEmailStoreTests(MailFathomOrchestrationF
         Assert.Equal(OrchestratedCallerPrincipal, found.Principal);
     }
 
+    /// <summary>
+    /// The instant a transmission began is what the sent copy is dated and signed with and what the stored copy reads as
+    /// its sent instant, so it reads back as written, and a deferral that offers the send again later leaves it alone
+    /// until the next attempt writes its own.
+    /// </summary>
+    [Fact]
+    public async Task RecordTransmissionBegunAsync_AnInstantInWholeSeconds_ReadsBackUnchangedAndSurvivesADeferral()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var request = CreateRequest("outbox-transmitted-at-round-trip", "nora@example.test");
+        var enqueued = await EnqueueAsync(services, request, MimeOf("transmitted-at-round-trip"), cancellationToken);
+        var claimed = await ClaimAsync(services, enqueued.Id, cancellationToken);
+        var transmittedAt = new DateTimeOffset(2026, 11, 9, 10, 15, 42, TimeSpan.Zero);
+
+        // Act
+        await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
+                .RecordTransmissionBegunAsync(session, claimed.Lease, enqueued.Id, deliveryNotificationCarried: null, transmittedAt, token),
+            cancellationToken);
+        var recorded = await FindAsync(services, enqueued.Id, cancellationToken);
+
+        await services.CommitAsync(
+            (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
+                .DeferAsync(session, claimed.Lease, enqueued.Id, DateTimeOffset.UnixEpoch, failure: null, token),
+            cancellationToken);
+        var deferred = await FindAsync(services, enqueued.Id, cancellationToken);
+
+        // Assert
+        Assert.Equal(transmittedAt, recorded?.TransmittedAt);
+        Assert.Equal(OutgoingEmailStage.Recorded, deferred?.Stage);
+        Assert.Equal(transmittedAt, deferred?.TransmittedAt);
+    }
+
     /// <summary>Reads one record back the way the tools over a queued send do.</summary>
     private static Task<OutgoingEmailRecord?> FindAsync(
         OrchestratedMailFathomServices services,
@@ -515,7 +550,7 @@ public sealed class OrchestratedOutgoingEmailStoreTests(MailFathomOrchestrationF
 
         await services.CommitAsync(
             (scope, session, token) => scope.GetRequiredService<IOutgoingEmailStore>()
-                .RecordTransmissionBegunAsync(session, claimed.Lease, outgoingEmailId, deliveryNotificationCarried: null, token),
+                .RecordTransmissionBegunAsync(session, claimed.Lease, outgoingEmailId, deliveryNotificationCarried: null, DateTimeOffset.UnixEpoch, token),
             cancellationToken);
 
         await services.CommitAsync(

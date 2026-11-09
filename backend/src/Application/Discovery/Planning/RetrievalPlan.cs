@@ -31,6 +31,16 @@ public sealed record RetrievalPlan
     /// </remarks>
     public const int MaximumLookups = 6;
 
+    /// <summary>The greatest number of lookups the follow-up round may add to a plan once its own lookups have run.</summary>
+    /// <remarks>
+    /// The round exists for the wording the first plan could not predict — a code, a name, or a word an extract it
+    /// found revealed — so it adds a few lookups rather than a second plan. It is fixed in code, like
+    /// <see cref="MaximumLookups" />, because how much one question may search is not a deployment decision. Each of
+    /// those lookups is assured <see cref="MessagesAssuredPerLookup" /> messages beyond <see cref="MessageAllowance" />,
+    /// which the plan's own lookups usually fill.
+    /// </remarks>
+    public const int MaximumFollowUpLookups = 3;
+
     /// <summary>
     /// How many messages every lookup may hand over passages of, whatever number of passages the plan called enough,
     /// where what one retrieval returns holds that many for each lookup.
@@ -65,7 +75,7 @@ public sealed record RetrievalPlan
     /// </remarks>
     public int SufficientPassages { get; }
 
-    /// <summary>Gets the number of distinct messages a run may hand over passages of to answer from.</summary>
+    /// <summary>Gets the number of distinct messages the plan's own lookups may hand over passages of to answer from.</summary>
     /// <remarks>
     /// The larger of <see cref="SufficientPassages" /> and <see cref="MessagesAssuredPerLookup" /> for every lookup,
     /// within what one retrieval may return, so a plan whose lookups would need more than that gets an equal part of it
