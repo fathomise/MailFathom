@@ -8,9 +8,9 @@ import { folder, holdTheClock, messageRegion, openSignedIn, openWithTheChannel, 
 import type { FakeDeployment } from './fakeDeployment';
 
 // The client losing its way to the deployment and finding it again: the machine going offline, and the deployment
-// itself going quiet. Each is read off every screen it reaches — the rail's alarm, the freshness line, the list, the
-// open message, and a search — and off the requests the page issued, because what the client promises about both is
-// that nothing already on the screen is thrown away and that it comes back by itself.
+// itself going quiet. Each is read off every screen it reaches — the rail's alarm, the freshness line, the folder tree,
+// the list, the open message, and a search — and off the requests the page issued, because what the client promises
+// about both is that nothing already on the screen is thrown away and that it comes back by itself.
 
 /**
  * What a signed-in frame says once the server is out of reach: the rail's alarm, and the freshness line saying it no
@@ -34,11 +34,23 @@ function attempting(page: Page, attempt: number) {
     return page.getByText(`The server did not answer. Trying again - attempt ${String(attempt)} of 5.`);
 }
 
+/** Where the page records that the folder column's reading note was drawn. */
+const readingNoteDrawn = 'mailfathomReadingNoteDrawn';
+
+// A string rather than a closure because this suite compiles without a DOM declaration, as `client.harness.ts` says.
+const watchForTheReadingNote = `
+    new MutationObserver((records) => {
+        if (records.some((record) => record.target.textContent?.includes('Reading mailboxes and folders…'))) {
+            globalThis.${readingNoteDrawn} = true;
+        }
+    }).observe(document.body, { childList: true, subtree: true, characterData: true })
+`;
+
 function sessionReads(deployment: FakeDeployment): number {
     return deployment.requests('GET', '/session').length;
 }
 
-test('says the server is out of reach while keeping the list and the open message, and reads both again once the network is back', async ({
+test('says the server is out of reach while keeping the folders, the list, and the open message, and reads them again once the network is back', async ({
     page,
     context,
     deployment,
@@ -54,21 +66,29 @@ test('says the server is out of reach while keeping the list and the open messag
 
     await expect(outOfReach(page)).toBeVisible();
     await expect(mailboxesUnknown(page)).toBeVisible();
+    await expect(folder(page, 'Inbox 12 unread')).toBeVisible();
     await expect(row(page, 'Message 0')).toBeVisible();
     await expect(row(page, 'Message 7')).toBeVisible();
     await expect(message).toBeVisible();
     await expect.poll(() => deployment.channelsOpen()).toBe(0);
 
+    const folderReads = deployment.requests('GET', '/folders').length;
     const listReads = deployment.requests('GET', '/emails').length;
     const messageReads = deployment.requests('GET', '/messages/message-7').length;
 
+    // The folder read on return answers at once here, so an absence asserted after it would pass for a column that
+    // blanked for exactly that long. What is asked instead is whether the sentence entered the document at all.
+    await page.evaluate(watchForTheReadingNote);
     await context.setOffline(false);
 
     await expect(outOfReach(page)).toHaveCount(0);
     await expect(mailboxesUnknown(page)).toHaveCount(0);
     await expect.poll(() => deployment.channelsOpen()).toBe(1);
+    await expect.poll(() => deployment.requests('GET', '/folders').length).toBeGreaterThan(folderReads);
     await expect.poll(() => deployment.requests('GET', '/emails').length).toBeGreaterThan(listReads);
     await expect.poll(() => deployment.requests('GET', '/messages/message-7').length).toBeGreaterThan(messageReads);
+    await expect(folder(page, 'Inbox 12 unread')).toBeVisible();
+    expect(await page.evaluate(`globalThis.${readingNoteDrawn} === true`)).toBe(false);
     await expect(row(page, 'Message 0')).toBeVisible();
     await expect(message).toBeVisible();
 });
