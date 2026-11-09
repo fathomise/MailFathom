@@ -70,7 +70,7 @@ public sealed record EmailProvenance
     /// </remarks>
     public UnsentEmailState? Unsent { get; init; }
 
-    /// <summary>Gets the categories the email's account shows for it, in ordinal order, each a default's published identity or a name the account wrote.</summary>
+    /// <summary>Gets the categories the email's account shows for it, in the order it shows them, each a default's published identity or a name the account wrote.</summary>
     /// <remarks>
     /// A model's reading of the email rather than anything established about it, which a message's own text can move, so
     /// it says what sort of mail this may be and never who sent it or whether to act on it. A default the account
