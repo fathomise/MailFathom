@@ -311,8 +311,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
      no label is left out here, so everything past this point has only names to draw. */
   const CATEGORY_LABEL = "display:block;box-sizing:border-box;min-width:0;font-size:12px;line-height:16px;border-radius:4px;padding:0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);border:1px solid var(--border2);";
   const orderedCategories = (keys) => Object.keys(CATEGORIES.names).filter(k => CATEGORIES.names[k] && keys.includes(k)).map(k => CATEGORIES.names[k]);
-  /* `receivedAfter` counts the received messages newer than this one, so the newest message is 0. */
-  const messageCategories = (threadId, receivedAfter) => orderedCategories((CATEGORIES.messages[threadId] || [])[receivedAfter] || []);
+  /* `newer` counts the thread's messages newer than this one, so the newest message is 0. */
+  const messageCategories = (threadId, newer) => orderedCategories((CATEGORIES.messages[threadId] || [])[newer] || []);
   const conversationCategories = (threadId) => orderedCategories((CATEGORIES.messages[threadId] || []).flat());
   /* A name only says more than its label where the label may have ended in an ellipsis. */
   const categoryLabel = (name, width) => ({ name, tip: name.length > 18 ? name : undefined, style: CATEGORY_LABEL + (name.length > 18 ? "flex:0 1 auto;" : "flex:0 0 auto;") + "max-width:" + width + "px;" });
@@ -4766,7 +4766,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ...(m.mine ? { rptShown: false } : reportLine(thread)),
           ...(m.mine ? { markShown: false } : badgeOf(thread.id, m.from)),
           ...(() => {
-            const names = m.mine || threadSpam.spam ? [] : messageCategories(thread.id, msgs.slice(i + 1).filter(x => !x.mine).length);
+            /* A reply read by thread alone (`sentLast`) stands past the sample's newest message and holds none. */
+            const names = threadSpam.spam ? [] : messageCategories(thread.id, msgs.length - 1 - i - (convMail && SENT_LAST[thread.id] ? 1 : 0));
             return {
               catsShown: names.length > 0,
               cats: names.map(n => categoryLabel(n, 240)),
