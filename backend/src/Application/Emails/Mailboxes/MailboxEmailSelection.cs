@@ -166,8 +166,8 @@ public sealed record MailboxEmailSelection
     /// <param name="subjectFragment">The fragment the subject must contain, or <see langword="null" /> for any subject.</param>
     /// <param name="receivedOnOrAfter">The inclusive start of the received range, or <see langword="null" /> for no start.</param>
     /// <param name="receivedBefore">The exclusive end of the received range, or <see langword="null" /> for no end.</param>
-    /// <param name="isMarkedSeen">The remote <c>\Seen</c> state to require, or <see langword="null" /> for either.</param>
-    /// <param name="isFlagged">The remote <c>\Flagged</c> state to require, or <see langword="null" /> for either.</param>
+    /// <param name="isMarkedSeen">The <c>\Seen</c> mark to require, or <see langword="null" /> for either.</param>
+    /// <param name="isFlagged">The <c>\Flagged</c> state to require, or <see langword="null" /> for either.</param>
     /// <param name="keyword">The keyword an email must carry, in any case, or <see langword="null" /> for any.</param>
     /// <param name="hasAttachments">Whether attachments are required, or <see langword="null" /> for either.</param>
     /// <param name="mark">The reading a derivation must have made about the email, or <see langword="null" /> when no reading is required.</param>

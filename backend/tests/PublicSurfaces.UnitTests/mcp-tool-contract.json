@@ -1549,7 +1549,7 @@
                         "type": "array"
                       },
                       "observedAt": {
-                        "description": "When a mail server last reported these flags, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet.",
+                        "description": "When a mail server last reported these flags, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet. On a message stored with no occurrence on any server it is the moment the message was stored.",
                         "format": "date-time",
                         "type": [
                           "string",
@@ -3040,7 +3040,7 @@
                     "type": "array"
                   },
                   "observedAt": {
-                    "description": "When a mail server last reported these flags, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet.",
+                    "description": "When a mail server last reported these flags, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet. On a message stored with no occurrence on any server it is the moment the message was stored.",
                     "format": "date-time",
                     "type": [
                       "string",
@@ -4553,7 +4553,7 @@
                         "type": "array"
                       },
                       "observedAt": {
-                        "description": "When a mail server last reported these flags, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet.",
+                        "description": "When a mail server last reported these flags, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet. On a message stored with no occurrence on any server it is the moment the message was stored.",
                         "format": "date-time",
                         "type": [
                           "string",

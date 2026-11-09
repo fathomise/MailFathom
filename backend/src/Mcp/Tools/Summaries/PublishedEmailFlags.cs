@@ -40,7 +40,7 @@ internal sealed record PublishedEmailFlags
     public required IReadOnlyList<string> Keywords { get; init; }
 
     /// <summary>Gets when a server last reported the flags, or <see langword="null" /> when no run has observed them.</summary>
-    [Description("When a mail server last reported these flags, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet.")]
+    [Description("When a mail server last reported these flags, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet. On a message stored with no occurrence on any server it is the moment the message was stored.")]
     public DateTimeOffset? ObservedAt { get; init; }
 
     /// <summary>Gets whether the flags have been recorded at all.</summary>

@@ -126,7 +126,7 @@ public readonly record struct MailRuleFact
 
     #endregion
 
-    #region What the server says about it
+    #region What is recorded about its flags
 
     /// <summary>Gets whether the email is marked read.</summary>
     public static MailRuleFact IsSeen { get; } = new("isSeen", MailRuleFactType.Boolean);

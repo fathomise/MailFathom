@@ -5,7 +5,10 @@
 namespace MailFathom.Domain.Emails;
 
 /// <summary>Holds the flags MailFathom stores for one email, read from its row.</summary>
-/// <param name="ObservedAt">When a server last reported these flags, or <see langword="null" /> while none has.</param>
+/// <param name="ObservedAt">
+/// When a server last reported these flags, or <see langword="null" /> while none has. On a row stored with no occurrence
+/// on any server it is the moment the row was stored, with nothing observed.
+/// </param>
 /// <param name="IsSeen">Whether the <c>\Seen</c> mark is set.</param>
 /// <param name="IsAnswered">Whether <c>\Answered</c> is set.</param>
 /// <param name="IsFlagged">Whether <c>\Flagged</c> is set.</param>

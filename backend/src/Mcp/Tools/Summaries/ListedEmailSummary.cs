@@ -103,7 +103,7 @@ internal sealed record ListedEmailSummary
     /// <summary>Gets what the email carries besides its body.</summary>
     public required ListedEmailAttachments Attachments { get; init; }
 
-    /// <summary>Gets the flags the last synchronization run observed on the server.</summary>
+    /// <summary>Gets the flags MailFathom holds for the email, and when a server last reported them.</summary>
     public required PublishedEmailFlags Flags { get; init; }
 
     /// <summary>Gets whether raw content is available locally, and the reason when it is not.</summary>
