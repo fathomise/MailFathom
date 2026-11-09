@@ -48,6 +48,8 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
 
     private const uint ForgottenUid = 814;
 
+    private const uint ForgottenWithoutOccurrenceUid = 815;
+
     /// <summary>Past the payload PostgreSQL keeps in a heap page, so the figure moves by a length no rounding could produce.</summary>
     private const int PayloadByteCount = 64 * 1024;
 
@@ -297,7 +299,7 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
         var binding = await OrchestratedFolderBinding.CommitAsync(services, FolderAlias, cancellationToken);
-        var occurrenceId = SyntheticEmail.OccurrenceIn(binding, ForgottenUid);
+        var occurrenceId = SyntheticEmail.OccurrenceIn(binding, ForgottenWithoutOccurrenceUid);
         var storedEmailId = await StoreAsync(
             services,
             occurrenceId,
@@ -326,13 +328,16 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
 
         // Assert
         var remembered = await services.InScopeAsync(
-            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().MailboxForgottenOccurrences
-                .AsNoTracking()
-                .CountAsync(occurrence => occurrence.Uid == ForgottenUid, token),
+            (scope, token) => scope.GetRequiredService<IForgottenOccurrenceStore>().ReadForgottenUidsAsync(
+                SyntheticMailAccount.Account,
+                binding.Id,
+                occurrenceId.UidValidity,
+                [occurrenceId.Uid],
+                token),
             cancellationToken);
 
         Assert.Equal(0, await CountStoredEmailRowsAsync(services, storedEmailId, cancellationToken));
-        Assert.Equal(0, remembered);
+        Assert.Empty(remembered);
     }
 
     /// <summary>Reads through the store inside a session of its own, which is the only way the port reads.</summary>
