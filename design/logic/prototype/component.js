@@ -4497,7 +4497,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       };
       /* A row draws two categories at most, one where the list is narrow, and +N naming the rest. On a message row they
          close the third line, after the AI reading, which gives way first; read by conversation they take the second of the
-         two lines the newest message's opening has, so what a model titled keeps its room and neither row grows. */
+         two lines the newest message's opening has, so what a model titled keeps its room, and the row grows by its own gap. */
       const withCategories = (t, row) => {
         const names = this.spamOf(t.id).spam ? [] : convMail ? conversationCategories(t.id) : messageCategories(t.id, 0);
         const shown = names.slice(0, listCompact ? 1 : 2);
@@ -4510,7 +4510,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           catsMore: "+" + rest.length,
           catsRest: rest.join(", "),
           catsMoreStyle: CATEGORY_LABEL + "flex:0 0 auto;overflow:visible;",
-          catsStyle: "display:flex;align-items:center;gap:4px;min-width:0;flex:0 0 auto;" + (convMail ? "height:18.2px;margin-top:-" + (isMobile ? 6 : 5) + "px;" : "max-width:" + (listCompact ? 50 : 62) + "%;" + (row.showAi ? "margin-left:auto;" : "")),
+          catsStyle: "display:flex;align-items:center;gap:4px;min-width:0;flex:0 0 auto;" + (convMail ? "" : "max-width:" + (listCompact ? 50 : 62) + "%;" + (row.showAi ? "margin-left:auto;" : "")),
           ...(convMail && names.length > 0 ? { convSnippetStyle: row.convSnippetStyle.replace("line-clamp:2", "line-clamp:1") } : {}),
         });
       };
