@@ -6,6 +6,7 @@ using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Accounts.Custody;
 using MailFathom.Application.AiProviders;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Contacts;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.Coordination;
@@ -386,6 +387,18 @@ internal static class SynchronizationTestHost
         services.AddScoped<EmailSpamClassifier>();
         services.AddScoped<SpamActionRecorder>();
         services.AddScoped<SpamClassificationPass>();
+        // Categorization rides the same run. No account these tests configure sorts its mail, so the pass answers before
+        // it reads anything.
+        services.AddSingleton(Substitute.For<IEmailCategoryStore>());
+        services.AddSingleton(SensitiveContentEgressGuards.Inactive());
+        services.AddSingleton(Substitute.For<IEmailCategoryJudge>());
+        services.AddSingleton(CreateCategorizationSettingsReader());
+        services.AddSingleton(Substitute.For<IEmailCategorizationTelemetry>());
+        services.AddScoped(_ => new SpamModelEvidenceReader(
+            Substitute.For<IEmailContentRenderer>(),
+            Substitute.For<IEmailProvenanceReader>(),
+            SpamModelStageBounds.Default));
+        services.AddScoped<EmailCategorizationPass>();
         // The spam floor rides the same run, one step before the classification walk, whatever classification says. No
         // mail these tests store sits below it, so the default reader answers with nothing and the pass writes nothing.
         services.AddSingleton(floorCandidateReader ?? CreateFloorCandidateReaderWithNothingBelowTheFloor());
@@ -606,6 +619,14 @@ internal static class SynchronizationTestHost
     }
 
     /// <summary>Answers with classification switched off, which is what a deployment configuring none of it runs with.</summary>
+    private static IEmailCategorizationSettingsReader CreateCategorizationSettingsReader()
+    {
+        var reader = Substitute.For<IEmailCategorizationSettingsReader>();
+        reader.SettingsFor(Arg.Any<MailAccountId>()).Returns(EmailCategorizationSettings.Disabled);
+
+        return reader;
+    }
+
     private static ISpamClassificationSettingsReader CreateClassificationSettingsReader()
     {
         var reader = Substitute.For<ISpamClassificationSettingsReader>();

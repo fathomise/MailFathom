@@ -216,7 +216,7 @@ The decision client is composed like a chat client: a `DelegatingDecisionClient`
 
   It takes none of the chat block's other keys. A decision has no generation parameters, so `Api`, `MaxOutputTokens`, `Temperature`, `TopP`, and `ReasoningEffort` do not apply. `StickySessions` and `ExtraHeaders` are refused, because a session or a static header would link requests at the router. `AdditionalProperties` is refused as well, because the adapter owns every request member: `provider`, `session_id`, `user`, and `trace` included. That is what keeps section 5's routing block impossible to loosen from configuration.
 
-  The operator also states `Decisions:DefaultModel` and, optionally, `Decisions:SpamClassification:Model`. Each is an `Alias` alone, with no `Fallback`, for the reason the resilience row above gives. An alias that names a chat model is refused at startup, and so is a model value beginning with `~`.
+  The operator also states `Decisions:DefaultModel` and, optionally, `Decisions:SpamClassification:Model` and `Decisions:EmailCategorization:Model`. Each is an `Alias` alone, with no `Fallback`, for the reason the resilience row above gives. An alias that names a chat model is refused at startup, and so is a model value beginning with `~`.
 - **With no decision model declared**, nothing calls the API. An account record switching the model stage on is **refused at the write**, and the refusal names `Decisions:Models`. That is how an account asking for a personal-data scanner the deployment cannot reach is refused today. A record that asked for the stage before its model was removed classifies through the deterministic stage alone, and startup logs a warning naming the key. The stage never fails closed: a missing model, an unreachable provider, an exhausted balance, and an unreadable answer all leave the deterministic result exactly where it was.
 
 ### The exception to ADR 0011, and its exit
@@ -284,6 +284,16 @@ On 2026-10-25 the first half had arrived and the second had not. OpenAI's own gu
 - Bad, because it is outside the owner's direction for now.
 - Bad, because it is still a second wire protocol, since no .NET SDK in the stack calls it. It would add a second adapter while leaving the exception open.
 - Bad, because it offers one model, and that model has no zero-retention endpoint at OpenRouter. Reached directly, it would need its own data-processing review.
+
+## Amendments
+
+### Amendment 1: a second function asks what each message is
+
+Issue 3118 adds `EmailCategorization`, the second decision function. It asks one request per arriving message: a choice between the seven default categories, and a yes or no per category the account named. Everything this record decides about the client, the budget, the routing block, and the absence of a fallback model holds for it unchanged. `Decisions:EmailCategorization:Model` names its model beside `Decisions:SpamClassification:Model`, and takes an `Alias` alone. A probability is judged against the one build it was calibrated on here as well, so there is no fallback model; a failure leaves the message with no category.
+
+**It crosses an egress point of its own, `email_categorization_input`.** What crosses it is the table in section 4 and one thing more, a reply's bounded opening of its conversation, because a short reply says nothing about what it concerns. A point of its own for the reason section 4 gives: the volume follows the mail rather than a question, and a rate merged with spam classification's would hide which stage a scanner withheld from. The account's scanning posture applies in full, and an opening is left out where its own message may not be shown to a model.
+
+**What the mailbox wrote about itself is treated differently from its mail.** An own category's description is sent as written and unguarded, because it is text the account authored in its own configuration rather than anybody's correspondence, and it is the criterion the question is read against. Its name is not sent: a question is identified by a digest of the name, so a name a person chose for a subject stays in the deployment. A description is therefore something to write knowing a third party reads it, and the configuration reference says so.
 
 ## More Information
 

@@ -64,7 +64,7 @@ internal static class SpamClassificationTurn
         SpamModelJob job,
         CancellationToken cancellationToken) =>
         Compose(
-            await GuardedAsync(evidence, egressGuard, cancellationToken),
+            await GuardedAsync(evidence, egressGuard, SensitiveContentEgressPoint.SpamClassificationInput, cancellationToken),
             Math.Max(0, maximumRequestCharacters - SpamClassificationQuestions.ReservedCharactersFor(job)));
 
     /// <summary>Writes evidence whose values are already guarded, with no bound of its own.</summary>
@@ -83,7 +83,14 @@ internal static class SpamClassificationTurn
     /// on every attempt. Each pass cuts the document by what the escaped text overran, which shortens the escaped text by
     /// at least as much, so the passes end; only a structure larger than the whole allowance is returned past it.
     /// </remarks>
-    internal static string Compose(SpamModelEvidence evidence, int allowance)
+    internal static string Compose(SpamModelEvidence evidence, int allowance) => Compose(evidence, allowance, writeBeforeBody: null);
+
+    /// <summary>Writes evidence whose values are already guarded, with what another function adds to it, cut until the request body carries no more than an allowance of it.</summary>
+    /// <param name="evidence">The guarded evidence.</param>
+    /// <param name="allowance">The most characters the input may take in the request body, as JSON escapes it there.</param>
+    /// <param name="writeBeforeBody">Writes whatever the function adds, inside the message and ahead of its body, or <see langword="null" /> where it adds nothing.</param>
+    /// <returns>The input text.</returns>
+    internal static string Compose(SpamModelEvidence evidence, int allowance, Action<AgentTurnDocument>? writeBeforeBody)
     {
         ArgumentNullException.ThrowIfNull(evidence);
 
@@ -91,7 +98,7 @@ internal static class SpamClassificationTurn
 
         while (true)
         {
-            var input = AgentTurnDocument.Compose(budget, document => Write(document, evidence));
+            var input = AgentTurnDocument.Compose(budget, document => Write(document, evidence, writeBeforeBody));
             var carried = JsonEncodedText.Encode(input).Value.Length;
 
             if (carried <= allowance || budget == 0)
@@ -103,7 +110,7 @@ internal static class SpamClassificationTurn
         }
     }
 
-    private static void Write(AgentTurnDocument document, SpamModelEvidence evidence)
+    private static void Write(AgentTurnDocument document, SpamModelEvidence evidence, Action<AgentTurnDocument>? writeBeforeBody)
     {
         document.StartElement(MessageElementName);
         document.WriteSender(evidence.AuthorAuthentication, evidence.IsSenderTrusted);
@@ -164,20 +171,25 @@ internal static class SpamClassificationTurn
             document.EndElement();
         }
 
+        writeBeforeBody?.Invoke(document);
         document.WriteQuoted(BodyElementName, evidence.Body, evidence.IsBodyCut);
         document.EndElement();
     }
 
     /// <summary>Returns the evidence with every value but the two addresses replaced by what the guard let through.</summary>
-    private static async Task<SpamModelEvidence> GuardedAsync(
+    /// <param name="evidence">The evidence, as it was read.</param>
+    /// <param name="egressGuard">Withholds from the provider whatever the account's posture withholds.</param>
+    /// <param name="point">The egress point the values cross.</param>
+    /// <param name="cancellationToken">Withdraws the scan.</param>
+    /// <returns>The guarded evidence.</returns>
+    internal static async Task<SpamModelEvidence> GuardedAsync(
         SpamModelEvidence evidence,
         SensitiveContentEgressGuard egressGuard,
+        SensitiveContentEgressPoint point,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(evidence);
         ArgumentNullException.ThrowIfNull(egressGuard);
-
-        var point = SensitiveContentEgressPoint.SpamClassificationInput;
 
         var displayName = await egressGuard.GuardOptionalAsync(point, evidence.SenderDisplayName, cancellationToken);
         var subject = await egressGuard.GuardOptionalAsync(point, evidence.Subject, cancellationToken);

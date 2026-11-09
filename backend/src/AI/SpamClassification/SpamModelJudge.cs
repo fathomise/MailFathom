@@ -4,11 +4,11 @@
 
 using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Decisions;
+using MailFathom.Application.Decisions;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Detection;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Spam.Model;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -89,7 +89,7 @@ internal sealed class SpamModelJudge : ISpamModelJudge, IDisposable
 
         if (!await scope.ServiceProvider.GetRequiredService<IMailAnsweringSpendLedger>().TryAdmitRunAsync(cancellationToken))
         {
-            return this.Unanswered(job, SpamModelOutcome.BudgetExhausted, modelAlias: null);
+            return this.Unanswered(job, DecisionModelOutcome.BudgetExhausted, modelAlias: null);
         }
 
         string input;
@@ -105,13 +105,18 @@ internal sealed class SpamModelJudge : ISpamModelJudge, IDisposable
         }
         catch (SensitiveContentScannerUnavailableException)
         {
-            return this.Unanswered(job, SpamModelOutcome.ScannerUnavailable, modelAlias: null);
+            return this.Unanswered(job, DecisionModelOutcome.ScannerUnavailable, modelAlias: null);
         }
 
         var client = scope.ServiceProvider.GetRequiredKeyedService<IDecisionClient>(DecisionFunction.SpamClassification);
         var requestedModel = client.GetService<DecisionClientMetadata>()?.DefaultModelId ?? string.Empty;
 
-        var (response, outcome, alias) = await this.AskAsync(client, input, job, cancellationToken);
+        var (response, outcome, alias) = await DecisionConsultation.AskAsync(
+            client,
+            input,
+            SpamClassificationQuestions.For(job),
+            this.callSlots,
+            cancellationToken);
 
         if (response is null)
         {
@@ -120,7 +125,7 @@ internal sealed class SpamModelJudge : ISpamModelJudge, IDisposable
 
         if (SpamClassificationReading.Read(response, job, requestedModel) is not { } answer)
         {
-            return this.Unanswered(job, SpamModelOutcome.AnswerUnreadable, alias);
+            return this.Unanswered(job, DecisionModelOutcome.AnswerUnreadable, alias);
         }
 
         SpamClassificationEvents.LogAnswered(this.logger, job);
@@ -131,54 +136,7 @@ internal sealed class SpamModelJudge : ISpamModelJudge, IDisposable
     /// <inheritdoc />
     public void Dispose() => this.callSlots.Dispose();
 
-    /// <summary>Makes the one call, holding one of the replica's call slots for exactly as long as it runs.</summary>
-    /// <remarks>
-    /// A request too large for the declared model is refused by the adapter before it is sent, as an argument it names
-    /// <c>input</c>; that refusal is permanent for the message, so it is an outcome rather than a failure to retry. A
-    /// cancellation stays outside every catch, being the caller withdrawing the work rather than a provider failing.
-    /// </remarks>
-    private async Task<(DecisionResponse? Response, SpamModelOutcome Outcome, string? Alias)> AskAsync(
-        IDecisionClient client,
-        string input,
-        SpamModelJob job,
-        CancellationToken cancellationToken)
-    {
-        await this.callSlots.WaitAsync(cancellationToken);
-
-        try
-        {
-            var response = await client.DecideAsync(
-                [new ChatMessage(ChatRole.User, input)],
-                SpamClassificationQuestions.For(job),
-                options: null,
-                cancellationToken);
-
-            return (response, SpamModelOutcome.Answered, null);
-        }
-        catch (DecisionFailedException failure)
-        {
-            return (
-                null,
-                failure.Failure is DecisionFailure.AnswerUnreadable
-                    ? SpamModelOutcome.AnswerUnreadable
-                    : SpamModelOutcome.ProviderUnavailable,
-                failure.ModelAlias);
-        }
-        catch (MailAnsweringBudgetExhaustedException)
-        {
-            return (null, SpamModelOutcome.BudgetExhausted, null);
-        }
-        catch (ArgumentException refusal) when (refusal.ParamName == "input")
-        {
-            return (null, SpamModelOutcome.InputTooLarge, null);
-        }
-        finally
-        {
-            this.callSlots.Release();
-        }
-    }
-
-    private SpamModelJudgement Unanswered(SpamModelJob job, SpamModelOutcome outcome, string? modelAlias)
+    private SpamModelJudgement Unanswered(SpamModelJob job, DecisionModelOutcome outcome, string? modelAlias)
     {
         SpamClassificationEvents.LogUnanswered(this.logger, job, outcome, modelAlias ?? "(not reached)");
 

@@ -4,6 +4,7 @@
 
 using System.Security.Cryptography;
 using System.Text;
+using MailFathom.Application.Decisions;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Derivation;
@@ -82,7 +83,7 @@ public sealed class SpamModelStageTests
         Assert.Equal(SpamSubcategory.Scam, classification.Subcategory);
         Assert.Equal(0.7, classification.Assessment?.Score);
         Assert.Equal(settings.Profile, classification.Profile);
-        Assert.Equal([(SpamModelJob.DecideVerdict, SpamModelOutcome.Answered)], this.telemetry.Consultations);
+        Assert.Equal([(SpamModelJob.DecideVerdict, DecisionModelOutcome.Answered)], this.telemetry.Consultations);
     }
 
     [Fact]
@@ -155,12 +156,12 @@ public sealed class SpamModelStageTests
     }
 
     [Theory]
-    [InlineData(SpamModelOutcome.BudgetExhausted)]
-    [InlineData(SpamModelOutcome.ProviderUnavailable)]
-    [InlineData(SpamModelOutcome.AnswerUnreadable)]
-    [InlineData(SpamModelOutcome.InputTooLarge)]
-    [InlineData(SpamModelOutcome.ScannerUnavailable)]
-    public async Task DecideAsync_ModelLeavesNoAnswer_RecordsTheDeterministicReadingWholeAndCountsWhy(SpamModelOutcome outcome)
+    [InlineData(DecisionModelOutcome.BudgetExhausted)]
+    [InlineData(DecisionModelOutcome.ProviderUnavailable)]
+    [InlineData(DecisionModelOutcome.AnswerUnreadable)]
+    [InlineData(DecisionModelOutcome.InputTooLarge)]
+    [InlineData(DecisionModelOutcome.ScannerUnavailable)]
+    public async Task DecideAsync_ModelLeavesNoAnswer_RecordsTheDeterministicReadingWholeAndCountsWhy(DecisionModelOutcome outcome)
     {
         // Arrange
         var judge = new ScriptedSpamModelJudge(SpamModelJudgement.Unanswered(outcome));
@@ -189,7 +190,7 @@ public sealed class SpamModelStageTests
         // Assert
         Assert.Empty(judge.Asked);
         Assert.Equal(SpamClassificationProfile.Create(), classification.Profile);
-        Assert.Equal([(SpamModelJob.DecideVerdict, SpamModelOutcome.NotActivated)], this.telemetry.Consultations);
+        Assert.Equal([(SpamModelJob.DecideVerdict, DecisionModelOutcome.NotActivated)], this.telemetry.Consultations);
     }
 
     [Fact]
@@ -348,7 +349,7 @@ public sealed class SpamModelStageTests
                 evidence.Body,
                 cancellationToken));
 
-            return SpamModelJudgement.Unanswered(SpamModelOutcome.ProviderUnavailable);
+            return SpamModelJudgement.Unanswered(DecisionModelOutcome.ProviderUnavailable);
         }
     }
 }

@@ -327,7 +327,7 @@ internal sealed class UserAccountOptions : IValidatableObject
                     [MailAccountSpamModelStageOptions.EnabledPath]));
 
     /// <summary>Finds the refusal for every account of this record switching categorization on with no model to ask.</summary>
-    /// <param name="decisionModelDeclared">Whether this deployment declares a decision model at all.</param>
+    /// <param name="decisionModelDeclared">Whether a declared decision model serves categorization on this deployment.</param>
     /// <returns>One result per account asking for categorization while nothing could answer it, empty otherwise.</returns>
     /// <remarks>Asked of the account blocks being written and of no others, for the reason <see cref="FindSpamModelStageErrors" /> is.</remarks>
     internal IEnumerable<ValidationResult> FindCategorizationWithoutModelErrors(bool decisionModelDeclared) =>

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Decisions;
 using MailFathom.Application.Spam.Model;
 
 namespace MailFathom.AI.SpamClassification;
@@ -33,6 +34,6 @@ internal sealed class InactiveSpamModelJudge : ISpamModelJudge
         ArgumentNullException.ThrowIfNull(evidence);
         cancellationToken.ThrowIfCancellationRequested();
 
-        return Task.FromResult(SpamModelJudgement.Unanswered(SpamModelOutcome.NotActivated));
+        return Task.FromResult(SpamModelJudgement.Unanswered(DecisionModelOutcome.NotActivated));
     }
 }

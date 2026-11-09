@@ -6,6 +6,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.Calendar.Extraction;
+using MailFathom.Application.Categories;
+using MailFathom.Application.Decisions;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.AttachmentText.Limits;
 using MailFathom.Application.Emails.Chunking;
@@ -466,6 +468,7 @@ internal sealed partial class AccountSynchronizationSupervisor
                     token => this.EraseExpiredDerivedRecordsAsync(runSettings, token),
                     token => this.LiftMailToSpamFloorAsync(runSettings, token),
                     token => this.ClassifyRequestedMailAsync(runSettings, token),
+                    token => this.CategorizeArrivedMailAsync(runSettings, token),
                     async token => rulesRequestedChanges = await this.EvaluateMailRulesAsync(runSettings, token),
                     token => this.SettleArrivedMailAsync(runSettings, token),
                     token => this.CutPassagesOfEvaluatedMailAsync(runSettings, token),
@@ -1069,6 +1072,47 @@ internal sealed partial class AccountSynchronizationSupervisor
                 break;
             default:
                 break;
+        }
+    }
+
+    /// <summary>Asks a decision model what each arriving message is, where the account sorts its mail into categories.</summary>
+    /// <remarks>
+    /// After the spam verdict, so junk is never asked about, and before the rules, whose evaluation is what ends a
+    /// message's time as an arrival. A failure never fails the run and holds up no stage behind it: the pass reads only
+    /// stored mail and writes only derived rows, and a message left without a category costs that and nothing else.
+    /// </remarks>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "A pass that failed is logged and leaves its messages with no category rather than putting the account into backoff; it reaches no mail server.")]
+    private async Task CategorizeArrivedMailAsync(
+        MailSynchronizationOptions runSettings,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = this.scopeFactory.CreateScope();
+
+            scope.ServiceProvider.GetRequiredService<ScopedMailSynchronizationSettings>().UseRunSnapshot(runSettings);
+
+            var report = await scope.ServiceProvider
+                .GetRequiredService<EmailCategorizationPass>()
+                .RunAsync(this.account, cancellationToken);
+
+            if (!report.IsEmpty)
+            {
+                this.LogArrivedMailCategorized(
+                    this.account.Value,
+                    report.CategorizedEmailCount,
+                    report.UnansweredEmailCount,
+                    report.StoppedBy,
+                    report.EmailsRemain);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            this.LogArrivedMailCategorizationFailed(exception, this.account.Value);
         }
     }
 
@@ -2170,6 +2214,22 @@ internal sealed partial class AccountSynchronizationSupervisor
         Level = LogLevel.Warning,
         Message = "Evaluating the rules of account {AccountId} ended unexpectedly; the account is not backed off for it and its next run resumes from the batches this one committed.")]
     private partial void LogMailRuleEvaluationFailed(Exception exception, string accountId);
+
+    /// <summary>Reports one account's categorization in counts alone; no category, probability, or subject may reach a log.</summary>
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Categorized {CategorizedEmailCount} arriving messages of account {AccountId}; {UnansweredEmailCount} got no answer, stopped by {StoppedBy}, and more remain: {EmailsRemain}.")]
+    private partial void LogArrivedMailCategorized(
+        string accountId,
+        int categorizedEmailCount,
+        int unansweredEmailCount,
+        DecisionModelOutcome? stoppedBy,
+        bool emailsRemain);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Categorizing the arriving mail of account {AccountId} ended unexpectedly; the account is not backed off for it and the messages this run did not reach may have no category.")]
+    private partial void LogArrivedMailCategorizationFailed(Exception exception, string accountId);
 
     [LoggerMessage(
         Level = LogLevel.Information,

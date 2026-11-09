@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Decisions;
 using MailFathom.Application.Spam.Model;
 using MailFathom.Infrastructure.Observability;
 using MailFathom.TestSupport;
@@ -29,26 +30,27 @@ public sealed class SpamModelStageTelemetryTests
         [SpamModelJob.NameSubcategory] = "name_subcategory",
     };
 
-    private static readonly Dictionary<SpamModelOutcome, string> OutcomeTags = new()
+    private static readonly Dictionary<DecisionModelOutcome, string> OutcomeTags = new()
     {
-        [SpamModelOutcome.Answered] = "answered",
-        [SpamModelOutcome.NotActivated] = "not_activated",
-        [SpamModelOutcome.BudgetExhausted] = "budget_exhausted",
-        [SpamModelOutcome.ProviderUnavailable] = "provider_unavailable",
-        [SpamModelOutcome.AnswerUnreadable] = "answer_unreadable",
-        [SpamModelOutcome.InputTooLarge] = "input_too_large",
-        [SpamModelOutcome.ScannerUnavailable] = "scanner_unavailable",
+        [DecisionModelOutcome.Answered] = "answered",
+        [DecisionModelOutcome.NotActivated] = "not_activated",
+        [DecisionModelOutcome.BudgetExhausted] = "budget_exhausted",
+        [DecisionModelOutcome.ProviderUnavailable] = "provider_unavailable",
+        [DecisionModelOutcome.AnswerUnreadable] = "answer_unreadable",
+        [DecisionModelOutcome.InputTooLarge] = "input_too_large",
+        [DecisionModelOutcome.ScannerUnavailable] = "scanner_unavailable",
+        [DecisionModelOutcome.ContentUnavailable] = "content_unavailable",
     };
 
     private readonly SpamModelStageTelemetry telemetry = new();
 
     /// <summary>Gets every job beside every outcome, so a member added to either enumeration without a tag fails here.</summary>
-    public static TheoryData<SpamModelJob, SpamModelOutcome> Consultations => new(
-        Enum.GetValues<SpamModelJob>().SelectMany(job => Enum.GetValues<SpamModelOutcome>().Select(outcome => (job, outcome))));
+    public static TheoryData<SpamModelJob, DecisionModelOutcome> Consultations => new(
+        Enum.GetValues<SpamModelJob>().SelectMany(job => Enum.GetValues<DecisionModelOutcome>().Select(outcome => (job, outcome))));
 
     [Theory]
     [MemberData(nameof(Consultations))]
-    public void RecordConsultation_OneConsultation_CountsItUnderItsJobAndItsOutcome(SpamModelJob job, SpamModelOutcome outcome)
+    public void RecordConsultation_OneConsultation_CountsItUnderItsJobAndItsOutcome(SpamModelJob job, DecisionModelOutcome outcome)
     {
         // Arrange
         using var measurements = new RecordedMailFathomMeasurements(ConsultationsInstrumentName);
@@ -70,7 +72,7 @@ public sealed class SpamModelStageTelemetryTests
         using var measurements = new RecordedMailFathomMeasurements(ConsultationsInstrumentName);
 
         // Act
-        this.telemetry.RecordConsultation((SpamModelJob)99, (SpamModelOutcome)99);
+        this.telemetry.RecordConsultation((SpamModelJob)99, (DecisionModelOutcome)99);
 
         // Assert
         Assert.Equal(["unknown"], measurements.DimensionOf(ConsultationsInstrumentName, JobTagName));

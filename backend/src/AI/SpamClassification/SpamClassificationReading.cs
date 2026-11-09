@@ -90,7 +90,7 @@ internal static class SpamClassificationReading
     /// The build is the provider's text, so one carrying a control character, the separator a provenance origin splits
     /// on, or more than fits is not recorded as it came; the requested model is the next best name for the call.
     /// </remarks>
-    private static string? UsableBuild(string? build) =>
+    internal static string? UsableBuild(string? build) =>
         build is { Length: > 0 and <= MaximumModelBuildLength } named
         && !string.IsNullOrWhiteSpace(named)
         && !named.Contains('@', StringComparison.Ordinal)

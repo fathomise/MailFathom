@@ -4,6 +4,7 @@
 
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using MailFathom.Application.Decisions;
 using MailFathom.Application.Spam.Model;
 using MailFathom.Common.Observability;
 
@@ -25,7 +26,7 @@ public sealed class SpamModelStageTelemetry : ISpamModelStageTelemetry
         description: "Consultations of the spam model stage, by job and by how each ended; every outcome but answered left the deterministic verdict in place.");
 
     /// <inheritdoc />
-    public void RecordConsultation(SpamModelJob job, SpamModelOutcome outcome) =>
+    public void RecordConsultation(SpamModelJob job, DecisionModelOutcome outcome) =>
         this.consultationCount.Add(1, new TagList { { JobTagName, TagOf(job) }, { OutcomeTagName, TagOf(outcome) } });
 
     private static string TagOf(SpamModelJob job) => job switch
@@ -35,15 +36,5 @@ public sealed class SpamModelStageTelemetry : ISpamModelStageTelemetry
         _ => "unknown",
     };
 
-    private static string TagOf(SpamModelOutcome outcome) => outcome switch
-    {
-        SpamModelOutcome.Answered => "answered",
-        SpamModelOutcome.NotActivated => "not_activated",
-        SpamModelOutcome.BudgetExhausted => "budget_exhausted",
-        SpamModelOutcome.ProviderUnavailable => "provider_unavailable",
-        SpamModelOutcome.AnswerUnreadable => "answer_unreadable",
-        SpamModelOutcome.InputTooLarge => "input_too_large",
-        SpamModelOutcome.ScannerUnavailable => "scanner_unavailable",
-        _ => "unknown",
-    };
+    private static string TagOf(DecisionModelOutcome outcome) => DecisionModelOutcomeTags.TagOf(outcome);
 }

@@ -153,6 +153,7 @@ the list below answerable by reading it.
 | `client_contact_relationship` | The card the client API heads an opened contact with: the note a derivation wrote about that correspondence, what it suggests doing next, and each observation beside them. The citations under them do not cross, being identifiers and a position this deployment resolved out of its own store |
 | `attachment_download` | The extracted text of one attachment about to be streamed whole, on the signed link route and on the client's own attachment route alike — the one point whose subject is a file's own words rather than a message's |
 | `spam_classification_input` | What the spam model stage hands a decision model about one message: the sender's display name, the subject, the plain-text body cut to its bound, each link's hosts, and each attachment's declared type and name. The addresses beside them do not cross, being what the stage judges a sender by |
+| `email_categorization_input` | What categorization hands a decision model about one arriving message: everything `spam_classification_input` carries, and a reply's bounded opening of its conversation. A category's description does not cross, being the account's own authored text, and its name is never sent |
 
 `client_citation_resolution` is apart from both of the client points above because what crosses it is chosen by neither
 a folder nor a query but by a claim a model already made: the passage is the evidence behind one sentence of an answer,
@@ -188,6 +189,11 @@ named correspondent, so a finding says a scanner withheld content from a correla
 rate of that merged into the listing's would be lost among every folder anybody scrolled. It is also the one client
 point that scans a file name without the file's words beside it — the document list names what a sender called each
 file and nothing out of it.
+
+`email_categorization_input` is apart from `spam_classification_input` although both carry a whole message to a decision
+model, because each is its own stage an operator switches on for its own reason, and a reply's opening of its
+conversation crosses this one alone. [Email categorization](email-categorization.md#what-the-model-is-shown) holds what it
+sends.
 
 `spam_classification_input` is apart from `chat_prompt` although both reach a model, because what crosses it is chosen
 by neither a question nor a retrieval: it is one whole message, read because it arrived, and sent before anybody has

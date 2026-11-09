@@ -76,6 +76,9 @@
 - name: Spam classification
   href: spam-classification.md
   description: How mail written to deceive a reader is recognized from what the receiving server already decided, and what that changes downstream.
+- name: Email categorization
+  href: email-categorization.md
+  description: What a decision model is asked about each arriving message, which of seven defaults and the mailbox's own categories it records, what it is shown, and what happens when it cannot answer.
 - name: Mail rules
   href: mail-rules.md
   description: How a rule selects mail and what a match may change, written in the configuration a deployment already carries.

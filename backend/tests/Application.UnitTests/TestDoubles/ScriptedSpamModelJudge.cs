@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Decisions;
 using MailFathom.Application.Spam.Model;
 
 namespace MailFathom.Application.UnitTests.TestDoubles;
@@ -20,7 +21,7 @@ internal sealed class ScriptedSpamModelJudge(SpamModelJudgement judgement, bool 
     /// <summary>Builds a judge no test expects to be asked.</summary>
     /// <returns>A judge whose every call is recorded and answered as not activated.</returns>
     public static ScriptedSpamModelJudge Unused() =>
-        new(SpamModelJudgement.Unanswered(SpamModelOutcome.NotActivated));
+        new(SpamModelJudgement.Unanswered(DecisionModelOutcome.NotActivated));
 
     /// <inheritdoc />
     public Task<SpamModelJudgement> JudgeAsync(

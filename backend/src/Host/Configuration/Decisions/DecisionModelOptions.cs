@@ -39,6 +39,9 @@ internal sealed class DecisionModelOptions : IValidatableObject
     /// <summary>Gets or sets which declared model a message's spam verdict is asked of.</summary>
     public DecisionFunctionOptions SpamClassification { get; set; } = new();
 
+    /// <summary>Gets or sets which declared model a message's categories are asked of.</summary>
+    public DecisionFunctionOptions EmailCategorization { get; set; } = new();
+
     /// <summary>Gets every alias the section declares a model under, as written.</summary>
     public IReadOnlyCollection<string> DeclaredAliases => [.. this.Models
         .Select(model => model.Alias.Trim())
@@ -51,6 +54,7 @@ internal sealed class DecisionModelOptions : IValidatableObject
     public DecisionModelReferenceOptions ReferenceFor(DecisionFunction function) => function switch
     {
         DecisionFunction.SpamClassification => this.SpamClassification.Model,
+        DecisionFunction.EmailCategorization => this.EmailCategorization.Model,
         _ => throw new ArgumentOutOfRangeException(nameof(function), function, "The section declares no model reference for this function."),
     };
 

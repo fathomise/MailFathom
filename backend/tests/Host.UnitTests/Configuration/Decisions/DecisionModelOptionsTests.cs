@@ -226,6 +226,26 @@ public sealed class DecisionModelOptionsTests
         Assert.Contains(refusal.Errors, error => error.StartsWith("Decisions:Models:0:Address — ", StringComparison.Ordinal));
     }
 
+    /// <summary>Categorization routes on its own key, so moving it to another model leaves the spam stage where it was.</summary>
+    [Fact]
+    public void ToPlans_CategorizationNamingItsOwnModel_LeavesSpamClassificationOnTheDefault()
+    {
+        // Arrange
+        var keys = Merged(ModelBlock(0, "general"), ModelBlock(1, "categories-tuned"));
+        keys["Decisions:DefaultModel:Alias"] = "general";
+        keys["Decisions:EmailCategorization:Model:Alias"] = "categories-tuned";
+        var configuration = Configuration(keys);
+
+        // Act
+        var refusals = ComposedSettings.FindProviderRefusals(configuration);
+        var plans = Declared(configuration)!.ToPlans();
+
+        // Assert
+        Assert.Empty(refusals);
+        Assert.Equal("categories-tuned", plans[DecisionFunction.EmailCategorization].Alias);
+        Assert.Equal("general", plans[DecisionFunction.SpamClassification].Alias);
+    }
+
     /// <summary>
     /// The keys a chat block takes and this one does not — a fallback, sampling parameters, headers that link requests,
     /// and request members that could loosen the routing block — stop a start rather than being ignored.
@@ -233,6 +253,7 @@ public sealed class DecisionModelOptionsTests
     [Theory]
     [InlineData("Decisions:DefaultModel:Fallback", "other")]
     [InlineData("Decisions:SpamClassification:Model:Fallback", "other")]
+    [InlineData("Decisions:EmailCategorization:Model:Fallback", "other")]
     [InlineData("Decisions:Models:0:Temperature", "0.2")]
     [InlineData("Decisions:Models:0:MaxOutputTokens", "10")]
     [InlineData("Decisions:Models:0:StickySessions", "true")]

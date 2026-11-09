@@ -200,10 +200,7 @@ internal sealed class UserAccountDocumentBinder(
             refusals.AddRange(user.FindMissingAccountLanguageErrors());
             refusals.AddRange(user.FindSensitiveContentErrors(sensitiveContent.Value));
             refusals.AddRange(user.FindSpamModelStageErrors(decisions.Value.Serves(DecisionFunction.SpamClassification)));
-
-            // Any declared model will do until categorization has a decision function of its own to route: then this
-            // asks Serves for that function, as the line above does for spam.
-            refusals.AddRange(user.FindCategorizationWithoutModelErrors(decisions.Value.DeclaredAliases.Count > 0));
+            refusals.AddRange(user.FindCategorizationWithoutModelErrors(decisions.Value.Serves(DecisionFunction.EmailCategorization)));
         }
 
         return refusals.Count > 0

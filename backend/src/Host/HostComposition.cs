@@ -589,6 +589,7 @@ internal static class HostComposition
         builder.Services.AddScoped<IMailFolderDeclarationWriter, ConfiguredMailFolderDeclarationWriter>();
         builder.Services.AddScoped<IContactCollectionSettingsReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.ContactCollection);
         builder.Services.AddScoped<ISpamClassificationSettingsReader, ConfiguredSpamClassificationSettingsReader>();
+        builder.Services.AddScoped<IEmailCategorizationSettingsReader, ConfiguredEmailCategorizationSettingsReader>();
         builder.Services.AddScoped<ISpamActionSettingsReader, ConfiguredSpamActionSettingsReader>();
         builder.Services.AddScoped<IMailCategoryOfferReader, ConfiguredMailCategoryOfferReader>();
         // Registered beside the other per-account readers, because a derived reading of a mailbox two people are
@@ -1109,6 +1110,10 @@ internal static class HostComposition
         // rather than through the chat endpoint. Which account consults it is that account's own switch; what this
         // decides is only whether there is a model to consult.
         builder.Services.AddSpamModelJudge(declaredDecisions?.ToPlans().GetValueOrDefault(DecisionFunction.SpamClassification));
+
+        // And for categorization, which an account switches on independently of spam classification and which reaches
+        // a model of its own where the operator routes one.
+        builder.Services.AddEmailCategoryJudge(declaredDecisions?.ToPlans().GetValueOrDefault(DecisionFunction.EmailCategorization));
 
         // And again for a conversation's state, which needs the same two decisions and reports the absence of either
         // the same way.
