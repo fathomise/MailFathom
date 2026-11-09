@@ -1,6 +1,6 @@
 # Mail configuration
 
-<!-- describes: backend/src/Host/Configuration/Mail/**, backend/src/Host/Configuration/Rules/**, backend/src/Host/Configuration/Spam/MailAccount*.cs, backend/src/Host/Configuration/SensitiveContent/MailAccount*.cs, backend/src/Infrastructure/Mail/MailServerConnectionBudget.cs, backend/src/Infrastructure/Mail/Signing/** -->
+<!-- describes: backend/src/Host/Configuration/Mail/**, backend/src/Host/Configuration/Rules/**, backend/src/Host/Configuration/Spam/MailAccount*.cs, backend/src/Host/Configuration/Categories/**, backend/src/Host/Configuration/SensitiveContent/MailAccount*.cs, backend/src/Infrastructure/Mail/MailServerConnectionBudget.cs, backend/src/Infrastructure/Mail/Signing/** -->
 
 Every key deciding which mail is fetched and how, what is sent, what a deployment records about either, what a mailbox
 query and a stored message may cost, and which rules run over what arrives. The tables read as
@@ -591,6 +591,32 @@ under, so changing one re-decides this account's mail on the next classification
 **A record may hold only what is this mailbox's.** The classification wait, the run batch sizes, and the model stage's
 call and body bounds are what the process spends rather than a judgement about anybody's mailbox, so an account naming one of them is refused at the
 write, naming the key, and so is one naming a key the block does not declare.
+
+### Sorting this account's mail into categories — `Categorization`
+
+`…:Categorization` says whether this mailbox's mail is sorted into categories and which of them it recognizes. It names
+no folders: categories cover exactly the account's folders that are visible to AI, so a folder mapped
+`VisibleToAI: false` is outside them with nothing more to configure. A record that says nothing is not categorized. It is
+the account's rather than its user's for the reason spam classification is: the mail is one copy.
+
+```json
+{
+  "Categorization": {
+    "Enabled": true,
+    "DisabledDefaults": [ "shopping" ],
+    "OwnCategories": [
+      { "Name": "Contracts", "Description": "Agreements, addenda, and anything awaiting a signature." }
+    ]
+  }
+}
+```
+
+| Key | Type | Default | Constraint | Change |
+| --- | --- | --- | --- | --- |
+| `…:Categorization:Enabled` | bool | `false` | Whether this account's mail is sorted into categories at all. Refused at the write while the deployment declares no decision model under `Decisions:Models` | reload |
+| `…:Categorization:DisabledDefaults:<n>` | string | none | One of `correspondence`, `subscriptions`, `finance`, `shopping`, `travel`, `notifications`, `other`, each named once. A default switched off is hidden rather than unasked, so switching it back on asks nothing again | reload |
+| `…:Categorization:OwnCategories:<n>:Name` | string | required | At most 64 characters, no control character and no white space around it, not a default's identity, and unique within the account whatever the case. At most 20 categories. A rename is a removal and an addition, so it removes the records naming the old name | reload; a name that leaves the list removes its stored records in the same commit |
+| `…:Categorization:OwnCategories:<n>:Description` | string | required | At most 500 characters and no control character; what a model reads to decide whether a message is about this subject | reload |
 
 ### Scanning this account's mail — `SensitiveContent`
 

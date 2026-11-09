@@ -46,6 +46,33 @@ public sealed class MailAccountQueryableSettingsReadingTests
         Assert.Equal(classifies, settings.ClassifiesSpam);
     }
 
+    /// <summary>The names are what a commit keeps the stored records of, so they are read as the record writes them.</summary>
+    [Fact]
+    public void Of_OwnCategories_ReadsTheirNamesAsWritten()
+    {
+        // Act
+        var settings = Read(Record(
+            """{"Categorization":{"OwnCategories":[{"Name":"Contracts","Description":"Agreements."},{"Name":"Bids","Description":"Tenders."}]}}"""));
+
+        // Assert
+        Assert.Equal(["Contracts", "Bids"], settings.OwnCategoryNames);
+    }
+
+    /// <summary>A policy changing an account's own categories has records to remove, so two readings differing in them are not the same.</summary>
+    [Fact]
+    public void StateTheSame_OwnCategoriesDiffer_IsFalse()
+    {
+        // Arrange
+        var one = Read(Record("""{"Categorization":{"OwnCategories":[{"Name":"Contracts","Description":"Agreements."}]}}"""));
+        var other = Read(Record("{}"));
+
+        // Act
+        var same = MailAccountQueryableSettingsReading.StateTheSame(one, other);
+
+        // Assert
+        Assert.False(same);
+    }
+
     /// <summary>A scanner is scanned for only where the account switched it on, so an unset switch is not a request.</summary>
     [Fact]
     public void Of_OneScannerSwitchedOnAndOneOff_ScansForTheOneSwitchedOn()

@@ -901,6 +901,51 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("email_attachment_texts", (string)null);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailCategoryEntity", b =>
+                {
+                    b.Property<Guid>("StoredEmailId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<double>("Probability")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("QuestionRevision")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("StoredEmailId", "Kind", "Category")
+                        .HasName("pk_email_categories");
+
+                    b.HasIndex("StoredEmailId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_email_categories_one_default")
+                        .HasFilter("\"Kind\" = 'Default'");
+
+                    b.ToTable("email_categories", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_email_categories_probability", "\"Probability\" >= 0 AND \"Probability\" <= 1");
+                        });
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailChunkEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5397,6 +5442,17 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Navigation("StoredEmail");
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailCategoryEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", "StoredEmail")
+                        .WithMany("Categories")
+                        .HasForeignKey("StoredEmailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("StoredEmail");
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailChunkEntity", b =>
                 {
                     b.HasOne("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", "StoredEmail")
@@ -6339,6 +6395,8 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.StoredEmailEntity", b =>
                 {
                     b.Navigation("AttachmentTexts");
+
+                    b.Navigation("Categories");
 
                     b.Navigation("Chunks");
 

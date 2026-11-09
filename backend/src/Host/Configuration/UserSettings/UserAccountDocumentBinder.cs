@@ -40,8 +40,8 @@ namespace MailFathom.Host.Configuration.UserSettings;
 /// it, which whoever reads or writes a record composes before it arrives; this binds what it is given and reads no
 /// policy. The deployment's own sections reach this for one purpose and no other: to say what a record being
 /// written may ask for. A scanning posture is refused there when it would switch off what the deployment requires or
-/// reach for an analyzer the deployment never stood up, and a spam model stage when no decision model would answer it,
-/// which are rules about the record rather than values composed over it.
+/// reach for an analyzer the deployment never stood up, and a spam model stage or categorization when no decision model
+/// would answer it, which are rules about the record rather than values composed over it.
 /// </para>
 /// </remarks>
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "The dependency injection container materializes this binder.")]
@@ -200,6 +200,10 @@ internal sealed class UserAccountDocumentBinder(
             refusals.AddRange(user.FindMissingAccountLanguageErrors());
             refusals.AddRange(user.FindSensitiveContentErrors(sensitiveContent.Value));
             refusals.AddRange(user.FindSpamModelStageErrors(decisions.Value.Serves(DecisionFunction.SpamClassification)));
+
+            // Any declared model will do until categorization has a decision function of its own to route: then this
+            // asks Serves for that function, as the line above does for spam.
+            refusals.AddRange(user.FindCategorizationWithoutModelErrors(decisions.Value.DeclaredAliases.Count > 0));
         }
 
         return refusals.Count > 0

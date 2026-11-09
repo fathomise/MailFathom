@@ -10,6 +10,7 @@ using MailFathom.Infrastructure.Persistence.Answering.Configurations;
 using MailFathom.Infrastructure.Persistence.Authentication.Configurations;
 using MailFathom.Infrastructure.Persistence.AutomaticReplies.Configurations;
 using MailFathom.Infrastructure.Persistence.Calendar.Configurations;
+using MailFathom.Infrastructure.Persistence.Categories.Configurations;
 using MailFathom.Infrastructure.Persistence.ClientAssertions.Configurations;
 using MailFathom.Infrastructure.Persistence.ClientSessions.Configurations;
 using MailFathom.Infrastructure.Persistence.Connections;
@@ -184,6 +185,8 @@ internal sealed class MailFathomDbContext : DbContext
     internal DbSet<EmailEnrichmentEntity> EmailEnrichments => this.Set<EmailEnrichmentEntity>();
 
     internal DbSet<EmailEnrichmentMarkEntity> EmailEnrichmentMarks => this.Set<EmailEnrichmentMarkEntity>();
+
+    internal DbSet<EmailCategoryEntity> EmailCategories => this.Set<EmailCategoryEntity>();
 
     internal DbSet<EmailThreadStateEntity> EmailThreadStates => this.Set<EmailThreadStateEntity>();
 
@@ -372,6 +375,7 @@ internal sealed class MailFathomDbContext : DbContext
         modelBuilder.ApplyConfiguration(new EmailSpamVerdictActConfiguration());
         modelBuilder.ApplyConfiguration(new EmailEnrichmentConfiguration());
         modelBuilder.ApplyConfiguration(new EmailEnrichmentMarkConfiguration());
+        modelBuilder.ApplyConfiguration(new EmailCategoryConfiguration());
         modelBuilder.ApplyConfiguration(new EmailThreadStateConfiguration());
         modelBuilder.ApplyConfiguration(new EmailThreadStateEntryConfiguration());
         modelBuilder.ApplyConfiguration(new MailRuleEvaluationRunConfiguration());

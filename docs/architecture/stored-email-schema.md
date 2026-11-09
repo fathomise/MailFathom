@@ -1,6 +1,6 @@
 # Stored email schema
 
-<!-- describes: backend/src/Infrastructure/Persistence/**, backend/src/Domain/Emails/**, backend/src/Domain/Delivery/**, backend/src/Domain/Exports/**, backend/src/Application/Emails/Embeddings/**, backend/src/Application/Agent/Conversations/** -->
+<!-- describes: backend/src/Infrastructure/Persistence/**, backend/src/Domain/Categories/**, backend/src/Domain/Emails/**, backend/src/Domain/Delivery/**, backend/src/Domain/Exports/**, backend/src/Application/Emails/Embeddings/**, backend/src/Application/Agent/Conversations/** -->
 
 `stored_emails` holds the normalized metadata a mailbox timeline is read from. Its raw MIME lives in a separate one-to-one table, `email_message_contents`, and the text derived from that MIME lives in a third, `email_search_documents`, so nothing that lists or filters mail ever loads a `bytea` value, a body's worth of text, or a search vector — let alone tracks one in the change tracker.
 
@@ -1514,6 +1514,24 @@ the action recorder reads it so a message moved back out of junk, a keyword some
 It is a table of its own rather than a reading of the mutation records because a held account's act opens none. It
 holds no folder, no keyword text, and nothing from the message, and it is deleted with the email it describes.
 
+## What sort of mail a message is
+
+`email_categories` holds one row per message and category. `Kind` says which question the row answers: `Default` for the
+one choice over the seven default categories, whose published identity `Category` holds, and `Own` for a yes-or-no
+question about a subject the account named, whose name `Category` holds. `Probability` is between 0 and 1, which
+`ck_email_categories_probability` holds. `Source` says what said so, `DeterministicRule` or `Model`, and `Origin` what
+within that source: the model build that answered, or a rule's identity. `QuestionRevision` is a column of its own rather
+than part of `Origin`, because a run over stored mail selects on it to leave alone what was already asked under the
+question as it now stands.
+
+`ix_email_categories_one_default` is unique over the message where `Kind` is `Default`, so a message holds at most one
+default whichever two runs reach it at once; own categories overlap and are bounded by the key alone.
+
+An own category is named by its name, so **a rename is a removal and an addition**: every commit of an account's settings
+removes, in the same transaction, the `Own` rows of that account's mail whose name its declaration no longer holds. That
+is the one place every change of a declaration arrives, a settings policy's and a build trailing behind included, and an
+unreadable document removes nothing. A default switched off is hidden rather than removed, so its rows stay.
+
 ## Recorded mailbox mutations
 
 `mailbox_mutations` holds one row per change MailFathom has been asked to make to a remote mailbox, written **before**
@@ -2827,6 +2845,7 @@ account reach these four tables through the same cascade every other table is re
 | `ix_mail_answering_audit_entries_account_completed` | `(MailboxAccountId, CompletedAt, Id)` | The same two readers the trail above has: a keyset-paginated page of an account's runs, and the retention pass beside it |
 | `IX_mail_answering_audited_emails_StoredEmailId` | `(StoredEmailId)` | The foreign key back to the message, which is what makes erasing one reach the runs that read it without scanning the table |
 | `ix_email_spam_classification_signals_classification_ordinal` | `(StoredEmailId, Ordinal)`, unique | One classification's signals in the order the stages produced them, and the constraint a replaced record cannot write an ordinal twice past |
+| `ix_email_categories_one_default` | `(StoredEmailId)`, unique, where `Kind` is `Default` | The one answer a message holds to what sort of mail it is, whichever two runs reach it at once |
 | `ix_contacts_book_holder_display_name_sort_key_id` | `(BookHolderId, DisplayNameSortKey, Id)` | The one order a contact book is listed in and the one a keyset page continues from. The holder leads it because a page is read over a handful of named books, so each is reached by a seek rather than the table scanned and narrowed, and the identity settles two people whose names compare equal, which is what makes the order total within a book and the walk terminate |
 | `ix_contact_addresses_book_holder_normalized_address` | `(BookHolderId, NormalizedAddress)`, unique | One address in one person's hands within one book. It is also what the lookup from an address to a person is served from, rather than a scan, and leading with the holder is what lets that lookup seek into each of the books a reader holds |
 | `IX_contact_addresses_ContactId_BookHolderId` | `(ContactId, BookHolderId)` | The foreign key back to the person, which is what erasing one reaches their addresses by. It carries the book because the key does |
@@ -2927,6 +2946,13 @@ message's classification, retention, access, export, and erasure obligations who
 is what makes that structural rather than a pass somebody has to remember. A signal names a header field, an
 authentication outcome, or a rule — never the value of a header — and nothing in either table reaches a log, a metric, a
 trace, or an error message.
+
+`email_categories` is derived personal data by the same reading: a row says what sort of mail somebody's message is, and
+an own category's name is a subject somebody chose. It inherits the source message's classification, retention, and
+access whole, the cascade from `stored_emails` erases it with the message, an export carries it, and deleting an own
+category removes every row naming it. No default names health, religion, politics, or anything else that would infer
+special-category data. Nothing in the table reaches a log, a metric, a trace, or an error message, and a refusal of an
+account's category settings names an entry by its position rather than repeating it.
 
 `email_spam_verdict_acts` is derived personal data by the same reading as a recorded mutation: a row says that this
 deployment filed somebody's message as junk or marked it so, and when. It inherits the source message's retention,

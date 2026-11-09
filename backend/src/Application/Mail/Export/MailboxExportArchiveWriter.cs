@@ -9,7 +9,7 @@ using MailFathom.Domain.Exports;
 
 namespace MailFathom.Application.Mail.Export;
 
-/// <summary>Produces the zip archive one export carries: a Maildir per folder, one file per message, and the keywords beside them.</summary>
+/// <summary>Produces the zip archive one export carries: a Maildir per folder, one file per message, and the keywords and categories beside them.</summary>
 /// <remarks>
 /// <para>
 /// A zip rather than the tar stream
@@ -21,7 +21,8 @@ namespace MailFathom.Application.Mail.Export;
 /// <para>
 /// It holds one message at a time and never a folder's contents, which is what lets a mailbox of any size be written
 /// through it. The one thing it accumulates is the keywords of the messages that carry any — most carry none — because
-/// the document naming them is one entry and an entry is written whole.
+/// the document naming them is one entry and an entry is written whole. Categories are written in documents of a bounded
+/// number of messages instead, because on a categorizing account every message carries one.
 /// </para>
 /// <para>
 /// Every entry it writes is a relative path under the archive root, composed by <see cref="MaildirArchiveLayout" /> from
@@ -47,8 +48,13 @@ public sealed class MailboxExportArchiveWriter : IAsyncDisposable
     /// <summary>The latest instant a zip entry can record.</summary>
     private static readonly DateTimeOffset LatestEntryTime = new(2107, 12, 31, 23, 59, 58, TimeSpan.Zero);
 
+    /// <summary>How many categorized messages one document of the archive names, which bounds what is held in memory for them.</summary>
+    private const int CategorizedMessagesPerDocument = 1000;
+
     private readonly ZipArchive archive;
     private readonly List<KeywordedMessage> keyworded = [];
+    private readonly List<CategorizedMessage> categorized = [];
+    private int categoryDocumentsWritten;
 
     /// <summary>Opens an archive over the stream it is produced into.</summary>
     /// <param name="destination">The stream the archive is written to, which need not be seekable.</param>
@@ -121,6 +127,16 @@ public sealed class MailboxExportArchiveWriter : IAsyncDisposable
             this.keyworded.Add(new KeywordedMessage(path, message.Keywords));
         }
 
+        if (message.Categories.Count > 0)
+        {
+            this.categorized.Add(new CategorizedMessage(path, message.Categories));
+
+            if (this.categorized.Count == CategorizedMessagesPerDocument)
+            {
+                await this.WriteCategoriesDocumentAsync(cancellationToken);
+            }
+        }
+
         return path;
     }
 
@@ -189,6 +205,15 @@ public sealed class MailboxExportArchiveWriter : IAsyncDisposable
         await writer.FlushAsync(cancellationToken);
     }
 
+    /// <summary>Writes the categories of the messages not yet named in a document.</summary>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>A task that completes once they are in the archive.</returns>
+    /// <remarks>An archive always holds at least one document, for the reason <see cref="WriteKeywordsAsync" /> writes an empty one.</remarks>
+    public Task WriteCategoriesAsync(CancellationToken cancellationToken) =>
+        this.categorized.Count > 0 || this.categoryDocumentsWritten == 0
+            ? this.WriteCategoriesDocumentAsync(cancellationToken)
+            : Task.CompletedTask;
+
     /// <inheritdoc />
     public ValueTask DisposeAsync()
     {
@@ -199,5 +224,56 @@ public sealed class MailboxExportArchiveWriter : IAsyncDisposable
         return ValueTask.CompletedTask;
     }
 
+    private async Task WriteCategoriesDocumentAsync(CancellationToken cancellationToken)
+    {
+        var entry = this.archive.CreateEntry(
+            MaildirArchiveLayout.CategoriesDocumentPath(this.categoryDocumentsWritten),
+            Compression);
+
+        await using (var content = entry.Open())
+        await using (var writer = new Utf8JsonWriter(content, new JsonWriterOptions { Indented = true }))
+        {
+            writer.WriteStartObject();
+            writer.WriteStartArray("messages");
+
+            foreach (var message in this.categorized)
+            {
+                WriteCategorizedMessage(writer, message);
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+
+            await writer.FlushAsync(cancellationToken);
+        }
+
+        this.categorized.Clear();
+        this.categoryDocumentsWritten++;
+    }
+
+    private static void WriteCategorizedMessage(Utf8JsonWriter writer, CategorizedMessage message)
+    {
+        writer.WriteStartObject();
+        writer.WriteString("path", message.Path);
+        writer.WriteStartArray("categories");
+
+        foreach (var category in message.Categories)
+        {
+            writer.WriteStartObject();
+            writer.WriteString("kind", category.Kind.ToString());
+            writer.WriteString("category", category.Category);
+            writer.WriteNumber("probability", category.Probability);
+            writer.WriteString("source", category.Source.ToString());
+            writer.WriteString("origin", category.Origin);
+            writer.WriteString("questionRevision", category.QuestionRevision);
+            writer.WriteEndObject();
+        }
+
+        writer.WriteEndArray();
+        writer.WriteEndObject();
+    }
+
     private sealed record KeywordedMessage(string Path, IReadOnlyList<string> Keywords);
+
+    private sealed record CategorizedMessage(string Path, IReadOnlyList<ExportedEmailCategory> Categories);
 }

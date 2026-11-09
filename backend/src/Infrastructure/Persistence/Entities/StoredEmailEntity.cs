@@ -731,6 +731,9 @@ internal sealed class StoredEmailEntity
     /// </remarks>
     public EmailEnrichmentEntity? Enrichment { get; set; }
 
+    /// <summary>Gets the categories recorded for this email, which is empty until something has categorized it.</summary>
+    public ICollection<EmailCategoryEntity> Categories { get; } = [];
+
     /// <summary>
     /// Gets or sets the length this email's extracted text had when the per-message embedding ceiling stopped the cut
     /// short of its end, or <see langword="null" /> when no ceiling reached it.

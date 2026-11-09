@@ -7,6 +7,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using MailFathom.Application.Mail.Export;
+using MailFathom.Domain.Categories;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Exports;
 using Xunit;
@@ -237,6 +238,99 @@ public sealed class MailboxExportArchiveWriterTests
         Assert.Empty(document.RootElement.GetProperty("messages").EnumerateArray());
     }
 
+    /// <summary>Every category of a message is carried with what said so, named against the path the message was written at.</summary>
+    [Fact]
+    public async Task WriteCategoriesAsync_AMessageHoldingCategories_NamesThemAgainstItsPathWithTheirProvenance()
+    {
+        // Arrange
+        var destination = new MemoryStream();
+        var message = MessageIn(Inbox, 2) with
+        {
+            Categories = [Category(EmailCategoryKind.Default, "finance"), Category(EmailCategoryKind.Own, "Contracts")],
+        };
+        string writtenPath;
+
+        // Act
+        await using (var writer = new MailboxExportArchiveWriter(destination))
+        {
+            var directory = writer.OpenFolder(Inbox);
+            writtenPath = await writer.WriteMessageAsync(directory, message, new byte[] { 1, 2 }, 0, TestContext.Current.CancellationToken);
+            await writer.WriteCategoriesAsync(TestContext.Current.CancellationToken);
+        }
+
+        // Assert
+        using var archive = OpenArchive(destination);
+        var document = JsonDocument.Parse(await ReadAsync(EntryNamed(archive, "categories/000000.json")));
+        var only = Assert.Single(document.RootElement.GetProperty("messages").EnumerateArray());
+        var categories = only.GetProperty("categories").EnumerateArray().ToArray();
+
+        Assert.Equal(writtenPath, only.GetProperty("path").GetString());
+        Assert.Equal(["finance", "Contracts"], categories.Select(category => category.GetProperty("category").GetString()));
+        Assert.Equal("Default", categories[0].GetProperty("kind").GetString());
+        Assert.Equal(0.9, categories[0].GetProperty("probability").GetDouble());
+        Assert.Equal("Model", categories[0].GetProperty("source").GetString());
+        Assert.Equal("provider/build", categories[0].GetProperty("origin").GetString());
+        Assert.Equal("abc123", categories[0].GetProperty("questionRevision").GetString());
+    }
+
+    /// <summary>An empty document says the export found no category, which a missing one does not.</summary>
+    [Fact]
+    public async Task WriteCategoriesAsync_AMailboxCarryingNoCategory_StillWritesADocument()
+    {
+        // Arrange
+        var destination = new MemoryStream();
+
+        // Act
+        await using (var writer = new MailboxExportArchiveWriter(destination))
+        {
+            writer.OpenFolder(Inbox);
+            await writer.WriteCategoriesAsync(TestContext.Current.CancellationToken);
+        }
+
+        // Assert
+        using var archive = OpenArchive(destination);
+        var document = JsonDocument.Parse(await ReadAsync(EntryNamed(archive, "categories/000000.json")));
+
+        Assert.Empty(document.RootElement.GetProperty("messages").EnumerateArray());
+    }
+
+    /// <summary>On a categorizing account every message carries one, so what is held for them is let go a document at a time, and none is left empty behind a full one.</summary>
+    [Fact]
+    public async Task WriteCategoriesAsync_MoreMessagesThanOneDocumentNames_SplitsThemAcrossDocumentsLosingNone()
+    {
+        // Arrange
+        var destination = new MemoryStream();
+        var message = MessageIn(Inbox, 1) with { Categories = [Category(EmailCategoryKind.Default, "other")] };
+
+        // Act
+        await using (var writer = new MailboxExportArchiveWriter(destination))
+        {
+            var directory = writer.OpenFolder(Inbox);
+
+            foreach (var ordinal in Enumerable.Range(0, 2000))
+            {
+                await writer.WriteMessageAsync(directory, message, new byte[] { 1 }, ordinal, TestContext.Current.CancellationToken);
+            }
+
+            await writer.WriteCategoriesAsync(TestContext.Current.CancellationToken);
+        }
+
+        // Assert
+        using var archive = OpenArchive(destination);
+        var documents = archive.Entries
+            .Where(entry => entry.FullName.StartsWith("categories/", StringComparison.Ordinal))
+            .ToArray();
+        var named = 0;
+
+        foreach (var entry in documents)
+        {
+            named += JsonDocument.Parse(await ReadAsync(entry)).RootElement.GetProperty("messages").GetArrayLength();
+        }
+
+        Assert.Equal(2, documents.Length);
+        Assert.Equal(2000, named);
+    }
+
     /// <summary>
     /// An arrival time is a header the remote server composed, and a zip entry's timestamp holds 1980 to 2107 and
     /// nothing else. One message a server dated outside that would otherwise raise, and — being raised inside the job —
@@ -297,7 +391,11 @@ public sealed class MailboxExportArchiveWriterTests
         ReceivedAt,
         byteLength,
         MaildirFlagSet.None,
+        [],
         []);
+
+    private static ExportedEmailCategory Category(EmailCategoryKind kind, string category) =>
+        new(kind, category, 0.9, EmailCategorySource.Model, "provider/build", "abc123");
 
     private static ZipArchive OpenArchive(MemoryStream destination) =>
         new(new MemoryStream(destination.ToArray(), writable: false), ZipArchiveMode.Read);

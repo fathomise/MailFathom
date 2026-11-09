@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Categories;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Exports;
 
@@ -69,10 +70,27 @@ public interface IMailboxExportReader
 /// <param name="ByteLength">The recorded length of the stored payload, which the file name reports.</param>
 /// <param name="Flags">The flags Maildir has a letter for, read from the state the account holds.</param>
 /// <param name="Keywords">The keywords the message carries beside them, which the archive's keywords document holds.</param>
+/// <param name="Categories">Every category recorded for the message, switched-off defaults included, because an export answers for what is held rather than what is shown.</param>
 public sealed record ExportableMessage(
     StoredEmailId Message,
     MailboxExportFolder Folder,
     DateTimeOffset ReceivedAt,
     long ByteLength,
     MaildirFlagSet Flags,
-    IReadOnlyList<string> Keywords);
+    IReadOnlyList<string> Keywords,
+    IReadOnlyList<ExportedEmailCategory> Categories);
+
+/// <summary>One recorded category of an exported message, with what said so.</summary>
+/// <param name="Kind">Which kind of question it answers.</param>
+/// <param name="Category">A default's published identity, or an own category's name.</param>
+/// <param name="Probability">The probability recorded.</param>
+/// <param name="Source">What said so.</param>
+/// <param name="Origin">What within that source said so.</param>
+/// <param name="QuestionRevision">The revision of the question it answers.</param>
+public sealed record ExportedEmailCategory(
+    EmailCategoryKind Kind,
+    string Category,
+    double Probability,
+    EmailCategorySource Source,
+    string Origin,
+    string QuestionRevision);
