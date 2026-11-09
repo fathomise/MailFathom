@@ -86,7 +86,7 @@ public sealed class MailboxMutationConvergerTests
         var request = await context.LeaveOutstandingAsync(DeleteRequest(uid: 43U), record => record, MailboxMutationLocalChange.Erasure);
         states.Store(
             request.StoredEmailId,
-            new LocalEmailState(InboxFolder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, RemoteEmailKeywords.Create([])));
+            new LocalEmailState(InboxFolder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, EmailKeywords.Create([])));
 
         // Act
         var report = await context.Converger.ConvergeAsync(Account, CancellationToken.None);
@@ -154,7 +154,7 @@ public sealed class MailboxMutationConvergerTests
         var delete = await context.LeaveOutstandingAsync(DeleteRequest(uid: 53U), record => record);
         states.Store(
             delete.StoredEmailId,
-            new LocalEmailState(InboxFolder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, RemoteEmailKeywords.Create([])));
+            new LocalEmailState(InboxFolder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, EmailKeywords.Create([])));
 
         // Act
         var report = await context.Converger.ConvergeAsync(Account, CancellationToken.None);
@@ -183,7 +183,7 @@ public sealed class MailboxMutationConvergerTests
         var erasure = await context.LeaveOutstandingAsync(DeleteRequest(uid: 56U), record => record, MailboxMutationLocalChange.Erasure);
         states.Store(
             erasure.StoredEmailId,
-            new LocalEmailState(InboxFolder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, RemoteEmailKeywords.Create([])));
+            new LocalEmailState(InboxFolder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, EmailKeywords.Create([])));
 
         // Act
         var report = await context.Converger.ConvergeAsync(Account, CancellationToken.None);
@@ -204,7 +204,7 @@ public sealed class MailboxMutationConvergerTests
         var request = await context.LeaveOutstandingAsync(DeleteRequest(uid: 57U), record => record, MailboxMutationLocalChange.Erasure);
         states.Store(
             request.StoredEmailId,
-            new LocalEmailState(InboxFolder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, RemoteEmailKeywords.Create([])));
+            new LocalEmailState(InboxFolder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, EmailKeywords.Create([])));
 
         // Act
         var report = await context.Converger.ConvergeAsync(Account, CancellationToken.None);
@@ -231,7 +231,7 @@ public sealed class MailboxMutationConvergerTests
         var request = await context.LeaveOutstandingAsync(DeleteRequest(uid: 54U), record => record, MailboxMutationLocalChange.Erasure);
         states.Store(
             request.StoredEmailId,
-            new LocalEmailState(InboxFolder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, RemoteEmailKeywords.Create([])));
+            new LocalEmailState(InboxFolder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, EmailKeywords.Create([])));
 
         // Act
         var report = await context.Converger.ConvergeAsync(Account, CancellationToken.None);

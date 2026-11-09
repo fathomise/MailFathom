@@ -91,20 +91,20 @@ public sealed class OrchestratedSeenStateProvenanceTests(MailFathomOrchestration
         // test is the one that changes as the sequence proceeds: read after the run instead of before it, an assertion
         // that the value lagged the command would be indistinguishable from one that it never followed the server.
         var setOutcome = await ChangeSeenStateAsync(services, ours, MarkingRule, isSeen: true, cancellationToken);
-        var storedAfterTheSetCommand = await IsRemotelySeenAsync(services, markedByMailFathom, cancellationToken);
+        var storedAfterTheSetCommand = await IsMarkedSeenAsync(services, markedByMailFathom, cancellationToken);
 
         await mailbox.MarkSeenAsync(FolderName, theirs.Uid, cancellationToken);
 
         var afterSetting = await SynchronizeAsync(services, cancellationToken);
-        var oursAfterSettingRun = await IsRemotelySeenAsync(services, markedByMailFathom, cancellationToken);
-        var theirsAfterSettingRun = await IsRemotelySeenAsync(services, markedByUser, cancellationToken);
+        var oursAfterSettingRun = await IsMarkedSeenAsync(services, markedByMailFathom, cancellationToken);
+        var theirsAfterSettingRun = await IsMarkedSeenAsync(services, markedByUser, cancellationToken);
 
         var clearOutcome = await ChangeSeenStateAsync(services, ours, SurfacingRule, isSeen: false, cancellationToken);
-        var storedAfterTheClearCommand = await IsRemotelySeenAsync(services, markedByMailFathom, cancellationToken);
+        var storedAfterTheClearCommand = await IsMarkedSeenAsync(services, markedByMailFathom, cancellationToken);
 
         var afterClearing = await SynchronizeAsync(services, cancellationToken);
-        var oursAfterClearingRun = await IsRemotelySeenAsync(services, markedByMailFathom, cancellationToken);
-        var theirsAfterClearingRun = await IsRemotelySeenAsync(services, markedByUser, cancellationToken);
+        var oursAfterClearingRun = await IsMarkedSeenAsync(services, markedByMailFathom, cancellationToken);
+        var theirsAfterClearingRun = await IsMarkedSeenAsync(services, markedByUser, cancellationToken);
 
         // Assert
         Assert.Equal(MailboxMutationStatus.Performed, setOutcome.Status);
@@ -195,7 +195,7 @@ public sealed class OrchestratedSeenStateProvenanceTests(MailFathomOrchestration
                 .SingleAsync(token),
             cancellationToken);
 
-    private static Task<bool> IsRemotelySeenAsync(
+    private static Task<bool> IsMarkedSeenAsync(
         OrchestratedMailFathomServices services,
         string subject,
         CancellationToken cancellationToken) => services.InScopeAsync(
@@ -203,7 +203,7 @@ public sealed class OrchestratedSeenStateProvenanceTests(MailFathomOrchestration
                 .StoredEmails
                 .AsNoTracking()
                 .Where(storedEmail => storedEmail.Subject == subject)
-                .Select(storedEmail => storedEmail.IsRemotelySeen)
+                .Select(storedEmail => storedEmail.IsMarkedSeen)
                 .SingleAsync(token),
             cancellationToken);
 

@@ -110,8 +110,8 @@ common misreadings:
   `notAssessed` means nothing read the text — an empty body, the reading turned off, or mail stored before this release.
 - `attachments` counts real attachments separately from inline images, so a message whose only payload is a logo in
   its signature does not read as one carrying a document.
-- `remoteFlags` reports what the mail server last said about the message, including `flagged` — the star a mail client
-  shows, which `isRemotelyFlagged` also filters on — and `keywords`, the labels a client or a server set beside the five
+- `flags` reports the state MailFathom holds for the message, including `flagged` — the star a mail client
+  shows, which `isFlagged` also filters on — and `keywords`, the labels a client or a server set beside the five
   standard flags. `keyword` narrows a listing to one of them, matched without regard to case. Read `wasObserved` before
   trusting any of it: an email nothing has looked at yet carries every flag unset and no keyword, which is not the same
   as a server reporting none.

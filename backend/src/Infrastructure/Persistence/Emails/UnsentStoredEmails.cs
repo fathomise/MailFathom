@@ -25,16 +25,16 @@ internal static class UnsentStoredEmails
 {
     /// <summary>Selects the mail the mailbox has not sent.</summary>
     internal static readonly Expression<Func<StoredEmailEntity, bool>> IsUnsent =
-        email => email.IsRemotelyDraft || email.Folder.Role == MailFolderSpecialUse.Drafts;
+        email => email.IsDraft || email.Folder.Role == MailFolderSpecialUse.Drafts;
 
     /// <summary>Selects the mail that left the mailbox or arrived in it.</summary>
     internal static readonly Expression<Func<StoredEmailEntity, bool>> IsSentOrReceived =
-        email => !email.IsRemotelyDraft && email.Folder.Role != MailFolderSpecialUse.Drafts;
+        email => !email.IsDraft && email.Folder.Role != MailFolderSpecialUse.Drafts;
 
     /// <summary>Reports whether one stored email, held in memory with the folder it sits in, is mail the mailbox has not sent.</summary>
     /// <param name="email">The email.</param>
     /// <param name="folder">The folder it sits in, or <see langword="null" /> where none was found.</param>
     /// <returns><see langword="true" /> when the email carries <c>\Draft</c> or sits in the folder its account maps as drafts.</returns>
     internal static bool Holds(StoredEmailEntity email, MailFolderEntity? folder) =>
-        email.IsRemotelyDraft || folder?.Role == MailFolderSpecialUse.Drafts;
+        email.IsDraft || folder?.Role == MailFolderSpecialUse.Drafts;
 }

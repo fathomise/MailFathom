@@ -60,8 +60,8 @@ public sealed record MailboxEmailSelection
         string? subjectFragment,
         DateTimeOffset? receivedOnOrAfter,
         DateTimeOffset? receivedBefore,
-        bool? isRemotelySeen,
-        bool? isRemotelyFlagged,
+        bool? isMarkedSeen,
+        bool? isFlagged,
         string? keyword,
         bool? hasAttachments,
         EmailMarkSelection? mark)
@@ -73,8 +73,8 @@ public sealed record MailboxEmailSelection
         this.SubjectFragment = subjectFragment;
         this.ReceivedOnOrAfter = receivedOnOrAfter;
         this.ReceivedBefore = receivedBefore;
-        this.IsRemotelySeen = isRemotelySeen;
-        this.IsRemotelyFlagged = isRemotelyFlagged;
+        this.IsMarkedSeen = isMarkedSeen;
+        this.IsFlagged = isFlagged;
         this.Keyword = keyword;
         this.HasAttachments = hasAttachments;
         this.CanonicalText = this.ComputeCanonicalText();
@@ -109,22 +109,22 @@ public sealed record MailboxEmailSelection
     /// <remarks>The end is exclusive so consecutive ranges tile a timeline without overlapping on the instant they meet.</remarks>
     public DateTimeOffset? ReceivedBefore { get; }
 
-    /// <summary>Gets the remote <c>\Seen</c> state an email must have, or <see langword="null" /> when either matches.</summary>
+    /// <summary>Gets the <c>\Seen</c> mark an email must have, or <see langword="null" /> when either matches.</summary>
     /// <remarks>
-    /// The filter compares the last observed flag snapshot. An email whose flags no run has read yet carries them
-    /// unset, so it matches the unseen side of this filter; <see cref="EmailSummary.RemoteFlags" /> reports when the
-    /// snapshot was taken, which is how a caller tells an unseen email from one nobody has looked at.
+    /// The filter compares the stored flags. An email whose flags no run has read yet carries them unset, so it matches
+    /// the unseen side of this filter; <see cref="EmailSummary.Flags" /> reports when a server last reported them, which
+    /// is how a caller tells an unseen email from one nobody has looked at.
     /// </remarks>
-    public bool? IsRemotelySeen { get; }
+    public bool? IsMarkedSeen { get; }
 
-    /// <summary>Gets the remote <c>\Flagged</c> state an email must have, or <see langword="null" /> when either matches.</summary>
+    /// <summary>Gets the <c>\Flagged</c> state an email must have, or <see langword="null" /> when either matches.</summary>
     /// <remarks>
-    /// The flag is what a mail client shows as a star, and it reads from the same snapshot <see cref="IsRemotelySeen" />
+    /// The flag is what a mail client shows as a star, and it reads from the same stored flags <see cref="IsMarkedSeen" />
     /// does, with the same consequence for mail nobody has observed: it carries the flag unset and matches the unflagged
     /// side. It is unrelated to the <c>Flagged</c> folder role, which names a folder a provider synthesizes rather than a
     /// flag on a message, so a scope naming that role and this filter are two different narrowings.
     /// </remarks>
-    public bool? IsRemotelyFlagged { get; }
+    public bool? IsFlagged { get; }
 
     /// <summary>Gets the keyword an email must carry, in its comparison form, or <see langword="null" /> when any matches.</summary>
     /// <remarks>
@@ -166,8 +166,8 @@ public sealed record MailboxEmailSelection
     /// <param name="subjectFragment">The fragment the subject must contain, or <see langword="null" /> for any subject.</param>
     /// <param name="receivedOnOrAfter">The inclusive start of the received range, or <see langword="null" /> for no start.</param>
     /// <param name="receivedBefore">The exclusive end of the received range, or <see langword="null" /> for no end.</param>
-    /// <param name="isRemotelySeen">The remote <c>\Seen</c> state to require, or <see langword="null" /> for either.</param>
-    /// <param name="isRemotelyFlagged">The remote <c>\Flagged</c> state to require, or <see langword="null" /> for either.</param>
+    /// <param name="isMarkedSeen">The remote <c>\Seen</c> state to require, or <see langword="null" /> for either.</param>
+    /// <param name="isFlagged">The remote <c>\Flagged</c> state to require, or <see langword="null" /> for either.</param>
     /// <param name="keyword">The keyword an email must carry, in any case, or <see langword="null" /> for any.</param>
     /// <param name="hasAttachments">Whether attachments are required, or <see langword="null" /> for either.</param>
     /// <param name="mark">The reading a derivation must have made about the email, or <see langword="null" /> when no reading is required.</param>
@@ -186,8 +186,8 @@ public sealed record MailboxEmailSelection
         string? subjectFragment,
         DateTimeOffset? receivedOnOrAfter,
         DateTimeOffset? receivedBefore,
-        bool? isRemotelySeen,
-        bool? isRemotelyFlagged,
+        bool? isMarkedSeen,
+        bool? isFlagged,
         string? keyword,
         bool? hasAttachments,
         EmailMarkSelection? mark = null)
@@ -210,8 +210,8 @@ public sealed record MailboxEmailSelection
             BoundedSubjectFragment(subjectFragment),
             receivedOnOrAfter?.ToUniversalTime(),
             receivedBefore?.ToUniversalTime(),
-            isRemotelySeen,
-            isRemotelyFlagged,
+            isMarkedSeen,
+            isFlagged,
             ComparableKeyword(keyword),
             hasAttachments,
             mark);
@@ -266,12 +266,12 @@ public sealed record MailboxEmailSelection
 
         MailboxQueryFilterInvalidException.ThrowIfLengthExceeded(
             keyword.Trim().Length,
-            RemoteEmailKeywords.MaximumKeywordLength,
+            EmailKeywords.MaximumKeywordLength,
             "keyword");
 
         // The blank and the over-long cases have both been answered above, so a value the domain type still refuses is
         // one carrying a control character, and the caller is told that rather than that it named no known identity.
-        return RemoteEmailKeywords.Normalized(keyword)
+        return EmailKeywords.Normalized(keyword)
             ?? throw MailboxQueryFilterInvalidException.ContainsControlCharacter("keyword");
     }
 
@@ -326,8 +326,8 @@ public sealed record MailboxEmailSelection
         CanonicalOptionalText(this.SubjectFragment?.ToUpperInvariant()),
         LengthPrefixed(CanonicalInstant(this.ReceivedOnOrAfter)),
         LengthPrefixed(CanonicalInstant(this.ReceivedBefore)),
-        LengthPrefixed(CanonicalFlag(this.IsRemotelySeen)),
-        LengthPrefixed(CanonicalFlag(this.IsRemotelyFlagged)),
+        LengthPrefixed(CanonicalFlag(this.IsMarkedSeen)),
+        LengthPrefixed(CanonicalFlag(this.IsFlagged)),
         // Already the comparison form, so nothing is folded again here: two requests that wrote one keyword in
         // different cases are one walk, and they reached this text as one value rather than as two.
         CanonicalOptionalText(this.Keyword),

@@ -317,7 +317,7 @@ public sealed class StoredEmailEnrichmentSelectionTests
     {
         // Arrange
         var email = Email("work", "INBOX");
-        email.IsRemotelyDraft = flaggedDraft;
+        email.IsDraft = flaggedDraft;
         email.Folder.Role = inDraftsFolder ? MailFolderSpecialUse.Drafts : null;
         email.Chunks.Add(BodyPassage(email, 0));
 

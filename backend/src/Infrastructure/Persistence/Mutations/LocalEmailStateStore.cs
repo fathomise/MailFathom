@@ -46,9 +46,9 @@ internal sealed class LocalEmailStateStore(TimeProvider timeProvider) : ILocalEm
             // UID alone would say nothing about which UIDVALIDITY it belonged to.
             row is { UidValidity: not null, Uid: not null },
             MailFolderId.Create(row.FolderId),
-            row.IsRemotelySeen,
-            row.IsRemotelyFlagged,
-            RemoteEmailKeywords.Create(row.RemoteKeywords));
+            row.IsMarkedSeen,
+            row.IsFlagged,
+            EmailKeywords.Create(row.Keywords));
     }
 
     /// <inheritdoc />
@@ -74,9 +74,9 @@ internal sealed class LocalEmailStateStore(TimeProvider timeProvider) : ILocalEm
                 row.LocalMailFolderId = folder.Value;
             }
         }
-        row.IsRemotelySeen = state.IsSeen;
-        row.IsRemotelyFlagged = state.IsFlagged;
-        row.RemoteKeywords = [.. state.Keywords.Values];
+        row.IsMarkedSeen = state.IsSeen;
+        row.IsFlagged = state.IsFlagged;
+        row.Keywords = [.. state.Keywords.Values];
     }
 
     /// <inheritdoc />

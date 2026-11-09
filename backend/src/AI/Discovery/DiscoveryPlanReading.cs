@@ -163,8 +163,8 @@ internal static class DiscoveryPlanReading
                 SubjectFragment = lookup.SubjectFragment,
                 ReceivedOnOrAfter = AnchoredInstant.Read(lookup.ReceivedOnOrAfter, askedAt),
                 ReceivedBefore = AnchoredInstant.Read(lookup.ReceivedBefore, askedAt),
-                IsRemotelySeen = lookup.IsRemotelySeen,
-                IsRemotelyFlagged = lookup.IsRemotelyFlagged,
+                IsMarkedSeen = lookup.IsMarkedSeen,
+                IsFlagged = lookup.IsFlagged,
                 Keyword = lookup.Keyword,
                 HasAttachments = lookup.HasAttachments,
             };

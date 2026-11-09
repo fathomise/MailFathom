@@ -123,7 +123,7 @@ internal sealed class MailSettlementStore(MailFathomDbContext dbContext) : IMail
                     && mutation.Stage != MailboxMutationStage.Cancelled
                     && ((mutation.Mutation == relocate && mutation.PlacementObservedAt == null)
                         || (mutation.Mutation == delete && mutation.Stage != MailboxMutationStage.Completed))),
-                email.IsRemotelySeen,
+                email.IsMarkedSeen,
                 email.ArrivalFolder != null && email.ArrivalFolder.Role == MailFolderSpecialUse.Inbox,
                 email.Folder.Role));
     }

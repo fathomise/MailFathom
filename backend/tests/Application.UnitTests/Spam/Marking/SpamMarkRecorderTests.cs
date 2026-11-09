@@ -656,7 +656,7 @@ public sealed class SpamMarkRecorderTests
                 folder,
                 IsSeen: false,
                 IsFlagged: false,
-                RemoteEmailKeywords.Create(keywords)));
+                EmailKeywords.Create(keywords)));
 
         return states;
     }

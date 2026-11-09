@@ -122,14 +122,14 @@ internal static class ResponseAuthorings
             CarriesUnverifiedSignature: false,
             ContainsUnexpandedTnefPart: false),
         ContentAvailability = StoredEmailContentAvailability.Available,
-        RemoteFlags = new RemoteEmailFlagSnapshot(
+        Flags = new StoredEmailFlags(
             null,
             false,
             IsAnswered: false,
             IsFlagged: false,
             IsDraft: false,
             IsDeleted: false,
-            Keywords: RemoteEmailKeywords.None),
+            Keywords: EmailKeywords.None),
         SenderVerification = SenderVerification.NotEstablished,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
         SenderAuthenticationEvidence = SenderAuthenticationEvidence.None,

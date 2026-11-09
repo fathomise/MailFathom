@@ -318,7 +318,7 @@ public sealed class FlaggedDeleteFollowerTests
                     IsFlagged: false,
                     IsDraft: false,
                     occurrence.IsDeleted,
-                    RemoteEmailKeywords.None))),
+                    EmailKeywords.None))),
         ];
 
         session

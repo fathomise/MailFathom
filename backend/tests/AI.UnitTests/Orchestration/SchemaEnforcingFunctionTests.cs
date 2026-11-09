@@ -38,7 +38,7 @@ public sealed class SchemaEnforcingFunctionTests
 
         // Assert
         Assert.Contains($"\"{JsonEncodedText.Encode(unknownName)}\"", answer, StringComparison.Ordinal);
-        Assert.Contains("Its arguments are queryText, senderAddress, isRemotelySeen.", answer, StringComparison.Ordinal);
+        Assert.Contains("Its arguments are queryText, senderAddress, isMarkedSeen.", answer, StringComparison.Ordinal);
         Assert.Empty(this.calls);
     }
 
@@ -81,7 +81,7 @@ public sealed class SchemaEnforcingFunctionTests
         var tool = this.EnforcedTool();
 
         // Act
-        var answer = await InvokeAsync(tool, ("queryText", "\"invoice\""), ("isRemotelySeen", "\"maybe\""));
+        var answer = await InvokeAsync(tool, ("queryText", "\"invoice\""), ("isMarkedSeen", "\"maybe\""));
 
         // Assert
         Assert.StartsWith($"An argument to {ToolName} could not be read as the type its schema gives it.", answer, StringComparison.Ordinal);
@@ -96,7 +96,7 @@ public sealed class SchemaEnforcingFunctionTests
         var tool = this.EnforcedTool();
 
         // Act
-        var answer = await InvokeAsync(tool, ("queryText", "\"invoice\""), ("isRemotelySeen", "true"));
+        var answer = await InvokeAsync(tool, ("queryText", "\"invoice\""), ("isMarkedSeen", "true"));
 
         // Assert
         Assert.Equal("found invoice", answer);
@@ -145,10 +145,10 @@ public sealed class SchemaEnforcingFunctionTests
     private string FindLetters(
         [Description("The words to look for.")] string queryText,
         [Description("Only letters from this address.")] string? senderAddress = null,
-        [Description("Only read or unread letters.")] bool? isRemotelySeen = null)
+        [Description("Only read or unread letters.")] bool? isMarkedSeen = null)
     {
         _ = senderAddress;
-        _ = isRemotelySeen;
+        _ = isMarkedSeen;
 
         this.calls.Add(queryText);
 

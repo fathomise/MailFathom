@@ -64,7 +64,7 @@ internal static class SpamClassificationScenario
 
     private static readonly MailFolderAlias Inbox = MailFolderAlias.Create("inbox");
 
-    private static readonly RemoteEmailKeywords NoKeywords = RemoteEmailKeywords.Create(null);
+    private static readonly EmailKeywords NoKeywords = EmailKeywords.Create(null);
 
     private static readonly DateTimeOffset EvaluatedAt = new(2026, 10, 20, 9, 30, 0, TimeSpan.Zero);
 

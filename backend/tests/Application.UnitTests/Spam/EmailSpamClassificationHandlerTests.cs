@@ -294,7 +294,7 @@ public sealed class EmailSpamClassificationHandlerTests
         Account,
         Inbox,
         Inbox,
-        RemoteEmailKeywords.Create(keywords),
+        EmailKeywords.Create(keywords),
         IsSettled: false));
 
     private EmailSpamClassificationHandler CreateHandler(

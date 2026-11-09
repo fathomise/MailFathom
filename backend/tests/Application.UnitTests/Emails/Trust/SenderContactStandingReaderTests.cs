@@ -303,7 +303,7 @@ public sealed class SenderContactStandingReaderTests
             EmailThreadReferences.Create(messageId: null, inReplyTo: null, references: null)),
         Body = EmailContentBody.EncryptedNotReadableLocally,
         Attachments = [],
-        RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved,
+        Flags = StoredEmailFlags.NeverObserved,
         SenderVerification = SenderVerification.NotEstablished,
         SenderAuthenticationEvidence = SenderAuthenticationEvidence.None,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,

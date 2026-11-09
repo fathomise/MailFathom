@@ -40,18 +40,18 @@ public sealed class StoredEmailSelectionPredicateCommandTests
     [InlineData(true, "True")]
     [InlineData(false, "False")]
     public void Matching_FlaggedFilter_ComparesTheStoredFlagColumnAgainstTheRequestedValue(
-        bool isRemotelyFlagged,
+        bool isFlagged,
         string boundValue)
     {
         // Act
-        var command = CommandFor(SelectionWith(isRemotelyFlagged: isRemotelyFlagged));
+        var command = CommandFor(SelectionWith(isFlagged: isFlagged));
 
         // Assert
         Assert.Contains(
-            $"\"{nameof(StoredEmailEntity.IsRemotelyFlagged)}\" = @isRemotelyFlagged",
+            "\"IsRemotelyFlagged\" = @isFlagged",
             NarrowingIn(command),
             StringComparison.Ordinal);
-        Assert.Contains($"@isRemotelyFlagged='{boundValue}'", DeclarationsIn(command), StringComparison.Ordinal);
+        Assert.Contains($"@isFlagged='{boundValue}'", DeclarationsIn(command), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -65,7 +65,7 @@ public sealed class StoredEmailSelectionPredicateCommandTests
         var narrowing = NarrowingOf(SelectionWith(keyword: "$Junk"));
 
         // Assert
-        Assert.Contains(nameof(StoredEmailEntity.RemoteKeywords), narrowing, StringComparison.Ordinal);
+        Assert.Contains("RemoteKeywords", narrowing, StringComparison.Ordinal);
         Assert.Contains("@>", narrowing, StringComparison.Ordinal);
     }
 
@@ -91,8 +91,8 @@ public sealed class StoredEmailSelectionPredicateCommandTests
         var narrowing = NarrowingOf(SelectionWith());
 
         // Assert
-        Assert.DoesNotContain(nameof(StoredEmailEntity.IsRemotelyFlagged), narrowing, StringComparison.Ordinal);
-        Assert.DoesNotContain(nameof(StoredEmailEntity.RemoteKeywords), narrowing, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsRemotelyFlagged", narrowing, StringComparison.Ordinal);
+        Assert.DoesNotContain("RemoteKeywords", narrowing, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -181,7 +181,7 @@ public sealed class StoredEmailSelectionPredicateCommandTests
         var narrowing = ScopeNarrowingOf(scope);
 
         // Assert
-        Assert.Equal(narrowed, narrowing.Contains($"\"{nameof(StoredEmailEntity.IsRemotelyDraft)}\"", StringComparison.Ordinal));
+        Assert.Equal(narrowed, narrowing.Contains("\"IsRemotelyDraft\"", StringComparison.Ordinal));
         Assert.Equal(narrowed, narrowing.Contains($"\"{nameof(MailFolderEntity.Role)}\"", StringComparison.Ordinal));
     }
 
@@ -347,7 +347,7 @@ public sealed class StoredEmailSelectionPredicateCommandTests
     }
 
     private static MailboxEmailSelection SelectionWith(
-        bool? isRemotelyFlagged = null,
+        bool? isFlagged = null,
         string? keyword = null,
         EmailMarkSelection? mark = null) => MailboxEmailSelection.Create(
         MailboxScope.NothingReadable,
@@ -356,8 +356,8 @@ public sealed class StoredEmailSelectionPredicateCommandTests
         subjectFragment: null,
         receivedOnOrAfter: null,
         receivedBefore: null,
-        isRemotelySeen: null,
-        isRemotelyFlagged,
+        isMarkedSeen: null,
+        isFlagged,
         keyword,
         hasAttachments: null,
         mark);

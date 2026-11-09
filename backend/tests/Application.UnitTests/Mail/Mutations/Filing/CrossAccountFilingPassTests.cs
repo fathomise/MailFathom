@@ -38,7 +38,7 @@ public sealed class CrossAccountFilingPassTests
     private static readonly MailFolderResolution Clients =
         MailFolderResolution.FirstBindingOf(MailFolderAlias.Create("clients"), RemoteFolderPath.Create("Clients"));
     private static readonly RestoredEmailState Read =
-        new(IsSeen: true, IsAnswered: false, IsFlagged: true, IsDraft: false, RemoteEmailKeywords.Create(["$label1"]));
+        new(IsSeen: true, IsAnswered: false, IsFlagged: true, IsDraft: false, EmailKeywords.Create(["$label1"]));
     private static readonly DateTimeOffset Arrived = new(2026, 10, 30, 8, 15, 0, TimeSpan.Zero);
     private static readonly byte[] RawMime = "Subject: hello\r\n\r\nbody\r\n"u8.ToArray();
 
@@ -195,7 +195,7 @@ public sealed class CrossAccountFilingPassTests
         Folder: null,
         IsSeen: true,
         IsFlagged: false,
-        RemoteEmailKeywords.Create([]));
+        EmailKeywords.Create([]));
 
     private async Task FileAsync(MailboxMutationRecordId? removal, bool erasesHeldSource)
     {

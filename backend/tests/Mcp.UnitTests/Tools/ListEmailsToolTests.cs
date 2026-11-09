@@ -85,8 +85,8 @@ public sealed class ListEmailsToolTests
             subjectFragment: "invoice",
             receivedOnOrAfter: rangeStart,
             receivedBefore: rangeEnd,
-            isRemotelySeen: false,
-            isRemotelyFlagged: true,
+            isMarkedSeen: false,
+            isFlagged: true,
             keyword: "$Junk",
             hasAttachments: true,
             direction: ListEmailsDirection.OldestFirst,
@@ -103,8 +103,8 @@ public sealed class ListEmailsToolTests
         Assert.Equal("invoice", filter.Selection.SubjectFragment);
         Assert.Equal(rangeStart, filter.Selection.ReceivedOnOrAfter);
         Assert.Equal(rangeEnd, filter.Selection.ReceivedBefore);
-        Assert.False(filter.Selection.IsRemotelySeen);
-        Assert.True(filter.Selection.IsRemotelyFlagged);
+        Assert.False(filter.Selection.IsMarkedSeen);
+        Assert.True(filter.Selection.IsFlagged);
         Assert.Equal("$JUNK", filter.Selection.Keyword);
         Assert.True(filter.Selection.HasAttachments);
         Assert.Equal(EmailTimelineDirection.OldestFirst, filter.Direction);
@@ -340,7 +340,7 @@ public sealed class ListEmailsToolTests
         // Arrange
         var timeline = new StubStoredEmailTimelineReader();
         var tool = ToolOver(timeline);
-        var overlyLongKeyword = new string('a', RemoteEmailKeywords.MaximumKeywordLength + 1);
+        var overlyLongKeyword = new string('a', EmailKeywords.MaximumKeywordLength + 1);
 
         // Act
         var failure = await Assert.ThrowsAsync<MailboxQueryFilterInvalidException>(
@@ -487,14 +487,14 @@ public sealed class ListEmailsToolTests
                 CarriesUnverifiedSignature: true,
                 ContainsUnexpandedTnefPart: false),
             ContentAvailability = StoredEmailContentAvailability.ExceededSizeLimit,
-            RemoteFlags = new RemoteEmailFlagSnapshot(
+            Flags = new StoredEmailFlags(
                 observedAt,
                 IsSeen: true,
                 IsAnswered: true,
                 IsFlagged: false,
                 IsDraft: false,
                 IsDeleted: false,
-                Keywords: RemoteEmailKeywords.Create(["$Junk"])),
+                Keywords: EmailKeywords.Create(["$Junk"])),
             SenderVerification = new SenderVerification
             {
                 AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
@@ -529,12 +529,12 @@ public sealed class ListEmailsToolTests
         Assert.True(published.Attachments.CarriesUnverifiedSignature);
         Assert.False(published.Attachments.ContainsUnexpandedTnefPart);
         Assert.Equal(ListedEmailContentAvailability.ExceededSizeLimit, published.ContentAvailability);
-        Assert.True(published.RemoteFlags.Seen);
-        Assert.True(published.RemoteFlags.Answered);
-        Assert.False(published.RemoteFlags.Flagged);
-        Assert.Equal(["$JUNK"], published.RemoteFlags.Keywords);
-        Assert.Equal(observedAt, published.RemoteFlags.ObservedAt);
-        Assert.True(published.RemoteFlags.WasObserved);
+        Assert.True(published.Flags.Seen);
+        Assert.True(published.Flags.Answered);
+        Assert.False(published.Flags.Flagged);
+        Assert.Equal(["$JUNK"], published.Flags.Keywords);
+        Assert.Equal(observedAt, published.Flags.ObservedAt);
+        Assert.True(published.Flags.WasObserved);
         Assert.Equal(AuthorAuthenticationState.Authenticated, published.SenderVerification.AuthorAuthentication);
         Assert.Equal(DeploymentTrustState.Trusted, published.SenderVerification.DeploymentTrust);
     }
@@ -718,9 +718,9 @@ public sealed class ListEmailsToolTests
 
         // Assert
         var published = Assert.Single(result.Emails);
-        Assert.False(published.RemoteFlags.WasObserved);
-        Assert.Null(published.RemoteFlags.ObservedAt);
-        Assert.False(published.RemoteFlags.Seen);
+        Assert.False(published.Flags.WasObserved);
+        Assert.Null(published.Flags.ObservedAt);
+        Assert.False(published.Flags.Seen);
     }
 
     /// <summary>A cursor is issued only when a further row exists, so a caller that stops at its absence has seen every email.</summary>
@@ -854,7 +854,7 @@ public sealed class ListEmailsToolTests
         ToAddresses = [],
         Attachments = StoredEmailAttachmentSummary.None,
         ContentAvailability = StoredEmailContentAvailability.Available,
-        RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved,
+        Flags = StoredEmailFlags.NeverObserved,
         SenderVerification = SenderVerification.NotEstablished,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
         SenderAuthenticationEvidence = SenderAuthenticationEvidence.None,

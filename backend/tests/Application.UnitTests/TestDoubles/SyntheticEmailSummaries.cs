@@ -34,8 +34,8 @@ internal static class SyntheticEmailSummaries
     /// <param name="subject">The subject, or <see langword="null" /> for a message that carried none.</param>
     /// <param name="senderAddress">The sender's address as the message wrote it.</param>
     /// <param name="toAddresses">The comparison forms of the <c>To</c> addresses.</param>
-    /// <param name="isRemotelySeen">Whether the last observed flag snapshot reported <c>\Seen</c>.</param>
-    /// <param name="remoteFlagsObservedAt">When the flags were observed, or <see langword="null" /> when they never were.</param>
+    /// <param name="isMarkedSeen">Whether the stored flags carry <c>\Seen</c>.</param>
+    /// <param name="flagsObservedAt">When the flags were observed, or <see langword="null" /> when they never were.</param>
     /// <param name="attachmentCount">How many attachments the classification counted.</param>
     /// <param name="inlineResourceCount">How many inline resources the classification counted.</param>
     /// <param name="senderVerification">What was established about the displayed author, or the stored default.</param>
@@ -51,8 +51,8 @@ internal static class SyntheticEmailSummaries
         string? subject = null,
         string? senderAddress = null,
         IReadOnlyList<string>? toAddresses = null,
-        bool isRemotelySeen = false,
-        DateTimeOffset? remoteFlagsObservedAt = null,
+        bool isMarkedSeen = false,
+        DateTimeOffset? flagsObservedAt = null,
         int attachmentCount = 0,
         int inlineResourceCount = 0,
         SenderVerification? senderVerification = null,
@@ -80,14 +80,14 @@ internal static class SyntheticEmailSummaries
                 CarriesUnverifiedSignature: false,
                 ContainsUnexpandedTnefPart: false),
             ContentAvailability = StoredEmailContentAvailability.Available,
-            RemoteFlags = new RemoteEmailFlagSnapshot(
-                remoteFlagsObservedAt,
-                isRemotelySeen,
+            Flags = new StoredEmailFlags(
+                flagsObservedAt,
+                isMarkedSeen,
                 IsAnswered: false,
                 IsFlagged: false,
                 IsDraft: false,
                 IsDeleted: false,
-                Keywords: RemoteEmailKeywords.None),
+                Keywords: EmailKeywords.None),
             SenderVerification = senderVerification ?? SenderVerification.NotEstablished,
             MachineAuthorship = machineAuthorship ?? MachineAuthorshipAssessment.NotAssessed,
             SenderAuthenticationEvidence = senderAuthenticationEvidence ?? SenderAuthenticationEvidence.None,

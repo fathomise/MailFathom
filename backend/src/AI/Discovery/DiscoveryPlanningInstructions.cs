@@ -109,8 +109,8 @@ internal static class DiscoveryPlanningInstructions
         "receivedOnOrAfter" and "receivedBefore" for when mail arrived, each written as {AnchoredInstant.WrittenForm}
         with no zone, no offset and no Z — the turn names the current date and time on that same clock, so resolve
         "this week", "since Tuesday", "March 2026" and "last quarter" against it and write the moments you resolved
-        them to rather than leaving the period in the words — "isRemotelySeen"
-        and "isRemotelyFlagged" for the read and starred states, set on every lookup where the question asks about
+        them to rather than leaving the period in the words — "isMarkedSeen"
+        and "isFlagged" for the read and starred states, set on every lookup where the question asks about
         starred, unread, or read mail, "keyword" for a label, and "hasAttachments" for whether
         mail carries files. {UnsetFilter(constrainedBySchema)} a filter you have no reason to set; a filter narrows exactly, while the same words in
         the query only compete with every other word in it. So a question that names no period sets neither received

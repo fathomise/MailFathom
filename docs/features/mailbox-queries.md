@@ -44,8 +44,8 @@ divergence neither copy would look wrong for on its own.
 | `SubjectFragment` | Text the subject must contain, compared without regard to case | any subject |
 | `ReceivedOnOrAfter` | Inclusive start of the received range | no start |
 | `ReceivedBefore` | Exclusive end of the received range | no end |
-| `IsRemotelySeen` | The remote `\Seen` state to require | either state |
-| `IsRemotelyFlagged` | The remote `\Flagged` state to require | either state |
+| `IsMarkedSeen` | The `\Seen` mark to require | either state |
+| `IsFlagged` | The `\Flagged` state to require | either state |
 | `Keyword` | One keyword the email must carry, compared without regard to case | any keyword |
 | `HasAttachments` | Whether attachments are required | either |
 | `Mark` | The reading an enrichment must have left, and the range a commitment falls due in | any reading, and mail with none |
@@ -288,7 +288,7 @@ values, beside the total attachment size and the encrypted, unverified-signature
 email by, its account and folder — the folder's identity and its place in the account's hierarchy — the message identifier, the identifier of the
 [conversation](../architecture/stored-email-schema.md#the-conversation-a-message-belongs-to) it belongs to, subject,
 sent and received timestamps, size, the sender's display name and address, the sender verdict, the machine-authorship
-reading, the `To` addresses, the attachment summary, whether raw MIME is stored locally, the remote flag snapshot, and
+reading, the `To` addresses, the attachment summary, whether raw MIME is stored locally, the stored flags, and
 the spam verdict where one is recorded.
 
 The conversation identifier is absent for a message nothing has assembled one for, which is what a mailbox stored before
@@ -432,12 +432,12 @@ receipt. `Receipts` is present on the account's own sent copy where the send ask
 for every summary of a page in one batch from the outcomes recorded against the send, so a list of sent mail costs
 three queries more, not three per row.
 
-### The remote flag snapshot
+### The stored flags
 
-`RemoteEmailFlagSnapshot` reports the flags a server last showed, together with when they were read. The timestamp is
+`StoredEmailFlags` reports the flags MailFathom holds, together with when a server last reported them. The timestamp is
 what separates "the server reported none of these flags" from "nobody has looked yet", which no combination of the
-booleans can express on its own. Reconciliation refreshes the snapshot one bounded window per run, so a row it has not
-reached yet still carries the never-observed value and matches the unseen side of `IsRemotelySeen` — and `WasObserved` is
+booleans can express on its own. Reconciliation refreshes the flags one bounded window per run, so a row it has not
+reached yet still carries the never-observed value and matches the unseen side of `IsMarkedSeen` — and `WasObserved` is
 how a caller tells the two apart.
 
 Beside the five system flags the snapshot carries `RemoteEmailKeywords`, the flags the protocol leaves to whoever set

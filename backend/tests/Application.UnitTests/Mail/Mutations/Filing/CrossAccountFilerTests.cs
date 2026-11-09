@@ -53,7 +53,7 @@ public sealed class CrossAccountFilerTests
     {
         this.states.Store(
             Filed,
-            new LocalEmailState(Inbox, HoldsSourceOccurrence: true, Folder: null, IsSeen: true, IsFlagged: false, RemoteEmailKeywords.Create([])));
+            new LocalEmailState(Inbox, HoldsSourceOccurrence: true, Folder: null, IsSeen: true, IsFlagged: false, EmailKeywords.Create([])));
         this.emails
             .StoreLocalCopyAsync(default!, default, default!, default, default, default, default)
             .ReturnsForAnyArgs(Copy);
@@ -133,7 +133,7 @@ public sealed class CrossAccountFilerTests
             Clients.Id,
             Arg.Any<ExtractedEmailMetadata?>(),
             Arg.Any<long>(),
-            new CopiedMailFlags(IsSeen: true, IsFlagged: false, RemoteEmailKeywords.Create([])),
+            new CopiedMailFlags(IsSeen: true, IsFlagged: false, EmailKeywords.Create([])),
             Arg.Any<CancellationToken>());
         Assert.Equal(new AppliedMailboxChange(Personal, ClientsFolder, Copy, Flags: null), filed!.Destination);
     }

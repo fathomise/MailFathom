@@ -83,8 +83,8 @@ public sealed record RankedSearchList
     /// <param name="recipientAddress">The address a <c>To</c> or <c>Cc</c> recipient must carry, or <see langword="null" /> for any recipient.</param>
     /// <param name="receivedOnOrAfter">The inclusive start of the received range, or <see langword="null" /> for no start.</param>
     /// <param name="receivedBefore">The exclusive end of the received range, or <see langword="null" /> for no end.</param>
-    /// <param name="isRemotelySeen">The remote <c>\Seen</c> state to require, or <see langword="null" /> for either.</param>
-    /// <param name="isRemotelyFlagged">The remote <c>\Flagged</c> state to require, or <see langword="null" /> for either.</param>
+    /// <param name="isMarkedSeen">The <c>\Seen</c> mark to require, or <see langword="null" /> for either.</param>
+    /// <param name="isFlagged">The <c>\Flagged</c> state to require, or <see langword="null" /> for either.</param>
     /// <param name="hasAttachments">Whether attachments are required, or <see langword="null" /> for either.</param>
     /// <returns>The validated list.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="scope" /> is <see langword="null" />.</exception>
@@ -96,8 +96,8 @@ public sealed record RankedSearchList
         string? recipientAddress,
         DateTimeOffset? receivedOnOrAfter,
         DateTimeOffset? receivedBefore,
-        bool? isRemotelySeen,
-        bool? isRemotelyFlagged,
+        bool? isMarkedSeen,
+        bool? isFlagged,
         bool? hasAttachments) => new(
         MailboxEmailSelection.Create(
             scope,
@@ -106,8 +106,8 @@ public sealed record RankedSearchList
             subjectFragment: null,
             receivedOnOrAfter,
             receivedBefore,
-            isRemotelySeen,
-            isRemotelyFlagged,
+            isMarkedSeen,
+            isFlagged,
             keyword: null,
             hasAttachments),
         EmailSearchQueryText.Create(queryText));

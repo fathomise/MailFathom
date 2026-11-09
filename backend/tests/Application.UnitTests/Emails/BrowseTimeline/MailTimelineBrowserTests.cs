@@ -268,7 +268,7 @@ public sealed class MailTimelineBrowserTests
         // Act, Assert
         await Assert.ThrowsAsync<MailboxQueryCursorFilterMismatchException>(() =>
             browser.BrowsePageAsync(
-                new BrowseTimelineRequest { PageSize = 2, Cursor = page.NextCursor, IsRemotelyFlagged = true },
+                new BrowseTimelineRequest { PageSize = 2, Cursor = page.NextCursor, IsFlagged = true },
                 TestContext.Current.CancellationToken));
     }
 

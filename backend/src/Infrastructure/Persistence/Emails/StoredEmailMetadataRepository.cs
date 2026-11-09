@@ -175,7 +175,7 @@ internal sealed class StoredEmailMetadataRepository(
         // was seen first, described an occurrence that no longer exists. All three are cleared so the destination
         // folder's own window is what says what holds there now: the email has a remote occurrence again, so it is no
         // longer one retained without one either.
-        entity.RemoteFlagsObservedAt = null;
+        entity.FlagsObservedAt = null;
         entity.RemoteExpungeObservedAt = null;
         entity.AuthoredDeleteFlaggedAt = null;
         entity.IsRetainedAfterAuthoredDelete = false;
@@ -238,8 +238,8 @@ internal sealed class StoredEmailMetadataRepository(
             sizeOctets,
             (entity, storedAt) =>
             {
-                entity.IsRemotelySeen = flags.IsSeen;
-                entity.IsRemotelyDraft = flags.IsDraft;
+                entity.IsMarkedSeen = flags.IsSeen;
+                entity.IsDraft = flags.IsDraft;
                 entity.FiledFromOutgoingEmailId = filedFrom?.Value;
 
                 // A draft is stamped as evaluated because nothing arrived: a rule conditioned on incoming mail must not fire
@@ -266,9 +266,9 @@ internal sealed class StoredEmailMetadataRepository(
             sizeOctets,
             (entity, storedAt) =>
             {
-                entity.IsRemotelySeen = flags.IsSeen;
-                entity.IsRemotelyFlagged = flags.IsFlagged;
-                entity.RemoteKeywords = [.. flags.Keywords.Values];
+                entity.IsMarkedSeen = flags.IsSeen;
+                entity.IsFlagged = flags.IsFlagged;
+                entity.Keywords = [.. flags.Keywords.Values];
 
                 // Stamped for the reason the port states: the copy is this deployment's own act rather than an arrival,
                 // and a rule meeting its own copy would copy it again.
@@ -410,7 +410,7 @@ internal sealed class StoredEmailMetadataRepository(
             SettledAt = storedAt,
             SizeOctets = sizeOctets,
             ContentAvailability = StoredEmailContentAvailability.Available,
-            RemoteFlagsObservedAt = storedAt,
+            FlagsObservedAt = storedAt,
         };
 
         stamp(entity, storedAt);

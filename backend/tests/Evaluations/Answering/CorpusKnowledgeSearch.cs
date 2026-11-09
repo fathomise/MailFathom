@@ -306,8 +306,8 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
                     subjectFragment: null,
                     selection.ReceivedOnOrAfter,
                     selection.ReceivedBefore,
-                    selection.IsRemotelySeen,
-                    selection.IsRemotelyFlagged,
+                    selection.IsMarkedSeen,
+                    selection.IsFlagged,
                     selection.Keyword,
                     selection.HasAttachments,
                     selection.Mark);

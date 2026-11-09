@@ -13,7 +13,7 @@ namespace MailFathom.Mcp.Tools;
 /// one of them, and the drift is invisible — the descriptions are published prose that no build compares.
 /// </para>
 /// <para>
-/// Only the filters that are genuinely the same statement are here. <c>subjectFragment</c> and <c>isRemotelySeen</c>
+/// Only the filters that are genuinely the same statement are here. <c>subjectFragment</c> and <c>isMarkedSeen</c>
 /// are not: the first has to say that it narrows what is eligible rather than what the ranking matches, which is a
 /// sentence a listing has nothing to say, and the second names the act that does not change the flag, which is a
 /// different act in each tool. <c>accounts</c> and <c>folders</c> are not either, for the same reason — each says
@@ -47,9 +47,9 @@ internal static class MailboxFilterDescriptions
         "Return only emails received strictly before this ISO 8601 timestamp, so consecutive ranges built from one "
         + "instant neither overlap nor leave a gap. Omit for no upper bound.";
 
-    /// <summary>The <c>isRemotelyFlagged</c> filter, which is the star a mail client draws rather than the folder role.</summary>
-    public const string IsRemotelyFlagged =
-        "Return only emails the mail server last reported as flagged (true) or unflagged (false), which is the star "
+    /// <summary>The <c>isFlagged</c> filter, which is the star a mail client draws rather than the folder role.</summary>
+    public const string IsFlagged =
+        "Return only emails flagged (true) or unflagged (false), which is the star "
         + "most mail clients show. Omit to match either. This is the \\Flagged flag on a message and is unrelated to "
         + "the Flagged folder role; an email whose flags no run has observed yet counts as unflagged.";
 
@@ -58,7 +58,7 @@ internal static class MailboxFilterDescriptions
         "Return only emails carrying this keyword, which is a flag a mail client or server set rather than one of the "
         + "five standard ones, such as $Junk or a label. Matched as a whole keyword without regard to case; up to 64 "
         + "characters, and a value that is not a keyword this system stores is refused. Omit to match any, which an "
-        + "empty string does too. The keywords each email carries are reported in its remoteFlags.";
+        + "empty string does too. The keywords each email carries are reported in its flags.";
 
     /// <summary>The <c>hasAttachments</c> filter, which counts neither inline images nor signature parts.</summary>
     public const string HasAttachments =

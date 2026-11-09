@@ -108,8 +108,8 @@ internal sealed class SpamClassificationHarness
                     ImapUidValidity.Create(9),
                     ImapUid.Create(4401)),
                 folderAlias,
-                IsRemotelySeen: false,
-                RemoteEmailKeywords.Create(keywords)));
+                IsMarkedSeen: false,
+                EmailKeywords.Create(keywords)));
 
         return reader;
     }

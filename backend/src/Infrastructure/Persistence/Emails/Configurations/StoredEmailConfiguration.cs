@@ -38,6 +38,14 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
             table => table.HasCheckConstraint(
                 PersistenceConstraintNames.StoredEmailOccurrenceCompleteCheckConstraintName,
                 $"(\"{nameof(StoredEmailEntity.UidValidity)}\" IS NULL) = (\"{nameof(StoredEmailEntity.Uid)}\" IS NULL)"));
+
+        // These keep the columns they were created with: renaming one would break the previous build, which a rolling
+        // upgrade runs against the same table.
+        entity.Property(email => email.IsMarkedSeen).HasColumnName("IsRemotelySeen");
+        entity.Property(email => email.IsFlagged).HasColumnName("IsRemotelyFlagged");
+        entity.Property(email => email.IsDraft).HasColumnName("IsRemotelyDraft");
+        entity.Property(email => email.Keywords).HasColumnName("RemoteKeywords");
+        entity.Property(email => email.FlagsObservedAt).HasColumnName("RemoteFlagsObservedAt");
         entity.HasKey(email => email.Id);
         entity.Property(email => email.Id).ValueGeneratedNever();
         entity.Property(email => email.MailboxAccountId).HasMaxLength(128);
@@ -292,7 +300,7 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
         //
         // The filter is what keeps the index proportionate to the queue rather than to the mailbox: a tombstoned email
         // is outside every window, so it has no place in the structure a window is read from.
-        entity.HasIndex(email => new { email.MailFolderBindingId, email.RemoteFlagsObservedAt, email.Uid })
+        entity.HasIndex(email => new { email.MailFolderBindingId, email.FlagsObservedAt, email.Uid })
             .HasDatabaseName(PersistenceConstraintNames.StoredEmailReconciliationQueueIndexName)
             .HasFilter($"\"{nameof(StoredEmailEntity.RemoteExpungeObservedAt)}\" IS NULL");
 
@@ -429,7 +437,7 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
 
         // A keyword filter asks whether the array contains one value, which is the containment operator a GIN index
         // over a text[] serves — the same shape and the same reason as the three address arrays above.
-        entity.HasIndex(email => email.RemoteKeywords)
+        entity.HasIndex(email => email.Keywords)
             .HasDatabaseName(PersistenceConstraintNames.StoredEmailRemoteKeywordsIndexName)
             .HasMethod("GIN");
     }

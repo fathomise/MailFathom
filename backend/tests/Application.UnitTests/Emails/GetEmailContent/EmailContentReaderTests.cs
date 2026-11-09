@@ -74,7 +74,7 @@ public sealed class EmailContentReaderTests
             content.Attachments?.Select(attachment => attachment.Description.FileName?.Value));
         Assert.Equal(summary.Account, content.AccountId);
         Assert.Equal(summary.Folder, content.Folder);
-        Assert.Equal(summary.RemoteFlags, content.RemoteFlags);
+        Assert.Equal(summary.Flags, content.Flags);
     }
 
     /// <summary>The per-attachment list is re-derived, and what it describes must be what the stored row counted.</summary>

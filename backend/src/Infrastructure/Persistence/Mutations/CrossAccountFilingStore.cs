@@ -80,11 +80,11 @@ internal sealed class CrossAccountFilingStore(MailFathomDbContext readContext, T
                     .Where(email => email.Id == filing.DestinationStoredEmailId)
                     .Select(email => new CopyRow(
                         email.MailFolderBinding,
-                        email.IsRemotelySeen,
+                        email.IsMarkedSeen,
                         email.IsRemotelyAnswered,
-                        email.IsRemotelyFlagged,
-                        email.IsRemotelyDraft,
-                        email.RemoteKeywords,
+                        email.IsFlagged,
+                        email.IsDraft,
+                        email.Keywords,
                         email.ReceivedAt,
                         email.SentAt,
                         email.StoredAt))
@@ -272,7 +272,7 @@ internal sealed class CrossAccountFilingStore(MailFathomDbContext readContext, T
         DateTimeOffset StoredAt)
     {
         internal RestoredEmailState State =>
-            new(this.IsSeen, this.IsAnswered, this.IsFlagged, this.IsDraft, RemoteEmailKeywords.Create(this.Keywords));
+            new(this.IsSeen, this.IsAnswered, this.IsFlagged, this.IsDraft, EmailKeywords.Create(this.Keywords));
 
         internal DateTimeOffset InternalDate => this.ReceivedAt ?? this.SentAt ?? this.StoredAt;
     }

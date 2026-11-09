@@ -192,7 +192,7 @@ public sealed class MailboxRestoreSettlementTests
                             IsAnswered: false,
                             IsFlagged: false,
                             IsDraft: false,
-                            RemoteEmailKeywords.None),
+                            EmailKeywords.None),
                         Now))
                 .WithAppendStandingFor(Account, this.Standing);
 

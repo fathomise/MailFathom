@@ -1476,7 +1476,7 @@ public sealed class ClientMailMutationsEndpointTests
                     Folder: null,
                     IsSeen: false,
                     IsFlagged: false,
-                    RemoteEmailKeywords.Create([]))));
+                    EmailKeywords.Create([]))));
             auditSettings.GetAuditSettings(Arg.Any<MailAccountId>()).Returns(MailboxMutationAuditSettings.Disabled);
         }
 

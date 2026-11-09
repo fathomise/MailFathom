@@ -25,15 +25,15 @@
   },
   {
     "scenario": "DiscoveryPlanning.AsksForFlagAndReadState",
-    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"movers estimate\",\"isRemotelySeen\":false,\"isRemotelyFlagged\":true},{\"queryText\":\"movers moving\",\"isRemotelySeen\":false,\"isRemotelyFlagged\":true},{\"queryText\":\"mover OR movers\",\"isRemotelySeen\":false,\"isRemotelyFlagged\":true}],\"sufficientPassages\":20}"
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"movers estimate\",\"isMarkedSeen\":false,\"isFlagged\":true},{\"queryText\":\"movers moving\",\"isMarkedSeen\":false,\"isFlagged\":true},{\"queryText\":\"mover OR movers\",\"isMarkedSeen\":false,\"isFlagged\":true}],\"sufficientPassages\":20}"
   },
   {
     "scenario": "DiscoveryPlanning.AsksForFlagAndReadState",
-    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"movers estimate\",\"isRemotelySeen\":false,\"isRemotelyFlagged\":true},{\"queryText\":\"moving company\",\"isRemotelySeen\":false,\"isRemotelyFlagged\":true},{\"queryText\":\"movers\",\"isRemotelySeen\":false,\"isRemotelyFlagged\":true}],\"sufficientPassages\":20}"
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"movers estimate\",\"isMarkedSeen\":false,\"isFlagged\":true},{\"queryText\":\"moving company\",\"isMarkedSeen\":false,\"isFlagged\":true},{\"queryText\":\"movers\",\"isMarkedSeen\":false,\"isFlagged\":true}],\"sufficientPassages\":20}"
   },
   {
     "scenario": "DiscoveryPlanning.AsksForFlagAndReadState",
-    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"movers moving\",\"isRemotelyFlagged\":true,\"isRemotelySeen\":false},{\"queryText\":\"movers estimate\",\"isRemotelyFlagged\":true,\"isRemotelySeen\":false},{\"queryText\":\"movers\",\"isRemotelyFlagged\":true,\"isRemotelySeen\":false}],\"sufficientPassages\":20}"
+    "answer": "{\"intent\":\"findFact\",\"lookups\":[{\"queryText\":\"movers moving\",\"isFlagged\":true,\"isMarkedSeen\":false},{\"queryText\":\"movers estimate\",\"isFlagged\":true,\"isMarkedSeen\":false},{\"queryText\":\"movers\",\"isFlagged\":true,\"isMarkedSeen\":false}],\"sufficientPassages\":20}"
   },
   {
     "scenario": "DiscoveryPlanning.ComparesOffers",

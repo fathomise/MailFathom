@@ -250,7 +250,7 @@ public sealed class MailboxMutationRecordMappingTests
     {
         // Arrange
         var keywords = Enumerable
-            .Range(0, RemoteEmailKeywords.MaximumKeywords + 1)
+            .Range(0, EmailKeywords.MaximumKeywords + 1)
             .Select(position => $"$Label{position}")
             .ToArray();
         var entity = StoredKeywordChange(MailboxMutation.AddKeywords, keywords);
@@ -261,7 +261,7 @@ public sealed class MailboxMutationRecordMappingTests
 
         // Assert
         Assert.Contains(
-            $"more than the {RemoteEmailKeywords.MaximumKeywords}",
+            $"more than the {EmailKeywords.MaximumKeywords}",
             refusal.Message,
             StringComparison.Ordinal);
     }

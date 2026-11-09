@@ -11,16 +11,16 @@ namespace MailFathom.Domain.UnitTests.Emails;
 /// Covers what turns the keywords a server listed into a value: one case, no duplicates, one order, and a bound on
 /// what an untrusted answer may cost.
 /// </summary>
-public sealed class RemoteEmailKeywordsTests
+public sealed class EmailKeywordsTests
 {
     [Fact]
     public void Create_NothingReported_IsTheEmptySet()
     {
         // Act
-        var keywords = RemoteEmailKeywords.Create(null);
+        var keywords = EmailKeywords.Create(null);
 
         // Assert
-        Assert.Same(RemoteEmailKeywords.None, keywords);
+        Assert.Same(EmailKeywords.None, keywords);
         Assert.Empty(keywords.Values);
     }
 
@@ -32,7 +32,7 @@ public sealed class RemoteEmailKeywordsTests
     public void Create_OneKeywordWrittenTwoWays_KeepsItOnce()
     {
         // Act
-        var keywords = RemoteEmailKeywords.Create(["$Junk", "$junk", "$JUNK"]);
+        var keywords = EmailKeywords.Create(["$Junk", "$junk", "$JUNK"]);
 
         // Assert
         Assert.Equal(["$JUNK"], keywords.Values);
@@ -43,8 +43,8 @@ public sealed class RemoteEmailKeywordsTests
     public void Create_KeywordsInAnyOrder_ProducesOneValue()
     {
         // Act
-        var listed = RemoteEmailKeywords.Create(["$Forwarded", "nonjunk", "$Junk"]);
-        var reordered = RemoteEmailKeywords.Create(["$junk", "$forwarded", "NonJunk"]);
+        var listed = EmailKeywords.Create(["$Forwarded", "nonjunk", "$Junk"]);
+        var reordered = EmailKeywords.Create(["$junk", "$forwarded", "NonJunk"]);
 
         // Assert
         Assert.Equal(["$FORWARDED", "$JUNK", "NONJUNK"], listed.Values);
@@ -59,7 +59,7 @@ public sealed class RemoteEmailKeywordsTests
     public void Create_AValueNoStoredKeywordCouldBe_DropsIt(string keyword)
     {
         // Act
-        var keywords = RemoteEmailKeywords.Create([keyword, "$Junk"]);
+        var keywords = EmailKeywords.Create([keyword, "$Junk"]);
 
         // Assert
         Assert.Equal(["$JUNK"], keywords.Values);
@@ -70,10 +70,10 @@ public sealed class RemoteEmailKeywordsTests
     public void Create_AKeywordLongerThanTheBound_DropsItRatherThanTruncatingIt()
     {
         // Arrange
-        var overLong = new string('a', RemoteEmailKeywords.MaximumKeywordLength + 1);
+        var overLong = new string('a', EmailKeywords.MaximumKeywordLength + 1);
 
         // Act
-        var keywords = RemoteEmailKeywords.Create([overLong, "$Junk"]);
+        var keywords = EmailKeywords.Create([overLong, "$Junk"]);
 
         // Assert
         Assert.Equal(["$JUNK"], keywords.Values);
@@ -84,10 +84,10 @@ public sealed class RemoteEmailKeywordsTests
     public void Create_AKeywordExactlyAsLongAsTheBound_KeepsIt()
     {
         // Arrange
-        var longestPermitted = new string('a', RemoteEmailKeywords.MaximumKeywordLength);
+        var longestPermitted = new string('a', EmailKeywords.MaximumKeywordLength);
 
         // Act
-        var keywords = RemoteEmailKeywords.Create([longestPermitted, "$Junk"]);
+        var keywords = EmailKeywords.Create([longestPermitted, "$Junk"]);
 
         // Assert
         Assert.Equal(["$JUNK", longestPermitted.ToUpperInvariant()], keywords.Values);
@@ -103,17 +103,17 @@ public sealed class RemoteEmailKeywordsTests
     {
         // Arrange
         var reported = Enumerable
-            .Range(0, RemoteEmailKeywords.MaximumKeywords + 20)
+            .Range(0, EmailKeywords.MaximumKeywords + 20)
             .Select(ordinal => $"label{ordinal:000}")
             .Reverse();
 
         // Act
-        var keywords = RemoteEmailKeywords.Create(reported);
+        var keywords = EmailKeywords.Create(reported);
 
         // Assert
-        Assert.Equal(RemoteEmailKeywords.MaximumKeywords, keywords.Values.Count);
+        Assert.Equal(EmailKeywords.MaximumKeywords, keywords.Values.Count);
         Assert.Equal("LABEL000", keywords.Values[0]);
-        Assert.Equal($"LABEL{RemoteEmailKeywords.MaximumKeywords - 1:000}", keywords.Values[^1]);
+        Assert.Equal($"LABEL{EmailKeywords.MaximumKeywords - 1:000}", keywords.Values[^1]);
     }
 
     /// <summary>Which keywords the bound gives up follows from the values rather than from the order one server answered in, so two runs against the same message keep the same ones.</summary>
@@ -122,13 +122,13 @@ public sealed class RemoteEmailKeywordsTests
     {
         // Arrange
         var reported = Enumerable
-            .Range(0, RemoteEmailKeywords.MaximumKeywords + 20)
+            .Range(0, EmailKeywords.MaximumKeywords + 20)
             .Select(ordinal => $"label{ordinal:000}")
             .ToArray();
 
         // Act
-        var listed = RemoteEmailKeywords.Create(reported);
-        var reversed = RemoteEmailKeywords.Create(reported.Reverse());
+        var listed = EmailKeywords.Create(reported);
+        var reversed = EmailKeywords.Create(reported.Reverse());
 
         // Assert
         Assert.Equal(listed, reversed);
@@ -140,7 +140,7 @@ public sealed class RemoteEmailKeywordsTests
     public void Normalized_AWritableKeyword_ProducesTheComparisonForm(string written, string expected)
     {
         // Act
-        var normalized = RemoteEmailKeywords.Normalized(written);
+        var normalized = EmailKeywords.Normalized(written);
 
         // Assert
         Assert.Equal(expected, normalized);
@@ -154,7 +154,7 @@ public sealed class RemoteEmailKeywordsTests
     public void Normalized_AValueNoStoredKeywordCouldBe_IsNotAKeyword(string? written)
     {
         // Act
-        var normalized = RemoteEmailKeywords.Normalized(written);
+        var normalized = EmailKeywords.Normalized(written);
 
         // Assert
         Assert.Null(normalized);
@@ -165,12 +165,12 @@ public sealed class RemoteEmailKeywordsTests
     public void Equality_TwoSetsBuiltFromTheSameAnswer_AreOneValue()
     {
         // Act
-        var first = RemoteEmailKeywords.Create(["$Junk"]);
-        var second = RemoteEmailKeywords.Create(["$Junk"]);
+        var first = EmailKeywords.Create(["$Junk"]);
+        var second = EmailKeywords.Create(["$Junk"]);
 
         // Assert
         Assert.Equal(first, second);
-        Assert.NotEqual(first, RemoteEmailKeywords.Create(["$Junk", "$Forwarded"]));
-        Assert.NotEqual(first, RemoteEmailKeywords.None);
+        Assert.NotEqual(first, EmailKeywords.Create(["$Junk", "$Forwarded"]));
+        Assert.NotEqual(first, EmailKeywords.None);
     }
 }

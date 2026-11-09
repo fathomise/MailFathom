@@ -516,7 +516,7 @@ public sealed class MailDeletionRecorderTests
                 Folder: null,
                 IsSeen: false,
                 IsFlagged: false,
-                RemoteEmailKeywords.Create([])));
+                EmailKeywords.Create([])));
 
         return this.Recorder(
             target,

@@ -88,8 +88,8 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
         var stored = await EnsureSeededAsync(services, cancellationToken);
 
         // Act
-        var forward = await WalkGroupedAsync(services, isRemotelySeen: null, EmailTimelineDirection.NewestFirst, from: null, cancellationToken);
-        var backward = await WalkGroupedAsync(services, isRemotelySeen: null, EmailTimelineDirection.OldestFirst, forward[^1].Position, cancellationToken);
+        var forward = await WalkGroupedAsync(services, isMarkedSeen: null, EmailTimelineDirection.NewestFirst, from: null, cancellationToken);
+        var backward = await WalkGroupedAsync(services, isMarkedSeen: null, EmailTimelineDirection.OldestFirst, forward[^1].Position, cancellationToken);
 
         // Assert
         var ours = forward.Where(grouped => SeededThreads.Contains(grouped.Thread.ThreadId.Value)).ToArray();
@@ -113,7 +113,7 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
         var stored = await EnsureSeededAsync(services, cancellationToken);
 
         // Act
-        var forward = await WalkGroupedAsync(services, isRemotelySeen: null, EmailTimelineDirection.NewestFirst, from: null, cancellationToken);
+        var forward = await WalkGroupedAsync(services, isMarkedSeen: null, EmailTimelineDirection.NewestFirst, from: null, cancellationToken);
 
         // Assert
         var across = Assert.Single(forward, grouped => grouped.Thread.ThreadId.Value == AcrossFolders);
@@ -134,7 +134,7 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
         var stored = await EnsureSeededAsync(services, cancellationToken);
 
         // Act
-        var unread = await WalkGroupedAsync(services, isRemotelySeen: false, EmailTimelineDirection.NewestFirst, from: null, cancellationToken);
+        var unread = await WalkGroupedAsync(services, isMarkedSeen: false, EmailTimelineDirection.NewestFirst, from: null, cancellationToken);
 
         // Assert
         var ours = unread.Where(grouped => SeededThreads.Contains(grouped.Thread.ThreadId.Value)).ToArray();
@@ -154,7 +154,7 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
         var stored = await EnsureSeededAsync(services, cancellationToken);
 
         // Act
-        var listed = (await WalkGroupedAsync(services, isRemotelySeen: null, EmailTimelineDirection.NewestFirst, from: null, cancellationToken))
+        var listed = (await WalkGroupedAsync(services, isMarkedSeen: null, EmailTimelineDirection.NewestFirst, from: null, cancellationToken))
             .Select(grouped => grouped.Thread)
             .ToArray();
 
@@ -176,7 +176,7 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
     /// <summary>Walks the grouped list one conversation at a time in one direction, from a position or from that direction's leading end.</summary>
     private static async Task<IReadOnlyList<GroupedEmailThread>> WalkGroupedAsync(
         OrchestratedMailFathomServices services,
-        bool? isRemotelySeen,
+        bool? isMarkedSeen,
         EmailTimelineDirection direction,
         EmailTimelinePosition? from,
         CancellationToken cancellationToken)
@@ -200,8 +200,8 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
                     subjectFragment: null,
                     receivedOnOrAfter: null,
                     receivedBefore: null,
-                    isRemotelySeen,
-                    isRemotelyFlagged: null,
+                    isMarkedSeen,
+                    isFlagged: null,
                     keyword: null,
                     hasAttachments: null,
                     direction);
@@ -308,7 +308,7 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
                     .ExecuteUpdateAsync(
                         setters => setters
                             .SetProperty(email => email.EmailThreadId, message.Thread)
-                            .SetProperty(email => email.IsRemotelySeen, message.Seen),
+                            .SetProperty(email => email.IsMarkedSeen, message.Seen),
                         token);
             }
 

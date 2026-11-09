@@ -53,7 +53,7 @@ internal sealed record InMemoryStoredEmail(EmailSummary Summary, IReadOnlyList<s
             || (this.Summary.ReceivedAt is { } receivedBefore && receivedBefore < before));
 
     private bool MatchesFlags(MailboxEmailSelection selection) =>
-        (selection.IsRemotelySeen is not { } isSeen || this.Summary.RemoteFlags.IsSeen == isSeen)
+        (selection.IsMarkedSeen is not { } isSeen || this.Summary.Flags.IsSeen == isSeen)
         && (selection.HasAttachments is not { } hasAttachments
             || this.Summary.Attachments.HasAttachments == hasAttachments);
 }

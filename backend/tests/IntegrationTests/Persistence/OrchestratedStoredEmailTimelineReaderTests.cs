@@ -142,8 +142,8 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
             subjectFragment: null,
             receivedOnOrAfter: null,
             receivedBefore: null,
-            isRemotelySeen: null,
-            isRemotelyFlagged: null,
+            isMarkedSeen: null,
+            isFlagged: null,
             keyword: null,
             hasAttachments: null,
             EmailTimelineDirection.NewestFirst);
@@ -192,8 +192,8 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
                 subjectFragment: null,
                 receivedOnOrAfter: null,
                 receivedBefore: null,
-                isRemotelySeen: null,
-                isRemotelyFlagged: null,
+                isMarkedSeen: null,
+                isFlagged: null,
                 keyword: null,
                 hasAttachments: null,
                 EmailTimelineDirection.NewestFirst),
@@ -219,9 +219,9 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
     /// <summary>Applies every filter this folder can be seeded for, which is what proves each one translates and selects.</summary>
     /// <remarks>
     /// The seeding here stores mail and observes nothing, so every row carries the never-observed default and the
-    /// <c>isRemotelySeen</c> filter is asserted as an all-or-nothing partition: what that establishes is that the
+    /// <c>isMarkedSeen</c> filter is asserted as an all-or-nothing partition: what that establishes is that the
     /// predicate reaches the column and that an unobserved row counts as unseen. For the same reason the two filters
-    /// that need a flag actually written — <c>isRemotelyFlagged</c> and <c>keyword</c> — are covered where a window
+    /// that need a flag actually written — <c>isFlagged</c> and <c>keyword</c> — are covered where a window
     /// writes one, in <c>OrchestratedStoredEmailReconciliationTests</c>, against a folder holding mail on both sides of
     /// each. Seeding them here would mean applying a reconciliation outcome from a class about reading.
     /// </remarks>
@@ -252,8 +252,8 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
             services,
             hasAttachments: true,
             cancellationToken: cancellationToken);
-        var seen = await ReadFilteredAsync(services, isRemotelySeen: true, cancellationToken: cancellationToken);
-        var unseen = await ReadFilteredAsync(services, isRemotelySeen: false, cancellationToken: cancellationToken);
+        var seen = await ReadFilteredAsync(services, isMarkedSeen: true, cancellationToken: cancellationToken);
+        var unseen = await ReadFilteredAsync(services, isMarkedSeen: false, cancellationToken: cancellationToken);
 
         // Assert
         Assert.Equal(SeededEmailCount, bySender.Count);
@@ -274,7 +274,7 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
 
         Assert.Empty(seen);
         Assert.Equal(SeededEmailCount, unseen.Count);
-        Assert.All(unseen, email => Assert.False(email.RemoteFlags.WasObserved));
+        Assert.All(unseen, email => Assert.False(email.Flags.WasObserved));
     }
 
     /// <summary>Reads the same range twice, written once in UTC and once at a non-zero offset, against the real driver.</summary>
@@ -448,8 +448,8 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
         string? subjectFragment = null,
         DateTimeOffset? receivedOnOrAfter = null,
         DateTimeOffset? receivedBefore = null,
-        bool? isRemotelySeen = null,
-        bool? isRemotelyFlagged = null,
+        bool? isMarkedSeen = null,
+        bool? isFlagged = null,
         string? keyword = null,
         bool? hasAttachments = null,
         CancellationToken cancellationToken = default) => await ReadAllAsync(
@@ -461,8 +461,8 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
                 subjectFragment,
                 receivedOnOrAfter,
                 receivedBefore,
-                isRemotelySeen,
-                isRemotelyFlagged,
+                isMarkedSeen,
+                isFlagged,
                 keyword,
                 hasAttachments,
                 EmailTimelineDirection.NewestFirst),
@@ -491,8 +491,8 @@ public sealed class OrchestratedStoredEmailTimelineReaderTests(MailFathomOrchest
             subjectFragment: null,
             receivedOnOrAfter: null,
             receivedBefore: null,
-            isRemotelySeen: null,
-            isRemotelyFlagged: null,
+            isMarkedSeen: null,
+            isFlagged: null,
             keyword: null,
             hasAttachments: null,
             direction);

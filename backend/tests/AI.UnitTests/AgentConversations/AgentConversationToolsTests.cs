@@ -1266,7 +1266,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             CarriesUnverifiedSignature: false,
             ContainsUnexpandedTnefPart: false),
         ContentAvailability = StoredEmailContentAvailability.ExceededSizeLimit,
-        RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved,
+        Flags = StoredEmailFlags.NeverObserved,
     };
 
     private static AIFunctionArguments Suggesting(params string[] questions) =>
@@ -1359,7 +1359,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
             selfContainedHtml: null,
             new EmailBodyForms(PlainText: true, Html: false)),
         Attachments = [],
-        RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved,
+        Flags = StoredEmailFlags.NeverObserved,
         SenderVerification = SenderVerification.NotEstablished,
         SenderAuthenticationEvidence = SenderAuthenticationEvidence.None,
         MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,

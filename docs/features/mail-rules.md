@@ -426,7 +426,7 @@ nothing and is a mistyped list far more often than an intent. An empty `set-keyw
 **A condition reads keywords as well as writing them.** [`keywords`](#the-facts-a-condition-can-read) is a fact, so a
 rule can select on a label an earlier run put on a message, under the same case-insensitive comparison.
 
-What it reads is what the server last reported, never what a rule asked for. A keyword a rule asks for in this pass is
+What it reads is the keywords stored for the message, never what a rule asked for. A keyword a rule asks for in this pass is
 a change written down: the account's next run carries it to the server, and the fact carries it once
 [reconciliation](imap-synchronization.md#reconciling-against-the-server) has read the message's flags back. So a rule
 below one that adds `$Invoice` does not see `$Invoice` on that message in the same pass, which is deliberate — a fact
@@ -625,11 +625,11 @@ comparison, operator, and function checks below are made against.
 | `attachmentTotalBytes` | number | The size of every attachment added together |
 | `isEncrypted` | boolean | Whether the email's body is encrypted |
 | `carriesUnverifiedSignature` | boolean | Whether a signature part is present anywhere in the message; it says nothing about whether the message's own signature verified |
-| `isSeen` | boolean | Whether the server reports the email as read |
+| `isSeen` | boolean | Whether the email is marked read |
 | `isAnswered` | boolean | Whether the server reports the email as answered |
-| `isFlagged` | boolean | Whether the server reports the email as flagged |
-| `isDraft` | boolean | Whether the server reports the email as a draft |
-| `keywords` | text set | The keywords the server reports the email as carrying; empty when it carries none |
+| `isFlagged` | boolean | Whether the email is flagged |
+| `isDraft` | boolean | Whether the email is marked a draft |
+| `keywords` | text set | The keywords the email carries; empty when it carries none |
 | `hasExtractedContent` | boolean | Whether text has been extracted from the email's body |
 | `bodyText` | text | The text extracted from the email's body, after quoted history and signatures were removed; absent while no extraction has run for it |
 | `machineAuthorship` | text | How much the email's own text reads as machine written — `likely`, `possible`, `unlikely`, or `notAssessed` |

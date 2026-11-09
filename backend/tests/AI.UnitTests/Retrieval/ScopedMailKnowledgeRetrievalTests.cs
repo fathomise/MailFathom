@@ -63,8 +63,8 @@ public sealed class ScopedMailKnowledgeRetrievalTests
             ["subjectFragment"] = "claim",
             ["receivedOnOrAfter"] = "2026-07-01T00:00",
             ["receivedBefore"] = "2026-07-08T00:00",
-            ["isRemotelySeen"] = true,
-            ["isRemotelyFlagged"] = true,
+            ["isMarkedSeen"] = true,
+            ["isFlagged"] = true,
             ["keyword"] = "$Label",
             ["hasAttachments"] = false,
         });
@@ -81,8 +81,8 @@ public sealed class ScopedMailKnowledgeRetrievalTests
                 SubjectFragment = "claim",
                 ReceivedOnOrAfter = new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.FromHours(2)),
                 ReceivedBefore = new DateTimeOffset(2026, 7, 8, 0, 0, 0, TimeSpan.FromHours(2)),
-                IsRemotelySeen = true,
-                IsRemotelyFlagged = true,
+                IsMarkedSeen = true,
+                IsFlagged = true,
                 Keyword = "$Label",
                 HasAttachments = false,
             },
@@ -550,7 +550,7 @@ public sealed class ScopedMailKnowledgeRetrievalTests
         Assert.Contains("Naming a document — an invoice, a contract, a report — is not asking about an attachment.", description, StringComparison.Ordinal);
     }
 
-    /// <summary>A question whether a recipient read a message was answered with the remote read state, which says nothing about a recipient.</summary>
+    /// <summary>A question whether a recipient read a message was answered with the stored read state, which says nothing about a recipient.</summary>
     [Fact]
     public void SearchTool_TheReadStateArgument_IsThisMailboxOpeningTheMessageNeverARecipientReadingIt()
     {
@@ -560,7 +560,7 @@ public sealed class ScopedMailKnowledgeRetrievalTests
         // Act
         var description = tool.JsonSchema
             .GetProperty("properties")
-            .GetProperty("isRemotelySeen")
+            .GetProperty("isMarkedSeen")
             .GetProperty("description")
             .GetString();
 

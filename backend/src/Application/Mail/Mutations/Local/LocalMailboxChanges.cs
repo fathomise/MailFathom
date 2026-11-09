@@ -396,25 +396,25 @@ public sealed class LocalMailboxChanges
     }
 
     /// <summary>Builds the keyword set a keyword change leaves on a message that carried the earlier one.</summary>
-    private static RemoteEmailKeywords KeywordsAfter(MailboxMutationRequest request, RemoteEmailKeywords carried)
+    private static EmailKeywords KeywordsAfter(MailboxMutationRequest request, EmailKeywords carried)
     {
         var named = request.Keywords!.Values;
 
         if (request.Mutation == MailboxMutation.SetKeywords)
         {
-            return RemoteEmailKeywords.Create(named);
+            return EmailKeywords.Create(named);
         }
 
         if (request.Mutation == MailboxMutation.AddKeywords)
         {
             // Past MaximumKeywords the set gives up its ordinally greatest value, which on a held account is
             // the only copy of it; refuse an add that would pass the bound once the four requesters share an outcome for it.
-            return RemoteEmailKeywords.Create(carried.Values.Concat(named));
+            return EmailKeywords.Create(carried.Values.Concat(named));
         }
 
-        var removed = named.Select(RemoteEmailKeywords.Normalized).ToHashSet(StringComparer.Ordinal);
+        var removed = named.Select(EmailKeywords.Normalized).ToHashSet(StringComparer.Ordinal);
 
-        return RemoteEmailKeywords.Create(carried.Values.Where(keyword => !removed.Contains(keyword)));
+        return EmailKeywords.Create(carried.Values.Where(keyword => !removed.Contains(keyword)));
     }
 
     /// <summary>Moves a message into the trash, or records the erasure of one already there.</summary>

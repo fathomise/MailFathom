@@ -146,22 +146,22 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
         var rows = await ReadRowsAsync(services, binding, cancellationToken);
 
         var flagged = rows[FlaggedUid];
-        Assert.True(flagged.IsRemotelySeen);
-        Assert.Equal(EarlierObservation, flagged.RemoteFlagsObservedAt);
+        Assert.True(flagged.IsMarkedSeen);
+        Assert.Equal(EarlierObservation, flagged.FlagsObservedAt);
         Assert.Null(flagged.RemoteExpungeObservedAt);
 
         // The server said nothing changed, so the flags stay as they were read and only the queue position moves.
         var confirmed = rows[ConfirmedUid];
-        Assert.True(confirmed.IsRemotelyFlagged);
-        Assert.False(confirmed.IsRemotelySeen);
-        Assert.Equal(LaterObservation, confirmed.RemoteFlagsObservedAt);
+        Assert.True(confirmed.IsFlagged);
+        Assert.False(confirmed.IsMarkedSeen);
+        Assert.Equal(LaterObservation, confirmed.FlagsObservedAt);
         Assert.Null(confirmed.RemoteExpungeObservedAt);
 
         // The observation timestamp is written alongside the tombstone deliberately: it is what takes a row the server
         // will never answer about again out of every later window.
         var tombstoned = rows[DisappearedUid];
         Assert.Equal(LaterObservation, tombstoned.RemoteExpungeObservedAt);
-        Assert.Equal(LaterObservation, tombstoned.RemoteFlagsObservedAt);
+        Assert.Equal(LaterObservation, tombstoned.FlagsObservedAt);
 
         var timeline = await ReadTimelineAsync(services, binding, cancellationToken);
         Assert.Equal(new[] { FlaggedUid, ConfirmedUid }, StoredUidsOf(timeline, rows));
@@ -233,9 +233,9 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
         var rows = await ReadRowsAsync(services, binding, cancellationToken);
 
         // Upper-cased and ordered by the domain type, so the column holds the one form a filter is compared against.
-        Assert.Equal(["$JUNK", "INVOICES"], rows[LabelledUid].RemoteKeywords);
-        Assert.Empty(rows[StarredUid].RemoteKeywords);
-        Assert.Empty(rows[PlainUid].RemoteKeywords);
+        Assert.Equal(["$JUNK", "INVOICES"], rows[LabelledUid].Keywords);
+        Assert.Empty(rows[StarredUid].Keywords);
+        Assert.Empty(rows[PlainUid].Keywords);
 
         var narrowed = await ReadTimelineAsync(services, binding, cancellationToken, keyword: "$junk");
         Assert.Equal([LabelledUid], StoredUidsOf(narrowed, rows));
@@ -245,10 +245,10 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
         var unmatched = await ReadTimelineAsync(services, binding, cancellationToken, keyword: "Receipts");
         Assert.Empty(unmatched);
 
-        var starred = await ReadTimelineAsync(services, binding, cancellationToken, isRemotelyFlagged: true);
+        var starred = await ReadTimelineAsync(services, binding, cancellationToken, isFlagged: true);
         Assert.Equal([StarredUid], StoredUidsOf(starred, rows));
 
-        var unstarred = await ReadTimelineAsync(services, binding, cancellationToken, isRemotelyFlagged: false);
+        var unstarred = await ReadTimelineAsync(services, binding, cancellationToken, isFlagged: false);
         Assert.Equal([LabelledUid, PlainUid], [.. StoredUidsOf(unstarred, rows).Order()]);
     }
 
@@ -319,7 +319,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
         Assert.DoesNotContain(ErasedUid, rows.Keys);
 
         var spared = rows[SparedUid];
-        Assert.Equal(LaterObservation, spared.RemoteFlagsObservedAt);
+        Assert.Equal(LaterObservation, spared.FlagsObservedAt);
         Assert.Null(spared.RemoteExpungeObservedAt);
     }
 
@@ -352,7 +352,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
         await OverlayingMutationRecords.SetStoredStateAsync(
             services,
             storedEmailId,
-            row => row.IsRemotelySeen = true,
+            row => row.IsMarkedSeen = true,
             cancellationToken);
 
         // Act
@@ -370,9 +370,9 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
 
         // Assert
         var row = (await ReadRowsAsync(services, binding, cancellationToken))[OverlaidUid];
-        Assert.True(row.IsRemotelySeen);
-        Assert.True(row.IsRemotelyFlagged);
-        Assert.Equal(LaterObservation, row.RemoteFlagsObservedAt);
+        Assert.True(row.IsMarkedSeen);
+        Assert.True(row.IsFlagged);
+        Assert.Equal(LaterObservation, row.FlagsObservedAt);
 
         var record = await OverlayingMutationRecords.ReadAsync(services, opened.Record.Id, cancellationToken);
         Assert.Equal(MailboxMutationStage.Recorded, record.Stage);
@@ -403,12 +403,12 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
                 SyntheticEmail.OccurrenceIn(binding, KeywordedUid),
                 MailboxMutationRequester.Command("reconciliation-overlay-keywords"),
                 AuthoredMailKeywords.Create(["act-keyword"])),
-            OverlayingMutationRecords.NothingObserved with { ObservedKeywords = RemoteEmailKeywords.None },
+            OverlayingMutationRecords.NothingObserved with { ObservedKeywords = EmailKeywords.None },
             cancellationToken);
         await OverlayingMutationRecords.SetStoredStateAsync(
             services,
             storedEmailId,
-            row => row.RemoteKeywords = ["act-keyword"],
+            row => row.Keywords = ["act-keyword"],
             cancellationToken);
 
         await ApplyOutcomeAsync(
@@ -425,7 +425,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
 
         // The arrangement is asserted: the act's keyword is kept beside the server's, and the record has the server's set.
         var whileOutstanding = (await ReadRowsAsync(services, binding, cancellationToken))[KeywordedUid];
-        Assert.Equal(["act-keyword", "server-keyword"], whileOutstanding.RemoteKeywords.Order());
+        Assert.Equal(["act-keyword", "server-keyword"], whileOutstanding.Keywords.Order());
         var record = await OverlayingMutationRecords.ReadAsync(services, opened.Record.Id, cancellationToken);
         Assert.Equal(["server-keyword"], record.Overlay!.ObservedKeywords!.Values);
 
@@ -441,7 +441,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
 
         // Assert
         var restored = (await ReadRowsAsync(services, binding, cancellationToken))[KeywordedUid];
-        Assert.Equal(["server-keyword"], restored.RemoteKeywords);
+        Assert.Equal(["server-keyword"], restored.Keywords);
     }
 
     /// <summary>
@@ -509,7 +509,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
         IsFlagged: false,
         IsDraft: false,
         IsDeleted: false,
-        Keywords: RemoteEmailKeywords.None);
+        Keywords: EmailKeywords.None);
 
     private static RemoteEmailFlagSnapshot FlaggedAt(DateTimeOffset observedAt) => new(
         observedAt,
@@ -518,7 +518,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
         IsFlagged: true,
         IsDraft: false,
         IsDeleted: false,
-        Keywords: RemoteEmailKeywords.None);
+        Keywords: EmailKeywords.None);
 
     private static RemoteEmailFlagSnapshot KeywordedAt(DateTimeOffset observedAt, params string[] keywords) => new(
         observedAt,
@@ -527,7 +527,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
         IsFlagged: false,
         IsDraft: false,
         IsDeleted: false,
-        RemoteEmailKeywords.Create(keywords));
+        EmailKeywords.Create(keywords));
 
     /// <summary>Writes one email per UID through the production upsert, indexed so a test can name a row by its UID.</summary>
     private static async Task<IReadOnlyDictionary<uint, StoredEmailId>> StoreEmailsAsync(
@@ -643,7 +643,7 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
         MailFolderResolution binding,
         CancellationToken cancellationToken,
         string? keyword = null,
-        bool? isRemotelyFlagged = null) => services.AsCallerInScopeAsync(
+        bool? isFlagged = null) => services.AsCallerInScopeAsync(
             async (scope, token) => await scope.GetRequiredService<IStoredEmailTimelineReader>().ReadPageAsync(
                 EmailTimelineFilter.Create(
                     await ReadScopeAsync(scope, binding, token),
@@ -652,8 +652,8 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
                     subjectFragment: null,
                     receivedOnOrAfter: null,
                     receivedBefore: null,
-                    isRemotelySeen: null,
-                    isRemotelyFlagged,
+                    isMarkedSeen: null,
+                    isFlagged,
                     keyword,
                     hasAttachments: null,
                     EmailTimelineDirection.NewestFirst),
@@ -677,8 +677,8 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
                     subjectFragment: null,
                     receivedOnOrAfter: null,
                     receivedBefore: null,
-                    isRemotelySeen: null,
-                    isRemotelyFlagged: null,
+                    isMarkedSeen: null,
+                    isFlagged: null,
                     keyword: null,
                     hasAttachments: null);
                 var queryText = EmailSearchQueryText.Create(ReconciledTerm);

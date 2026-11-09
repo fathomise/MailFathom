@@ -25,7 +25,7 @@ public sealed class DeterministicSpamClassifierTests
         var classifier = new DeterministicSpamClassifier();
 
         // Act
-        var reading = classifier.Read(SpamHeaderFacts.None, Inbox, isJunkFolder: false, RemoteEmailKeywords.None, NoActs);
+        var reading = classifier.Read(SpamHeaderFacts.None, Inbox, isJunkFolder: false, EmailKeywords.None, NoActs);
 
         // Assert
         Assert.Equal(SpamVerdict.Undetermined, reading.Verdict);
@@ -40,7 +40,7 @@ public sealed class DeterministicSpamClassifierTests
         var classifier = new DeterministicSpamClassifier();
 
         // Act
-        var reading = classifier.Read(SpamHeaderFacts.None, Junk, isJunkFolder: true, RemoteEmailKeywords.None, NoActs);
+        var reading = classifier.Read(SpamHeaderFacts.None, Junk, isJunkFolder: true, EmailKeywords.None, NoActs);
 
         // Assert
         var signal = Assert.Single(reading.Signals);
@@ -61,7 +61,7 @@ public sealed class DeterministicSpamClassifierTests
         var facts = FactsWithHeaders(("X-Spam-Flag", "NO"));
 
         // Act
-        var reading = classifier.Read(facts, Junk, isJunkFolder: true, RemoteEmailKeywords.None, NoActs);
+        var reading = classifier.Read(facts, Junk, isJunkFolder: true, EmailKeywords.None, NoActs);
 
         // Assert
         Assert.Equal(SpamVerdict.Spam, reading.Verdict);
@@ -78,7 +78,7 @@ public sealed class DeterministicSpamClassifierTests
         var classifier = new DeterministicSpamClassifier();
 
         // Act
-        var reading = classifier.Read(FactsWithHeaders(("X-Spam-Flag", flag)), Inbox, isJunkFolder: false, RemoteEmailKeywords.None, NoActs);
+        var reading = classifier.Read(FactsWithHeaders(("X-Spam-Flag", flag)), Inbox, isJunkFolder: false, EmailKeywords.None, NoActs);
 
         // Assert
         Assert.Equal(expected, reading.Verdict);
@@ -94,7 +94,7 @@ public sealed class DeterministicSpamClassifierTests
         var classifier = new DeterministicSpamClassifier();
 
         // Act
-        var reading = classifier.Read(FactsWithHeaders(("X-Spam-Status", status)), Inbox, isJunkFolder: false, RemoteEmailKeywords.None, NoActs);
+        var reading = classifier.Read(FactsWithHeaders(("X-Spam-Status", status)), Inbox, isJunkFolder: false, EmailKeywords.None, NoActs);
 
         // Assert
         Assert.Equal(expected, reading.Verdict);
@@ -108,7 +108,7 @@ public sealed class DeterministicSpamClassifierTests
         var facts = FactsWithHeaders(("X-Spam-Status", "Yes, score=15.2 required=5.0 tests=BAYES_99"));
 
         // Act
-        var reading = classifier.Read(facts, Inbox, isJunkFolder: false, RemoteEmailKeywords.None, NoActs);
+        var reading = classifier.Read(facts, Inbox, isJunkFolder: false, EmailKeywords.None, NoActs);
 
         // Assert
         Assert.NotNull(reading.Assessment);
@@ -131,7 +131,7 @@ public sealed class DeterministicSpamClassifierTests
         var classifier = new DeterministicSpamClassifier();
 
         // Act
-        var reading = classifier.Read(FactsWithHeaders((field, value)), Inbox, isJunkFolder: false, RemoteEmailKeywords.None, NoActs);
+        var reading = classifier.Read(FactsWithHeaders((field, value)), Inbox, isJunkFolder: false, EmailKeywords.None, NoActs);
 
         // Assert
         Assert.Null(reading.Assessment);
@@ -149,7 +149,7 @@ public sealed class DeterministicSpamClassifierTests
             ("X-Spam-Status", "Yes, score=15.2 required=5.0"));
 
         // Act
-        var reading = classifier.Read(facts, Inbox, isJunkFolder: false, RemoteEmailKeywords.None, NoActs);
+        var reading = classifier.Read(facts, Inbox, isJunkFolder: false, EmailKeywords.None, NoActs);
 
         // Assert
         Assert.Equal(SpamVerdict.NotSpam, reading.Verdict);
@@ -166,7 +166,7 @@ public sealed class DeterministicSpamClassifierTests
             []);
 
         // Act
-        var reading = classifier.Read(facts, Inbox, isJunkFolder: false, RemoteEmailKeywords.None, NoActs);
+        var reading = classifier.Read(facts, Inbox, isJunkFolder: false, EmailKeywords.None, NoActs);
 
         // Assert
         var signal = Assert.Single(reading.Signals);
@@ -189,7 +189,7 @@ public sealed class DeterministicSpamClassifierTests
             []);
 
         // Act
-        var reading = classifier.Read(facts, Inbox, isJunkFolder: false, RemoteEmailKeywords.None, NoActs);
+        var reading = classifier.Read(facts, Inbox, isJunkFolder: false, EmailKeywords.None, NoActs);
 
         // Assert
         var signal = Assert.Single(reading.Signals);
@@ -210,7 +210,7 @@ public sealed class DeterministicSpamClassifierTests
             [new ProviderSpamHeaderValue("X-Spam-Flag", "YES")]);
 
         // Act
-        var reading = classifier.Read(facts, Junk, isJunkFolder: true, RemoteEmailKeywords.None, NoActs);
+        var reading = classifier.Read(facts, Junk, isJunkFolder: true, EmailKeywords.None, NoActs);
 
         // Assert
         Assert.Equal(
@@ -233,7 +233,7 @@ public sealed class DeterministicSpamClassifierTests
             FactsWithHeaders(("X-Spam-Flag", "YES")),
             Junk,
             isJunkFolder: true,
-            RemoteEmailKeywords.Create([keyword]),
+            EmailKeywords.Create([keyword]),
             NoActs);
 
         // Assert
@@ -259,7 +259,7 @@ public sealed class DeterministicSpamClassifierTests
             FactsWithHeaders(("X-Spam-Flag", "NO")),
             Inbox,
             isJunkFolder: false,
-            RemoteEmailKeywords.Create([keyword]),
+            EmailKeywords.Create([keyword]),
             NoActs);
 
         // Assert
@@ -281,7 +281,7 @@ public sealed class DeterministicSpamClassifierTests
             FactsWithHeaders(("X-Spam-Flag", flag)),
             Inbox,
             isJunkFolder: false,
-            RemoteEmailKeywords.Create(["$Junk", "$NotJunk", "$Phishing"]),
+            EmailKeywords.Create(["$Junk", "$NotJunk", "$Phishing"]),
             NoActs);
 
         // Assert
@@ -303,7 +303,7 @@ public sealed class DeterministicSpamClassifierTests
             SpamHeaderFacts.None,
             Inbox,
             isJunkFolder: false,
-            RemoteEmailKeywords.Create(["$Junk", "$Phishing"]),
+            EmailKeywords.Create(["$Junk", "$Phishing"]),
             new HashSet<SpamVerdictAct> { SpamVerdictAct.MarkedJunk, SpamVerdictAct.MarkedPhishing });
 
         // Assert
@@ -326,7 +326,7 @@ public sealed class DeterministicSpamClassifierTests
             FactsWithHeaders(("X-Spam-Flag", "NO")),
             Junk,
             isJunkFolder: true,
-            RemoteEmailKeywords.Create(["$Junk"]),
+            EmailKeywords.Create(["$Junk"]),
             new HashSet<SpamVerdictAct> { SpamVerdictAct.FiledIntoJunk, SpamVerdictAct.MarkedJunk });
 
         // Assert
@@ -348,7 +348,7 @@ public sealed class DeterministicSpamClassifierTests
             SpamHeaderFacts.None,
             Inbox,
             isJunkFolder: false,
-            RemoteEmailKeywords.Create(["$Junk", "$NotJunk"]),
+            EmailKeywords.Create(["$Junk", "$NotJunk"]),
             new HashSet<SpamVerdictAct> { SpamVerdictAct.MarkedJunk });
 
         // Assert
@@ -362,7 +362,7 @@ public sealed class DeterministicSpamClassifierTests
         var classifier = new DeterministicSpamClassifier();
 
         // Act, Assert
-        Assert.Throws<ArgumentNullException>(() => classifier.Read(facts: null!, Inbox, isJunkFolder: false, RemoteEmailKeywords.None, NoActs));
+        Assert.Throws<ArgumentNullException>(() => classifier.Read(facts: null!, Inbox, isJunkFolder: false, EmailKeywords.None, NoActs));
     }
 
     /// <summary>The floor counts the deployment's own filing, which a stage's reading leaves out.</summary>
@@ -372,10 +372,10 @@ public sealed class DeterministicSpamClassifierTests
         // Arrange
         var classifier = new DeterministicSpamClassifier();
         var ownActs = new HashSet<SpamVerdictAct> { SpamVerdictAct.FiledIntoJunk };
-        var reading = classifier.Read(SpamHeaderFacts.None, Junk, isJunkFolder: true, RemoteEmailKeywords.None, ownActs);
+        var reading = classifier.Read(SpamHeaderFacts.None, Junk, isJunkFolder: true, EmailKeywords.None, ownActs);
 
         // Act
-        var raised = classifier.LiftToFloor(reading, Junk, RemoteEmailKeywords.None, ownActs);
+        var raised = classifier.LiftToFloor(reading, Junk, EmailKeywords.None, ownActs);
 
         // Assert
         var signal = Assert.Single(raised.Signals);
@@ -393,7 +393,7 @@ public sealed class DeterministicSpamClassifierTests
         // Arrange
         var classifier = new DeterministicSpamClassifier();
         var ownActs = new HashSet<SpamVerdictAct> { SpamVerdictAct.MarkedJunk };
-        var keywords = RemoteEmailKeywords.Create(["$Junk"]);
+        var keywords = EmailKeywords.Create(["$Junk"]);
         var reading = classifier.Read(FactsWithHeaders(("X-Spam-Flag", "NO")), Inbox, isJunkFolder: false, keywords, ownActs);
 
         // Act
@@ -413,10 +413,10 @@ public sealed class DeterministicSpamClassifierTests
     {
         // Arrange
         var classifier = new DeterministicSpamClassifier();
-        var reading = classifier.Read(SpamHeaderFacts.None, Junk, isJunkFolder: true, RemoteEmailKeywords.None, NoActs);
+        var reading = classifier.Read(SpamHeaderFacts.None, Junk, isJunkFolder: true, EmailKeywords.None, NoActs);
 
         // Act
-        var raised = classifier.LiftToFloor(reading, Junk, RemoteEmailKeywords.Create(["$Junk"]), NoActs);
+        var raised = classifier.LiftToFloor(reading, Junk, EmailKeywords.Create(["$Junk"]), NoActs);
 
         // Assert
         Assert.Same(reading, raised);
@@ -432,7 +432,7 @@ public sealed class DeterministicSpamClassifierTests
         var raised = classifier.LiftToFloor(
             DeterministicSpamReading.Nothing,
             junkFolder: null,
-            RemoteEmailKeywords.Create(["$Phishing", "\\Flagged"]),
+            EmailKeywords.Create(["$Phishing", "\\Flagged"]),
             NoActs);
 
         // Assert
@@ -454,7 +454,7 @@ public sealed class DeterministicSpamClassifierTests
         var raised = classifier.LiftToFloor(
             DeterministicSpamReading.Nothing,
             Junk,
-            RemoteEmailKeywords.Create(carried),
+            EmailKeywords.Create(carried),
             ownActs);
 
         // Assert
@@ -474,7 +474,7 @@ public sealed class DeterministicSpamClassifierTests
         var raised = classifier.LiftToFloor(
             DeterministicSpamReading.Nothing,
             isInJunkFolder ? Junk : null,
-            RemoteEmailKeywords.Create(["$Junk", "$NotJunk"]),
+            EmailKeywords.Create(["$Junk", "$NotJunk"]),
             NoActs);
 
         // Assert

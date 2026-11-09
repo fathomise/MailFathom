@@ -5,8 +5,8 @@
 MailFathom serves the content of the emails one call names, from its local copy. `EmailContentReader` is the second read
 use case: it takes the stable local identifiers a listing returned and answers for each of them with normalized headers,
 the body as plain text, optionally a sanitized HTML representation, attachment counts, every attachment described and
-optionally carrying a short-lived link that fetches it, the source account and folder, and the remote flag
-snapshot.
+optionally carrying a short-lived link that fetches it, the source account and folder, and the stored
+flags.
 
 It reaches no mail server. That is structural rather than a rule someone keeps: the use case is constructed from a
 summary reader, a content store, a renderer, a repair-request store, the account catalog, and the link issuer, and none
@@ -121,7 +121,7 @@ fact whether it named one email or ten.
 | `Body` | The representations, or the reason there are none |
 | `AttachmentSummary` | The counts for what the message carries besides its body, absent when nobody has counted them |
 | `Attachments` | One entry per attachment, re-derived from the stored raw MIME, each carrying a link to fetch it or the reason it carries none |
-| `RemoteFlags` | The flags a server last showed, and when they were read |
+| `Flags` | The flags MailFathom holds for the email, and when a server last reported them |
 | `Thread` | The conversation this email belongs to, with the other messages named rather than reproduced, or absent when nothing has assembled one |
 | `SenderVerification` | What was established about the author the message displays, what this deployment made of them, and what the message's own S/MIME or OpenPGP signature proves |
 | `SenderAuthenticationEvidence` | What that conclusion was reached from: the authenticated domain, the displayed author's domain, the check that established the first, the DMARC result, and which reading produced all of it |

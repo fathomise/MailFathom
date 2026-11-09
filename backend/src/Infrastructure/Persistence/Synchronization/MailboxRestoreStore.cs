@@ -56,11 +56,11 @@ internal sealed class MailboxRestoreStore(MailFathomDbContext readContext, IEmai
                 email.Id,
                 email.Folder.Alias,
                 email.MailFolderBinding.Alias,
-                email.IsRemotelySeen,
+                email.IsMarkedSeen,
                 email.IsRemotelyAnswered,
-                email.IsRemotelyFlagged,
-                email.IsRemotelyDraft,
-                email.RemoteKeywords,
+                email.IsFlagged,
+                email.IsDraft,
+                email.Keywords,
                 email.ReceivedAt,
                 email.SentAt,
                 email.StoredAt))
@@ -100,11 +100,11 @@ internal sealed class MailboxRestoreStore(MailFathomDbContext readContext, IEmai
                 email.MailFolderBinding.RemotePath,
                 email.MailFolderBinding.HierarchyDelimiter,
                 email.Folder.Alias,
-                email.IsRemotelySeen,
+                email.IsMarkedSeen,
                 email.IsRemotelyAnswered,
-                email.IsRemotelyFlagged,
-                email.IsRemotelyDraft,
-                email.RemoteKeywords))
+                email.IsFlagged,
+                email.IsDraft,
+                email.Keywords))
             .ToArrayAsync(cancellationToken);
 
         return [.. rows.Select(row => row.ToCandidate(account))];
@@ -450,7 +450,7 @@ internal sealed class MailboxRestoreStore(MailFathomDbContext readContext, IEmai
         bool isFlagged,
         bool isDraft,
         string[] keywords) =>
-        new(isSeen, isAnswered, isFlagged, isDraft, RemoteEmailKeywords.Create(keywords));
+        new(isSeen, isAnswered, isFlagged, isDraft, EmailKeywords.Create(keywords));
 
     private sealed record CandidateRow(
         Guid Id,

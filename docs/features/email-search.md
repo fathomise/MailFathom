@@ -100,8 +100,8 @@ the same reason. It stays distinguishable from a message whose body was genuinel
 | `SubjectFragment` | Text the stored subject must contain, compared without regard to case | any subject |
 | `ReceivedOnOrAfter` | Inclusive start of the received range | no start |
 | `ReceivedBefore` | Exclusive end of the received range | no end |
-| `IsRemotelySeen` | The remote `\Seen` state to require | either state |
-| `IsRemotelyFlagged` | The remote `\Flagged` state to require | either state |
+| `IsMarkedSeen` | The `\Seen` mark to require | either state |
+| `IsFlagged` | The `\Flagged` state to require | either state |
 | `Keyword` | One keyword the email must carry, compared without regard to case | any keyword |
 | `HasAttachments` | Whether attachments are required | either |
 | `ResultLimit` | How many ranked results to return | the default of 20 |

@@ -125,8 +125,8 @@ public sealed partial class EmailVectorSearchIndexReaderCommandTests
             subjectFragment: null,
             receivedOnOrAfter: null,
             receivedBefore: null,
-            isRemotelySeen: null,
-            isRemotelyFlagged: null,
+            isMarkedSeen: null,
+            isFlagged: null,
             keyword: null,
             hasAttachments: true);
 
@@ -268,8 +268,8 @@ public sealed partial class EmailVectorSearchIndexReaderCommandTests
         subjectFragment: null,
         receivedOnOrAfter: null,
         receivedBefore: null,
-        isRemotelySeen: null,
-        isRemotelyFlagged: null,
+        isMarkedSeen: null,
+        isFlagged: null,
         keyword: null,
         hasAttachments: null);
 }

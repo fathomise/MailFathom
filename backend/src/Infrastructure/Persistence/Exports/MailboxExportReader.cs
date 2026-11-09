@@ -116,11 +116,11 @@ internal sealed class MailboxExportReader(MailFathomDbContext dbContext) : IMail
                     message.FolderId,
                     message.ReceivedAt,
                     message.Content!.MimeByteLength,
-                    message.IsRemotelySeen,
-                    message.IsRemotelyFlagged,
+                    message.IsMarkedSeen,
+                    message.IsFlagged,
                     message.IsRemotelyAnswered,
-                    message.IsRemotelyDraft,
-                    message.RemoteKeywords,
+                    message.IsDraft,
+                    message.Keywords,
                     message.StoredAt))
                 .ToArrayAsync(cancellationToken);
 

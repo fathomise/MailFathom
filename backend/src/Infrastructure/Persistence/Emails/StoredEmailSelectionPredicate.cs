@@ -167,7 +167,7 @@ internal static class StoredEmailSelectionPredicate
         {
             emails = scope.ReadableFolders.Count > 0
                 ? emails.Where(UnsentStoredEmails.IsSentOrReceived)
-                : emails.Where(email => !email.IsRemotelyDraft);
+                : emails.Where(email => !email.IsDraft);
         }
 
         return NarrowedToWhatWasAskedAbout(emails, scope);
@@ -254,21 +254,21 @@ internal static class StoredEmailSelectionPredicate
         IQueryable<StoredEmailEntity> emails,
         MailboxEmailSelection selection)
     {
-        if (selection.IsRemotelySeen is { } isRemotelySeen)
+        if (selection.IsMarkedSeen is { } isMarkedSeen)
         {
-            emails = emails.Where(email => email.IsRemotelySeen == isRemotelySeen);
+            emails = emails.Where(email => email.IsMarkedSeen == isMarkedSeen);
         }
 
-        if (selection.IsRemotelyFlagged is { } isRemotelyFlagged)
+        if (selection.IsFlagged is { } isFlagged)
         {
-            emails = emails.Where(email => email.IsRemotelyFlagged == isRemotelyFlagged);
+            emails = emails.Where(email => email.IsFlagged == isFlagged);
         }
 
         if (selection.Keyword is { } keyword)
         {
             // Containment over the array rather than a comparison against each element, which is the operation the
             // column's GIN index serves and the same shape the recipient filter uses over the address arrays.
-            emails = emails.Where(email => email.RemoteKeywords.Contains(keyword));
+            emails = emails.Where(email => email.Keywords.Contains(keyword));
         }
 
         if (selection.HasAttachments is { } hasAttachments)

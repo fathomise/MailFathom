@@ -61,8 +61,8 @@ internal sealed class ListEmailsTool(
     /// <param name="subjectFragment">Text the subject must contain.</param>
     /// <param name="receivedOnOrAfter">The inclusive start of the received range.</param>
     /// <param name="receivedBefore">The exclusive end of the received range.</param>
-    /// <param name="isRemotelySeen">The remote <c>\Seen</c> state to require.</param>
-    /// <param name="isRemotelyFlagged">The remote <c>\Flagged</c> state to require.</param>
+    /// <param name="isMarkedSeen">The <c>\Seen</c> mark to require.</param>
+    /// <param name="isFlagged">The <c>\Flagged</c> state to require.</param>
     /// <param name="keyword">The keyword an email must carry.</param>
     /// <param name="hasAttachments">Whether attachments are required.</param>
     /// <param name="direction">Which end of the timeline to read from.</param>
@@ -86,7 +86,7 @@ internal sealed class ListEmailsTool(
     [Description(
         "Lists summaries of emails already synchronized into MailFathom's local mailbox copy, newest received first by "
         + "default. Filters by account, folder, sender address, recipient address, subject text, received date range, "
-        + "remote seen state, remote flagged (starred) state, a keyword the mail server reported, and attachment "
+        + "read state, flagged (starred) state, a keyword the email carries, and attachment "
         + "presence. Reads the local copy only: it never contacts a mail server, never "
         + "marks mail as read, and never returns body text, raw MIME, or attachment content. Never returns a message "
         + "judged spam, in any folder, or mail in the account's junk folder unless its owner marked it not spam. "
@@ -108,10 +108,10 @@ internal sealed class ListEmailsTool(
         DateTimeOffset? receivedOnOrAfter = null,
         [Description(MailboxFilterDescriptions.ReceivedBefore)]
         DateTimeOffset? receivedBefore = null,
-        [Description("Return only emails the mail server last reported as read (true) or unread (false). Omit to match either. Listing never changes this state. An email whose flags no run has observed yet counts as unread.")]
-        bool? isRemotelySeen = null,
-        [Description(MailboxFilterDescriptions.IsRemotelyFlagged)]
-        bool? isRemotelyFlagged = null,
+        [Description("Return only emails marked read (true) or unread (false). Omit to match either. Listing never changes this state. An email whose flags no run has observed yet counts as unread.")]
+        bool? isMarkedSeen = null,
+        [Description(MailboxFilterDescriptions.IsFlagged)]
+        bool? isFlagged = null,
         [Description(MailboxFilterDescriptions.Keyword)]
         string? keyword = null,
         [Description(MailboxFilterDescriptions.HasAttachments)]
@@ -133,8 +133,8 @@ internal sealed class ListEmailsTool(
             SubjectFragment = subjectFragment,
             ReceivedOnOrAfter = receivedOnOrAfter,
             ReceivedBefore = receivedBefore,
-            IsRemotelySeen = isRemotelySeen,
-            IsRemotelyFlagged = isRemotelyFlagged,
+            IsMarkedSeen = isMarkedSeen,
+            IsFlagged = isFlagged,
             Keyword = keyword,
             HasAttachments = hasAttachments,
             Direction = DomainDirection(direction),
