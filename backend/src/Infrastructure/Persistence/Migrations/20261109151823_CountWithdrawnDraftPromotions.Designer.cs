@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261107084341_CountWithdrawnDraftPromotions")]
+    [Migration("20261109151823_CountWithdrawnDraftPromotions")]
     partial class CountWithdrawnDraftPromotions
     {
         /// <inheritdoc />
@@ -3597,6 +3597,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<string>("Subject")
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset?>("TransmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("UserId")
                         .HasColumnType("uuid");
 
@@ -4399,6 +4402,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("FiledFromOutgoingEmailId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("FlagsObservedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("RemoteFlagsObservedAt");
+
                     b.Property<Guid>("FolderId")
                         .HasColumnType("uuid");
 
@@ -4413,8 +4420,20 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasMaxLength(998)
                         .HasColumnType("character varying(998)");
 
+                    b.Property<bool>("IsDraft")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsRemotelyDraft");
+
                     b.Property<bool>("IsEncrypted")
                         .HasColumnType("boolean");
+
+                    b.Property<bool>("IsFlagged")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsRemotelyFlagged");
+
+                    b.Property<bool>("IsMarkedSeen")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsRemotelySeen");
 
                     b.Property<bool>("IsRemotelyAnswered")
                         .HasColumnType("boolean");
@@ -4422,17 +4441,13 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsRemotelyDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsRemotelyDraft")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsRemotelyFlagged")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsRemotelySeen")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsRetainedAfterAuthoredDelete")
                         .HasColumnType("boolean");
+
+                    b.PrimitiveCollection<string[]>("Keywords")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("RemoteKeywords");
 
                     b.Property<DateTimeOffset?>("LocalDeleteCommittedAt")
                         .HasColumnType("timestamp with time zone");
@@ -4488,13 +4503,6 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset?>("RemoteExpungeObservedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("RemoteFlagsObservedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.PrimitiveCollection<string[]>("RemoteKeywords")
-                        .IsRequired()
-                        .HasColumnType("text[]");
 
                     b.PrimitiveCollection<string[]>("ReplyToAddresses")
                         .IsRequired()
@@ -4747,15 +4755,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("CcAddresses"), "GIN");
 
+                    b.HasIndex("Keywords")
+                        .HasDatabaseName("ix_stored_emails_remote_keywords");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Keywords"), "GIN");
+
                     b.HasIndex("LocalMailFolderId")
                         .HasFilter("\"LocalMailFolderId\" IS NOT NULL");
 
                     b.HasIndex("ParentStoredEmailId");
-
-                    b.HasIndex("RemoteKeywords")
-                        .HasDatabaseName("ix_stored_emails_remote_keywords");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("RemoteKeywords"), "GIN");
 
                     b.HasIndex("ReplyToAddresses")
                         .HasDatabaseName("ix_stored_emails_reply_to_addresses");
@@ -4786,15 +4794,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasNullSortOrder(b.HasIndex("FolderId", "ReceivedAt", "Id"), new[] { NullSortOrder.Unspecified, NullSortOrder.NullsLast, NullSortOrder.Unspecified });
 
+                    b.HasIndex("MailFolderBindingId", "FlagsObservedAt", "Uid")
+                        .HasDatabaseName("ix_stored_emails_reconciliation_queue")
+                        .HasFilter("\"RemoteExpungeObservedAt\" IS NULL");
+
                     b.HasIndex("MailFolderBindingId", "ReceivedAt", "Id")
                         .IsDescending(false, true, true)
                         .HasDatabaseName("ix_stored_emails_folder_timeline");
 
                     NpgsqlIndexBuilderExtensions.HasNullSortOrder(b.HasIndex("MailFolderBindingId", "ReceivedAt", "Id"), new[] { NullSortOrder.Unspecified, NullSortOrder.NullsLast, NullSortOrder.Unspecified });
-
-                    b.HasIndex("MailFolderBindingId", "RemoteFlagsObservedAt", "Uid")
-                        .HasDatabaseName("ix_stored_emails_reconciliation_queue")
-                        .HasFilter("\"RemoteExpungeObservedAt\" IS NULL");
 
                     b.HasIndex("MailFolderBindingId", "UidValidity", "Uid")
                         .IsUnique()
