@@ -3593,6 +3593,8 @@ as a *Scheduled* entry that can be cancelled until it leaves. A time at or befor
 refused with `400` and error code `51015` — the code a submission naming a time already gone answers with — with
 nothing queued and the draft left as it was. A send of a draft already sent answers with the send the first ask
 opened whatever time it names, so a retry never moves a time: cancelling the send in the Outbox is how one is changed.
+Cancelling hands the draft back — it is listed, opened, revised, and given up here again — and sending it again
+queues a new send with an `outgoingEmailId` of its own rather than answering with the cancelled one.
 The time belongs to the send rather than to the draft, so a draft keeps none.
 
 **An upload is the request body and nothing else.** There is no form to parse and no boundary to trust: the octets are
@@ -3902,6 +3904,11 @@ screen a moment old needs. Only a request naming no send at all is refused. Each
 set, because a message whose outcome nobody knows may already be in somebody's mailbox, so a filtered re-queue would be
 an unknown number of duplicates asked for in one request.
 
+**Withdrawing a send written from a draft hands the message back to that draft, in the same statement.** The draft
+stops naming the send, so `GET /api/client/drafts` lists it again and it can be revised, given up, and sent again, its
+copy in the drafts folder never having left; the answer is the same `Accepted` any withdrawal gives, and the draft
+keeps the identifier it had. A send of it again is a new send, never the withdrawn one answered a second time.
+
 **A dismissal is the person accepting the failure.** It is offered at `Refused`, and at `TransmissionBegun` once no
 attempt holds the send; the stage stays what it was, and the record keeps when the send was dismissed and by which
 user. A dismissed send is out of every outbox a person reads, so offering it again is the operator's, from
@@ -3911,7 +3918,8 @@ user. A dismissed send is out of every outbox a person reads, so offering it aga
 The body is `{"outgoingEmail": "..."}` and the answer `{"outgoingEmail", "outcome", "draftId"}`. It is offered at
 `Refused` alone, for a send nobody dismissed that was written from a draft of the caller's own: the draft stops naming
 the send it was promoted to, so it is listed and opened again like any other draft, and the send is dismissed against
-the same user in the same transaction, so the message is never in the Outbox and in Drafts at once. `Accepted` carries
+the same user in the same transaction, so the message is never in the Outbox and in Drafts at once. Sending the draft
+again queues a new send rather than answering with the dismissed one. `Accepted` carries
 the `draftId` a client opens the composer on, through `GET /api/client/drafts/{draftId}`; a send written from no draft
 of the caller's — one an agent sent, or one written straight to the Outbox — answers `NoDraftToReopen`, and every other
 outcome is the one the decisions above answer with.

@@ -1961,7 +1961,8 @@ drafts this deployment holds by asking about identifiers one at a time.
 
 A draft that has already been sent is refused rather than deleted or edited, and the remedy is a different tool: its
 message is a queued send that removing the draft would leave running, so [`cancel_outgoing_email`](#cancel_outgoing_email)
-is what stops it.
+is what stops it. Cancelling the send hands the draft back, so it is updated, deleted, and sent again like any other,
+and `send_draft` on it then queues a new message rather than answering with the cancelled one.
 
 Everything else refuses as the sending tools do. A draft whose shape names both message forms or neither, an account
 name that is blank or carries a control character, a subject carrying a line break, an address a message cannot be

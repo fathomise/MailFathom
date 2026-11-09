@@ -352,6 +352,27 @@ internal sealed class InMemoryMailDraftStore : IMailDraftStore
     }
 
     /// <inheritdoc />
+    public Task RecordPromotionWithdrawnAsync(
+        IPersistenceSession session,
+        MailDraftId draftId,
+        OutgoingEmailId outgoingEmailId,
+        CancellationToken cancellationToken)
+    {
+        var draft = this.Require(draftId);
+
+        if (draft.PromotedTo == outgoingEmailId)
+        {
+            this.drafts[draftId] = draft with
+            {
+                PromotedTo = null,
+                WithdrawnPromotions = draft.WithdrawnPromotions + 1,
+            };
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
     public Task<StoredEmailId?> RecordFiledAsync(
         IPersistenceSession session,
         MailDraftId draftId,

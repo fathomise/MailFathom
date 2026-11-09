@@ -455,6 +455,24 @@ internal sealed class MailDraftStore(MailFathomDbContext readContext) : IMailDra
     }
 
     /// <inheritdoc />
+    public async Task RecordPromotionWithdrawnAsync(
+        IPersistenceSession session,
+        MailDraftId draftId,
+        OutgoingEmailId outgoingEmailId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        var entity = await RequireAsync(session, draftId, cancellationToken);
+
+        if (entity.PromotedToOutgoingEmailId == outgoingEmailId.Value)
+        {
+            entity.PromotedToOutgoingEmailId = null;
+            entity.WithdrawnPromotions++;
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<StoredEmailId?> RecordFiledAsync(
         IPersistenceSession session,
         MailDraftId draftId,

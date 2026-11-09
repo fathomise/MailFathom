@@ -270,6 +270,26 @@ public interface IMailDraftStore
         OutgoingEmailId outgoingEmailId,
         CancellationToken cancellationToken);
 
+    /// <summary>Hands a draft back to its author once the send it was promoted to has been withdrawn.</summary>
+    /// <param name="session">The session the write joins.</param>
+    /// <param name="draftId">The draft whose send was withdrawn.</param>
+    /// <param name="outgoingEmailId">The withdrawn send, which the draft has to still name for anything to be written.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>A task that completes when the draft names no send.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> is <see langword="null" />.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when no draft is held under <paramref name="draftId" />.</exception>
+    /// <remarks>
+    /// The withdrawal itself releases the draft in the statement that cancels the send, so this is what reaches a draft
+    /// that statement could not: one whose promotion was marked after the send had already been withdrawn. It clears the
+    /// promotion and counts the withdrawal, which is what lets the next promotion queue a send of its own, and it
+    /// writes nothing where the draft names another send or none, so asking twice releases once.
+    /// </remarks>
+    Task RecordPromotionWithdrawnAsync(
+        IPersistenceSession session,
+        MailDraftId draftId,
+        OutgoingEmailId outgoingEmailId,
+        CancellationToken cancellationToken);
+
     /// <summary>Writes down the stored message a held account's local drafts folder shows this draft as.</summary>
     /// <param name="session">The session the write joins, which is the one that stored the message.</param>
     /// <param name="draftId">The draft the message shows.</param>

@@ -149,6 +149,35 @@ public sealed class MailDraftPromotionTests
     }
 
     /// <summary>
+    /// A send taken back before it left hands the draft back, and sending the draft again is a new message rather than
+    /// the withdrawn send answered a second time.
+    /// </summary>
+    [Fact]
+    public async Task PromoteAsync_DraftWhoseSendWasWithdrawn_QueuesANewSendRatherThanAnsweringTheWithdrawnOne()
+    {
+        // Arrange
+        var harness = Harness();
+        var draft = await SaveAsync(harness, "the message as written");
+        var outgoingEmails = new InMemoryOutgoingEmailStore();
+        var promotion = PromotionOver(harness, outgoingEmails);
+        var withdrawn = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
+        outgoingEmails.Arrange(withdrawn.Id, OutgoingEmailStage.Cancelled);
+        await harness.Drafts.RecordPromotionWithdrawnAsync(
+            Substitute.For<IPersistenceSession>(),
+            draft.Id,
+            withdrawn.Id,
+            CancellationToken.None);
+
+        // Act
+        var sentAgain = await promotion.PromoteAsync(draft.Id, SyntheticUser.Deployment, dueAt: null, CancellationToken.None);
+
+        // Assert
+        Assert.NotEqual(withdrawn.Id, sentAgain.Id);
+        Assert.Equal(OutgoingEmailRequester.Draft(draft.Id, withdrawnPromotions: 1), outgoingEmails.OpenRequests[^1].Requester);
+        Assert.Equal(sentAgain.Id, harness.Drafts.Peek(draft.Id)!.PromotedTo);
+    }
+
+    /// <summary>
     /// Two callers arriving together both find the draft unpromoted, because a read cannot see a write that has not
     /// happened yet. What makes their two asks one message is the request's identity, which is the draft itself.
     /// </summary>
@@ -169,7 +198,7 @@ public sealed class MailDraftPromotionTests
         // Assert
         Assert.Equal(first.Id, second.Id);
         Assert.Equal(
-            [OutgoingEmailRequester.Draft(draft.Id), OutgoingEmailRequester.Draft(draft.Id)],
+            [OutgoingEmailRequester.Draft(draft.Id, withdrawnPromotions: 0), OutgoingEmailRequester.Draft(draft.Id, withdrawnPromotions: 0)],
             outgoingEmails.OpenRequests.Select(request => request.Requester));
     }
 
@@ -554,6 +583,7 @@ public sealed class MailDraftPromotionTests
     [InlineData(OutgoingEmailStage.Sent, 1, 0)]
     [InlineData(OutgoingEmailStage.Recorded, 0, 1)]
     [InlineData(OutgoingEmailStage.Refused, 0, 1)]
+    [InlineData(OutgoingEmailStage.Cancelled, 0, 1)]
     public async Task SettlePromotedAsync_SendAtOneStage_GivesTheDraftUpOnlyOnceItHasLeft(
         OutgoingEmailStage stage,
         int expectedWithdrawals,

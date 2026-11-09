@@ -38,9 +38,10 @@ namespace MailFathom.Mcp.Tools.Drafts;
 /// send's own, in the send's own words, and a caller reading it must not report that mail arrived.
 /// </para>
 /// <para>
-/// <b>There is no idempotency key, and that is not an omission.</b> A draft is promoted once, so the draft itself is
-/// the identity: two callers promoting one draft compose one request, and the second is answered with the record the
-/// first wrote. A key whoever asked supplied would make their two asks two requests and put the message in the
+/// <b>There is no idempotency key, and that is not an omission.</b> A draft is promoted once until a withdrawal hands it
+/// back, so the draft and the count of its withdrawn sends are the identity: two callers promoting one draft compose
+/// one request, and the second is answered with the record the first wrote, while a draft whose send was cancelled is
+/// sent again as a new request. A key whoever asked supplied would make their two asks two requests and put the message in the
 /// recipient's mailbox twice, which nothing downstream can withdraw.
 /// </para>
 /// <para>
