@@ -3,6 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import type { ListedMailThread } from '@mailfathom/client-backend';
+import { RowCategories } from '../categories/CategoryLabels';
+import { drawnCategories } from '../categories/categoryWords';
 import { useContactPhoto } from '../contactBook/contactPhotos';
 import { Icon } from '../controls/Icon';
 import { ReceivedAt } from '../controls/ReceivedAt';
@@ -13,8 +15,8 @@ import { newestAuthor, participantsNamed, rowVariantOf, titleStateOf, type Threa
 
 // One conversation as the list draws it when it is read by conversation. The first line names who took part, beside the
 // marks and the time; under it the conversation's title, which a model wrote for the whole of it, in a light frame of
-// its own so it is never read as the sender's words; and under that the opening of its newest message, quoted with who
-// wrote it. The row carries no AI summary control: the opened thread carries it on its newest received message.
+// its own so it is never read as the sender's words; under that the opening of its newest message, quoted with who
+// wrote it; and last whatever categories its messages hold. The row carries no AI summary control: the opened thread carries it on its newest received message.
 //
 // The row is one press, so everything on it is read out as the press's name rather than offered as a control of its own
 // — the sender mark is the mark alone, and its details are a press away on the opened message's head.
@@ -43,6 +45,8 @@ export function ThreadRow({
     );
     const author = newestAuthor(thread);
     const picture = useContactPhoto(thread.newest.own ? null : thread.newest.senderPhoto);
+    const categories = drawnCategories(thread.categories, translate);
+    const categorized = categories.length > 0;
 
     // The avatar is the correspondent's, so a conversation ending in the reader's own reply shows who it is with.
     const correspondent = thread.newest.own
@@ -52,7 +56,7 @@ export function ThreadRow({
         thread.newestReceivedSender === null ? null : senderMarksDrawn[senderMarkOf(thread.newestReceivedSender)];
 
     return (
-        <li ref={onElement} data-thread-row={rowVariantOf(titled)} className="border-b border-b-sunken">
+        <li ref={onElement} data-thread-row={rowVariantOf(titled, categorized)} className="border-b border-b-sunken">
             <button
                 type="button"
                 aria-current={open ? 'true' : undefined}
@@ -105,12 +109,18 @@ export function ThreadRow({
 
                 <ThreadTitle thread={thread} titled={titled} unread={unread} />
 
-                <span className="line-clamp-2 h-thread-snippet border-s-2 border-s-line-strong ps-2 text-base/quoted wrap-anywhere text-muted">
+                <span
+                    className={`border-s-2 border-s-line-strong ps-2 text-base/quoted wrap-anywhere text-muted ${
+                        categorized ? 'line-clamp-1' : 'line-clamp-2 h-thread-snippet'
+                    }`}
+                >
                     <span className="me-1 font-semibold text-text-soft">
                         {translate('threadList.who', { who: author ?? translate('threadList.you') })}
                     </span>
                     {thread.newest.preview}
                 </span>
+
+                <RowCategories categories={categories} />
             </button>
         </li>
     );

@@ -30,6 +30,7 @@ function message(over: Partial<MailTimelineEntry> = {}): MailTimelineEntry {
         preview: null,
         enrichment: null,
         threadMessageCount: null,
+        categories: [],
         spam: null,
         sender: {
             authorAuthentication: 'Authenticated',
@@ -110,6 +111,12 @@ describe('rowMark', () => {
         { threadId: 'thread-4' },
     ])('reads a message whose %o moved as the same row, no row drawing it', (moved) => {
         expect(sameRow(rowMark(message()), rowMark(message(moved)))).toBe(true);
+    });
+
+    it('reads a message whose categories moved as a row that changed', () => {
+        const categorized = message({ categories: [{ identity: 'finance', name: null }] });
+
+        expect(sameRow(rowMark(message()), rowMark(categorized))).toBe(false);
     });
 
     // A spam row folds or carries a badge naming its kind, so a kind named afterwards is a row drawn differently.

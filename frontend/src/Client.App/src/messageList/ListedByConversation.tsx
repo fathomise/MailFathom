@@ -15,6 +15,7 @@ import { Skeleton } from '../controls/Skeleton';
 import { useLocalization } from '../localization/useLocalization';
 import { windowOfHeights } from '../messageRows/rowWindow';
 import { useSignalledChanges } from '../signals/signalledChanges';
+import { drawsCategories } from '../categories/categoryWords';
 import { rowVariantOf, titleStateOf, type ThreadRowVariant } from '../threadList/threadRows';
 import { ThreadRow } from '../threadList/ThreadRow';
 import { scopeReaches, type MailScope } from '../workspace/mailScope';
@@ -44,18 +45,33 @@ import { useListedMail } from './useListedMail';
 // same rule for reading a page again — so what is here is only what a conversation's row needs that a message's does
 // not, and what a list of messages has that this one does not have at all: no selection, no acts, no row menu.
 //
-// A row is as tall as what its title says — a subject alone, a framed topic, or a framed topic with a line under it — so
-// the window is laid out from the height each of the three measured at rather than from one row height. Every row of a
-// variant draws the same lines, so measuring one drawn row of it measures them all.
+// A row is as tall as what its title says — a subject alone, a framed topic, or a framed topic with a line under it —
+// and whether its categories stand a line of their own, so the window is laid out from the height each of those
+// variants measured at rather than from one row height. Every row of a variant draws the same lines, so measuring one
+// drawn row of it measures them all.
 //
 // It names no folder, because a conversation belongs to none: what narrows it is the account and the filters, and the
 // list is keyed by that account where it is drawn, so picking another one starts a list rather than adjusting this one.
 
 // What a row of each variant is laid out at before one of it has been drawn to measure. It only has to be close: the
 // first row of the variant drawn replaces it.
-const estimatedHeights: Readonly<Record<ThreadRowVariant, number>> = { subject: 96, topic: 116, standing: 134 };
+const estimatedHeights: Readonly<Record<ThreadRowVariant, number>> = {
+    subject: 96,
+    topic: 116,
+    standing: 134,
+    subjectCategorized: 101,
+    topicCategorized: 121,
+    standingCategorized: 139,
+};
 
-const rowVariants: readonly ThreadRowVariant[] = ['subject', 'topic', 'standing'];
+const rowVariants: readonly ThreadRowVariant[] = [
+    'subject',
+    'topic',
+    'standing',
+    'subjectCategorized',
+    'topicCategorized',
+    'standingCategorized',
+];
 
 // The list opens at its leading end. Where a reader was in it is not kept across a visit, because a conversation moves
 // to the top whenever a message arrives in it: a returning reader would be put back beside rows that are no longer
@@ -72,7 +88,7 @@ function newestOf(thread: ListedMailThread): string {
 }
 
 function variantOf(thread: ListedMailThread): ThreadRowVariant {
-    return rowVariantOf(titleStateOf(thread));
+    return rowVariantOf(titleStateOf(thread), drawsCategories(thread.categories));
 }
 
 // A page is named by its cursor and the way it was read from it, which is how it is read again.

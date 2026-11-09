@@ -1641,6 +1641,7 @@ export class FakeDeployment {
                 account: record['account'],
                 folder: draftsFolder,
                 sizeOctets: record['sizeOctets'],
+                categories: [],
                 headers: {
                     ...messages.markupOnlyMessage.headers,
                     subject: record['subject'],
@@ -2661,6 +2662,7 @@ function corpusRow(storedEmailId: string): FolderRow | null {
         sizeOctets: found.sizeOctets,
         preview: found.preview,
         threadMessageCount: found.threadMessageCount,
+        categories: found.categories,
         sender: found.sender,
         enrichment: null,
     };

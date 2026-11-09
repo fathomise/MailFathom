@@ -44,6 +44,7 @@ const result = {
     answered: false,
     hasAttachments: true,
     attachmentCount: 2,
+    categories: [],
     sizeOctets: 84_213,
     preview: 'The figures you asked for are attached.',
     sender: {

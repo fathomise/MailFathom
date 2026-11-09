@@ -49,6 +49,7 @@ const message = {
     sizeOctets: 84_213,
     preview: 'The figures you asked for are attached.',
     threadMessageCount: null,
+    categories: [],
     sender: {
         authorAuthentication: 'Authenticated',
         deploymentTrust: 'Unknown',
@@ -381,6 +382,23 @@ describe('readMailTimeline', () => {
         const result = await readMailTimeline(session, transport, leadingPage);
 
         expect(result.outcome === 'read' && result.value.emails[0]?.threadId).toBeNull();
+    });
+
+    it('reads what sort of mail the row is', async () => {
+        const categories = [{ identity: 'finance', name: null }];
+        const transport = answering({ status: 200, body: bodyOf([{ ...message, categories }]) });
+
+        const result = await readMailTimeline(session, transport, leadingPage);
+
+        expect(result.outcome === 'read' && result.value.emails[0]?.categories).toStrictEqual(categories);
+    });
+
+    it('refuses a page with a row whose categories are not a list of them', async () => {
+        const transport = answering({ status: 200, body: bodyOf([{ ...message, categories: 'finance' }]) });
+
+        const result = await readMailTimeline(session, transport, leadingPage);
+
+        expect(result.outcome).toBe('failed');
     });
 
     // How long the correspondence is is the deployment's count over the whole of it, so it is read as it arrived and

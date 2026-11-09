@@ -59,6 +59,7 @@ const described: MailMessage = {
     report: null,
     receipts: null,
     readReceiptRequest: null,
+    categories: [],
     body: { availability: 'Readable', plainText: true, html: true },
     sender: {
         authorAuthentication: 'Authenticated',
@@ -317,6 +318,44 @@ describe('OpenedMessage', () => {
         drawing();
 
         expect(screen.queryByRole('heading', { name: 'Quarterly invoice' })).toBeNull();
+    });
+});
+
+describe('OpenedMessage, what sort of mail it is', () => {
+    const categorized: MailMessage = {
+        ...described,
+        categories: [
+            { identity: 'correspondence', name: null },
+            { identity: 'finance', name: null },
+            { identity: 'Legal', name: 'Legal' },
+            { identity: 'Budget 2027', name: 'Budget 2027' },
+        ],
+    };
+
+    it('draws every label it has a name for, with no count of the rest', () => {
+        drawing(categorized);
+
+        expect(screen.getByText('Finance')).not.toBeNull();
+        expect(screen.getByText('Legal')).not.toBeNull();
+        expect(screen.getByText('Budget 2027')).not.toBeNull();
+        expect(screen.queryByText('Correspondence')).toBeNull();
+        expect(screen.queryByText(/^\+\d/u)).toBeNull();
+    });
+
+    it('draws none on a message that is spam', () => {
+        drawing({
+            ...categorized,
+            spam: {
+                verdict: 'Spam',
+                decidedBy: 'Model',
+                spamSubcategory: null,
+                spamSubcategoryNamedBy: null,
+                phishingRequest: null,
+                impersonatedParty: null,
+            },
+        });
+
+        expect(screen.queryByText('Finance')).toBeNull();
     });
 });
 

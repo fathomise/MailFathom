@@ -33,6 +33,7 @@ function message(id: string, position: number, unread = false): MailThreadMessag
             preview: 'What this one added.',
             enrichment: null,
             threadMessageCount: null,
+            categories: [],
             spam: null,
             sender: {
                 authorAuthentication: 'Authenticated',

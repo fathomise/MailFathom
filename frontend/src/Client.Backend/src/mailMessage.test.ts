@@ -85,6 +85,7 @@ function described(overrides: Readonly<Record<string, unknown>> = {}): string {
     return JSON.stringify({
         storedEmailId: messageId,
         account: 'work',
+        categories: [],
         folder: 'INBOX',
         threadId: null,
         sizeOctets: 40_960,
@@ -172,6 +173,14 @@ describe('readMailMessage', () => {
                 longestAnswer: 4 * 1024 * 1024,
             },
         ]);
+    });
+
+    it('reads what sort of mail the message is', async () => {
+        const categories = [{ identity: 'travel', name: null }];
+
+        const message = await readingOf(described({ categories }));
+
+        expect(message?.categories).toStrictEqual(categories);
     });
 
     it('reads the message a well-formed answer describes', async () => {
@@ -484,6 +493,7 @@ describe('readMailMessage', () => {
             described({ senderPhoto: { book: 'Collected', id: 'x', photo: 'y' } }),
         ],
         ['more attachments than a message may carry', tooManyAttachments()],
+        ['a message saying nothing about its categories', described({ categories: undefined })],
         ['a read receipt request naming no address', described({ readReceiptRequest: { namesAnotherAddress: false } })],
     ])('refuses %s rather than reading part of it', async (_shape, body) => {
         const result = await readMailMessage(session, answering({ status: 200, body }), messageId);

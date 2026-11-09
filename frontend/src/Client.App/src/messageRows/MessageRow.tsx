@@ -17,6 +17,8 @@ import { SenderAvatar } from '../controls/SenderAvatar';
 import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { RowCategories } from '../categories/CategoryLabels';
+import { drawnCategories } from '../categories/categoryWords';
 import { actsDrawn } from '../mailboxActs/drawnActs';
 import {
     actPending,
@@ -373,6 +375,8 @@ export function MessageRow({
     const kind = spamName === null ? null : (spam?.spamSubcategory ?? null);
     const spamLine = kind === null ? undefined : <SpamBadge subcategory={kind} />;
     const said = pendingSaid !== null ? translate(pendingSaid) : spamName !== null ? spamLine : note;
+    // Spam has none. They close the same line, and what is said there is what gives way first.
+    const categories = spamName === null ? drawnCategories(email.categories, translate) : [];
 
     // What is showing behind the row while a finger carries it, or nothing for a row standing where the list drew it.
     // Which of the two it is is the direction alone: what the threshold decides is how firmly it is drawn rather than
@@ -622,10 +626,17 @@ export function MessageRow({
                         {/* The reserved line. Hidden from the accessibility tree where it holds nothing, so a row with nothing
                     to say about itself is not announced as one with an empty line in it. */}
                         <div
-                            aria-hidden={said === undefined ? 'true' : undefined}
-                            className="h-4.5 overflow-hidden text-base leading-4.5 text-muted workspace:text-sm"
+                            aria-hidden={said === undefined && categories.length === 0 ? 'true' : undefined}
+                            className="flex h-4.5 items-center gap-2 overflow-hidden text-base leading-4.5 text-muted workspace:text-sm"
                         >
-                            {said}
+                            {said === undefined ? null : (
+                                <div className="h-4.5 min-w-0 flex-1 overflow-hidden">{said}</div>
+                            )}
+
+                            <RowCategories
+                                categories={categories}
+                                className="max-w-categories-line flex-none @max-list-compact:max-w-1/2"
+                            />
                         </div>
                     </>
                 )}

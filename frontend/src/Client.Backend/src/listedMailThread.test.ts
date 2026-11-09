@@ -41,6 +41,7 @@ const thread = {
         senderPhoto: null,
     },
     newestReceivedSender: sender,
+    categories: [],
     title: {
         topic: 'The 0.8.0 release',
         standing: 'Waiting on the notes review.',
@@ -136,6 +137,14 @@ describe('readMailConversations', () => {
         });
     });
 
+    it('reads every category the conversation holds', async () => {
+        const categories = [{ identity: 'Legal', name: 'Legal' }];
+
+        const answer = await reading(recording(200, { ...page, conversations: [{ ...thread, categories }] }).transport);
+
+        expect(answer.outcome === 'read' ? answer.value.conversations[0]?.categories : null).toStrictEqual(categories);
+    });
+
     it('reads a title whose standing is empty, where nothing is left open', async () => {
         const settled = { ...thread, title: { ...thread.title, standing: '' } };
 
@@ -163,6 +172,7 @@ describe('readMailConversations', () => {
         ],
         ['an attachment mark that is not a yes or a no', { ...thread, hasAttachments: 'yes' }],
         ['a say on unnamed participants that is not a yes or a no', { ...thread, moreParticipantsNotNamed: 1 }],
+        ['a row saying nothing about its categories', { ...thread, categories: undefined }],
     ])('refuses %s', async (_, row) => {
         const answer = await reading(recording(200, { ...page, conversations: [row] }).transport);
 

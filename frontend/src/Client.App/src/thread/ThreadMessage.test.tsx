@@ -79,6 +79,7 @@ const described: MailMessage = {
     report: null,
     receipts: null,
     readReceiptRequest: null,
+    categories: [],
     body: { availability: 'Readable', plainText: true, html: true },
     sender: {
         authorAuthentication: 'Authenticated',
@@ -163,6 +164,7 @@ function message(overrides: Partial<MailThreadMessage> = {}): MailThreadMessage 
             preview: 'The figures you asked for are attached.',
             enrichment: null,
             threadMessageCount: null,
+            categories: [],
             spam: null,
             sender: {
                 authorAuthentication: 'Authenticated',

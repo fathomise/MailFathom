@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
+import { parseMailCategories, type MailCategory } from './mailCategories';
 import {
     parseReadReceiptRequest,
     parseReceipts,
@@ -302,6 +303,9 @@ export interface MailMessage {
 
     /** A received message's request for a read receipt and whether it was answered, or `null` where it asked for none or is spam. */
     readonly readReceiptRequest: MailReadReceiptRequest | null;
+
+    /** What sort of mail the message is, empty where it shows none. */
+    readonly categories: readonly MailCategory[];
 }
 
 // A description composes to a stated size, so the backstop written for a stranger is far looser than this answer ever
@@ -497,6 +501,11 @@ export function parseMailMessage(value: unknown): MailMessage | null {
         return null;
     }
 
+    const categories = parseMailCategories(record['categories']);
+    if (categories === null) {
+        return null;
+    }
+
     return {
         storedEmailId,
         account,
@@ -517,6 +526,7 @@ export function parseMailMessage(value: unknown): MailMessage | null {
         report,
         receipts,
         readReceiptRequest,
+        categories,
     };
 }
 

@@ -63,6 +63,9 @@ export interface RowContents {
 
     /** The spam verdict and kind, which fold the row or badge it; who reached it is said only to a screen reader. */
     readonly spam: { readonly verdict: MailSpamVerdictValue; readonly subcategory: MailSpamSubcategory | null } | null;
+
+    /** Which categories the row names, by the identity each is published under, one per line. */
+    readonly categories: string;
 }
 
 /** What a row draws, out of the answer the page carried about it. */
@@ -83,6 +86,7 @@ export function rowMark(email: MailTimelineEntry): RowContents {
         senderMark: senderMarkOf(email.sender),
         reading: reading === null ? null : { aspect: reading.aspect, text: reading.text },
         spam: email.spam === null ? null : { verdict: email.spam.verdict, subcategory: email.spam.spamSubcategory },
+        categories: email.categories.map((category) => category.identity).join('\n'),
     };
 }
 
@@ -103,7 +107,8 @@ export function sameRow(one: RowContents, other: RowContents): boolean {
         one.reading?.aspect === other.reading?.aspect &&
         (one.reading?.text ?? null) === (other.reading?.text ?? null) &&
         one.spam?.verdict === other.spam?.verdict &&
-        (one.spam?.subcategory ?? null) === (other.spam?.subcategory ?? null)
+        (one.spam?.subcategory ?? null) === (other.spam?.subcategory ?? null) &&
+        one.categories === other.categories
     );
 }
 

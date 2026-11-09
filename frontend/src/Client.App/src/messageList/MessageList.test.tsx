@@ -63,6 +63,7 @@ function message(at: number, carried: Record<string, unknown> = {}): Record<stri
         answered: false,
         hasAttachments: false,
         attachmentCount: 0,
+        categories: [],
         sizeOctets: 1_024,
         preview: `The opening of message ${String(at)}.`,
         sender: listedSender('unrecognized'),

@@ -71,6 +71,7 @@ const menuItem =
 export function ContextMenu({
     header,
     detail,
+    detailWraps = false,
     at,
     endsAt = false,
     opensAbove = false,
@@ -87,6 +88,9 @@ export function ContextMenu({
      * used to ask.
      */
     readonly detail?: string | undefined;
+
+    /** Whether the detail wraps rather than ending in an ellipsis, where a long part of it must not hide the rest. */
+    readonly detailWraps?: boolean;
 
     /** Where the gesture happened, in the window's own coordinates. */
     readonly at: MenuPoint;
@@ -266,7 +270,11 @@ export function ContextMenu({
                         {header}
                     </p>
                     {detail === undefined ? null : (
-                        <p className="-mt-1 truncate px-3 pb-1.5 text-xs text-faint">{detail}</p>
+                        <p
+                            className={`-mt-1 px-3 pb-1.5 text-xs text-faint ${detailWraps ? 'wrap-anywhere' : 'truncate'}`}
+                        >
+                            {detail}
+                        </p>
                     )}
 
                     {/* Nothing but the items sits inside the element carrying the role, which is what a menu is

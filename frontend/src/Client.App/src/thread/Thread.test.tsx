@@ -106,6 +106,7 @@ function row(id: string, overrides: Readonly<Record<string, unknown>> = {}): Rea
         answered: false,
         hasAttachments: false,
         attachmentCount: 0,
+        categories: [],
         sizeOctets: 1_024,
         preview: `What ${id} added.`,
         sender: listedSender('unrecognized'),
@@ -121,6 +122,7 @@ function describing(id: string, unread: boolean): Readonly<Record<string, unknow
         folder: 'INBOX',
         threadId,
         sizeOctets: 1_024,
+        categories: [],
         headers: {
             subject: 'The quarterly figures',
             sentAt: '2026-08-31T09:40:00+00:00',

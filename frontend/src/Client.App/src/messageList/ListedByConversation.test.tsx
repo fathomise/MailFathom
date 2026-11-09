@@ -40,6 +40,7 @@ function listed(id: string, subject: string): Readonly<Record<string, unknown>> 
             senderPhoto: null,
         },
         newestReceivedSender: null,
+        categories: [],
         title: null,
     };
 }

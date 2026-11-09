@@ -36,6 +36,7 @@ const email = {
     sizeOctets: 84_213,
     preview: 'The figures you asked for are attached.',
     threadMessageCount: 2,
+    categories: [],
     sender: {
         authorAuthentication: 'Authenticated',
         deploymentTrust: 'Unknown',
@@ -55,6 +56,7 @@ const described = {
     folder: 'INBOX',
     threadId,
     sizeOctets: 84_213,
+    categories: [],
     headers: {
         subject: 'The quarterly figures',
         sentAt: '2026-08-31T09:40:00+00:00',

@@ -38,6 +38,7 @@ function thread(overrides: Partial<ListedMailThread> = {}): ListedMailThread {
             senderPhoto: null,
         },
         newestReceivedSender: null,
+        categories: [],
         title,
         ...overrides,
     };
@@ -54,6 +55,28 @@ function drawing(listed: ListedMailThread, onOpen: () => void = () => undefined)
 
     return screen.getByRole('button');
 }
+
+describe('ThreadRow, what sort of mail it holds', () => {
+    const categories: ListedMailThread['categories'] = [
+        { identity: 'finance', name: null },
+        { identity: 'Legal', name: 'Legal' },
+        { identity: 'Budget 2027', name: 'Budget 2027' },
+    ];
+
+    it('draws two names and how many more', () => {
+        const row = drawing(thread({ categories }));
+
+        expect(row.textContent).toContain('Finance');
+        expect(row.textContent).toContain('Legal');
+        expect(row.textContent).toContain('+1');
+    });
+
+    it('draws nothing where only a default no label is drawn for stands', () => {
+        const row = drawing(thread({ categories: [{ identity: 'other', name: null }] }));
+
+        expect(row.textContent).not.toContain('Other');
+    });
+});
 
 describe('ThreadRow', () => {
     it('names who took part, how many messages it holds, and quotes the newest with who wrote it', () => {

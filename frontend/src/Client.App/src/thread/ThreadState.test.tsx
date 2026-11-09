@@ -80,6 +80,7 @@ function message(id: string, position: number): MailThreadMessage {
             preview: null,
             enrichment: null,
             threadMessageCount: null,
+            categories: [],
             spam: null,
             sender: {
                 authorAuthentication: 'Authenticated',

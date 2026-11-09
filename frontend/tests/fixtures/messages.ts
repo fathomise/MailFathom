@@ -259,6 +259,7 @@ export const newsletterMessage = {
     folder: 'INBOX',
     threadId: null,
     sizeOctets: 40_960,
+    categories: [{ identity: 'subscriptions', name: null }],
     headers: {
         subject: newsletterSubject,
         sentAt: '2026-08-31T09:41:00+00:00',

@@ -50,6 +50,7 @@ function found(carried: Partial<MailSearchResult> = {}): MailSearchResult {
         preview: 'The renewal falls due.',
         enrichment: null,
         threadMessageCount: null,
+        categories: [],
         spam: null,
         sender: {
             authorAuthentication: 'Authenticated',

@@ -475,6 +475,7 @@ export {
     type MailSpamMark,
     type MailSpamMarkResult,
 } from './mailMutations';
+export { type MailCategory, type MailDefaultCategory } from './mailCategories';
 export {
     isSpam,
     mailSpamSubcategories,

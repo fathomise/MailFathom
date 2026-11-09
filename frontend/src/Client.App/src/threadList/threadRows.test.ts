@@ -37,6 +37,7 @@ function thread(overrides: Partial<ListedMailThread> = {}): ListedMailThread {
             senderPhoto: null,
         },
         newestReceivedSender: null,
+        categories: [],
         title,
         ...overrides,
     };
@@ -108,28 +109,29 @@ describe('titleStateOf', () => {
         const titled = titleStateOf(thread({ title: null }));
 
         expect(titled).toBe('untitled');
-        expect(rowVariantOf(titled)).toBe('subject');
+        expect(rowVariantOf(titled, false)).toBe('subject');
     });
 
     it('reads a title whose standing is empty as the topic alone', () => {
         const titled = titleStateOf(thread({ title: { ...title, standing: '' } }));
 
         expect(titled).toBe('topic');
-        expect(rowVariantOf(titled)).toBe('topic');
+        expect(rowVariantOf(titled, false)).toBe('topic');
     });
 
     it('reads a current title as the topic with where the conversation stands under it', () => {
         const titled = titleStateOf(thread());
 
         expect(titled).toBe('standing');
-        expect(rowVariantOf(titled)).toBe('standing');
+        expect(rowVariantOf(titled, false)).toBe('standing');
+        expect(rowVariantOf(titled, true)).toBe('standingCategorized');
     });
 
     it('holds the standing back once a message joined since it was written', () => {
         const titled = titleStateOf(thread({ messageCount: 4 }));
 
         expect(titled).toBe('stale');
-        expect(rowVariantOf(titled)).toBe('standing');
+        expect(rowVariantOf(titled, false)).toBe('standing');
     });
 
     it('holds the standing back once a newer message arrived, even where the count came out the same', () => {
