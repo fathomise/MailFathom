@@ -147,7 +147,12 @@ export const themeColoursScript = `(() => {
         }
 
         const fillLuminance = luminanceOf(fill.channels);
-        const fillAsWritten = fill.alpha === 1 ? fill.channels : inheritedGround;
+        const translucent = fill.alpha < 1;
+        const fillAsWritten = translucent
+            ? inheritedGround === null
+                ? null
+                : mixed(inheritedGround, fill.channels, fill.alpha)
+            : fill.channels;
 
         if (fillLuminance <= lightFillLuminance) {
             return fillAsWritten;

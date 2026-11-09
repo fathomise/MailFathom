@@ -337,6 +337,8 @@ async function expectTheThemeColours(frame: FrameLocator, colorScheme: keyof typ
     // Dark and saturated, so it is left as the sender wrote it in either theme.
     await expect(band).toHaveCSS('background-color', 'rgb(11, 61, 145)');
     await expect(band).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expect(frame.getByText('A translucent band')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0.7)');
+    await expect(frame.getByText('A translucent band')).toHaveCSS('color', 'rgb(255, 255, 255)');
 
     // Paired with something only the sender saw, so the words are not judged against the theme.
     await expect(frame.getByText('Over a gradient')).toHaveCSS('color', 'rgb(51, 51, 51)');
