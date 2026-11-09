@@ -206,7 +206,7 @@ internal sealed partial class MailKitSmtpConnection : IAsyncDisposable
             await this.RunPhaseAsync(
                 MailDeliveryPhase.Transmission,
                 phaseToken => submissionClient.SendAsync(
-                    FormatFor(request),
+                    FormatFor(request, message),
                     message,
                     sender,
                     recipients,
@@ -459,16 +459,18 @@ internal sealed partial class MailKitSmtpConnection : IAsyncDisposable
     /// The line ending is the one SMTP requires rather than the platform's, and the international format is asked for
     /// only where an address needs it — a message whose addresses are all ASCII is written the way every server
     /// understands. The composer already refused an internationalized address the server cannot carry, so this is the
-    /// same decision restated over the addresses this attempt is actually offering.
+    /// same decision restated over the addresses this attempt is actually offering, and over the reply addresses the
+    /// stored message names, which no attempt offers but every recipient reads.
     /// </remarks>
-    private static FormatOptions FormatFor(MailTransmissionRequest request)
+    private static FormatOptions FormatFor(MailTransmissionRequest request, MimeMessage message)
     {
         var format = FormatOptions.Default.Clone();
 
         format.NewLineFormat = NewLineFormat.Dos;
         format.EnsureNewLine = true;
         format.International = !Ascii.IsValid(request.Sender.Address)
-            || request.Recipients.Any(recipient => !Ascii.IsValid(recipient.Address.Address));
+            || request.Recipients.Any(recipient => !Ascii.IsValid(recipient.Address.Address))
+            || message.ReplyTo.Mailboxes.Any(mailbox => !Ascii.IsValid(mailbox.Address));
         format.HiddenHeaders.Add(HeaderId.Bcc);
         format.HiddenHeaders.Add(HeaderId.ResentBcc);
 

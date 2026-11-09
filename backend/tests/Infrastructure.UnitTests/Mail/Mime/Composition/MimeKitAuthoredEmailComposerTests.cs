@@ -899,6 +899,55 @@ public sealed class MimeKitAuthoredEmailComposerTests
     }
 
     /// <summary>
+    /// An internationalized reply address is written raw where the server carries one, though every address the
+    /// envelope offers is ASCII — the stored message is in the international format because of it alone.
+    /// </summary>
+    [Fact]
+    public void Compose_InternationalizedReplyAddressAgainstServerAdvertisingSupport_IsWrittenRaw()
+    {
+        // Arrange
+        var authored = Authored() with { ReplyTo = ["zoë@example.test"] };
+
+        // Act
+        var composition = CreateComposer().Compose(
+            Account,
+            SyntheticUser.Deployment,
+            Requester(),
+            authored,
+            Capabilities(acceptsInternationalizedAddresses: true));
+
+        // Assert
+        Assert.Equal("zoë@example.test", Assert.Single(Parse(composition).ReplyTo.Mailboxes).Address);
+        Assert.Contains(
+            "zoë@example.test",
+            Encoding.UTF8.GetString(composition.Email!.RawMime.Span),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>An internationalized reply address the server cannot carry is refused naming the header, as a recipient's is.</summary>
+    [Fact]
+    public void Compose_InternationalizedReplyAddressAgainstServerWithoutSupport_IsRefusedNamingTheHeader()
+    {
+        // Arrange
+        var authored = Authored() with { ReplyTo = ["zoë@example.test"] };
+
+        // Act
+        var composition = CreateComposer().Compose(
+            Account,
+            SyntheticUser.Deployment,
+            Requester(),
+            authored,
+            Capabilities(acceptsInternationalizedAddresses: false));
+
+        // Assert
+        AssertRefused(
+            composition,
+            AuthoredEmailRefusalReason.InternationalizationUnsupported,
+            AuthoredEmailField.ReplyTo,
+            MailFathomErrorCode.OutgoingEmailInternationalizationUnsupported);
+    }
+
+    /// <summary>
     /// An address is written as raw UTF-8 or not at all, so a server advertising internationalized addresses without
     /// eight-bit content has not said it will accept one — and RFC 6531 requires it to advertise both.
     /// </summary>
