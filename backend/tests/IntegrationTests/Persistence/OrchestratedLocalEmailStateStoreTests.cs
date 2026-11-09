@@ -54,6 +54,8 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
 
     private const uint StagedSourceRemovalUid = 816;
 
+    private const uint TombstonedUid = 817;
+
     /// <summary>Past the payload PostgreSQL keeps in a heap page, so the figure moves by a length no rounding could produce.</summary>
     private const int PayloadByteCount = 64 * 1024;
 
@@ -290,6 +292,57 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
         Assert.Contains(occurrenceId.Uid, forgotten);
         Assert.Equal(1, await CountSourceRemovalsAsync(services, binding, StagedSourceRemovalUid, cancellationToken));
         Assert.Equal(0, await CountSourceRemovalsAsync(services, binding, ForgottenUid, cancellationToken));
+    }
+
+    /// <summary>A tombstone ages from when it became one, so a message the server lost long ago is not already past its retention when a person deletes it.</summary>
+    [Fact]
+    public async Task MakeTombstoneAsync_AMessageTheServerLostLongAgo_StartsItsAgeAtTheDelete()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, FolderAlias, cancellationToken);
+        var occurrenceId = SyntheticEmail.OccurrenceIn(binding, TombstonedUid);
+        var storedEmailId = await StoreAsync(
+            services,
+            occurrenceId,
+            "local-email-state-tombstoned",
+            SyntheticEmail.RawMimeOf("local-email-state-tombstoned", PayloadByteCount),
+            cancellationToken);
+        var id = storedEmailId.Value;
+        var lostLongAgo = new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().StoredEmails
+                .Where(row => row.Id == id)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(row => row.RemoteExpungeObservedAt, lostLongAgo)
+                        .SetProperty(row => row.IsRetainedAfterRemoteDelete, true),
+                    token),
+            cancellationToken);
+
+        // Act
+        await services.CommitProducingAsync(
+            async (scope, session, token) =>
+            {
+                await scope.GetRequiredService<ILocalEmailStateStore>().MakeTombstoneAsync(
+                    session,
+                    SyntheticMailAccount.Account,
+                    storedEmailId,
+                    token);
+
+                return true;
+            },
+            cancellationToken);
+
+        // Assert
+        var tombstone = await services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().StoredEmails
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == id, token),
+            cancellationToken);
+        Assert.False(tombstone.IsRetainedAfterRemoteDelete);
+        Assert.True(tombstone.RemoteExpungeObservedAt > lostLongAgo);
     }
 
     /// <summary>A message the drain already took off the source has no position left to protect, so nothing of it stays behind.</summary>

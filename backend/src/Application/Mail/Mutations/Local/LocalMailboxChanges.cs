@@ -25,7 +25,12 @@ namespace MailFathom.Application.Mail.Mutations.Local;
 /// on it and the cascade runs only once the window has passed.
 /// </para>
 /// <para>
-/// It serves both custodians whose local folders are the truth. What tells them apart is whether the source is owed the
+/// A mirrored account reaches this type for one kind of message alone, through <see cref="CommitOnLocalOnlyAsync" />: one
+/// the mail server lost and the account keeps. A person's delete of it opens that same erasure record, for a message in
+/// no trash, and the message stays listed until the window passes, which is what the record's withdrawal has to undo.
+/// </para>
+/// <para>
+/// Otherwise it serves both custodians whose local folders are the truth. What tells them apart is whether the source is owed the
 /// act as well, which the caller states rather than this type reading it: a held account's source is drained and owed
 /// nothing, while a restoring account's source is being filled back up and is owed every act on a message it already
 /// holds.
@@ -153,6 +158,7 @@ public sealed class LocalMailboxChanges
                 state,
                 FlaggedAfter(request, state),
                 carriesToSource,
+                isHeldFolder: true,
                 cancellationToken);
         }
 
@@ -202,6 +208,7 @@ public sealed class LocalMailboxChanges
             state,
             state with { Folder = target.Id },
             carriesToSource,
+            isHeldFolder: true,
             cancellationToken);
     }
 
@@ -285,6 +292,94 @@ public sealed class LocalMailboxChanges
         return change.PreparedCopy is { } preparedCopy
             ? await this.CopyOverlaidAsync(session, change, state, target.Id, preparedCopy, cancellationToken)
             : null;
+    }
+
+    /// <summary>Commits one change on a mirrored account's local-only message, which no server is owed.</summary>
+    /// <param name="session">The transaction the change commits in.</param>
+    /// <param name="change">The change, already cleared of the refusals the custodian answers from the server's folders.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>The local change committed, the erasure recorded, or why neither happened; <see langword="null" /> where the message is not local only.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="session" /> or <paramref name="change" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// <para>
+    /// A flag or a move is written with its audit entry and no record, because a transaction either happened or it did
+    /// not. A person's delete is a record of a local erasure held for their window, which the converger runs whatever
+    /// the account's phase, and which leaves a tombstone instead where the account's disposition asks for one. A rule or
+    /// a verdict never erases a message an archive kept.
+    /// </para>
+    /// <para>
+    /// A copy is refused: its second message would hold no occurrence at all, and an act addressed by occurrence could
+    /// never reach it again. Upgrade path: give an act a target that does not need an occurrence.
+    /// </para>
+    /// </remarks>
+    public async Task<SubmittedMailboxChange?> CommitOnLocalOnlyAsync(
+        IPersistenceSession session,
+        MailboxChange change,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(change);
+
+        var request = change.Request;
+
+        if (await this.states.ReadAsync(session, request.Account, request.StoredEmailId, cancellationToken) is not { IsLocalOnly: true } state)
+        {
+            return null;
+        }
+
+        var mutation = request.Mutation;
+
+        if (IsFlagChange(mutation))
+        {
+            return await this.WriteAsync(
+                session,
+                request,
+                state,
+                FlaggedAfter(request, state),
+                carriesToSource: false,
+                isHeldFolder: false,
+                cancellationToken);
+        }
+
+        if (mutation == MailboxMutation.Delete)
+        {
+            if (request.Requester.Origin != MailboxMutationOrigin.Command)
+            {
+                return SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.AlreadyInDestination);
+            }
+
+            return SubmittedMailboxChange.Recorded(await this.records.OpenAsync(
+                session,
+                request,
+                change.HeldUntil,
+                MailboxMutationLocalChange.Erasure,
+                cancellationToken));
+        }
+
+        if (mutation == MailboxMutation.Copy)
+        {
+            return SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.SourceContentMissing);
+        }
+
+        var holding = await this.localFolders.ReadAsync(session, request.Account, cancellationToken);
+
+        if ((change.Destination is { } destination
+                ? holding?.Folders.FirstOrDefault(folder => folder.SourceFolderAlias == destination.Alias)
+                : null) is not { } target)
+        {
+            return SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.DestinationMissing);
+        }
+
+        return state.Folder == target.Id
+            ? SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.AlreadyInDestination)
+            : await this.WriteAsync(
+                session,
+                request,
+                state,
+                state with { Folder = target.Id },
+                carriesToSource: false,
+                isHeldFolder: false,
+                cancellationToken);
     }
 
     /// <summary>Finds the local folder a destination resolved on the source corresponds to.</summary>
@@ -533,6 +628,7 @@ public sealed class LocalMailboxChanges
             state,
             state with { Folder = trash.Id },
             carriesToSource,
+            isHeldFolder: true,
             cancellationToken);
     }
 
@@ -611,6 +707,7 @@ public sealed class LocalMailboxChanges
         LocalEmailState before,
         LocalEmailState after,
         bool carriesToSource,
+        bool isHeldFolder,
         CancellationToken cancellationToken)
     {
         await this.AuditAsync(session, request, before, cancellationToken);
@@ -619,7 +716,7 @@ public sealed class LocalMailboxChanges
             request.Account,
             request.StoredEmailId,
             after,
-            isHeldFolder: true,
+            isHeldFolder,
             cancellationToken);
 
         var carried = carriesToSource && before.HoldsSourceOccurrence && !request.LeavesServerUntouched

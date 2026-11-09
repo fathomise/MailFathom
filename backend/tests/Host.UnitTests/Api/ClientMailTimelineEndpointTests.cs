@@ -390,6 +390,26 @@ public sealed class ClientMailTimelineEndpointTests
         Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
     }
 
+    /// <summary>The list's mark is the server's statement, so the row says whether the message is local only.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void For_ARowOfTheList_SaysWhetherTheMessageIsLocalOnly(bool isLocalOnly)
+    {
+        // Arrange
+        var row = new BrowsedEmail(
+            SyntheticListedEmail(subject: "the invoice", attachmentCount: 0) with { IsLocalOnly = isLocalOnly },
+            Preview: null,
+            Enrichment: null,
+            ThreadMessageCount: null);
+
+        // Act
+        var response = ClientMailTimelineEntryResponse.For(row, NoPhotos);
+
+        // Assert
+        Assert.Equal(isLocalOnly, response.LocalOnly);
+    }
+
     /// <summary>A row carries what its account shows for the message, so a list draws without another request.</summary>
     [Fact]
     public void For_ARowOfTheList_CarriesWhatTheAccountShows()

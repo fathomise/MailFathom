@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
     ClientMessageView,
@@ -26,6 +26,7 @@ import { WorkspaceProvider } from '../workspace/Workspace';
 import { OpenAttachmentContext } from '../workspace/openAttachment';
 import type { MessageBodyRead } from '../messageBody/useMessageBody';
 import { OpenedMessage } from './OpenedMessage';
+import { tipRestsFor } from '../controls/useTip';
 
 // The drawing one message takes wherever it is drawn. What is asserted here is that it is one drawing rather than two:
 // the surface reading a message on its own and the conversation reading it inside a correspondence hand this the same
@@ -318,6 +319,32 @@ describe('OpenedMessage', () => {
         drawing();
 
         expect(screen.queryByRole('heading', { name: 'Quarterly invoice' })).toBeNull();
+    });
+});
+
+describe('OpenedMessage, local only', () => {
+    it('draws one mark named Local only', () => {
+        drawing({ ...described, localOnly: true });
+
+        expect(screen.getAllByText('Local only')).toHaveLength(1);
+    });
+
+    it('says its name in the tooltip to a mouse resting on it', () => {
+        vi.useFakeTimers();
+        drawing({ ...described, localOnly: true });
+
+        fireEvent.pointerEnter(screen.getByText('Local only'), { pointerType: 'mouse' });
+        act(() => {
+            vi.advanceTimersByTime(tipRestsFor);
+        });
+
+        expect(screen.getByRole('tooltip').textContent).toBe('Local only');
+    });
+
+    it('draws none on a message the mail server still holds', () => {
+        drawing(described);
+
+        expect(screen.queryByText('Local only')).toBeNull();
     });
 });
 

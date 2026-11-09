@@ -163,7 +163,7 @@ public sealed class MailboxMutationRecordTests
                 LocalEmail,
                 SourceOccurrence(),
                 Requester,
-                AuthoredDeleteEmailDisposition.RetainLocalCopy,
+                AuthoredDeleteEmailDisposition.RetainTombstone,
                 AuthoredDeleteServerDisposition.Expunge),
         };
         var setSeen = CompletedRelocation() with
@@ -379,7 +379,7 @@ public sealed class MailboxMutationRecordTests
                 LocalEmail,
                 SourceOccurrence(),
                 Requester,
-                AuthoredDeleteEmailDisposition.RetainLocalCopy,
+                AuthoredDeleteEmailDisposition.RetainTombstone,
                 AuthoredDeleteServerDisposition.Expunge),
             Placement = RemoteEmailPlacement.NotReported(),
         };

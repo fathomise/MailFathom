@@ -30,12 +30,9 @@ public interface IAuthoredMailboxTargetReader
     /// <returns>The occurrence and its folder binding, or <see langword="null" /> when this deployment holds no occurrence to change under that identity.</returns>
     /// <remarks>
     /// <para>
-    /// Two rows this deployment does hold answer as absent, and both exclusions belong here rather than to whichever
-    /// adapter implements the read, because the caller turns either into the refusal a client is given. A tombstoned
-    /// row answers as absent on the same terms every read of stored mail applies. So does a row whose remote occurrence
-    /// the server has expunged, including a local copy retained after MailFathom deleted the message — a listing serves
-    /// that one, because the mail is still readable, while the UID it carries names a message the server no longer
-    /// holds, so a change recorded against it could only be attempted and fail.
+    /// A tombstoned row answers as absent, on the same terms every read of stored mail applies, because the caller turns
+    /// that into the refusal a client is given. A local-only copy answers like any other message: a listing serves it,
+    /// and the custodian commits a change on it locally rather than recording one for a server that holds no copy.
     /// </para>
     /// </remarks>
     Task<AuthoredMailboxTarget?> FindAsync(StoredEmailId storedEmailId, CancellationToken cancellationToken);

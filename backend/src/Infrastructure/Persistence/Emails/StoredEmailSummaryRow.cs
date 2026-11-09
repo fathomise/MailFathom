@@ -100,7 +100,8 @@ internal sealed record StoredEmailSummaryRow(
     string? ReadReceiptRequestedTo,
     bool ReadReceiptRequestNamesAnotherAddress,
     DateTimeOffset? ReadReceiptSentAt,
-    Guid? FiledFromOutgoingEmailId)
+    Guid? FiledFromOutgoingEmailId,
+    bool IsLocalOnly)
 {
     /// <summary>Gets the projection every summary query selects, which is what keeps the two readers publishing one shape.</summary>
     public static Expression<Func<StoredEmailEntity, StoredEmailSummaryRow>> Projection { get; } = email =>
@@ -203,7 +204,9 @@ internal sealed record StoredEmailSummaryRow(
             email.ReadReceiptRequestedTo,
             email.ReadReceiptRequestNamesAnotherAddress,
             email.ReadReceiptSentAt,
-            email.FiledFromOutgoingEmailId);
+            email.FiledFromOutgoingEmailId,
+            email.IsRetainedAfterRemoteDelete
+                && email.MailFolderBinding.MailboxAccount.RequestedCustody == MailAccountCustody.MirrorSource);
 
     /// <summary>Rebuilds the summaries of a set of rows, naming each one's folder by its path and the organization or the member that recognized its author by its current name.</summary>
     /// <param name="rows">The rows, in the order the summaries are wanted in.</param>
@@ -289,6 +292,7 @@ internal sealed record StoredEmailSummaryRow(
                 this.ContainsUnexpandedTnefPart),
             ContentAvailability = this.ContentAvailability,
             IsFiledSentCopy = this.FiledFromOutgoingEmailId is not null,
+            IsLocalOnly = this.IsLocalOnly,
             Flags = new StoredEmailFlags(
                 this.FlagsObservedAt,
                 this.IsMarkedSeen,

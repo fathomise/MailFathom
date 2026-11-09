@@ -715,7 +715,7 @@ public sealed class MailboxMutationConvergerTests
                 StoredEmailId.Create(Guid.CreateVersion7()),
                 Occurrence(43U),
                 MailboxMutationRequester.Command("client-delete-1"),
-                AuthoredDeleteEmailDisposition.RetainLocalCopy,
+                AuthoredDeleteEmailDisposition.RetainTombstone,
                 AuthoredDeleteServerDisposition.Expunge),
             record => record with { Stage = MailboxMutationStage.PlacementIssued });
 
@@ -742,7 +742,7 @@ public sealed class MailboxMutationConvergerTests
                 StoredEmailId.Create(Guid.CreateVersion7()),
                 Occurrence(43U),
                 MailboxMutationRequester.Command("client-delete-1"),
-                AuthoredDeleteEmailDisposition.RetainLocalCopy,
+                AuthoredDeleteEmailDisposition.RetainTombstone,
                 AuthoredDeleteServerDisposition.Expunge),
             record => record with { Stage = MailboxMutationStage.PlacementIssued });
         context.Notifications.RefusesRecords = true;
@@ -949,7 +949,7 @@ public sealed class MailboxMutationConvergerTests
     private static MailboxMutationRequest DeleteRequest(uint uid) => MailboxMutationRequest.Delete(
         StoredEmailId.Create(Guid.CreateVersion7()), Occurrence(uid),
         MailboxMutationRequester.Rule("drop-notifications", "5"),
-        AuthoredDeleteEmailDisposition.RetainLocalCopy,
+        AuthoredDeleteEmailDisposition.RetainTombstone,
         AuthoredDeleteServerDisposition.Expunge);
 
     /// <summary>Assembles the converger over the same in-memory record store the performer's own tests use.</summary>

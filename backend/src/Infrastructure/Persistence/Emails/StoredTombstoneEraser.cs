@@ -6,6 +6,7 @@ using MailFathom.Application.Mail.Retention;
 using MailFathom.Application.Persistence;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 using MailFathom.Domain.Mutations;
 using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Sessions;
@@ -39,27 +40,33 @@ internal sealed class StoredTombstoneEraser(TimeProvider timeProvider) : IStored
         var sessionContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
         var aged = await Aged(sessionContext, account, retention, tombstonedBefore, limit).ToListAsync(cancellationToken);
 
-        if (aged.Count == 0)
-        {
-            return 0;
-        }
-
-        Guid[] erasedIds = [.. aged.Select(static email => email.Id)];
-
-        // A row the source was seen to have expunged names nothing the source still holds, so it owes the drain nothing.
-        if (isSourceDrained)
-        {
-            MailboxSourceRemovalRecords.Stage(
-                sessionContext,
-                [.. aged.Where(static email => email.RemoteExpungeObservedAt is null)],
-                timeProvider.GetUtcNow());
-        }
-
-        await AccountStoredContentLedger.RemoveAsync(sessionContext, erasedIds, cancellationToken);
-        await ReleasedContentObjects.ReleaseForStoredEmailsAsync(session, erasedIds, cancellationToken);
-        sessionContext.StoredEmails.RemoveRange(aged);
+        await this.EraseWithTheirContentAsync(session, sessionContext, aged, isSourceDrained, cancellationToken);
 
         return aged.Count;
+    }
+
+    /// <inheritdoc />
+    public async Task<int> SettleKeptAfterAuthoredDeleteAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        AuthoredDeleteEmailDisposition disposition,
+        bool isSourceDrained,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var sessionContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
+        var kept = await KeptAfterAuthoredDelete(sessionContext, account, limit).ToListAsync(cancellationToken);
+
+        if (disposition is AuthoredDeleteEmailDisposition.EraseLocalCopy)
+        {
+            await this.EraseWithTheirContentAsync(session, sessionContext, kept, isSourceDrained, cancellationToken);
+        }
+        else
+        {
+            kept.ForEach(static email => email.IsRetainedAfterAuthoredDelete = false);
+        }
+
+        return kept.Count;
     }
 
     /// <summary>Composes the query for one batch, so a test can hold it to what PostgreSQL is asked.</summary>
@@ -90,5 +97,57 @@ internal sealed class StoredTombstoneEraser(TimeProvider timeProvider) : IStored
                 && mutation.Stage != MailboxMutationStage.Cancelled))
             .OrderBy(email => email.Id)
             .Take(limit);
+    }
+
+    /// <summary>Composes the query for one batch of rows still kept under the value that no longer exists.</summary>
+    /// <param name="context">The context the rows are read and tracked through.</param>
+    /// <param name="account">The account whose rows are read.</param>
+    /// <param name="limit">The most rows the batch takes.</param>
+    /// <returns>The query, which PostgreSQL evaluates in full.</returns>
+    internal static IQueryable<StoredEmailEntity> KeptAfterAuthoredDelete(
+        MailFathomDbContext context,
+        MailAccountId account,
+        int limit)
+    {
+        var accountId = account.Value;
+
+        return context.StoredEmails
+            .Where(email => email.MailboxAccountId == accountId
+                && email.IsRetainedAfterAuthoredDelete
+                && (email.RemoteExpungeObservedAt != null || email.AuthoredDeleteFlaggedAt != null)
+                && !context.MailboxMutations.Any(mutation => mutation.StoredEmailId == email.Id
+                    && mutation.Stage != MailboxMutationStage.Completed
+                    && mutation.Stage != MailboxMutationStage.Abandoned
+                    && mutation.Stage != MailboxMutationStage.Cancelled))
+            .OrderBy(email => email.Id)
+            .Take(limit);
+    }
+
+    private async Task EraseWithTheirContentAsync(
+        IPersistenceSession session,
+        MailFathomDbContext sessionContext,
+        List<StoredEmailEntity> rows,
+        bool isSourceDrained,
+        CancellationToken cancellationToken)
+    {
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        Guid[] erasedIds = [.. rows.Select(static email => email.Id)];
+
+        // A row the source was seen to have expunged names nothing the source still holds, so it owes the drain nothing.
+        if (isSourceDrained)
+        {
+            MailboxSourceRemovalRecords.Stage(
+                sessionContext,
+                [.. rows.Where(static email => email.RemoteExpungeObservedAt is null)],
+                timeProvider.GetUtcNow());
+        }
+
+        await AccountStoredContentLedger.RemoveAsync(sessionContext, erasedIds, cancellationToken);
+        await ReleasedContentObjects.ReleaseForStoredEmailsAsync(session, erasedIds, cancellationToken);
+        sessionContext.StoredEmails.RemoveRange(rows);
     }
 }

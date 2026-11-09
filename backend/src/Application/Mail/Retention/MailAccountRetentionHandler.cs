@@ -7,8 +7,10 @@ using MailFathom.Application.Emails.Threads;
 using MailFathom.Application.Jobs;
 using MailFathom.Application.Jobs.Execution;
 using MailFathom.Application.Jobs.Payloads;
+using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Mail.Retention;
 
@@ -18,6 +20,10 @@ namespace MailFathom.Application.Mail.Retention;
 /// Tombstones go first, so a conversation their erasure empties is removed the same night. That step runs only for an
 /// account that asked for it, in <c>Mirrored</c> and <c>Held</c>, and in neither reaches a mail server. It does not run
 /// while <c>Restoring</c>, when the mailbox is being put back and nothing of it should be thrown away underneath that.
+/// </para>
+/// <para>
+/// A row kept readable after an authored delete under the value that no longer exists is settled the same way, in the
+/// same two phases, under what the account states now — whatever its retention says, since no migration can read that.
 /// </para>
 /// <para>
 /// The conversation step runs for every account whatever its retention says, because the emptied conversations it
@@ -50,6 +56,7 @@ public sealed class MailAccountRetentionHandler : IJobHandler
     private readonly IMailTombstoneRetentionReader tombstoneRetention;
     private readonly IMailAccountCustodyStore custody;
     private readonly IStoredTombstoneEraser tombstones;
+    private readonly IAuthoredDeleteEmailDispositionReader deleteDispositions;
     private readonly IMailRetentionTelemetry telemetry;
     private readonly TimeProvider timeProvider;
 
@@ -60,6 +67,7 @@ public sealed class MailAccountRetentionHandler : IJobHandler
     /// <param name="tombstoneRetention">Reads how long the account keeps its tombstones.</param>
     /// <param name="custody">Reads which copy of the account's mailbox is the truth.</param>
     /// <param name="tombstones">Erases the tombstones past that age.</param>
+    /// <param name="deleteDispositions">Reads what the account now states becomes of a message it deleted.</param>
     /// <param name="telemetry">Publishes what the run did.</param>
     /// <param name="timeProvider">Measures the run and a tombstone's age.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
@@ -70,6 +78,7 @@ public sealed class MailAccountRetentionHandler : IJobHandler
         IMailTombstoneRetentionReader tombstoneRetention,
         IMailAccountCustodyStore custody,
         IStoredTombstoneEraser tombstones,
+        IAuthoredDeleteEmailDispositionReader deleteDispositions,
         IMailRetentionTelemetry telemetry,
         TimeProvider timeProvider)
     {
@@ -79,6 +88,7 @@ public sealed class MailAccountRetentionHandler : IJobHandler
         ArgumentNullException.ThrowIfNull(tombstoneRetention);
         ArgumentNullException.ThrowIfNull(custody);
         ArgumentNullException.ThrowIfNull(tombstones);
+        ArgumentNullException.ThrowIfNull(deleteDispositions);
         ArgumentNullException.ThrowIfNull(telemetry);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
@@ -88,6 +98,7 @@ public sealed class MailAccountRetentionHandler : IJobHandler
         this.tombstoneRetention = tombstoneRetention;
         this.custody = custody;
         this.tombstones = tombstones;
+        this.deleteDispositions = deleteDispositions;
         this.telemetry = telemetry;
         this.timeProvider = timeProvider;
     }
@@ -112,7 +123,8 @@ public sealed class MailAccountRetentionHandler : IJobHandler
         }
 
         var startedAt = this.timeProvider.GetTimestamp();
-        var erased = await this.EraseAgedTombstonesAsync(run.Account, cancellationToken);
+        var erased = await this.EraseAgedTombstonesAsync(run.Account, cancellationToken)
+            + await this.SettleKeptAfterAuthoredDeleteAsync(run.Account, cancellationToken);
         var removed = await this.TakeInBatchesAsync(
             (session, limit) => this.threads.RemoveEmptiedAsync(session, run.Account, limit, cancellationToken),
             ConversationsRemovedPerTransaction,
@@ -165,6 +177,33 @@ public sealed class MailAccountRetentionHandler : IJobHandler
             isSourceDrained: state.Phase is MailAccountCustodyPhase.Held,
             limit,
             cancellationToken);
+    }
+
+    /// <summary>Settles what an older value kept readable under what the account now states, answering how many rows were erased.</summary>
+    private async Task<int> SettleKeptAfterAuthoredDeleteAsync(MailAccountId account, CancellationToken cancellationToken)
+    {
+        var disposition = this.deleteDispositions.GetAuthoredDeleteDisposition(account);
+
+        var settled = await this.TakeInBatchesAsync(
+            async (session, limit) =>
+            {
+                var state = await this.custody.ReadAsync(session, account, cancellationToken);
+
+                return state?.Phase is MailAccountCustodyPhase.Mirrored or MailAccountCustodyPhase.Held
+                    ? await this.tombstones.SettleKeptAfterAuthoredDeleteAsync(
+                        session,
+                        account,
+                        disposition,
+                        isSourceDrained: state.Phase is MailAccountCustodyPhase.Held,
+                        limit,
+                        cancellationToken)
+                    : 0;
+            },
+            TombstonesErasedPerTransaction,
+            MaximumTombstonesErasedPerNight,
+            cancellationToken);
+
+        return disposition is AuthoredDeleteEmailDisposition.EraseLocalCopy ? settled : 0;
     }
 
     private async Task<int> TakeInBatchesAsync(

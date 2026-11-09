@@ -88,6 +88,7 @@ internal sealed class MailboxRestoreStore(MailFathomDbContext readContext, IEmai
             .Where(StoredEmailTombstone.IsNotTombstoned)
             .Where(email => email.MailboxAccountId == accountValue
                 && email.UidValidity != null
+                && !email.IsRetainedAfterRemoteDelete
                 && (position == null || email.Id.CompareTo(position!.Value) > 0))
             .OrderBy(email => email.Id)
             .Take(maximumCandidates)
@@ -370,6 +371,7 @@ internal sealed class MailboxRestoreStore(MailFathomDbContext readContext, IEmai
             .CountAsync(
                 email => email.MailboxAccountId == accountValue
                     && email.UidValidity != null
+                    && !email.IsRetainedAfterRemoteDelete
                     && (position == null || email.Id.CompareTo(position!.Value) > 0),
                 cancellationToken);
 

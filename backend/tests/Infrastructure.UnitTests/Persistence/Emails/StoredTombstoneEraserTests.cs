@@ -34,6 +34,24 @@ public sealed class StoredTombstoneEraserTests
         // Assert
         Assert.Contains("COALESCE", statement, StringComparison.Ordinal);
         Assert.Contains("\"AuthoredDeleteFlaggedAt\"", statement, StringComparison.Ordinal);
+        Assert.Contains("\"IsRetainedAfterRemoteDelete\"", statement, StringComparison.Ordinal);
+        Assert.Contains("NOT EXISTS", statement, StringComparison.Ordinal);
+        Assert.Contains("LIMIT", statement, StringComparison.Ordinal);
+    }
+
+    /// <summary>The settlement of rows an older value kept readable reaches PostgreSQL too, and asks for those rows alone.</summary>
+    [Fact]
+    public void KeptAfterAuthoredDelete_EveryClauseAtOnce_TranslatesToOneBoundedStatement()
+    {
+        // Arrange
+        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
+
+        // Act
+        var statement = StoredTombstoneEraser
+            .KeptAfterAuthoredDelete(context, MailAccountId.Create("work"), limit: 100)
+            .ToQueryString();
+
+        // Assert
         Assert.Contains("\"IsRetainedAfterAuthoredDelete\"", statement, StringComparison.Ordinal);
         Assert.Contains("NOT EXISTS", statement, StringComparison.Ordinal);
         Assert.Contains("LIMIT", statement, StringComparison.Ordinal);

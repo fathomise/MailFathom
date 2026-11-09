@@ -365,6 +365,36 @@ public sealed class ClientMailSearchEndpointTests
         SemanticSearchCapability.Available,
         IncludedJunkMail: false);
 
+    /// <summary>Every surface carrying a message says whether it is local only, a search hit included.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void For_AHit_SaysWhetherTheMessageIsLocalOnly(bool isLocalOnly)
+    {
+        // Arrange
+        var page = new BrowsedSearchPage(
+            [
+                new BrowsedSearchResult(
+                    SyntheticMatchedEmail() with { IsLocalOnly = isLocalOnly },
+                    "the invoice is attached",
+                    [],
+                    SearchMatchOrigin.BothRankings,
+                    AttachmentMatches: [],
+                    IsDepictedMatch: false),
+            ],
+            NextCursor: null,
+            PageSize: 20,
+            EmailSearchRetrievalMode.Hybrid,
+            SemanticSearchCapability.Available,
+            IncludedJunkMail: true);
+
+        // Act
+        var response = ClientMailSearchResponse.For(page, NoPhotos);
+
+        // Assert
+        Assert.Equal(isLocalOnly, Assert.Single(response.Results).LocalOnly);
+    }
+
     private static EmailSummary SyntheticMatchedEmail() => new()
     {
         StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),

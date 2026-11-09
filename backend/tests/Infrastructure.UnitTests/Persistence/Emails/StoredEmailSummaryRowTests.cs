@@ -500,5 +500,6 @@ public sealed class StoredEmailSummaryRowTests
         ReadReceiptRequestedTo: null,
         ReadReceiptRequestNamesAnotherAddress: false,
         ReadReceiptSentAt: null,
-        filedFromOutgoingEmailId);
+        filedFromOutgoingEmailId,
+        IsLocalOnly: false);
 }

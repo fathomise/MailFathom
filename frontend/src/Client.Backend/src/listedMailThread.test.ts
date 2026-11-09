@@ -137,6 +137,15 @@ describe('readMailConversations', () => {
         });
     });
 
+    it('reads whether the newest message is local only', async () => {
+        const local = { ...thread, newest: { ...thread.newest, localOnly: true } };
+        const { transport } = recording(200, { ...page, conversations: [local] });
+
+        const result = await reading(transport);
+
+        expect(result.outcome === 'read' && result.value.conversations[0]?.newest.localOnly).toBe(true);
+    });
+
     it('reads every category the conversation holds', async () => {
         const categories = [{ identity: 'Legal', name: 'Legal' }];
 

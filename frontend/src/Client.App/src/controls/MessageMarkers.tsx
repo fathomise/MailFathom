@@ -6,12 +6,13 @@ import type { ReactNode } from 'react';
 import type { MailTimelineEntry } from '@mailfathom/client-backend';
 import { Icon } from './Icon';
 import type { IconName } from './icons';
+import { useTip } from './useTip';
 import { useLocalization } from '../localization/useLocalization';
 
 // What the mail server said about the message, in the order a reader scans for it. Each carries its own words, because
 // a mark with no name is a mark nobody using a screen reader can see at all.
 //
-// It sits here rather than beside the mail list for the reason `ReceivedAt` does: the conversation draws the same three
+// It sits here rather than beside the mail list for the reason `ReceivedAt` does: the conversation draws the same
 // marks about the same message, and a second copy of them is how one screen comes to say a message carries a file and
 // the other says it carries none.
 
@@ -33,7 +34,7 @@ export function MessageMarkers({
      */
     readonly flagged: boolean;
 
-    /** A mark the surface draws first, ahead of the three — what came back for a message on a Sent row. */
+    /** A mark the surface draws first, ahead of the others — what came back for a message on a Sent row. */
     readonly lead?: ReactNode;
 }) {
     const { translate } = useLocalization();
@@ -44,6 +45,8 @@ export function MessageMarkers({
 
             {email.answered ? <Marker name="reply" label={translate('list.answered')} /> : null}
 
+            {email.localOnly === true ? <LocalOnlyMark tapReveals={false} /> : null}
+
             {email.hasAttachments ? (
                 <Marker
                     name="attach_file"
@@ -53,6 +56,28 @@ export function MessageMarkers({
 
             {flagged ? <Marker name="flag" label={translate('list.flagged')} /> : null}
         </span>
+    );
+}
+
+/** The mark on a message the mail server no longer holds and MailFathom alone keeps, one icon wherever it is drawn. */
+export function LocalOnlyMark({
+    tapReveals,
+}: {
+    /** Off inside a row, whose tap opens the message, where this same mark then answers one. */
+    readonly tapReveals: boolean;
+}) {
+    const { translate } = useLocalization();
+    const name = translate('list.localOnly');
+    const { anchor, tip } = useTip({ says: name, tapReveals });
+
+    return (
+        <>
+            <span {...anchor} className="text-muted">
+                <Icon name="cloud_off" className="size-icon-sm" />
+                <span className="sr-only">{name}</span>
+            </span>
+            {tip}
+        </>
     );
 }
 

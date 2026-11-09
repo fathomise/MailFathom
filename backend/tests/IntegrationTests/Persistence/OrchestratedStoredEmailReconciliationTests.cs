@@ -12,6 +12,7 @@ using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Reconciliation;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Mutations;
@@ -567,6 +568,73 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
         StoredEmailId storedEmailId,
         CancellationToken cancellationToken) => services.InScopeAsync(
             (scope, token) => scope.GetRequiredService<IStoredEmailSummaryReader>().FindAsync(storedEmailId, token),
+            cancellationToken);
+
+    /// <summary>A message the server lost under <c>RetainLocalCopy</c> stays readable and is said to be local only, and no window asks about it again.</summary>
+    [Fact]
+    public async Task ApplyReconciliationOutcomeAsync_ADisappearanceUnderRetainLocalCopy_KeepsTheMessageReadableAndLocalOnly()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var binding = await OrchestratedFolderBinding.CommitAsync(services, "reconciliation-local-only", cancellationToken);
+
+        const uint KeptUid = 950;
+        const uint LostUid = 951;
+
+        var storedEmailIds = await StoreEmailsAsync(services, binding, [KeptUid, LostUid], cancellationToken);
+
+        // Act
+        await ApplyOutcomeAsync(
+            services,
+            new ReconciledFolderOutcome(
+                StillPresent: [],
+                ConfirmedUnchanged: [],
+                Disappeared: [storedEmailIds[LostUid]],
+                RemovedByOwnMutation: [],
+                RemotelyDeletedEmailDisposition.RetainLocalCopy,
+                SourceIsTheTruth: true,
+                LaterObservation),
+            cancellationToken);
+
+        // Assert
+        var rows = await ReadRowsAsync(services, binding, cancellationToken);
+        Assert.Equal(LaterObservation, rows[LostUid].RemoteExpungeObservedAt);
+        Assert.True(rows[LostUid].IsRetainedAfterRemoteDelete);
+
+        var timeline = await ReadTimelineAsync(services, binding, cancellationToken);
+        Assert.Equal(new[] { KeptUid, LostUid }, StoredUidsOf(timeline, rows));
+        Assert.True((await FindSummaryAsync(services, storedEmailIds[LostUid], cancellationToken))!.IsLocalOnly);
+        Assert.False((await FindSummaryAsync(services, storedEmailIds[KeptUid], cancellationToken))!.IsLocalOnly);
+
+        var matches = await SearchAsync(services, binding, cancellationToken);
+        Assert.Contains(rows[LostUid].Id, matches.Select(match => match.Summary.StoredEmailId.Value));
+        Assert.DoesNotContain(LostUid, await ReadWindowAsync(services, binding, maxEmailCount: 10, cancellationToken));
+
+        // A held account keeps everything, so nothing on it is told apart as local only.
+        var account = rows[LostUid].MailboxAccountId;
+
+        // The suite shares one database and one account row, so what is requested here goes back before the test ends.
+        await RequestCustodyAsync(services, account, MailAccountCustody.HoldMailbox, cancellationToken);
+
+        try
+        {
+            Assert.False((await FindSummaryAsync(services, storedEmailIds[LostUid], cancellationToken))!.IsLocalOnly);
+        }
+        finally
+        {
+            await RequestCustodyAsync(services, account, MailAccountCustody.MirrorSource, cancellationToken);
+        }
+    }
+
+    private static Task<int> RequestCustodyAsync(
+        OrchestratedMailFathomServices services,
+        string account,
+        MailAccountCustody custody,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+            (scope, token) => scope.GetRequiredService<MailFathomDbContext>().MailboxAccounts
+                .Where(row => row.Id == account)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.RequestedCustody, custody), token),
             cancellationToken);
 
     /// <summary>A window describing a held message after a person acted on it leaves their act standing and still moves the row through the queue.</summary>

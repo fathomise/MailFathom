@@ -70,7 +70,7 @@ public sealed class SpamActionRecorderTests
     /// <summary>Arranges the answer every test shares, so a test that cares about it overrides it afterwards.</summary>
     public SpamActionRecorderTests() => this.dispositions
         .GetAuthoredDeleteDisposition(Arg.Any<MailAccountId>())
-        .Returns(AuthoredDeleteEmailDisposition.RetainLocalCopy);
+        .Returns(AuthoredDeleteEmailDisposition.RetainTombstone);
 
     /// <summary>
     /// A mailbox that asked for no action costs the occurrence row and nothing else: the switches are the account's,

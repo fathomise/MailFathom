@@ -3499,6 +3499,9 @@
           "headers": {
             "$ref": "#/components/schemas/ClientMailMessageHeadersResponse"
           },
+          "localOnly": {
+            "type": "boolean"
+          },
           "readReceiptRequest": {
             "oneOf": [
               {
@@ -3598,7 +3601,8 @@
           "report",
           "receipts",
           "readReceiptRequest",
-          "categories"
+          "categories",
+          "localOnly"
         ],
         "type": "object"
       },
@@ -4144,6 +4148,9 @@
           "isDepictedMatch": {
             "type": "boolean"
           },
+          "localOnly": {
+            "type": "boolean"
+          },
           "matchedBy": {
             "type": "string"
           },
@@ -4286,7 +4293,8 @@
           "senderPhoto",
           "report",
           "receipts",
-          "categories"
+          "categories",
+          "localOnly"
         ],
         "type": "object"
       },
@@ -4883,6 +4891,9 @@
             "format": "uuid",
             "type": "string"
           },
+          "localOnly": {
+            "type": "boolean"
+          },
           "own": {
             "type": "boolean"
           },
@@ -4947,7 +4958,8 @@
           "preview",
           "own",
           "senderPhoto",
-          "receipts"
+          "receipts",
+          "localOnly"
         ],
         "type": "object"
       },
@@ -5231,6 +5243,9 @@
             "format": "uuid",
             "type": "string"
           },
+          "localOnly": {
+            "type": "boolean"
+          },
           "preview": {
             "type": [
               "null",
@@ -5371,7 +5386,8 @@
           "senderPhoto",
           "report",
           "receipts",
-          "categories"
+          "categories",
+          "localOnly"
         ],
         "type": "object"
       },

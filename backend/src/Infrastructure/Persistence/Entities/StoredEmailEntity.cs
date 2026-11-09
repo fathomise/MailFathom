@@ -523,26 +523,34 @@ internal sealed class StoredEmailEntity
     public DateTimeOffset? RemoteExpungeObservedAt { get; set; }
 
     /// <summary>
-    /// Gets or sets whether this email is kept readable although its remote occurrence has gone, which only a delete
-    /// MailFathom performed under <see cref="AuthoredDeleteEmailDisposition.RetainLocalCopy" /> sets.
+    /// Gets or sets whether this email was kept readable after an authored delete under the value that no longer exists,
+    /// and has not been settled under the account's current one yet.
+    /// </summary>
+    /// <remarks>
+    /// No mailbox query admits such a row any more, so nothing a person reads depends on it. It stays until the nightly
+    /// retention has settled the row and is only read for that, because an account's
+    /// <see cref="AuthoredDeleteEmailDisposition" /> lives in configuration where no migration can read it, and because
+    /// an older build still reads the column for the length of a rolling upgrade. A later release removes it.
+    /// </remarks>
+    public bool IsRetainedAfterAuthoredDelete { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether this email is kept readable although its remote occurrence has gone, which only a
+    /// disappearance observed under <see cref="RemotelyDeletedEmailDisposition.RetainLocalCopy" /> sets.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// It is what separates freeing space on the server from forgetting the mail. The row still carries
+    /// It is what lets the archive outlive what the server keeps. The row still carries
     /// <see cref="RemoteExpungeObservedAt" />, because the server genuinely no longer holds the message and the
     /// reconciliation queue must stop asking about it; this flag is what keeps the same row inside every mailbox query
-    /// the timestamp would otherwise take it out of.
+    /// the timestamp would otherwise take it out of, and what a client is told as the message being local only.
     /// </para>
     /// <para>
-    /// Nothing but a change MailFathom itself authored sets it: a delete, or a relocation into a folder MailFathom does
-    /// not mirror, which is the same loss of the occurrence and is answered by the same setting. A disappearance somebody
-    /// else caused is answered by <see cref="RemotelyDeletedEmailDisposition" />, which has no value that keeps the mail
-    /// readable: MailFathom did not cause that removal and cannot say the user meant to keep a local copy of it. The
-    /// name says "authored delete" because that is the setting's name and the case it was written for; a relocation out
-    /// of the mirrored mailbox joined it rather than earning a column of its own.
+    /// The UID the row still carries names a message the server expunged, so the drain and the restore pass over such a
+    /// row and an act on it commits locally and opens no record.
     /// </para>
     /// </remarks>
-    public bool IsRetainedAfterAuthoredDelete { get; set; }
+    public bool IsRetainedAfterRemoteDelete { get; set; }
 
     /// <summary>
     /// Gets or sets when reconciliation found the occurrence flagged <c>\Deleted</c> by a delete MailFathom authored that
@@ -551,8 +559,8 @@ internal sealed class StoredEmailEntity
     /// <remarks>
     /// <para>
     /// The server still holds such a message, so <see cref="RemoteExpungeObservedAt" /> cannot say it is gone; this is
-    /// what takes the row out of every mailbox query instead, unless <see cref="IsRetainedAfterAuthoredDelete" /> keeps
-    /// it readable, and out of the reconciliation queue, since the occurrence is followed through a record of its own
+    /// what takes the row out of every mailbox query instead, and
+    /// out of the reconciliation queue, since the occurrence is followed through a record of its own
     /// from then on. The expunge somebody issues later is recorded in <see cref="RemoteExpungeObservedAt" /> as any
     /// other, and a flag removed on the server clears this again.
     /// </para>

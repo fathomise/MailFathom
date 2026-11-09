@@ -94,7 +94,7 @@ public sealed class MailboxMutationRequestTests
             desiredSeenState: null,
             desiredFlaggedState: null,
             keywords: null,
-            AuthoredDeleteEmailDisposition.RetainLocalCopy,
+            AuthoredDeleteEmailDisposition.RetainTombstone,
             AuthoredDeleteServerDisposition.Expunge));
 
         // Assert
@@ -146,7 +146,7 @@ public sealed class MailboxMutationRequestTests
     /// <summary>A relocation into a folder MailFathom does not mirror loses the occurrence for good, so it disposes of the local copy exactly as a delete does.</summary>
     [Theory]
     [InlineData(AuthoredDeleteEmailDisposition.EraseLocalCopy)]
-    [InlineData(AuthoredDeleteEmailDisposition.RetainLocalCopy)]
+    [InlineData(AuthoredDeleteEmailDisposition.RetainTombstone)]
     public void Relocate_ADestinationNothingMirrors_CarriesTheDispositionItWasAuthoredUnder(
         AuthoredDeleteEmailDisposition disposition)
     {
@@ -552,7 +552,6 @@ public sealed class MailboxMutationRequestTests
 
     /// <summary>Keeping the local copy would make a delete that touches no server change nothing anywhere, so whatever the account says about it, the request says the copy goes.</summary>
     [Theory]
-    [InlineData(AuthoredDeleteEmailDisposition.RetainLocalCopy)]
     [InlineData(AuthoredDeleteEmailDisposition.RetainTombstone)]
     [InlineData(AuthoredDeleteEmailDisposition.EraseLocalCopy)]
     public void Delete_LeavingTheServerUntouched_ErasesTheLocalCopyWhateverTheAccountSays(AuthoredDeleteEmailDisposition localDisposition)
@@ -583,12 +582,12 @@ public sealed class MailboxMutationRequestTests
             LocalEmail,
             Occurrence(),
             Requester,
-            AuthoredDeleteEmailDisposition.RetainLocalCopy,
+            AuthoredDeleteEmailDisposition.RetainTombstone,
             serverDisposition);
 
         // Assert
         Assert.False(request.LeavesServerUntouched);
-        Assert.Equal(AuthoredDeleteEmailDisposition.RetainLocalCopy, request.LocalDisposition);
+        Assert.Equal(AuthoredDeleteEmailDisposition.RetainTombstone, request.LocalDisposition);
     }
 
     private static EmailOccurrenceId Occurrence() => EmailOccurrenceId.Create(

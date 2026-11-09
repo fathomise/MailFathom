@@ -506,7 +506,7 @@ internal sealed class SyntheticMailAccount(
     /// it would let a production path resolve nothing where the host resolves something.
     /// </remarks>
     public AuthoredDeleteEmailDisposition GetAuthoredDeleteDisposition(MailAccountId accountId) =>
-        AuthoredDeleteEmailDisposition.RetainLocalCopy;
+        AuthoredDeleteEmailDisposition.RetainTombstone;
 
     /// <inheritdoc />
     public AuthoredDeleteServerDisposition GetAuthoredDeleteServerDisposition(MailAccountId accountId) =>

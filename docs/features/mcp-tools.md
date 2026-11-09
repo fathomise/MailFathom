@@ -1212,9 +1212,9 @@ account this deployment does not serve, an email in a folder mapped `VisibleToAI
 for are one answer — `53002`, the same one a read gives — so a write surface is neither a way round a withheld folder
 nor a way to learn which identifiers exist by asking about them.
 
-One case answers `53002` here that a read still serves: a local copy kept after MailFathom deleted the message under
-`RetainLocalCopy`. A listing serves it, because the mail is still readable, while the UID it carries names a message the
-server expunged — so recording a change against it would open records convergence could only attempt and fail.
+A local-only message, kept after its server lost it under `RemotelyDeletedEmailDisposition: RetainLocalCopy`, is written
+like any other: the change commits locally and opens no record, because no server holds a copy to carry it to. A listing
+and a read answer it as any other message, and the client API alone says it is local only.
 [The local copy kept without a remote occurrence](../architecture/stored-email-schema.md) is what that row is.
 
 Only these three values can be written. `\Answered` and `\Draft` each assert that an act was performed rather than

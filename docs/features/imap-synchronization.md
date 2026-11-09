@@ -1910,12 +1910,15 @@ somebody else removed it. Each account chooses, through `RemotelyDeletedEmailDis
 |---|---|
 | `RetainTombstone` | The row stays and records `remote_expunge_observed_at`. Every mailbox query — the timeline, search, and the content read — excludes it from that moment, and so does every later reconciliation window. Its raw MIME and derived text stay in the database. |
 | `EraseLocalCopy` (default) | The row is removed as the disappearance is observed, and PostgreSQL removes the raw MIME, the search document, the chunks, the vectors, and any outstanding repair request with it. A payload stored in a bucket goes too, once the transaction has committed. Nothing of the message survives locally. |
+| `RetainLocalCopy` | The row stays readable and searchable with everything derived from it, and is marked local only. It records `remote_expunge_observed_at`, because the server no longer holds the message and the reconciliation queue must stop asking about it, and `is_retained_after_remote_delete`, which keeps it inside the timeline, search, and the content read. |
+
+A local-only message is worked with as any other. A flag, a move, and a spam mark commit locally with their audit entry and open no record, because no server holds a copy to carry them to. A person's delete stays listed for their window and is then settled as `AuthoredDeleteEmailDisposition` says, so a delete still means a delete, and a tombstone it leaves ages from that delete rather than from when the server lost the message. Three acts answer differently from a message the server holds: a delete a rule or a verdict asks for changes nothing, a move to a folder with no local counterpart answers that the destination is missing, and a copy is refused, because the second message would hold no occurrence and no later act could address it. The drain and the restore pass over such a row, since the UID it carries names a message the server expunged. An account whose custody is `HoldMailbox` is never told a message is local only: MailFathom empties that source on purpose, so the mark would stand on every message and say nothing.
 
 The setting is per account because the accounts of one deployment are not interchangeable: a mailbox whose provider is
 the system of record can be followed exactly, while a mailbox MailFathom is the durable copy of must not lose mail because
 a server dropped it. The default follows the server, because deleting a message means deleting it; an account kept as
-an archive asks for `RetainTombstone` by name, so a server that misreports a folder costs it a hidden row rather than a
-destroyed local copy. [What a deletion does](../operations/configuration-mail.md#what-a-deletion-does--three-settings)
+an archive asks for `RetainLocalCopy` by name to go on reading what the server lost, or for `RetainTombstone` to keep only
+the record of it, so a server that misreports a folder costs it a hidden row rather than a destroyed local copy. [What a deletion does](../operations/configuration-mail.md#what-a-deletion-does--three-settings)
 sets this beside the two settings for deletes MailFathom performs.
 
 **Changing the setting governs what is observed from then on, and touches nothing already recorded.** A message already
@@ -1942,18 +1945,17 @@ this one, and that includes the case where this window would have deleted the em
 A deletion the mailbox user authored is a different act from the one above, and it is answered by a different setting.
 `AuthoredDeleteEmailDisposition` decides it, per account, and **takes precedence over `RemotelyDeletedEmailDisposition`
 for every disappearance a mutation record accounts for** — which is to say the setting above is never consulted for one.
-That separation is the point of having two: without it, an account configured to erase what its server loses would also
-erase what MailFathom was just told to delete, and that is precisely where the user is likeliest to have meant the
-opposite. Deleting on the server frees quota; the local archive is usually the reason to do it.
+That separation is the point of having two: without it, an account configured to keep what its server loses would also
+keep readable what MailFathom was just told to delete, and a delete a person asked for is a delete.
 
 | Value | What happens locally |
 |---|---|
-| `RetainLocalCopy` | The row stays readable. It records `remote_expunge_observed_at`, because the server no longer holds the message and the reconciliation queue must stop asking about it, and it also records `is_retained_after_authored_delete`, which keeps it inside the timeline, search, and content read. Freeing space on the server is then not the same instruction as forgetting the mail. |
-| `RetainTombstone` | The counterpart of the value above: the row stays and every mailbox query excludes it from that moment. The record that the email existed survives, so an authored delete is auditable rather than silent, and the mail itself stops being reachable. |
+| `RetainTombstone` | The row stays and every mailbox query excludes it from that moment. The record that the email existed survives, so an authored delete is auditable rather than silent, and the mail itself stops being reachable. |
 | `EraseLocalCopy` (default) | The row is removed as the disappearance is observed, and PostgreSQL removes the raw MIME, the search document, the chunks, the vectors, and any outstanding repair request with it. A payload stored in a bucket goes too, once the transaction has committed. Nothing of the message survives locally. |
 
-The default does what a delete says. Keeping a copy of mail the user deleted is an archive's choice, and an account that
-wants it names `RetainLocalCopy` or `RetainTombstone`.
+The default does what a delete says. Keeping the record that a deleted message existed is an account's choice, made by
+naming `RetainTombstone`. A row an earlier release kept readable after a delete is out of every mailbox query from this
+release on, and the nightly retention run settles it under the value the account states now.
 
 **The value is resolved when the delete is authored, not when it completes.** Those are different runs — the commands go
 out now and the local copy is disposed of by the synchronization run that later sees the message gone — so the answer is
@@ -1962,7 +1964,7 @@ after the change and leaves one already in flight exactly as it was begun.
 
 A deletion that never reaches the server changes nothing locally either. The disposition is applied where reconciliation
 observes the message gone from its folder, so a delete that was refused, abandoned, or is still in flight has left the
-local copy alone; and because all three values take the row out of the reconciliation queue, the disposition is applied
+local copy alone; and because both values take the row out of the reconciliation queue, the disposition is applied
 once per delete however many windows pass over the folder afterwards.
 
 **One relocation is answered by this setting too.** A message moved into a folder MailFathom does not mirror has left the
@@ -1985,9 +1987,9 @@ exactly as the local disposition does, and a resumed attempt that finds the flag
 The local copy still follows `AuthoredDeleteEmailDisposition`, and it is disposed of as soon as a run reads the flag on
 the occurrence, which settles the delete. From then on the message is followed rather than forgotten:
 
-- **While it carries `\Deleted`, it stays out of every mailbox query** unless `RetainLocalCopy` kept it readable, and a
-  run that reads it again does not bring it back. A kept row records `authored_delete_flagged_at`, which every query
-  excludes unless the row is retained, and the reconciliation window skips it.
+- **While it carries `\Deleted`, it stays out of every mailbox query**, and a run that reads it again does not bring it
+  back. A kept row records `authored_delete_flagged_at`, which every query excludes, and the reconciliation window skips
+  it.
 - **When the server expunges it**, by anyone, the removal is recorded against the delete and the local copy stays as the
   disposition left it. `RemotelyDeletedEmailDisposition` is never applied, because the disappearance is the delete
   completing.
@@ -2255,7 +2257,7 @@ a configuration source. An account is declared like this:
   "Mode": "Push",
   "EarliestEmailReceivedDate": "2024-01-01",
   "RemotelyDeletedEmailDisposition": "RetainTombstone",
-  "AuthoredDeleteEmailDisposition": "RetainLocalCopy",
+  "AuthoredDeleteEmailDisposition": "RetainTombstone",
   "AuthoredDeleteServerDisposition": "Expunge",
   "Secrets": {
     "Password": {
@@ -2305,9 +2307,9 @@ The extraction backfill has a section of its own rather than a block inside the 
 }
 ```
 
-`MaxReconciledEmailsPerRun` bounds the backward pass the way the batch settings bound the forward one, and `RemotelyDeletedEmailDisposition` is the per-account choice [Reconciling against the server](#reconciling-against-the-server) describes. It binds as one of the two names `RetainTombstone` and `EraseLocalCopy`, and a value that is neither **fails startup** rather than falling back to a default: the setting decides whether stored mail is destroyed, and a typo in it must never be the reason mail survives or does not. That check is explicit rather than left to the binder, because a bare number binds onto an enum whether or not any member carries it — strict binding rejects unknown keys and failed conversions, and this conversion succeeds.
+`MaxReconciledEmailsPerRun` bounds the backward pass the way the batch settings bound the forward one, and `RemotelyDeletedEmailDisposition` is the per-account choice [Reconciling against the server](#reconciling-against-the-server) describes. It binds as one of the three names `RetainLocalCopy`, `RetainTombstone`, and `EraseLocalCopy`, and a value that is none of them **fails startup** rather than falling back to a default: the setting decides whether stored mail is destroyed, and a typo in it must never be the reason mail survives or does not. That check is explicit rather than left to the binder, because a bare number binds onto an enum whether or not any member carries it — strict binding rejects unknown keys and failed conversions, and this conversion succeeds.
 
-`AuthoredDeleteEmailDisposition` answers the same question for the opposite act — a deletion MailFathom performed on the user's instruction rather than one it observed — and [takes precedence over the setting above](#what-becomes-of-a-message-mailfathom-deleted-itself) for every such deletion. It binds as `RetainLocalCopy`, `RetainTombstone`, or `EraseLocalCopy`, is validated the same way, fails startup the same way, and defaults to erasing the local copy. `AuthoredDeleteServerDisposition` decides the same delete on the server, binds as `Expunge`, `FlagDeleted`, or `LeaveOnServer`, is validated and fails startup the same way, and defaults to `Expunge`; [a delete that only flags the message](#a-delete-that-only-flags-the-message) and [a delete that leaves the server untouched](#a-delete-that-leaves-the-server-untouched) describe the other two.
+`AuthoredDeleteEmailDisposition` answers the same question for the opposite act — a deletion MailFathom performed on the user's instruction rather than one it observed — and [takes precedence over the setting above](#what-becomes-of-a-message-mailfathom-deleted-itself) for every such deletion. It binds as `RetainTombstone` or `EraseLocalCopy`, is validated the same way, fails startup the same way, and defaults to erasing the local copy. `AuthoredDeleteServerDisposition` decides the same delete on the server, binds as `Expunge`, `FlagDeleted`, or `LeaveOnServer`, is validated and fails startup the same way, and defaults to `Expunge`; [a delete that only flags the message](#a-delete-that-only-flags-the-message) and [a delete that leaves the server untouched](#a-delete-that-leaves-the-server-untouched) describe the other two.
 
 Every declared account carries a `DisplayName`, whether or not synchronization is enabled, because the stored copy stays readable after the switch is turned off and the name is what a caller reads the account back as. There is no fallback to the generated identifier: a name MailFathom invented would be published to callers as though an operator had chosen it. The two share one naming space — a request may name an account by either — so a write is refused where a display name another of that user's accounts already carries as an identifier or a display name, compared without regard to case. Display names are judged within each assigned user's set rather than across the deployment; the address is the one name judged across the deployment.
 

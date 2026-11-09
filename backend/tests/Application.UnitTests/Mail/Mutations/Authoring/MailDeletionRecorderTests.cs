@@ -59,7 +59,7 @@ public sealed class MailDeletionRecorderTests
     /// <summary>Arranges the disposition every test shares, so a test that is about it overrides it afterwards.</summary>
     public MailDeletionRecorderTests() => this.dispositions
         .GetAuthoredDeleteDisposition(Arg.Any<MailAccountId>())
-        .Returns(AuthoredDeleteEmailDisposition.RetainLocalCopy);
+        .Returns(AuthoredDeleteEmailDisposition.RetainTombstone);
 
     /// <summary>The record names the occurrence a command will be issued against, and names no folder in either direction.</summary>
     [Fact]
@@ -88,7 +88,6 @@ public sealed class MailDeletionRecorderTests
     /// configuration still says it rather than read again in the pass that carries the delete out.
     /// </summary>
     [Theory]
-    [InlineData(AuthoredDeleteEmailDisposition.RetainLocalCopy)]
     [InlineData(AuthoredDeleteEmailDisposition.RetainTombstone)]
     [InlineData(AuthoredDeleteEmailDisposition.EraseLocalCopy)]
     public async Task RecordAsync_ADeleteOfReadableMail_RecordsTheAccountsConfiguredDisposition(

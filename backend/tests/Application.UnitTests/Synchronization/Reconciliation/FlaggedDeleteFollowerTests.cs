@@ -39,7 +39,6 @@ public sealed class FlaggedDeleteFollowerTests
     [Theory]
     [InlineData(AuthoredDeleteEmailDisposition.EraseLocalCopy)]
     [InlineData(AuthoredDeleteEmailDisposition.RetainTombstone)]
-    [InlineData(AuthoredDeleteEmailDisposition.RetainLocalCopy)]
     public async Task FollowAsync_AFlagOnlyDeleteSeenFlagged_SettlesItUnderItsRecordedDisposition(
         AuthoredDeleteEmailDisposition disposition)
     {

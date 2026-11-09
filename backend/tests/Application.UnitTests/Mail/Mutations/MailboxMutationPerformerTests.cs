@@ -653,7 +653,7 @@ public sealed class MailboxMutationPerformerTests
             MailboxMutationRequest.Delete(
                 storedEmailId, occurrence,
                 requester,
-                AuthoredDeleteEmailDisposition.RetainLocalCopy,
+                AuthoredDeleteEmailDisposition.RetainTombstone,
                 AuthoredDeleteServerDisposition.Expunge),
             InboxFolder,
             TransportPolicy,
@@ -979,7 +979,7 @@ public sealed class MailboxMutationPerformerTests
             _ => MailboxMutationRequest.Delete(
                 storedEmailId, occurrence,
                 requester,
-                AuthoredDeleteEmailDisposition.RetainLocalCopy,
+                AuthoredDeleteEmailDisposition.RetainTombstone,
                 AuthoredDeleteServerDisposition.Expunge),
         };
     }

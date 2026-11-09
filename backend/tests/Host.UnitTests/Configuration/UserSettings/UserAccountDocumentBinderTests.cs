@@ -1285,6 +1285,26 @@ public sealed class UserAccountDocumentBinderTests
         string? language) =>
         DocumentDeclaring([account], PasswordReference, language);
 
+    /// <summary>The value left a contract that destroys mail, so it is refused by name and the refusal says what to state instead.</summary>
+    [Fact]
+    public void Bind_AnAccountStatingTheRemovedAuthoredDeleteValue_IsRefusedNamingBothThatRemain()
+    {
+        // Arrange
+        var binder = CreateBinder();
+        var document = DocumentDeclaringAccountReading(("work", "The work mailbox"), "English")
+            .Replace("\"AccountId\": \"work\",", "\"AccountId\": \"work\", \"AuthoredDeleteEmailDisposition\": \"RetainLocalCopy\",", StringComparison.Ordinal);
+
+        // Act
+        var binding = binder.Bind(document, UserRecordArrival.BeingWritten);
+
+        // Assert
+        Assert.False(binding.IsBound);
+        var refusal = Assert.Single(binding.Refusals);
+        Assert.Contains("RetainTombstone", refusal, StringComparison.Ordinal);
+        Assert.Contains("EraseLocalCopy", refusal, StringComparison.Ordinal);
+        Assert.Contains("RemotelyDeletedEmailDisposition", refusal, StringComparison.Ordinal);
+    }
+
     private static string DocumentDeclaring(
         IReadOnlyList<(string AccountId, string DisplayName)> accounts,
         string passwordReference,

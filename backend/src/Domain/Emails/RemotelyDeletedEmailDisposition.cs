@@ -13,7 +13,7 @@ namespace MailFathom.Domain.Emails;
 /// leaves what is already recorded exactly as it is.
 /// </para>
 /// <para>
-/// Both values describe a purely local decision. Neither reaches the server: MailFathom reads mail read-only, and no path
+/// Every value describes a purely local decision. None reaches the server: MailFathom reads mail read-only, and no path
 /// here issues an IMAP <c>STORE</c> or <c>EXPUNGE</c>.
 /// </para>
 /// </remarks>
@@ -34,4 +34,12 @@ public enum RemotelyDeletedEmailDisposition
     /// setting of an account defaults to deleting completely: mail the server no longer holds is mail its user deleted.
     /// </remarks>
     EraseLocalCopy = 1,
+
+    /// <summary>Keeps the local email readable and searchable although the server no longer holds it.</summary>
+    /// <remarks>
+    /// The archive outlives what the server keeps: the row and everything derived from it stay, and the message is
+    /// marked local only. An act on it commits locally and is carried nowhere, since the server holds no copy of it.
+    /// An account asks for it by name.
+    /// </remarks>
+    RetainLocalCopy = 2,
 }

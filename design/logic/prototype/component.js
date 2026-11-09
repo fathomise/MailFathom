@@ -2125,7 +2125,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             /* A finger has no hover, and the hold that would ask a label for its whole name opens this menu. */
             (sp.spam ? "" : (this.state.convMail ? conversationCategories(id) : messageCategories(id, 0)).map(n => " - " + n).join("")) +
             (/·(Sent|Drafts)$/.test(this.state.folderKey || "") || !senderRecord(id, null) ? "" : " - " + MARKS[markKeyOf(senderRecord(id, null))].name) +
-            (rcpt ? " - " + rcpt.word : ""),
+            (rcpt ? " - " + rcpt.word : "") +
+            (th.localOnly ? " - Local only" : ""),
           items: [
             ai && { icon: "auto_awesome", label: "AI summary", run: () => this.openAiSum(id) },
             { icon: "check_box", label: "Select messages", run: () => this.toggleSelect(id) },
@@ -4809,6 +4810,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           role: m.mine ? "Ty" : "",
           num: (i + 1) + " / " + msgs.length,
           open, collapsed: !open,
+          localOnly: !!thread.localOnly,
           hasAtts: m.atts.length > 0,
           atts: m.atts.map(x => ({ type: x.type, name: x.name, size: x.size, open: () => this.refuseSpam(thread.id, "Its attachments do not open.") || (this.tabsMode()
             ? this.openTab("doc:" + x.name, { doc: x, docZoom: 1, docLoading: true }, { att: x })
@@ -7993,6 +7995,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             const n = convMail ? convMsgsFor(t).reduce((sum, m) => sum + (m.atts || []).length, 0) : (t.attachments || []).length;
             return { attShown: n > 0, attLabel: convMail ? "Attachments in this thread" : n === 1 ? "1 attachment" : n + " attachments" };
           })(),
+          localOnly: !!t.localOnly,
           flagged: !!flags[t.id],
           isUnread: !!unreadMap[t.id],
           movedTo: movedMap[t.id] || "",

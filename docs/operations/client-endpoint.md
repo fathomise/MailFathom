@@ -921,7 +921,8 @@ continues the list at each end:
       "categories": [
         { "identity": "finance", "name": null },
         { "identity": "Contracts", "name": "Contracts" }
-      ]
+      ],
+      "localOnly": false
     }
   ],
   "nextCursor": "AbCd...",
@@ -1013,6 +1014,8 @@ because it says what kind of spam a message is and nothing about mail that is no
 `impersonatedParty` is the kind of party a message pretends to come from and never a name — where a reader needs one,
 the message's own sender is in front of them. [Spam classification](../features/spam-classification.md) is where each
 stage and each value is decided.
+
+**`localOnly` is `true` on a message the mail server no longer holds and the account keeps readable** under `RemotelyDeletedEmailDisposition: RetainLocalCopy`, and `false` on every other, always on an account whose custody is `HoldMailbox`. Every act on such a message is committed locally and carried to no server, and three answer differently from a message the server holds: a delete a rule or a verdict asks for changes nothing, a move to a folder with no local counterpart answers that the destination is missing, and a copy is refused. A person's delete stays listed until its undo window passes. A search result, a message inside a conversation, the opened message, and a listed conversation's `newest` carry the same field.
 
 **`categories` is what sort of mail the message is**, read for the page in one request beside it rather than one per
 row, and empty where the message shows none. `identity` is one of the seven published default identities —
@@ -1201,7 +1204,8 @@ reads like this:
     "preview": "Thanks, the notes read well.",
     "own": true,
     "senderPhoto": null,
-    "receipts": null
+    "receipts": null,
+    "localOnly": false
   },
   "newestReceivedSender": {
     "authorAuthentication": "Authenticated",
@@ -1297,7 +1301,8 @@ It answers with one page of the user's mail ranked against what they are looking
         "deploymentTrust": "Trusted",
         "signatureOutcome": "NotSigned",
         "signerMatchesAuthor": false
-      }
+      },
+      "localOnly": false
     }
   ],
   "nextCursor": "AbCd...",
@@ -1797,7 +1802,8 @@ of its body exist to be asked for:
   "flagged": false,
   "answered": false,
   "spam": null,
-  "categories": []
+  "categories": [],
+  "localOnly": false
 }
 ```
 

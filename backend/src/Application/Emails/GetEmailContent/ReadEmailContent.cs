@@ -119,6 +119,9 @@ public sealed record ReadEmailContent
     /// <remarks>The same reading a listing carries, so a row and an opened message agree.</remarks>
     public IReadOnlyList<string> Categories { get; init; } = [];
 
+    /// <summary>Gets whether the mail server no longer holds this message and the account keeps it readable anyway.</summary>
+    public bool IsLocalOnly { get; init; }
+
     /// <summary>Gets the report the email was recognized as when it arrived, or <see langword="null" /> for every other message.</summary>
     /// <remarks>The same reading a listing carries, taken from the same summary.</remarks>
     public EmailReportMark? Report { get; init; }

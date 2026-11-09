@@ -11,8 +11,8 @@ namespace MailFathom.Infrastructure.UnitTests.Persistence.Emails;
 
 /// <summary>Covers which rows a tombstone hides, which every mailbox read composes rather than restates.</summary>
 /// <remarks>
-/// The rule stopped being a null check when an authored delete gained a value that keeps the local copy readable, so
-/// both columns are asserted here rather than in each query that uses them. Evaluating the expression needs no
+/// The rule is no null check, because a message its server lost can be kept readable under
+/// <c>RemotelyDeletedEmailDisposition.RetainLocalCopy</c>, so every column it reads is asserted here rather than in each query that uses them. Evaluating the expression needs no
 /// database: it is the predicate itself that is under test, and the queries that compose it are proved against
 /// PostgreSQL in the integration suite.
 /// </remarks>
@@ -49,14 +49,30 @@ public sealed class StoredEmailTombstoneTests
         Assert.False(admitted);
     }
 
-    /// <summary>A delete the user authored to free the server keeps the mail readable, which is the whole of that setting.</summary>
+    /// <summary>A message its server lost stays readable under <c>RetainLocalCopy</c>, which is the whole of that value.</summary>
     /// <remarks>
     /// The row carries the expunge as well, because the server genuinely no longer holds the message and the
     /// reconciliation queue is ordered by that column. Reading only that column here would hide exactly the mail this
-    /// disposition exists to keep.
+    /// value exists to keep.
     /// </remarks>
     [Fact]
-    public void IsNotTombstoned_EmailRetainedAfterAnAuthoredDelete_IsAdmittedDespiteTheExpunge()
+    public void IsNotTombstoned_EmailKeptAfterItsServerLostIt_IsAdmittedDespiteTheExpunge()
+    {
+        // Arrange
+        var email = CreateEmail();
+        email.RemoteExpungeObservedAt = ExpungeObservedAt;
+        email.IsRetainedAfterRemoteDelete = true;
+
+        // Act
+        var admitted = StoredEmailTombstone.IsNotTombstoned.Compile()(email);
+
+        // Assert
+        Assert.True(admitted);
+    }
+
+    /// <summary>A delete MailFathom performed never leaves its message readable, whatever an earlier release recorded.</summary>
+    [Fact]
+    public void IsNotTombstoned_EmailKeptAfterAnAuthoredDeleteByAnEarlierRelease_IsExcluded()
     {
         // Arrange
         var email = CreateEmail();
@@ -67,7 +83,24 @@ public sealed class StoredEmailTombstoneTests
         var admitted = StoredEmailTombstone.IsNotTombstoned.Compile()(email);
 
         // Assert
-        Assert.True(admitted);
+        Assert.False(admitted);
+    }
+
+    /// <summary>A local-only message filed into another account goes at once, as any other message a delete hides.</summary>
+    [Fact]
+    public void IsNotTombstoned_EmailKeptAfterItsServerLostItAndThenDeletedLocally_IsExcluded()
+    {
+        // Arrange
+        var email = CreateEmail();
+        email.RemoteExpungeObservedAt = ExpungeObservedAt;
+        email.IsRetainedAfterRemoteDelete = true;
+        email.LocalDeleteCommittedAt = ExpungeObservedAt;
+
+        // Act
+        var admitted = StoredEmailTombstone.IsNotTombstoned.Compile()(email);
+
+        // Assert
+        Assert.False(admitted);
     }
 
     /// <summary>A row is measured from the moment the server was seen to have removed it, whatever came before.</summary>
@@ -133,12 +166,12 @@ public sealed class StoredEmailTombstoneTests
 
     /// <summary>Mail kept readable is a message rather than a tombstone, and this pass must never reach it.</summary>
     [Fact]
-    public void SettledBefore_EmailRetainedAfterAnAuthoredDelete_IsLeftOut()
+    public void SettledBefore_EmailKeptAfterItsServerLostIt_IsLeftOut()
     {
         // Arrange
         var email = CreateEmail();
         email.RemoteExpungeObservedAt = ExpungeObservedAt;
-        email.IsRetainedAfterAuthoredDelete = true;
+        email.IsRetainedAfterRemoteDelete = true;
 
         // Act
         var admitted = StoredEmailTombstone.SettledBefore(ExpungeObservedAt.AddDays(1)).Compile()(email);

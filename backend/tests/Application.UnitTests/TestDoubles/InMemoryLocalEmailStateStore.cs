@@ -23,6 +23,8 @@ internal sealed class InMemoryLocalEmailStateStore(MailAccountId account) : ILoc
 
     internal List<EmailOccurrenceId> ForgottenOccurrences { get; } = [];
 
+    internal List<StoredEmailId> Tombstoned { get; } = [];
+
     internal void Store(StoredEmailId email, LocalEmailState state) => this.states[email] = state;
 
     public Task<LocalEmailState?> ReadAsync(
@@ -46,6 +48,20 @@ internal sealed class InMemoryLocalEmailStateStore(MailAccountId account) : ILoc
         }
 
         this.states[email] = state;
+
+        return Task.CompletedTask;
+    }
+
+    public Task MakeTombstoneAsync(
+        IPersistenceSession session,
+        MailAccountId account1,
+        StoredEmailId email,
+        CancellationToken cancellationToken)
+    {
+        if (account1 == account && this.states.Remove(email))
+        {
+            this.Tombstoned.Add(email);
+        }
 
         return Task.CompletedTask;
     }

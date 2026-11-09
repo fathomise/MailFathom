@@ -7,6 +7,7 @@ import { RowCategories } from '../categories/CategoryLabels';
 import { drawnCategories } from '../categories/categoryWords';
 import { useContactPhoto } from '../contactBook/contactPhotos';
 import { Icon } from '../controls/Icon';
+import { LocalOnlyMark } from '../controls/MessageMarkers';
 import { ReceivedAt } from '../controls/ReceivedAt';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import { useLocalization } from '../localization/useLocalization';
@@ -85,6 +86,8 @@ export function ThreadRow({
                     )}
 
                     <span className="ms-auto flex shrink-0 items-center gap-1.75">
+                        {thread.newest.localOnly === true ? <LocalOnlyMark tapReveals={false} /> : null}
+
                         {thread.hasAttachments ? (
                             <span className="text-muted">
                                 <Icon name="attach_file" className="size-icon-sm" />

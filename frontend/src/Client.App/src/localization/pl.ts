@@ -1451,6 +1451,7 @@ export const pl: Catalogue = {
 
     'list.unread': 'Nieprzeczytana',
     'list.flagged': 'Oznaczona',
+    'list.localOnly': 'Tylko lokalnie',
     'list.answered': 'Odpowiedziano',
     'list.attachments': 'Załączniki: {count}',
     'list.noSubject': 'Bez tematu',

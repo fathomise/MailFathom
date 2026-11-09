@@ -384,6 +384,21 @@ describe('readMailTimeline', () => {
         expect(result.outcome === 'read' && result.value.emails[0]?.threadId).toBeNull();
     });
 
+    it('reads whether the row is local only, and leaves the mark off one that is not', async () => {
+        const transport = answering({
+            status: 200,
+            body: bodyOf([
+                { ...message, localOnly: true },
+                { ...message, localOnly: false },
+            ]),
+        });
+
+        const result = await readMailTimeline(session, transport, leadingPage);
+
+        expect(result.outcome === 'read' && result.value.emails[0]?.localOnly).toBe(true);
+        expect(result.outcome === 'read' && result.value.emails[1]).not.toHaveProperty('localOnly');
+    });
+
     it('reads what sort of mail the row is', async () => {
         const categories = [{ identity: 'finance', name: null }];
         const transport = answering({ status: 200, body: bodyOf([{ ...message, categories }]) });

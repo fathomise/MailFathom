@@ -131,6 +131,38 @@ public sealed class ClientMailThreadListResponsesTests
         Assert.Empty(row.Categories);
     }
 
+    /// <summary>A conversation row quotes its newest message, and says whether that message is local only.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void For_AConversationWhoseNewestMessageIsLocalOnly_SaysSo(bool isLocalOnly)
+    {
+        // Arrange
+        var listed = new BrowsedListedThread(
+            new ListedEmailThread
+            {
+                ThreadId = Answered,
+                MessageCount = 1,
+                UnreadCount = 0,
+                HasAttachments = false,
+                NewestEmailId = ReadersReply,
+                NewestReceivedEmailId = null,
+                Participants = [],
+                Title = null,
+                Categories = [],
+            },
+            MoreParticipantsNotNamed: false,
+            Summary(ReadersReply, Answered, "Re: plans", ReaderAddress, "Me", FirstJuly) with { IsLocalOnly = isLocalOnly },
+            "Sounds good.",
+            NewestReceivedSender: null);
+
+        // Act
+        var row = ClientMailThreadListEntryResponse.For(listed, new Dictionary<EmailAddress, PersonPhoto>());
+
+        // Assert
+        Assert.Equal(isLocalOnly, row.Newest.LocalOnly);
+    }
+
     private static EmailSummary Summary(
         StoredEmailId storedEmailId,
         EmailThreadId threadId,

@@ -186,6 +186,12 @@ describe('MessageRowMenu', () => {
         expect(screen.queryByRole('menuitem', { name: 'Sender details' })).toBeNull();
     });
 
+    it('says the message is local only beside who it is from, since a finger cannot rest on the row’s mark', () => {
+        menuUnder({ row: { ...email, localOnly: true } });
+
+        expect(screen.getByText('Anna Kowalska - Local only')).toBeDefined();
+    });
+
     it('names what came back beside who the message is from, since a finger cannot rest on the row’s mark', () => {
         menuUnder({ receipt: { mark: 'read', count: 2, of: 3 }, onReceiptDetails: vi.fn() });
 

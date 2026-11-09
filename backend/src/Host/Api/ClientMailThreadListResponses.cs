@@ -64,7 +64,8 @@ internal sealed record ClientMailThreadListEntryResponse(
             row.NewestPreview,
             row.NewestIsReaders,
             PersonPhotoResponse.For(row.Newest.SenderAddress, authorPhotos),
-            row.NewestIsReaders ? ClientMailReceiptSummaryResponse.For(row.Newest.Receipts) : null),
+            row.NewestIsReaders ? ClientMailReceiptSummaryResponse.For(row.Newest.Receipts) : null,
+            row.Newest.IsLocalOnly),
         row.NewestReceivedSender is { } sender ? ClientMailListedSenderResponse.For(sender) : null,
         row.Thread.Title is { } title
             ? new ClientMailThreadListTitleResponse(
@@ -92,6 +93,7 @@ internal sealed record ClientMailThreadListParticipantResponse(string Address, s
 /// <param name="Own">Whether the user wrote it.</param>
 /// <param name="SenderPhoto">The photo its author is drawn by, or <see langword="null" /> where they are drawn by their initials.</param>
 /// <param name="Receipts">What came back for it, where the user wrote it and it asked for a report or got one; <see langword="null" /> otherwise, a received newest message always included.</param>
+/// <param name="LocalOnly">Whether the mail server no longer holds the message and MailFathom alone keeps it, never on an account whose custody is holding the mailbox.</param>
 internal sealed record ClientMailThreadListNewestResponse(
     Guid Id,
     string? Subject,
@@ -101,7 +103,8 @@ internal sealed record ClientMailThreadListNewestResponse(
     string? Preview,
     bool Own,
     PersonPhotoResponse? SenderPhoto,
-    ClientMailReceiptSummaryResponse? Receipts);
+    ClientMailReceiptSummaryResponse? Receipts,
+    bool LocalOnly);
 
 /// <summary>What a listed conversation is called, and the shape of the conversation it was derived from.</summary>
 /// <param name="Topic">What the conversation is about, kept as replies arrive.</param>

@@ -43,12 +43,14 @@ internal sealed class LocalEmailStateStore(TimeProvider timeProvider) : ILocalEm
             MailFolderBindingResolver.ToResolution(row.MailFolderBinding),
 
             // Both columns are cleared together when the drain observes its expunge, so either one answers; reading the
-            // UID alone would say nothing about which UIDVALIDITY it belonged to.
-            row is { UidValidity: not null, Uid: not null },
+            // UID alone would say nothing about which UIDVALIDITY it belonged to. A local-only row keeps a UID its server
+            // expunged, which holds nothing.
+            row is { UidValidity: not null, Uid: not null, IsRetainedAfterRemoteDelete: false },
             MailFolderId.Create(row.FolderId),
             row.IsMarkedSeen,
             row.IsFlagged,
-            EmailKeywords.Create(row.Keywords));
+            EmailKeywords.Create(row.Keywords),
+            row.IsRetainedAfterRemoteDelete);
     }
 
     /// <inheritdoc />
@@ -86,6 +88,23 @@ internal sealed class LocalEmailStateStore(TimeProvider timeProvider) : ILocalEm
     }
 
     /// <inheritdoc />
+    public async Task MakeTombstoneAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        StoredEmailId email,
+        CancellationToken cancellationToken)
+    {
+        if (await FindAsync(session, account, email, cancellationToken) is { } row)
+        {
+            row.IsRetainedAfterRemoteDelete = false;
+
+            // A tombstone ages from when it became one. The server may have lost this message long ago, and an age
+            // read from that would erase the record of this delete on the next nightly run.
+            row.RemoteExpungeObservedAt = timeProvider.GetUtcNow();
+        }
+    }
+
+    /// <inheritdoc />
     public async Task EraseAsync(
         IPersistenceSession session,
         MailAccountId account,
@@ -103,8 +122,11 @@ internal sealed class LocalEmailStateStore(TimeProvider timeProvider) : ILocalEm
 
         // This is the one erasure path a person's own delete takes on a held account, so it owes the source removal
         // record every other erasure path owes: the row about to go is the only thing that still says where the
-        // message is on the source, and the drain may not have reached it yet.
-        MailboxSourceRemovalRecords.Stage(sessionContext, [row], timeProvider.GetUtcNow());
+        // message is on the source, and the drain may not have reached it yet. A local-only row's source lost it already.
+        if (!row.IsRetainedAfterRemoteDelete)
+        {
+            MailboxSourceRemovalRecords.Stage(sessionContext, [row], timeProvider.GetUtcNow());
+        }
 
         await RemoveWithItsContentAsync(session, sessionContext, row, cancellationToken);
     }

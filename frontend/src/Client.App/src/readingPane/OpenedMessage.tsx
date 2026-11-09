@@ -15,6 +15,7 @@ import { OpenedCategories } from '../categories/CategoryLabels';
 import { drawnCategories } from '../categories/categoryWords';
 import { useContactPhoto } from '../contactBook/contactPhotos';
 import { Icon } from '../controls/Icon';
+import { LocalOnlyMark } from '../controls/MessageMarkers';
 import { ReceivedAt } from '../controls/ReceivedAt';
 import { SenderAvatar } from '../controls/SenderAvatar';
 import { ShowFullHtml } from '../fullHtml/ShowFullHtml';
@@ -286,6 +287,8 @@ export function OpenedMessage({
                                     ) : null}
 
                                     {summary}
+
+                                    {message.localOnly === true ? <LocalOnlyMark tapReveals /> : null}
 
                                     {message.attachments.length === 0 ? null : (
                                         <span className="flex shrink-0 items-center gap-0.75 text-xs text-faint">

@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace MailFathom.Domain.Emails;
 
 /// <summary>States what becomes of the local copy of an email MailFathom itself deleted on the mail server.</summary>
@@ -10,24 +12,17 @@ namespace MailFathom.Domain.Emails;
 /// It is a separate decision from <see cref="RemotelyDeletedEmailDisposition" /> because the two answer for different
 /// acts. That one governs a disappearance somebody else caused and MailFathom observed afterwards; this one governs a
 /// deletion the mailbox user authored through MailFathom. Inheriting one value for both would make an account
-/// configured to erase what its server loses also erase what MailFathom was just told to delete — which is precisely the
-/// case where the user may have wanted the opposite, because deleting on the server is how mail is kept while quota is
-/// freed.
+/// configured to keep what its server loses also keep what MailFathom was just told to delete, and a delete a person
+/// asked for is a delete: this setting has no value that leaves the message readable.
 /// </para>
 /// <para>
 /// The value is resolved when the mutation is written down and travels on its record, so changing the setting while a
 /// delete is in flight governs the deletes authored after the change and leaves that one exactly as it was begun.
 /// </para>
 /// </remarks>
+[SuppressMessage("Design", "CA1008:Enums should have zero value", Justification = "Zero named the value this setting no longer takes, and reusing the number would give a configuration stating it another member's meaning, so it stays unused and validation refuses it.")]
 public enum AuthoredDeleteEmailDisposition
 {
-    /// <summary>Keeps the local email readable and searchable although the server no longer holds it.</summary>
-    /// <remarks>
-    /// The remote occurrence is gone and the local copy is not, which is what separates freeing space on the server from
-    /// forgetting the mail. Nothing is destroyed, and an account asks for it by name.
-    /// </remarks>
-    RetainLocalCopy = 0,
-
     /// <summary>Keeps the local row as a tombstone that every mailbox query excludes.</summary>
     /// <remarks>
     /// The record that the email existed survives and the mail itself stops being reachable, which is what makes an

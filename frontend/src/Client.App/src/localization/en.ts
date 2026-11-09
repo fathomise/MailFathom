@@ -1428,6 +1428,7 @@ export const en = {
 
     'list.unread': 'Unread',
     'list.flagged': 'Flagged',
+    'list.localOnly': 'Local only',
     'list.answered': 'Answered',
     'list.attachments': '{count} attached',
     'list.noSubject': 'No subject',

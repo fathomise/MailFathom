@@ -170,7 +170,7 @@ internal sealed class SpamClassificationHarness
         var dispositions = Substitute.For<IAuthoredDeleteEmailDispositionReader>();
         dispositions
             .GetAuthoredDeleteDisposition(Arg.Any<MailAccountId>())
-            .Returns(AuthoredDeleteEmailDisposition.RetainLocalCopy);
+            .Returns(AuthoredDeleteEmailDisposition.RetainTombstone);
 
         return new SpamActionRecorder(
             settingsReader,

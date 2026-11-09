@@ -152,7 +152,9 @@ public sealed class CrossAccountFiler
             return null;
         }
 
-        MailboxMutationRecordId? removal = plan.SourceIsCarried
+        // A local-only source has no server copy for a record to remove, so it is erased here as a held one is.
+        var sourceIsCarried = plan.SourceIsCarried && !state.IsLocalOnly;
+        MailboxMutationRecordId? removal = sourceIsCarried
             ? await this.OpenRemovalAsync(session, plan, state, requester, cancellationToken)
             : null;
 
@@ -167,10 +169,10 @@ public sealed class CrossAccountFiler
                     sourceAccount,
                     plan.SourceEmail,
                     removal,
-                    ErasesHeldSource: !plan.SourceIsCarried),
+                    ErasesHeldSource: !sourceIsCarried),
                 cancellationToken);
         }
-        else if (!plan.SourceIsCarried)
+        else if (!sourceIsCarried)
         {
             await this.states.EraseAsync(session, sourceAccount, plan.SourceEmail, cancellationToken);
         }

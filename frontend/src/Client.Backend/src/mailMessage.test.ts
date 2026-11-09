@@ -175,6 +175,12 @@ describe('readMailMessage', () => {
         ]);
     });
 
+    it('reads whether the message is local only', async () => {
+        const message = await readingOf(described({ localOnly: true }));
+
+        expect(message?.localOnly).toBe(true);
+    });
+
     it('reads what sort of mail the message is', async () => {
         const categories = [{ identity: 'travel', name: null }];
 

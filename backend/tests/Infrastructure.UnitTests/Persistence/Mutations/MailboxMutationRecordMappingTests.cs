@@ -22,7 +22,6 @@ public sealed class MailboxMutationRecordMappingTests
 
     /// <summary>A relocation out of the mirrored mailbox decided what becomes of the local copy, and a later run applies it.</summary>
     [Theory]
-    [InlineData(AuthoredDeleteEmailDisposition.RetainLocalCopy)]
     [InlineData(AuthoredDeleteEmailDisposition.RetainTombstone)]
     [InlineData(AuthoredDeleteEmailDisposition.EraseLocalCopy)]
     public void ToRecord_ARelocationCarryingALocalDisposition_RestoresIt(AuthoredDeleteEmailDisposition disposition)

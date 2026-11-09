@@ -137,17 +137,21 @@ export function MessageRowMenu({
         <ContextMenu
             header={email.subject ?? translate('list.noSubject')}
             // Who wrote it, which the row folded to a strip of avatars no longer says in words, the spam verdict a folded
-            // row draws no badge for, the mark on the sender, and the word of what came back, which a finger has no
-            // hover to read off the row.
-            detail={receiptDetail(
-                senderDetail(
-                    spam !== null && marked
-                        ? spamMenuDetail(correspondent(email), spam, translate)
-                        : categoriesDetail(correspondent(email), categories, translate),
-                    senderMark ?? null,
+            // row draws no badge for, the mark on the sender, the word of what came back, and that the mail server no
+            // longer holds it, which a finger has no hover to read off the row.
+            detail={detailWithMark(
+                detailWithMark(
+                    senderDetail(
+                        spam !== null && marked
+                            ? spamMenuDetail(correspondent(email), spam, translate)
+                            : categoriesDetail(correspondent(email), categories, translate),
+                        senderMark ?? null,
+                        translate,
+                    ),
+                    receipt === null ? null : wordOf(receipt, translate, locale),
                     translate,
                 ),
-                receipt === null ? null : wordOf(receipt, translate, locale),
+                email.localOnly === true ? translate('list.localOnly') : null,
                 translate,
             )}
             detailWraps={categories.length > 0}
@@ -375,7 +379,7 @@ function senderDetail(who: string | undefined, mark: SenderMark | null, translat
     });
 }
 
-function receiptDetail(detail: string | undefined, word: string | null, translate: Translate): string | undefined {
+function detailWithMark(detail: string | undefined, word: string | null, translate: Translate): string | undefined {
     if (word === null) {
         return detail;
     }

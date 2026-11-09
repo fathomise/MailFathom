@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MailSpamVerdict, MailTimelineEntry } from '@mailfathom/client-backend';
 import { ContactPhotoContext, type ContactPhotoReader } from '../contactBook/contactPhotos';
@@ -238,6 +238,16 @@ describe('MessageRow, what sort of mail it is', () => {
 
         return screen.getByRole('option');
     }
+
+    it('draws one mark named Local only on a message MailFathom alone keeps, and none on another', () => {
+        const row = drawnWith({ localOnly: true });
+
+        expect(within(row).getAllByText('Local only')).toHaveLength(1);
+
+        cleanup();
+
+        expect(within(drawnWith({})).queryByText('Local only')).toBeNull();
+    });
 
     it('names a default in the reader’s language and an own category as written', () => {
         drawnWith({

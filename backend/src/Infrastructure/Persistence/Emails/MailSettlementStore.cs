@@ -114,7 +114,7 @@ internal sealed class MailSettlementStore(MailFathomDbContext dbContext) : IMail
                 email.SpamClassification == null ? null : email.SpamClassification.Verdict,
                 email.RulesEvaluatedAt != null || email.FiledFromOutgoingEmailId != null,
                 (email.RemoteExpungeObservedAt != null || email.AuthoredDeleteFlaggedAt != null)
-                    && !email.IsRetainedAfterAuthoredDelete,
+                    && !email.IsRetainedAfterRemoteDelete,
                 dbContext.MailboxMutations.Any(mutation => mutation.StoredEmailId == email.Id
                     && (mutation.RequesterOrigin == MailboxMutationOrigin.Rule
                         || mutation.RequesterOrigin == MailboxMutationOrigin.Classification)

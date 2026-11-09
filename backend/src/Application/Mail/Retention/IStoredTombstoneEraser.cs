@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Accounts;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Mail.Retention;
 
@@ -29,6 +30,26 @@ public interface IStoredTombstoneEraser
         MailAccountId account,
         MailTombstoneRetention retention,
         DateTimeOffset tombstonedBefore,
+        bool isSourceDrained,
+        int limit,
+        CancellationToken cancellationToken);
+
+    /// <summary>Settles one batch of the rows kept readable after an authored delete under the value that no longer exists.</summary>
+    /// <param name="session">The transaction the settlement commits in.</param>
+    /// <param name="account">The account whose rows are settled.</param>
+    /// <param name="disposition">What the account now states becomes of a message it deleted.</param>
+    /// <param name="isSourceDrained">Whether the account's source is being emptied, so an occurrence it still holds is recorded for the drain.</param>
+    /// <param name="limit">The most rows this call settles.</param>
+    /// <param name="cancellationToken">Cancels the reads.</param>
+    /// <returns>How many rows were settled, which is below the limit when no more could be taken now.</returns>
+    /// <remarks>
+    /// A row whose server copy has not been seen gone or flagged, and one with a change still outstanding, waits. No
+    /// mailbox query admits any of these rows, so all a night's bound delays is their erasure.
+    /// </remarks>
+    Task<int> SettleKeptAfterAuthoredDeleteAsync(
+        IPersistenceSession session,
+        MailAccountId account,
+        AuthoredDeleteEmailDisposition disposition,
         bool isSourceDrained,
         int limit,
         CancellationToken cancellationToken);

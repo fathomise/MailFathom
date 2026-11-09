@@ -4561,6 +4561,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsRetainedAfterAuthoredDelete")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsRetainedAfterRemoteDelete")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTimeOffset?>("JunkMarksChangedAt")
                         .HasColumnType("timestamp with time zone");
 
