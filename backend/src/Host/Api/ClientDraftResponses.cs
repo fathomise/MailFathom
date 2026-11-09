@@ -296,7 +296,7 @@ internal sealed record ClientDraftReadingResponse(
             reading.Text.PlainTextBody,
             reading.Text.HtmlBody,
             reading.Document,
-            reading.ReplyTo);
+            reading.Text.ReplyTo);
     }
 }
 
