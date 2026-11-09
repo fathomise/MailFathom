@@ -1418,7 +1418,7 @@ request carried were not applied to the walk under way.
 is read:
 
 ```console
-$ mfctl classification run-status --account %s
+$ mfctl classification run-status --account 5b0c7d2e-8f41-4a7e-9c1d-2f6b3a9e4d10
 Account:           work — Completed at 2026-08-12 11:30:00Z
 Requested:         2026-08-12 11:00:00Z
 Spam folders:      INBOX

@@ -14,7 +14,7 @@ using Pgvector;
 namespace MailFathom.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MailFathomDbContext))]
-    [Migration("20261109200818_RecordWhichFunctionsAClassificationRunCovers")]
+    [Migration("20261109203136_RecordWhichFunctionsAClassificationRunCovers")]
     partial class RecordWhichFunctionsAClassificationRunCovers
     {
         /// <inheritdoc />
@@ -4463,6 +4463,13 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("EmailThreadId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("FieldsSetBeforeFirstObservation")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("None");
 
                     b.Property<Guid?>("FiledFromOutgoingEmailId")
                         .HasColumnType("uuid");
