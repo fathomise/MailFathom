@@ -123,9 +123,13 @@ internal static class ClassificationRunCommand
     /// <summary>States what the run will do to the mailbox, in the words an operator has to be able to act on.</summary>
     /// <remarks>
     /// A dry run says so and says how to ask for the other one, because the whole point of the default is that somebody
-    /// reads the report before the mail moves.
+    /// reads the report before the mail moves. A run applying one category has no other one to ask for, because the
+    /// deployment refuses that option beside <c>--apply</c>.
     /// </remarks>
-    private static string DescribePosture(ClassificationRun run) => run.IsDryRun
-        ? "no — this is a dry run; it records verdicts and categories and leaves the mailbox alone. Add --apply to carry out what the switches ask for."
-        : "yes — what the deployment's switches ask for is written down and carried out by the account's convergence pass.";
+    private static string DescribePosture(ClassificationRun run) => run switch
+    {
+        { Category: not null } => "no — a run applying one category records that category and takes no action on the mailbox.",
+        { IsDryRun: true } => "no — this is a dry run; it records verdicts and categories and leaves the mailbox alone. Add --apply to carry out what the switches ask for.",
+        _ => "yes — what the deployment's switches ask for is written down and carried out by the account's convergence pass.",
+    };
 }

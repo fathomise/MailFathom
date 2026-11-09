@@ -41,6 +41,32 @@ public sealed class ClassificationCommandTests : IDisposable
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("classification run-status", StringComparison.Ordinal));
     }
 
+    /// <summary>The deployment refuses one category beside <c>--apply</c>, so the command must not advise adding it.</summary>
+    [Fact]
+    public async Task Run_OneCategoryAsked_SaysTheMailboxIsLeftAloneWithoutAdvisingApply()
+    {
+        // Arrange
+        using var deployment = FakeSpamRoutes.Answering(
+            runStart: (HttpStatusCode.OK, RunStart(started: true, acting: false, category: "Project Heron")));
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "classification",
+            "run",
+            "--account",
+            Account,
+            "--category",
+            "Project Heron",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains("takes no action on the mailbox", StringComparison.Ordinal));
+        Assert.DoesNotContain(this.harness.Console.Lines, line => line.Contains("--apply", StringComparison.Ordinal));
+    }
+
     /// <summary>Naming no folder is sent as naming none, because the deployment refuses an empty list as a request that named nothing.</summary>
     [Fact]
     public async Task Run_NoFolderNamed_SendsNoFoldersSoTheDeploymentWalksItsConfiguredScope()
@@ -280,16 +306,16 @@ public sealed class ClassificationCommandTests : IDisposable
         Assert.Equal(0, deployment.ClassificationRunRequestCount());
     }
 
-    private static string RunStart(bool started, bool acting) => $$"""
-        {"started":{{(started ? "true" : "false")}},"run":{{Run(ended: false, acting)}}}
+    private static string RunStart(bool started, bool acting, string? category = null) => $$"""
+        {"started":{{(started ? "true" : "false")}},"run":{{Run(ended: false, acting, category)}}}
         """;
 
-    private static string Run(bool ended, bool acting) => $$"""
+    private static string Run(bool ended, bool acting, string? category = null) => $$"""
         {
           "requestedAt": "2026-08-12T11:00:00+00:00",
           "spamFolders": ["INBOX"],
           "categoryFolders": ["INBOX", "ARCHIVE"],
-          "category": null,
+          "category": {{(category is null ? "null" : $"\"{category}\"")}},
           "posture": "{{(acting ? "Acting" : "DryRun")}}",
           "rescores": false,
           "profile": "a1b2c3d4e5f6",

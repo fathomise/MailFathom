@@ -89,8 +89,8 @@ question and a run over everything does not ask it again: applying a new or rewo
 `--category <name>`, which asks that one question, replaces only that category's records, and leaves every other record
 alone. A run replaces what a message held only once a model has answered, so a failed consultation leaves it as it was.
 
-**The walk goes on past a failure.** A failure about one message leaves that message and moves on. The four failures above
-that say something about every message stop the asking for the rest of that pass, and the messages behind them count as
+**The walk goes on past a failure.** A failure about one message leaves that message and moves on. The four failures in
+[When it fails](#when-it-fails) that say something about every message stop the asking for the rest of that pass, and the messages behind them count as
 unanswered, while the walk still reaches the end of its mail. A later run costs them one lookup each. Every call is
 admitted against the same period allowance people's questions are, and written to it.
 

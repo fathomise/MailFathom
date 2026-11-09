@@ -317,6 +317,10 @@ public sealed class ClassificationRunEndpointsTests
             SpamEmailCount = 12,
             SkippedEmailCount = 3,
             ActedEmailCount = 12,
+            CategorizedEmailCount = 30,
+            CategoriesCurrentEmailCount = 90,
+            CategoriesUnansweredEmailCount = 5,
+            CategoriesClearedEmailCount = 7,
             EndedAt = Now.AddMinutes(-50),
             Ending = ClassificationRunEnding.Completed,
         });
@@ -336,6 +340,11 @@ public sealed class ClassificationRunEndpointsTests
             run.SpamEmailCount,
             run.SkippedEmailCount,
             run.ActedEmailCount));
+        Assert.Equal((30, 90, 5, 7), (
+            run.CategorizedEmailCount,
+            run.CategoriesCurrentEmailCount,
+            run.CategoriesUnansweredEmailCount,
+            run.CategoriesClearedEmailCount));
         Assert.Equal(nameof(ClassificationRunEnding.Completed), run.Ending);
         Assert.NotNull(run.Profile);
     }
