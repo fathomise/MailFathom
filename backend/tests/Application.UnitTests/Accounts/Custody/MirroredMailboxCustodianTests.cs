@@ -359,6 +359,7 @@ public sealed class MirroredMailboxCustodianTests
 
         // Assert
         Assert.Equal(["C"], NamedBy(submitted, MailboxMutation.RemoveKeywords));
+        Assert.Equal(["A(B"], this.states.States[Email].Keywords.Values);
     }
 
     /// <summary>While the stored row may not have moved, it is no base for a difference, so the replacement stays one exact record.</summary>

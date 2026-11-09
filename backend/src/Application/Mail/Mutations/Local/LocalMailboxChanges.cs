@@ -374,8 +374,9 @@ public sealed class LocalMailboxChanges
     {
         var request = change.Request;
         var opened = new List<OpenedMailboxMutationRecord>(2);
+        var difference = KeywordDifferenceOf(request, before.Keywords);
 
-        foreach (var half in KeywordDifferenceOf(request, before.Keywords))
+        foreach (var half in difference)
         {
             opened.Add(await this.records.OpenOverlayAsync(session, half, change.HeldUntil, Replaced(before), cancellationToken));
         }
@@ -386,7 +387,7 @@ public sealed class LocalMailboxChanges
                 session,
                 request.Account,
                 request.StoredEmailId,
-                FlaggedAfter(request, before),
+                before with { Keywords = difference.Aggregate(before.Keywords, static (carried, half) => KeywordsAfter(half, carried)) },
                 isHeldFolder: false,
                 cancellationToken);
         }

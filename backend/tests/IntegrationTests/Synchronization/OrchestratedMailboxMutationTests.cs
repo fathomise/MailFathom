@@ -33,9 +33,10 @@ namespace MailFathom.IntegrationTests.Synchronization;
 /// about it.
 /// </para>
 /// <para>
-/// Four tests, because there are four claims real infrastructure is needed for: the native relocation path, the
-/// fallback path, the scope of the expunge, and that a real server keeps the <c>\Flagged</c> state and the keywords
-/// MailFathom wrote while leaving the flags it was not asked about alone. Everything else about these mutations —
+/// Five tests, because there are five claims real infrastructure is needed for: the native relocation path, the
+/// fallback path, the scope of the expunge, that a real server keeps the <c>\Flagged</c> state and the keywords
+/// MailFathom wrote while leaving the flags it was not asked about alone, and that a keyword replacement carried as
+/// its difference merges with what another client set. Everything else about these mutations —
 /// which capability is required, what a refusal reports, which command carries which flag — is a rule the unit suite
 /// already exercises against a substitute.
 /// </para>
