@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.AI.SpamClassification;
+using MailFathom.Application.Decisions;
 using MailFathom.Application.Spam.Model;
 using Xunit;
 
@@ -31,7 +32,7 @@ public sealed class InactiveSpamModelJudgeTests
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(SpamModelOutcome.NotActivated, judgement.Outcome);
+        Assert.Equal(DecisionModelOutcome.NotActivated, judgement.Outcome);
         Assert.Null(judgement.Answer);
     }
 

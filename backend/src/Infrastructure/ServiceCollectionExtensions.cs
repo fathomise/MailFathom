@@ -593,6 +593,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStoredEmailEnrichmentStore, StoredEmailEnrichmentStore>();
         services.AddScoped<IStoredEmailEnrichmentReader, StoredEmailEnrichmentReader>();
         services.AddScoped<MailEnrichmentPass>();
+        services.AddSingleton<IEmailCategorizationTelemetry, EmailCategorizationTelemetry>();
+        services.AddScoped<IEmailCategoryStore, EmailCategoryStore>();
+        services.AddScoped<EmailCategorizationPass>();
         // A conversation's derived state, on the same terms and for the same reason: the deriver a deployment that
         // turned it off resolves answers with a reason, so the pass runs, is told nothing activated it, and stops.
         services.AddScoped<IStoredThreadStateStore, StoredThreadStateStore>();

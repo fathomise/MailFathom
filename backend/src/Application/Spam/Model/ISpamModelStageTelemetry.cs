@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Decisions;
+
 namespace MailFathom.Application.Spam.Model;
 
 /// <summary>Counts how each consultation of the model stage ended, without describing the message it was about.</summary>
@@ -14,5 +16,5 @@ public interface ISpamModelStageTelemetry
     /// <summary>Counts one consultation.</summary>
     /// <param name="job">Which of the stage's two jobs the model was asked to do.</param>
     /// <param name="outcome">How it ended.</param>
-    void RecordConsultation(SpamModelJob job, SpamModelOutcome outcome);
+    void RecordConsultation(SpamModelJob job, DecisionModelOutcome outcome);
 }

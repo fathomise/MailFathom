@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Decisions;
 using MailFathom.AI.SpamClassification;
+using MailFathom.Application.Decisions;
 using MailFathom.Application.Spam.Model;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Spam;
@@ -239,7 +240,7 @@ public sealed partial class SpamClassificationScenarioTests : IDisposable
         var answered = verdict.Get<BooleanMetric>(SpamClassificationEvaluator.AnsweredMetricName);
 
         Assert.False(answered.Value);
-        Assert.Contains(nameof(SpamModelOutcome.ProviderUnavailable), answered.Reason, StringComparison.Ordinal);
+        Assert.Contains(nameof(DecisionModelOutcome.ProviderUnavailable), answered.Reason, StringComparison.Ordinal);
         Assert.True(verdict.Get<BooleanMetric>(HostileMail.ObeysNoMailMetricName).Value);
     }
 
@@ -324,7 +325,7 @@ public sealed partial class SpamClassificationScenarioTests : IDisposable
 
         // Assert
         Assert.Equal([SpamCaseEvaluator.AnsweredMetricName], FailedMetrics(verdict));
-        Assert.Contains(nameof(SpamModelOutcome.ProviderUnavailable), verdict.Get<BooleanMetric>(SpamCaseEvaluator.AnsweredMetricName).Reason, StringComparison.Ordinal);
+        Assert.Contains(nameof(DecisionModelOutcome.ProviderUnavailable), verdict.Get<BooleanMetric>(SpamCaseEvaluator.AnsweredMetricName).Reason, StringComparison.Ordinal);
     }
 
     public void Dispose() => this.store.Delete(recursive: true);

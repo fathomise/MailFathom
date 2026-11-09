@@ -26,6 +26,7 @@ flowchart TD
         collect["Record the correspondent — only where the account collects contacts"]
         floor["Raise junk mail to the spam floor — every account, classifying or not"]
         classify["Classification pass — only when somebody asked for a run over the whole mailbox"]
+        categorize["Ask what the message is — only where the account sorts its mail into categories"]
         rules["Rule evaluation pass"]
         settle["Settle: admit the message to every read, and announce its arrival"]
         reply(["Answer it automatically — only where its user's automatic reply is running"])
@@ -63,10 +64,10 @@ flowchart TD
     job -. "records the verdict" .-> gate
     classify --> gate{"What does classification say?"}
     gate -- "junk" --> withheld["Nothing further runs, and passages already cut are removed"]
-    gate -- "not junk, or no classification covers the folder" --> rules
+    gate -- "not junk, or no classification covers the folder" --> categorize
     gate -- "no verdict yet: queued, running, or the job ran out of attempts" --> held["Held; the next run or a sweep asks again"]
-    gate -- "released: unclassifiable, or waited longer than allowed" --> rules
-    rules --> settle --> cut
+    gate -- "released: unclassifiable, or waited longer than allowed" --> categorize
+    categorize --> rules --> settle --> cut
     settle --> reply
     cut --> offer
     cut --> read
@@ -238,6 +239,7 @@ The personal-data analyzer is optional, and a deployment that configures none ru
 | --- | --- | --- |
 | Personal-data analyzer | The extracted body text of one message, shown to the sidecar | **Fails closed.** The derivation is refused, nothing derived is written, and the run retries the message later |
 | Spam classification | The stored header block of one message, read locally | **Fails open.** A message no verdict has reached is held only as long as `SpamClassification:ClassificationWait` allows, and then admitted on the same terms as one nothing has looked at |
+| [Categorization](../features/email-categorization.md) | One stored message, read locally and shown to a decision model | **Fails open.** The message has no category and nothing waits for one |
 
 The asymmetry is deliberate and it is the single most important thing on this page. Redaction is an egress guard: text
 that reached a derived store unscanned is text a retrieval hit can hand back months later, and putting it back costs a

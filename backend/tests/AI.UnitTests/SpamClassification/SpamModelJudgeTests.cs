@@ -6,6 +6,7 @@ using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Decisions;
 using MailFathom.AI.SpamClassification;
 using MailFathom.AI.UnitTests.TestDoubles;
+using MailFathom.Application.Decisions;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Spam.Model;
@@ -54,7 +55,7 @@ public sealed class SpamModelJudgeTests
         var judgement = await judge.JudgeAsync(SpamClassificationTurnTests.Evidence(), SpamModelJob.DecideVerdict, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(SpamModelOutcome.Answered, judgement.Outcome);
+        Assert.Equal(DecisionModelOutcome.Answered, judgement.Outcome);
         Assert.NotNull(judgement.Answer);
         Assert.Equal(SpamSubcategory.Phishing, judgement.Answer.Subcategory);
         Assert.Equal(0.75, judgement.Answer.SpamProbability);
@@ -95,7 +96,7 @@ public sealed class SpamModelJudgeTests
         var judgement = await judge.JudgeAsync(SpamClassificationTurnTests.Evidence(), SpamModelJob.DecideVerdict, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(SpamModelOutcome.BudgetExhausted, judgement.Outcome);
+        Assert.Equal(DecisionModelOutcome.BudgetExhausted, judgement.Outcome);
         Assert.Empty(client.Calls);
     }
 
@@ -110,19 +111,19 @@ public sealed class SpamModelJudgeTests
         var judgement = await judge.JudgeAsync(SpamClassificationTurnTests.Evidence(), SpamModelJob.DecideVerdict, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(SpamModelOutcome.BudgetExhausted, judgement.Outcome);
+        Assert.Equal(DecisionModelOutcome.BudgetExhausted, judgement.Outcome);
         Assert.Null(judgement.Answer);
     }
 
     /// <summary>An answer outside the closed set is a contract that moved, and every other failure is the provider being unavailable.</summary>
     [Theory]
-    [InlineData(DecisionFailure.AnswerUnreadable, SpamModelOutcome.AnswerUnreadable)]
-    [InlineData(DecisionFailure.CredentialRejected, SpamModelOutcome.ProviderUnavailable)]
-    [InlineData(DecisionFailure.RateLimited, SpamModelOutcome.ProviderUnavailable)]
-    [InlineData(DecisionFailure.RequestTimedOut, SpamModelOutcome.ProviderUnavailable)]
-    [InlineData(DecisionFailure.TransportFaulted, SpamModelOutcome.ProviderUnavailable)]
-    [InlineData(DecisionFailure.RequestRefused, SpamModelOutcome.ProviderUnavailable)]
-    public async Task JudgeAsync_ADecisionThatFailed_EndsInTheOutcomeItsFailureNames(DecisionFailure failure, SpamModelOutcome expected)
+    [InlineData(DecisionFailure.AnswerUnreadable, DecisionModelOutcome.AnswerUnreadable)]
+    [InlineData(DecisionFailure.CredentialRejected, DecisionModelOutcome.ProviderUnavailable)]
+    [InlineData(DecisionFailure.RateLimited, DecisionModelOutcome.ProviderUnavailable)]
+    [InlineData(DecisionFailure.RequestTimedOut, DecisionModelOutcome.ProviderUnavailable)]
+    [InlineData(DecisionFailure.TransportFaulted, DecisionModelOutcome.ProviderUnavailable)]
+    [InlineData(DecisionFailure.RequestRefused, DecisionModelOutcome.ProviderUnavailable)]
+    public async Task JudgeAsync_ADecisionThatFailed_EndsInTheOutcomeItsFailureNames(DecisionFailure failure, DecisionModelOutcome expected)
     {
         // Arrange
         using var client = ScriptedDecisionClient.Throwing(new DecisionFailedException("spam-decider", failure));
@@ -147,7 +148,7 @@ public sealed class SpamModelJudgeTests
         var judgement = await judge.JudgeAsync(SpamClassificationTurnTests.Evidence(), SpamModelJob.DecideVerdict, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(SpamModelOutcome.InputTooLarge, judgement.Outcome);
+        Assert.Equal(DecisionModelOutcome.InputTooLarge, judgement.Outcome);
     }
 
     [Fact]
@@ -164,7 +165,7 @@ public sealed class SpamModelJudgeTests
         var judgement = await judge.JudgeAsync(SpamClassificationTurnTests.Evidence(), SpamModelJob.DecideVerdict, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(SpamModelOutcome.ScannerUnavailable, judgement.Outcome);
+        Assert.Equal(DecisionModelOutcome.ScannerUnavailable, judgement.Outcome);
         Assert.Empty(client.Calls);
     }
 
@@ -180,7 +181,7 @@ public sealed class SpamModelJudgeTests
         var judgement = await judge.JudgeAsync(SpamClassificationTurnTests.Evidence(), SpamModelJob.DecideVerdict, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(SpamModelOutcome.AnswerUnreadable, judgement.Outcome);
+        Assert.Equal(DecisionModelOutcome.AnswerUnreadable, judgement.Outcome);
         Assert.Null(judgement.Answer);
     }
 
@@ -238,7 +239,7 @@ public sealed class SpamModelJudgeTests
         var judgement = await judge.JudgeAsync(SpamClassificationTurnTests.Evidence(), SpamModelJob.DecideVerdict, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(SpamModelOutcome.Answered, judgement.Outcome);
+        Assert.Equal(DecisionModelOutcome.Answered, judgement.Outcome);
     }
 
     /// <summary>The replica's bound is what keeps a classification backlog from opening as many calls as the queue has workers.</summary>

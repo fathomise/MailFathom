@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Decisions;
 using MailFathom.Domain.Spam;
 
 namespace MailFathom.Application.Spam.Model;
@@ -9,16 +10,16 @@ namespace MailFathom.Application.Spam.Model;
 /// <summary>What one consultation of the model came back with: an answer, or the reason there is none.</summary>
 public sealed record SpamModelJudgement
 {
-    private SpamModelJudgement(SpamModelOutcome outcome, SpamModelAnswer? answer)
+    private SpamModelJudgement(DecisionModelOutcome outcome, SpamModelAnswer? answer)
     {
         this.Outcome = outcome;
         this.Answer = answer;
     }
 
     /// <summary>Gets how the consultation ended.</summary>
-    public SpamModelOutcome Outcome { get; }
+    public DecisionModelOutcome Outcome { get; }
 
-    /// <summary>Gets the answer, present exactly when <see cref="Outcome" /> is <see cref="SpamModelOutcome.Answered" />.</summary>
+    /// <summary>Gets the answer, present exactly when <see cref="Outcome" /> is <see cref="DecisionModelOutcome.Answered" />.</summary>
     public SpamModelAnswer? Answer { get; }
 
     /// <summary>Records an answer the model gave.</summary>
@@ -29,15 +30,15 @@ public sealed record SpamModelJudgement
     {
         ArgumentNullException.ThrowIfNull(answer);
 
-        return new SpamModelJudgement(SpamModelOutcome.Answered, answer);
+        return new SpamModelJudgement(DecisionModelOutcome.Answered, answer);
     }
 
     /// <summary>Records that the model gave no answer, and why.</summary>
     /// <param name="outcome">The reason.</param>
     /// <returns>The judgement.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="outcome" /> is <see cref="SpamModelOutcome.Answered" /> or not a defined member.</exception>
-    public static SpamModelJudgement Unanswered(SpamModelOutcome outcome) =>
-        outcome is SpamModelOutcome.Answered || !Enum.IsDefined(outcome)
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="outcome" /> is <see cref="DecisionModelOutcome.Answered" /> or not a defined member.</exception>
+    public static SpamModelJudgement Unanswered(DecisionModelOutcome outcome) =>
+        outcome is DecisionModelOutcome.Answered || !Enum.IsDefined(outcome)
             ? throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "A judgement without an answer names why there is none.")
             : new SpamModelJudgement(outcome, answer: null);
 }

@@ -39,6 +39,9 @@ internal sealed class DecisionModelOptions : IValidatableObject
     /// <summary>Gets or sets which declared model a message's spam verdict is asked of.</summary>
     public DecisionFunctionOptions SpamClassification { get; set; } = new();
 
+    /// <summary>Gets or sets which declared model a message's categories are asked of.</summary>
+    public DecisionFunctionOptions EmailCategorization { get; set; } = new();
+
     /// <summary>Gets every alias the section declares a model under, as written.</summary>
     public IReadOnlyCollection<string> DeclaredAliases => [.. this.Models
         .Select(model => model.Alias.Trim())
@@ -51,6 +54,7 @@ internal sealed class DecisionModelOptions : IValidatableObject
     public DecisionModelReferenceOptions ReferenceFor(DecisionFunction function) => function switch
     {
         DecisionFunction.SpamClassification => this.SpamClassification.Model,
+        DecisionFunction.EmailCategorization => this.EmailCategorization.Model,
         _ => throw new ArgumentOutOfRangeException(nameof(function), function, "The section declares no model reference for this function."),
     };
 
@@ -219,7 +223,8 @@ internal sealed class DecisionModelOptions : IValidatableObject
         }
 
         // A function that names its own model needs no default, so the default is required only where some function
-        // would fall through to it — which, with one function today, is exactly when that function names none.
+        // would fall through to it. Whether any account uses that function is not known here: it is a per-account setting
+        // in a record this start has not read, and a model chosen at the first message would be a failure no start reported.
         var fallsThrough = Enum.GetValues<DecisionFunction>().Any(function => !this.ReferenceFor(function).NamesModel);
 
         if (fallsThrough && !this.DefaultModel.NamesModel && this.FindDefaultModel() is null)

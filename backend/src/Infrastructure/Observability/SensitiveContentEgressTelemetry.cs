@@ -230,6 +230,7 @@ public sealed class SensitiveContentEgressTelemetry : ISensitiveContentEgressTel
         SensitiveContentEgressPoint.ClientContactCorrespondence => "client_contact_correspondence",
         SensitiveContentEgressPoint.ClientContactRelationship => "client_contact_relationship",
         SensitiveContentEgressPoint.SpamClassificationInput => "spam_classification_input",
+        SensitiveContentEgressPoint.EmailCategorizationInput => "email_categorization_input",
         _ => "unknown",
     };
 

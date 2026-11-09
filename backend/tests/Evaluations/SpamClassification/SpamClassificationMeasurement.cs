@@ -4,6 +4,7 @@
 
 using System.Globalization;
 using MailFathom.AI.SpamClassification;
+using MailFathom.Application.Decisions;
 using MailFathom.Application.Spam.Model;
 using MailFathom.Domain.Spam;
 using Microsoft.Extensions.AI.Evaluation;
@@ -53,7 +54,7 @@ internal sealed class SpamClassificationMeasurement : EvaluationContext
 internal sealed record SpamCaseOutcome(
     SpamClassificationCase Case,
     SpamModelJob? AskedJob,
-    SpamModelOutcome? Consultation,
+    DecisionModelOutcome? Consultation,
     SpamVerdict Verdict,
     SpamSubcategory? Subcategory,
     double? SpamProbability)
@@ -62,7 +63,7 @@ internal sealed record SpamCaseOutcome(
     public bool IsCalledSpam => this.Verdict is SpamVerdict.Spam;
 
     /// <summary>Gets whether the stage asked the model the job the case's headers leave it and the model answered.</summary>
-    public bool IsAnswered => this.Consultation is SpamModelOutcome.Answered && this.AskedJob == this.Case.Job;
+    public bool IsAnswered => this.Consultation is DecisionModelOutcome.Answered && this.AskedJob == this.Case.Job;
 
     /// <summary>Gets what was recorded, as the option the question names it by, which is what a hostile message dictates.</summary>
     public string Recorded => this.IsCalledSpam

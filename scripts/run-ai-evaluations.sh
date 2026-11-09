@@ -30,9 +30,9 @@ set -euo pipefail
 # neither is set; where it names no EmbeddingModels, MAILFATHOM_EMBEDDING_MODEL is. The retrieval scenario
 # reaches its models with MAILFATHOM_EMBEDDING_API_KEY, which a requested run cannot proceed without, and
 # MAILFATHOM_EMBEDDING_ADDRESS, which it may leave unset for the provider's own address. The spam
-# classification scenario measures the decision models the block names under SpamClassification, or
-# MAILFATHOM_DECISION_MODEL where it names none, and reaches them with MAILFATHOM_DECISION_API_KEY and,
-# optionally, MAILFATHOM_DECISION_ADDRESS.
+# classification and email categorization scenarios measure the decision models the block names under
+# SpamClassification and EmailCategorization, or MAILFATHOM_DECISION_MODEL where it names none, and reach
+# them with MAILFATHOM_DECISION_API_KEY and, optionally, MAILFATHOM_DECISION_ADDRESS.
 # The block's Sections key names the sections the run measures, as one name or a list:
 # {MainModel: vendor/model, Sections: [Discovery, SpamClassification]}. A section is a directory under
 # backend/tests/Evaluations holding scenarios, and each becomes the test host's namespace filter, so a

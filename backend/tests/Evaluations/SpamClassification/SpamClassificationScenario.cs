@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Decisions;
 using MailFathom.AI.SpamClassification;
+using MailFathom.Application.Decisions;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.Provenance;
@@ -285,9 +286,9 @@ internal static class SpamClassificationScenario
     {
         public SpamModelJob? Job { get; private set; }
 
-        public SpamModelOutcome? Outcome { get; private set; }
+        public DecisionModelOutcome? Outcome { get; private set; }
 
-        public void RecordConsultation(SpamModelJob job, SpamModelOutcome outcome) =>
+        public void RecordConsultation(SpamModelJob job, DecisionModelOutcome outcome) =>
             (this.Job, this.Outcome) = (job, outcome);
     }
 }

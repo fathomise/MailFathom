@@ -6,6 +6,7 @@ using MailFathom.Application.AiProviders;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Contacts.Collection;
 using MailFathom.Application.Coordination;
+using MailFathom.Application.Decisions;
 using MailFathom.Application.EmailContent.Move;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Embeddings.Backfill;
@@ -145,6 +146,7 @@ public sealed class TelemetrySurfaceContractTests
     private static readonly SensitiveContentDerivationTelemetry Derivation = new();
     private static readonly SensitiveContentEgressTelemetry Egress = new();
     private static readonly SpamModelStageTelemetry SpamModelStage = new();
+    private static readonly EmailCategorizationTelemetry EmailCategorization = new();
     private static readonly ObjectStorageTelemetry ObjectStorage = new(Clock);
     private static readonly StoredContentMoveTelemetry ContentMove = new(Clock);
     private static readonly OrganizationSigningKeyTelemetry OrganizationSigningKeys = new();
@@ -190,6 +192,7 @@ public sealed class TelemetrySurfaceContractTests
         typeof(SensitiveContentDerivationTelemetry),
         typeof(SensitiveContentEgressTelemetry),
         typeof(SpamModelStageTelemetry),
+        typeof(EmailCategorizationTelemetry),
         typeof(StoredContentMoveTelemetry),
         typeof(StoredEmailContentTelemetry),
         typeof(StoredMailRederivationTelemetry),
@@ -335,6 +338,7 @@ public sealed class TelemetrySurfaceContractTests
         DriveObjectStorage();
         DriveSensitiveContent();
         DriveSpamModelStage();
+        DriveEmailCategorization();
         DriveStoredMailRederivation();
         DriveWorkLeases();
 
@@ -458,11 +462,19 @@ public sealed class TelemetrySurfaceContractTests
         }
     }
 
+    private static void DriveEmailCategorization()
+    {
+        foreach (var outcome in Enum.GetValues<DecisionModelOutcome>())
+        {
+            EmailCategorization.RecordConsultation(outcome);
+        }
+    }
+
     private static void DriveSpamModelStage()
     {
         foreach (var job in Enum.GetValues<SpamModelJob>())
         {
-            foreach (var outcome in Enum.GetValues<SpamModelOutcome>())
+            foreach (var outcome in Enum.GetValues<DecisionModelOutcome>())
             {
                 SpamModelStage.RecordConsultation(job, outcome);
             }

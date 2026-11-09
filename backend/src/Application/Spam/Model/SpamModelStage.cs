@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Decisions;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Spam.Signals;
@@ -93,7 +94,7 @@ public sealed class SpamModelStage
 
         if (!this.judge.IsActive)
         {
-            this.telemetry.RecordConsultation(job, SpamModelOutcome.NotActivated);
+            this.telemetry.RecordConsultation(job, DecisionModelOutcome.NotActivated);
 
             return Deterministic(email, reading, SpamClassificationProfile.Create(), evaluatedAt);
         }

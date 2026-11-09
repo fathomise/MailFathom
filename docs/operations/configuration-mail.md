@@ -606,7 +606,8 @@ write, naming the key, and so is one naming a key the block does not declare.
 `…:Categorization` says whether this mailbox's mail is sorted into categories and which of them it recognizes. It names
 no folders: categories cover exactly the account's folders that are visible to AI, so a folder mapped
 `VisibleToAI: false` is outside them with nothing more to configure. A record that says nothing is not categorized. It is
-the account's rather than its user's for the reason spam classification is: the mail is one copy.
+the account's rather than its user's for the reason spam classification is: the mail is one copy. [Email
+categorization](../features/email-categorization.md) holds what a model is asked and shown.
 
 ```json
 {
@@ -625,7 +626,7 @@ the account's rather than its user's for the reason spam classification is: the 
 | `…:Categorization:Enabled` | bool | `false` | Whether this account's mail is sorted into categories at all. Refused at the write while the deployment declares no decision model under `Decisions:Models` | reload |
 | `…:Categorization:DisabledDefaults:<n>` | string | none | One of `correspondence`, `subscriptions`, `finance`, `shopping`, `travel`, `notifications`, `other`, each named once. A default switched off is hidden rather than unasked, so switching it back on asks nothing again | reload |
 | `…:Categorization:OwnCategories:<n>:Name` | string | required | At most 64 characters, no control character and no white space around it, not a default's identity, and unique within the account whatever the case. At most 20 categories. A rename is a removal and an addition, so it removes the records naming the old name | reload; a name that leaves the list removes its stored records in the same commit |
-| `…:Categorization:OwnCategories:<n>:Description` | string | required | At most 500 characters and no control character; what a model reads to decide whether a message is about this subject | reload |
+| `…:Categorization:OwnCategories:<n>:Description` | string | required | At most 500 characters and no control character; what a model reads to decide whether a message is about this subject. **It is sent to the decision provider as written**, with no sensitive-content scan, so write it knowing a third party reads it; the name is not sent | reload |
 
 A [settings policy](#how-a-settings-policy-resolves-a-mail-account) can default, force, and restrict each of these
 properties on its own. A list it states replaces the account's whole, and is refused when the policy is written by the

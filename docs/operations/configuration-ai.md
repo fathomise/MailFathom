@@ -174,8 +174,8 @@ account's own switch. What the section bounds of that model stage is what one re
 | `SpamClassification:Actions:MarkAsRead` | bool | `false` | Read by no classification, for the reason above | — |
 | `SpamClassification:Actions:MarkWithJunkKeywords` | bool | `false` | Read by no classification, for the reason above | — |
 | `SpamClassification:Actions:JunkFolder` | string | `role:Junk` | Read by no classification, for the reason above | — |
-| `SpamClassification:ModelStage:MaxConcurrentCalls` | int | `4` | 1 – 64; how many calls to the spam decision model one replica runs at once, so a deployment of several replicas runs this many on each. A call past it waits for a slot rather than failing | restart |
-| `SpamClassification:ModelStage:MaxBodyCharacters` | int | `8000` | 500 – 100 000; how many characters of a message's plain-text body one call carries. The rest is cut and the model is told so. Longer costs input tokens on every message and sends more of somebody's mail; shorter hides what a long scam says after its first paragraphs | restart |
+| `SpamClassification:ModelStage:MaxConcurrentCalls` | int | `4` | 1 – 64; how many calls to a decision model one replica runs at once for the spam model stage, and as many again for [categorization](../features/email-categorization.md), so a deployment of several replicas runs this many on each. A call past it waits for a slot rather than failing | restart |
+| `SpamClassification:ModelStage:MaxBodyCharacters` | int | `8000` | 500 – 100 000; how many characters of a message's plain-text body one call carries, for the spam model stage and categorization alike. The rest is cut and the model is told so. Longer costs input tokens on every message and sends more of somebody's mail; shorter hides what a long scam says after its first paragraphs | restart |
 
 **Six of those keys are one account's decision and the rest are the deployment's.** `Enabled`, `ScannedFolders`, and
 the four settings under `Actions` are what an account decides about the mail in it, and are the whole of what its
@@ -1018,9 +1018,9 @@ Which model a closed question — a yes or no, a choice between named options, a
 probabilities coming back rather than prose. A root of its own beside `Chat`, because the two reach different APIs on
 different terms: a chat model writes an answer under parameters the operator chooses, while a decision model answers a
 fixed question through [OpenRouter's Decisions API](https://openrouter.ai/docs), which takes no generation parameters at
-all. Writing nothing is a supported deployment and composes no decision client. **The one part of this build that asks a
-decision model is the [spam model stage](../features/spam-classification.md#the-model-stage)**, and only for an account
-whose record switched it on: declaring a model validates the section, composes the client each function resolves, and
+all. Writing nothing is a supported deployment and composes no decision client. **The parts of this build that ask a
+decision model are the [spam model stage](../features/spam-classification.md#the-model-stage) and
+[categorization](../features/email-categorization.md)**, each only for an account whose record switched it on: declaring a model validates the section, composes the client each function resolves, and
 registers the `ai-decision-provider` check, and it changes no verdict until an account consults the stage. An account
 record switching the stage on is refused at the write while no declared model serves spam classification; one that
 asked for it before the model was taken away is classified deterministically, named in a startup warning, and counted
@@ -1029,9 +1029,10 @@ as `not_activated`. [ADR
 holds the decision and its reasoning.
 
 **The section is a declared array and the references into it**, the way `Chat` is. A model is written once under
-`Decisions:Models` beneath an alias, and a function names that alias. `SpamClassification` is the one function a
-reference may name today. With one model declared nothing has to name it; with several, `Decisions:DefaultModel` says
-which one a function naming none is asked through. A reference is an alias and nothing else: there is no fallback
+`Decisions:Models` beneath an alias, and a function names that alias. `SpamClassification` and `EmailCategorization` are the functions a
+reference may name. With one model declared nothing has to name it; with several, `Decisions:DefaultModel` says
+which one a function naming none is asked through, so a deployment declaring several models refuses to start without it
+unless both functions name their own — whether or not any account has switched categorization on. A reference is an alias and nothing else: there is no fallback
 model, because a verdict from a second model is a verdict calibrated against a different build.
 
 **What leaves the deployment is fixed in the adapter rather than in configuration.** Every request asks the router for
@@ -1089,6 +1090,7 @@ does for a chat model.
 | --- | --- | --- | --- | --- |
 | `Decisions:DefaultModel:Alias` | string | *(empty)* | the declared alias a function naming no model of its own is asked through. Required once more than one model is declared and a function falls through to it; with exactly one model declared, empty means that one | restart |
 | `Decisions:SpamClassification:Model:Alias` | string | *(empty)* | the declared alias the `SpamClassification` decision function resolves to — the model the spam model stage asks about each message an account sends it. Empty takes `Decisions:DefaultModel` | restart |
+| `Decisions:EmailCategorization:Model:Alias` | string | *(empty)* | the declared alias the `EmailCategorization` decision function resolves to — the model categorization asks about each arriving message of an account that switched it on. Empty takes `Decisions:DefaultModel` | restart |
 
 A reference naming no declared model, or naming a chat model, refuses the start and says which. A reference written
 with no model declared at all is refused the same way, so a forgotten `Models` block is not read as no capability.

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Decisions;
 using MailFathom.Application.Spam.Model;
 using Microsoft.Extensions.Logging;
 
@@ -27,6 +28,6 @@ internal static partial class SpamClassificationEvents
     internal static partial void LogUnanswered(
         ILogger logger,
         SpamModelJob job,
-        SpamModelOutcome outcome,
+        DecisionModelOutcome outcome,
         string modelAlias);
 }

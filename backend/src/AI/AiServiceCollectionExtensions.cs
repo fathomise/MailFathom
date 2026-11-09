@@ -14,6 +14,7 @@ using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Decisions;
 using MailFathom.AI.Descriptions;
 using MailFathom.AI.Discovery;
+using MailFathom.AI.EmailCategorization;
 using MailFathom.AI.Embeddings;
 using MailFathom.AI.Enrichment;
 using MailFathom.AI.Orchestration;
@@ -29,6 +30,7 @@ using MailFathom.Application.Accounts;
 using MailFathom.Application.Agent.Answering;
 using MailFathom.Application.AiProviders;
 using MailFathom.Application.Calendar.Extraction;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Chat;
 using MailFathom.Application.Contacts.Relationship;
 using MailFathom.Application.Discovery.Planning;
@@ -296,6 +298,33 @@ public static class AiServiceCollectionExtensions
             provider.GetRequiredService<SpamModelStageBounds>(),
             plan.MaximumRequestCharacters,
             provider.GetRequiredService<ILogger<SpamModelJudge>>()));
+
+        return services;
+    }
+
+    /// <summary>Registers the one way categorization asks a model, in whichever of its two states the deployment is in.</summary>
+    /// <param name="services">The service collection to add to.</param>
+    /// <param name="plan">The plan of the decision model that serves <see cref="DecisionFunction.EmailCategorization" />, or <see langword="null" /> where none does.</param>
+    /// <returns>The same service collection, so registration reads as one expression.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services" /> is <see langword="null" />.</exception>
+    /// <remarks>A singleton when it is active, for the reason <see cref="AddSpamModelJudge" /> gives. The caller registers the <see cref="SpamModelStageBounds" /> it reads.</remarks>
+    public static IServiceCollection AddEmailCategoryJudge(this IServiceCollection services, DecisionModelPlan? plan)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        if (plan is null)
+        {
+            services.AddSingleton<IEmailCategoryJudge>(InactiveEmailCategoryJudge.Instance);
+
+            return services;
+        }
+
+        services.AddSingleton<IEmailCategoryJudge>(provider => new EmailCategoryJudge(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            provider.GetRequiredService<SensitiveContentEgressGuard>(),
+            provider.GetRequiredService<SpamModelStageBounds>(),
+            plan.MaximumRequestCharacters,
+            provider.GetRequiredService<ILogger<EmailCategoryJudge>>()));
 
         return services;
     }

@@ -206,4 +206,17 @@ public enum SensitiveContentEgressPoint
     /// </para>
     /// </remarks>
     SpamClassificationInput = 13,
+
+    /// <summary>What categorization hands a decision model about one message.</summary>
+    /// <remarks>
+    /// <para>
+    /// A point of its own for the reason <see cref="SpamClassificationInput" /> is, and read apart from it because the two
+    /// are switched on separately. It carries what that point carries, and for a reply a bounded excerpt of the
+    /// conversation's first message.
+    /// </para>
+    /// <para>
+    /// The account's posture applies in full. The two addresses cross unguarded, as they do at every point.
+    /// </para>
+    /// </remarks>
+    EmailCategorizationInput = 14,
 }

@@ -14,4 +14,7 @@ public enum DecisionFunction
 {
     /// <summary>Deciding whether a message is spam, and which kind.</summary>
     SpamClassification = 0,
+
+    /// <summary>Deciding which default category a message belongs to, and which of its mailbox's own categories it matches.</summary>
+    EmailCategorization = 1,
 }
