@@ -169,6 +169,45 @@ public sealed class MailKitSmtpTransmissionTests
         Assert.Equal(NewLineFormat.Dos, written.NewLineFormat);
     }
 
+    /// <summary>
+    /// A stored message naming an internationalized reply address is written in the international format, though every
+    /// address the envelope offers is ASCII — the composer stored it that way, and writing it any other way would
+    /// re-encode a header every recipient reads.
+    /// </summary>
+    [Theory]
+    [InlineData("desk@example.test", false)]
+    [InlineData("zażółć@example.test", true)]
+    public async Task TransmitAsync_AStoredReplyAddress_DecidesTheInternationalFormatBesideTheEnvelope(
+        string replyAddress,
+        bool international)
+    {
+        // Arrange
+        using var context = new TransmissionContext();
+        FormatOptions? written = null;
+        context.Client
+            .SendAsync(
+                Arg.Do<FormatOptions>(options => written = options),
+                Arg.Any<MimeMessage>(),
+                Arg.Any<MailboxAddress>(),
+                Arg.Any<IEnumerable<MailboxAddress>>(),
+                Arg.Any<CancellationToken>())
+            .Returns("2.0.0 Ok");
+        var ascii = TransmissionContext.Request();
+        var request = MailTransmissionRequest.Create(
+            ascii.OutgoingEmailId,
+            ascii.Sender,
+            ascii.Recipients,
+            Encoding.UTF8.GetBytes(
+                "Message-ID: <one@example.test>\r\nFrom: me@example.test\r\nTo: anna@example.test\r\n"
+                + $"Reply-To: {replyAddress}\r\nSubject: A note\r\n\r\nHello."));
+
+        // Act
+        await context.TransmitAsync(request);
+
+        // Assert
+        Assert.Equal(international, written!.International);
+    }
+
     /// <summary>A client between submissions reports to nobody, whatever the submission before it ended in.</summary>
     [Fact]
     public async Task TransmitAsync_SubmissionEnded_LeavesTheClientReportingToNobody()
