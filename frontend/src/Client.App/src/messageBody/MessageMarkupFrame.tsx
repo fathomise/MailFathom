@@ -45,7 +45,7 @@ import { linkScript, measuringScript, themeColoursScript } from './frameScripts'
 // moved the message's own colours onto it. A frame's document inherits nothing from the page, so it is told the theme in
 // what is written into it, which is the one reason a surface here asks which theme is in force.
 //
-// Neither draws anything where there is no markup to draw. A frame with an empty document is a white rectangle that
+// Neither draws anything where there is no markup to draw. A frame with an empty document is an empty space that
 // says nothing, and what a reader is owed instead is a sentence — which is the surface's to say, because only the
 // surface knows why the markup is absent.
 

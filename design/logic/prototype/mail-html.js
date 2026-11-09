@@ -42,25 +42,170 @@ MailFathomDesign.mailHtml = (() => {
      only a hint of their hue and a light rule stops glaring. Text over a picture or a gradient is left as the sender
      paired it. */
   const THEME = (dark) => "<" + "style>html,body{background:transparent!important}html{color-scheme:" + (dark ? "dark" : "light") + "!important}<" + "/style>" +
-    S_OPEN + '(function(){var dark=getComputedStyle(document.documentElement).colorScheme==="dark",canvas=dark?0.02:0.95,lightFill=0.45,legible=4.5,hairline="color-mix(in srgb,CanvasText 16%,transparent)";' +
-    'function parsed(v){var m=/^rgba?\\(([\\d.]+), ([\\d.]+), ([\\d.]+)(?:, ([\\d.]+))?\\)$/.exec(v);return m?[+m[1],+m[2],+m[3],m[4]===void 0?1:+m[4]]:null}' +
-    'function linear(c){c/=255;return c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4)}' +
-    'function luminance(c){return 0.2126*linear(c[0])+0.7152*linear(c[1])+0.0722*linear(c[2])}' +
-    'function contrast(a,b){return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)}' +
-    'function readable(c,ground){var target=ground>0.18?0:255;' +
-    'if(dark&&target&&Math.max(c[0],c[1],c[2])-Math.min(c[0],c[1],c[2])<32)return "CanvasText";' +
-    'for(var p=0.2;p<1;p+=0.2){var m=[0,1,2].map(function(i){return Math.round(c[i]+(target-c[i])*p)});if(contrast(luminance(m),ground)>=legible)return "rgb("+m+")"}' +
-    'return "rgb("+target+","+target+","+target+")"}' +
-    'function tint(c){var k=Math.round((255-Math.min(c[0],c[1],c[2]))/255*40);return k<4?"transparent":"color-mix(in srgb,rgb("+c.slice(0,3)+") "+k+"%,transparent)"}' +
-    'function adapt(el,ground){var cs=getComputedStyle(el),s=el.style,fill=parsed(cs.backgroundColor);' +
-    'if(cs.backgroundImage!=="none")ground=null;' +
-    'else if(fill&&fill[3]>0){var l=luminance(fill),t=l>lightFill?tint(fill):null;if(t&&(dark||t==="transparent")){s.setProperty("background-color",t,"important");ground=canvas}else if(fill[3]===1)ground=l}' +
-    'var ink=parsed(cs.color);if(ink&&ink[3]>0&&ground!==null&&contrast(luminance(ink),ground)<legible)s.setProperty("color",readable(ink,ground),"important");' +
-    '["top","right","bottom","left"].forEach(function(side){var edge=parsed(cs.getPropertyValue("border-"+side+"-color"));' +
-    'if(dark&&edge&&edge[3]>0&&ground!==null&&parseFloat(cs.getPropertyValue("border-"+side+"-width"))>0&&(luminance(edge)>lightFill||contrast(luminance(edge),ground)<1.25))s.setProperty("border-"+side+"-color",hairline,"important")});' +
-    'for(var c=el.firstElementChild;c;c=c.nextElementSibling)adapt(c,ground)}' +
-    'function run(){document.documentElement.style.setProperty("color-scheme",dark?"dark":"light","important");if(document.body)adapt(document.body,canvas)}' +
-    'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",run);else run()})()' + S_CLOSE;
+    S_OPEN + `(() => {
+    const dark = getComputedStyle(document.documentElement).colorScheme === 'dark';
+    const legibleContrast = 4.5;
+    const lightFillLuminance = 0.45;
+    const groundTakingDarkInk = 0.18;
+    const faintestRuleContrast = 1.25;
+    const mostTintPercent = 40;
+    const leastTintPercent = 4;
+    const hairline = 'color-mix(in srgb, CanvasText 16%, transparent)';
+    const surfaceChannel = dark ? 39 : 248;
+    const surface = [surfaceChannel, surfaceChannel, surfaceChannel];
+
+    function colourOf(computedValue) {
+        if (!computedValue.startsWith('rgb')) {
+            return null;
+        }
+
+        const [red, green, blue, alpha = 1] = computedValue.match(/[0-9.]+/g).map(Number);
+
+        return { channels: [red, green, blue], alpha };
+    }
+
+    function linearChannel(channel) {
+        const share = channel / 255;
+
+        return share <= 0.03928 ? share / 12.92 : ((share + 0.055) / 1.055) ** 2.4;
+    }
+
+    function luminanceOf([red, green, blue]) {
+        return 0.2126 * linearChannel(red) + 0.7152 * linearChannel(green) + 0.0722 * linearChannel(blue);
+    }
+
+    function contrastBetween(first, second) {
+        return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+    }
+
+    function mixed(from, to, share) {
+        return from.map((channel, index) => Math.round(channel + (to[index] - channel) * share));
+    }
+
+    function rgb(channels) {
+        return 'rgb(' + channels.join(',') + ')';
+    }
+
+    const surfaceLuminance = luminanceOf(surface);
+
+    function readableInk(channels, ground) {
+        const lifting = ground <= groundTakingDarkInk;
+        const destination = lifting ? [255, 255, 255] : [0, 0, 0];
+        const achromatic = Math.max(...channels) - Math.min(...channels) < 32;
+
+        if (dark && lifting && achromatic) {
+            return 'CanvasText';
+        }
+
+        for (let share = 0.2; share < 1; share += 0.2) {
+            const moved = mixed(channels, destination, share);
+
+            if (contrastBetween(luminanceOf(moved), ground) >= legibleContrast) {
+                return rgb(moved);
+            }
+        }
+
+        return rgb(destination);
+    }
+
+    function groundAfterFill(style, computed, inheritedGround) {
+        if (computed.backgroundImage !== 'none') {
+            return null;
+        }
+
+        const fill = colourOf(computed.backgroundColor);
+
+        if (fill === null || fill.alpha === 0) {
+            return inheritedGround;
+        }
+
+        const fillLuminance = luminanceOf(fill.channels);
+        const fillAsWritten = fill.alpha === 1 ? fillLuminance : inheritedGround;
+
+        if (fillLuminance <= lightFillLuminance) {
+            return fillAsWritten;
+        }
+
+        const tintPercent = Math.round(((255 - Math.min(...fill.channels)) / 255) * mostTintPercent);
+
+        if (tintPercent < leastTintPercent) {
+            style.setProperty('background-color', 'transparent', 'important');
+
+            return surfaceLuminance;
+        }
+
+        if (!dark) {
+            return fillAsWritten;
+        }
+
+        style.setProperty(
+            'background-color',
+            'color-mix(in srgb, ' + rgb(fill.channels) + ' ' + tintPercent + '%, transparent)',
+            'important',
+        );
+
+        return luminanceOf(mixed(surface, fill.channels, tintPercent / 100));
+    }
+
+    function makeInkReadable(style, computed, ground) {
+        const ink = colourOf(computed.color);
+
+        if (ink === null || ink.alpha === 0 || ground === null) {
+            return;
+        }
+
+        if (contrastBetween(luminanceOf(ink.channels), ground) < legibleContrast) {
+            style.setProperty('color', readableInk(ink.channels, ground), 'important');
+        }
+    }
+
+    function softenRules(style, computed, ground) {
+        if (!dark || ground === null) {
+            return;
+        }
+
+        for (const side of ['top', 'right', 'bottom', 'left']) {
+            const rule = colourOf(computed.getPropertyValue('border-' + side + '-color'));
+            const width = parseFloat(computed.getPropertyValue('border-' + side + '-width'));
+
+            if (rule === null || rule.alpha === 0 || !(width > 0)) {
+                continue;
+            }
+
+            const ruleLuminance = luminanceOf(rule.channels);
+
+            if (ruleLuminance > lightFillLuminance || contrastBetween(ruleLuminance, ground) < faintestRuleContrast) {
+                style.setProperty('border-' + side + '-color', hairline, 'important');
+            }
+        }
+    }
+
+    function adapt(element, inheritedGround) {
+        const computed = getComputedStyle(element);
+        const ground = groundAfterFill(element.style, computed, inheritedGround);
+
+        makeInkReadable(element.style, computed, ground);
+        softenRules(element.style, computed, ground);
+
+        for (const child of element.children) {
+            adapt(child, ground);
+        }
+    }
+
+    function moveTheMessageOntoTheTheme() {
+        document.documentElement.style.setProperty('color-scheme', dark ? 'dark' : 'light', 'important');
+
+        if (document.body !== null) {
+            adapt(document.body, surfaceLuminance);
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', moveTheMessageOntoTheTheme);
+    } else {
+        moveTheMessageOntoTheTheme();
+    }
+})()` + S_CLOSE;
 
   const inHead = (src, script) => {
     const i = src.indexOf("<head>");
