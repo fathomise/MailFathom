@@ -114,12 +114,12 @@ public sealed class StoredEmailThreadListReaderCommandTests
             Filter(
                 EmailTimelineDirection.NewestFirst,
                 EmailMarkSelection.Create(EmailEnrichmentAspect.Commitment, dueOnOrAfter: null, dueBefore: null),
-                isRemotelySeen: false),
+                isMarkedSeen: false),
             continueAfter: null);
 
         // Assert
         Assert.Contains("@aspect", command, StringComparison.Ordinal);
-        Assert.Contains("@isRemotelySeen", command, StringComparison.Ordinal);
+        Assert.Contains("@isMarkedSeen", command, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -206,15 +206,15 @@ public sealed class StoredEmailThreadListReaderCommandTests
     private static EmailTimelineFilter Filter(
         EmailTimelineDirection direction,
         EmailMarkSelection? mark,
-        bool? isRemotelySeen = null) => EmailTimelineFilter.Create(
+        bool? isMarkedSeen = null) => EmailTimelineFilter.Create(
         Scope(),
         senderAddress: null,
         recipientAddress: null,
         subjectFragment: null,
         receivedOnOrAfter: null,
         receivedBefore: null,
-        isRemotelySeen,
-        isRemotelyFlagged: null,
+        isMarkedSeen,
+        isFlagged: null,
         keyword: null,
         hasAttachments: null,
         direction,

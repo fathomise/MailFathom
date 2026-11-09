@@ -555,8 +555,8 @@ Every argument is optional.
 | `subjectFragment` | `string` | Text the subject must contain, case-insensitively, up to 256 characters. Wildcards a caller writes match themselves |
 | `receivedOnOrAfter` | `date-time` | Inclusive start of the received range |
 | `receivedBefore` | `date-time` | Exclusive end, so consecutive ranges built from one instant neither overlap nor leave a gap |
-| `isRemotelySeen` | `boolean` | The remote seen state to require. Listing never changes it |
-| `isRemotelyFlagged` | `boolean` | The remote `\Flagged` state to require, which is the star a mail client shows. Unrelated to the `Flagged` folder role, which names a folder rather than a flag |
+| `isMarkedSeen` | `boolean` | The read state to require. Listing never changes it |
+| `isFlagged` | `boolean` | The `\Flagged` state to require, which is the star a mail client shows. Unrelated to the `Flagged` folder role, which names a folder rather than a flag |
 | `keyword` | `string` | One keyword the email must carry, matched whole and without regard to case, up to 64 characters. A value no stored keyword could be is refused with `51002` |
 | `hasAttachments` | `boolean` | Whether to match only emails with attachments or only those without |
 | `direction` | `newestFirst` \| `oldestFirst` | Which end of the timeline to read from |
@@ -598,7 +598,7 @@ states how current the local copy of each covered folder is.
 
 Each summary carries the stable local identifier a content read is performed by, the account identifier and the display
 name it is published under, the folder's identity and path, the message identifier, the conversation identifier, the subject, the sender address and display name, the sender verdict, the machine-authorship reading, the `To` addresses, the sent and received timestamps, the
-size in bytes, the attachment summary, the remote flags with the time they were observed, and whether raw content is
+size in bytes, the attachment summary, the stored flags with the time a server last reported them, and whether raw content is
 available locally. It is the use case's projection published as it stands, not narrowed a second time here — a boundary
 that re-decided what a listing may carry would put the privacy rule in two places and leave the one a client reads
 untested. [Mailbox queries](mailbox-queries.md#what-a-summary-carries) records what it carries and why.
@@ -673,7 +673,7 @@ Six parts of it are worth reading before a caller writes against them:
   will refuse in the same way; `awaitingStorageHeadroom` is one that arrived while local storage stood at its ceiling,
   whose content a later synchronization run fetches once there is room.
 
-The remote flags carry `wasObserved` beside `observedAt`, because a row a reconciliation window has not reached yet
+The flags carry `wasObserved` beside `observedAt`, because a row a reconciliation window has not reached yet
 reports every flag unset and no keyword at all. A caller that ignored the distinction would read "no flag set" where the
 truth is "nobody has looked".
 
@@ -790,7 +790,7 @@ in it.
 | `body` | The representations, or the reason there are none |
 | `attachments` | One entry per attachment, always: normalized file name, media type, and decoded size, plus a short-lived address to fetch it from when the call asked for one |
 | `attachmentCounts` | What the email carries besides its body, returned either way, or `null` when nothing has ever read its parts |
-| `remoteFlags` | The flags a server last showed, and when they were read |
+| `flags` | The flags MailFathom holds for the email, and when a server last reported them |
 | `thread` | The conversation this email belongs to, or `null` when nothing has assembled one for it |
 | `receipts` | On a message the account sent: what it asked to be told and each recipient's recorded delivery and read outcome, as [`list_emails`](#result-1) describes it; absent where it asked for neither and got no report |
 
@@ -928,7 +928,7 @@ held to, and names the identifiers it did not carry in `unreadThreadMessages`. A
 The tool holds one use case and that use case holds no mailbox port, so no branch of a content read can open an IMAP
 session. A missing local copy is answered with `55001` and a durable repair request the synchronizer acts on later,
 never with a fetch; reading mail through MailFathom therefore cannot download it and cannot set the remote `\Seen` flag.
-The `remoteFlags` a result carries are an observation from the last synchronization run, with `wasObserved` stating
+The `flags` a result carries are what MailFathom holds for the email, with `wasObserved` stating
 whether any run has looked.
 
 Authorization is the use case's, as it is for `list_emails`: an email of an account this deployment does not serve is
@@ -955,8 +955,8 @@ how the extracts are cut, and why there is no cursor — where those are enforce
 | `subjectFragment` | `string` | Text the subject must contain, case-insensitively, up to 256 characters |
 | `receivedOnOrAfter` | `date-time` | Inclusive start of the received range |
 | `receivedBefore` | `date-time` | Exclusive end of the received range |
-| `isRemotelySeen` | `boolean` | The remote seen state to require. Searching never changes it |
-| `isRemotelyFlagged` | `boolean` | The remote `\Flagged` state to require |
+| `isMarkedSeen` | `boolean` | The read state to require. Searching never changes it |
+| `isFlagged` | `boolean` | The `\Flagged` state to require |
 | `keyword` | `string` | One keyword the email must carry, matched whole and without regard to case |
 | `hasAttachments` | `boolean` | Whether to match only emails with attachments or only those without |
 | `resultLimit` | `integer` | 1 to 50. Omitted takes the default of 20; a value outside the range is refused with `51003` rather than clamped |

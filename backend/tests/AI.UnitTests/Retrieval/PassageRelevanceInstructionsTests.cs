@@ -51,7 +51,7 @@ public sealed class PassageRelevanceInstructionsTests
             SubjectFragment = "claim",
             ReceivedOnOrAfter = new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero),
             ReceivedBefore = new DateTimeOffset(2026, 7, 8, 0, 0, 0, TimeSpan.Zero),
-            IsRemotelySeen = true,
+            IsMarkedSeen = true,
             HasAttachments = false,
         };
 
@@ -70,7 +70,7 @@ public sealed class PassageRelevanceInstructionsTests
                 (PassageRelevanceInstructions.SubjectFragmentElementName, "claim"),
                 (PassageRelevanceInstructions.ReceivedOnOrAfterElementName, "2026-07-01T00:00:00.0000000+00:00"),
                 (PassageRelevanceInstructions.ReceivedBeforeElementName, "2026-07-08T00:00:00.0000000+00:00"),
-                (PassageRelevanceInstructions.IsRemotelySeenElementName, "True"),
+                (PassageRelevanceInstructions.IsMarkedSeenElementName, "True"),
                 (PassageRelevanceInstructions.HasAttachmentsElementName, "False"),
             ],
             QueryElementIn(turn).Elements().Select(element => (element.Name.LocalName, element.Value)));

@@ -197,7 +197,7 @@ public sealed class CorpusKnowledgeSearchTests
     public async Task FindPassagesAsync_AFilterOnServerStateTheCorpusDoesNotCarry_MatchesNothing()
     {
         // Arrange
-        var query = new EmailKnowledgeQuery { QueryText = "invoice", IsRemotelyFlagged = true };
+        var query = new EmailKnowledgeQuery { QueryText = "invoice", IsFlagged = true };
 
         // Act
         var found = await this.FindAsync(query);

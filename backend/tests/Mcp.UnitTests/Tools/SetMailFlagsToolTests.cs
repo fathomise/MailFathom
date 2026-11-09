@@ -285,7 +285,7 @@ public sealed class SetMailFlagsToolTests
     {
         // Arrange
         var repeatedKeyword = Enumerable
-            .Repeat("$Todo", RemoteEmailKeywords.MaximumKeywords + 1)
+            .Repeat("$Todo", EmailKeywords.MaximumKeywords + 1)
             .ToArray();
         var tool = ToolOver(out var records);
 
@@ -419,7 +419,7 @@ public sealed class SetMailFlagsToolTests
                     Arg.Any<StoredEmailId>(),
                     Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult<LocalEmailState?>(
-                    new LocalEmailState(folder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, RemoteEmailKeywords.Create([]))));
+                    new LocalEmailState(folder, HoldsSourceOccurrence: true, Folder: null, IsSeen: false, IsFlagged: false, EmailKeywords.Create([]))));
             auditSettings.GetAuditSettings(Arg.Any<MailAccountId>()).Returns(MailboxMutationAuditSettings.Disabled);
         }
         targets = Substitute.For<IAuthoredMailboxTargetReader>();

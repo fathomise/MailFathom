@@ -108,7 +108,7 @@ public sealed class SpamActionRecorderTests
 
         var recorder = this.Recorder(
             FilingAndMarkingRead(),
-            ReaderOf(OccurrenceIn(Inbox, isRemotelySeen: false, account: AnotherAccount)),
+            ReaderOf(OccurrenceIn(Inbox, isMarkedSeen: false, account: AnotherAccount)),
             settingsOf: AnotherAccount);
 
         // Act
@@ -201,7 +201,7 @@ public sealed class SpamActionRecorderTests
     {
         // Arrange
         this.MapUnmirroredJunk("Spam");
-        var recorder = this.Recorder(FilingAndMarkingRead(), OccurrenceIn(Inbox, isRemotelySeen: true));
+        var recorder = this.Recorder(FilingAndMarkingRead(), OccurrenceIn(Inbox, isMarkedSeen: true));
 
         // Act
         var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -217,7 +217,7 @@ public sealed class SpamActionRecorderTests
     {
         // Arrange
         this.MapUnmirroredJunk("Spam");
-        var recorder = this.Recorder(FilingAndMarkingRead(), OccurrenceIn(Junk, isRemotelySeen: false));
+        var recorder = this.Recorder(FilingAndMarkingRead(), OccurrenceIn(Junk, isMarkedSeen: false));
 
         // Act
         var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -233,7 +233,7 @@ public sealed class SpamActionRecorderTests
     {
         // Arrange
         this.MapUnmirroredJunk("Spam");
-        var recorder = this.Recorder(FilingAndMarkingRead(), OccurrenceIn(Junk, isRemotelySeen: true));
+        var recorder = this.Recorder(FilingAndMarkingRead(), OccurrenceIn(Junk, isMarkedSeen: true));
 
         // Act
         var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -255,7 +255,7 @@ public sealed class SpamActionRecorderTests
 
         // The user drags the message back into the inbox, which reaches this instance as a new occurrence of the same
         // local email under a new UID.
-        var movedBack = this.Recorder(settings, OccurrenceIn(Inbox, isRemotelySeen: false, uid: 4402));
+        var movedBack = this.Recorder(settings, OccurrenceIn(Inbox, isMarkedSeen: false, uid: 4402));
 
         // Act
         var result = await movedBack.RecordAsync(
@@ -276,7 +276,7 @@ public sealed class SpamActionRecorderTests
         this.MapUnmirroredJunk("Spam");
         var settings = FilingAndMarkingRead();
         await this.Recorder(settings).RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
-        var movedBack = this.Recorder(settings, OccurrenceIn(Inbox, isRemotelySeen: false, uid: 4403));
+        var movedBack = this.Recorder(settings, OccurrenceIn(Inbox, isMarkedSeen: false, uid: 4403));
 
         // Act
         var result = await movedBack.RecordAsync(ModelSpamVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -432,7 +432,7 @@ public sealed class SpamActionRecorderTests
                 Folder: null,
                 IsSeen: false,
                 IsFlagged: false,
-                RemoteEmailKeywords.Create([])));
+                EmailKeywords.Create([])));
         var session = Substitute.For<IPersistenceSession>();
         var recorder = this.Recorder(
             SpamActionSettings.Create(filesJunk: true, marksJunkRead: true, MailFolderReference.ToAlias(elsewhere)),
@@ -472,7 +472,7 @@ public sealed class SpamActionRecorderTests
                 Folder: null,
                 IsSeen: false,
                 IsFlagged: false,
-                RemoteEmailKeywords.Create([])));
+                EmailKeywords.Create([])));
         var localFolders = new InMemoryLocalMailFolderStore(Account, MailAccountCustodyPhase.Restoring);
         await localFolders.SaveAsync(
             Substitute.For<IPersistenceSession>(),
@@ -659,7 +659,7 @@ public sealed class SpamActionRecorderTests
         // Arrange
         var recorder = this.Recorder(
             MarkingWithKeywords(),
-            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$junk"]));
+            OccurrenceIn(Inbox, isMarkedSeen: false, keywords: ["$junk"]));
 
         // Act
         var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -697,7 +697,7 @@ public sealed class SpamActionRecorderTests
         await recorder.RecordAsync(ModelSpamVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
         var carryingJunk = this.Recorder(
             MarkingWithKeywords(),
-            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk"]));
+            OccurrenceIn(Inbox, isMarkedSeen: false, keywords: ["$Junk"]));
 
         // Act
         var result = await carryingJunk.RecordAsync(PhishingVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -779,7 +779,7 @@ public sealed class SpamActionRecorderTests
         // Arrange
         var recorder = this.Recorder(
             MarkingWithKeywords(),
-            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+            OccurrenceIn(Inbox, isMarkedSeen: false, keywords: ["$Junk", "$NotJunk"]));
 
         // Act
         var result = await recorder.RecordAsync(CancellingVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -799,7 +799,7 @@ public sealed class SpamActionRecorderTests
         // Arrange
         var recorder = this.Recorder(
             MarkingWithKeywords(),
-            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+            OccurrenceIn(Inbox, isMarkedSeen: false, keywords: ["$Junk", "$NotJunk"]));
 
         // Act
         var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -821,9 +821,9 @@ public sealed class SpamActionRecorderTests
         // Arrange
         var overThePair = this.Recorder(
             MarkingWithKeywords(),
-            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+            OccurrenceIn(Inbox, isMarkedSeen: false, keywords: ["$Junk", "$NotJunk"]));
         await overThePair.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
-        var afterTheRemoval = this.Recorder(MarkingWithKeywords(), OccurrenceIn(Inbox, isRemotelySeen: false));
+        var afterTheRemoval = this.Recorder(MarkingWithKeywords(), OccurrenceIn(Inbox, isMarkedSeen: false));
 
         // Act
         var result = await afterTheRemoval.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -840,7 +840,7 @@ public sealed class SpamActionRecorderTests
         // Arrange
         var recorder = this.Recorder(
             MarkingWithKeywords(),
-            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk", "$Phishing"]));
+            OccurrenceIn(Inbox, isMarkedSeen: false, keywords: ["$Junk", "$NotJunk", "$Phishing"]));
 
         // Act
         var result = await recorder.RecordAsync(CancellingVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -864,7 +864,7 @@ public sealed class SpamActionRecorderTests
         this.verdictActs.With(Email, SpamVerdictAct.FiledIntoJunk);
         var recorder = this.Recorder(
             SpamActionSettings.Create(filesJunk: true, marksJunkRead: true, marksJunkWithKeywords: true),
-            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+            OccurrenceIn(Inbox, isMarkedSeen: false, keywords: ["$Junk", "$NotJunk"]));
 
         // Act
         var result = await recorder.RecordAsync(SpamVerdictOf(SpamVerdict.Spam), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -887,7 +887,7 @@ public sealed class SpamActionRecorderTests
         this.verdictActs.With(Email, SpamVerdictAct.MarkedJunk);
         var recorder = this.Recorder(
             MarkingWithKeywords(),
-            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+            OccurrenceIn(Inbox, isMarkedSeen: false, keywords: ["$Junk", "$NotJunk"]));
 
         // Act
         var result = await recorder.RecordAsync(CorrectedVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -907,7 +907,7 @@ public sealed class SpamActionRecorderTests
         this.verdictActs.With(Email, SpamVerdictAct.ClearedJunkMarks);
         var recorder = this.Recorder(
             MarkingWithKeywords(),
-            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+            OccurrenceIn(Inbox, isMarkedSeen: false, keywords: ["$Junk", "$NotJunk"]));
 
         // Act
         var result = await recorder.RecordAsync(CancellingVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -924,7 +924,7 @@ public sealed class SpamActionRecorderTests
         // Arrange
         var recorder = this.Recorder(
             FilingAndMarkingRead(),
-            OccurrenceIn(Inbox, isRemotelySeen: false, keywords: ["$Junk", "$NotJunk"]));
+            OccurrenceIn(Inbox, isMarkedSeen: false, keywords: ["$Junk", "$NotJunk"]));
 
         // Act
         var result = await recorder.RecordAsync(CancellingVerdict(), SpamActionPosture.Acting, TestContext.Current.CancellationToken);
@@ -1090,7 +1090,7 @@ public sealed class SpamActionRecorderTests
                 Folder: null,
                 IsSeen: false,
                 IsFlagged: false,
-                RemoteEmailKeywords.Create([])));
+                EmailKeywords.Create([])));
 
         return states;
     }
@@ -1109,7 +1109,7 @@ public sealed class SpamActionRecorderTests
 
     private static SpamActionOccurrence OccurrenceIn(
         MailFolderAlias folderAlias,
-        bool isRemotelySeen,
+        bool isMarkedSeen,
         uint uid = 4401,
         MailAccountId? account = null,
         params string[] keywords) => new(
@@ -1120,8 +1120,8 @@ public sealed class SpamActionRecorderTests
             ImapUidValidity.Create(9),
             ImapUid.Create(uid)),
         folderAlias,
-        isRemotelySeen,
-        RemoteEmailKeywords.Create(keywords));
+        isMarkedSeen,
+        EmailKeywords.Create(keywords));
 
     /// <summary>Maps the junk role onto a folder the account does not mirror, which is the recommended arrangement.</summary>
     /// <remarks>
@@ -1183,7 +1183,7 @@ public sealed class SpamActionRecorderTests
 
         return new SpamActionRecorder(
             settingsReader,
-            occurrences ?? ReaderOf(OccurrenceIn(Inbox, isRemotelySeen: false)),
+            occurrences ?? ReaderOf(OccurrenceIn(Inbox, isMarkedSeen: false)),
             this.records,
             this.verdictActs,
             submission ?? MailboxChangeSubmissions.Over(this.records),

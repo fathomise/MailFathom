@@ -45,7 +45,7 @@ public sealed class DiscoveryPlanningAgentTests
     private const string StructuredPlan = """
         {"intent": "compareTerms", "sufficientPassages": 6, "lookups": [{"queryText": "quotation", "senderAddress": null,
         "recipientAddress": null, "subjectFragment": null, "receivedOnOrAfter": null, "receivedBefore": null,
-        "isRemotelySeen": null, "isRemotelyFlagged": null, "keyword": null, "hasAttachments": null}]}
+        "isMarkedSeen": null, "isFlagged": null, "keyword": null, "hasAttachments": null}]}
         """;
 
     private static readonly MailboxScope WholeMailbox = MailboxScope.Create(

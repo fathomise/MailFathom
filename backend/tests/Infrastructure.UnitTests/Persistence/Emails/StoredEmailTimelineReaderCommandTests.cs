@@ -150,8 +150,8 @@ public sealed partial class StoredEmailTimelineReaderCommandTests
             subjectFragment: null,
             receivedOnOrAfter: null,
             receivedBefore: null,
-            isRemotelySeen: null,
-            isRemotelyFlagged: null,
+            isMarkedSeen: null,
+            isFlagged: null,
             keyword: null,
             hasAttachments: null,
             direction);

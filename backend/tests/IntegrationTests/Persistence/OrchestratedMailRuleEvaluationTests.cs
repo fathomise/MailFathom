@@ -116,7 +116,7 @@ public sealed class OrchestratedMailRuleEvaluationTests(MailFathomOrchestrationF
         Assert.Equal(AuthorAuthenticationOutcome.Authenticated, arrival.Facts.AuthorAuthentication);
         Assert.Equal(SenderTrustLevel.Trusted, arrival.Facts.SenderTrust);
         Assert.Equal(MachineAuthorshipBand.Likely, arrival.Facts.MachineAuthorship);
-        // The keywords in their normalized form for the same reason as the alias and the addresses: RemoteEmailKeywords
+        // The keywords in their normalized form for the same reason as the alias and the addresses: EmailKeywords
         // folds what a server wrote to upper case, and the fact surface publishes what the row holds.
         Assert.Equal(["$INVOICE", "$TODO"], arrival.Facts.Keywords.Order(StringComparer.Ordinal));
 
@@ -469,7 +469,7 @@ public sealed class OrchestratedMailRuleEvaluationTests(MailFathomOrchestrationF
                                 RemoteEmailFlagSnapshot.NeverObserved with
                                 {
                                     ObservedAt = EvaluatedAt,
-                                    Keywords = RemoteEmailKeywords.Create(keywords),
+                                    Keywords = EmailKeywords.Create(keywords),
                                 }),
                         ],
                         ConfirmedUnchanged: [],

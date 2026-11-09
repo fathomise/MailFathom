@@ -293,8 +293,8 @@ internal sealed class RetrievalDatabase : IAsyncDisposable
             subjectFragment: null,
             receivedOnOrAfter: null,
             receivedBefore: null,
-            isRemotelySeen: null,
-            isRemotelyFlagged: null,
+            isMarkedSeen: null,
+            isFlagged: null,
             keyword: null,
             hasAttachments: null);
     }

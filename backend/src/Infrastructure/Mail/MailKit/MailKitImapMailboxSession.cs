@@ -513,7 +513,7 @@ internal sealed class MailKitImapMailboxSession(
     /// <see cref="IMessageSummary.Flags" /> and <see cref="IMessageSummary.Keywords" /> and both are filled by the one
     /// <see cref="MessageSummaryItems.Flags" /> item the reconciliation fetch already asks for — so reading the keywords
     /// costs no extra round trip and no wider request. What they are worth normalizing into is
-    /// <see cref="RemoteEmailKeywords" />'s to say; MailKit reports them as the server wrote them.
+    /// <see cref="EmailKeywords" />'s to say; MailKit reports them as the server wrote them.
     /// </remarks>
     private static RemoteEmailFlagSnapshot SnapshotOf(IMessageSummary summary, DateTimeOffset observedAt)
     {
@@ -526,7 +526,7 @@ internal sealed class MailKitImapMailboxSession(
             flags.HasFlag(MessageFlags.Flagged),
             flags.HasFlag(MessageFlags.Draft),
             flags.HasFlag(MessageFlags.Deleted),
-            RemoteEmailKeywords.Create(summary.Keywords));
+            EmailKeywords.Create(summary.Keywords));
     }
 
     private async Task<RemoteEmailContentFetchResult> FetchRawMimeWithPeekAsync(

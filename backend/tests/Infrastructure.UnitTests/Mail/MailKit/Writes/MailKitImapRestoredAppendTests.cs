@@ -59,7 +59,7 @@ public sealed class MailKitImapRestoredAppendTests
                 IsAnswered: true,
                 IsFlagged: true,
                 IsDraft: false,
-                RemoteEmailKeywords.Create(["$Label1"])),
+                EmailKeywords.Create(["$Label1"])),
             ArrivedAt,
             TestContext.Current.CancellationToken);
 
@@ -94,7 +94,7 @@ public sealed class MailKitImapRestoredAppendTests
                 IsAnswered: false,
                 IsFlagged: false,
                 IsDraft: true,
-                RemoteEmailKeywords.None),
+                EmailKeywords.None),
             ArrivedAt,
             TestContext.Current.CancellationToken);
 
@@ -130,7 +130,7 @@ public sealed class MailKitImapRestoredAppendTests
                 IsAnswered: false,
                 IsFlagged: false,
                 IsDraft: false,
-                RemoteEmailKeywords.Create(["$Label1"])),
+                EmailKeywords.Create(["$Label1"])),
             ArrivedAt,
             TestContext.Current.CancellationToken);
 
@@ -166,7 +166,7 @@ public sealed class MailKitImapRestoredAppendTests
                 IsAnswered: false,
                 IsFlagged: false,
                 IsDraft: false,
-                RemoteEmailKeywords.None),
+                EmailKeywords.None),
             ArrivedAt,
             TestContext.Current.CancellationToken);
 

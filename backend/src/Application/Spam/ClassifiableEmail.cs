@@ -32,5 +32,5 @@ public sealed record ClassifiableEmail(
     MailAccountId AccountId,
     MailFolderAlias FolderAlias,
     MailFolderAlias? CurrentFolderAlias,
-    RemoteEmailKeywords Keywords,
+    EmailKeywords Keywords,
     bool IsSettled);

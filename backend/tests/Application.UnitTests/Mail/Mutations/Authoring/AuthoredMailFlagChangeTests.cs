@@ -160,7 +160,7 @@ public sealed class AuthoredMailFlagChangeTests
     {
         // Arrange
         var tooMany = Enumerable
-            .Range(0, RemoteEmailKeywords.MaximumKeywords + 1)
+            .Range(0, EmailKeywords.MaximumKeywords + 1)
             .Select(ordinal => $"$Label{ordinal}")
             .ToArray();
 

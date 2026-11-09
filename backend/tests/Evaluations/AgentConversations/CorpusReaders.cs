@@ -180,9 +180,9 @@ internal static class CorpusReaders
             MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
             Attachments = StoredEmailAttachmentSummary.None,
             ContentAvailability = StoredEmailContentAvailability.Available,
-            RemoteFlags = message.Provenance.Unsent is null
-                ? RemoteEmailFlagSnapshot.NeverObserved
-                : RemoteEmailFlagSnapshot.NeverObserved with { IsDraft = true },
+            Flags = message.Provenance.Unsent is null
+                ? StoredEmailFlags.NeverObserved
+                : StoredEmailFlags.NeverObserved with { IsDraft = true },
             Receipts = message.Receipts,
         };
 

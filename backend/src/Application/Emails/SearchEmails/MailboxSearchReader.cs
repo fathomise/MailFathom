@@ -404,8 +404,8 @@ public sealed class MailboxSearchReader
         request.SubjectFragment,
         request.ReceivedOnOrAfter,
         request.ReceivedBefore,
-        request.IsRemotelySeen,
-        request.IsRemotelyFlagged,
+        request.IsMarkedSeen,
+        request.IsFlagged,
         request.Keyword,
         request.HasAttachments);
 }

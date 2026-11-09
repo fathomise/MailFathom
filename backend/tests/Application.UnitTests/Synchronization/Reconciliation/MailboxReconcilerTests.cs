@@ -410,7 +410,7 @@ public sealed class MailboxReconcilerTests
                     IsFlagged: false,
                     IsDraft: false,
                     IsDeleted: true,
-                    Keywords: RemoteEmailKeywords.None)),
+                    Keywords: EmailKeywords.None)),
         ];
         mailboxSession
             .ObserveWindowWithoutSettingSeenAsync(Arg.Any<IReadOnlyList<ImapUid>>(), Arg.Any<ulong?>(), Arg.Any<CancellationToken>())
@@ -490,7 +490,7 @@ public sealed class MailboxReconcilerTests
         await using var mailboxSession = CreateSessionReportingFlags(
             isSeen: true,
             isFlagged: true,
-            RemoteEmailKeywords.None,
+            EmailKeywords.None,
             10);
         var reconciler = CreateReconciler(
             store,
@@ -526,7 +526,7 @@ public sealed class MailboxReconcilerTests
         await using var mailboxSession = CreateSessionReportingFlags(
             isSeen: true,
             isFlagged: true,
-            RemoteEmailKeywords.None,
+            EmailKeywords.None,
             10);
         var reconciler = CreateReconciler(store, RemotelyDeletedEmailDisposition.RetainTombstone);
 
@@ -563,7 +563,7 @@ public sealed class MailboxReconcilerTests
         await using var mailboxSession = CreateSessionReportingFlags(
             isSeen: true,
             isFlagged: false,
-            RemoteEmailKeywords.Create(["$Invoice", "$Todo"]),
+            EmailKeywords.Create(["$Invoice", "$Todo"]),
             10);
         var reconciler = CreateReconciler(
             store,
@@ -587,7 +587,7 @@ public sealed class MailboxReconcilerTests
         Assert.Equal(record.Id, suppressed.MutationRecordId);
 
         // The stored keywords still follow the server, which is what keeps the column a mirror of the last observation.
-        Assert.Equal(RemoteEmailKeywords.Create(["$Invoice", "$Todo"]), store.RowOf(10).Snapshot!.Keywords);
+        Assert.Equal(EmailKeywords.Create(["$Invoice", "$Todo"]), store.RowOf(10).Snapshot!.Keywords);
     }
 
     /// <summary>An addition accounts for the set it would have left and never for a set the user also took a label off.</summary>
@@ -607,7 +607,7 @@ public sealed class MailboxReconcilerTests
         await using var mailboxSession = CreateSessionReportingFlags(
             isSeen: true,
             isFlagged: false,
-            RemoteEmailKeywords.Create(["$Todo"]),
+            EmailKeywords.Create(["$Todo"]),
             10);
         var reconciler = CreateReconciler(
             store,
@@ -637,7 +637,7 @@ public sealed class MailboxReconcilerTests
         await using var mailboxSession = CreateSessionReportingFlags(
             isSeen: true,
             isFlagged: false,
-            RemoteEmailKeywords.Create(["$Invoice", "$Waiting"]),
+            EmailKeywords.Create(["$Invoice", "$Waiting"]),
             10);
         var reconciler = CreateReconciler(store, RemotelyDeletedEmailDisposition.RetainTombstone);
 
@@ -665,7 +665,7 @@ public sealed class MailboxReconcilerTests
         await using var mailboxSession = CreateSessionReportingFlags(
             isSeen: true,
             isFlagged: true,
-            RemoteEmailKeywords.Create(["$Waiting"]),
+            EmailKeywords.Create(["$Waiting"]),
             10);
         var reconciler = CreateReconciler(
             store,
@@ -723,7 +723,7 @@ public sealed class MailboxReconcilerTests
         await using var mailboxSession = CreateSessionReportingFlags(
             isSeen: true,
             isFlagged: false,
-            RemoteEmailKeywords.None,
+            EmailKeywords.None,
             10,
             11);
         var reconciler = CreateReconciler(
@@ -848,7 +848,7 @@ public sealed class MailboxReconcilerTests
         await using var mailboxSession = CreateSessionReportingFlags(
             isSeen: true,
             isFlagged: true,
-            RemoteEmailKeywords.None,
+            EmailKeywords.None,
             10);
         var reconciler = CreateReconciler(
             store,
@@ -1511,7 +1511,7 @@ public sealed class MailboxReconcilerTests
                         IsFlagged: false,
                         IsDraft: false,
                         IsDeleted: false,
-                        Keywords: RemoteEmailKeywords.None))),
+                        Keywords: EmailKeywords.None))),
             ],
             [.. confirmedUids.Select(ImapUid.Create)],
             FolderHighestModSeq: 91UL);
@@ -1525,13 +1525,13 @@ public sealed class MailboxReconcilerTests
 
     /// <summary>Builds a session whose folder holds the named UIDs and reports one <c>\Seen</c> value for all of them.</summary>
     private static IMailboxSession CreateSessionReportingSeenState(bool isSeen, params uint[] presentUids) =>
-        CreateSessionReportingFlags(isSeen, isFlagged: false, RemoteEmailKeywords.None, presentUids);
+        CreateSessionReportingFlags(isSeen, isFlagged: false, EmailKeywords.None, presentUids);
 
     /// <summary>Builds a session whose folder holds the named UIDs and reports the same three writable values for all of them.</summary>
     private static IMailboxSession CreateSessionReportingFlags(
         bool isSeen,
         bool isFlagged,
-        RemoteEmailKeywords keywords,
+        EmailKeywords keywords,
         params uint[] presentUids)
     {
         var mailboxSession = Substitute.For<IMailboxSession>();
@@ -1580,7 +1580,7 @@ public sealed class MailboxReconcilerTests
                     IsFlagged: false,
                     IsDraft: false,
                     IsDeleted: false,
-                    Keywords: RemoteEmailKeywords.None))),
+                    Keywords: EmailKeywords.None))),
         ];
 
         mailboxSession
@@ -1914,7 +1914,7 @@ public sealed class MailboxReconcilerTests
             uid,
             isSeen,
             isFlagged,
-            RemoteEmailKeywords.Create(keywords)),
+            EmailKeywords.Create(keywords)),
     ];
 
     /// <summary>One locally stored occurrence a test arranged, before any run has touched it.</summary>
@@ -1936,7 +1936,7 @@ public sealed class MailboxReconcilerTests
         uint Uid,
         bool? PreviouslyObservedSeenState = null,
         bool PreviouslyObservedFlaggedState = false,
-        RemoteEmailKeywords? PreviouslyObservedKeywords = null,
+        EmailKeywords? PreviouslyObservedKeywords = null,
         DateTimeOffset? PreviouslyObservedAt = null);
 
     /// <summary>
@@ -2048,7 +2048,7 @@ public sealed class MailboxReconcilerTests
                                 observedAt,
                                 entry.Value.Snapshot?.IsSeen ?? false,
                                 entry.Value.Snapshot?.IsFlagged ?? false,
-                                entry.Value.Snapshot?.Keywords ?? RemoteEmailKeywords.None)
+                                entry.Value.Snapshot?.Keywords ?? EmailKeywords.None)
                             : null)),
             ];
 
@@ -2140,7 +2140,7 @@ public sealed class MailboxReconcilerTests
             uint uid,
             bool? previouslyObservedSeenState = null,
             bool previouslyObservedFlaggedState = false,
-            RemoteEmailKeywords? previouslyObservedKeywords = null,
+            EmailKeywords? previouslyObservedKeywords = null,
             DateTimeOffset? previouslyObservedAt = null)
         {
             this.Uid = uid;
@@ -2160,7 +2160,7 @@ public sealed class MailboxReconcilerTests
                 previouslyObservedFlaggedState,
                 IsDraft: false,
                 IsDeleted: false,
-                previouslyObservedKeywords ?? RemoteEmailKeywords.None);
+                previouslyObservedKeywords ?? EmailKeywords.None);
         }
 
         public uint Uid { get; }

@@ -386,14 +386,14 @@ public sealed class ClientMailSearchEndpointTests
             CarriesUnverifiedSignature: false,
             ContainsUnexpandedTnefPart: false),
         ContentAvailability = StoredEmailContentAvailability.Available,
-        RemoteFlags = new RemoteEmailFlagSnapshot(
+        Flags = new StoredEmailFlags(
             FirstJuly,
             IsSeen: false,
             IsAnswered: false,
             IsFlagged: false,
             IsDraft: false,
             IsDeleted: false,
-            RemoteEmailKeywords.None),
+            EmailKeywords.None),
     };
 
     private Task<Results<Ok<ClientMailSearchResponse>, ProblemHttpResult>> SearchAsync(

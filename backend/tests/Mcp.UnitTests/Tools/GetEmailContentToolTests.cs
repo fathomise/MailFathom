@@ -121,9 +121,9 @@ public sealed class GetEmailContentToolTests
         Assert.False(content.AttachmentCounts.IsEncrypted);
         Assert.True(content.AttachmentCounts.CarriesUnverifiedSignature);
         Assert.False(content.AttachmentCounts.ContainsUnexpandedTnefPart);
-        Assert.True(content.RemoteFlags.Seen);
-        Assert.Equal(observedAt, content.RemoteFlags.ObservedAt);
-        Assert.True(content.RemoteFlags.WasObserved);
+        Assert.True(content.Flags.Seen);
+        Assert.Equal(observedAt, content.Flags.ObservedAt);
+        Assert.True(content.Flags.WasObserved);
     }
 
     /// <summary>An email whose displayed author failed while another domain authenticated is published as exactly that.</summary>
@@ -1420,16 +1420,16 @@ public sealed class GetEmailContentToolTests
             SizeOctets = 4096,
             Attachments = StoredEmailAttachmentSummary.None,
             ContentAvailability = contentAvailability,
-            RemoteFlags = observedAt is { } flagsObservedAt
-                ? new RemoteEmailFlagSnapshot(
+            Flags = observedAt is { } flagsObservedAt
+                ? new StoredEmailFlags(
                     flagsObservedAt,
                     IsSeen: true,
                     IsAnswered: false,
                     IsFlagged: false,
                     IsDraft: false,
                     IsDeleted: false,
-                    Keywords: RemoteEmailKeywords.None)
-                : RemoteEmailFlagSnapshot.NeverObserved,
+                    Keywords: EmailKeywords.None)
+                : StoredEmailFlags.NeverObserved,
             SenderVerification = senderVerification ?? SenderVerification.NotEstablished,
             MachineAuthorship = machineAuthorship ?? MachineAuthorshipAssessment.NotAssessed,
             SenderAuthenticationEvidence = senderAuthenticationEvidence ?? SenderAuthenticationEvidence.None,

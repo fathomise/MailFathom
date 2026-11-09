@@ -15,4 +15,4 @@ namespace MailFathom.Application.Spam.Floor;
 public sealed record SpamVerdictFloorCandidate(
     StoredEmailId Id,
     MailFolderAlias? FolderAlias,
-    RemoteEmailKeywords Keywords);
+    EmailKeywords Keywords);

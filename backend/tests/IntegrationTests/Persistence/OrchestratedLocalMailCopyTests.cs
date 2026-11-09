@@ -62,7 +62,7 @@ public sealed class OrchestratedLocalMailCopyTests(MailFathomOrchestrationFixtur
         var folder = await CommitFolderAsync(services, cancellationToken);
         var sourceLocator = await ReadObjectLocatorAsync(services, source, cancellationToken);
         var storedBytesBefore = await ReadStoredContentBytesAsync(services, cancellationToken);
-        var flags = new CopiedMailFlags(IsSeen: true, IsFlagged: true, RemoteEmailKeywords.Create(["$Label1"]));
+        var flags = new CopiedMailFlags(IsSeen: true, IsFlagged: true, EmailKeywords.Create(["$Label1"]));
 
         // Act
         var prepared = await services.InScopeAsync(
@@ -86,9 +86,9 @@ public sealed class OrchestratedLocalMailCopyTests(MailFathomOrchestrationFixtur
         Assert.Equal(folder.Value, written.FolderId);
         Assert.Null(written.UidValidity);
         Assert.Null(written.Uid);
-        Assert.True(written.IsRemotelySeen);
-        Assert.True(written.IsRemotelyFlagged);
-        Assert.Equal(flags.Keywords.Values, written.RemoteKeywords);
+        Assert.True(written.IsMarkedSeen);
+        Assert.True(written.IsFlagged);
+        Assert.Equal(flags.Keywords.Values, written.Keywords);
 
         // Stamped so a rule that copies into a folder it also matches on does not meet its own copy.
         Assert.NotNull(written.RulesEvaluatedAt);
@@ -191,9 +191,9 @@ public sealed class OrchestratedLocalMailCopyTests(MailFathomOrchestrationFixtur
                     email.FolderId,
                     email.UidValidity,
                     email.Uid,
-                    email.IsRemotelySeen,
-                    email.IsRemotelyFlagged,
-                    email.RemoteKeywords,
+                    email.IsMarkedSeen,
+                    email.IsFlagged,
+                    email.Keywords,
                     email.RulesEvaluatedAt))
                 .SingleAsync(token),
             cancellationToken);
@@ -203,8 +203,8 @@ public sealed class OrchestratedLocalMailCopyTests(MailFathomOrchestrationFixtur
         Guid FolderId,
         uint? UidValidity,
         uint? Uid,
-        bool IsRemotelySeen,
-        bool IsRemotelyFlagged,
-        string[] RemoteKeywords,
+        bool IsMarkedSeen,
+        bool IsFlagged,
+        string[] Keywords,
         DateTimeOffset? RulesEvaluatedAt);
 }

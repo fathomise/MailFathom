@@ -165,7 +165,7 @@ internal static class AnsweredMailSubmissions
             SizeOctets = 4096,
             Attachments = StoredEmailAttachmentSummary.None,
             ContentAvailability = contentAvailability,
-            RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved,
+            Flags = StoredEmailFlags.NeverObserved,
             SenderVerification = SenderVerification.NotEstablished,
             MachineAuthorship = MachineAuthorshipAssessment.NotAssessed,
             SenderAuthenticationEvidence = SenderAuthenticationEvidence.None,

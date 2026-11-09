@@ -1522,6 +1522,60 @@
                     ],
                     "type": "object"
                   },
+                  "flags": {
+                    "description": "The flags MailFathom holds for the email. On an account mirrored from a mail server they follow what that server last reported, and a change made through MailFathom shows here as soon as it is made; on an account MailFathom alone keeps they are MailFathom's own state. Reading mail through MailFathom never changes them.",
+                    "properties": {
+                      "answered": {
+                        "description": "Whether the email is marked answered.",
+                        "type": "boolean"
+                      },
+                      "deleted": {
+                        "description": "Whether the email is marked deleted but not yet expunged from the folder.",
+                        "type": "boolean"
+                      },
+                      "draft": {
+                        "description": "Whether the email is marked a draft.",
+                        "type": "boolean"
+                      },
+                      "flagged": {
+                        "description": "Whether the email is flagged for attention.",
+                        "type": "boolean"
+                      },
+                      "keywords": {
+                        "description": "The keywords the email carries, such as $JUNK or a label a mail client set, in upper case and without duplicates. Flag names are compared without regard to case, so the case a keyword is written in never decides a match; an empty list means the email carries none, or that nothing has observed this email yet.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "observedAt": {
+                        "description": "When a mail server last reported these flags, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet. On a message stored with no occurrence on any server it is the moment the message was stored.",
+                        "format": "date-time",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "seen": {
+                        "description": "Whether the email is marked read.",
+                        "type": "boolean"
+                      },
+                      "wasObserved": {
+                        "description": "Whether these flags have been recorded rather than never observed. When false, every flag above is false because nothing has recorded them yet, not because the email carries none of them.",
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "seen",
+                      "answered",
+                      "flagged",
+                      "draft",
+                      "deleted",
+                      "keywords",
+                      "wasObserved"
+                    ],
+                    "type": "object"
+                  },
                   "folderId": {
                     "description": "The identity of the folder the email is in, which is what the folders argument of a mailbox tool names it by. It stays the same when the folder is renamed or moved.",
                     "type": "string"
@@ -1836,60 +1890,6 @@
                       "null"
                     ]
                   },
-                  "remoteFlags": {
-                    "description": "The IMAP flags a mail server reported for the email when it was last synchronized. These are observations of the server's state, not local state, and reading mail through MailFathom never changes them.",
-                    "properties": {
-                      "answered": {
-                        "description": "Whether the mail server reported the email as answered.",
-                        "type": "boolean"
-                      },
-                      "deleted": {
-                        "description": "Whether the mail server reported the email as deleted but not yet expunged from the folder.",
-                        "type": "boolean"
-                      },
-                      "draft": {
-                        "description": "Whether the mail server reported the email as a draft.",
-                        "type": "boolean"
-                      },
-                      "flagged": {
-                        "description": "Whether the mail server reported the email as flagged for attention.",
-                        "type": "boolean"
-                      },
-                      "keywords": {
-                        "description": "The keywords the mail server reported for the email, such as $JUNK or a label a mail client set, in upper case and without duplicates. Flag names are compared without regard to case, so the case a keyword is written in never decides a match; an empty list means the server reported none, or that nothing has observed this email yet.",
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array"
-                      },
-                      "observedAt": {
-                        "description": "When the flags were last read from the mail server, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet. The flags are only as current as this timestamp.",
-                        "format": "date-time",
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "seen": {
-                        "description": "Whether the mail server reported the email as read at the time of the observation.",
-                        "type": "boolean"
-                      },
-                      "wasObserved": {
-                        "description": "Whether these flags were read from a mail server rather than never observed. When false, every flag above is false because nobody has looked yet, not because the server reported none of them.",
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "seen",
-                      "answered",
-                      "flagged",
-                      "draft",
-                      "deleted",
-                      "keywords",
-                      "wasObserved"
-                    ],
-                    "type": "object"
-                  },
                   "senderVerification": {
                     "description": "What was established about the author this email displays. Three independent answers: whether the displayed author was authenticated, whether this deployment recognizes them, and what the email's own signature proves about who signed it. None is a judgement about whether the email is wanted, unwanted, or safe.",
                     "properties": {
@@ -2101,7 +2101,7 @@
                   "headers",
                   "body",
                   "attachments",
-                  "remoteFlags"
+                  "flags"
                 ],
                 "type": [
                   "object",
@@ -2816,7 +2816,7 @@
       "readOnlyHint": true,
       "title": "List emails"
     },
-    "description": "Lists summaries of emails already synchronized into MailFathom's local mailbox copy, newest received first by default. Filters by account, folder, sender address, recipient address, subject text, received date range, remote seen state, remote flagged (starred) state, a keyword the mail server reported, and attachment presence. Reads the local copy only: it never contacts a mail server, never marks mail as read, and never returns body text, raw MIME, or attachment content. Never returns a message judged spam, in any folder, or mail in the account's junk folder unless its owner marked it not spam. Returns at most 100 summaries per call, with an opaque cursor for the next page and a per-folder statement of how current the local copy is.",
+    "description": "Lists summaries of emails already synchronized into MailFathom's local mailbox copy, newest received first by default. Filters by account, folder, sender address, recipient address, subject text, received date range, read state, flagged (starred) state, a keyword the email carries, and attachment presence. Reads the local copy only: it never contacts a mail server, never marks mail as read, and never returns body text, raw MIME, or attachment content. Never returns a message judged spam, in any folder, or mail in the account's junk folder unless its owner marked it not spam. Returns at most 100 summaries per call, with an opaque cursor for the next page and a per-folder statement of how current the local copy is.",
     "inputSchema": {
       "properties": {
         "accounts": {
@@ -2872,17 +2872,17 @@
             "null"
           ]
         },
-        "isRemotelyFlagged": {
+        "isFlagged": {
           "default": null,
-          "description": "Return only emails the mail server last reported as flagged (true) or unflagged (false), which is the star most mail clients show. Omit to match either. This is the \\Flagged flag on a message and is unrelated to the Flagged folder role; an email whose flags no run has observed yet counts as unflagged.",
+          "description": "Return only emails flagged (true) or unflagged (false), which is the star most mail clients show. Omit to match either. This is the \\Flagged flag on a message and is unrelated to the Flagged folder role; an email whose flags no run has observed yet counts as unflagged.",
           "type": [
             "boolean",
             "null"
           ]
         },
-        "isRemotelySeen": {
+        "isMarkedSeen": {
           "default": null,
-          "description": "Return only emails the mail server last reported as read (true) or unread (false). Omit to match either. Listing never changes this state. An email whose flags no run has observed yet counts as unread.",
+          "description": "Return only emails marked read (true) or unread (false). Omit to match either. Listing never changes this state. An email whose flags no run has observed yet counts as unread.",
           "type": [
             "boolean",
             "null"
@@ -2890,7 +2890,7 @@
         },
         "keyword": {
           "default": null,
-          "description": "Return only emails carrying this keyword, which is a flag a mail client or server set rather than one of the five standard ones, such as $Junk or a label. Matched as a whole keyword without regard to case; up to 64 characters, and a value that is not a keyword this system stores is refused. Omit to match any, which an empty string does too. The keywords each email carries are reported in its remoteFlags.",
+          "description": "Return only emails carrying this keyword, which is a flag a mail client or server set rather than one of the five standard ones, such as $Junk or a label. Matched as a whole keyword without regard to case; up to 64 characters, and a value that is not a keyword this system stores is refused. Omit to match any, which an empty string does too. The keywords each email carries are reported in its flags.",
           "type": [
             "string",
             "null"
@@ -3012,6 +3012,60 @@
                   "awaitingStorageHeadroom"
                 ],
                 "type": "string"
+              },
+              "flags": {
+                "description": "The flags MailFathom holds for the email. On an account mirrored from a mail server they follow what that server last reported, and a change made through MailFathom shows here as soon as it is made; on an account MailFathom alone keeps they are MailFathom's own state. Reading mail through MailFathom never changes them.",
+                "properties": {
+                  "answered": {
+                    "description": "Whether the email is marked answered.",
+                    "type": "boolean"
+                  },
+                  "deleted": {
+                    "description": "Whether the email is marked deleted but not yet expunged from the folder.",
+                    "type": "boolean"
+                  },
+                  "draft": {
+                    "description": "Whether the email is marked a draft.",
+                    "type": "boolean"
+                  },
+                  "flagged": {
+                    "description": "Whether the email is flagged for attention.",
+                    "type": "boolean"
+                  },
+                  "keywords": {
+                    "description": "The keywords the email carries, such as $JUNK or a label a mail client set, in upper case and without duplicates. Flag names are compared without regard to case, so the case a keyword is written in never decides a match; an empty list means the email carries none, or that nothing has observed this email yet.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "observedAt": {
+                    "description": "When a mail server last reported these flags, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet. On a message stored with no occurrence on any server it is the moment the message was stored.",
+                    "format": "date-time",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "seen": {
+                    "description": "Whether the email is marked read.",
+                    "type": "boolean"
+                  },
+                  "wasObserved": {
+                    "description": "Whether these flags have been recorded rather than never observed. When false, every flag above is false because nothing has recorded them yet, not because the email carries none of them.",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "seen",
+                  "answered",
+                  "flagged",
+                  "draft",
+                  "deleted",
+                  "keywords",
+                  "wasObserved"
+                ],
+                "type": "object"
               },
               "folderId": {
                 "description": "The identity of the folder the email is in, which is what the folders argument of a mailbox tool names it by. It stays the same when the folder is renamed or moved.",
@@ -3196,60 +3250,6 @@
                   "null"
                 ]
               },
-              "remoteFlags": {
-                "description": "The IMAP flags a mail server reported for the email when it was last synchronized. These are observations of the server's state, not local state, and reading mail through MailFathom never changes them.",
-                "properties": {
-                  "answered": {
-                    "description": "Whether the mail server reported the email as answered.",
-                    "type": "boolean"
-                  },
-                  "deleted": {
-                    "description": "Whether the mail server reported the email as deleted but not yet expunged from the folder.",
-                    "type": "boolean"
-                  },
-                  "draft": {
-                    "description": "Whether the mail server reported the email as a draft.",
-                    "type": "boolean"
-                  },
-                  "flagged": {
-                    "description": "Whether the mail server reported the email as flagged for attention.",
-                    "type": "boolean"
-                  },
-                  "keywords": {
-                    "description": "The keywords the mail server reported for the email, such as $JUNK or a label a mail client set, in upper case and without duplicates. Flag names are compared without regard to case, so the case a keyword is written in never decides a match; an empty list means the server reported none, or that nothing has observed this email yet.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "observedAt": {
-                    "description": "When the flags were last read from the mail server, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet. The flags are only as current as this timestamp.",
-                    "format": "date-time",
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "seen": {
-                    "description": "Whether the mail server reported the email as read at the time of the observation.",
-                    "type": "boolean"
-                  },
-                  "wasObserved": {
-                    "description": "Whether these flags were read from a mail server rather than never observed. When false, every flag above is false because nobody has looked yet, not because the server reported none of them.",
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "seen",
-                  "answered",
-                  "flagged",
-                  "draft",
-                  "deleted",
-                  "keywords",
-                  "wasObserved"
-                ],
-                "type": "object"
-              },
               "senderAddress": {
                 "description": "The sender address as written by the email, or null when it carried no usable sender address. This is a claim the email made about itself and nothing here verified it; senderVerification is what says whether anything did.",
                 "type": [
@@ -3416,7 +3416,7 @@
               "toAddresses",
               "sizeBytes",
               "attachments",
-              "remoteFlags",
+              "flags",
               "contentAvailability"
             ],
             "type": "object"
@@ -4206,7 +4206,7 @@
       "readOnlyHint": true,
       "title": "Search emails"
     },
-    "description": "Searches the emails already synchronized into MailFathom's local mailbox copy for text, and returns the best matches ranked by relevance with bounded extracts of the body around the matched words. Retrieval is lexical or hybrid depending on how this server is configured, and every response says which in its retrievalMode field: lexical finds the words a query contains rather than what they mean, while hybrid also finds mail whose meaning is close and combines the two rankings. Where this server reads attachments, the text of documents attached to a message is searched on the same terms its body is — by the words themselves and, under hybrid, by meaning — and what an attachment contributed is reported in that result's attachmentMatches, naming the file and the page, slide, or sheet, rather than folded into the message's own snippets. A picture is different: where this server describes attached images, a picture is reachable only by meaning, never by matching a word, and a result reached that way is marked isDepictedMatch and always sits below every result any query word or any written text reached — so a photograph never displaces a message that contains the word you searched for. Narrows by account, folder, sender address, recipient address, subject text, received date range, remote seen state, remote flagged (starred) state, a keyword the mail server reported, and attachment presence. Reads the local copy only: it never contacts a mail server, never marks mail as read, and never returns whole bodies, raw MIME, whole attachments, or a whole attachment's text — every extract it returns is bounded. Never returns a message judged spam, in any folder, or mail in the account's junk folder unless its owner marked it not spam. Returns one window of at most 50 results that nothing continues, so narrow the filters or write a different query to reach other mail. Matching nothing is a normal empty result rather than an error.",
+    "description": "Searches the emails already synchronized into MailFathom's local mailbox copy for text, and returns the best matches ranked by relevance with bounded extracts of the body around the matched words. Retrieval is lexical or hybrid depending on how this server is configured, and every response says which in its retrievalMode field: lexical finds the words a query contains rather than what they mean, while hybrid also finds mail whose meaning is close and combines the two rankings. Where this server reads attachments, the text of documents attached to a message is searched on the same terms its body is — by the words themselves and, under hybrid, by meaning — and what an attachment contributed is reported in that result's attachmentMatches, naming the file and the page, slide, or sheet, rather than folded into the message's own snippets. A picture is different: where this server describes attached images, a picture is reachable only by meaning, never by matching a word, and a result reached that way is marked isDepictedMatch and always sits below every result any query word or any written text reached — so a photograph never displaces a message that contains the word you searched for. Narrows by account, folder, sender address, recipient address, subject text, received date range, read state, flagged (starred) state, a keyword the email carries, and attachment presence. Reads the local copy only: it never contacts a mail server, never marks mail as read, and never returns whole bodies, raw MIME, whole attachments, or a whole attachment's text — every extract it returns is bounded. Never returns a message judged spam, in any folder, or mail in the account's junk folder unless its owner marked it not spam. Returns one window of at most 50 results that nothing continues, so narrow the filters or write a different query to reach other mail. Matching nothing is a normal empty result rather than an error.",
     "inputSchema": {
       "properties": {
         "accounts": {
@@ -4245,17 +4245,17 @@
             "null"
           ]
         },
-        "isRemotelyFlagged": {
+        "isFlagged": {
           "default": null,
-          "description": "Return only emails the mail server last reported as flagged (true) or unflagged (false), which is the star most mail clients show. Omit to match either. This is the \\Flagged flag on a message and is unrelated to the Flagged folder role; an email whose flags no run has observed yet counts as unflagged.",
+          "description": "Return only emails flagged (true) or unflagged (false), which is the star most mail clients show. Omit to match either. This is the \\Flagged flag on a message and is unrelated to the Flagged folder role; an email whose flags no run has observed yet counts as unflagged.",
           "type": [
             "boolean",
             "null"
           ]
         },
-        "isRemotelySeen": {
+        "isMarkedSeen": {
           "default": null,
-          "description": "Return only emails the mail server last reported as read (true) or unread (false). Omit to match either. Searching never changes this state. An email whose flags no run has observed yet counts as unread.",
+          "description": "Return only emails marked read (true) or unread (false). Omit to match either. Searching never changes this state. An email whose flags no run has observed yet counts as unread.",
           "type": [
             "boolean",
             "null"
@@ -4263,7 +4263,7 @@
         },
         "keyword": {
           "default": null,
-          "description": "Return only emails carrying this keyword, which is a flag a mail client or server set rather than one of the five standard ones, such as $Junk or a label. Matched as a whole keyword without regard to case; up to 64 characters, and a value that is not a keyword this system stores is refused. Omit to match any, which an empty string does too. The keywords each email carries are reported in its remoteFlags.",
+          "description": "Return only emails carrying this keyword, which is a flag a mail client or server set rather than one of the five standard ones, such as $Junk or a label. Matched as a whole keyword without regard to case; up to 64 characters, and a value that is not a keyword this system stores is refused. Omit to match any, which an empty string does too. The keywords each email carries are reported in its flags.",
           "type": [
             "string",
             "null"
@@ -4526,6 +4526,60 @@
                     ],
                     "type": "string"
                   },
+                  "flags": {
+                    "description": "The flags MailFathom holds for the email. On an account mirrored from a mail server they follow what that server last reported, and a change made through MailFathom shows here as soon as it is made; on an account MailFathom alone keeps they are MailFathom's own state. Reading mail through MailFathom never changes them.",
+                    "properties": {
+                      "answered": {
+                        "description": "Whether the email is marked answered.",
+                        "type": "boolean"
+                      },
+                      "deleted": {
+                        "description": "Whether the email is marked deleted but not yet expunged from the folder.",
+                        "type": "boolean"
+                      },
+                      "draft": {
+                        "description": "Whether the email is marked a draft.",
+                        "type": "boolean"
+                      },
+                      "flagged": {
+                        "description": "Whether the email is flagged for attention.",
+                        "type": "boolean"
+                      },
+                      "keywords": {
+                        "description": "The keywords the email carries, such as $JUNK or a label a mail client set, in upper case and without duplicates. Flag names are compared without regard to case, so the case a keyword is written in never decides a match; an empty list means the email carries none, or that nothing has observed this email yet.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "observedAt": {
+                        "description": "When a mail server last reported these flags, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet. On a message stored with no occurrence on any server it is the moment the message was stored.",
+                        "format": "date-time",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "seen": {
+                        "description": "Whether the email is marked read.",
+                        "type": "boolean"
+                      },
+                      "wasObserved": {
+                        "description": "Whether these flags have been recorded rather than never observed. When false, every flag above is false because nothing has recorded them yet, not because the email carries none of them.",
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "seen",
+                      "answered",
+                      "flagged",
+                      "draft",
+                      "deleted",
+                      "keywords",
+                      "wasObserved"
+                    ],
+                    "type": "object"
+                  },
                   "folderId": {
                     "description": "The identity of the folder the email is in, which is what the folders argument of a mailbox tool names it by. It stays the same when the folder is renamed or moved.",
                     "type": "string"
@@ -4709,60 +4763,6 @@
                       "null"
                     ]
                   },
-                  "remoteFlags": {
-                    "description": "The IMAP flags a mail server reported for the email when it was last synchronized. These are observations of the server's state, not local state, and reading mail through MailFathom never changes them.",
-                    "properties": {
-                      "answered": {
-                        "description": "Whether the mail server reported the email as answered.",
-                        "type": "boolean"
-                      },
-                      "deleted": {
-                        "description": "Whether the mail server reported the email as deleted but not yet expunged from the folder.",
-                        "type": "boolean"
-                      },
-                      "draft": {
-                        "description": "Whether the mail server reported the email as a draft.",
-                        "type": "boolean"
-                      },
-                      "flagged": {
-                        "description": "Whether the mail server reported the email as flagged for attention.",
-                        "type": "boolean"
-                      },
-                      "keywords": {
-                        "description": "The keywords the mail server reported for the email, such as $JUNK or a label a mail client set, in upper case and without duplicates. Flag names are compared without regard to case, so the case a keyword is written in never decides a match; an empty list means the server reported none, or that nothing has observed this email yet.",
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array"
-                      },
-                      "observedAt": {
-                        "description": "When the flags were last read from the mail server, as an ISO 8601 timestamp, or null when no synchronization run has observed this email yet. The flags are only as current as this timestamp.",
-                        "format": "date-time",
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "seen": {
-                        "description": "Whether the mail server reported the email as read at the time of the observation.",
-                        "type": "boolean"
-                      },
-                      "wasObserved": {
-                        "description": "Whether these flags were read from a mail server rather than never observed. When false, every flag above is false because nobody has looked yet, not because the server reported none of them.",
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "seen",
-                      "answered",
-                      "flagged",
-                      "draft",
-                      "deleted",
-                      "keywords",
-                      "wasObserved"
-                    ],
-                    "type": "object"
-                  },
                   "senderAddress": {
                     "description": "The sender address as written by the email, or null when it carried no usable sender address. This is a claim the email made about itself and nothing here verified it; senderVerification is what says whether anything did.",
                     "type": [
@@ -4929,7 +4929,7 @@
                   "toAddresses",
                   "sizeBytes",
                   "attachments",
-                  "remoteFlags",
+                  "flags",
                   "contentAvailability"
                 ],
                 "type": "object"

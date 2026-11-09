@@ -226,7 +226,7 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
             {
                 EmailThreadId = conversation.Key,
                 MessageCount = conversation.Count(),
-                UnreadCount = conversation.Count(email => !email.IsRemotelySeen
+                UnreadCount = conversation.Count(email => !email.IsMarkedSeen
                     && (email.SenderNormalizedAddress == null || !readerForms.Contains(email.SenderNormalizedAddress))),
                 AttachedCount = conversation.Count(email => email.AttachmentCount > 0),
             })

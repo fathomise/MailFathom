@@ -6,11 +6,11 @@ using System.Collections.ObjectModel;
 
 namespace MailFathom.Domain.Emails;
 
-/// <summary>Holds the keywords a mail server reported for one email, in the one form everything compares them in.</summary>
+/// <summary>Holds the keywords one email carries, in the one form everything compares them in.</summary>
 /// <remarks>
 /// <para>
 /// A keyword is a flag the IMAP specification leaves to whoever set it — <c>$Junk</c>, <c>$Forwarded</c>, a mail client's
-/// own label — as opposed to the five system flags <see cref="RemoteEmailFlagSnapshot" /> carries as booleans. There is
+/// own label — as opposed to the five system flags <see cref="StoredEmailFlags" /> carries as booleans. There is
 /// no vocabulary to validate against, so this type decides nothing about what a keyword means and only about what makes
 /// two of them the same one and how many of them a message may bring with it.
 /// </para>
@@ -28,12 +28,12 @@ namespace MailFathom.Domain.Emails;
 /// and the stored mirror stops being rewritten by a server that reorders its own answer.
 /// </para>
 /// </remarks>
-public sealed record RemoteEmailKeywords
+public sealed record EmailKeywords
 {
     /// <summary>The keywords of an email that carried none, declared before the value that publishes it.</summary>
     private static readonly ReadOnlyCollection<string> NoKeywords = new List<string>().AsReadOnly();
 
-    private RemoteEmailKeywords(IReadOnlyList<string> values) => this.Values = values;
+    private EmailKeywords(IReadOnlyList<string> values) => this.Values = values;
 
     /// <summary>The greatest number of keywords one email keeps.</summary>
     /// <remarks>
@@ -58,7 +58,7 @@ public sealed record RemoteEmailKeywords
     public IReadOnlyList<string> Values { get; }
 
     /// <summary>Gets the keywords of an email that carries none, which is also what an unobserved email carries.</summary>
-    public static RemoteEmailKeywords None { get; } = new(NoKeywords);
+    public static EmailKeywords None { get; } = new(NoKeywords);
 
     /// <summary>Builds the keyword set from what a server reported.</summary>
     /// <param name="keywords">The keywords as the server wrote them, in any order, or <see langword="null" /> when it reported none.</param>
@@ -78,7 +78,7 @@ public sealed record RemoteEmailKeywords
     /// either.
     /// </para>
     /// </remarks>
-    public static RemoteEmailKeywords Create(IEnumerable<string>? keywords)
+    public static EmailKeywords Create(IEnumerable<string>? keywords)
     {
         if (keywords is null)
         {
@@ -102,7 +102,7 @@ public sealed record RemoteEmailKeywords
 
         // Copied out rather than wrapped around the set, because an IReadOnlyList backed directly by a mutable
         // collection can be cast back to it and written through.
-        return kept.Count == 0 ? None : new RemoteEmailKeywords(new List<string>(kept).AsReadOnly());
+        return kept.Count == 0 ? None : new EmailKeywords(new List<string>(kept).AsReadOnly());
     }
 
     /// <summary>Reduces one written keyword to the form everything compares keywords in.</summary>
@@ -135,7 +135,7 @@ public sealed record RemoteEmailKeywords
     /// would make two sets built from one server answer unequal. The values are ordered and deduplicated on the way in,
     /// so comparing them in sequence is comparing the sets.
     /// </remarks>
-    public bool Equals(RemoteEmailKeywords? other) =>
+    public bool Equals(EmailKeywords? other) =>
         other is not null && this.Values.SequenceEqual(other.Values, StringComparer.Ordinal);
 
     /// <inheritdoc />

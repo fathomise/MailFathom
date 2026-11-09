@@ -91,7 +91,7 @@ internal sealed class StoredMailFolderReader(MailFathomDbContext dbContext) : IS
             .Select(folder => new StoredMailFolderCount(
                 folder.Key,
                 folder.Count(),
-                folder.Count(email => !email.IsRemotelySeen)));
+                folder.Count(email => !email.IsMarkedSeen)));
 
     /// <summary>Rebuilds one folder from its row, its path, and whatever the counts said about it.</summary>
     /// <remarks>A folder whose mail is all tombstoned, or which holds none, appears in no count row and reads as nought of both.</remarks>

@@ -190,8 +190,8 @@ internal static class ClientMailTimelineEndpoint
             Accounts = accounts,
             Folders = folders,
             IncludeJunkMail = includeJunk ?? false,
-            IsRemotelySeen = unread is { } wanted ? !wanted : null,
-            IsRemotelyFlagged = flagged,
+            IsMarkedSeen = unread is { } wanted ? !wanted : null,
+            IsFlagged = flagged,
             HasAttachments = hasAttachments,
             ReceivedOnOrAfter = receivedOnOrAfter,
             ReceivedBefore = receivedBefore,
@@ -421,8 +421,8 @@ internal sealed record ClientMailTimelineResponse(
 /// <param name="SenderAddress">The sender's address as the message wrote it, or <see langword="null" /> where no usable sender was found.</param>
 /// <param name="SenderDisplayName">The display name the sender wrote, or <see langword="null" /> where the header carried none.</param>
 /// <param name="ToAddresses">The comparison forms of the <c>To</c> addresses, in header order, which is what a sent-mail row draws instead of a sender.</param>
-/// <param name="Unread">Whether the mail server last reported the message without <c>\Seen</c>.</param>
-/// <param name="Flagged">Whether the mail server last reported it with <c>\Flagged</c>.</param>
+/// <param name="Unread">Whether the message is stored without the <c>\Seen</c> mark.</param>
+/// <param name="Flagged">Whether the message is stored with <c>\Flagged</c>.</param>
 /// <param name="Answered">Whether the mail server last reported it with <c>\Answered</c>.</param>
 /// <param name="HasAttachments">Whether the message carries anything besides its body and its inline resources.</param>
 /// <param name="AttachmentCount">How many of those there are.</param>
@@ -534,9 +534,9 @@ internal sealed record ClientMailTimelineEntryResponse(
         email.SenderAddress,
         email.SenderDisplayName,
         email.ToAddresses,
-        !email.RemoteFlags.IsSeen,
-        email.RemoteFlags.IsFlagged,
-        email.RemoteFlags.IsAnswered,
+        !email.Flags.IsSeen,
+        email.Flags.IsFlagged,
+        email.Flags.IsAnswered,
         email.Attachments.HasAttachments,
         email.Attachments.AttachmentCount,
         email.SizeOctets,

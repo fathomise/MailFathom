@@ -223,7 +223,7 @@ public sealed class StoredEmailChunkingSelectionTests
     {
         // Arrange
         var email = Email("work", "INBOX");
-        email.IsRemotelyDraft = flaggedDraft;
+        email.IsDraft = flaggedDraft;
         email.Folder.Role = inDraftsFolder ? MailFolderSpecialUse.Drafts : null;
 
         // Act

@@ -390,8 +390,8 @@ public sealed class MailboxKnowledgeSearchTests
             SubjectFragment = "quarterly",
             ReceivedOnOrAfter = FirstJuly,
             ReceivedBefore = FirstJuly.AddDays(7),
-            IsRemotelySeen = false,
-            IsRemotelyFlagged = true,
+            IsMarkedSeen = false,
+            IsFlagged = true,
             Keyword = "$Label",
             HasAttachments = true,
         };
@@ -423,8 +423,8 @@ public sealed class MailboxKnowledgeSearchTests
                 selection.SubjectFragment ?? Absent,
                 Written(selection.ReceivedOnOrAfter),
                 Written(selection.ReceivedBefore),
-                selection.IsRemotelySeen?.ToString() ?? Absent,
-                selection.IsRemotelyFlagged?.ToString() ?? Absent,
+                selection.IsMarkedSeen?.ToString() ?? Absent,
+                selection.IsFlagged?.ToString() ?? Absent,
                 selection.Keyword ?? Absent,
                 selection.HasAttachments?.ToString() ?? Absent,
             });

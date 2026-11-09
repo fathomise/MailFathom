@@ -18,12 +18,12 @@ namespace MailFathom.Application.Spam.Actions;
 /// MailFathom's own name for the folder the occurrence is in, which is what decides whether a filing has anywhere left
 /// to move the message to.
 /// </param>
-/// <param name="IsRemotelySeen">
-/// Whether the mail server already reports the message read, as of the last synchronization. A message that is already
+/// <param name="IsMarkedSeen">
+/// Whether the message is already marked read. A message that is already
 /// read is not written to, which keeps the flag change an act rather than a repeated statement.
 /// </param>
 /// <param name="Keywords">
-/// The keywords the message carries, as of the last synchronization. A keyword the message already carries is not
+/// The keywords the message carries. A keyword the message already carries is not
 /// written again, for the reason a read message is not marked read again.
 /// </param>
 /// <remarks>
@@ -38,8 +38,8 @@ public sealed record SpamActionOccurrence(
     StoredEmailId Id,
     EmailOccurrenceId Occurrence,
     MailFolderAlias FolderAlias,
-    bool IsRemotelySeen,
-    RemoteEmailKeywords Keywords)
+    bool IsMarkedSeen,
+    EmailKeywords Keywords)
 {
     /// <summary>Gets the account the occurrence belongs to, which is the mailbox the action is written against.</summary>
     public MailAccountId Account => this.Occurrence.AccountId;

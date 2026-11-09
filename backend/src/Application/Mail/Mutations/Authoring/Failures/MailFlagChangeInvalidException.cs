@@ -91,6 +91,6 @@ public sealed class MailFlagChangeInvalidException : MailFathomException
         string.Format(
             CultureInfo.InvariantCulture,
             "Every keyword is an IMAP atom of at most {0} characters that does not begin with a backslash, carries no space, control character, or any of ( ) {{ % * \" \\ ], and stays within US-ASCII; at most {1} may be named.",
-            RemoteEmailKeywords.MaximumKeywordLength,
-            RemoteEmailKeywords.MaximumKeywords));
+            EmailKeywords.MaximumKeywordLength,
+            EmailKeywords.MaximumKeywords));
 }

@@ -33,7 +33,7 @@ public sealed class LocalMailCopierTests
 
     private static readonly ReadOnlyMemory<byte> RawMime = "Subject: copied\r\n\r\nbody"u8.ToArray();
 
-    private static readonly CopiedMailFlags Flags = new(IsSeen: true, IsFlagged: false, RemoteEmailKeywords.Create([]));
+    private static readonly CopiedMailFlags Flags = new(IsSeen: true, IsFlagged: false, EmailKeywords.Create([]));
 
     private readonly IEmailContentStore contents = ContentStores.Substituted();
 

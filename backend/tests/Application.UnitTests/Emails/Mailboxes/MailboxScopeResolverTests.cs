@@ -672,7 +672,7 @@ public sealed class MailboxScopeResolverTests
         var resolver = ResolverOverAnInboxAndADraftsFolder();
         var email = EmailIn("INBOX", verdict: null, decidedBy: null) with
         {
-            RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved with { IsDraft = true },
+            Flags = StoredEmailFlags.NeverObserved with { IsDraft = true },
         };
 
         // Act

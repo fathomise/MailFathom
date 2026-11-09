@@ -103,8 +103,8 @@ internal sealed record ListedEmailSummary
     /// <summary>Gets what the email carries besides its body.</summary>
     public required ListedEmailAttachments Attachments { get; init; }
 
-    /// <summary>Gets the flags the last synchronization run observed on the server.</summary>
-    public required ObservedRemoteFlags RemoteFlags { get; init; }
+    /// <summary>Gets the flags MailFathom holds for the email, and when a server last reported them.</summary>
+    public required PublishedEmailFlags Flags { get; init; }
 
     /// <summary>Gets whether raw content is available locally, and the reason when it is not.</summary>
     [Description("Whether the raw email content is stored locally: 'available' when a content read will succeed, 'exceededSizeLimit' when the email was deliberately stored without its content because it was larger than the configured limit, or 'awaitingStorageHeadroom' when local storage was full when it arrived and its content is fetched once there is room. Read this before asking for content; only the last state is worth asking about again later.")]
@@ -143,7 +143,7 @@ internal sealed record ListedEmailSummary
             ReceivedAt = summary.ReceivedAt,
             SizeBytes = summary.SizeOctets,
             Attachments = ListedEmailAttachments.From(summary.Attachments),
-            RemoteFlags = ObservedRemoteFlags.From(summary.RemoteFlags),
+            Flags = PublishedEmailFlags.From(summary.Flags),
             ContentAvailability = PublishedAvailability(summary.ContentAvailability),
             Receipts = SentEmailReceipts.From(summary.Receipts),
         };

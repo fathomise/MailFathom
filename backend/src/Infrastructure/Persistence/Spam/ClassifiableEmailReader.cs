@@ -48,7 +48,7 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
                 email.MailboxAccountId,
                 email.MailFolderBinding.Alias,
                 CurrentAlias = email.Folder.Alias,
-                email.RemoteKeywords,
+                email.Keywords,
                 IsSettled = email.SettledAt != null,
             })
             .SingleOrDefaultAsync(cancellationToken);
@@ -60,7 +60,7 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
                 MailAccountId.Create(row.MailboxAccountId),
                 MailFolderAlias.Create(row.Alias),
                 CurrentFolderAliasOf(row.CurrentAlias),
-                RemoteEmailKeywords.Create(row.RemoteKeywords),
+                EmailKeywords.Create(row.Keywords),
                 row.IsSettled);
     }
 
@@ -143,7 +143,7 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
                 email.Id,
                 email.MailFolderBinding.Alias,
                 CurrentAlias = email.Folder.Alias,
-                email.RemoteKeywords,
+                email.Keywords,
                 IsSettled = email.SettledAt != null,
             })
             .ToArrayAsync(cancellationToken);
@@ -155,7 +155,7 @@ internal sealed class ClassifiableEmailReader(MailFathomDbContext dbContext) : I
                 account,
                 MailFolderAlias.Create(row.Alias),
                 CurrentFolderAliasOf(row.CurrentAlias),
-                RemoteEmailKeywords.Create(row.RemoteKeywords),
+                EmailKeywords.Create(row.Keywords),
                 row.IsSettled)),
         ];
     }

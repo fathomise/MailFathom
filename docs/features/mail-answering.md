@@ -114,8 +114,8 @@ The tool publishes the query and the narrowing `search_emails` publishes to its 
 | `recipientAddress` | Only mail whose `To` or `Cc` header names this address |
 | `subjectFragment` | Only mail whose subject contains this text, which narrows before anything is ranked |
 | `receivedOnOrAfter`, `receivedBefore` | Only mail received in the range, the start inclusive and the end exclusive |
-| `isRemotelySeen` | Only mail the server last reported as read, or as unread — whether this mailbox opened it, never whether a recipient read mail the person sent |
-| `isRemotelyFlagged` | Only mail the server last reported as flagged, or as unflagged, which is the star a mail client shows |
+| `isMarkedSeen` | Only mail marked read, or unread — whether this mailbox opened it, never whether a recipient read mail the person sent |
+| `isFlagged` | Only mail flagged, or unflagged, which is the star a mail client shows |
 | `keyword` | Only mail carrying this keyword, matched whole and without regard to case |
 | `hasAttachments` | Only mail that carries attachments, or that carries none |
 

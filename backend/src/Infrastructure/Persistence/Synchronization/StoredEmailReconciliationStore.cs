@@ -52,8 +52,8 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
         // comparison rather than a reading: the server reports what stands now, and only the earlier values and the
         // moment they were taken say whether anybody moved one and whether a change MailFathom made could still be why.
         var previouslyObserved = await eligible
-            .Where(email => email.RemoteFlagsObservedAt != null)
-            .OrderBy(email => email.RemoteFlagsObservedAt)
+            .Where(email => email.FlagsObservedAt != null)
+            .OrderBy(email => email.FlagsObservedAt)
             .ThenBy(email => email.Uid)
             .Take(maxEmailCount)
 
@@ -64,36 +64,36 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             {
                 email.Id,
                 Uid = email.Uid!.Value,
-                ObservedAt = email.RemoteFlagsObservedAt,
-                IsRemotelySeen = email.Mutations
+                ObservedAt = email.FlagsObservedAt,
+                IsMarkedSeen = email.Mutations
                     .Where(mutation => mutation.OverlaysStoredState
                         && mutation.Mutation == SetSeenMutationName
                         && mutation.Stage != MailboxMutationStage.Completed
                         && mutation.Stage != MailboxMutationStage.Abandoned
                         && mutation.Stage != MailboxMutationStage.Cancelled)
                     .Select(mutation => mutation.ObservedSeenState)
-                    .FirstOrDefault() ?? email.IsRemotelySeen,
-                IsRemotelyFlagged = email.Mutations
+                    .FirstOrDefault() ?? email.IsMarkedSeen,
+                IsFlagged = email.Mutations
                     .Where(mutation => mutation.OverlaysStoredState
                         && mutation.Mutation == SetFlaggedMutationName
                         && mutation.Stage != MailboxMutationStage.Completed
                         && mutation.Stage != MailboxMutationStage.Abandoned
                         && mutation.Stage != MailboxMutationStage.Cancelled)
                     .Select(mutation => mutation.ObservedFlaggedState)
-                    .FirstOrDefault() ?? email.IsRemotelyFlagged,
-                RemoteKeywords = email.Mutations
+                    .FirstOrDefault() ?? email.IsFlagged,
+                Keywords = email.Mutations
                     .Where(mutation => mutation.OverlaysStoredState
                         && KeywordMutationNames.Contains(mutation.Mutation)
                         && mutation.Stage != MailboxMutationStage.Completed
                         && mutation.Stage != MailboxMutationStage.Abandoned
                         && mutation.Stage != MailboxMutationStage.Cancelled)
                     .Select(mutation => mutation.ObservedKeywords)
-                    .FirstOrDefault() ?? email.RemoteKeywords,
+                    .FirstOrDefault() ?? email.Keywords,
             })
             .ToArrayAsync(cancellationToken);
 
         var neverObserved = await eligible
-            .Where(email => email.RemoteFlagsObservedAt == null)
+            .Where(email => email.FlagsObservedAt == null)
             .OrderBy(email => email.Uid)
             .Take(ReconciliationWindowBudget.NeverObservedShareOf(maxEmailCount, previouslyObserved.Length))
             .Select(email => new
@@ -101,9 +101,9 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
                 email.Id,
                 Uid = email.Uid!.Value,
                 ObservedAt = (DateTimeOffset?)null,
-                email.IsRemotelySeen,
-                email.IsRemotelyFlagged,
-                email.RemoteKeywords,
+                email.IsMarkedSeen,
+                email.IsFlagged,
+                email.Keywords,
             })
             .ToArrayAsync(cancellationToken);
 
@@ -117,9 +117,9 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
                     candidate.ObservedAt is { } observedAt
                         ? new RemoteWritableFlagObservation(
                             observedAt,
-                            candidate.IsRemotelySeen,
-                            candidate.IsRemotelyFlagged,
-                            RemoteEmailKeywords.Create(candidate.RemoteKeywords))
+                            candidate.IsMarkedSeen,
+                            candidate.IsFlagged,
+                            EmailKeywords.Create(candidate.Keywords))
                         : null)),
         ];
     }
@@ -152,7 +152,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             if (rowsById.TryGetValue(confirmed.Value, out var row)
                 && !HasNewerObservationThan(row, outcome.ObservedAt))
             {
-                row.RemoteFlagsObservedAt = outcome.ObservedAt;
+                row.FlagsObservedAt = outcome.ObservedAt;
             }
         }
 
@@ -171,7 +171,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
                 continue;
             }
 
-            row.RemoteFlagsObservedAt = outcome.ObservedAt;
+            row.FlagsObservedAt = outcome.ObservedAt;
 
             // Absent for a relocation whose destination MailFathom mirrors, which is the request's own invariant: such a
             // relocation has its row carried into the destination folder by the placement instead.
@@ -250,7 +250,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             // The tombstone leaves the reconciliation queue as well as the mailbox queries, and the observation
             // timestamp is what takes it out: a window is ordered by that column, so a row left never-observed would be
             // selected again on every run for an email the server will never answer about.
-            row.RemoteFlagsObservedAt ??= outcome.ObservedAt;
+            row.FlagsObservedAt ??= outcome.ObservedAt;
         }
     }
 
@@ -344,7 +344,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             row.AuthoredDeleteFlaggedAt ??= observedAt;
             row.IsRetainedAfterAuthoredDelete = disposition is AuthoredDeleteEmailDisposition.RetainLocalCopy;
             row.IsRemotelyDeleted = true;
-            row.RemoteFlagsObservedAt = observedAt;
+            row.FlagsObservedAt = observedAt;
         }
 
         await EraseAuthoredDeletesAsync(
@@ -371,7 +371,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             row.LocalDeleteCommittedAt = null;
             row.IsRetainedAfterAuthoredDelete = false;
             row.IsRemotelyDeleted = false;
-            row.RemoteFlagsObservedAt = null;
+            row.FlagsObservedAt = null;
         }
 
         Guid[] stillFlaggedIds = [.. settlement.StillFlagged.Select(static entry => entry.Id.Value)];
@@ -512,7 +512,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
     /// delete an email that a later run has since proved the server still holds.
     /// </remarks>
     private static bool HasNewerObservationThan(StoredEmailEntity row, DateTimeOffset observedAt) =>
-        row.RemoteFlagsObservedAt is { } recordedAt && recordedAt > observedAt;
+        row.FlagsObservedAt is { } recordedAt && recordedAt > observedAt;
 
     /// <summary>Writes what the server reported onto the row, except a field a change committed locally first still overlays.</summary>
     /// <remarks>
@@ -527,12 +527,12 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
         var overlays = row.Mutations.Where(static mutation => mutation.OverlaysStoredState).ToArray();
         var observedKeywords = snapshot.Keywords.Values.ToArray();
 
-        row.RemoteFlagsObservedAt = snapshot.ObservedAt;
+        row.FlagsObservedAt = snapshot.ObservedAt;
         row.IsRemotelyAnswered = snapshot.IsAnswered;
-        row.IsRemotelyDraft = snapshot.IsDraft;
+        row.IsDraft = snapshot.IsDraft;
         row.IsRemotelyDeleted = snapshot.IsDeleted;
-        row.IsRemotelySeen = Overlaid(overlays, SetSeenMutationName, row.IsRemotelySeen, snapshot.IsSeen, static (mutation, seen) => mutation.ObservedSeenState = seen);
-        row.IsRemotelyFlagged = Overlaid(overlays, SetFlaggedMutationName, row.IsRemotelyFlagged, snapshot.IsFlagged, static (mutation, flagged) => mutation.ObservedFlaggedState = flagged);
+        row.IsMarkedSeen = Overlaid(overlays, SetSeenMutationName, row.IsMarkedSeen, snapshot.IsSeen, static (mutation, seen) => mutation.ObservedSeenState = seen);
+        row.IsFlagged = Overlaid(overlays, SetFlaggedMutationName, row.IsFlagged, snapshot.IsFlagged, static (mutation, flagged) => mutation.ObservedFlaggedState = flagged);
 
         var keywordChanges = overlays.Where(static mutation => KeywordMutationNames.Contains(mutation.Mutation)).ToArray();
 
@@ -548,10 +548,10 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
 
         var held = keywordChanges.SelectMany(static mutation => mutation.Keywords ?? []).ToHashSet(StringComparer.Ordinal);
 
-        row.RemoteKeywords =
+        row.Keywords =
         [
-            .. RemoteEmailKeywords.Create(observedKeywords.Where(keyword => !held.Contains(keyword))
-                .Concat(row.RemoteKeywords.Where(held.Contains))).Values,
+            .. EmailKeywords.Create(observedKeywords.Where(keyword => !held.Contains(keyword))
+                .Concat(row.Keywords.Where(held.Contains))).Values,
         ];
     }
 

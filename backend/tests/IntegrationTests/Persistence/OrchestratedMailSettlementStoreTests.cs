@@ -175,7 +175,7 @@ public sealed class OrchestratedMailSettlementStoreTests(MailFathomOrchestration
                 binding.Id,
                 extractedMetadata: null,
                 FiledSizeOctets,
-                new CopiedMailFlags(IsSeen: true, IsFlagged: false, RemoteEmailKeywords.None),
+                new CopiedMailFlags(IsSeen: true, IsFlagged: false, EmailKeywords.None),
                 token),
             cancellationToken);
 

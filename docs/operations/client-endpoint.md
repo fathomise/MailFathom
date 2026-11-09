@@ -678,7 +678,7 @@ make a fourth — but this surface neither imposes that ceiling nor promises one
 it where it falls. Folders arrive ordered by `path`, so a parent precedes its children.
 
 **The counts are of the local copy, not of the mailbox.** `storedEmailCount` is what this deployment holds and would
-serve, and `unreadEmailCount` is how many of those the mail server last reported without `\Seen`. A folder still being
+serve, and `unreadEmailCount` is how many of those are stored without the `\Seen` mark. A folder still being
 backfilled holds fewer than the server does, which is why the three freshness fields travel in the same object: a count
 read without them is a figure somebody would take for the mailbox's own. Reading the unread count sets nothing — the
 flags are a snapshot reconciliation wrote, and this endpoint speaks no mail protocol at all.

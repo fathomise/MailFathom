@@ -220,8 +220,8 @@ public sealed class StoredEmailSearchIndexReaderCommandTests
             subjectFragment: null,
             receivedOnOrAfter: null,
             receivedBefore: null,
-            isRemotelySeen: null,
-            isRemotelyFlagged: null,
+            isMarkedSeen: null,
+            isFlagged: null,
             keyword: null,
             hasAttachments: false);
 
@@ -249,8 +249,8 @@ public sealed class StoredEmailSearchIndexReaderCommandTests
             subjectFragment: null,
             receivedOnOrAfter: null,
             receivedBefore: null,
-            isRemotelySeen: null,
-            isRemotelyFlagged: null,
+            isMarkedSeen: null,
+            isFlagged: null,
             keyword: null,
             hasAttachments: true);
 
@@ -287,8 +287,8 @@ public sealed class StoredEmailSearchIndexReaderCommandTests
         subjectFragment: null,
         receivedOnOrAfter: null,
         receivedBefore: null,
-        isRemotelySeen: null,
-        isRemotelyFlagged: null,
+        isMarkedSeen: null,
+        isFlagged: null,
         keyword: null,
         hasAttachments: null);
 

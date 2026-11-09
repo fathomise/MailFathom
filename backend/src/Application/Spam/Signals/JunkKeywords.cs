@@ -11,7 +11,7 @@ namespace MailFathom.Application.Spam.Signals;
 /// <summary>The three junk keywords RFC 9051 § 2.3.2 gives a mailbox, and how a message carrying them is read.</summary>
 /// <remarks>
 /// IMAP compares keywords without regard to case, and the stored set is folded the way
-/// <see cref="RemoteEmailKeywords.Normalized" /> folds it, so every comparison here goes through that one reduction
+/// <see cref="EmailKeywords.Normalized" /> folds it, so every comparison here goes through that one reduction
 /// rather than a second spelling of it. What MailFathom writes is the RFC's own spelling.
 /// </remarks>
 public static class JunkKeywords
@@ -32,11 +32,11 @@ public static class JunkKeywords
     /// <param name="keyword">The keyword asked about.</param>
     /// <returns><see langword="true" /> when the set carries it.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="keywords" /> is <see langword="null" />.</exception>
-    public static bool Carries(RemoteEmailKeywords keywords, string keyword)
+    public static bool Carries(EmailKeywords keywords, string keyword)
     {
         ArgumentNullException.ThrowIfNull(keywords);
 
-        var normalized = RemoteEmailKeywords.Normalized(keyword);
+        var normalized = EmailKeywords.Normalized(keyword);
 
         return keywords.Values.Contains(normalized, StringComparer.Ordinal);
     }
@@ -49,7 +49,7 @@ public static class JunkKeywords
     {
         ArgumentNullException.ThrowIfNull(named);
 
-        var namedSet = RemoteEmailKeywords.Create(named.Values);
+        var namedSet = EmailKeywords.Create(named.Values);
 
         return All.Any(keyword => Carries(namedSet, keyword));
     }

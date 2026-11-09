@@ -205,10 +205,10 @@ internal sealed class ScopedMailKnowledgeRetrieval
         string? receivedOnOrAfter = null,
         [Description("Return only mail received strictly before this moment, written as yyyy-MM-ddTHH:mm against the date and time the turn states, with no zone and no Z. Omit for no upper bound.")]
         string? receivedBefore = null,
-        [Description("Return only mail this mailbox has opened (true) or not opened (false), as the mail server last reported it. It is whether the person whose mailbox this is opened the message, never whether a recipient read mail the person sent. Omit to match either. Searching never changes this state.")]
-        bool? isRemotelySeen = null,
-        [Description("Return only mail the mail server last reported as flagged (true) or unflagged (false), which is the star most mail clients show. Omit to match either. This is the \\Flagged flag on a message and is unrelated to the Flagged folder role.")]
-        bool? isRemotelyFlagged = null,
+        [Description("Return only mail this mailbox has opened (true) or not opened (false). It is whether the person whose mailbox this is opened the message, never whether a recipient read mail the person sent. Omit to match either. Searching never changes this state.")]
+        bool? isMarkedSeen = null,
+        [Description("Return only mail flagged (true) or unflagged (false), which is the star most mail clients show. Omit to match either. This is the \\Flagged flag on a message and is unrelated to the Flagged folder role.")]
+        bool? isFlagged = null,
         [Description("Return only mail carrying this keyword, which is a flag a mail client or server set rather than one of the five standard ones, such as $Junk or a label. Matched as a whole keyword without regard to case, up to 64 characters. Omit to match any keyword.")]
         string? keyword = null,
         [Description("Return only mail that carries attachments (true) or that carries none (false). Omit to match either. Inline images and cryptographic signature parts do not count as attachments.")]
@@ -239,8 +239,8 @@ internal sealed class ScopedMailKnowledgeRetrieval
             SubjectFragment = subjectFragment,
             ReceivedOnOrAfter = AnchoredInstant.Read(receivedOnOrAfter, this.askedAt),
             ReceivedBefore = AnchoredInstant.Read(receivedBefore, this.askedAt),
-            IsRemotelySeen = isRemotelySeen,
-            IsRemotelyFlagged = isRemotelyFlagged,
+            IsMarkedSeen = isMarkedSeen,
+            IsFlagged = isFlagged,
             Keyword = keyword,
             HasAttachments = hasAttachments,
         };

@@ -514,7 +514,7 @@ public sealed class ClientMailThreadEndpointTests
             CarriesUnverifiedSignature: false,
             ContainsUnexpandedTnefPart: false),
         Attachments = [],
-        RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved,
+        Flags = StoredEmailFlags.NeverObserved,
         SenderVerification = new SenderVerification
         {
             AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
@@ -557,14 +557,14 @@ public sealed class ClientMailThreadEndpointTests
             CarriesUnverifiedSignature: false,
             ContainsUnexpandedTnefPart: false),
         ContentAvailability = StoredEmailContentAvailability.Available,
-        RemoteFlags = new RemoteEmailFlagSnapshot(
+        Flags = new StoredEmailFlags(
             FirstJuly,
             IsSeen: false,
             IsAnswered: false,
             IsFlagged: false,
             IsDraft: false,
             IsDeleted: false,
-            RemoteEmailKeywords.None),
+            EmailKeywords.None),
     };
 
     /// <summary>Arranges a conversation of the given length, held by both the membership read and the summary read.</summary>

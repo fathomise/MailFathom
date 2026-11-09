@@ -41,12 +41,12 @@ internal sealed record DiscoveryLookupDocument
     public string? ReceivedBefore { get; init; }
 
     /// <summary>Gets the read state mail must carry.</summary>
-    [JsonPropertyName("isRemotelySeen")]
-    public bool? IsRemotelySeen { get; init; }
+    [JsonPropertyName("isMarkedSeen")]
+    public bool? IsMarkedSeen { get; init; }
 
     /// <summary>Gets the flagged state mail must carry.</summary>
-    [JsonPropertyName("isRemotelyFlagged")]
-    public bool? IsRemotelyFlagged { get; init; }
+    [JsonPropertyName("isFlagged")]
+    public bool? IsFlagged { get; init; }
 
     /// <summary>Gets the keyword mail must carry.</summary>
     [JsonPropertyName("keyword")]

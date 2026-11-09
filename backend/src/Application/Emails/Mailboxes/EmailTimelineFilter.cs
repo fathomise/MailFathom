@@ -61,8 +61,8 @@ public sealed record EmailTimelineFilter
     /// <param name="subjectFragment">The fragment the subject must contain, or <see langword="null" /> for any subject.</param>
     /// <param name="receivedOnOrAfter">The inclusive start of the received range, or <see langword="null" /> for no start.</param>
     /// <param name="receivedBefore">The exclusive end of the received range, or <see langword="null" /> for no end.</param>
-    /// <param name="isRemotelySeen">The remote <c>\Seen</c> state to require, or <see langword="null" /> for either.</param>
-    /// <param name="isRemotelyFlagged">The remote <c>\Flagged</c> state to require, or <see langword="null" /> for either.</param>
+    /// <param name="isMarkedSeen">The <c>\Seen</c> mark to require, or <see langword="null" /> for either.</param>
+    /// <param name="isFlagged">The <c>\Flagged</c> state to require, or <see langword="null" /> for either.</param>
     /// <param name="keyword">The keyword an email must carry, in any case, or <see langword="null" /> for any.</param>
     /// <param name="hasAttachments">Whether attachments are required, or <see langword="null" /> for either.</param>
     /// <param name="direction">The end of the timeline to read from.</param>
@@ -78,8 +78,8 @@ public sealed record EmailTimelineFilter
         string? subjectFragment,
         DateTimeOffset? receivedOnOrAfter,
         DateTimeOffset? receivedBefore,
-        bool? isRemotelySeen,
-        bool? isRemotelyFlagged,
+        bool? isMarkedSeen,
+        bool? isFlagged,
         string? keyword,
         bool? hasAttachments,
         EmailTimelineDirection direction,
@@ -91,8 +91,8 @@ public sealed record EmailTimelineFilter
             subjectFragment,
             receivedOnOrAfter,
             receivedBefore,
-            isRemotelySeen,
-            isRemotelyFlagged,
+            isMarkedSeen,
+            isFlagged,
             keyword,
             hasAttachments,
             mark),

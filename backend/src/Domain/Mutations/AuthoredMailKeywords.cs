@@ -10,7 +10,7 @@ namespace MailFathom.Domain.Mutations;
 /// <summary>Holds the keywords one authored change names, in the form they will be written to a mail server.</summary>
 /// <remarks>
 /// <para>
-/// It is a separate type from <see cref="RemoteEmailKeywords" /> because the two answer opposite questions about the
+/// It is a separate type from <see cref="EmailKeywords" /> because the two answer opposite questions about the
 /// same word. That one reads what a server reported, where an unusable keyword is dropped so that one odd flag cannot
 /// stop a reconciliation window recording the rest of a mailbox. This one carries what somebody typed, where dropping
 /// is the wrong answer twice over: a rule would silently do less than it says, and the operator would have no way to
@@ -52,7 +52,7 @@ public sealed record AuthoredMailKeywords
     /// <returns><see langword="true" /> when a <c>STORE</c> may name it.</returns>
     /// <remarks>
     /// <para>
-    /// The bounds <see cref="RemoteEmailKeywords.Normalized" /> already applies are applied through it rather than
+    /// The bounds <see cref="EmailKeywords.Normalized" /> already applies are applied through it rather than
     /// restated, so how long a keyword may be is one answer in one place. What this adds is the atom grammar, whose
     /// excluded characters are the atom specials <c>( ) { % * " \ ]</c>, the space, every control character, and
     /// everything above US-ASCII that the grammar's <c>CHAR</c> does not reach.
@@ -66,7 +66,7 @@ public sealed record AuthoredMailKeywords
     /// </remarks>
     public static bool IsWritable(string? keyword) =>
         keyword is not null
-        && RemoteEmailKeywords.Normalized(keyword) is not null
+        && EmailKeywords.Normalized(keyword) is not null
         && keyword.Trim().All(IsAtomCharacter);
 
     /// <summary>Builds the keyword set one authored change names.</summary>
@@ -78,7 +78,7 @@ public sealed record AuthoredMailKeywords
         TryCreate(keywords, out var authored)
             ? authored
             : throw new ArgumentException(
-                $"Every keyword an authored change names must be an IMAP atom that does not begin with a backslash, and at most {RemoteEmailKeywords.MaximumKeywords} of them may be named.",
+                $"Every keyword an authored change names must be an IMAP atom that does not begin with a backslash, and at most {EmailKeywords.MaximumKeywords} of them may be named.",
                 nameof(keywords));
 
     /// <summary>Reads the keyword set one authored change names, without raising over a value somebody mistyped.</summary>
@@ -106,10 +106,10 @@ public sealed record AuthoredMailKeywords
                 return false;
             }
 
-            kept.TryAdd(RemoteEmailKeywords.Normalized(written)!, written.Trim());
+            kept.TryAdd(EmailKeywords.Normalized(written)!, written.Trim());
         }
 
-        if (kept.Count > RemoteEmailKeywords.MaximumKeywords)
+        if (kept.Count > EmailKeywords.MaximumKeywords)
         {
             return false;
         }
@@ -125,7 +125,7 @@ public sealed record AuthoredMailKeywords
     /// <param name="other">The set to compare with.</param>
     /// <returns><see langword="true" /> when both name the same keywords.</returns>
     /// <remarks>
-    /// Written by hand for the reason <see cref="RemoteEmailKeywords.Equals(RemoteEmailKeywords)" /> is, and folded for
+    /// Written by hand for the reason <see cref="EmailKeywords.Equals(EmailKeywords)" /> is, and folded for
     /// the reason that type folds: <c>$Todo</c> and <c>$todo</c> are one keyword, so two sets naming them are one set.
     /// </remarks>
     public bool Equals(AuthoredMailKeywords? other) =>

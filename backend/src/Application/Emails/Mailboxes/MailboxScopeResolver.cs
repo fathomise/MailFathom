@@ -361,7 +361,7 @@ public sealed class MailboxScopeResolver
     /// to leave is filed beside the drafts the person is writing.
     /// </remarks>
     private bool IsUnsent(EmailSummary email) =>
-        email.RemoteFlags.IsDraft
+        email.Flags.IsDraft
         || (email.Folder.Alias is { } alias
             && this.folderReferences.TryResolve(email.Account, MailFolderReference.ToRole(MailFolderSpecialUse.Drafts))?.Alias == alias);
 

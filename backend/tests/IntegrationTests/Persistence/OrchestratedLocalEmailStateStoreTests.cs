@@ -121,7 +121,7 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
             Folder: null,
             IsSeen: true,
             IsFlagged: true,
-            RemoteEmailKeywords.Create(["foreign"]));
+            EmailKeywords.Create(["foreign"]));
 
         // Act
         await Assert.ThrowsAsync<InvalidOperationException>(() => services.CommitAsync(
@@ -143,7 +143,7 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
         Assert.NotNull(readUnderItsOwnAccount);
         Assert.False(readUnderItsOwnAccount.IsSeen);
         Assert.False(readUnderItsOwnAccount.IsFlagged);
-        Assert.Equal(RemoteEmailKeywords.None, readUnderItsOwnAccount.Keywords);
+        Assert.Equal(EmailKeywords.None, readUnderItsOwnAccount.Keywords);
     }
 
     /// <summary>
@@ -168,7 +168,7 @@ public sealed class OrchestratedLocalEmailStateStoreTests(MailFathomOrchestratio
             Folder: null,
             IsSeen: true,
             IsFlagged: true,
-            RemoteEmailKeywords.Create(["$Label1", "project"]));
+            EmailKeywords.Create(["$Label1", "project"]));
 
         // Act
         var commitResult = await services.CommitAsync(

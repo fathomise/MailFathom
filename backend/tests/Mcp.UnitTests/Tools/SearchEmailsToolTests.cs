@@ -90,8 +90,8 @@ public sealed class SearchEmailsToolTests
             subjectFragment: "invoice",
             receivedOnOrAfter: rangeStart,
             receivedBefore: rangeEnd,
-            isRemotelySeen: false,
-            isRemotelyFlagged: true,
+            isMarkedSeen: false,
+            isFlagged: true,
             keyword: "$Junk",
             hasAttachments: true,
             resultLimit: 10,
@@ -107,8 +107,8 @@ public sealed class SearchEmailsToolTests
         Assert.Equal("invoice", selection.SubjectFragment);
         Assert.Equal(rangeStart, selection.ReceivedOnOrAfter);
         Assert.Equal(rangeEnd, selection.ReceivedBefore);
-        Assert.False(selection.IsRemotelySeen);
-        Assert.True(selection.IsRemotelyFlagged);
+        Assert.False(selection.IsMarkedSeen);
+        Assert.True(selection.IsFlagged);
         Assert.Equal("$JUNK", selection.Keyword);
         Assert.True(selection.HasAttachments);
         Assert.Equal(Query, index.LastQueryText?.Value);
@@ -318,7 +318,7 @@ public sealed class SearchEmailsToolTests
         // Arrange
         var index = new StubEmailSearchIndexReader();
         var tool = ToolOver(index);
-        var overlyLongKeyword = new string('a', RemoteEmailKeywords.MaximumKeywordLength + 1);
+        var overlyLongKeyword = new string('a', EmailKeywords.MaximumKeywordLength + 1);
 
         // Act
         var failure = await Assert.ThrowsAsync<MailboxQueryFilterInvalidException>(
@@ -618,7 +618,7 @@ public sealed class SearchEmailsToolTests
         ToAddresses = ["finance@example.test"],
         Attachments = StoredEmailAttachmentSummary.None,
         ContentAvailability = StoredEmailContentAvailability.Available,
-        RemoteFlags = RemoteEmailFlagSnapshot.NeverObserved,
+        Flags = StoredEmailFlags.NeverObserved,
         SenderVerification = new SenderVerification
         {
             AuthorAuthentication = AuthorAuthenticationOutcome.Authenticated,
