@@ -3681,6 +3681,7 @@ public sealed class MailboxSynchronizerTests
                 mutations,
                 CreateDispositionReader(RemotelyDeletedEmailDisposition.RetainTombstone),
                 custodyStore ?? InMemoryMailAccountCustodyStore.Mirroring(ClassifiedAccount),
+                StubJunkMailFolderCatalog.None,
                 concurrencyRetryPolicy,
                 ClientSignalPublishers.ReachingNobody,
                 timeProvider,

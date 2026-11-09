@@ -209,6 +209,42 @@ public sealed class SpamActionRecorder
         return await this.OpenRecordsAsync(occurrence, classification.DecidedBy, plan, cancellationToken);
     }
 
+    /// <summary>Asks for the one change following the source may ask for: taking off the junk marks RFC 9051 reads as no statement.</summary>
+    /// <param name="classification">The verdict the message was decided to carry once the change was read.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>The removal written down, or the reason there was none.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="classification" /> is <see langword="null" />.</exception>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown when every allowed commit attempt conflicted.</exception>
+    /// <remarks>
+    /// Nothing else a verdict may ask is asked here. Following the source files nothing, marks nothing read, and adds no
+    /// keyword, or the two sides would argue over the message; this removal runs once per message, and its own record
+    /// accounts for the change it makes, so it moves no verdict.
+    /// </remarks>
+    public async Task<SpamActionResult> ClearJunkMarksAsync(
+        SpamClassification classification,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(classification);
+
+        var occurrence = await this.occurrences.FindAsync(classification.EmailId, cancellationToken);
+
+        if (occurrence is null)
+        {
+            return SpamActionResult.NotActedOn(SpamActionOutcome.OccurrenceMissing);
+        }
+
+        var settings = this.settingsReader.ActionsFor(occurrence.Account);
+        var ownActs = await this.verdictActs.FindAsync(occurrence.Id, cancellationToken);
+
+        return this.JunkMarksCleared(occurrence, settings, ownActs) is { } removal
+            ? await this.OpenRecordsAsync(
+                occurrence,
+                classification.DecidedBy,
+                new ActionPlan(MarksRead: false, removal, Filing: null),
+                cancellationToken)
+            : SpamActionResult.NotActedOn(SpamActionOutcome.NothingToChange);
+    }
+
     /// <summary>Decides what a spam verdict asks of the mailbox, or why it asks nothing.</summary>
     private async Task<ActionDecision> DecideSpamActionsAsync(
         SpamClassification classification,
@@ -392,13 +428,15 @@ public sealed class SpamActionRecorder
 
         // Asked after the folder is known and before anything is written, because it is the one answer that outranks
         // every switch but clearing a junk keyword pair: this feature has already asked for this email to be filed and the email is not in the
-        // destination, so either somebody put it back or the change is still in flight.
+        // destination, so either somebody put it back or the change is still in flight. Another client's move out of the
+        // junk folder arrives as a new stored email with neither record, so that is answered by what the move left behind.
         if (ownActs.Contains(SpamVerdictAct.FiledIntoJunk)
             || await this.records.HasRecordAsync(
                 occurrence.Id,
                 MailboxMutation.Relocate,
                 MailboxMutationOrigin.Classification,
-                cancellationToken))
+                cancellationToken)
+            || await this.occurrences.HasLeftJunkFolderAsync(occurrence.Id, cancellationToken))
         {
             return FilingDecision.Refused(SpamActionOutcome.PreviouslyFiled);
         }

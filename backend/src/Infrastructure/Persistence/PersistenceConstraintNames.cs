@@ -208,6 +208,12 @@ internal static class PersistenceConstraintNames
     /// </remarks>
     internal const string EmailSpamClassificationPrimaryKeyConstraintName = "pk_email_spam_classifications";
 
+    /// <summary>The rows whose observed junk-mark change has not reached the classification queue yet.</summary>
+    internal const string StoredEmailJunkMarksChangedIndexName = "ix_stored_emails_junk_marks_changed";
+
+    /// <summary>The key that records one departure per account and message, and which a repeated departure is recognized by.</summary>
+    internal const string EmailJunkFolderDeparturePrimaryKeyConstraintName = "pk_email_junk_folder_departures";
+
     /// <summary>The key that records one act per email, and which a second replica recording the same act is recognized by.</summary>
     internal const string EmailSpamVerdictActPrimaryKeyConstraintName = "pk_email_spam_verdict_acts";
 

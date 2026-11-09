@@ -319,6 +319,31 @@ public sealed class SpamClassificationTests
         Assert.Equal(expected, mayReplace);
     }
 
+    /// <summary>A stage's verdict always gives way to the source; the person's only to a statement observed after it.</summary>
+    [Theory]
+    [InlineData(SpamClassificationStage.Deterministic, 1, true)]
+    [InlineData(SpamClassificationStage.Model, 1, true)]
+    [InlineData(SpamClassificationStage.Person, 1, false)]
+    [InlineData(SpamClassificationStage.Person, 0, false)]
+    [InlineData(SpamClassificationStage.Person, -1, true)]
+    public void GivesWayToSourceChange_AVerdictRecordedRelativeToTheChange_AnswersWhetherTheChangeIsNewer(
+        SpamClassificationStage recordedBy,
+        int recordedMinutesAfterTheChange,
+        bool expected)
+    {
+        // Arrange
+        var changeObservedAt = new DateTimeOffset(2026, 11, 9, 9, 0, 0, TimeSpan.Zero);
+
+        // Act
+        var givesWay = SpamClassification.GivesWayToSourceChange(
+            recordedBy,
+            changeObservedAt.AddMinutes(recordedMinutesAfterTheChange),
+            changeObservedAt);
+
+        // Assert
+        Assert.Equal(expected, givesWay);
+    }
+
     private static SpamClassification Classification(
         SpamVerdict verdict = SpamVerdict.Spam,
         SpamClassificationStage decidedBy = SpamClassificationStage.Deterministic,

@@ -27,7 +27,7 @@ namespace MailFathom.Application.Spam.Marking;
 /// <remarks>
 /// <para>
 /// The person's verdict is final: it outranks every stage, the deterministic one included, and nothing replaces it but
-/// the person. Not spam is a statement the person made rather than the absence of a spam verdict, and it is the one way a
+/// the person or, on an account whose source is the truth, a different mark another client set after it. Not spam is a statement the person made rather than the absence of a spam verdict, and it is the one way a
 /// <see cref="SpamVerdict.Spam" /> verdict is lifted — moving a message out of the junk folder never is.
 /// </para>
 /// <para>

@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Spam.Signals;
 using MailFathom.Application.Synchronization.Reconciliation;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
@@ -28,6 +29,13 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
     private static readonly string SetFlaggedMutationName = MailboxMutation.SetFlagged.Name;
     private static readonly string[] KeywordMutationNames =
         [MailboxMutation.AddKeywords.Name, MailboxMutation.RemoveKeywords.Name, MailboxMutation.SetKeywords.Name];
+
+    private static readonly string[] JunkMarks =
+    [
+        EmailKeywords.Normalized(JunkKeywords.Junk)!,
+        EmailKeywords.Normalized(JunkKeywords.NotJunk)!,
+        EmailKeywords.Normalized(JunkKeywords.Phishing)!,
+    ];
 
     /// <inheritdoc />
     /// <remarks>
@@ -134,13 +142,18 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
 
         var sessionContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
         var rowsById = await LoadWindowRowsAsync(sessionContext, outcome, cancellationToken);
+        var keywordsChangedElsewhere = outcome.KeywordsChangedElsewhere.ToHashSet();
 
         foreach (var observed in outcome.StillPresent)
         {
             if (rowsById.TryGetValue(observed.StoredEmailId.Value, out var row)
                 && !HasNewerObservationThan(row, observed.Snapshot.ObservedAt ?? outcome.ObservedAt))
             {
-                ApplyFlagSnapshot(row, observed.Snapshot, outcome.SourceIsTheTruth);
+                ApplyFlagSnapshot(
+                    row,
+                    observed.Snapshot,
+                    outcome.SourceIsTheTruth,
+                    keywordsChangedElsewhere.Contains(observed.StoredEmailId));
             }
         }
 
@@ -224,6 +237,11 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
                 cancellationToken);
 
             return;
+        }
+
+        if (outcome.IsJunkFolder)
+        {
+            await RecordJunkFolderDeparturesAsync(sessionContext, disappeared, outcome.ObservedAt, cancellationToken);
         }
 
         if (outcome.Disposition is RemotelyDeletedEmailDisposition.EraseLocalCopy)
@@ -421,6 +439,54 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
             .ExecuteDeleteAsync(cancellationToken);
     }
 
+    /// <summary>Remembers the messages that left the junk folder through another client, before their rows can be erased.</summary>
+    /// <remarks>
+    /// Another client's move reaches MailFathom as an arrival elsewhere with no link to this row, and by the default
+    /// disposition the row is gone by the time that arrival is classified, usually before it is even stored. A digest
+    /// rather than the identifier, because this outlives the erasure of the local copy; and a departure that was a
+    /// deletion rather than a move simply never meets an arrival.
+    /// </remarks>
+    private static async Task RecordJunkFolderDeparturesAsync(
+        MailFathomDbContext sessionContext,
+        StoredEmailEntity[] departed,
+        DateTimeOffset departedAt,
+        CancellationToken cancellationToken)
+    {
+        var departures = departed
+            .Where(static row => row.InternetMessageId is not null)
+            .Select(static row => (Account: row.MailboxAccountId, Digest: EmailJunkFolderDepartureEntity.DigestOf(row.InternetMessageId!)))
+            .Distinct()
+            .ToArray();
+
+        if (departures.Length == 0)
+        {
+            return;
+        }
+
+        string[] digests = [.. departures.Select(static departure => departure.Digest)];
+        var account = departures[0].Account;
+        var known = await sessionContext.EmailJunkFolderDepartures
+            .Where(departure => departure.MailboxAccountId == account && digests.Contains(departure.MessageIdDigest))
+            .ToDictionaryAsync(static departure => departure.MessageIdDigest, StringComparer.Ordinal, cancellationToken);
+
+        foreach (var (_, digest) in departures)
+        {
+            if (known.TryGetValue(digest, out var recorded))
+            {
+                recorded.DepartedAt = departedAt;
+
+                continue;
+            }
+
+            sessionContext.EmailJunkFolderDepartures.Add(new EmailJunkFolderDepartureEntity
+            {
+                MailboxAccountId = account,
+                MessageIdDigest = digest,
+                DepartedAt = departedAt,
+            });
+        }
+    }
+
     /// <summary>Removes rows along with everything that leaves storage with them.</summary>
     private static async Task EraseWithTheirContentAsync(
         IPersistenceSession session,
@@ -537,8 +603,17 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
     /// Where MailFathom is the truth, on a held or a restoring account, only <see cref="StoredEmailEntity.FlagsObservedAt" />
     /// and a row's first reading are written.
     /// </para>
+    /// <para>
+    /// Where the source is the truth and another client moved a junk mark, <see cref="StoredEmailEntity.JunkMarksChangedAt" />
+    /// asks for the verdict to be decided again, in the same transaction as the observation of it, because the next
+    /// observation has nothing left to differ from.
+    /// </para>
     /// </remarks>
-    internal static void ApplyFlagSnapshot(StoredEmailEntity row, RemoteEmailFlagSnapshot snapshot, bool sourceIsTheTruth)
+    internal static void ApplyFlagSnapshot(
+        StoredEmailEntity row,
+        RemoteEmailFlagSnapshot snapshot,
+        bool sourceIsTheTruth,
+        bool keywordsChangedElsewhere = false)
     {
         if (!sourceIsTheTruth)
         {
@@ -548,7 +623,8 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
         }
 
         var overlays = row.Mutations.Where(static mutation => mutation.OverlaysStoredState).ToArray();
-        var observedKeywords = snapshot.Keywords.Values.ToArray();
+        var isFirstObservation = row.FlagsObservedAt is null;
+        var junkMarksBefore = JunkMarksOf(row.Keywords).ToHashSet(StringComparer.Ordinal);
 
         row.FlagsObservedAt = snapshot.ObservedAt;
         row.IsRemotelyAnswered = snapshot.IsAnswered;
@@ -557,6 +633,26 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
         row.IsMarkedSeen = Overlaid(overlays, SetSeenMutationName, row.IsMarkedSeen, snapshot.IsSeen, static (mutation, seen) => mutation.ObservedSeenState = seen);
         row.IsFlagged = Overlaid(overlays, SetFlaggedMutationName, row.IsFlagged, snapshot.IsFlagged, static (mutation, flagged) => mutation.ObservedFlaggedState = flagged);
 
+        ApplyObservedKeywords(row, overlays, snapshot.Keywords.Values.ToArray());
+
+        if (isFirstObservation)
+        {
+            RecordJunkMarksArrivedWith(row);
+        }
+        else if (keywordsChangedElsewhere && !junkMarksBefore.SetEquals(JunkMarksOf(row.Keywords)))
+        {
+            // Compared after the write, so a junk mark MailFathom's own change still overlays, which the write kept, is
+            // no difference: the race with that change is MailFathom's to win.
+            row.JunkMarksChangedAt = row.FlagsObservedAt;
+        }
+    }
+
+    /// <summary>Writes the keywords the server reported, except the ones a change committed locally first still holds.</summary>
+    private static void ApplyObservedKeywords(
+        StoredEmailEntity row,
+        IReadOnlyList<MailboxMutationEntity> overlays,
+        string[] observedKeywords)
+    {
         var keywordChanges = overlays.Where(static mutation => KeywordMutationNames.Contains(mutation.Mutation)).ToArray();
 
         foreach (var change in keywordChanges)
@@ -578,6 +674,22 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
                 .Concat(row.Keywords.Where(held.Contains))).Values,
         ];
     }
+
+    /// <summary>Asks for a verdict to be decided again where a message's first reading is what brought its junk marks.</summary>
+    /// <remarks>
+    /// The forward pass stores no keywords, so a classification can run before anybody has read them. Dated at the storing
+    /// because the marks are older than any verdict a person can have given the message.
+    /// </remarks>
+    private static void RecordJunkMarksArrivedWith(StoredEmailEntity row)
+    {
+        if (JunkMarksOf(row.Keywords).Any())
+        {
+            row.JunkMarksChangedAt = row.StoredAt;
+        }
+    }
+
+    private static IEnumerable<string> JunkMarksOf(IEnumerable<string> keywords) =>
+        keywords.Where(static keyword => JunkMarks.Contains(keyword, StringComparer.Ordinal));
 
     /// <summary>Moves the queue past a message MailFathom is the truth about, and takes from the source only what is the message's initial state.</summary>
     /// <remarks>
@@ -613,6 +725,7 @@ internal sealed class StoredEmailReconciliationStore(MailFathomDbContext readCon
         if (!setByAnAct.HasFlag(EmailFieldsSetBeforeFirstObservation.Keywords))
         {
             row.Keywords = [.. snapshot.Keywords.Values];
+            RecordJunkMarksArrivedWith(row);
         }
     }
 

@@ -22,6 +22,7 @@ public sealed class JobTypeTests
         [
             JobType.ClassifyEmailSpam,
             JobType.ClassifyStoredEmailSpam,
+            JobType.FollowJunkMarks,
             JobType.RunScheduledMailRules,
             JobType.RederiveStoredMail,
             JobType.DispatchHeldSend,

@@ -24,4 +24,14 @@ public interface ISpamActionOccurrenceReader
     /// server holds it any longer.
     /// </returns>
     Task<SpamActionOccurrence?> FindAsync(StoredEmailId emailId, CancellationToken cancellationToken);
+
+    /// <summary>Answers whether a message with this email's <c>Message-ID</c> recently left its account's junk folder through another mail client.</summary>
+    /// <param name="emailId">The local email a filing is being decided for.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns><see langword="true" /> when such a departure is on record; <see langword="false" /> otherwise, an email with no <c>Message-ID</c> included.</returns>
+    /// <remarks>
+    /// Another client's move creates a new stored email carrying none of the old row's record, and the <c>Message-ID</c> is
+    /// the only thing the two share, so a message that carries none is not recognized.
+    /// </remarks>
+    Task<bool> HasLeftJunkFolderAsync(StoredEmailId emailId, CancellationToken cancellationToken);
 }

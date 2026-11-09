@@ -7,6 +7,7 @@ using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
+using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Spam;
@@ -65,5 +66,29 @@ internal sealed class SpamActionOccurrenceReader(MailFathomDbContext dbContext) 
             folderAlias,
             row.IsMarkedSeen,
             EmailKeywords.Create(row.Keywords));
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> HasLeftJunkFolderAsync(StoredEmailId emailId, CancellationToken cancellationToken)
+    {
+        var storedEmailId = emailId.Value;
+        var row = await dbContext.StoredEmails
+            .AsNoTracking()
+            .Where(email => email.Id == storedEmailId)
+            .Select(email => new { email.MailboxAccountId, email.InternetMessageId })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (row?.InternetMessageId is not { } internetMessageId)
+        {
+            return false;
+        }
+
+        var digest = EmailJunkFolderDepartureEntity.DigestOf(internetMessageId);
+
+        return await dbContext.EmailJunkFolderDepartures
+            .AsNoTracking()
+            .AnyAsync(
+                departure => departure.MailboxAccountId == row.MailboxAccountId && departure.MessageIdDigest == digest,
+                cancellationToken);
     }
 }

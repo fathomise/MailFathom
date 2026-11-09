@@ -67,6 +67,27 @@ internal sealed class InMemoryEmailSpamClassificationStore : IEmailSpamClassific
     }
 
     /// <inheritdoc />
+    public Task<bool> FollowSourceAsync(
+        IPersistenceSession session,
+        SpamClassification classification,
+        DateTimeOffset changeObservedAt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(classification);
+
+        if (this.classificationsByEmail.TryGetValue(classification.EmailId, out var recorded)
+            && !SpamClassification.GivesWayToSourceChange(recorded.DecidedBy, recorded.EvaluatedAt, changeObservedAt))
+        {
+            return Task.FromResult(false);
+        }
+
+        this.classificationsByEmail[classification.EmailId] = classification;
+        this.saved.Add(classification);
+
+        return Task.FromResult(true);
+    }
+
+    /// <inheritdoc />
     public Task<bool> LiftToSpamAsync(
         IPersistenceSession session,
         SpamClassification classification,

@@ -339,6 +339,12 @@ internal sealed class StoredEmailConfiguration : IEntityTypeConfiguration<Stored
             .HasDatabaseName(PersistenceConstraintNames.StoredEmailAwaitingDrainIndexName)
             .HasFilter($"\"{nameof(StoredEmailEntity.UidValidity)}\" IS NOT NULL");
 
+        // Filtered because a row carries the column only between a change being observed and the next run carrying it to
+        // the queue, so a mailbox nobody is changing costs one lookup in an empty index per run.
+        entity.HasIndex(email => new { email.MailboxAccountId, email.Id }, PersistenceConstraintNames.StoredEmailJunkMarksChangedIndexName)
+            .HasDatabaseName(PersistenceConstraintNames.StoredEmailJunkMarksChangedIndexName)
+            .HasFilter($"\"{nameof(StoredEmailEntity.JunkMarksChangedAt)}\" IS NOT NULL");
+
         // The order a requested whole-mailbox rule run walks in. It is the identity rather than the timeline because a
         // walk that has to resume needs a total order no later write disturbs, and because the position it commits is
         // one column rather than a nullable timestamp paired with a tie-breaker.

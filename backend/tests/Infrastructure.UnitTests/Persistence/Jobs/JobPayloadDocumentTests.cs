@@ -38,6 +38,10 @@ public sealed class JobPayloadDocumentTests
     [
         Payload,
         StoredEmailPayload,
+        FollowJunkMarksJobPayload.For(
+            Account,
+            StoredEmailId.Create(Guid.Parse("0199a0c0-0000-7000-8000-000000000001")),
+            new DateTimeOffset(2026, 11, 9, 9, 0, 0, TimeSpan.Zero)),
         RunScheduledMailRulesJobPayload.For(Account),
         RederiveStoredMailJobPayload.For(Account, MailFolderAlias.Create("inbox")),
         HeldSendJobPayload.For(

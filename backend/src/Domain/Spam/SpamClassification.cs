@@ -192,12 +192,27 @@ public sealed record SpamClassification
     /// <param name="recordedBy">The stage that decided the classification already recorded.</param>
     /// <returns><see langword="false" /> only where the recorded verdict is the person's and this one is not.</returns>
     /// <remarks>
-    /// The person's own verdict outranks every stage, so only the person replaces it. This is the predicate the write
+    /// The person's own verdict outranks every stage, so of them only the person replaces it. This is the predicate the write
     /// is conditional on, read against the row inside the transaction that would replace it, so a person's verdict
     /// recorded after a stage began cannot be overwritten by that stage's result.
     /// </remarks>
     public bool MayReplace(SpamClassificationStage recordedBy) =>
         recordedBy is not SpamClassificationStage.Person || this.DecidedBy is SpamClassificationStage.Person;
+
+    /// <summary>Answers whether a verdict recorded earlier gives way to a change another mail client made to the message's junk marks.</summary>
+    /// <param name="recordedBy">The stage that decided the classification already recorded.</param>
+    /// <param name="recordedAt">When that classification was evaluated.</param>
+    /// <param name="changeObservedAt">When synchronization observed the change.</param>
+    /// <returns><see langword="false" /> only where the recorded verdict is the person's and is not older than the change.</returns>
+    /// <remarks>
+    /// On an account whose source is the truth a different mark set in another client is the newer statement, so it is
+    /// the one thing that replaces the person's verdict, and only a statement observed after that verdict is newer.
+    /// </remarks>
+    public static bool GivesWayToSourceChange(
+        SpamClassificationStage recordedBy,
+        DateTimeOffset recordedAt,
+        DateTimeOffset changeObservedAt) =>
+        recordedBy is not SpamClassificationStage.Person || recordedAt < changeObservedAt;
 
     /// <summary>Answers which stage named a recorded subcategory, from the stage that decided the verdict it sits on.</summary>
     /// <param name="decidedBy">The stage that reached the verdict.</param>

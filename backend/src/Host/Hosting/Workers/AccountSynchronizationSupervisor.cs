@@ -27,6 +27,7 @@ using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Rules.History;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Spam.Floor;
+using MailFathom.Application.Spam.Following;
 using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Administration;
@@ -466,6 +467,7 @@ internal sealed partial class AccountSynchronizationSupervisor
                     token => this.RestoreHeldMailboxAsync(runSettings, token),
                     token => this.DeliverOutstandingMailAsync(runSettings, token),
                     token => this.EraseExpiredDerivedRecordsAsync(runSettings, token),
+                    token => this.FollowJunkMarksAsync(runSettings, token),
                     token => this.LiftMailToSpamFloorAsync(runSettings, token),
                     token => this.ClassifyRequestedMailAsync(runSettings, token),
                     token => this.CategorizeArrivedMailAsync(runSettings, token),
@@ -982,6 +984,33 @@ internal sealed partial class AccountSynchronizationSupervisor
         catch (Exception exception)
         {
             this.LogSpamFloorFailed(exception, this.account.Value);
+        }
+    }
+
+    /// <summary>Hands the junk-mark changes the folders just observed to the classification queue.</summary>
+    /// <remarks>A failure never fails the run: the pass reads and writes stored state alone, and what it did not carry stays owed for the next run.</remarks>
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "A pass that failed is logged and repeated by the next run rather than putting the account into backoff; it reaches no mail server.")]
+    private async Task FollowJunkMarksAsync(
+        MailSynchronizationOptions runSettings,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = this.scopeFactory.CreateScope();
+
+            scope.ServiceProvider.GetRequiredService<ScopedMailSynchronizationSettings>().UseRunSnapshot(runSettings);
+
+            await scope.ServiceProvider
+                .GetRequiredService<JunkMarkFollowPass>()
+                .RunAsync(this.account, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            this.LogJunkMarkFollowFailed(exception, this.account.Value);
         }
     }
 
@@ -2330,6 +2359,11 @@ internal sealed partial class AccountSynchronizationSupervisor
         Level = LogLevel.Warning,
         Message = "Raising the mail of account {AccountId} to the spam floor ended unexpectedly; the account is not backed off for it and its next run reaches what this one did not.")]
     private partial void LogSpamFloorFailed(Exception exception, string accountId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Carrying the junk-mark changes of account {AccountId} to the classification queue ended unexpectedly; the account is not backed off for it and its next run reaches what this one did not.")]
+    private partial void LogJunkMarkFollowFailed(Exception exception, string accountId);
 
     /// <summary>Reports one account run's share of a whole-mailbox classification run, in counts and the profile alone.</summary>
     [LoggerMessage(

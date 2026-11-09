@@ -53,6 +53,23 @@ public interface IEmailSpamClassificationStore
         SpamClassification classification,
         CancellationToken cancellationToken);
 
+    /// <summary>Stages the verdict a change on the source called for, unless the row holds the person's own verdict and that verdict is not older than the change.</summary>
+    /// <param name="session">The explicit persistence session this write participates in.</param>
+    /// <param name="classification">What the message was decided to be once the change was read.</param>
+    /// <param name="changeObservedAt">When synchronization observed the change.</param>
+    /// <param name="cancellationToken">Cancels the lookup before anything is staged.</param>
+    /// <returns><see langword="true" /> once the write is staged; <see langword="false" /> when the row holds the person's newer verdict.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="classification" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// Decided by <see cref="SpamClassification.GivesWayToSourceChange" /> against the row the session reads, so a person
+    /// marking the message after the change was observed outranks the change even when the mark lands mid-evaluation.
+    /// </remarks>
+    Task<bool> FollowSourceAsync(
+        IPersistenceSession session,
+        SpamClassification classification,
+        DateTimeOffset changeObservedAt,
+        CancellationToken cancellationToken);
+
     /// <summary>Stages the spam floor's verdict for one occurrence, unless the row already holds spam or the person's own verdict.</summary>
     /// <param name="session">The explicit persistence session this write participates in.</param>
     /// <param name="classification">The floor's spam verdict.</param>

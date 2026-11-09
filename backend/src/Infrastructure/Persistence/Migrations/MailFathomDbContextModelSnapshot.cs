@@ -1126,6 +1126,25 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.ToTable("email_enrichment_marks", (string)null);
                 });
 
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailJunkFolderDepartureEntity", b =>
+                {
+                    b.Property<string>("MailboxAccountId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("MessageIdDigest")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("DepartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("MailboxAccountId", "MessageIdDigest")
+                        .HasName("pk_email_junk_folder_departures");
+
+                    b.ToTable("email_junk_folder_departures", (string)null);
+                });
+
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailMessageContentEntity", b =>
                 {
                     b.Property<Guid>("StoredEmailId")
@@ -4493,6 +4512,9 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsRetainedAfterAuthoredDelete")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTimeOffset?>("JunkMarksChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.PrimitiveCollection<string[]>("Keywords")
                         .IsRequired()
                         .HasColumnType("text[]")
@@ -4882,6 +4904,10 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                     b.HasIndex(new[] { "MailboxAccountId", "InternetMessageId" }, "ix_stored_emails_filed_sent_copy")
                         .HasDatabaseName("ix_stored_emails_filed_sent_copy")
                         .HasFilter("\"FiledFromOutgoingEmailId\" IS NOT NULL AND \"UidValidity\" IS NULL");
+
+                    b.HasIndex(new[] { "MailboxAccountId", "Id" }, "ix_stored_emails_junk_marks_changed")
+                        .HasDatabaseName("ix_stored_emails_junk_marks_changed")
+                        .HasFilter("\"JunkMarksChangedAt\" IS NOT NULL");
 
                     b.HasIndex(new[] { "MailboxAccountId", "Id" }, "ix_stored_emails_settling")
                         .HasDatabaseName("ix_stored_emails_settling")
@@ -5524,6 +5550,15 @@ namespace MailFathom.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_email_enrichment_marks_enrichments");
 
                     b.Navigation("Enrichment");
+                });
+
+            modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailJunkFolderDepartureEntity", b =>
+                {
+                    b.HasOne("MailFathom.Infrastructure.Persistence.Entities.MailboxAccountEntity", null)
+                        .WithMany()
+                        .HasForeignKey("MailboxAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MailFathom.Infrastructure.Persistence.Entities.EmailMessageContentEntity", b =>

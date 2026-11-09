@@ -25,8 +25,9 @@ namespace MailFathom.Application.Spam;
 /// <para>
 /// The operation is keyed to the occurrence and is idempotent: repeating it either leaves an existing record alone or
 /// replaces it with the same verdict the same inputs produce, so it is safe for a caller to retry and safe for two
-/// callers to ask together. The person's own verdict is never replaced, whatever the mode or the terms in force: it is
-/// returned as it stands, for the caller to act on. It carries no scheduler, no retry policy of its own, and no
+/// callers to ask together. The person's own verdict is never replaced by a classification, whatever the mode or the
+/// terms in force: it is returned as it stands, for the caller to act on, and the one thing that replaces it is a later
+/// mark set in another client, which <see cref="FollowSourceAsync" /> follows. It carries no scheduler, no retry policy of its own, and no
 /// execution identity — whatever asks for a classification owns those.
 /// </para>
 /// <para>
@@ -219,13 +220,113 @@ public sealed class EmailSpamClassifier
         }
 
         var classification = await this.EvaluateAsync(email, settings, content, cancellationToken);
+
+        return await this.RecordAsync(
+            email,
+            existing,
+            classification,
+            discardsDerivedWork: true,
+            (session, attemptCancellationToken) =>
+                this.classificationStore.SaveAsync(session, classification, attemptCancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>Decides one message again because another mail client changed its junk marks.</summary>
+    /// <param name="account">The account the email is read within.</param>
+    /// <param name="emailId">The email whose marks changed.</param>
+    /// <param name="changeObservedAt">When synchronization observed the change, which a person's verdict is held against.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>What was recorded, the person's verdict that stands, or the reason nothing was.</returns>
+    /// <exception cref="PersistenceConcurrencyConflictException">Thrown when every allowed commit attempt conflicted.</exception>
+    /// <remarks>
+    /// <para>
+    /// A mark on the source is a statement whether or not the account classifies, so a verdict the spam floor or the
+    /// person recorded there is decided again too. Only mail the account classifies may reach the model, and mail nobody
+    /// has decided anything about on an account that does not classify it stays that way.
+    /// </para>
+    /// <para>
+    /// The person's verdict is left alone where it is newer than the change or says what the marks now say, so the record
+    /// keeps its subcategory and goes on naming the person. A message whose content is not stored stands as it is, because
+    /// the verdict rests on its headers as well as on its marks.
+    /// </para>
+    /// </remarks>
+    public async Task<SpamClassificationResult> FollowSourceAsync(
+        MailAccountId account,
+        StoredEmailId emailId,
+        DateTimeOffset changeObservedAt,
+        CancellationToken cancellationToken)
+    {
+        var email = await this.emailReader.FindAsync(account, emailId, cancellationToken);
+
+        if (email is null)
+        {
+            return SpamClassificationResult.NotClassified(SpamClassificationOutcome.OccurrenceMissing);
+        }
+
+        var existing = await this.classificationStore.FindAsync(emailId, cancellationToken);
+
+        if (existing is { DecidedBy: SpamClassificationStage.Person }
+            && !SpamClassification.GivesWayToSourceChange(existing.DecidedBy, existing.EvaluatedAt, changeObservedAt))
+        {
+            return SpamClassificationResult.PersonsVerdictKept(existing);
+        }
+
+        var settings = this.settingsReader.SettingsFor(account);
+        var isClassified = settings.IsEnabled && settings.Covers(email.FolderAlias);
+
+        if (existing is null && !isClassified)
+        {
+            return SpamClassificationResult.NotClassified(SpamClassificationOutcome.OutsideConfiguredScope);
+        }
+
+        var content = await this.contentStore.FindStoredContentAsync(emailId, cancellationToken);
+
+        if (content is null)
+        {
+            return SpamClassificationResult.NotClassified(SpamClassificationOutcome.ContentUnavailable);
+        }
+
+        var classification = await this.EvaluateAsync(
+            email,
+            isClassified ? settings : SpamClassificationSettings.Disabled,
+            content,
+            cancellationToken);
+
+        if (existing is { DecidedBy: SpamClassificationStage.Person } && existing.Verdict == classification.Verdict)
+        {
+            return SpamClassificationResult.PersonsVerdictKept(existing);
+        }
+
+        return await this.RecordAsync(
+            email,
+            existing,
+            classification,
+            discardsDerivedWork: isClassified,
+            (session, attemptCancellationToken) => this.classificationStore.FollowSourceAsync(
+                session,
+                classification,
+                changeObservedAt,
+                attemptCancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>Commits a verdict, removes what a spam verdict removes, and tells an open client it moved.</summary>
+    private async Task<SpamClassificationResult> RecordAsync(
+        ClassifiableEmail email,
+        SpamClassification? existing,
+        SpamClassification classification,
+        bool discardsDerivedWork,
+        Func<IPersistenceSession, CancellationToken, Task<bool>> save,
+        CancellationToken cancellationToken)
+    {
         var discardedPassageCount = 0;
         var written = false;
+        var discards = discardsDerivedWork && classification.Verdict is SpamVerdict.Spam;
 
         await this.retryPolicy.CommitAsync(
             async (session, attemptCancellationToken) =>
             {
-                written = await this.classificationStore.SaveAsync(session, classification, attemptCancellationToken);
+                written = await save(session, attemptCancellationToken);
 
                 if (!written)
                 {
@@ -240,15 +341,15 @@ public sealed class EmailSpamClassifier
                 // The attachment readings go with the passages rather than after them: a reading is a second durable
                 // copy of the same words, so removing only what was cut from it would leave the document's whole text
                 // and the description of its pictures exactly where the verdict called for their removal.
-                discardedPassageCount = classification.Verdict is SpamVerdict.Spam
-                    ? await this.chunkStore.DiscardChunksAsync(session, emailId, attemptCancellationToken)
+                discardedPassageCount = discards
+                    ? await this.chunkStore.DiscardChunksAsync(session, email.Id, attemptCancellationToken)
                     : 0;
 
-                if (classification.Verdict is SpamVerdict.Spam)
+                if (discards)
                 {
                     await this.attachmentTextStore.DiscardAttachmentTextAsync(
                         session,
-                        emailId,
+                        email.Id,
                         attemptCancellationToken);
                 }
             },
@@ -256,19 +357,19 @@ public sealed class EmailSpamClassifier
 
         if (!written)
         {
-            return await this.classificationStore.FindAsync(emailId, cancellationToken) is { } kept
+            return await this.classificationStore.FindAsync(email.Id, cancellationToken) is { } kept
                 ? SpamClassificationResult.PersonsVerdictKept(kept)
                 : SpamClassificationResult.NotClassified(SpamClassificationOutcome.OccurrenceMissing);
         }
 
-        if (classification.Verdict is SpamVerdict.Spam)
+        if (discards)
         {
             this.gateTelemetry.RecordDiscardedPassages(discardedPassageCount);
         }
 
-        if (VerdictMoved(existing, classification) && await this.HasSettledAsync(account, email, cancellationToken))
+        if (VerdictMoved(existing, classification) && await this.HasSettledAsync(email.AccountId, email, cancellationToken))
         {
-            this.signals.Publish(ClientSignal.MailChanged(account, folder: null, [emailId]));
+            this.signals.Publish(ClientSignal.MailChanged(email.AccountId, folder: null, [email.Id]));
         }
 
         return SpamClassificationResult.Classified(classification);

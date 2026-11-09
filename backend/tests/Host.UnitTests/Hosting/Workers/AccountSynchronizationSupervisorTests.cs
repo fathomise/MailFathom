@@ -14,6 +14,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.Application.Rules.Evaluation;
 using MailFathom.Application.Signals;
 using MailFathom.Application.Spam.Floor;
+using MailFathom.Application.Spam.Following;
 using MailFathom.Application.Spam.Runs;
 using MailFathom.Application.Synchronization;
 using MailFathom.Application.Synchronization.Administration;
@@ -1334,11 +1335,20 @@ public sealed class AccountSynchronizationSupervisorTests
     /// that ships now.
     /// </remarks>
     [Fact]
-    public async Task RunAsync_EveryRun_LiftsToTheSpamFloorThenClassifiesThenEvaluatesRulesThenCutsPassagesThenReadsAttachments()
+    public async Task RunAsync_EveryRun_FollowsJunkMarksThenLiftsToTheSpamFloorThenClassifiesThenEvaluatesRulesThenCutsPassagesThenReadsAttachments()
     {
         // Arrange
         var localSteps = new ConcurrentQueue<string>();
         var readingReached = new TaskCompletionSource();
+        var junkMarkFollowStore = Substitute.For<IJunkMarkFollowStore>();
+        junkMarkFollowStore
+            .GetOwedAsync(Arg.Any<MailAccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                localSteps.Enqueue("follow");
+
+                return Task.FromResult<IReadOnlyList<OwedJunkMarkChange>>([]);
+            });
         var floorCandidateReader = Substitute.For<ISpamVerdictFloorCandidateReader>();
         floorCandidateReader
             .GetCandidatesAsync(
@@ -1405,13 +1415,14 @@ public sealed class AccountSynchronizationSupervisorTests
             classificationRunStore: classificationRunStore,
             chunkingStore: chunkingStore,
             attachmentTextStore: attachmentTextStore,
-            floorCandidateReader: floorCandidateReader);
+            floorCandidateReader: floorCandidateReader,
+            junkMarkFollowStore: junkMarkFollowStore);
 
         // Act
         await harness.SuperviseUntilAsync(readingReached.Task);
 
         // Assert
-        Assert.Equal(["floor", "classification", "rules", "cut", "attachments"], localSteps.Take(5));
+        Assert.Equal(["follow", "floor", "classification", "rules", "cut", "attachments"], localSteps.Take(6));
     }
 
     /// <summary>The reading reaches no mail server either, so failing one must not make the account fetch its mail less often.</summary>
@@ -1557,6 +1568,37 @@ public sealed class AccountSynchronizationSupervisorTests
             harness.Logger.Messages,
             message => message.Contains(
                 "Raising the mail of account primary to the spam floor ended unexpectedly",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            harness.Logger.Messages,
+            message => message.Contains("runs in a row", StringComparison.Ordinal));
+    }
+
+    /// <summary>Following junk marks reaches no mail server, so failing it must not make the account fetch its mail less often.</summary>
+    [Fact]
+    public async Task RunAsync_FollowingJunkMarksFails_DoesNotDeferTheAccountsNextRun()
+    {
+        // Arrange
+        var ruleEvaluationReached = new TaskCompletionSource();
+        var junkMarkFollowStore = Substitute.For<IJunkMarkFollowStore>();
+        junkMarkFollowStore
+            .GetOwedAsync(Arg.Any<MailAccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns<Task<IReadOnlyList<OwedJunkMarkChange>>>(_ =>
+                throw new InvalidOperationException("The owed junk-mark changes could not be read."));
+        await using var harness = CreateHarness(
+            SynchronizationTestHost.CreateSingleAccountOptions(enabled: true),
+            Substitute.For<IMailboxSessionFactory>(),
+            ruleEvaluationStore: CreateRuleStoreReporting(ruleEvaluationReached),
+            junkMarkFollowStore: junkMarkFollowStore);
+
+        // Act
+        await harness.SuperviseUntilAsync(ruleEvaluationReached.Task);
+
+        // Assert
+        Assert.Contains(
+            harness.Logger.Messages,
+            message => message.Contains(
+                "Carrying the junk-mark changes of account primary to the classification queue ended unexpectedly",
                 StringComparison.Ordinal));
         Assert.DoesNotContain(
             harness.Logger.Messages,
@@ -1773,6 +1815,7 @@ public sealed class AccountSynchronizationSupervisorTests
         IStoredEmailChunkingStore? chunkingStore = null,
         IStoredEmailAttachmentTextStore? attachmentTextStore = null,
         ISpamVerdictFloorCandidateReader? floorCandidateReader = null,
+        IJunkMarkFollowStore? junkMarkFollowStore = null,
         FakeTimeProvider? clock = null,
         params string[] unadvertisedAliases)
     {
@@ -1792,6 +1835,7 @@ public sealed class AccountSynchronizationSupervisorTests
             chunkingStore,
             attachmentTextStore,
             floorCandidateReader: floorCandidateReader,
+            junkMarkFollowStore: junkMarkFollowStore,
             unadvertisedAliases: unadvertisedAliases);
 
         return new SupervisorHarness(

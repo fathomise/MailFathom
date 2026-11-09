@@ -1,6 +1,6 @@
 # The arrival pipeline
 
-<!-- describes: backend/src/Application/Synchronization/MailboxSynchronizer.cs, backend/src/Application/Emails/Chunking/MailChunkingPass.cs, backend/src/Infrastructure/Persistence/Emails/StoredEmailChunkingStore.cs, backend/src/Application/Emails/Extraction/RedactingEmailMimeReader.cs, backend/src/Application/Emails/Trust/SenderTrustJudge.cs, backend/src/Application/Emails/Extraction/MachineAuthorshipEvaluatingEmailMimeReader.cs, backend/src/Application/Emails/Threads/EmailThreadAssembly.cs, backend/src/Application/Spam/Gating/**, backend/src/Application/Spam/Runs/SpamClassificationPass.cs, backend/src/Application/Spam/Floor/SpamVerdictFloorPass.cs, backend/src/Application/Spam/SpamClassificationArrivals.cs, backend/src/Application/Contacts/Collection/MailContactCollector.cs, backend/src/Application/Spam/EmailSpamClassificationHandler.cs, backend/src/Application/Rules/Evaluation/MailRuleEvaluationPass.cs, backend/src/Application/Emails/Settlement/**, backend/src/Infrastructure/Persistence/Emails/MailSettlementStore.cs, backend/src/Application/Emails/Enrichment/MailEnrichmentPass.cs, backend/src/Application/Emails/ThreadStates/ThreadStateDerivationPass.cs, backend/src/Host/Hosting/Workers/AccountSynchronizationSupervisor.cs, backend/src/Host/Hosting/Workers/MailEmbeddingWorker.cs -->
+<!-- describes: backend/src/Application/Synchronization/MailboxSynchronizer.cs, backend/src/Application/Emails/Chunking/MailChunkingPass.cs, backend/src/Infrastructure/Persistence/Emails/StoredEmailChunkingStore.cs, backend/src/Application/Emails/Extraction/RedactingEmailMimeReader.cs, backend/src/Application/Emails/Trust/SenderTrustJudge.cs, backend/src/Application/Emails/Extraction/MachineAuthorshipEvaluatingEmailMimeReader.cs, backend/src/Application/Emails/Threads/EmailThreadAssembly.cs, backend/src/Application/Spam/Gating/**, backend/src/Application/Spam/Runs/SpamClassificationPass.cs, backend/src/Application/Spam/Floor/SpamVerdictFloorPass.cs, backend/src/Application/Spam/Following/JunkMarkFollowPass.cs, backend/src/Application/Spam/SpamClassificationArrivals.cs, backend/src/Application/Contacts/Collection/MailContactCollector.cs, backend/src/Application/Spam/EmailSpamClassificationHandler.cs, backend/src/Application/Rules/Evaluation/MailRuleEvaluationPass.cs, backend/src/Application/Emails/Settlement/**, backend/src/Infrastructure/Persistence/Emails/MailSettlementStore.cs, backend/src/Application/Emails/Enrichment/MailEnrichmentPass.cs, backend/src/Application/Emails/ThreadStates/ThreadStateDerivationPass.cs, backend/src/Host/Hosting/Workers/AccountSynchronizationSupervisor.cs, backend/src/Host/Hosting/Workers/MailEmbeddingWorker.cs -->
 
 Nine features decide what happens to a message between the moment synchronization fetches it and the moment
 everything derived from it exists. Each of them documents its own half, and none of them can state the order, because
@@ -24,6 +24,7 @@ flowchart TD
         commit[("Commit: metadata, the conversation it joins, raw MIME, search document, and the folder it lands in")]
         ask(["Ask for the message to be classified"])
         collect["Record the correspondent — only where the account collects contacts"]
+        follow["Hand junk marks another client changed to the queue, to be decided again"]
         floor["Raise junk mail to the spam floor — every account, classifying or not"]
         classify["Classification pass — only when somebody asked for a run over the whole mailbox"]
         categorize["Ask what the message is — only where the account sorts its mail into categories"]
@@ -60,7 +61,7 @@ flowchart TD
     commit --> ask
     commit --> collect
     ask -. "one job per stored email; a full queue refuses rather than waits" .-> job
-    ask --> floor --> classify
+    ask --> follow --> floor --> classify
     job -. "records the verdict" .-> gate
     classify --> gate{"What does classification say?"}
     gate -- "junk" --> withheld["Nothing further runs, and passages already cut are removed"]
@@ -108,7 +109,9 @@ rules, and the cut after it meet such a message below spam only while a backlog 
 still being worked through, which the first run after an upgrade over a large junk folder is. That verdict outlives the placement: on an account
 that classifies, a message the floor raised stays withheld after MailFathom moves it out of the junk folder, or the
 person moves it out locally on a held account, until the person marks it not spam or a later classification that
-reaches it decides otherwise.
+reaches it decides otherwise. The step before the floor hands the junk marks
+[another client changed](../features/spam-classification.md#a-mark-set-in-another-client-moves-the-verdict) on a
+mirrored account to the queue, one job per message, to be decided again.
 
 Four things can become of one classification, and the gate below reads what was recorded rather than what happened to
 the job. A verdict of junk withholds the message; a verdict of anything else admits it; a scan that could not answer

@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Accounts.Custody;
+using MailFathom.Application.Folders;
 using MailFathom.Application.Mail.Mutations;
 using MailFathom.Application.Persistence;
 using MailFathom.Application.Signals;
@@ -51,6 +52,7 @@ public sealed class MailboxReconciler
     private readonly IMailboxMutationReconciliationStore mutationStore;
     private readonly IRemotelyDeletedEmailDispositionReader dispositionReader;
     private readonly IMailAccountCustodyStore custodyStore;
+    private readonly IJunkMailFolderCatalog junkFolders;
     private readonly OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy;
     private readonly ClientSignals signals;
     private readonly TimeProvider timeProvider;
@@ -61,6 +63,7 @@ public sealed class MailboxReconciler
     /// <param name="mutationStore">Says which of the disappearances are changes MailFathom itself made.</param>
     /// <param name="dispositionReader">Answers what the account being reconciled does with an email its server no longer holds.</param>
     /// <param name="custodyStore">Says whether the account's source is still the truth about what exists, which outranks that answer.</param>
+    /// <param name="junkFolders">Answers whether the folder being reconciled is the account's junk folder.</param>
     /// <param name="concurrencyRetryPolicy">Commits one window's outcome, retrying a conflict with a competing writer.</param>
     /// <param name="signals">Tells an open client which stored mail this window moved, so what is on the screen catches up.</param>
     /// <param name="timeProvider">Stamps the observation, which is what advances the window across runs.</param>
@@ -71,6 +74,7 @@ public sealed class MailboxReconciler
         IMailboxMutationReconciliationStore mutationStore,
         IRemotelyDeletedEmailDispositionReader dispositionReader,
         IMailAccountCustodyStore custodyStore,
+        IJunkMailFolderCatalog junkFolders,
         OptimisticConcurrencyRetryPolicy concurrencyRetryPolicy,
         ClientSignals signals,
         TimeProvider timeProvider,
@@ -80,6 +84,7 @@ public sealed class MailboxReconciler
         ArgumentNullException.ThrowIfNull(mutationStore);
         ArgumentNullException.ThrowIfNull(dispositionReader);
         ArgumentNullException.ThrowIfNull(custodyStore);
+        ArgumentNullException.ThrowIfNull(junkFolders);
         ArgumentNullException.ThrowIfNull(concurrencyRetryPolicy);
         ArgumentNullException.ThrowIfNull(signals);
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -89,6 +94,7 @@ public sealed class MailboxReconciler
         this.mutationStore = mutationStore;
         this.dispositionReader = dispositionReader;
         this.custodyStore = custodyStore;
+        this.junkFolders = junkFolders;
         this.concurrencyRetryPolicy = concurrencyRetryPolicy;
         this.signals = signals;
         this.timeProvider = timeProvider;
@@ -166,6 +172,12 @@ public sealed class MailboxReconciler
         var flagChanges = outcome.SourceIsTheTruth
             ? await this.AttributeFlagChangesAsync(classification, account, folder.Id, uidValidity, cancellationToken)
             : ReconciledFlagChanges.None;
+
+        outcome = outcome with
+        {
+            KeywordsChangedElsewhere = flagChanges.KeywordsChangedElsewhere,
+            IsJunkFolder = this.junkFolders.IsJunkFolder(account, folder.Id.Alias),
+        };
 
         await this.concurrencyRetryPolicy.CommitAsync(
             async (persistenceSession, attemptCancellationToken) =>
@@ -429,7 +441,12 @@ public sealed class MailboxReconciler
             ExternalCountOf(attributions, MailboxChangeKind.SeenStateChanged),
             ExternalCountOf(attributions, MailboxChangeKind.FlaggedStateChanged),
             ExternalCountOf(attributions, MailboxChangeKind.KeywordsChanged),
-            suppressed);
+            suppressed,
+            [
+                .. attributions
+                    .Where(static attribution => attribution.Kind == MailboxChangeKind.KeywordsChanged && attribution.Record is null)
+                    .Select(static attribution => attribution.StoredEmailId),
+            ]);
     }
 
     /// <summary>Asks, for each value one occurrence moved, which record accounts for it — and reports none where nothing does.</summary>
@@ -654,18 +671,21 @@ public sealed class MailboxReconciler
     /// <param name="ExternalFlaggedStateCount">How many moved <c>\Flagged</c> flags no record accounts for.</param>
     /// <param name="ExternalKeywordsCount">How many changed keyword sets no record accounts for.</param>
     /// <param name="Suppressed">The ones MailFathom wrote itself, each named with the record that says so.</param>
+    /// <param name="KeywordsChangedElsewhere">The emails behind <paramref name="ExternalKeywordsCount" />, whose junk marks another client may have changed.</param>
     private sealed record ReconciledFlagChanges(
         int ExternalSeenStateCount,
         int ExternalFlaggedStateCount,
         int ExternalKeywordsCount,
-        IReadOnlyList<SuppressedMailboxChange> Suppressed)
+        IReadOnlyList<SuppressedMailboxChange> Suppressed,
+        IReadOnlyList<StoredEmailId> KeywordsChangedElsewhere)
     {
         /// <summary>Gets the split of a window in which nothing a <c>STORE</c> writes moved at all.</summary>
         internal static ReconciledFlagChanges None { get; } = new(
             ExternalSeenStateCount: 0,
             ExternalFlaggedStateCount: 0,
             ExternalKeywordsCount: 0,
-            Suppressed: []);
+            Suppressed: [],
+            KeywordsChangedElsewhere: []);
     }
 }
 

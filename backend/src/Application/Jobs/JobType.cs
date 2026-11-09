@@ -54,6 +54,14 @@ public readonly record struct JobType
     /// </remarks>
     public static JobType ClassifyStoredEmailSpam { get; } = new("classify-stored-email-spam");
 
+    /// <summary>Gets the type whose work is deciding one stored email again because another mail client changed its junk marks.</summary>
+    /// <remarks>
+    /// Its payload contract is <see cref="FollowJunkMarksJobPayload" />. A type of its own rather than a mode of
+    /// <see cref="ClassifyStoredEmailSpam" />, because that type acts on the verdict it reaches and a replica of the previous
+    /// build claims it, while following the source files nothing and may replace the person's verdict.
+    /// </remarks>
+    public static JobType FollowJunkMarks { get; } = new("follow-junk-marks");
+
     /// <summary>Gets the type whose work is asking for one account's scheduled rules to be run over its whole mailbox.</summary>
     /// <remarks>
     /// Its payload contract is <see cref="RunScheduledMailRulesJobPayload" />, which names the account and nothing in
@@ -142,6 +150,7 @@ public readonly record struct JobType
     [
         ClassifyEmailSpam,
         ClassifyStoredEmailSpam,
+        FollowJunkMarks,
         RunScheduledMailRules,
         RederiveStoredMail,
         DispatchHeldSend,
