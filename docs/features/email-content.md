@@ -669,6 +669,29 @@ with a reason it can show rather than to an empty frame. `Truncated` says a boun
 of the body, the way `EmailBodyTruncation` says the same about a representation, and it says the same about a scan that
 withheld what it could not reach — every way a document is cut short reads as one flag.
 
+### A block of header lines a message typed is named, never removed
+
+A forwarded or answered message from another mail client usually carries a block of header lines inside its body, and
+a chain of forwards opens with screens of addresses. `MailDocumentBlock.WrittenHeaders` — a `MailWrittenHeaders` holding
+how many consecutive sibling blocks form the block, the author's name, and the date as written — names one on the first
+block forming it, on the HTML and the plain-text path alike and at any quotation depth, so a chain nested through
+several quotations has each of its blocks named. The blocks stay in `Blocks` and their words do not change, so this is a
+statement a pane may fold by, and every other reader of the document sees what it always saw.
+
+Mail has no mark for this block, so recognition is deliberately narrow: a wrong miss costs a few lines, and a wrong fold
+costs a reader words they never saw. A block is named only where consecutive lines are each a closed label and a value,
+each line at most 1024 characters, with at least an author, a date, and a recipient or a subject, and no role written
+twice. The labels and the separators an optional first line or a rule directly above may be are those Gmail, Outlook,
+and Apple Mail write in English, Polish, and German, and one block may mix them because Gmail localizes only some of its
+labels. A run with an unknown label in it, or directly under it, is left as written, and so is a run sharing a paragraph
+with other words. The plain-text path is the one exception to that last rule, because a quoted message there has a
+marker on every blank line and so arrives as one paragraph: the document cuts such a paragraph either side of a
+recognized block, keeping every line and its markers, so that only the block folds and the forwarded words stay visible.
+
+What the block says is not what MailFathom verified. Its lines are text the sender typed, so `From: The CEO` proves
+nothing, and the author and date are carried for a pane to draw as message text rather than as a header. The folding
+itself is the client's, and nothing is folded in the sender's own markup.
+
 ### The reader's own footer is named, never removed
 
 `Footer` is a `MailDocumentFooter` — the position of its first top-level block and how many consecutive blocks it

@@ -326,6 +326,55 @@ describe('MessageBody', () => {
         expect(screen.queryByText('The conversation this message quoted')).toBeNull();
     });
 
+    describe('folding a block of header lines the message typed', () => {
+        const headerLines: MailDocumentBlock = {
+            ...written('From: Ewa Zielińska <ewa@example.invalid>\nDate: Mon, 24 Aug 2026\nTo: Marta'),
+            ...{ writtenHeaders: { blockCount: 1, author: 'Ewa Zielińska', date: 'Mon, 24 Aug 2026' } },
+        };
+        const forwarded = (blocks: readonly MailDocumentBlock[]): MailBody => ({
+            ...readable,
+            document: { ...drawnDocument, blocks },
+        });
+
+        it('folds the block to who wrote it and when, and keeps the words under it on the screen', () => {
+            drawing(forwarded([headerLines, written('The forecast is 4.1%.')]));
+
+            const line = screen.getByRole('button', { name: 'Ewa Zielińska, Mon, 24 Aug 2026' });
+            expect(line.getAttribute('aria-expanded')).toBe('false');
+            expect(screen.queryByText(/ewa@example\.invalid/u)).toBeNull();
+            expect(screen.getByText('The forecast is 4.1%.')).toBeDefined();
+        });
+
+        it('unfolds every original line on a press and folds them again on the next', async () => {
+            drawing(forwarded([headerLines]));
+
+            fireEvent.click(screen.getByRole('button', { name: 'Ewa Zielińska, Mon, 24 Aug 2026' }));
+
+            const open = await screen.findByRole('button', { name: 'Hide these header lines' });
+            expect(open.getAttribute('aria-expanded')).toBe('true');
+            expect(screen.getByText(/Date: Mon, 24 Aug 2026/u)).toBeDefined();
+
+            fireEvent.click(open);
+
+            expect(await screen.findByRole('button', { name: 'Ewa Zielińska, Mon, 24 Aug 2026' })).toBeDefined();
+            expect(screen.queryByText(/Date: Mon, 24 Aug 2026/u)).toBeNull();
+        });
+
+        it('folds a block inside a quotation the same way and leaves the quotation drawn', () => {
+            drawing(forwarded([{ type: 'quote', depth: 1, blocks: [headerLines, written('Quoted words.')] }]));
+
+            expect(screen.getByRole('button', { name: 'Ewa Zielińska, Mon, 24 Aug 2026' })).toBeDefined();
+            expect(screen.getByText('Quoted words.')).toBeDefined();
+        });
+
+        it('draws a message naming no such block whole', () => {
+            drawing(forwarded([written('From: Somebody\nDate: today\nTo: Marta')]));
+
+            expect(screen.getByText(/From: Somebody/u)).toBeDefined();
+            expect(screen.queryByRole('button', { name: /Somebody/u })).toBeNull();
+        });
+    });
+
     describe('folding the reader own footer', () => {
         /** A reply the reader sent: their words, the footer MailFathom appended, and the message they answered. */
         const sentWithFooter: MailBody = {

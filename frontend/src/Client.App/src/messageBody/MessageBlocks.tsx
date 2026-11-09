@@ -17,6 +17,7 @@ import type {
     MailTextSize,
 } from '@mailfathom/client-backend';
 import { useLocalization } from '../localization/useLocalization';
+import { FoldedWrittenHeaders } from './FoldedWrittenHeaders';
 import { MessageLink } from './MessageLink';
 import { senderColourRole } from './senderColour';
 import {
@@ -67,13 +68,29 @@ const alignments: Readonly<Record<MailBlockAlignment, string>> = {
 const headingElements = ['h3', 'h4', 'h5', 'h6', 'h6', 'h6'] as const;
 
 export function MessageBlocks({ blocks }: { readonly blocks: readonly MailDocumentBlock[] }) {
-    return (
-        <>
-            {blocks.map((block, position) => (
-                <MessageBlock key={position} block={block} />
-            ))}
-        </>
-    );
+    const drawn: ReactNode[] = [];
+
+    for (let position = 0; position < blocks.length;) {
+        const block = blocks[position];
+        const headers = block?.type === 'paragraph' || block?.type === 'separator' ? block.writtenHeaders : undefined;
+        const blockCount = headers?.blockCount ?? 1;
+        const parts = blocks
+            .slice(position, position + blockCount)
+            .map((part, offset) => <MessageBlock key={offset} block={part} />);
+
+        drawn.push(
+            headers === undefined ? (
+                parts
+            ) : (
+                <FoldedWrittenHeaders key={position} headers={headers}>
+                    {parts}
+                </FoldedWrittenHeaders>
+            ),
+        );
+        position += blockCount;
+    }
+
+    return <>{drawn}</>;
 }
 
 function MessageBlock({ block }: { readonly block: MailDocumentBlock }) {

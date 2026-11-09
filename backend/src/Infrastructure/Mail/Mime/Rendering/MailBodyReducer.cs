@@ -100,7 +100,7 @@ internal sealed class MailBodyReducer
         var blocks = this.ReduceChildren(body, MailReductionContext.Root);
 
         return MailDocument.Reduced(
-            blocks,
+            MailWrittenHeaderBlocks.Marked(blocks),
             this.removedRemoteReferences,
             this.retainedRemoteImages,
             this.inlineImages.ResolvedCount,
@@ -621,7 +621,7 @@ internal sealed class MailBodyReducer
 
         if (content.Count > 0)
         {
-            this.Emit(blocks, new MailQuoteBlock(quoted.QuoteDepth, content));
+            this.Emit(blocks, new MailQuoteBlock(quoted.QuoteDepth, MailWrittenHeaderBlocks.Marked(content)));
         }
     }
 

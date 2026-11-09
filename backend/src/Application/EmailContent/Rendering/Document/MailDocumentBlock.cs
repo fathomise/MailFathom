@@ -73,4 +73,13 @@ public abstract record MailDocumentBlock
             }
         }
     }
+
+    /// <summary>Gets the block of header lines the message typed that starts at this block, or <see langword="null" /> where none does.</summary>
+    /// <remarks>
+    /// An addition to a block rather than a change to its shape, so neither revision moves for it and the member is left
+    /// out where it has nothing to say: a reader that does not know it draws every block, which is the message as sent.
+    /// It sits on the block rather than on the document because the block it names may stand inside a quotation.
+    /// </remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public MailWrittenHeaders? WrittenHeaders { get; init; }
 }
