@@ -29,15 +29,16 @@ namespace MailFathom.IntegrationTests.Synchronization;
 /// <remarks>
 /// <para>
 /// The whole class runs against an account configured to erase what its server loses, which is the arrangement that
-/// makes the point: every message below disappears from its folder, and not one of them is disposed of by that setting.
-/// Reading the account's setting where the deletion completes would destroy all three rows, so the two that survive are
-/// what says the record decided instead.
+/// makes the point: every message deleted below disappears from its folder, and not one of them is disposed of by that
+/// setting.
+/// Reading the account's setting where the deletion completes would erase the tombstone's row as well, so the row that
+/// survives is what says the record decided instead.
 /// </para>
 /// <para>
 /// One run over three messages rather than three runs over one. The disposition is applied where a reconciliation
-/// window is committed, so a window carrying all three proves the three outcomes come out of the same transaction and
-/// costs one composition instead of three. It is also the control the suite's rules ask for: the erased row's absence
-/// would prove nothing if the same window could not report a row present, and it reports two.
+/// window is committed, so a window carrying both deletes proves the two outcomes come out of the same transaction and
+/// costs one composition instead of two. The third message nobody deleted is the control the suite's rules ask for: the
+/// erased row's absence would prove nothing if the same window could not report a row present, and it reports that one.
 /// </para>
 /// <para>
 /// GreenMail advertises <c>UIDPLUS</c>, so the message-scoped <c>UID EXPUNGE</c> the delete rests on is really issued
@@ -98,7 +99,9 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
             [AuthoredDeleteEmailDisposition.EraseLocalCopy] = $"authored-delete-erased-{run}",
         };
 
-        foreach (var subject in subjects.Values)
+        var keptSubject = $"authored-delete-kept-{run}";
+
+        foreach (var subject in subjects.Values.Append(keptSubject))
         {
             await mailbox.AppendAsync(FolderName, subject, cancellationToken);
         }
@@ -108,9 +111,10 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
             cancellationToken,
             RemotelyDeletedEmailDisposition.EraseLocalCopy);
         Assert.Equal(
-            subjects.Count,
+            subjects.Count + 1,
             (await SynchronizeAsync(services, FolderMapping, cancellationToken)).StoredEmailCount);
 
+        var kept = await ReadStoredEmailAsync(services, keptSubject, cancellationToken);
         var storedIds = new Dictionary<AuthoredDeleteEmailDisposition, StoredEmailId>();
 
         foreach (var (disposition, subject) in subjects)
@@ -125,7 +129,7 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
         // A synchronizer run alone leaves its mail settling, and the summary read below admits settled mail only.
         await OrchestratedSettlement.ApplyAsync(
             services,
-            storedIds.Values,
+            [.. storedIds.Values, kept.StoredEmailId],
             TimeProvider.System.GetUtcNow(),
             cancellationToken);
 
@@ -135,7 +139,8 @@ public sealed class OrchestratedAuthoredDeleteTests(MailFathomOrchestrationFixtu
         // Assert
         Assert.Equal(subjects.Count, result.Reconciliation.OwnMutationCompletedEmailCount);
         Assert.Equal(0, result.Reconciliation.RemotelyDeletedEmailCount);
-        Assert.Empty(await mailbox.ReadAsync(FolderName, cancellationToken));
+        Assert.Single(await mailbox.ReadAsync(FolderName, cancellationToken));
+        Assert.NotNull(await ReadSummaryAsync(services, kept.StoredEmailId, cancellationToken));
 
         // The tombstone keeps the record that the email existed and takes the mail out of every query, exactly as the
         // counterpart setting does for a disappearance somebody else caused.

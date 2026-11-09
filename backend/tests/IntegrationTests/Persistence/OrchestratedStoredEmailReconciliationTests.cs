@@ -613,13 +613,29 @@ public sealed class OrchestratedStoredEmailReconciliationTests(MailFathomOrchest
 
         // A held account keeps everything, so nothing on it is told apart as local only.
         var account = rows[LostUid].MailboxAccountId;
-        await services.InScopeAsync(
+
+        // The suite shares one database and one account row, so what is requested here goes back before the test ends.
+        await RequestCustodyAsync(services, account, MailAccountCustody.HoldMailbox, cancellationToken);
+
+        try
+        {
+            Assert.False((await FindSummaryAsync(services, storedEmailIds[LostUid], cancellationToken))!.IsLocalOnly);
+        }
+        finally
+        {
+            await RequestCustodyAsync(services, account, MailAccountCustody.MirrorSource, cancellationToken);
+        }
+    }
+
+    private static Task<int> RequestCustodyAsync(
+        OrchestratedMailFathomServices services,
+        string account,
+        MailAccountCustody custody,
+        CancellationToken cancellationToken) => services.InScopeAsync(
             (scope, token) => scope.GetRequiredService<MailFathomDbContext>().MailboxAccounts
                 .Where(row => row.Id == account)
-                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.RequestedCustody, MailAccountCustody.HoldMailbox), token),
+                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.RequestedCustody, custody), token),
             cancellationToken);
-        Assert.False((await FindSummaryAsync(services, storedEmailIds[LostUid], cancellationToken))!.IsLocalOnly);
-    }
 
     /// <summary>A window describing a held message after a person acted on it leaves their act standing and still moves the row through the queue.</summary>
     [Fact]

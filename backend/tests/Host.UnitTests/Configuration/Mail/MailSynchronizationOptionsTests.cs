@@ -983,6 +983,33 @@ public sealed class MailSynchronizationOptionsTests
         Assert.Contains("EraseLocalCopy", result.ErrorMessage, StringComparison.Ordinal);
     }
 
+    /// <summary>Zero named the value this setting no longer takes, so a number left over from it is refused rather than read as another member.</summary>
+    [Fact]
+    public void ValidateForSynchronization_AuthoredDeleteNumberOfTheRemovedValue_IsRejected()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MailAccounts:0:AccountId"] = "primary",
+                ["MailAccounts:0:DisplayName"] = "The primary mailbox",
+                ["MailAccounts:0:Host"] = "imap.example.test",
+                ["MailAccounts:0:UserName"] = "mailfathom@example.test",
+                ["MailAccounts:0:Secrets:Password:SecretReference"] = "systemd-credential:imap-primary-password",
+                ["MailAccounts:0:AuthoredDeleteEmailDisposition"] = "0",
+            })
+            .Build();
+        var user = configuration.Get<UserAccountOptions>()!;
+
+        // Act
+        var results = user.FindRefusals().ToArray();
+
+        // Assert
+        var result = Assert.Single(results);
+        Assert.Contains("RetainTombstone", result.ErrorMessage, StringComparison.Ordinal);
+        Assert.Contains("EraseLocalCopy", result.ErrorMessage, StringComparison.Ordinal);
+    }
+
     /// <summary>The two dispositions are independent settings, so one account can follow its server and still keep what it deletes.</summary>
     /// <remarks>
     /// This is the confusion the second setting exists to prevent. An account that erases what its server loses would

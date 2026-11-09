@@ -128,9 +128,10 @@ internal sealed class UserAccountDocumentBinder(
         }
     }
 
-    /// <summary>The one sentence a document nothing can parse is refused with, whichever stage met it.</summary>
+    /// <summary>The value <c>AuthoredDeleteEmailDisposition</c> no longer takes, refused by name so the refusal can say what replaced it.</summary>
     private const string RemovedAuthoredDeleteValue = "RetainLocalCopy";
 
+    /// <summary>The one sentence a document nothing can parse is refused with, whichever stage met it.</summary>
     private const string NotADocument =
         "The user record is not a JSON object MailFathom can read. A user record is a document of settings, so check what wrote the settings_accounts row rather than the settings themselves.";
 

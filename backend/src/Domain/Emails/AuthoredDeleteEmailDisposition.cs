@@ -2,6 +2,8 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace MailFathom.Domain.Emails;
 
 /// <summary>States what becomes of the local copy of an email MailFathom itself deleted on the mail server.</summary>
@@ -18,6 +20,7 @@ namespace MailFathom.Domain.Emails;
 /// delete is in flight governs the deletes authored after the change and leaves that one exactly as it was begun.
 /// </para>
 /// </remarks>
+[SuppressMessage("Design", "CA1008:Enums should have zero value", Justification = "Zero named the value this setting no longer takes, and reusing the number would give a configuration stating it another member's meaning, so it stays unused and validation refuses it.")]
 public enum AuthoredDeleteEmailDisposition
 {
     /// <summary>Keeps the local row as a tombstone that every mailbox query excludes.</summary>
@@ -26,7 +29,7 @@ public enum AuthoredDeleteEmailDisposition
     /// authored delete auditable without leaving the message readable. It is the exact counterpart of
     /// <see cref="RemotelyDeletedEmailDisposition.RetainTombstone" />.
     /// </remarks>
-    RetainTombstone = 0,
+    RetainTombstone = 1,
 
     /// <summary>Removes the local row together with its raw MIME and everything derived from it.</summary>
     /// <remarks>
@@ -36,5 +39,5 @@ public enum AuthoredDeleteEmailDisposition
     /// is deliberate. Where the server still holds the message and somebody removes the flag, synchronization fetches it
     /// again rather than leaving it lost.
     /// </remarks>
-    EraseLocalCopy = 1,
+    EraseLocalCopy = 2,
 }

@@ -2125,7 +2125,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             /* A finger has no hover, and the hold that would ask a label for its whole name opens this menu. */
             (sp.spam ? "" : (this.state.convMail ? conversationCategories(id) : messageCategories(id, 0)).map(n => " - " + n).join("")) +
             (/·(Sent|Drafts)$/.test(this.state.folderKey || "") || !senderRecord(id, null) ? "" : " - " + MARKS[markKeyOf(senderRecord(id, null))].name) +
-            (rcpt ? " - " + rcpt.word : ""),
+            (rcpt ? " - " + rcpt.word : "") +
+            (th.localOnly ? " - Local only" : ""),
           items: [
             ai && { icon: "auto_awesome", label: "AI summary", run: () => this.openAiSum(id) },
             { icon: "check_box", label: "Select messages", run: () => this.toggleSelect(id) },
