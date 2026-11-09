@@ -3133,6 +3133,12 @@ rendering this build does not publish reads as `reduced`, and a write naming one
   [the body route](#the-message-body-route). A message whose markup this deployment holds none of, or served cut short,
   falls back to the reduced tree with the reason named rather than to an empty frame.
 
+**The sender's own markup stands on the theme's surface in both themes.** Its frames are transparent, and a script the
+client writes into them, the only part of this that sees the sender's colours, takes away a near-white fill, moves text
+under 4.5:1 until it reads, and leaves text over a picture or a gradient as the sender paired it. Under the dark theme a
+remaining light fill keeps a hint of its hue and a light rule becomes a hairline; a picture is never altered. Nothing
+about it reaches the service, which serves the same representation in either theme.
+
 **The rendering drawn from the document tree is drawn in the client's own colours.** A colour the tree carries was
 picked by the sender against the white page their composer drew, so reproducing it is how a reading pane ends up with
 every message in a different colour, each of them legible by luck and several of them invisible under a dark theme. What
@@ -5861,7 +5867,7 @@ picture's or a font's address.
 | Directive | What it admits | Why |
 | --- | --- | --- |
 | `default-src` | `'self'` | Anything not named below comes from the deployment that served the page or not at all |
-| `script-src` | `'self'` and two `'sha256-…'` hashes | The bundle, and the two scripts the client writes into the frames that draw a sender's own markup — one reports a clicked link, one measures the embedded view's height. A framed `srcdoc` document inherits this policy, so each is admitted by the hash of its exact text, computed when the bundle is built; nothing a message carries runs |
+| `script-src` | `'self'` and three `'sha256-…'` hashes | The bundle, and the three scripts the client writes into the frames that draw a sender's own markup — one reports a clicked link, one measures the embedded view's height, and one moves the message's colours onto the theme. A framed `srcdoc` document inherits this policy, so each is admitted by the hash of its exact text, computed when the bundle is built; nothing a message carries runs |
 | `style-src` | `'self' 'unsafe-inline'` | A sender's own inline styles are what the full-HTML dialog and the embedded view exist to show, and a framed document inherits this directive too |
 | `img-src` | `'self' data: blob: https: http:` | A message's pictures come from whatever server its sender named, and asking to load them re-reads that message with those addresses left in, so no host can be named. `data:` is a picture the message or an attachment carried inline, and `blob:` a picture pasted into the composer, drawn from an object URL the page made |
 | `font-src` | `'self' data: https: http:` | The client's own typeface ships inside the bundle; the other sources are a sender's web font, which asking to load a message's remote content restores beside its pictures |

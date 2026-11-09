@@ -36,12 +36,190 @@ MailFathomDesign.mailHtml = (() => {
     'try{parent.postMessage({link:{href:a.getAttribute("href"),text:(a.textContent||"").trim(),image:!!a.querySelector("img,svg,picture")}},"*")}catch(x){}}' +
     'document.addEventListener("click",press,true);document.addEventListener("auxclick",press,true)})()' + S_CLOSE;
 
+  /* The page behind a message is the theme's own in both themes: the frame is transparent, the page shows through it,
+     and a near-white fill goes with it. Text that would not read 4.5:1 on what is now behind it is moved until it does,
+     and a fill the sender made dark or saturated stays as written. Under the dark theme the remaining light fills keep
+     only a hint of their hue and a light rule stops glaring. Text over a picture or a gradient is left as the sender
+     paired it. */
+  const THEME = (dark) => "<" + "style>html,body{background:transparent!important}html{color-scheme:" + (dark ? "dark" : "light") + "!important}<" + "/style>" +
+    S_OPEN + `(() => {
+    const dark = getComputedStyle(document.documentElement).colorScheme === 'dark';
+    const legibleContrast = 4.5;
+    const lightFillLuminance = 0.45;
+    const groundTakingDarkInk = 0.18;
+    const faintestRuleContrast = 1.25;
+    const mostTintPercent = 40;
+    const leastTintPercent = 4;
+    const hairline = 'color-mix(in srgb, CanvasText 16%, transparent)';
+    const surfaceChannel = dark ? 39 : 248;
+    const surface = [surfaceChannel, surfaceChannel, surfaceChannel];
+
+    function colourOf(computedValue) {
+        if (!computedValue.startsWith('rgb')) {
+            return null;
+        }
+
+        const [red, green, blue, alpha = 1] = computedValue.match(/[0-9.]+/g).map(Number);
+
+        return { channels: [red, green, blue], alpha };
+    }
+
+    function linearChannel(channel) {
+        const share = channel / 255;
+
+        return share <= 0.03928 ? share / 12.92 : ((share + 0.055) / 1.055) ** 2.4;
+    }
+
+    function luminanceOf([red, green, blue]) {
+        return 0.2126 * linearChannel(red) + 0.7152 * linearChannel(green) + 0.0722 * linearChannel(blue);
+    }
+
+    function contrastBetween(first, second) {
+        return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+    }
+
+    function mixed(from, to, share) {
+        return from.map((channel, index) => Math.round(channel + (to[index] - channel) * share));
+    }
+
+    function rgb(channels) {
+        return 'rgb(' + channels.join(',') + ')';
+    }
+
+    function readableInk(channels, ground) {
+        const lifting = ground <= groundTakingDarkInk;
+        const destination = lifting ? [255, 255, 255] : [0, 0, 0];
+        const achromatic = Math.max(...channels) - Math.min(...channels) < 32;
+
+        if (dark && lifting && achromatic) {
+            return 'CanvasText';
+        }
+
+        for (let share = 0.2; share < 1; share += 0.2) {
+            const moved = mixed(channels, destination, share);
+
+            if (contrastBetween(luminanceOf(moved), ground) >= legibleContrast) {
+                return rgb(moved);
+            }
+        }
+
+        return rgb(destination);
+    }
+
+    function groundAfterFill(style, computed, inheritedGround) {
+        if (computed.backgroundImage !== 'none') {
+            return null;
+        }
+
+        const fill = colourOf(computed.backgroundColor);
+
+        if (fill === null || fill.alpha === 0) {
+            return inheritedGround;
+        }
+
+        const fillLuminance = luminanceOf(fill.channels);
+        const translucent = fill.alpha < 1;
+        const fillAsWritten = translucent
+            ? inheritedGround === null
+                ? null
+                : mixed(inheritedGround, fill.channels, fill.alpha)
+            : fill.channels;
+
+        if (fillLuminance <= lightFillLuminance) {
+            return fillAsWritten;
+        }
+
+        const tintPercent = Math.round(((255 - Math.min(...fill.channels)) / 255) * mostTintPercent);
+
+        if (tintPercent < leastTintPercent) {
+            style.setProperty('background-color', 'transparent', 'important');
+
+            return inheritedGround;
+        }
+
+        if (!dark) {
+            return fillAsWritten;
+        }
+
+        style.setProperty(
+            'background-color',
+            'color-mix(in srgb, ' + rgb(fill.channels) + ' ' + tintPercent + '%, transparent)',
+            'important',
+        );
+
+        return inheritedGround === null ? null : mixed(inheritedGround, fill.channels, tintPercent / 100);
+    }
+
+    function makeInkReadable(style, computed, ground) {
+        const ink = colourOf(computed.color);
+
+        if (ink === null || ink.alpha === 0 || ground === null) {
+            return;
+        }
+
+        const groundLuminance = luminanceOf(ground);
+
+        if (contrastBetween(luminanceOf(ink.channels), groundLuminance) < legibleContrast) {
+            style.setProperty('color', readableInk(ink.channels, groundLuminance), 'important');
+        }
+    }
+
+    function softenRules(style, computed, ground) {
+        if (!dark || ground === null) {
+            return;
+        }
+
+        const groundLuminance = luminanceOf(ground);
+
+        for (const side of ['top', 'right', 'bottom', 'left']) {
+            const rule = colourOf(computed.getPropertyValue('border-' + side + '-color'));
+            const width = parseFloat(computed.getPropertyValue('border-' + side + '-width'));
+
+            if (rule === null || rule.alpha === 0 || !(width > 0)) {
+                continue;
+            }
+
+            const ruleLuminance = luminanceOf(rule.channels);
+
+            if (ruleLuminance > lightFillLuminance || contrastBetween(ruleLuminance, groundLuminance) < faintestRuleContrast) {
+                style.setProperty('border-' + side + '-color', hairline, 'important');
+            }
+        }
+    }
+
+    function adapt(element, inheritedGround) {
+        const computed = getComputedStyle(element);
+        const ground = groundAfterFill(element.style, computed, inheritedGround);
+
+        makeInkReadable(element.style, computed, ground);
+        softenRules(element.style, computed, ground);
+
+        for (const child of element.children) {
+            adapt(child, ground);
+        }
+    }
+
+    function moveTheMessageOntoTheTheme() {
+        document.documentElement.style.setProperty('color-scheme', dark ? 'dark' : 'light', 'important');
+
+        if (document.body !== null) {
+            adapt(document.body, surface);
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', moveTheMessageOntoTheTheme);
+    } else {
+        moveTheMessageOntoTheTheme();
+    }
+})()` + S_CLOSE;
+
   const inHead = (src, script) => {
     const i = src.indexOf("<head>");
     return i < 0 ? script + src : src.slice(0, i + 6) + script + src.slice(i + 6);
   };
-  const embedHtml = (src, frameId) => inHead(src, FIT_SCRIPT(frameId) + LINK_SCRIPT);
-  const embedLinks = (src) => inHead(src, LINK_SCRIPT);
+  const embedHtml = (src, frameId, dark) => inHead(src, THEME(dark) + FIT_SCRIPT(frameId) + LINK_SCRIPT);
+  const embedLinks = (src, dark) => inHead(src, THEME(dark) + LINK_SCRIPT);
 
   const htmlFallback = (m, subject) => HTML_SHELL(subject || "Message", `
 <div style="padding:24px 12px;font-family:Georgia,'Times New Roman',serif">

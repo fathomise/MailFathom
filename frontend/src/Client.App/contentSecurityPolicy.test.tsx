@@ -38,7 +38,7 @@ describe('contentSecurityPolicy', () => {
     ])('admits, in the directives %s, every script the embedded markup frame writes by its hash', (_, directives) => {
         const scripts = scriptsTheEmbeddedFrameWrites();
 
-        expect(scripts).toHaveLength(2);
+        expect(scripts).toHaveLength(3);
         expect(directives['script-src']?.split(' ')).toEqual(expect.arrayContaining(scripts.map(hashSourceOf)));
     });
 

@@ -14,7 +14,8 @@ import { ThemeContext, type Themed } from './useTheme';
 
 // Which of the two themes is painted is decided here and nowhere else. A screen composes against the semantic tokens in
 // `styles.css`, both themes declare the same names, and this writes the one attribute that picks between the two — so
-// no component ever asks which theme is in force, exactly as none asks which language is.
+// a screen draws no differently per theme, exactly as none does per language. The frame around a sender's own markup is
+// the one exception, since a framed document inherits no token and has to be told.
 
 export function ThemeProvider({ children }: { readonly children: ReactNode }) {
     const [choice, setChoice] = useState(preferredThemeChoice);

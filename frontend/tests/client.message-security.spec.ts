@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { expect, type Page } from '@playwright/test';
+import { expect, type FrameLocator, type Page } from '@playwright/test';
 
 import {
     messageHeading,
@@ -297,6 +297,78 @@ test('leaves the markup surface for the message it was opened from, and asks aga
     await page.getByRole('button', { name: 'Show the original message' }).click();
 
     await expect(page.getByRole('heading', { name: 'Show the original message?' })).toBeVisible();
+});
+
+// The colours inside a frame are the computed styles of a document only a browser lays out, so what a theme does to a
+// sender's page is asked of one, on one paragraph for each path the script takes through it.
+const coloursUnder = {
+    dark: {
+        whiteInk: 'rgb(255, 255, 255)',
+        noticeFill: /^color\(srgb 1 0\.92\d* 0\.23\d* \/ 0\.31\)$/,
+        noticeInk: 'rgb(240, 225, 204)',
+        cardInk: 'rgb(255, 255, 255)',
+        rule: 'color(srgb 1 1 1 / 0.16)',
+    },
+    light: {
+        whiteInk: 'rgb(51, 51, 51)',
+        noticeFill: 'rgb(255, 235, 59)',
+        noticeInk: 'rgb(143, 86, 0)',
+        cardInk: 'rgb(133, 133, 133)',
+        rule: 'rgb(221, 221, 221)',
+    },
+} as const;
+
+async function expectTheThemeColours(frame: FrameLocator, colorScheme: keyof typeof coloursUnder): Promise<void> {
+    const expected = coloursUnder[colorScheme];
+    const written = frame.getByText('Written for a white page');
+    const notice = frame.getByText('A yellow notice');
+    const band = frame.getByText('A dark band');
+
+    // A near-white fill is gone in either theme, so the surface behind the frame is what stands behind the words.
+    await expect(written).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(written).toHaveCSS('color', expected.whiteInk);
+    await expect(notice).toHaveCSS('background-color', expected.noticeFill);
+    await expect(notice).toHaveCSS('color', expected.noticeInk);
+
+    // A white card goes, so its words stand on the dark wrapper that shows through and not on the theme's surface.
+    await expect(frame.getByText('A card on a dark wrapper')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(frame.getByText('A card on a dark wrapper')).toHaveCSS('color', expected.cardInk);
+
+    // Dark and saturated, so it is left as the sender wrote it in either theme.
+    await expect(band).toHaveCSS('background-color', 'rgb(11, 61, 145)');
+    await expect(band).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expect(frame.getByText('A translucent band')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0.7)');
+    await expect(frame.getByText('A translucent band')).toHaveCSS('color', 'rgb(255, 255, 255)');
+
+    // Paired with something only the sender saw, so the words are not judged against the theme.
+    await expect(frame.getByText('Over a gradient')).toHaveCSS('color', 'rgb(51, 51, 51)');
+    await expect(frame.getByText('Between light rules')).toHaveCSS('border-top-color', expected.rule);
+}
+
+for (const colorScheme of ['dark', 'light'] as const) {
+    test(`moves the embedded original onto the ${colorScheme} theme and keeps what it says readable`, async ({
+        page,
+    }) => {
+        await page.emulateMedia({ colorScheme });
+        await openSignedIn(page, '/#/mail');
+        await expect(page.locator('html')).toHaveAttribute('data-theme', colorScheme);
+        await openApplicationSettings(page);
+        await page.getByRole('group', { name: 'Message view' }).getByText('Original', { exact: true }).click();
+        await expect(page.getByRole('radio', { name: 'Original' })).toBeChecked();
+        await page.keyboard.press('Escape');
+
+        await page.getByRole('listbox', { name: 'Messages' }).getByRole('option').first().click();
+
+        await expectTheThemeColours(page.frameLocator(`iframe[title="${markupFrame}"]`), colorScheme);
+    });
+}
+
+test('moves the full preview of the original onto the dark theme as well', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await openTheFirstMessage(page);
+    await showTheSenderMarkup(page);
+
+    await expectTheThemeColours(page.frameLocator(`iframe[title="${markupFrame}"]`), 'dark');
 });
 
 // The embedded view is the one place a message's own markup is drawn inline, and a frame has no height of its own: the
