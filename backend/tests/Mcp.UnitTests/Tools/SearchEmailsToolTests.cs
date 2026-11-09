@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Accounts;
 using MailFathom.Application.AiProviders;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Extraction.Attachments;
@@ -785,13 +786,70 @@ public sealed class SearchEmailsToolTests
         Segment: new AttachmentTextSegment(AttachmentTextSegmentKind.Page, 2, Label: null, StartOffset: 0),
         Extracts: extracts);
 
+    [Fact]
+    public async Task SearchEmailsAsync_ACategoryTheAccountOffers_NarrowsTheSelectionToIt()
+    {
+        // Arrange
+        var index = new StubEmailSearchIndexReader();
+        var tool = ToolOver(index, categories: CategoriesOffering([]));
+
+        // Act
+        await tool.SearchEmailsAsync(Query, category: "Finance", cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        var category = index.LastSelection?.Category;
+        Assert.NotNull(category);
+        Assert.Equal(["finance"], category.StoredNames);
+    }
+
+    [Fact]
+    public async Task SearchEmailsAsync_ACategorySwitchedOff_IsRefusedWithoutReading()
+    {
+        // Arrange
+        var index = new StubEmailSearchIndexReader();
+        var tool = ToolOver(index, categories: CategoriesOffering(["finance"]));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailboxQueryFilterInvalidException>(() =>
+            tool.SearchEmailsAsync(Query, category: "finance", cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal("category", refusal.FilterName);
+        Assert.Null(index.LastSelection);
+    }
+
+    [Fact]
+    public async Task SearchEmailsAsync_AMatchWithCategories_PublishesWhatTheAccountShows()
+    {
+        // Arrange
+        var summary = SummaryOf(Guid.CreateVersion7(), new DateTimeOffset(2026, 3, 1, 8, 0, 0, TimeSpan.Zero));
+        var categories = StubMailCategories.Offering(new StubMailCategories(
+            new Dictionary<MailAccountId, MailCategoryOffer> { [MailAccountId.Create(ServedAccountId)] = MailCategoryOffer.Of(["finance"], []) },
+            new Dictionary<StoredEmailId, IReadOnlyList<string>> { [summary.StoredEmailId] = ["finance", "travel"] }));
+        var tool = ToolOver(
+            new StubEmailSearchIndexReader(new EmailSearchMatch(summary, RelevanceRank: 0.5f, Snippets: [])),
+            categories: categories);
+
+        // Act
+        var result = await tool.SearchEmailsAsync(Query, cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["travel"], Assert.Single(result.Matches).Summary.Categories);
+    }
+
+    private static OfferedMailCategories CategoriesOffering(string[] disabledDefaults) =>
+        StubMailCategories.Offering(new StubMailCategories(
+            new Dictionary<MailAccountId, MailCategoryOffer> { [MailAccountId.Create(ServedAccountId)] = MailCategoryOffer.Of(disabledDefaults, []) },
+            new Dictionary<StoredEmailId, IReadOnlyList<string>>()));
+
     private static SearchEmailsTool ToolOver(
         StubEmailSearchIndexReader index,
         StubSynchronizationFreshnessReader? freshness = null,
         EmailSearchSnippetBounds? snippetBounds = null,
         StubJunkMailFolderCatalog? junkFolders = null,
         SensitiveContentEgressGuard? egressGuard = null,
-        StubEmailAttachmentMatchReader? attachmentMatches = null)
+        StubEmailAttachmentMatchReader? attachmentMatches = null,
+        OfferedMailCategories? categories = null)
     {
         // One instance for both, as the host composes them: the use case asks the index to cut extracts by these bounds
         // and the boundary publishes what came back under the same ones.
@@ -811,7 +869,8 @@ public sealed class SearchEmailsToolTests
                 bounds,
                 egressGuard ?? SensitiveContentEgressGuards.Inactive(),
                 Substitute.For<IMailboxReadTelemetry>(),
-                AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead)),
+                AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+                categories ?? StubMailCategories.OfferingNothing),
             bounds,
             new StubMailAccountCatalog(ServedAccountId));
     }

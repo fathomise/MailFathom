@@ -67,6 +67,7 @@ public sealed record EmailTimelineFilter
     /// <param name="hasAttachments">Whether attachments are required, or <see langword="null" /> for either.</param>
     /// <param name="direction">The end of the timeline to read from.</param>
     /// <param name="mark">The reading a derivation must have made about the email, or <see langword="null" /> when no reading is required.</param>
+    /// <param name="category">The category an email must be recorded under, already read against what the accounts offer, or <see langword="null" /> for any.</param>
     /// <returns>The validated filter.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="scope" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="direction" /> is not a defined member.</exception>
@@ -83,7 +84,8 @@ public sealed record EmailTimelineFilter
         string? keyword,
         bool? hasAttachments,
         EmailTimelineDirection direction,
-        EmailMarkSelection? mark = null) => ReadIn(
+        EmailMarkSelection? mark = null,
+        EmailCategorySelection? category = null) => ReadIn(
         MailboxEmailSelection.Create(
             scope,
             senderAddress,
@@ -95,7 +97,8 @@ public sealed record EmailTimelineFilter
             isFlagged,
             keyword,
             hasAttachments,
-            mark),
+            mark,
+            category),
         direction);
 
     /// <summary>Reads an already validated selection from one end of the timeline.</summary>

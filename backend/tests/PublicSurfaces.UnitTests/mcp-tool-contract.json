@@ -2816,7 +2816,7 @@
       "readOnlyHint": true,
       "title": "List emails"
     },
-    "description": "Lists summaries of emails already synchronized into MailFathom's local mailbox copy, newest received first by default. Filters by account, folder, sender address, recipient address, subject text, received date range, read state, flagged (starred) state, a keyword the email carries, and attachment presence. Reads the local copy only: it never contacts a mail server, never marks mail as read, and never returns body text, raw MIME, or attachment content. Never returns a message judged spam, in any folder, or mail in the account's junk folder unless its owner marked it not spam. Returns at most 100 summaries per call, with an opaque cursor for the next page and a per-folder statement of how current the local copy is.",
+    "description": "Lists summaries of emails already synchronized into MailFathom's local mailbox copy, newest received first by default. Filters by account, folder, sender address, recipient address, subject text, received date range, read state, flagged (starred) state, a keyword the email carries, a category, and attachment presence. Reads the local copy only: it never contacts a mail server, never marks mail as read, and never returns body text, raw MIME, or attachment content. Never returns a message judged spam, in any folder, or mail in the account's junk folder unless its owner marked it not spam. Returns at most 100 summaries per call, with an opaque cursor for the next page and a per-folder statement of how current the local copy is.",
     "inputSchema": {
       "properties": {
         "accounts": {
@@ -2830,6 +2830,14 @@
           },
           "type": [
             "array",
+            "null"
+          ]
+        },
+        "category": {
+          "default": null,
+          "description": "Return only emails sorted into this category: a default category such as finance or shopping, or a subject the account named for itself. Matched as a whole name without regard to case. It narrows which emails are eligible and never changes their order. An account that does not offer the name contributes nothing, and a name no account in scope offers, a default the account switched off included, is refused with a message listing what is offered. A model assigns categories and may be wrong or may not have reached a message, so an empty result is no proof that no such mail exists. Omit to match any, which an empty string does too. The categories each email carries are reported in its categories field.",
+          "type": [
+            "string",
             "null"
           ]
         },
@@ -3003,6 +3011,13 @@
                   "containsUnexpandedTnefPart"
                 ],
                 "type": "object"
+              },
+              "categories": {
+                "description": "The categories this email is sorted into, each a default category's identifier such as finance or a subject the account named for itself; any of them is a value the category filter accepts. This is a model's reading of the message and never evidence about who sent it. Empty when nothing has categorized the email, and for whatever the account does not show: a default it switched off, or every category of an account that does not categorize.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
               },
               "contentAvailability": {
                 "description": "Whether the raw email content is stored locally: 'available' when a content read will succeed, 'exceededSizeLimit' when the email was deliberately stored without its content because it was larger than the configured limit, or 'awaitingStorageHeadroom' when local storage was full when it arrived and its content is fetched once there is room. Read this before asking for content; only the last state is worth asking about again later.",
@@ -3417,6 +3432,7 @@
               "sizeBytes",
               "attachments",
               "flags",
+              "categories",
               "contentAvailability"
             ],
             "type": "object"
@@ -4206,7 +4222,7 @@
       "readOnlyHint": true,
       "title": "Search emails"
     },
-    "description": "Searches the emails already synchronized into MailFathom's local mailbox copy for text, and returns the best matches ranked by relevance with bounded extracts of the body around the matched words. Retrieval is lexical or hybrid depending on how this server is configured, and every response says which in its retrievalMode field: lexical finds the words a query contains rather than what they mean, while hybrid also finds mail whose meaning is close and combines the two rankings. Where this server reads attachments, the text of documents attached to a message is searched on the same terms its body is — by the words themselves and, under hybrid, by meaning — and what an attachment contributed is reported in that result's attachmentMatches, naming the file and the page, slide, or sheet, rather than folded into the message's own snippets. A picture is different: where this server describes attached images, a picture is reachable only by meaning, never by matching a word, and a result reached that way is marked isDepictedMatch and always sits below every result any query word or any written text reached — so a photograph never displaces a message that contains the word you searched for. Narrows by account, folder, sender address, recipient address, subject text, received date range, read state, flagged (starred) state, a keyword the email carries, and attachment presence. Reads the local copy only: it never contacts a mail server, never marks mail as read, and never returns whole bodies, raw MIME, whole attachments, or a whole attachment's text — every extract it returns is bounded. Never returns a message judged spam, in any folder, or mail in the account's junk folder unless its owner marked it not spam. Returns one window of at most 50 results that nothing continues, so narrow the filters or write a different query to reach other mail. Matching nothing is a normal empty result rather than an error.",
+    "description": "Searches the emails already synchronized into MailFathom's local mailbox copy for text, and returns the best matches ranked by relevance with bounded extracts of the body around the matched words. Retrieval is lexical or hybrid depending on how this server is configured, and every response says which in its retrievalMode field: lexical finds the words a query contains rather than what they mean, while hybrid also finds mail whose meaning is close and combines the two rankings. Where this server reads attachments, the text of documents attached to a message is searched on the same terms its body is — by the words themselves and, under hybrid, by meaning — and what an attachment contributed is reported in that result's attachmentMatches, naming the file and the page, slide, or sheet, rather than folded into the message's own snippets. A picture is different: where this server describes attached images, a picture is reachable only by meaning, never by matching a word, and a result reached that way is marked isDepictedMatch and always sits below every result any query word or any written text reached — so a photograph never displaces a message that contains the word you searched for. Narrows by account, folder, sender address, recipient address, subject text, received date range, read state, flagged (starred) state, a keyword the email carries, a category, and attachment presence. Reads the local copy only: it never contacts a mail server, never marks mail as read, and never returns whole bodies, raw MIME, whole attachments, or a whole attachment's text — every extract it returns is bounded. Never returns a message judged spam, in any folder, or mail in the account's junk folder unless its owner marked it not spam. Returns one window of at most 50 results that nothing continues, so narrow the filters or write a different query to reach other mail. Matching nothing is a normal empty result rather than an error.",
     "inputSchema": {
       "properties": {
         "accounts": {
@@ -4220,6 +4236,14 @@
           },
           "type": [
             "array",
+            "null"
+          ]
+        },
+        "category": {
+          "default": null,
+          "description": "Return only emails sorted into this category: a default category such as finance or shopping, or a subject the account named for itself. Matched as a whole name without regard to case. It narrows which emails are eligible and never changes their order. An account that does not offer the name contributes nothing, and a name no account in scope offers, a default the account switched off included, is refused with a message listing what is offered. A model assigns categories and may be wrong or may not have reached a message, so an empty result is no proof that no such mail exists. Omit to match any, which an empty string does too. The categories each email carries are reported in its categories field.",
+          "type": [
+            "string",
             "null"
           ]
         },
@@ -4516,6 +4540,13 @@
                       "containsUnexpandedTnefPart"
                     ],
                     "type": "object"
+                  },
+                  "categories": {
+                    "description": "The categories this email is sorted into, each a default category's identifier such as finance or a subject the account named for itself; any of them is a value the category filter accepts. This is a model's reading of the message and never evidence about who sent it. Empty when nothing has categorized the email, and for whatever the account does not show: a default it switched off, or every category of an account that does not categorize.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
                   },
                   "contentAvailability": {
                     "description": "Whether the raw email content is stored locally: 'available' when a content read will succeed, 'exceededSizeLimit' when the email was deliberately stored without its content because it was larger than the configured limit, or 'awaitingStorageHeadroom' when local storage was full when it arrived and its content is fetched once there is room. Read this before asking for content; only the last state is worth asking about again later.",
@@ -4930,6 +4961,7 @@
                   "sizeBytes",
                   "attachments",
                   "flags",
+                  "categories",
                   "contentAvailability"
                 ],
                 "type": "object"

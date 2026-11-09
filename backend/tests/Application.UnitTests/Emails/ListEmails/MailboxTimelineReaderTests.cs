@@ -938,7 +938,8 @@ public sealed class MailboxTimelineReaderTests
             StubMailFolderMappings.ResolvingNothing),
         egressGuard ?? SensitiveContentEgressGuards.Inactive(),
         readTelemetry ?? new RecordingMailboxReadTelemetry(),
-        authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));
+        authorization ?? AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+        StubMailCategories.OfferingNothing);
 
     /// <summary>Builds a catalog that serves exactly the accounts named, in the order the port promises.</summary>
     private static ICallerMailAccountCatalog CatalogServing(params MailAccountId[] servedAccountIds)

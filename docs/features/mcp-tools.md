@@ -377,7 +377,7 @@ configured name for an account and carries nothing the caller did not already wr
 | Code | Meaning | Typical cause |
 |---|---|---|
 | `51001` | A page size outside the range the query serves | A page size of 0 or above 100 — above 200 for `list_outgoing_emails` — refused rather than clamped |
-| `51002` | A filter carries a value, a count, or a length the query does not accept | An unusable address, a subject fragment over 256 characters or carrying a control character, a received range that ends before it starts, more than 64 accounts or folders, an account identifier that is blank, over 256 characters, or carrying a control character, a folder named by anything but a `folderId` or a `role:` form, a keyword over 64 characters or carrying a control character, a search query that is blank, over 512 characters, or carrying a control character, and `role:Outbox` in a `folders` argument, whose message names `list_outgoing_emails` because the outbox is not a folder |
+| `51002` | A filter carries a value, a count, or a length the query does not accept | An unusable address, a subject fragment over 256 characters or carrying a control character, a received range that ends before it starts, more than 64 accounts or folders, an account identifier that is blank, over 256 characters, or carrying a control character, a folder named by anything but a `folderId` or a `role:` form, a keyword over 64 characters or carrying a control character, a `category` no account in scope offers, whose message lists what is offered, a search query that is blank, over 512 characters, or carrying a control character, and `role:Outbox` in a `folders` argument, whose message names `list_outgoing_emails` because the outbox is not a folder |
 | `51003` | A search asked for more ranked results than a search serves | A `resultLimit` of 0 or above 50, refused rather than clamped |
 | `51004` | The call named an email with text that is no identifier this system issues | A `storedEmailIds` element, or the `storedEmailId` a flag change, a reply, or a forward names, that is blank, not a UUID, or the all-zero UUID, refused before anything is looked up |
 | `51005` | A content read named no emails, or more than one call serves | A `storedEmailIds` list that is empty or holds more than 10 entries, refused rather than truncated |
@@ -559,6 +559,7 @@ Every argument is optional.
 | `isFlagged` | `boolean` | The `\Flagged` state to require, which is the star a mail client shows. Unrelated to the `Flagged` folder role, which names a folder rather than a flag |
 | `keyword` | `string` | One keyword the email must carry, matched whole and without regard to case, up to 64 characters. A value no stored keyword could be is refused with `51002` |
 | `hasAttachments` | `boolean` | Whether to match only emails with attachments or only those without |
+| `category` | `string` | One category the email must be sorted into, a default's identifier such as `finance` or a subject the account named for itself, matched whole and without regard to case. An account that does not offer it contributes nothing; a name no account in scope offers, a default the account switched off included, is refused with `51002` and a message listing what is offered |
 | `direction` | `newestFirst` \| `oldestFirst` | Which end of the timeline to read from |
 | `pageSize` | `integer` | 1 to 100. Omitted takes the default of 25; a value outside the range is refused rather than clamped |
 | `cursor` | `string` | The `nextCursor` of a previous call, reused with the same filters and direction |
@@ -615,7 +616,7 @@ information somebody's server or mail app chose to send, not proof, and its abse
 [Delivery and read receipts](delivery-and-read-receipts.md) records how a report is matched and what is kept.
 `get_email_content` and `search_emails` carry the same field, the latter inside each match's summary.
 
-Six parts of it are worth reading before a caller writes against them:
+Seven parts of it are worth reading before a caller writes against them:
 
 - **`senderVerification` is three answers, never one.** `senderAddress` beside it is a claim the email wrote about itself,
   and nothing on the way to a listing verified it. `authorAuthentication` is what was established about the author the
@@ -667,6 +668,10 @@ Six parts of it are worth reading before a caller writes against them:
   [`get_email_content`](#the-conversation-a-message-belongs-to) reads a whole exchange by. It is absent for a message no
   pass has assembled yet, which is what a mailbox synchronized before this release holds until `mfctl mailbox rederive`
   reaches it — never an identifier naming an empty conversation.
+- **`categories`, as the account shows them.** Each entry is a value the `category` argument accepts, and it is a model's
+  reading of the message, never evidence about who sent it. The list is empty where nothing has categorized the email,
+  and for whatever the account does not show: a default it switched off stays recorded and is withheld, and an account
+  that does not categorize shows none. Only `list_emails` and `search_emails` publish it.
 - **`contentAvailability` rather than a bare flag.** An email deliberately stored without its MIME reports why, so a
   caller sees that a later content read will not succeed instead of discovering it by making the call — and sees whether
   that is permanent. `exceededSizeLimit` is an email larger than the configured per-message limit, which every later run
@@ -959,6 +964,7 @@ how the extracts are cut, and why there is no cursor — where those are enforce
 | `isFlagged` | `boolean` | The `\Flagged` state to require |
 | `keyword` | `string` | One keyword the email must carry, matched whole and without regard to case |
 | `hasAttachments` | `boolean` | Whether to match only emails with attachments or only those without |
+| `category` | `string` | One category the email must be sorted into, as `list_emails` takes it. It narrows which emails are eligible and never changes how they rank |
 | `resultLimit` | `integer` | 1 to 50. Omitted takes the default of 20; a value outside the range is refused with `51003` rather than clamped |
 
 The structured filters are `list_emails`' own and mean exactly the same things, because both read models apply one

@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Accounts;
 using MailFathom.Application.AiProviders;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.Embeddings;
 using MailFathom.Application.Emails.Extraction.Attachments;
@@ -430,6 +431,28 @@ public sealed class MailboxKnowledgeSearchTests
             });
     }
 
+    /// <summary>A category narrows what is eligible through the same selection every other filter does.</summary>
+    [Fact]
+    public async Task FindPassagesAsync_ACategoryAnAccountOffers_ReachesTheSelection()
+    {
+        // Arrange
+        var index = new InMemoryEmailSearchIndex().With(SyntheticEmailSummaries.Create(FirstJuly), snippets: "a mention");
+        var search = SearchOver(
+            index,
+            categories: StubMailCategories.Offering(new StubMailCategories(
+                EveryServedAccount.ToDictionary(static account => account, static _ => MailCategoryOffer.Of([], [])),
+                new Dictionary<StoredEmailId, IReadOnlyList<string>>())));
+
+        // Act
+        await search.FindPassagesAsync(
+            EveryAccount,
+            EmailKnowledgeQuery.ForText("invoice") with { Category = "finance" },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["finance"], Assert.Single(index.RankedCandidatesCalls).Selection.Category?.StoredNames);
+    }
+
     /// <summary>A filter the published search refuses is refused here too, named as that search names it.</summary>
     [Fact]
     public async Task FindPassagesAsync_AFilterTheSearchRefuses_IsRefusedRatherThanDropped()
@@ -661,7 +684,8 @@ public sealed class MailboxKnowledgeSearchTests
         EmailKnowledgeBounds? bounds = null,
         SensitiveContentEgressGuard? egressGuard = null,
         InMemoryEmailAttachmentMatchIndex? attachmentMatches = null,
-        IEmailProvenanceReader? provenance = null) => new(
+        IEmailProvenanceReader? provenance = null,
+        OfferedMailCategories? categories = null) => new(
         new MailboxSearchReader(
             index,
             attachmentMatches ?? new InMemoryEmailAttachmentMatchIndex(),
@@ -677,7 +701,8 @@ public sealed class MailboxKnowledgeSearchTests
             new RecordingMailboxReadTelemetry(),
             // The retrieval an answering run makes is reached under the grant that admitted the question, which is not
             // the mailbox-read grant: the window this walks is read through the internal method, which asks for none.
-            AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse)),
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse),
+            categories ?? StubMailCategories.OfferingNothing),
         provenance ?? StubEmailProvenanceReader.AllKnownCorrespondents,
         bounds ?? EmailKnowledgeBounds.Default);
 

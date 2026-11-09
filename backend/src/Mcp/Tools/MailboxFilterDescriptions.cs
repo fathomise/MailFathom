@@ -60,6 +60,16 @@ internal static class MailboxFilterDescriptions
         + "characters, and a value that is not a keyword this system stores is refused. Omit to match any, which an "
         + "empty string does too. The keywords each email carries are reported in its flags.";
 
+    /// <summary>The <c>category</c> filter, which narrows and never ranks.</summary>
+    public const string Category =
+        "Return only emails sorted into this category: a default category such as finance or shopping, or a subject "
+        + "the account named for itself. Matched as a whole name without regard to case. It narrows which emails are "
+        + "eligible and never changes their order. An account that does not offer the name contributes nothing, and a "
+        + "name no account in scope offers, a default the account switched off included, is refused with a message "
+        + "listing what is offered. A model assigns categories and may be wrong or may not have reached a message, so an "
+        + "empty result is no proof that no such mail exists. Omit to match any, which an empty string does too. The "
+        + "categories each email carries are reported in its categories field.";
+
     /// <summary>The <c>hasAttachments</c> filter, which counts neither inline images nor signature parts.</summary>
     public const string HasAttachments =
         "Return only emails that carry attachments (true) or that carry none (false). Omit to match either. Inline "

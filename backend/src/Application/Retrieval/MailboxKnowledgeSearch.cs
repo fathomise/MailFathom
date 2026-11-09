@@ -98,6 +98,7 @@ public sealed class MailboxKnowledgeSearch : IEmailKnowledgeSearch
             IsFlagged = query.IsFlagged,
             Keyword = query.Keyword,
             HasAttachments = query.HasAttachments,
+            Category = query.Category,
             ResultLimit = this.bounds.MaximumPassages,
         };
 

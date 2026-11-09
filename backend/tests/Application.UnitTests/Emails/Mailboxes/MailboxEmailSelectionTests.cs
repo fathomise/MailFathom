@@ -178,6 +178,29 @@ public sealed class MailboxEmailSelectionTests
                 .Count());
     }
 
+    [Fact]
+    public void Create_TheCategoryFilter_IsPartOfWhatACursorIsAuthenticatedAgainst()
+    {
+        // Act
+        var unfiltered = SelectionWith();
+        var categorized = SelectionWith(category: new EmailCategorySelection("FINANCE", ["finance"], []));
+
+        // Assert
+        Assert.NotEqual(unfiltered.CanonicalText, categorized.CanonicalText);
+    }
+
+    /// <summary>Which accounts offer a name is configuration, so a setting moving mid-walk must not invalidate a cursor.</summary>
+    [Fact]
+    public void Create_TheAccountsOfferingACategory_AreNotPartOfWhatACursorIsAuthenticatedAgainst()
+    {
+        // Act
+        var one = SelectionWith(category: new EmailCategorySelection("FINANCE", ["finance"], [MailAccountId.Create("work")]));
+        var other = SelectionWith(category: new EmailCategorySelection("FINANCE", ["finance"], [MailAccountId.Create("home")]));
+
+        // Assert
+        Assert.Equal(one.CanonicalText, other.CanonicalText);
+    }
+
     /// <summary>Nothing in the address grammar bounds a length, so a filter longer than any column could hold is refused.</summary>
     [Fact]
     public void Create_AddressFilterLongerThanTheLimit_IsRejected()
@@ -428,7 +451,8 @@ public sealed class MailboxEmailSelectionTests
         bool? isFlagged = null,
         string? keyword = null,
         bool? hasAttachments = null,
-        EmailMarkSelection? mark = null) => MailboxEmailSelection.Create(
+        EmailMarkSelection? mark = null,
+        EmailCategorySelection? category = null) => MailboxEmailSelection.Create(
         scope ?? MailboxScope.NothingReadable,
         senderAddress,
         recipientAddress,
@@ -439,5 +463,6 @@ public sealed class MailboxEmailSelectionTests
         isFlagged,
         keyword,
         hasAttachments,
-        mark);
+        mark,
+        category);
 }

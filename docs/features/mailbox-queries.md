@@ -1,6 +1,6 @@
 # Mailbox queries
 
-<!-- describes: backend/src/Application/Accounts/**, backend/src/Application/Emails/BrowseThread/**, backend/src/Application/Emails/BrowseThreadList/**, backend/src/Application/Emails/BrowseTimeline/**, backend/src/Application/Emails/ListEmails/**, backend/src/Application/Emails/Mailboxes/**, backend/src/Application/Emails/Summaries/**, backend/src/Application/Emails/Threads/**, backend/src/Application/Folders/**, backend/src/Application/Synchronization/Checkpoints/**, backend/src/Infrastructure/Persistence/Emails/**, backend/src/Infrastructure/Persistence/Synchronization/** -->
+<!-- describes: backend/src/Application/Categories/**, backend/src/Infrastructure/Persistence/Categories/StoredEmailCategoryRecordReader.cs, backend/src/Application/Accounts/**, backend/src/Application/Emails/BrowseThread/**, backend/src/Application/Emails/BrowseThreadList/**, backend/src/Application/Emails/BrowseTimeline/**, backend/src/Application/Emails/ListEmails/**, backend/src/Application/Emails/Mailboxes/**, backend/src/Application/Emails/Summaries/**, backend/src/Application/Emails/Threads/**, backend/src/Application/Folders/**, backend/src/Application/Synchronization/Checkpoints/**, backend/src/Infrastructure/Persistence/Emails/**, backend/src/Infrastructure/Persistence/Synchronization/** -->
 
 MailFathom answers a mailbox listing from its local copy. `ListEmails` is the first read use case: it takes structured
 filters, returns a bounded page of email summaries, issues the cursor that continues the walk, and reports how current
@@ -48,6 +48,7 @@ divergence neither copy would look wrong for on its own.
 | `IsFlagged` | The `\Flagged` state to require | either state |
 | `Keyword` | One keyword the email must carry, compared without regard to case | any keyword |
 | `HasAttachments` | Whether attachments are required | either |
+| `Category` | One category the email must be recorded under, a default's identifier or an account's own name, compared without regard to case | any category, and mail with none |
 | `Mark` | The reading an enrichment must have left, and the range a commitment falls due in | any reading, and mail with none |
 | `Direction` | Which end of the timeline to read from | `NewestFirst` |
 | `PageSize` | How many emails the page returns | the default of 25 |
@@ -100,6 +101,14 @@ and its result would read as an answer about the mailbox.
   characters, or carrying a control character — is refused with `51002 MailboxQueryFilterInvalid` rather than kept as a
   filter that matches nothing, for the reason an unusable address is. Blank is not such a value: it names no keyword
   filter at all, as the bullet above says of every text filter but the search query.
+- **A category** is read against what each account in scope offers: the defaults it has not switched off and the
+  subjects it named for itself, where it categorizes at all. One account offering the name is enough and the accounts
+  that do not offer it contribute nothing, so a difference between two mailboxes' settings refuses nobody. A name none
+  of them offers is refused with `51002 MailboxQueryFilterInvalid`, and that message lists what they do offer, because
+  a caller cannot correct the name otherwise. Mail nothing has categorized matches no category. Which accounts offer
+  the name is configuration and stays out of a cursor's fingerprint, so a setting moving during a walk does not
+  strand it. A summary either read publishes carries the categories its account shows: a default the account switched
+  off stays recorded and is withheld, and an account that does not categorize shows none.
 - **A received range** may be unbounded at either end; only an unbounded page is disallowed. A range whose end is not
   after its start selects nothing and is refused. An email whose received timestamp is unknown falls inside neither
   bound, so naming either one excludes undated mail. Each bound names an instant, so it may be written at any UTC offset

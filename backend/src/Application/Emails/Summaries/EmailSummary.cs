@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Categories;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery.Receipts;
 using MailFathom.Domain.Emails;
@@ -118,6 +119,10 @@ public sealed record EmailSummary
     /// states: the first is mail no stage has reached, the second is a conclusion.
     /// </remarks>
     public EmailSpamVerdict? Spam { get; init; }
+
+    /// <summary>Gets the categories the email's account shows for it, each a default's published identity or an own category's name.</summary>
+    /// <remarks>Empty unless a read that publishes them went through <see cref="OfferedMailCategories" />, which is what withholds a category the account switched off.</remarks>
+    public IReadOnlyList<string> Categories { get; init; } = [];
 
     /// <summary>Gets the report the email was recognized as when it arrived, or <see langword="null" /> for every other message.</summary>
     /// <remarks>Every reader acting for an agent is refused an email that carries one; a person reads it like any other.</remarks>

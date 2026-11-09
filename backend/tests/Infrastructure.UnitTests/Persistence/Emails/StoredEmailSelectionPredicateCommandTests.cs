@@ -70,6 +70,24 @@ public sealed class StoredEmailSelectionPredicateCommandTests
     }
 
     /// <summary>
+    /// A default stays recorded after an account switches it off, so the record alone would select mail the account
+    /// hides. Both conditions have to reach the command.
+    /// </summary>
+    [Fact]
+    public void Matching_CategoryFilter_TestsTheOfferingAccountBesideTheRecord()
+    {
+        // Act
+        var narrowing = NarrowingOf(SelectionWith(
+            category: new EmailCategorySelection("FINANCE", ["finance"], [MailAccountId.Create("primary")])));
+
+        // Assert
+        const string AccountTest = "\"MailboxAccountId\" = ANY";
+        Assert.Contains("email_categories", narrowing, StringComparison.Ordinal);
+        Assert.Equal(Occurrences(NarrowingOf(SelectionWith()), AccountTest) + 1, Occurrences(narrowing, AccountTest));
+        Assert.Contains("\"Category\" = ANY", narrowing, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Every listing, count, search, and thread reads through this narrowing, so a message still settling is absent from
     /// all of them at once — and from whichever reader is added next — rather than from the ones somebody remembered.
     /// </summary>
@@ -349,7 +367,8 @@ public sealed class StoredEmailSelectionPredicateCommandTests
     private static MailboxEmailSelection SelectionWith(
         bool? isFlagged = null,
         string? keyword = null,
-        EmailMarkSelection? mark = null) => MailboxEmailSelection.Create(
+        EmailMarkSelection? mark = null,
+        EmailCategorySelection? category = null) => MailboxEmailSelection.Create(
         MailboxScope.NothingReadable,
         senderAddress: null,
         recipientAddress: null,
@@ -360,5 +379,6 @@ public sealed class StoredEmailSelectionPredicateCommandTests
         isFlagged,
         keyword,
         hasAttachments: null,
-        mark);
+        mark,
+        category);
 }

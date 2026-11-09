@@ -87,7 +87,7 @@ internal static class StoredEmailSelectionPredicate
                 && EF.Functions.ILike(email.Subject, pattern, PatternEscapeCharacter));
         }
 
-        return MatchingMark(MatchingReceivedRange(MatchingFlags(emails, selection), selection), selection);
+        return MatchingCategory(MatchingMark(MatchingReceivedRange(MatchingFlags(emails, selection), selection), selection), selection);
     }
 
     /// <summary>Narrows the stored emails to the mail a scope admits, whatever the caller then asked for.</summary>
@@ -279,6 +279,28 @@ internal static class StoredEmailSelectionPredicate
         }
 
         return emails;
+    }
+
+    /// <summary>Narrows the emails to the ones recorded under a category, in the accounts offering it.</summary>
+    /// <remarks>
+    /// The account is tested beside the record because a default stays recorded after an account switches it off, so
+    /// the record alone would select mail the account hides. The names and the accounts are compared as two lists
+    /// because one account's names are unique whatever the case, so a spelling from another account cannot match it.
+    /// </remarks>
+    private static IQueryable<StoredEmailEntity> MatchingCategory(
+        IQueryable<StoredEmailEntity> emails,
+        MailboxEmailSelection selection)
+    {
+        if (selection.Category is not { } category)
+        {
+            return emails;
+        }
+
+        var names = category.StoredNames.ToArray();
+        var accounts = category.Accounts.Select(static account => account.Value).ToArray();
+
+        return emails.Where(email => accounts.Contains(email.MailboxAccountId)
+            && email.Categories.Any(record => names.Contains(record.Category)));
     }
 
     /// <summary>Narrows the emails to a received range, which excludes every email nobody could date.</summary>

@@ -77,6 +77,7 @@ public sealed class SearchEmailsToolMetadataTests
             "isFlagged",
             "keyword",
             "hasAttachments",
+            "category",
             "resultLimit",
         ];
 

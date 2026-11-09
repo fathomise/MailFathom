@@ -106,6 +106,10 @@ internal sealed record ListedEmailSummary
     /// <summary>Gets the flags MailFathom holds for the email, and when a server last reported them.</summary>
     public required PublishedEmailFlags Flags { get; init; }
 
+    /// <summary>Gets the categories the email's account shows for it.</summary>
+    [Description("The categories this email is sorted into, each a default category's identifier such as finance or a subject the account named for itself; any of them is a value the category filter accepts. This is a model's reading of the message and never evidence about who sent it. Empty when nothing has categorized the email, and for whatever the account does not show: a default it switched off, or every category of an account that does not categorize.")]
+    public required IReadOnlyList<string> Categories { get; init; }
+
     /// <summary>Gets whether raw content is available locally, and the reason when it is not.</summary>
     [Description("Whether the raw email content is stored locally: 'available' when a content read will succeed, 'exceededSizeLimit' when the email was deliberately stored without its content because it was larger than the configured limit, or 'awaitingStorageHeadroom' when local storage was full when it arrived and its content is fetched once there is room. Read this before asking for content; only the last state is worth asking about again later.")]
     public required ListedEmailContentAvailability ContentAvailability { get; init; }
@@ -144,6 +148,7 @@ internal sealed record ListedEmailSummary
             SizeBytes = summary.SizeOctets,
             Attachments = ListedEmailAttachments.From(summary.Attachments),
             Flags = PublishedEmailFlags.From(summary.Flags),
+            Categories = summary.Categories,
             ContentAvailability = PublishedAvailability(summary.ContentAvailability),
             Receipts = SentEmailReceipts.From(summary.Receipts),
         };

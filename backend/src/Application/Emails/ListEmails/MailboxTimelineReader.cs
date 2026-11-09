@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Observability;
@@ -42,6 +43,7 @@ public sealed class MailboxTimelineReader
     private readonly SensitiveContentEgressGuard egressGuard;
     private readonly IMailboxReadTelemetry readTelemetry;
     private readonly AccessAuthorization authorization;
+    private readonly OfferedMailCategories offeredCategories;
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="timelineReader">Reads bounded pages of stored email summaries.</param>
@@ -50,6 +52,7 @@ public sealed class MailboxTimelineReader
     /// <param name="egressGuard">Scans what the page is about to publish, where this deployment scans anything.</param>
     /// <param name="readTelemetry">Publishes the read as the operation it is, beside the call it happened inside.</param>
     /// <param name="authorization">Answers which principal reached this use case.</param>
+    /// <param name="offeredCategories">Reads a category filter against what the accounts offer, and puts on each summary what its account shows.</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailboxTimelineReader(
         IStoredEmailTimelineReader timelineReader,
@@ -57,7 +60,8 @@ public sealed class MailboxTimelineReader
         MailboxScopeResolver scopeResolver,
         SensitiveContentEgressGuard egressGuard,
         IMailboxReadTelemetry readTelemetry,
-        AccessAuthorization authorization)
+        AccessAuthorization authorization,
+        OfferedMailCategories offeredCategories)
     {
         ArgumentNullException.ThrowIfNull(timelineReader);
         ArgumentNullException.ThrowIfNull(freshnessReader);
@@ -65,6 +69,7 @@ public sealed class MailboxTimelineReader
         ArgumentNullException.ThrowIfNull(egressGuard);
         ArgumentNullException.ThrowIfNull(readTelemetry);
         ArgumentNullException.ThrowIfNull(authorization);
+        ArgumentNullException.ThrowIfNull(offeredCategories);
 
         this.timelineReader = timelineReader;
         this.freshnessReader = freshnessReader;
@@ -72,6 +77,7 @@ public sealed class MailboxTimelineReader
         this.egressGuard = egressGuard;
         this.readTelemetry = readTelemetry;
         this.authorization = authorization;
+        this.offeredCategories = offeredCategories;
     }
 
     /// <summary>Lists one page of emails.</summary>
@@ -140,10 +146,11 @@ public sealed class MailboxTimelineReader
         // is the received instant and the stored identity, and redaction touches neither — issuing it from the guarded
         // page would be the same value arrived at through more work.
         var guardedPage = await this.GuardedAsync(page, cancellationToken);
+        var categorizedPage = await this.offeredCategories.WithCategoriesAsync(guardedPage, cancellationToken);
 
-        read.Completed(guardedPage.Count);
+        read.Completed(categorizedPage.Count);
 
-        return new ListEmailsResult(guardedPage, nextCursor, folderFreshness);
+        return new ListEmailsResult(categorizedPage, nextCursor, folderFreshness);
     }
 
     /// <summary>Scans the two things a summary carries that a message's author wrote.</summary>
@@ -198,23 +205,29 @@ public sealed class MailboxTimelineReader
     }
 
     /// <summary>Validates the request's filters and restricts the query to the accounts this deployment serves.</summary>
-    private async Task<EmailTimelineFilter> ReadableFilterAsync(ListEmailsRequest request, CancellationToken cancellationToken) => EmailTimelineFilter.Create(
-        await this.scopeResolver.ReadableScopeAsync(
+    private async Task<EmailTimelineFilter> ReadableFilterAsync(ListEmailsRequest request, CancellationToken cancellationToken)
+    {
+        var scope = await this.scopeResolver.ReadableScopeAsync(
             MailboxReaderKind.Agent,
             request.Accounts,
             request.Folders,
             JunkMailInclusion.Excluded,
-            cancellationToken),
-        request.SenderAddress,
-        request.RecipientAddress,
-        request.SubjectFragment,
-        request.ReceivedOnOrAfter,
-        request.ReceivedBefore,
-        request.IsMarkedSeen,
-        request.IsFlagged,
-        request.Keyword,
-        request.HasAttachments,
-        request.Direction);
+            cancellationToken);
+
+        return EmailTimelineFilter.Create(
+            scope,
+            request.SenderAddress,
+            request.RecipientAddress,
+            request.SubjectFragment,
+            request.ReceivedOnOrAfter,
+            request.ReceivedBefore,
+            request.IsMarkedSeen,
+            request.IsFlagged,
+            request.Keyword,
+            request.HasAttachments,
+            request.Direction,
+            category: this.offeredCategories.SelectionWithin(scope, request.Category));
+    }
 
     /// <summary>Reads the position a cursor names, after establishing that the cursor belongs to this request.</summary>
     /// <remarks>

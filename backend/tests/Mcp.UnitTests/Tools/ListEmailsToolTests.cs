@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
@@ -843,6 +844,60 @@ public sealed class ListEmailsToolTests
         Assert.Equal([junkFolder], timeline.LastFilter.Selection.Scope.JunkFolders);
     }
 
+    [Fact]
+    public async Task ListEmailsAsync_ACategoryTheAccountOffers_NarrowsTheFilterToIt()
+    {
+        // Arrange
+        var timeline = new StubStoredEmailTimelineReader();
+        var tool = ToolMapping(StubMailFolderMappings.Nothing, timeline, categories: CategoriesOffering([]));
+
+        // Act
+        await tool.ListEmailsAsync(category: "Finance", cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        var category = timeline.LastFilter?.Selection.Category;
+        Assert.NotNull(category);
+        Assert.Equal(["finance"], category.StoredNames);
+    }
+
+    [Fact]
+    public async Task ListEmailsAsync_ACategorySwitchedOff_IsRefusedWithoutReading()
+    {
+        // Arrange
+        var timeline = new StubStoredEmailTimelineReader();
+        var tool = ToolMapping(StubMailFolderMappings.Nothing, timeline, categories: CategoriesOffering(["finance"]));
+
+        // Act
+        var refusal = await Assert.ThrowsAsync<MailboxQueryFilterInvalidException>(() =>
+            tool.ListEmailsAsync(category: "finance", cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal("category", refusal.FilterName);
+        Assert.Null(timeline.LastFilter);
+    }
+
+    [Fact]
+    public async Task ListEmailsAsync_AMessageWithCategories_PublishesWhatTheAccountShows()
+    {
+        // Arrange
+        var summary = SummaryReceivedAt(new DateTimeOffset(2026, 3, 1, 8, 0, 0, TimeSpan.Zero));
+        var categories = StubMailCategories.Offering(new StubMailCategories(
+            new Dictionary<MailAccountId, MailCategoryOffer> { [MailAccountId.Create(ServedAccountId)] = MailCategoryOffer.Of(["finance"], []) },
+            new Dictionary<StoredEmailId, IReadOnlyList<string>> { [summary.StoredEmailId] = ["finance", "travel"] }));
+        var tool = ToolMapping(StubMailFolderMappings.Nothing, new StubStoredEmailTimelineReader(summary), categories: categories);
+
+        // Act
+        var result = await tool.ListEmailsAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["travel"], Assert.Single(result.Emails).Categories);
+    }
+
+    private static OfferedMailCategories CategoriesOffering(string[] disabledDefaults) =>
+        StubMailCategories.Offering(new StubMailCategories(
+            new Dictionary<MailAccountId, MailCategoryOffer> { [MailAccountId.Create(ServedAccountId)] = MailCategoryOffer.Of(disabledDefaults, []) },
+            new Dictionary<StoredEmailId, IReadOnlyList<string>>()));
+
     private static EmailSummary SummaryReceivedAt(DateTimeOffset? receivedAt) => new()
     {
         StoredEmailId = StoredEmailId.Create(Guid.CreateVersion7()),
@@ -872,7 +927,8 @@ public sealed class ListEmailsToolTests
         StubStoredEmailTimelineReader timeline,
         StubSynchronizationFreshnessReader? freshness = null,
         StubJunkMailFolderCatalog? junkFolders = null,
-        SensitiveContentEgressGuard? egressGuard = null) => new(
+        SensitiveContentEgressGuard? egressGuard = null,
+        OfferedMailCategories? categories = null) => new(
         new MailboxTimelineReader(
             timeline,
             freshness ?? new StubSynchronizationFreshnessReader(),
@@ -883,6 +939,7 @@ public sealed class ListEmailsToolTests
                 folderMappings.Resolver),
             egressGuard ?? SensitiveContentEgressGuards.Inactive(),
             Substitute.For<IMailboxReadTelemetry>(),
-            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead)),
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            categories ?? StubMailCategories.OfferingNothing),
         new StubMailAccountCatalog(ServedAccountId));
 }

@@ -82,14 +82,14 @@ Nothing about how MailFathom reaches a mailbox is returned: no server, no port, 
 ## `list_emails` — the timeline
 
 Returns a page of summaries, newest received first by default, filtered by any combination of account, folder, sender,
-recipient, subject fragment, received range, seen state, flagged state, a keyword, and attachment presence. Every
+recipient, subject fragment, received range, seen state, flagged state, a keyword, a category, and attachment presence. Every
 argument is optional; a bare
 call reads every folder every served account maps and lets tools read — configuration is what says which folders those
 are, and a folder it does not name is one this deployment does not have.
 
 A summary is enough to recognize a message — subject, sender, recipients, timestamps, size, attachment counts, remote
 flags — and carries `storedEmailId`, the identifier a content read uses. It names its account both ways, as `accountId`
-and `accountDisplayName`, so telling a person which mailbox a message came from needs no second call. Five fields prevent
+and `accountDisplayName`, so telling a person which mailbox a message came from needs no second call. Six fields prevent
 common misreadings:
 
 - `senderVerification` is what somebody else established, next to the `senderAddress` the message wrote about itself.
@@ -115,6 +115,10 @@ common misreadings:
   standard flags. `keyword` narrows a listing to one of them, matched without regard to case. Read `wasObserved` before
   trusting any of it: an email nothing has looked at yet carries every flag unset and no keyword, which is not the same
   as a server reporting none.
+- `categories` holds the categories the account shows for the message, and `category` narrows a listing to one of them.
+  It is a model's reading of the message and **never evidence about who sent it**. An empty list means nothing has
+  categorized the message, or the account does not show what was recorded; a name no account in scope offers is refused
+  with a message listing what is offered.
 - `contentAvailability` says whether the raw content is stored locally, and why not when it is not, instead of failing a
   later read unexplained. A message larger than the configured size limit reports so here and will report the same on
   every later read; one that arrived while local storage stood at its ceiling reports that it is waiting for room, and a
