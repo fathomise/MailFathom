@@ -9,7 +9,7 @@ namespace MailFathom.Application.Retrieval;
 /// <summary>What one lookup of an answering run asks for: the text to rank against, and the narrowing written beside it.</summary>
 /// <remarks>
 /// <para>
-/// Every field here but <see cref="Category" /> is written by a model, and the type exists so that a run can express what a caller of
+/// Every field here is written by a model, and the type exists so that a run can express what a caller of
 /// <c>search_emails</c> expresses. A question that is naturally a filter — mail from one person, mail of one week, mail
 /// that carries an attachment — is otherwise answerable only by ranking free text across the whole scope, which is the
 /// one shape lexical and vector similarity are both weakest at.
@@ -87,9 +87,10 @@ public sealed record EmailKnowledgeQuery
 
     /// <summary>Gets the category an email must be recorded under, in any case, or <see langword="null" /> for any category.</summary>
     /// <remarks>
-    /// No plan and no retrieval tool writes this, because neither carries the instruction that an agent narrows by a
-    /// category only when the question names one, and a wrongly categorized message would otherwise disappear from
-    /// an answer nobody asked to narrow.
+    /// The retrieval tool writes this, under the instruction that an agent narrows by a category only when the question
+    /// is about one and searches again without it where that finds nothing. No plan does: a plan's lookups all run before
+    /// it sees what any of them found, so it could not widen an empty one, and a wrongly categorized message would
+    /// disappear from an answer.
     /// </remarks>
     public string? Category { get; init; }
 

@@ -2,10 +2,12 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Folders;
 using MailFathom.CodeCoverage;
+using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Emails.Authentication;
@@ -19,6 +21,7 @@ namespace MailFathom.Infrastructure.Persistence.Emails;
 internal sealed class StoredEmailProvenanceReader(
     MailFathomDbContext dbContext,
     IDeploymentMailFolders deploymentFolders,
+    OfferedMailCategories categories,
     TimeProvider timeProvider) : IEmailProvenanceReader
 {
     /// <inheritdoc />
@@ -42,6 +45,9 @@ internal sealed class StoredEmailProvenanceReader(
         var now = timeProvider.GetUtcNow();
         var unsent = (await UnsentOf(dbContext, emails).ToArrayAsync(cancellationToken))
             .ToDictionary(static row => row.StoredEmailId, row => StateOf(row.Stage, row.DueAt, now));
+        var shownCategories = await categories.ReadShownAsync(
+            [.. rows.Select(static row => (StoredEmailId.Create(row.StoredEmailId), MailAccountId.Create(row.SenderTrust.MailboxAccountId)))],
+            cancellationToken);
 
         return rows.Zip(verdicts).ToDictionary(
             static pair => StoredEmailId.Create(pair.First.StoredEmailId),
@@ -57,6 +63,7 @@ internal sealed class StoredEmailProvenanceReader(
                 IsFirstContact = !pair.First.HasEarlierCorrespondence,
                 IsWrittenByMailbox = pair.First.IsWrittenByMailbox,
                 Unsent = unsent.TryGetValue(pair.First.StoredEmailId, out var state) ? state : null,
+                Categories = shownCategories.GetValueOrDefault(StoredEmailId.Create(pair.First.StoredEmailId), []),
             });
     }
 

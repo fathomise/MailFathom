@@ -4,6 +4,7 @@
 
 using MailFathom.AI.AgentConversations;
 using MailFathom.AI.Orchestration;
+using MailFathom.AI.Retrieval;
 using MailFathom.Application.Agent.Conversations;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -17,6 +18,17 @@ namespace MailFathom.AI.UnitTests.AgentConversations;
 public sealed class AgentConversationInstructionsTests
 {
     /// <summary>Every language the deployment writes in has an instruction, and it names that language as the one the Agent's own words are in.</summary>
+    /// <summary>The Agent searches through the same tool as a question does, so it is held to the same rule about a category.</summary>
+    [Fact]
+    public void TextFor_AnyLanguage_CarriesTheRuleForNarrowingByACategory()
+    {
+        // Act
+        var text = AgentConversationInstructions.TextFor(UserLanguage.English);
+
+        // Assert
+        Assert.Contains(ScopedMailKnowledgeRetrieval.CategoryFilterRule, text, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void TextFor_EveryLanguage_NamesThatLanguageForTheAgentsOwnWords()
     {

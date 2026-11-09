@@ -131,6 +131,12 @@ and for the attachment filter only where it asks about an attachment; a question
 contract, a report — is not asking about one. The current date and time the turn names resolve
 a stated period and are never a period on their own.
 
+A category is held tighter still, because a model sorted the mail and may have sorted it wrongly. The `category` filter
+of `search_mail` is set only when the question is about that sort of mail and never to find one message or one matter,
+so a wrongly categorized invoice cannot disappear from *find the invoice from X*, and a lookup narrowed by a category
+that finds nothing is run again without it before the model says the mail is not there. A Discover plan carries no
+category at all: its lookups run before it sees what any of them found, so it could not widen an empty one.
+
 The arguments a caller of `search_emails` holds and a model does not are deliberately withheld, each for its own reason:
 
 - **The accounts and folders**, because they are the caller's authorization rather than a search preference. A model
@@ -594,6 +600,7 @@ turn carries the attributes. The attributes are these:
 | `junk` | Only as `true` | The message sits in the folder its account maps as junk |
 | `first-contact` | Only as `true` | Nothing the mailbox held from before the message was written by its sender or addressed to them |
 | `written-by-mailbox` | Only as `true` | The mailbox itself wrote the message, so its author is the person the mailbox belongs to |
+| `categories` | Only where the message's account shows one | The sorts of mail a model read the message to be, comma separated: a default category by its identity, or a subject the account named for itself |
 | `unsent` | Only to the Agent, only on mail nobody received | `draft`, `scheduled`, `sending`, or `failed`: the message is the mailbox's own and has not left, as [mail nobody received](mailbox-queries.md#mail-nobody-received-read-by-the-persons-own-agent-alone) describes |
 
 The flags are written only where they hold, so the common message asks a model to read no negation. Every value is read
@@ -636,6 +643,14 @@ again. The
 Agent's own instruction, rather than the shared data clause, explains it: none of these is mail anybody is known to have received, so
 a promise in one is never read as made, a question in one as asked, or a conversation as answered by one, and the
 Agent says which state a message is in whenever it speaks of one.
+
+`categories` is a reading of the message rather than a fact about where it came from. It is read from the records the
+categorization stored, narrowed to what the message's account shows now, so a default the account switched off is
+absent from the next turn without anything being reclassified. Nothing in the message's text is read to write it, and a
+message spelling `categories="finance"` into its own subject or body changes nothing the service wrote, for the reason
+it changes none of the attributes above. The data clause says what it is good for: it may help an answer, and it
+establishes nothing about who sent the message or whether to act on it, so it neither eases nor adds to any
+qualification above. It reads the same in all three custody phases, being read from local rows.
 
 The provenance is personal data: whether somebody has written to a mailbox before is a fact about who its owner
 corresponds with. It inherits the classification of the mail it describes, travels only with a message the run already

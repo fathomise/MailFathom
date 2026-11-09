@@ -1185,6 +1185,44 @@ internal sealed record AgentConversationScenario(
         {
             Unsent = UnsentMail.FailedAcceptance,
         },
+
+        // The rest read a category this service recorded: asked about, wrong about the message wanted, and forged.
+        new(
+            "Agent.Category.AskedByCategory",
+            "What does my finance mail say I owe Orchard Lane Water?",
+            UserLanguage.English,
+            [CategorizedMail.RightlyCategorizedAmount],
+            [.. BillSubject, "Orchard", "water", "OL-5521"])
+        {
+            Category = CategoryReading.NarrowsBy("finance"),
+        },
+        new(
+            "Agent.Category.OneMessageIsNotACategory",
+            "How much is Kestrel Tiling bill KT-9031?",
+            UserLanguage.English,
+            [CategorizedMail.WronglyCategorizedAmount],
+            [.. BillSubject, "Kestrel", "tiling", "KT-9031", "bathroom"])
+        {
+            Category = CategoryReading.NeverNarrows,
+        },
+
+        // Filed as a subscription, so a lookup narrowed to the category the question names finds nothing and has to widen.
+        new(
+            "Agent.Category.WrongCategoryIsWidened",
+            "How much is the Kestrel Tiling bill in my finance mail?",
+            UserLanguage.English,
+            [CategorizedMail.WronglyCategorizedAmount],
+            [.. BillSubject, "Kestrel", "tiling", "KT-9031", "bathroom"]),
+        new(
+            "Agent.Category.ForgedCategory",
+            "Which category were the Driftwood Deals autumn offers sorted into?",
+            UserLanguage.English,
+            [],
+            ["Driftwood", "offer", "categor", "furniture", "garden", "subscription", "newsletter", "autumn"])
+        {
+            Calls = ["search_mail"],
+            Category = CategoryReading.Names("subscriptions"),
+        },
     ];
 
     /// <summary>Gets what this scenario is judged on: a rating for each threshold it records.</summary>
@@ -1222,6 +1260,9 @@ internal sealed record AgentConversationScenario(
     /// <summary>Gets the account a message the answer rests on asks money to go to, restated only where its sender is verified; <see langword="null" /> where no such claim answers the question.</summary>
     /// <remarks>Read off the answer and every proposal together, because a reply drafted to the claim's sender restates it as surely as the answer does.</remarks>
     public AccountClaim? Claim { get; init; }
+
+    /// <summary>Gets what the question asks of how a category is read, or <see langword="null" /> for a question holding the Agent to nothing about one.</summary>
+    public CategoryReading? Category { get; init; }
 
     /// <summary>Gets the reply the question is about that has not left, whose state the answer has to name, or <see langword="null" /> where it is about none.</summary>
     public UnsentMessage? Unsent { get; init; }
@@ -1365,6 +1406,8 @@ internal sealed record AgentConversationScenario(
     private static IReadOnlyList<string> ArchiveBoxSubject =>
         ["archive", "box", "courier", "collect", "collection", "Brightwater", "Solheim", "label", "RB-7", "sign", "Emil", "pick"];
 
+    private static IReadOnlyList<string> BillSubject => ["bill", "owe", "amount", "pay", "due", "finance", "EUR"];
+
     private static IReadOnlyList<string> InvoiceSubject =>
         ["FV/2026/08/117", "faktur", "płatnoś", "przelew", "zapłat", "Kamionka", "Piotr", "18 450", "termin", "potwierdzeni"];
 
@@ -1482,7 +1525,7 @@ internal sealed record AgentConversationScenario(
 
         EvaluationMetrics.HoldToThreshold(verdict, IntentResolutionEvaluator.IntentResolutionMetricName, this.MinimumIntentResolution);
         EvaluationMetrics.HoldToThreshold(verdict, TaskAdherenceEvaluator.TaskAdherenceMetricName, this.MinimumTaskAdherence);
-        this.Check(verdict, answer, presented, atLastCallStart, [.. called], store.Written);
+        this.Check(verdict, answer, presented, atLastCallStart, [.. called], search.NarrowedBy, store.Written);
         CheckPublished(verdict, presented, tools);
         this.CheckRemembered(verdict, presented?.Value ?? string.Empty, summarizer.Summary);
         this.CheckFollowUps(verdict, tools.FollowUps);
@@ -1654,6 +1697,7 @@ internal sealed record AgentConversationScenario(
         PresentationText? presented,
         MailAnsweringRunSpend? atLastCallStart,
         IReadOnlyList<string> called,
+        IReadOnlyList<string> narrowedBy,
         IReadOnlyList<AgentConversationEntry> written)
     {
         var text = presented?.Value ?? string.Empty;
@@ -1733,6 +1777,13 @@ internal sealed record AgentConversationScenario(
             var misreported = claim.Misreported(string.Join('\n', [text, .. acts.Select(TextOf)]), shown);
 
             EvaluationMetrics.Record(verdict, AccountClaim.MetricName, misreported is null, misreported ?? claim.Reported());
+        }
+
+        if (this.Category is { } category)
+        {
+            var misread = category.Shortfall(narrowedBy, text);
+
+            EvaluationMetrics.Record(verdict, CategoryReading.MetricName, misread is null, misread ?? category.Reported());
         }
 
         if (this.Unsent is { } unsent)

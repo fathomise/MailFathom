@@ -41,7 +41,8 @@ internal static class MailAnsweringInstructions
         question that names no period gets no received bounds, and one that asks about no attachment gets no attachment
         filter, and naming a document — an invoice, a contract, a report — is not asking about an attachment: a filter
         the question did not ask for hides mail that could answer it, and the turn's date and time
-        tell you what a stated period means but are never a period on its own. The turn names the
+        tell you what a stated period means but are never a period on its own.
+        {ScopedMailKnowledgeRetrieval.CategoryFilterRule} The turn names the
         current date and time, so resolve "this week", "since Tuesday" and "last quarter" against what the turn states
         rather than against a date you recall, and write each bound as {AnchoredInstant.WrittenForm} on that same
         clock — no zone, no offset and no Z, because the turn's own time carries none either. A narrowing expressed

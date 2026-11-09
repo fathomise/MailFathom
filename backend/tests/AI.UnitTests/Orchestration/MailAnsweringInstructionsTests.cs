@@ -119,6 +119,15 @@ public sealed class MailAnsweringInstructionsTests
         Assert.Contains("never a period on its own", Instruction, StringComparison.Ordinal);
     }
 
+    /// <summary>A wrong category must never hide the message somebody asked for, so the run is told when one may narrow a lookup and to widen an empty one.</summary>
+    [Fact]
+    public void Text_TheInstruction_CarriesTheRuleForNarrowingByACategory()
+    {
+        // Assert
+        Assert.Contains(ScopedMailKnowledgeRetrieval.CategoryFilterRule, Instruction, StringComparison.Ordinal);
+        Assert.Contains("run it again without the category", ScopedMailKnowledgeRetrieval.CategoryFilterRule, StringComparison.Ordinal);
+    }
+
     /// <summary>A period the question does state is still applied as a filter, resolved against the turn's own clock.</summary>
     [Fact]
     public void Text_TheInstruction_ResolvesAStatedPeriodAgainstTheTurnsClock()

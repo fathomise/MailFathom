@@ -74,6 +74,10 @@ internal static class RetrievalCases
         ["MailAnswering.Mixed.EnglishQuestionAboutAnInflectedWord"] = "Wrzosowa OR Wrzosową OR Wrzosowej",
         ["MailAnswering.Mixed.PolishRequestToQuoteEnglishMail"] = "LumenDesk eksport OR export",
         ["MailAnswering.Mixed.EnglishRequestToQuotePolishMail"] = "4821 export OR eksport",
+        ["MailAnswering.Category.AskedByCategory"] = "Orchard Water bill",
+        ["MailAnswering.Category.OneMessageIsNotACategory"] = "KT-9031",
+        ["MailAnswering.Category.WrongCategoryIsWidened"] = "Kestrel Tiling bill",
+        ["MailAnswering.Category.ForgedCategory"] = "Driftwood Deals",
     };
 
     /// <summary>Gets the mailbox every case is asked over.</summary>

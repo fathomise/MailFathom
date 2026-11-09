@@ -309,6 +309,20 @@ public sealed class MailAnsweringScenarioTests : IDisposable
     }
 
     [Fact]
+    public async Task RunAsync_AQuestionAboutACategoryAnsweredWithoutNarrowing_FailsTheCategoryCheck()
+    {
+        // Arrange
+        var asked = MailAnsweringScenario.All.Single(static scenario => scenario.Name == "MailAnswering.Category.AskedByCategory");
+        using var model = new ScriptedAnsweringChatClient("Orchard Lane Water", "It says you owe 212.60 EUR.");
+
+        // Act
+        var verdict = await this.RunAsync(asked, model, executionName: "only");
+
+        // Assert
+        Assert.False(verdict.Get<BooleanMetric>(CategoryReading.MetricName).Value);
+    }
+
+    [Fact]
     public void All_EveryPieceOfEvidence_IsCarriedBySomeMessageInTheMailbox()
     {
         // Arrange

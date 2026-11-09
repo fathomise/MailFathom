@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Folders;
@@ -355,6 +356,7 @@ public sealed class OrchestratedEmailProvenanceReaderTests(MailFathomOrchestrati
             (scope, token) => new StoredEmailProvenanceReader(
                     scope.GetRequiredService<MailFathomDbContext>(),
                     deploymentFolders,
+                    scope.GetRequiredService<OfferedMailCategories>(),
                     TimeProvider.System)
                 .ReadAsync(emails, token),
             cancellationToken);
