@@ -618,6 +618,28 @@ public sealed class MailboxChangeSubmissionTests
         Assert.Empty(this.states.Erased);
     }
 
+    /// <summary>The server lost a local-only message, so a delete asking to leave it there has no occurrence to remember.</summary>
+    [Fact]
+    public async Task EraseAsync_ALocalOnlyMessageDeletedToLeaveTheServerUntouched_ErasesItAndRemembersNothing()
+    {
+        // Arrange
+        this.StoreLocalOnly();
+        var delete = MailboxMutationRequest.Delete(
+            Email,
+            Occurrence,
+            Requester,
+            AuthoredDeleteEmailDisposition.EraseLocalCopy,
+            AuthoredDeleteServerDisposition.LeaveOnServer);
+        var record = await this.records.OpenAsync(this.session, delete, heldUntil: null, MailboxMutationLocalChange.Erasure, Token);
+
+        // Act
+        await this.Submission().EraseAsync(this.session, record, Token);
+
+        // Assert
+        Assert.Equal(Email, Assert.Single(this.states.Erased));
+        Assert.Empty(this.states.Forgotten);
+    }
+
     /// <summary>An account stating the local copy is erased gets that on a local-only message too.</summary>
     [Fact]
     public async Task EraseAsync_ALocalOnlyMessageUnderEraseLocalCopy_ErasesIt()
