@@ -1190,6 +1190,7 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
 
         return new EmailContentReader(
             summaryReader,
+            StubMailCategories.OfferingNothing,
             threadReader,
             Substitute.For<IEmailContentStore>(),
             Substitute.For<IEmailContentRenderer>(),

@@ -36,4 +36,7 @@ public sealed record ListedEmailThread
 
     /// <summary>Gets what a derivation called it, or <see langword="null" /> where nothing has titled it.</summary>
     public required ListedThreadTitle? Title { get; init; }
+
+    /// <summary>Gets every category any of those messages holds, each once, as the records spell them; what its account shows of them is decided when the page is described.</summary>
+    public required IReadOnlyList<string> Categories { get; init; }
 }

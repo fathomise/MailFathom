@@ -4,6 +4,7 @@
 
 using System.Collections.ObjectModel;
 using MailFathom.Application.Access;
+using MailFathom.Application.Categories;
 using MailFathom.Application.EmailContent;
 using MailFathom.Application.EmailContent.Attachments;
 using MailFathom.Application.EmailContent.Rendering;
@@ -66,6 +67,7 @@ namespace MailFathom.Application.Emails.GetEmailContent;
 public sealed class EmailContentReader
 {
     private readonly IStoredEmailSummaryReader summaryReader;
+    private readonly OfferedMailCategories categories;
     private readonly IEmailThreadReader threadReader;
     private readonly IEmailContentStore contentStore;
     private readonly IEmailContentRenderer renderer;
@@ -79,6 +81,7 @@ public sealed class EmailContentReader
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="summaryReader">Reads one stored email's summary by its identity.</param>
+    /// <param name="categories">Puts on the summary the categories its account shows.</param>
     /// <param name="threadReader">Reads the messages of the conversation an email belongs to.</param>
     /// <param name="contentStore">Reads the raw MIME stored for an email, with what was recorded about it.</param>
     /// <param name="renderer">Turns stored raw MIME into headers, a body, and a description of every attachment.</param>
@@ -92,6 +95,7 @@ public sealed class EmailContentReader
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public EmailContentReader(
         IStoredEmailSummaryReader summaryReader,
+        OfferedMailCategories categories,
         IEmailThreadReader threadReader,
         IEmailContentStore contentStore,
         IEmailContentRenderer renderer,
@@ -104,6 +108,7 @@ public sealed class EmailContentReader
         AccessAuthorization authorization)
     {
         ArgumentNullException.ThrowIfNull(summaryReader);
+        ArgumentNullException.ThrowIfNull(categories);
         ArgumentNullException.ThrowIfNull(threadReader);
         ArgumentNullException.ThrowIfNull(contentStore);
         ArgumentNullException.ThrowIfNull(renderer);
@@ -116,6 +121,7 @@ public sealed class EmailContentReader
         ArgumentNullException.ThrowIfNull(authorization);
 
         this.summaryReader = summaryReader;
+        this.categories = categories;
         this.threadReader = threadReader;
         this.contentStore = contentStore;
         this.renderer = renderer;
@@ -254,6 +260,8 @@ public sealed class EmailContentReader
         {
             return EmailContentReadOutcome.NotFound(storedEmailId);
         }
+
+        summary = (await this.categories.WithCategoriesAsync([summary], cancellationToken))[0];
 
         // Both states are content synchronization deliberately did not store, so neither is a damaged local copy and
         // neither schedules a repair. They are answered apart because only one of them is worth asking about again.
@@ -537,6 +545,7 @@ public sealed class EmailContentReader
             SenderAuthenticationEvidence = summary.SenderAuthenticationEvidence,
             MachineAuthorship = summary.MachineAuthorship,
             Spam = summary.Spam,
+            Categories = summary.Categories,
             Report = summary.Report,
             ReadReceiptRequest = summary.ReadReceiptRequest,
             Receipts = summary.Receipts,
@@ -603,6 +612,7 @@ public sealed class EmailContentReader
             SenderAuthenticationEvidence = summary.SenderAuthenticationEvidence,
             MachineAuthorship = summary.MachineAuthorship,
             Spam = summary.Spam,
+            Categories = summary.Categories,
             Report = summary.Report,
             ReadReceiptRequest = summary.ReadReceiptRequest,
             Receipts = summary.Receipts,

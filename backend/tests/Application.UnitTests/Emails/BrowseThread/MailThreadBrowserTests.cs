@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.BrowseThread;
 using MailFathom.Application.Emails.Chunking;
 using MailFathom.Application.Emails.Enrichment;
@@ -61,6 +62,28 @@ public sealed class MailThreadBrowserTests
             [question.StoredEmailId, answer.StoredEmailId],
             thread.Messages.Select(message => message.Email.StoredEmailId));
         Assert.Equal(2, thread.MessageCount);
+    }
+
+    /// <summary>Each message of a conversation carries its own categories, as its account shows them.</summary>
+    [Fact]
+    public async Task BrowsePageAsync_AMessageHoldingCategories_CarriesWhatItsAccountShows()
+    {
+        // Arrange
+        var question = Message(1, Inbox, "2026-08-16T09:00:00Z");
+        var answer = Message(2, Sent, "2026-08-16T10:00:00Z", answers: question);
+        var browser = BrowserOver(
+            [question, answer],
+            categories: StubMailCategories.Offering(new StubMailCategories(
+            new Dictionary<MailAccountId, MailCategoryOffer> { [Account] = MailCategoryOffer.Of(["travel"], ["Legal"]) },
+            new Dictionary<StoredEmailId, IReadOnlyList<string>> { [answer.StoredEmailId] = ["Legal"] })));
+
+        // Act
+        var thread = await browser.BrowsePageAsync(Request(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(thread);
+        Assert.Empty(thread.Messages[0].Email.Categories);
+        Assert.Equal(["Legal"], thread.Messages[1].Email.Categories);
     }
 
     /// <summary>
@@ -673,7 +696,8 @@ public sealed class MailThreadBrowserTests
         SensitiveContentEgressGuard? egressGuard = null,
         IMailboxReadTelemetry? readTelemetry = null,
         AccessAuthorization? authorization = null,
-        IReadOnlyList<MailAccountId>? ownedAccounts = null) => BrowserOver(
+        IReadOnlyList<MailAccountId>? ownedAccounts = null,
+        OfferedMailCategories? categories = null) => BrowserOver(
         new StubEmailThreadReader([.. messages.Select(message => (Conversation, message))]),
         summaryReader ?? new InMemoryStoredEmailSummaries().WithAll(messages.Select(StoredOf)),
         previewReader,
@@ -681,7 +705,8 @@ public sealed class MailThreadBrowserTests
         egressGuard,
         readTelemetry,
         authorization,
-        ownedAccounts);
+        ownedAccounts,
+        categories);
 
     private static MailThreadBrowser BrowserOver(
         StubEmailThreadReader threadReader,
@@ -691,7 +716,8 @@ public sealed class MailThreadBrowserTests
         SensitiveContentEgressGuard? egressGuard = null,
         IMailboxReadTelemetry? readTelemetry = null,
         AccessAuthorization? authorization = null,
-        IReadOnlyList<MailAccountId>? ownedAccounts = null)
+        IReadOnlyList<MailAccountId>? ownedAccounts = null,
+        OfferedMailCategories? categories = null)
     {
         var accountCatalog = Substitute.For<ICallerMailAccountCatalog>();
         accountCatalog.ReadAssignedAccountsAsync(Arg.Any<CancellationToken>()).Returns(
@@ -711,6 +737,7 @@ public sealed class MailThreadBrowserTests
 
         return new MailThreadBrowser(
             threadReader,
+            categories ?? StubMailCategories.OfferingNothing,
             summaryReader ?? new InMemoryStoredEmailSummaries(),
             previewReader ?? new InMemoryStoredEmailPreviews(),
             enrichmentReader ?? new InMemoryStoredEmailEnrichments(),

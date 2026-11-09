@@ -177,7 +177,7 @@ public sealed class ClientMailSearchEndpointTests
         var page = new BrowsedSearchPage(
             [
                 new BrowsedSearchResult(
-                    SyntheticMatchedEmail(),
+                    SyntheticMatchedEmail() with { Categories = ["Legal"] },
                     "the invoice is attached",
                     ["**invoice**"],
                     SearchMatchOrigin.BothRankings,
@@ -194,6 +194,7 @@ public sealed class ClientMailSearchEndpointTests
         var response = ClientMailSearchResponse.For(page, NoPhotos);
 
         // Assert
+        Assert.Equal([new ClientMailCategoryResponse("Legal", "Legal")], Assert.Single(response.Results).Categories);
         Assert.Equal("after", response.NextCursor);
         Assert.Equal(20, response.PageSize);
         Assert.Equal(nameof(EmailSearchRetrievalMode.Hybrid), response.RetrievalMode);
@@ -467,6 +468,7 @@ public sealed class ClientMailSearchEndpointTests
 
         return new MailSearchBrowser(
             this.index,
+            StubMailCategories.OfferingNothing,
             NoAttachmentMatches(),
             LexicalOnlySemanticSearch(),
             previews,

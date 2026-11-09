@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.Enrichment;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
@@ -45,6 +46,7 @@ namespace MailFathom.Application.Emails.BrowseTimeline;
 public sealed class MailTimelineBrowser
 {
     private readonly IStoredEmailTimelineReader timelineReader;
+    private readonly OfferedMailCategories categories;
     private readonly IStoredEmailPreviewReader previewReader;
     private readonly IStoredEmailEnrichmentReader enrichmentReader;
     private readonly IEmailThreadReader threadReader;
@@ -55,6 +57,7 @@ public sealed class MailTimelineBrowser
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="timelineReader">Reads bounded pages of stored email summaries.</param>
+    /// <param name="categories">Puts on each email of a page the categories its account shows.</param>
     /// <param name="previewReader">Reads the bounded opening of the text of the emails a page returned.</param>
     /// <param name="enrichmentReader">Reads what a derivation concluded about the emails a page returned.</param>
     /// <param name="threadReader">Counts the conversations the emails a page returned belong to.</param>
@@ -65,6 +68,7 @@ public sealed class MailTimelineBrowser
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailTimelineBrowser(
         IStoredEmailTimelineReader timelineReader,
+        OfferedMailCategories categories,
         IStoredEmailPreviewReader previewReader,
         IStoredEmailEnrichmentReader enrichmentReader,
         IEmailThreadReader threadReader,
@@ -74,6 +78,7 @@ public sealed class MailTimelineBrowser
         AccessAuthorization authorization)
     {
         ArgumentNullException.ThrowIfNull(timelineReader);
+        ArgumentNullException.ThrowIfNull(categories);
         ArgumentNullException.ThrowIfNull(previewReader);
         ArgumentNullException.ThrowIfNull(enrichmentReader);
         ArgumentNullException.ThrowIfNull(threadReader);
@@ -83,6 +88,7 @@ public sealed class MailTimelineBrowser
         ArgumentNullException.ThrowIfNull(authorization);
 
         this.timelineReader = timelineReader;
+        this.categories = categories;
         this.previewReader = previewReader;
         this.enrichmentReader = enrichmentReader;
         this.threadReader = threadReader;
@@ -144,7 +150,9 @@ public sealed class MailTimelineBrowser
             pageSize.Value + 1,
             cancellationToken);
 
-        var page = TimelinePaging.SortedPage(walked, pageSize, pageDirection);
+        var page = await this.categories.WithCategoriesAsync(
+            TimelinePaging.SortedPage(walked, pageSize, pageDirection),
+            cancellationToken);
         var beyondThePage = walked.Count > pageSize.Value;
 
         var pageIdentities = page.Select(static email => email.StoredEmailId).ToArray();

@@ -8,6 +8,7 @@ using MailFathom.Application.Persistence;
 using MailFathom.Application.Spam;
 using MailFathom.Application.Synchronization;
 using MailFathom.Domain.Access;
+using MailFathom.Domain.Categories;
 using MailFathom.Domain.Emails;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Spam;
@@ -173,6 +174,40 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
         Assert.Equal(stored[9103], amongSpam.NewestEmailId);
     }
 
+    /// <summary>
+    /// A conversation holds each category of the messages the reader may read once, a trashed message's and a spam
+    /// message's among them, as its counts do.
+    /// </summary>
+    [Fact]
+    public async Task ReadGroupedPageAsync_ConversationsWithCategories_HoldEachOnceAcrossTheirMessages()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        var stored = await EnsureSeededAsync(services, cancellationToken);
+
+        await EnsureHoldingAsync(
+            services,
+            [
+                (stored[9109], EmailCategoryKind.Default, "finance"),
+                (stored[9109], EmailCategoryKind.Own, "Legal"),
+                (stored[9110], EmailCategoryKind.Default, "finance"),
+                (stored[9110], EmailCategoryKind.Own, "Budget"),
+                (stored[9102], EmailCategoryKind.Default, "travel"),
+            ],
+            cancellationToken);
+
+        // Act
+        var forward = await WalkGroupedAsync(services, isMarkedSeen: null, EmailTimelineDirection.NewestFirst, from: null, cancellationToken);
+
+        // Assert
+        var across = Assert.Single(forward, grouped => grouped.Thread.ThreadId.Value == AcrossFolders);
+        var amongSpam = Assert.Single(forward, grouped => grouped.Thread.ThreadId.Value == OneOrdinaryAmongSpam);
+
+        Assert.Equal(["Budget", "Legal", "finance"], across.Thread.Categories.Order(StringComparer.Ordinal));
+        Assert.Equal(["travel"], amongSpam.Thread.Categories);
+    }
+
     /// <summary>Walks the grouped list one conversation at a time in one direction, from a position or from that direction's leading end.</summary>
     private static async Task<IReadOnlyList<GroupedEmailThread>> WalkGroupedAsync(
         OrchestratedMailFathomServices services,
@@ -278,6 +313,34 @@ public sealed class OrchestratedEmailThreadListTests(MailFathomOrchestrationFixt
 
         return stored;
     }
+
+    private static Task<bool> EnsureHoldingAsync(
+        OrchestratedMailFathomServices services,
+        (StoredEmailId Message, EmailCategoryKind Kind, string Category)[] records,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+        async (scope, token) =>
+        {
+            var context = scope.GetRequiredService<MailFathomDbContext>();
+            Guid[] messages = [.. records.Select(static record => record.Message.Value)];
+
+            if (!await context.EmailCategories.AnyAsync(record => messages.Contains(record.StoredEmailId), token))
+            {
+                context.EmailCategories.AddRange(records.Select(static record => new EmailCategoryEntity
+                {
+                    StoredEmailId = record.Message.Value,
+                    Kind = record.Kind,
+                    Category = record.Category,
+                    Probability = 0.9,
+                    Source = EmailCategorySource.Model,
+                    Origin = "provider/build",
+                    QuestionRevision = "abc123",
+                }));
+                await context.SaveChangesAsync(token);
+            }
+
+            return true;
+        },
+        cancellationToken);
 
     private static Task<bool> PlaceInConversationsAsync(
         OrchestratedMailFathomServices services,

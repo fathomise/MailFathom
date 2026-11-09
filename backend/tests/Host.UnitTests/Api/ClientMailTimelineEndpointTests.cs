@@ -390,6 +390,24 @@ public sealed class ClientMailTimelineEndpointTests
         Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
     }
 
+    /// <summary>A row carries what its account shows for the message, so a list draws without another request.</summary>
+    [Fact]
+    public void For_ARowOfTheList_CarriesWhatTheAccountShows()
+    {
+        // Arrange
+        var row = new BrowsedEmail(
+            SyntheticListedEmail(subject: "the invoice", attachmentCount: 0) with { Categories = ["finance", "Legal"] },
+            Preview: null,
+            Enrichment: null,
+            ThreadMessageCount: null);
+
+        // Act
+        var response = ClientMailTimelineEntryResponse.For(row, NoPhotos);
+
+        // Assert
+        Assert.Equal([new ClientMailCategoryResponse("finance", Name: null), new ClientMailCategoryResponse("Legal", "Legal")], response.Categories);
+    }
+
     /// <summary>Every fact a list row draws reaches the wire from one request, which is what the route exists for.</summary>
     [Fact]
     public void For_ARowOfTheList_CarriesEveryFactAListDraws()
@@ -797,6 +815,7 @@ public sealed class ClientMailTimelineEndpointTests
             this.conversationList,
             summaries,
             previews,
+            new StubMailCategories(),
             catalog,
             Substitute.For<IOutgoingSenderIdentityReader>(),
             new MailboxScopeResolver(
@@ -821,6 +840,7 @@ public sealed class ClientMailTimelineEndpointTests
             NewestReceivedEmailId = null,
             Participants = [],
             Title = null,
+            Categories = [],
         },
         new EmailTimelinePosition(FirstJuly, newest));
 
@@ -862,6 +882,7 @@ public sealed class ClientMailTimelineEndpointTests
 
         return new MailTimelineBrowser(
             this.timeline,
+            StubMailCategories.OfferingNothing,
             previews,
             enrichments,
             conversations,

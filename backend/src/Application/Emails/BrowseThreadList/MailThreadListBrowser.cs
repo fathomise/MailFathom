@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.BrowseTimeline;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
@@ -23,7 +24,7 @@ namespace MailFathom.Application.Emails.BrowseThreadList;
 /// It is the message list read with one row kept per conversation: the message list's account scope, filters, order,
 /// and cursors narrow and page the conversations as they do the messages. A conversation is described across every
 /// folder the person may read, junk included. What it is quoted by — its newest message, the sender mark of its newest
-/// received one, who wrote into it, and what a derivation called it — is read for the page rather than per row, so a
+/// received one, who wrote into it, what a derivation called it, and which categories it holds — is read for the page rather than per row, so a
 /// page of fifty costs a handful of reads rather than fifty.
 /// </para>
 /// <para>
@@ -37,6 +38,7 @@ public sealed class MailThreadListBrowser
     private readonly IEmailThreadListReader listReader;
     private readonly IStoredEmailSummaryReader summaryReader;
     private readonly IStoredEmailPreviewReader previewReader;
+    private readonly IMailCategoryOfferReader categoryOffers;
     private readonly ICallerMailAccountCatalog accountCatalog;
     private readonly IOutgoingSenderIdentityReader senderIdentities;
     private readonly MailboxScopeResolver scopeResolver;
@@ -48,6 +50,7 @@ public sealed class MailThreadListBrowser
     /// <param name="listReader">Reads the conversations of one page.</param>
     /// <param name="summaryReader">Describes the messages a page quotes.</param>
     /// <param name="previewReader">Reads the opening of each quoted message's own text.</param>
+    /// <param name="categoryOffers">Says what each conversation's account shows.</param>
     /// <param name="accountCatalog">Names the accounts the caller is assigned, whose sending identities say who the reader is.</param>
     /// <param name="senderIdentities">Reads the address each of those accounts sends as.</param>
     /// <param name="scopeResolver">Resolves what the caller may read.</param>
@@ -59,6 +62,7 @@ public sealed class MailThreadListBrowser
         IEmailThreadListReader listReader,
         IStoredEmailSummaryReader summaryReader,
         IStoredEmailPreviewReader previewReader,
+        IMailCategoryOfferReader categoryOffers,
         ICallerMailAccountCatalog accountCatalog,
         IOutgoingSenderIdentityReader senderIdentities,
         MailboxScopeResolver scopeResolver,
@@ -69,6 +73,7 @@ public sealed class MailThreadListBrowser
         ArgumentNullException.ThrowIfNull(listReader);
         ArgumentNullException.ThrowIfNull(summaryReader);
         ArgumentNullException.ThrowIfNull(previewReader);
+        ArgumentNullException.ThrowIfNull(categoryOffers);
         ArgumentNullException.ThrowIfNull(accountCatalog);
         ArgumentNullException.ThrowIfNull(senderIdentities);
         ArgumentNullException.ThrowIfNull(scopeResolver);
@@ -79,6 +84,7 @@ public sealed class MailThreadListBrowser
         this.listReader = listReader;
         this.summaryReader = summaryReader;
         this.previewReader = previewReader;
+        this.categoryOffers = categoryOffers;
         this.accountCatalog = accountCatalog;
         this.senderIdentities = senderIdentities;
         this.scopeResolver = scopeResolver;
@@ -211,7 +217,11 @@ public sealed class MailThreadListBrowser
             .. page
                 .Where(thread => summaries.ContainsKey(thread.NewestEmailId))
                 .Select(thread => new BrowsedListedThread(
-                    thread with { Participants = [.. thread.Participants.Take(IEmailThreadListReader.MaximumNamedParticipants)] },
+                    thread with
+                    {
+                        Participants = [.. thread.Participants.Take(IEmailThreadListReader.MaximumNamedParticipants)],
+                        Categories = this.categoryOffers.OfferOf(summaries[thread.NewestEmailId].Account).Shown(thread.Categories),
+                    },
                     thread.Participants.Count > IEmailThreadListReader.MaximumNamedParticipants,
                     summaries[thread.NewestEmailId],
                     previews.TryGetValue(thread.NewestEmailId, out var preview) ? EmailPreview.Bounded(preview) : null,

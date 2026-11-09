@@ -330,6 +330,7 @@ public sealed class ClientCitationEndpointTests
 
         var content = new EmailContentReader(
             Substitute.For<IStoredEmailSummaryReader>(),
+            StubMailCategories.OfferingNothing,
             Substitute.For<IEmailThreadReader>(),
             Substitute.For<IEmailContentStore>(),
             Substitute.For<IEmailContentRenderer>(),

@@ -186,6 +186,24 @@ public sealed class StoredEmailThreadListReaderCommandTests
         Assert.Contains("\"Topic\" IS NOT NULL", command, StringComparison.Ordinal);
     }
 
+    /// <summary>A page's categories are one statement over the conversations it names, each category of each conversation once, within the scope every other count reads under.</summary>
+    [Fact]
+    public void Categories_ForAPage_IsOneDistinctStatementOverTheScope()
+    {
+        // Arrange
+        using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);
+
+        // Act
+        var command = StoredEmailThreadListReader
+            .Categories(context.StoredEmails.AsNoTracking(), Scope(), [Guid.Parse("33333333-3333-3333-3333-333333333333")])
+            .ToQueryString();
+
+        // Assert
+        Assert.Contains("SELECT DISTINCT", command, StringComparison.Ordinal);
+        Assert.Contains("email_categories", command, StringComparison.Ordinal);
+        Assert.Contains("MailboxAccountId", command, StringComparison.Ordinal);
+    }
+
     private static string GroupedPageCommand(EmailTimelineFilter filter, EmailTimelinePosition? continueAfter)
     {
         using var context = new MailFathomDbContextDesignTimeFactory().CreateDbContext([]);

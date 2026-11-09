@@ -115,6 +115,10 @@ public sealed record ReadEmailContent
     /// <remarks>The same reading a listing carries, taken from the same summary, so a row and an opened message agree.</remarks>
     public EmailSpamVerdict? Spam { get; init; }
 
+    /// <summary>Gets the categories the email's account shows for it, each a default's published identity or an own category's name.</summary>
+    /// <remarks>The same reading a listing carries, so a row and an opened message agree.</remarks>
+    public IReadOnlyList<string> Categories { get; init; } = [];
+
     /// <summary>Gets the report the email was recognized as when it arrived, or <see langword="null" /> for every other message.</summary>
     /// <remarks>The same reading a listing carries, taken from the same summary.</remarks>
     public EmailReportMark? Report { get; init; }

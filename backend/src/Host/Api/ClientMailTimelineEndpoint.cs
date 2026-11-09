@@ -435,6 +435,7 @@ internal sealed record ClientMailTimelineResponse(
 /// <param name="SenderPhoto">The photo the sender is drawn by, or <see langword="null" /> where they are drawn by their initials.</param>
 /// <param name="Report">The delivery report or read receipt the message was recognized as, or <see langword="null" /> for every other message.</param>
 /// <param name="Receipts">What the account's own message asked to be told and how many recipients each report covered, or <see langword="null" /> where it asked for nothing and nothing came.</param>
+/// <param name="Categories">The categories its account shows for the message, a default before an own category, empty where it shows none.</param>
 /// <remarks>
 /// <para>
 /// The three flags are published as the states a row draws rather than as the snapshot they came from, because a screen
@@ -492,7 +493,8 @@ internal sealed record ClientMailTimelineEntryResponse(
     ClientMailListedSenderResponse Sender,
     PersonPhotoResponse? SenderPhoto,
     ClientMailReportResponse? Report,
-    ClientMailReceiptSummaryResponse? Receipts)
+    ClientMailReceiptSummaryResponse? Receipts,
+    IReadOnlyList<ClientMailCategoryResponse> Categories)
 {
     /// <summary>Describes one row for the wire.</summary>
     /// <param name="row">The row the use case read.</param>
@@ -547,7 +549,8 @@ internal sealed record ClientMailTimelineEntryResponse(
         ClientMailListedSenderResponse.For(email.SenderVerification),
         PersonPhotoResponse.For(email.SenderAddress, senderPhotos),
         ClientMailReportResponse.For(email.Report),
-        ClientMailReceiptSummaryResponse.For(email.Receipts));
+        ClientMailReceiptSummaryResponse.For(email.Receipts),
+        ClientMailCategoryResponse.For(email.Categories));
 }
 
 /// <summary>What a row publishes about who sent its message: enough to choose the sender mark, and nothing more.</summary>

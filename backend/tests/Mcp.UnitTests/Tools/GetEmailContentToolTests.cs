@@ -1374,6 +1374,7 @@ public sealed class GetEmailContentToolTests
         IEmailThreadReader? threadReader = null) => new(
         new EmailContentReader(
             summaryReader ?? new StubStoredEmailSummaryReader(SummaryOf()),
+            StubMailCategories.OfferingNothing,
             threadReader ?? new StubEmailThreadReader(),
             contentStore ?? new StubEmailContentStore(IntactContent()),
             renderer ?? new StubEmailContentRenderer(EmailContentRenderingResult.Rendered(RenderingOf())),

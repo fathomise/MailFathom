@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
@@ -71,6 +72,7 @@ namespace MailFathom.Application.Emails.BrowseSearch;
 public sealed class MailSearchBrowser
 {
     private readonly IEmailSearchIndexReader searchIndexReader;
+    private readonly OfferedMailCategories categories;
     private readonly IEmailAttachmentMatchReader attachmentMatchReader;
     private readonly SemanticEmailSearch semanticSearch;
     private readonly IStoredEmailPreviewReader previewReader;
@@ -82,6 +84,7 @@ public sealed class MailSearchBrowser
 
     /// <summary>Initializes the use case.</summary>
     /// <param name="searchIndexReader">Ranks mail against the query text and reads the window a ranking selected.</param>
+    /// <param name="categories">Puts on each result the categories its account shows.</param>
     /// <param name="attachmentMatchReader">Reads which attachment of a result the query reached, and where inside the file.</param>
     /// <param name="semanticSearch">Ranks mail by meaning, or reports that this instance cannot.</param>
     /// <param name="previewReader">Reads the bounded opening of the text of the emails a page returned.</param>
@@ -93,6 +96,7 @@ public sealed class MailSearchBrowser
     /// <exception cref="ArgumentNullException">Thrown when any argument is <see langword="null" />.</exception>
     public MailSearchBrowser(
         IEmailSearchIndexReader searchIndexReader,
+        OfferedMailCategories categories,
         IEmailAttachmentMatchReader attachmentMatchReader,
         SemanticEmailSearch semanticSearch,
         IStoredEmailPreviewReader previewReader,
@@ -103,6 +107,7 @@ public sealed class MailSearchBrowser
         AccessAuthorization authorization)
     {
         ArgumentNullException.ThrowIfNull(searchIndexReader);
+        ArgumentNullException.ThrowIfNull(categories);
         ArgumentNullException.ThrowIfNull(attachmentMatchReader);
         ArgumentNullException.ThrowIfNull(semanticSearch);
         ArgumentNullException.ThrowIfNull(previewReader);
@@ -113,6 +118,7 @@ public sealed class MailSearchBrowser
         ArgumentNullException.ThrowIfNull(authorization);
 
         this.searchIndexReader = searchIndexReader;
+        this.categories = categories;
         this.attachmentMatchReader = attachmentMatchReader;
         this.semanticSearch = semanticSearch;
         this.previewReader = previewReader;
@@ -192,6 +198,10 @@ public sealed class MailSearchBrowser
             matches,
             ranking.DepictedOnly,
             cancellationToken);
+
+        var categorized = await this.categories.WithCategoriesAsync([.. matches.Select(static match => match.Summary)], cancellationToken);
+
+        matches = [.. matches.Zip(categorized, static (match, summary) => match with { Summary = summary })];
 
         var previews = await this.previewReader.ReadPreviewsAsync(
             [.. matches.Select(static match => match.Summary.StoredEmailId)],

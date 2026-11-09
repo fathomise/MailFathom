@@ -14,6 +14,7 @@ using MailFathom.Application.EmailContent.Rendering.Document;
 using MailFathom.Application.EmailContent.Rendering.Document.Blocks;
 using MailFathom.Application.EmailContent.Repair;
 using MailFathom.Application.EmailContent.Storage;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.GetEmailContent;
 using MailFathom.Application.Emails.Mailboxes;
@@ -44,6 +45,26 @@ namespace MailFathom.Application.UnitTests.Emails.GetEmailContent;
 /// <summary>Covers the email content use case: what it serves, what it refuses, and what it records when it refuses.</summary>
 public sealed class EmailContentReaderTests
 {
+    /// <summary>A read message carries what its account shows, the same reading a row carries.</summary>
+    [Fact]
+    public async Task ReadContentAsync_AMessageHoldingCategories_CarriesWhatItsAccountShows()
+    {
+        // Arrange
+        var summary = SyntheticEmailSummaries.Create(attachmentCount: 0);
+        var reader = ReaderOver(
+            summary,
+            RendererReturning(RenderingOf(attachments: [])),
+            categories: StubMailCategories.Offering(new StubMailCategories(
+            new Dictionary<MailAccountId, MailCategoryOffer> { [summary.Account] = MailCategoryOffer.Of(["travel"], ["Legal"]) },
+            new Dictionary<StoredEmailId, IReadOnlyList<string>> { [summary.StoredEmailId] = ["travel", "finance"] })));
+
+        // Act
+        var result = await reader.ReadContentAsync(RequestFor([summary.StoredEmailId]), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["finance"], ContentOf(Assert.Single(result.Emails)).Categories);
+    }
+
     /// <summary>The literal the switched-on deployment in these tests detects, standing in for a credential in mail.</summary>
     private const string Marker = "AKIAEXAMPLEKEY";
 
@@ -2102,8 +2123,10 @@ public sealed class EmailContentReaderTests
         SensitiveContentEgressGuard? egressGuard = null,
         IMailboxReadTelemetry? readTelemetry = null,
         AccessAuthorization? authorization = null,
-        IEmailThreadReader? threadReader = null) => new(
+        IEmailThreadReader? threadReader = null,
+        OfferedMailCategories? categories = null) => new(
         SummaryReaderReturning(summary),
+        categories ?? StubMailCategories.OfferingNothing,
         threadReader ?? new StubEmailThreadReader(),
         contentStore ?? ContentStoreReturning(IntactContent()),
         renderer,
@@ -2130,6 +2153,7 @@ public sealed class EmailContentReaderTests
         AccessAuthorization? authorization = null,
         IEmailThreadReader? threadReader = null) => new(
         SummaryReaderOver(summaries),
+        StubMailCategories.OfferingNothing,
         threadReader ?? new StubEmailThreadReader(),
         contentStore ?? ContentStoreReturning(IntactContent()),
         renderer,

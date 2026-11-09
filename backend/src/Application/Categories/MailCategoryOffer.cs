@@ -48,8 +48,15 @@ public sealed class MailCategoryOffer
     public string? NameMatching(string requested) =>
         this.Names.FirstOrDefault(name => string.Equals(name, requested, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Reports whether a stored record names a category this account shows.</summary>
-    /// <param name="recordedName">The category as the record spells it, compared exactly.</param>
-    /// <returns><see langword="true" /> when the category is offered.</returns>
-    public bool Shows(string recordedName) => this.Names.Contains(recordedName, StringComparer.Ordinal);
+    /// <summary>Narrows what a message or a conversation holds to what this account shows.</summary>
+    /// <param name="recorded">The categories as the records spell them, compared exactly, in any order.</param>
+    /// <returns>The categories shown, a default before an own category and the account's own as it declares them.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="recorded" /> is <see langword="null" />.</exception>
+    /// <remarks>It walks what the account offers rather than what is recorded, so the order is the one a screen draws and an answer never exceeds what one account offers.</remarks>
+    public IReadOnlyList<string> Shown(IReadOnlyCollection<string> recorded)
+    {
+        ArgumentNullException.ThrowIfNull(recorded);
+
+        return [.. this.Names.Where(name => recorded.Contains(name, StringComparer.Ordinal))];
+    }
 }

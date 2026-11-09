@@ -5,6 +5,7 @@
 using MailFathom.Application.Access;
 using MailFathom.Application.Accounts;
 using MailFathom.Application.AiProviders;
+using MailFathom.Application.Categories;
 using MailFathom.Application.Emails.AttachmentText;
 using MailFathom.Application.Emails.BrowseSearch;
 using MailFathom.Application.Emails.Embeddings;
@@ -65,6 +66,25 @@ public sealed class MailSearchBrowserTests
             page.Results.Select(result => result.Email.StoredEmailId));
         Assert.NotNull(page.NextCursor);
         Assert.Equal(2, page.PageSize);
+    }
+
+    /// <summary>A result carries what its account shows of what the message holds, like a list row.</summary>
+    [Fact]
+    public async Task SearchPageAsync_AMatchHoldingCategories_CarriesWhatItsAccountShows()
+    {
+        // Arrange
+        var ranked = RankedCorpus(1);
+        var browser = BrowserOver(
+            IndexOver(ranked),
+            categories: StubMailCategories.Offering(new StubMailCategories(
+            new Dictionary<MailAccountId, MailCategoryOffer> { [MailAccountId.Create(SyntheticEmailSummaries.DefaultAccountId)] = MailCategoryOffer.Of(["travel"], ["Legal"]) },
+            new Dictionary<StoredEmailId, IReadOnlyList<string>> { [ranked[0].StoredEmailId] = ["travel", "Legal"] })));
+
+        // Act
+        var page = await browser.SearchPageAsync(RequestFor(Query, pageSize: 2), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["Legal"], Assert.Single(page.Results).Email.Categories);
     }
 
     /// <summary>Two pages are contiguous: what the second returns is what the first left, in the order the ranking put them in.</summary>
@@ -703,8 +723,10 @@ public sealed class MailSearchBrowserTests
         SensitiveContentEgressGuard? egressGuard = null,
         AccessAuthorization? authorization = null,
         IEmailAttachmentMatchReader? attachmentMatchReader = null,
-        StubMailFolderParticipation? folderParticipation = null) => new(
+        StubMailFolderParticipation? folderParticipation = null,
+        OfferedMailCategories? categories = null) => new(
         index,
+        categories ?? StubMailCategories.OfferingNothing,
         attachmentMatchReader ?? new InMemoryEmailAttachmentMatchIndex(),
         semanticSearch ?? LexicalOnlySemanticSearch(),
         previewReader ?? new InMemoryStoredEmailPreviews(),

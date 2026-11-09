@@ -92,7 +92,7 @@ public sealed class OfferedMailCategories(
         return
         [
             .. summaries.Select(summary => recorded.TryGetValue(summary.StoredEmailId, out var names)
-                ? summary with { Categories = [.. names.Where(offers[summary.Account].Shows)] }
+                ? summary with { Categories = offers[summary.Account].Shown(names) }
                 : summary),
         ];
     }
