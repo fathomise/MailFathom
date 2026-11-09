@@ -20,7 +20,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     nextDefault: NEXT_DEFAULT, seedConversations: SEED_CONVS, agentReplies: AGENT_REPLIES, agentFallback: AGENT_FALLBACK,
     agentDraftHtml: AGENT_DRAFT_HTML,
     notifications: NOTIFS, incomingNotifications: INCOMING, demoBatches: DEMO_BATCHES,
-    senderMarks: SENDER_MARKS, receipts: RECEIPTS, receiptRequests: RECEIPT_REQUESTS, trustedLinkDomains: TRUSTED_LINK_DOMAINS, messageSources: MESSAGE_SOURCES,
+    senderMarks: SENDER_MARKS, categories: CATEGORIES, receipts: RECEIPTS, receiptRequests: RECEIPT_REQUESTS, trustedLinkDomains: TRUSTED_LINK_DOMAINS, messageSources: MESSAGE_SOURCES,
   } = MailFathomDesign.data;
   const { mdPlain, mdView, MDTXT, MDSIZE } = MailFathomDesign.markdown;
   const { HTML_SHELL, embedHtml, embedLinks, htmlFallback } = MailFathomDesign.mailHtml;
@@ -306,6 +306,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     warnAuth: { glyph: "gpp_bad", word: "Suspicious", tone: "err", name: "Suspicious - sender authentication failed" },
     neutral: { glyph: "shield", word: "", tone: "plain", name: "Sender not recognized" },
   };
+  /* THE CATEGORIES — what sort of mail a message is (data/prototype/categories.js). The square label a spam kind and the
+     AI tag already use, in the quiet tone whatever the category, since none of them is a warning. A default that draws
+     no label is left out here, so everything past this point has only names to draw. */
+  const CATEGORY_LABEL = "display:block;box-sizing:border-box;min-width:0;font-size:12px;line-height:16px;border-radius:4px;padding:0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);border:1px solid var(--border2);";
+  const orderedCategories = (keys) => Object.keys(CATEGORIES.names).filter(k => CATEGORIES.names[k] && keys.includes(k)).map(k => CATEGORIES.names[k]);
+  /* `newer` counts the thread's messages newer than this one, so the newest message is 0. */
+  const messageCategories = (threadId, newer) => orderedCategories((CATEGORIES.messages[threadId] || [])[newer] || []);
+  const conversationCategories = (threadId) => orderedCategories((CATEGORIES.messages[threadId] || []).flat());
+  /* A name only says more than its label where the label may have ended in an ellipsis. */
+  const categoryLabel = (name, width) => ({ name, tip: name.length > 18 ? name : undefined, style: CATEGORY_LABEL + (name.length > 18 ? "flex:0 1 auto;" : "flex:0 0 auto;") + "max-width:" + width + "px;" });
+
   const MARK_INK = { err: "var(--err-text)", ok: "var(--ok-text)", accent: "var(--accent-d)", known: "var(--muted)", plain: "var(--muted)" };
   const MARK_PILL = {
     err: "color:var(--err-text);background:var(--err-soft);border:1px solid var(--err);",
@@ -2109,7 +2120,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.setState({
         ctxMenu: {
           x: p.x, y: p.y, kind: "mail", id: id, title: th.subject || "Message",
+          detailWraps: !sp.spam && (this.state.convMail ? conversationCategories(id) : messageCategories(id, 0)).length > 0,
           detail: th.from + (sp.spam ? " - " + (spamKind(sp.kind) ? spamKind(sp.kind).label + " spam" : "Spam") : "") +
+            /* A finger has no hover, and the hold that would ask a label for its whole name opens this menu. */
+            (sp.spam ? "" : (this.state.convMail ? conversationCategories(id) : messageCategories(id, 0)).map(n => " - " + n).join("")) +
             (/·(Sent|Drafts)$/.test(this.state.folderKey || "") || !senderRecord(id, null) ? "" : " - " + MARKS[markKeyOf(senderRecord(id, null))].name) +
             (rcpt ? " - " + rcpt.word : ""),
           items: [
@@ -4481,6 +4495,25 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const k = markKeyOf(r);
         return Object.assign({ k, open: (e) => this.openSenderMark(threadId, from, e) }, MARKS[k]);
       };
+      /* A row draws two categories at most, one where the list is narrow, and +N naming the rest. On a message row they
+         close the third line, after the AI reading, which gives way first; read by conversation they take the second of the
+         two lines the newest message's opening has, so what a model titled keeps its room, and the row grows by its own gap. */
+      const withCategories = (t, row) => {
+        const names = this.spamOf(t.id).spam ? [] : convMail ? conversationCategories(t.id) : messageCategories(t.id, 0);
+        const shown = names.slice(0, listCompact ? 1 : 2);
+        const rest = names.slice(shown.length);
+        return Object.assign(row, {
+          thirdLineShown: !!row.showAi || (!convMail && names.length > 0),
+          catsShown: names.length > 0,
+          cats: shown.map(n => categoryLabel(n, 132)),
+          catsMoreShown: rest.length > 0,
+          catsMore: "+" + rest.length,
+          catsRest: rest.join(", "),
+          catsMoreStyle: CATEGORY_LABEL + "flex:0 0 auto;overflow:visible;",
+          catsStyle: "display:flex;align-items:center;gap:4px;min-width:0;flex:0 0 auto;" + (convMail ? "" : "max-width:" + (listCompact ? 50 : 62) + "%;" + (row.showAi ? "margin-left:auto;" : "")),
+          ...(convMail && names.length > 0 ? { convSnippetStyle: row.convSnippetStyle.replace("line-clamp:2", "line-clamp:1") } : {}),
+        });
+      };
       const withMark = (t, row) => {
         const M = recipientList ? null : markOf(t.id, null);
         if (!M) return Object.assign(row, { markShown: false });
@@ -4732,6 +4765,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           aiBtnStyle: "display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" + (touch ? "width:44px;height:44px;margin:-12px -8px;font-size:20px" : "width:26px;height:26px;margin:-5px -3px;font-size:17px"),
           ...(m.mine ? { rptShown: false } : reportLine(thread)),
           ...(m.mine ? { markShown: false } : badgeOf(thread.id, m.from)),
+          ...(() => {
+            /* A reply read by thread alone (`sentLast`) stands past the sample's newest message and holds none. */
+            const names = threadSpam.spam ? [] : messageCategories(thread.id, msgs.length - 1 - i - (convMail && SENT_LAST[thread.id] ? 1 : 0));
+            return {
+              catsShown: names.length > 0,
+              cats: names.map(n => categoryLabel(n, 240)),
+              catsStyle: "display:inline-flex;flex-wrap:wrap;align-self:center;gap:4px;min-width:0;max-width:100%",
+            };
+          })(),
           // What came back belongs to the newest message the account sent in the conversation.
           ...(m.mine && i === msgs.map(x => x.mine).lastIndexOf(true) ? receiptBadge(thread.id) : { rcptShown: false }),
           ...(!m.mine && i === lastIdx && !threadSpam.spam ? readReceiptAsk(thread, m.from) : { mdnAskShown: false, mdnSentShown: false }),
@@ -5456,6 +5498,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ctxMenuOpen: !!st.ctxMenu,
         ctxMenuTitle: st.ctxMenu ? st.ctxMenu.title : "",
         ctxMenuDetail: (st.ctxMenu && st.ctxMenu.detail) || "",
+        ctxMenuDetailFit: st.ctxMenu && st.ctxMenu.detailWraps ? "white-space:normal;overflow-wrap:anywhere" : "overflow:hidden;text-overflow:ellipsis;white-space:nowrap",
         ctxMenuHasDetail: !!(st.ctxMenu && st.ctxMenu.detail),
         closeCtxMenu: () => { if (this.ctxArmed()) this.closeCtxMenuFocus(); },
         /* A checkable item reads its state from the render rather than from when the menu opened, and pressing it
@@ -7933,7 +7976,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         cameFromResult: st.cameFrom,
         fromCitation: st.fromCite || "",
         backToResult: () => this.setState({ screen: "discover", cameFrom: false }),
-        threads: listedThreads.map(t => withReceipt(t, withMark(t, spamRowOf(t, {
+        threads: listedThreads.map(t => withReceipt(t, withMark(t, withCategories(t, spamRowOf(t, {
           ...(convMail ? convRowOf(t) : {}),
           msgShown: !convMail,
           convShown: convMail,
@@ -8005,7 +8048,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             rowWash(t.id),
           count: parseInt(((t.meta || "").match(/thread: (\d+)/) || [])[1] || "1", 10),
           multi: parseInt(((t.meta || "").match(/thread: (\d+)/) || [])[1] || "1", 10) > 1,
-        })))),
+        }))))),
         activeSubject: thread.subject,
         activeMeta: thread.meta,
         activeState: thread.state.map((s, i) => {

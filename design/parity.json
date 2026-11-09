@@ -250,7 +250,9 @@
         },
         {
           "expect": {
-            "text": "Notifications"
+            "role": "heading",
+            "name": "Notifications",
+            "exact": true
           }
         }
       ]
