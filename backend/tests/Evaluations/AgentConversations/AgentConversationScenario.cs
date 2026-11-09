@@ -1220,7 +1220,7 @@ internal sealed record AgentConversationScenario(
             [],
             ["Driftwood", "offer", "category", "categories", "furniture", "garden", "subscription", "newsletter", "autumn"])
         {
-            Calls = ["search_mail"],
+            Calls = [ScopedMailKnowledgeRetrieval.SearchToolName],
             Category = CategoryReading.Names("subscriptions"),
         },
     ];
