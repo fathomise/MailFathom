@@ -285,7 +285,7 @@ internal sealed class PersistedMailAccountRecordStore(
     {
         try
         {
-            return await AssignCountedAsync(accountId, user, expectedUserVersion, cancellationToken);
+            return await this.AssignCountedAsync(accountId, user, expectedUserVersion, cancellationToken);
         }
         catch (Exception failure) when (Violates(failure, PersistenceConstraintNames.MailAccountAssignmentSoleUserIndexName))
         {
