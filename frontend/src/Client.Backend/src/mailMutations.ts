@@ -374,10 +374,10 @@ export async function markMailSpam(
 }
 
 /**
- * Writes down that the named messages are to be deleted from the mail server, as one batch their reader's act authored.
+ * Writes down that the named messages are to be deleted, as one batch their reader's act authored.
  *
- * Nothing here names a folder or says what becomes of MailFathom's own copy: the first is not part of the act and the
- * second is the account's configured answer, which no client decides and none displays.
+ * Nothing here names a folder or says what becomes of the mail server's copy or MailFathom's own: the first is not part
+ * of the act and the other two are the account's configured answer, which no client decides and none displays.
  *
  * @param session Who is asking and where.
  * @param transport How a request reaches the deployment.

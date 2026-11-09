@@ -32,7 +32,7 @@ public interface IAuthoredDeleteEmailDispositionReader
 
     /// <summary>Gets what one account's own deletions do to the message on its mail server.</summary>
     /// <param name="accountId">The account whose mail is being deleted.</param>
-    /// <returns>Whether the delete expunges the message or only flags it <c>\Deleted</c>.</returns>
+    /// <returns>Whether the delete expunges the message, only flags it <c>\Deleted</c>, or sends the server nothing.</returns>
     /// <remarks>
     /// Beside the local answer rather than on a port of its own, because both are read by the same callers at the same
     /// moment about the same act and are written down on the same record.

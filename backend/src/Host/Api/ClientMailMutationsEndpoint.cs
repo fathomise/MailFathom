@@ -377,7 +377,7 @@ internal static class ClientMailMutationsEndpoint
     }
 
     /// <summary>Writes down the deletes one batch asks for, one message at a time.</summary>
-    /// <param name="request">The messages to delete from the mail server.</param>
+    /// <param name="request">The messages to delete.</param>
     /// <param name="recorder">Writes one delete down.</param>
     /// <param name="preferences">Answers how long the acting person's own notification stands, which is what the window is measured from.</param>
     /// <param name="idempotency">Answers whether the batch's request identifier already named a different act.</param>
@@ -1057,7 +1057,7 @@ internal sealed record ClientMailMoveResultResponse(
 /// <param name="Deletes">The messages to delete, at most the batch bound this surface publishes.</param>
 internal sealed record ClientMailDeletesRequest(string? RequestId, IReadOnlyList<ClientMailDeleteRequest> Deletes);
 
-/// <summary>One message to delete from the mail server.</summary>
+/// <summary>One message to delete.</summary>
 /// <param name="StoredEmailId">The message to delete, as a list row, a conversation, or a search published it.</param>
 /// <remarks>It names nothing else. What becomes of MailFathom's own copy is the account's configured answer, so a caller that could state it here would be deciding an operator's posture from a screen.</remarks>
 internal sealed record ClientMailDeleteRequest(Guid StoredEmailId);

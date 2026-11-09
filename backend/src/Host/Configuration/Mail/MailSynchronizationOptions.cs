@@ -1079,7 +1079,7 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     /// It binds as one of the names <see cref="AuthoredFolderDeleteDisposition" /> declares, and a value that is none
     /// of them fails startup for the reason the two settings above do: this decides whether mail is destroyed, and a
     /// typo in it must never be the reason mail survives or does not. The default deletes the folder on the server,
-    /// which is what the gesture means and what every other deletion setting of an account is becoming.
+    /// which is what the gesture means.
     /// </para>
     /// </remarks>
     public AuthoredFolderDeleteDisposition AuthoredFolderDeleteDisposition { get; set; } =

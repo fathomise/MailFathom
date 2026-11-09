@@ -2440,7 +2440,7 @@ flag.
 ### The mutation routes
 
 These nine are how a person changes the mailbox itself: marking mail read or unread, starring it, relabelling it,
-filing it into another folder, saying it is spam or not, and deleting it off the server — and asking where each of
+filing it into another folder, saying it is spam or not, and deleting it — and asking where each of
 those changes has got to, taking one back, or saying a delete need wait no longer.
 
 | Route | What it does |
@@ -2665,8 +2665,9 @@ Each result carries `recorded`, `applied`, `message-not-found`, or `account-no-l
 that is not there rather than as a delete that succeeded twice.
 
 **Deleting mail is its own grant again.** `mailfathom.mail.move` does not reach it and `mailfathom.mail.delete` does: a
-move the user did not want is undone by moving the mail back, while this is the act that means the mail stops existing
-on the server, so a deployment that lets a client file mail has not thereby let it destroy any. Which folder the message
+move the user did not want is undone by moving the mail back, while this is the act that erases the mail from
+MailFathom, and from the mail server where the account states `Expunge`, so a deployment that lets a client file mail
+has not thereby let it destroy any. Which folder the message
 is in decides nothing on this surface: the rule that MailFathom's own client offers this only for mail already in the
 trash is that client's sentence to its reader, and the grant is the whole of what this route enforces.
 
