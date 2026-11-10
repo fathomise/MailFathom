@@ -245,6 +245,43 @@
         },
       ],
     },
+    /* Two drafts with the composer's signing and encryption choices (`data/prototype/encryption.js`): a reply to mail
+       that arrived encrypted, so encryption is on and locked, copied to somebody MailFathom holds no key for, so its
+       Send refuses; and a new message to that same person, so encryption is unavailable with the reason. */
+    {
+      id: "c-enc", title: "Reply to Ewa about the settlement", when: "10:12",
+      msgs: [
+        { role: "user", text: "Reply to Ewa that we accept the settlement terms, copy Marta, and ask Marta in a separate note to book the boardroom for Friday", ts: atToday(10, 12) },
+        {
+          role: "bot", ts: atToday(10, 12), scope: "thread · Settlement terms - confidential",
+          text: "The reply quotes Ewa's message, which arrived encrypted, so it goes encrypted. Two drafts below.",
+          blocks: [
+            {
+              type: "draft", phase: "pending", meta: "reply · 58 words", acc: "acc1", replyTo: "encSettlement",
+              to: "Ewa Sikora", cc: ["Marta Nowak"], subject: "Re: Settlement terms - confidential",
+              paras: [
+                "Thank you, Ewa. We accept the settlement of €42,000 in two instalments, by 30 September and by 31 December.",
+                "Please name our board in the confidentiality clause as well, and send the final text for signature.",
+              ],
+              done: "Sent into “Settlement terms - confidential”",
+              disposition: "Local draft - nothing was sent",
+              cites: [
+                { n: "1", source: "Settlement terms - confidential", badge: "mail", snippet: "“Please confirm by 2 September and I will send the final text for signature.”", freshness: "today · Ewa Sikora" },
+              ],
+            },
+            {
+              type: "draft", phase: "pending", meta: "new message · 24 words", acc: "acc1",
+              to: "Marta Nowak", subject: "Boardroom on Friday",
+              paras: [
+                "Hi Marta, could you book the boardroom for Friday from 10:00 to 11:30? The board meets about the Adventure Works matter. Thank you.",
+              ],
+              done: "Sent to Marta Nowak",
+              disposition: "Local draft - nothing was sent",
+            },
+          ],
+        },
+      ],
+    },
     {
       id: "c-summary", title: "Summarise the addendum thread", when: "15:52",
       ctx: "thread “Contract addendum - signatures”",

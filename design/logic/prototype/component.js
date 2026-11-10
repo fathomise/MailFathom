@@ -20,7 +20,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     nextDefault: NEXT_DEFAULT, seedConversations: SEED_CONVS, agentReplies: AGENT_REPLIES, agentFallback: AGENT_FALLBACK,
     agentDraftHtml: AGENT_DRAFT_HTML,
     notifications: NOTIFS, incomingNotifications: INCOMING, demoBatches: DEMO_BATCHES,
-    senderMarks: SENDER_MARKS, categories: CATEGORIES, receipts: RECEIPTS, receiptRequests: RECEIPT_REQUESTS, trustedLinkDomains: TRUSTED_LINK_DOMAINS, messageSources: MESSAGE_SOURCES,
+    senderMarks: SENDER_MARKS, categories: CATEGORIES, receipts: RECEIPTS, receiptRequests: RECEIPT_REQUESTS, encryption: ENCRYPTION, trustedLinkDomains: TRUSTED_LINK_DOMAINS, messageSources: MESSAGE_SOURCES,
   } = MailFathomDesign.data;
   const { mdPlain, mdView, MDTXT, MDSIZE } = MailFathomDesign.markdown;
   const { HTML_SHELL, embedHtml, embedLinks, htmlFallback } = MailFathomDesign.mailHtml;
@@ -291,6 +291,45 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
   const convMsgsFor = (t) => {
     const own = SENT_LAST[t.id];
     return own ? msgsFor(t).concat([M(ME, own.when, [{ text: own.text }], null, null, { footer: !!own.footer })]) : msgsFor(t);
+  };
+
+  /* ENCRYPTED MAIL — the two choices a message is sent with (ADR 0046), the same in the composer and in the Agent's
+     draft. Encryption is on and locked while the message quotes mail that arrived encrypted, offered and off where every
+     recipient has a key, and unavailable with its reason where the account has no key to encrypt with or a recipient
+     has none. Signing is per message unless the person signs everything, and absent where the account cannot sign.
+     `refused` names every recipient an encrypted send cannot reach, blind-copied ones included. */
+  const ENC_STATES = {
+    opened: { name: "Encrypted", row: "Encrypted" },
+    noKey: { name: "Encrypted - no key here opens it", row: "Encrypted - no key here opens it" },
+    limit: { name: "Encrypted - too large to open here", row: "Encrypted - too large to open here" },
+  };
+  const hasKey = (n) => !!ENCRYPTION.recipients[n];
+  const namesSaid = (ns) => ns.length < 2 ? ns.join("") : ns.slice(0, -1).join(", ") + " and " + ns[ns.length - 1];
+  const protectionOf = ({ acc, to, cc, bcc, quotes, encrypt, sign, signAll }) => {
+    const can = ENCRYPTION.accounts[acc] || {};
+    const all = (to || []).map(n => ({ n, hdr: "" })).concat((cc || []).map(n => ({ n, hdr: "" })), (bcc || []).map(n => ({ n, hdr: "Bcc" })));
+    const missing = all.filter(r => !hasKey(r.n));
+    const locked = !!quotes && !!can.encrypt;
+    const encOn = locked || (!!encrypt && !!can.encrypt);
+    const encOff = !can.encrypt
+      ? "This account has no key to encrypt with"
+      : !encOn && missing.length ? "No key for " + namesSaid(missing.map(r => r.n)) : "";
+    const signLocked = !!signAll && !!can.sign;
+    const signOn = signLocked || (!!sign && !!can.sign);
+    const refused = encOn ? missing.map(r => r.n + (r.hdr ? " (blind copy)" : "")) : [];
+    return {
+      canEncrypt: !!can.encrypt, canSign: !!can.sign,
+      encOn, encLocked: locked, encOff, encNote: locked ? "On - it quotes mail that arrived encrypted" : encOff,
+      signOn, signLocked, signNote: signLocked ? "On - you sign everything you send" : "",
+      unsignedNotice: !!signAll && !can.sign,
+      refused,
+      refusedText: refused.length
+        ? "This cannot be sent encrypted: MailFathom holds no key for " + namesSaid(refused) + ". Remove " + (refused.length > 1 ? "them" : "that recipient") +
+          (locked ? ", or remove the quotation and turn encryption off." : ", or turn encryption off.")
+        : "",
+      said: [encOn ? "encrypted" : "", signOn ? "signed" : ""].filter(Boolean).join(" and "),
+      reach: (n) => hasKey(n),
+    };
   };
 
   /* THE SENDER MARK — what the service publishes about who sent a received message (data/prototype/sender-marks.js),
@@ -938,7 +977,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.pendingBody = draftHtml(d.body);
       const patch = { compose: true, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null,
         composeSubjEdit: d.subject, composeDraft: d, composeCc: (d.cc || []).slice(), ccOpen: !!(d.cc || []).length, closeAsk: false, sendAsk: null,
-        composeReceipts: Object.assign({}, d.receipts), composeSendAt: null, sendLaterAsk: null };
+        composeReceipts: Object.assign({}, d.receipts), composeEncrypt: false, composeSign: false, composeQuoteDropped: false, composeSendAt: null, sendLaterAsk: null };
       if (this.tabsMode()) this.openTab("compose", patch);
       else this.setState(patch);
     };
@@ -1243,7 +1282,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     startReply = (mode, ids) => {
       const id = this.opTargets(ids)[0];
       if (this.refuseSpam(id, mode === "fwd" ? "Spam cannot be forwarded." : "Spam cannot be answered.")) return;
-      const patch = { compose: true, composeDraft: null, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
+      const patch = { compose: true, composeDraft: null, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], composeReceipts: {}, composeEncrypt: !!(THREADS.find(t => t.id === id) || {}).encrypted, composeSign: false, composeQuoteDropped: false, composeSendAt: null, sendLaterAsk: null, threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
       if (this.state.workMode === "tabs") this.openTab("compose", patch);
       else this.setState(patch);
     };
@@ -1996,7 +2035,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const r = e && e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
       const coarse = this.state.coarse;
       const W = (coarse ? 352 : 336) + 14;
-      const H = 46 + 6 * (coarse ? 50 : 38) + 30 + 15;
+      const H = 46 + 8 * (coarse ? 50 : 38) + 2 * 30 + 40;
       const p = this.localPt(r ? r.right - W : 0, r ? r.top - H - 4 : 0);
       const turn = (k) => () => this.setState(s => ({ composeReceipts: Object.assign({}, s.composeReceipts, { [k]: !(s.composeReceipts || {})[k] }) }));
       const chosen = () => this.state.composeSendAt || null;
@@ -2006,7 +2045,17 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         ctxMenu: {
           x: p.x, y: p.y, kind: "composeMore", wide: true, title: "Sending options",
           items: [
-            { icon: "move_to_inbox", label: "Request delivery notification", checked: () => !!(this.state.composeReceipts || {}).dsn, run: turn("dsn") },
+            /* Encrypting and signing come first, each read from the render's `_protection` so a recipient added while
+               the menu stands is reflected at once. Signing is absent where the account has no key to sign with. */
+            { icon: "lock", label: "Encrypt", checked: () => !!(this._protection || {}).encOn,
+              off: () => { const pr = this._protection || {}; return !!pr.encLocked || !!pr.encOff; },
+              note: () => (this._protection || {}).encNote || "",
+              run: () => this.setState(s => ({ composeEncrypt: !s.composeEncrypt })) },
+            ...((this._protection || {}).canSign ? [{ icon: "signature", label: "Sign", checked: () => !!(this._protection || {}).signOn,
+              off: () => !!(this._protection || {}).signLocked,
+              note: () => (this._protection || {}).signNote || "",
+              run: () => this.setState(s => ({ composeSign: !s.composeSign })) }] : []),
+            { group: "Receipts", icon: "move_to_inbox", label: "Request delivery notification", checked: () => !!(this.state.composeReceipts || {}).dsn, run: turn("dsn") },
             { icon: "mark_email_read", label: "Request read receipt", checked: () => !!(this.state.composeReceipts || {}).mdn, run: turn("mdn") },
             ...SEND_LATER.presets.map((pr, i) => ({
               group: i === 0 ? "Send later" : "", icon: pr.icon, label: pr.label, hint: this.sendLaterSaid(pr.date, pr.time).date, radio: true,
@@ -2113,7 +2162,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* Nothing that reads mail for the person reads spam, so a spam message offers neither AI act. Its verdict joins
          the header's detail, since a folded row draws no badge and a finger has no hover to ask with. */
       const sp = this.spamOf(id);
-      const ai = !sp.spam;
+      /* Nothing a model could read: spam, and a message that arrived encrypted that no key opened. */
+      const ai = !sp.spam && !(th.encrypted && th.encrypted !== "opened");
       /* A Sent row's receipt mark is reached from the keyboard here, as the sender mark is on a received row. */
       const rcptAny = /·Sent$/.test(this.state.folderKey || "") && receiptOf(id);
       const rcpt = rcptAny && rcptAny.k !== "waiting" ? rcptAny : null;
@@ -2126,7 +2176,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             (sp.spam ? "" : (this.state.convMail ? conversationCategories(id) : messageCategories(id, 0)).map(n => " - " + n).join("")) +
             (/·(Sent|Drafts)$/.test(this.state.folderKey || "") || !senderRecord(id, null) ? "" : " - " + MARKS[markKeyOf(senderRecord(id, null))].name) +
             (rcpt ? " - " + rcpt.word : "") +
-            (th.localOnly ? " - Local only" : ""),
+            (th.localOnly ? " - Local only" : "") +
+            (th.encrypted ? " - " + ENC_STATES[th.encrypted].name : ""),
           items: [
             ai && { icon: "auto_awesome", label: "AI summary", run: () => this.openAiSum(id) },
             { icon: "check_box", label: "Select messages", run: () => this.toggleSelect(id) },
@@ -2420,7 +2471,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const wasActive = s.activeTab === key;
         const nextTab = wasActive ? (tabs.length ? tabs[tabs.length - 1] : null) : null;
         const patch = { tabs, activeTab: wasActive ? (nextTab ? nextTab.key : null) : s.activeTab };
-        if (key === "compose") Object.assign(patch, { compose: false, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null });
+        if (key === "compose") Object.assign(patch, { compose: false, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeEncrypt: false, composeSign: false, composeQuoteDropped: false, composeSendAt: null, sendLaterAsk: null, replyThreadId: null });
         if (key.indexOf("doc:") === 0) patch.doc = null;
         if (key.indexOf("html:") === 0) patch.htmlDoc = null;
         if (wasActive && nextTab) Object.assign(patch, this.tabPatch(nextTab));
@@ -3684,6 +3735,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const footerOpen = !!(st.bkFooterOpen || {})[key];
       const toggleFooter = () => this.setState(s2 => ({ bkFooterOpen: Object.assign({}, s2.bkFooterOpen, { [key]: !(s2.bkFooterOpen || {})[key] }) }));
 
+      /* The draft's two choices, as the composer offers them (`protectionOf`): its account, its recipients, and the
+         message it answers decide the defaults, and a press turns a choice over where it may be. An encrypted draft
+         that cannot reach every recipient refuses its Send, which says why, as the composer's does. */
+      const bp = (st.bkProtect || {})[key] || {};
+      const answers = b.replyTo ? THREADS.find(t => t.id === b.replyTo) : null;
+      const prot = b.type === "draft" ? protectionOf({
+        acc: b.acc || "acc1", to: b.to ? [b.to] : [], cc: b.cc || [], bcc: [],
+        quotes: !!answers && answers.encrypted === "opened" && !bp.quoteDropped,
+        encrypt: bp.encrypt ?? !!(answers && answers.encrypted), sign: bp.sign, signAll: !!this.props.signEverything,
+      }) : null;
+      const setBp = (patch) => this.setState(s2 => ({ bkProtect: Object.assign({}, s2.bkProtect, { [key]: Object.assign({}, (s2.bkProtect || {})[key], patch) }) }));
+      const sendBlocked = !!prot && prot.refused.length > 0;
       /* Controls only exist while the proposal is live and the block actually came back. */
       let raw = [];
       if (phase === "pending" && ready) {
@@ -3697,9 +3760,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { label: "Decline", aria: "Decline the task “" + b.title + "”", run: () => this.declineBk(key) },
         ];
         else if (b.type === "draft") raw = editing
-          ? [{ label: sendSaid, aria: "Send the edited draft to " + b.to + sendWhen, primary: true, run: () => this.acceptBk(key, b) },
+          ? [{ label: sendSaid, aria: sendBlocked ? "Send - no key for " + prot.refused.length + (prot.refused.length > 1 ? " recipients" : " recipient") + ", so it cannot be sent encrypted" : "Send the edited draft to " + b.to + sendWhen, primary: true, off: sendBlocked, run: () => { if (!sendBlocked) this.acceptBk(key, b); } },
              { label: "Stop editing", aria: "Stop editing the draft to " + b.to, run: () => this.editBk(key, false) }]
-          : [{ label: sendSaid, aria: "Send the draft to " + b.to + sendWhen, primary: true, run: () => this.acceptBk(key, b) },
+          : [{ label: sendSaid, aria: sendBlocked ? "Send - no key for " + prot.refused.length + (prot.refused.length > 1 ? " recipients" : " recipient") + ", so it cannot be sent encrypted" : "Send the draft to " + b.to + sendWhen, primary: true, off: sendBlocked, run: () => { if (!sendBlocked) this.acceptBk(key, b); } },
              { label: "Edit here", aria: "Edit the draft to " + b.to + " inside the conversation", run: () => this.editBk(key, true, (b.paras || []).join("\n\n")) },
              { label: "Discard", aria: "Discard the draft to " + b.to, run: () => this.declineBk(key) }];
         else if (b.type === "action") raw = [
@@ -3709,7 +3772,21 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       }
       if (failed) raw = [{ label: "Try again", aria: "Try again: " + b.title, primary: true, run: () => this.setBk(key, { phase: "pending" }) }];
 
-      const controls = raw.map(c => ({ label: c.label, aria: c.aria, run: c.run, key: keyer(c.run), style: btn(c.primary ? "primary" : "quiet") }));
+      const controls = raw.map(c => ({ label: c.label, aria: c.aria, off: !!c.off, tip: c.off ? c.aria : undefined, run: c.run, key: keyer(c.run), style: btn(c.primary ? "primary" : "quiet") + (c.off ? ";opacity:0.6;cursor:not-allowed" : "") }));
+      const protTile = (on, off) => "display:inline-flex;align-items:center;gap:7px;box-sizing:border-box;border-radius:8px;font-size:13px;" +
+        (isMobile || this._touch ? "min-height:44px;padding:0 14px;" : "min-height:32px;padding:0 12px;") +
+        (on ? "color:var(--accent-d);background:var(--accent-soft);border:1px solid var(--accent-line);font-weight:600" : "color:var(--text2);background:var(--panel);border:1px solid var(--border2)") +
+        (off ? ";opacity:0.6;cursor:not-allowed" : "");
+      const protChoices = !prot ? [] : [
+        { glyph: "lock", label: "Encrypt", on: prot.encOn, off: prot.encLocked || !!prot.encOff, note: prot.encNote, run: () => setBp({ encrypt: !(bp.encrypt ?? !!(answers && answers.encrypted)) }) },
+      ].concat(prot.canSign ? [{ glyph: "signature", label: "Sign", on: prot.signOn, off: prot.signLocked, note: prot.signNote, run: () => setBp({ sign: !bp.sign }) }] : []).map(c => ({
+        label: c.label, glyph: c.glyph, state: c.on ? "On" : "Off", pressed: c.on, off: c.off,
+        title: c.label + " - " + (c.on ? "on" : "off") + (c.note ? ". " + c.note : ""),
+        note: c.note, noteShown: !!c.note,
+        run: () => { if (!c.off) c.run(); }, key: keyer(() => { if (!c.off) c.run(); }),
+        style: protTile(c.on, c.off),
+        glyphStyle: icon(17, c.on ? "var(--accent-d)" : "var(--muted)"),
+      }));
 
       const nav = (declined ? [] : (b.nav || [])).map(n => ({
         label: n.label, icon: n.icon, aria: n.label + " - leaves the conversation, you can come straight back",
@@ -3728,7 +3805,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       ] : b.type === "task" ? [
         { k: "Due", v: b.due }, { k: "From", v: "message “" + (b.from || "") + "”" },
       ].concat(b.reminder ? [{ k: "Reminder", v: b.reminder }] : []) : b.type === "draft" ? [
-        { k: "To", v: b.to }, { k: "Subject", v: b.subject },
+        { k: "To", v: b.to }, { k: "Cc", v: (b.cc || []).join(", ") }, { k: "Subject", v: b.subject },
       ] : [];
 
       const cols = (b.cols || []).length;
@@ -3914,6 +3991,15 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         footerGlyphStyle: icon(18, "inherit"),
         /* The time a draft leaves at, while it can still be sent: the result line names it once it was. */
         hasSendAt: !!sendAt && (!accepted || failed),
+        hasProtect: !!prot && phase === "pending" && ready && !declined,
+        protChoices: protChoices,
+        protNotes: protChoices.filter(c => c.noteShown).map(c => ({ text: c.label + ": " + lowerFirst(c.note) + "." })),
+        protRefused: sendBlocked, protRefusedText: prot ? prot.refusedText : "",
+        protUnsigned: !!prot && prot.unsignedNotice,
+        protQuoteShown: !!prot && prot.encLocked,
+        protRemoveQuote: () => setBp({ quoteDropped: true, encrypt: true }),
+        protRemoveQuoteKey: keyer(() => setBp({ quoteDropped: true, encrypt: true })),
+        protQuoteBtnStyle: protTile(false, false),
         sendAtText: sendAt ? "This message leaves " + sendAt.long + ", not when you press Send." : "",
         sendAtZone: sendAt ? sendAt.zone + " time" : "",
         sendAtWordsStyle: "display:flex;flex-wrap:wrap;align-items:baseline;column-gap:8px;row-gap:2px;min-width:0",
@@ -4515,6 +4601,22 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ...(convMail && names.length > 0 ? { convSnippetStyle: row.convSnippetStyle.replace("line-clamp:2", "line-clamp:1") } : {}),
         });
       };
+      /* The encryption mark: a lock among the row's markers, with its name for a mouse and a finger's hold alike, for
+         every message that arrived encrypted. One no key opens, or one past a limit, says so where a body's opening or
+         the AI reading would stand, since neither exists. */
+      const withEnc = (t, row) => {
+        const E = t.encrypted && ENC_STATES[t.encrypted];
+        if (!E) return Object.assign(row, { encShown: false, encNoteShown: false });
+        const unread = t.encrypted !== "opened";
+        return Object.assign(row, {
+          encShown: true, encName: E.row,
+          encGlyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)",
+          encNoteShown: unread && !convMail,
+          encNote: t.encrypted === "noKey" ? "No key here opens this message" : "Too large to open here",
+          ...(unread ? { thirdLineShown: !convMail, showAi: false, aiBtnShown: false } : {}),
+          ...(unread && convMail ? { convWho: "", convWhoShown: false, convSnippet: t.encrypted === "noKey" ? "Encrypted - no key here opens this message" : "Encrypted - too large to open here" } : {}),
+        });
+      };
       const withMark = (t, row) => {
         const M = recipientList ? null : markOf(t.id, null);
         if (!M) return Object.assign(row, { markShown: false });
@@ -4639,6 +4741,24 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const composeFooter = this.composeFooter(st);
       const composeToBase = rmode === "fwd" ? [] : rmode === "all" ? threadParticipants : rmode === "reply" ? threadParticipants.slice(-1) : composeDraft ? composeDraft.to.slice() : (st.composeTo || NEW_MESSAGE_TO).slice();
       const composeTo = composeToBase.concat((st.composeAddTo || []).filter(n => composeToBase.indexOf(n) < 0));
+      /* What the message is sent with: an answer or a forward of mail a key opened quotes it, so encryption is locked on
+         until the quotation is removed. Kept on the instance so the *Sending options* menu reads it as it renders. */
+      const prot = protectionOf({
+        acc: this.composeAccKey(st), to: composeTo, cc: st.composeCc, bcc: st.composeBcc,
+        quotes: !!rmode && replyThread.encrypted === "opened" && !st.composeQuoteDropped,
+        encrypt: st.composeEncrypt, sign: st.composeSign, signAll: !!this.props.signEverything,
+      });
+      this._protection = prot;
+      const reachChip = (n) => {
+        const ok = prot.reach(n);
+        return {
+          name: n, reachShown: prot.encOn, reachGlyph: ok ? "key" : "key_off",
+          reachTitle: n + (ok ? " - MailFathom holds a key for this recipient" : " - no key: this recipient cannot receive encrypted mail"),
+          reachStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:15px;line-height:1;color:" + (ok ? "var(--muted)" : "var(--err-text)"),
+          chipStyle: "display:flex;align-items:center;gap:7px;font-size:13px;border-radius:12px;padding:3px 10px;white-space:nowrap;min-width:0;" +
+            (prot.encOn && !ok ? "background:var(--err-soft);border:1px solid var(--err);color:var(--err-text)" : "background:var(--rail);border:1px solid var(--line)"),
+        };
+      };
       const composeSubj = rmode === "fwd" ? "Fwd: " + replyThread.subject : rmode ? "Re: " + replyThread.subject : "";
       const composeCtx = (st.composeCtx || []).filter(id => THREADS.some(t => t.id === id));
       const composeCtxBase = st.composeCtxBase || null;
@@ -4650,7 +4770,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         return el ? (el.innerText || "").replace(/\u200b/g, "").trim() : "";
       };
       const finishCompose = () => {
-        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false, composeFooterOpen: false, fmtMenu: null, fmtPicking: false, fmtOwnColours: [], fmtColour: null, tableCaret: false, pictureSel: null, pasteNotice: null, picturesInMemory: false };
+        const patch = { compose: false, composeDraft: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeEncrypt: false, composeSign: false, composeQuoteDropped: false, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, aiDraft: false, aiBusy: false, closeAsk: false, sendAsk: null, composeSubjEdit: undefined, ccOpen: false, composeCc: [], composeBcc: [], ccInput: "", bccInput: "", composeReplyTo: [], replyToInput: "", composeTo: null, composeAddTo: [], rcptQuery: "", rcptFocus: false, composeFooterOpen: false, fmtMenu: null, fmtPicking: false, fmtOwnColours: [], fmtColour: null, tableCaret: false, pictureSel: null, pasteNotice: null, picturesInMemory: false };
         if ((st.workMode || "classic") === "tabs") this.closeTab("compose");
         this.setState(patch);
       };
@@ -4741,8 +4861,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           : i === activeIdx && msgs.length > 1 && !hiddenCount;
         const isNew = firstNew != null && i >= firstNew && !m.mine;
         const remoteRefs = m.remoteRefs != null ? m.remoteRefs
-          : m.mine || thread.report ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
+          : m.mine || thread.report || thread.encrypted ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
         const remoteOn = !!(st.remoteLoaded || {})[k];
+        const unreadEnc = !!thread.encrypted && thread.encrypted !== "opened";
         const folding = st.histFolding === thread.id;
         /* The original is what went out, footer and quoted conversation included, so nothing in it is folded. */
         const original = Object.assign({}, m, { paras: m.paras
@@ -4811,6 +4932,35 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           num: (i + 1) + " / " + msgs.length,
           open, collapsed: !open,
           localOnly: !!thread.localOnly,
+          /* A message that arrived encrypted carries a pill beside its sender, glyph and word. One a key opened reads as
+             ordinary mail under it; one no key opens, and one past a limit, show a card where the body would be, saying
+             why, and what arrived as the outer message shows it — never an empty body. */
+          ...((() => {
+            const e = !m.mine && thread.encrypted;
+            if (!e) return { encShown: false, encCardShown: false };
+            const noKey = e === "noKey";
+            return {
+              encShown: true, encName: ENC_STATES[e].name,
+              encPillStyle: "display:inline-flex;align-items:center;gap:3px;font-family:'Geist',system-ui,sans-serif;font-size:11px;line-height:16px;font-weight:600;color:var(--text2);border:1px solid var(--border2);border-radius:6px;padding:1px 6px;white-space:nowrap",
+              encPillGlyphStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:13px;line-height:1",
+              encCardShown: e !== "opened",
+              encCardGlyph: noKey ? "key_off" : "lock_clock",
+              encCardTitle: noKey ? "No key here opens this message" : "Too large to open here",
+              encCardText: noKey
+                ? "It arrived encrypted, and MailFathom holds no key that opens it for this account, so only its envelope is shown: who sent it, to whom, its subject, its date, and what it carries."
+                : "It arrived encrypted and MailFathom holds its key, but what came out went past a limit every message is held to here - its size, or encryption inside encryption - so it is not read. Only its envelope is shown.",
+              encCardNote: noKey
+                ? "It opens here once MailFathom holds a key for this account. If you keep the key somewhere else, such as your own device, open it there."
+                : "Your administrator can see which limit it reached. Opening it again here would reach the same limit.",
+              encCardStyle: "display:flex;align-items:flex-start;gap:11px;border-radius:12px;padding:" + (touch ? "14px 15px" : "13px 16px") + ";" +
+                (noKey ? "border:1px solid var(--line);background:var(--sub)" : "border:1px solid var(--warn);background:var(--warn-soft)"),
+              encCardGlyphStyle: "flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1.1;color:" + (noKey ? "var(--text2)" : "var(--warn-text)"),
+              encCardTitleStyle: "font-size:14px;font-weight:600;color:" + (noKey ? "var(--text)" : "var(--warn-text)"),
+              encOuter: (thread.outer || []).map(o => ({ name: o.name, what: o.what + " · " + o.size })),
+              encOuterLabel: "What arrived",
+              ...(e !== "opened" ? { aiBtnShown: false } : {}),
+            };
+          })()),
           hasAtts: m.atts.length > 0,
           atts: m.atts.map(x => ({ type: x.type, name: x.name, size: x.size, open: () => this.refuseSpam(thread.id, "Its attachments do not open.") || (this.tabsMode()
             ? this.openTab("doc:" + x.name, { doc: x, docZoom: 1, docLoading: true }, { att: x })
@@ -4825,11 +4975,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             (touch ? "width:44px;height:44px;font-size:20px;border:1px solid var(--line);" : "width:28px;height:28px;font-size:18px;"),
           /* Spam never renders its original, even with the HTML view chosen: it keeps the simple view and the
              button that refuses. */
-          showHtmlBtn: !htmlViewMode || threadSpam.spam,
-          simpleView: !htmlViewMode || threadSpam.spam,
-          htmlView: htmlViewMode && !threadSpam.spam,
+          /* An encrypted message nothing opened has no original to show, so it keeps the simple view, as spam does. */
+          showHtmlBtn: (!htmlViewMode || threadSpam.spam) && !unreadEnc,
+          simpleView: !htmlViewMode || threadSpam.spam || unreadEnc,
+          htmlView: htmlViewMode && !threadSpam.spam && !unreadEnc,
           htmlFrameId: "fit:" + thread.id + ":" + i,
-          htmlEmbedSrc: htmlViewMode && !threadSpam.spam ? embedHtml(m.html || htmlFallback(original, thread.subject), "fit:" + thread.id + ":" + i, theme === "dark") : "",
+          htmlEmbedSrc: htmlViewMode && !threadSpam.spam && !unreadEnc ? embedHtml(m.html || htmlFallback(original, thread.subject), "fit:" + thread.id + ":" + i, theme === "dark") : "",
           htmlFrameRef: this.htmlFrameRef,
           htmlRich: !!m.html,
           htmlTitle: m.html ? "Show the original message (rich content)" : "Show the original message",
@@ -5509,6 +5660,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            open a group, headed by the group's name over a rule, and may carry a hint at its end in `--muted`. */
         ctxMenuItems: (st.ctxMenu ? st.ctxMenu.items : []).map(mi => ({
           icon: mi.icon, label: mi.label,
+          /* An item that cannot act stays in the menu, dimmed and aria-disabled, and says why in a line under its label
+             rather than only in a name bubble, so a finger reads it too. `off` and `note` are read from the render. */
+          off: !!(mi.off && mi.off()),
+          note: (mi.note && mi.note()) || "", noteShown: !!(mi.note && mi.note()),
           group: mi.group || "", groupShown: !!mi.group,
           hint: mi.hint || "", hintShown: !!mi.hint,
           role: mi.radio ? "menuitemradio" : mi.checked ? "menuitemcheckbox" : "menuitem",
@@ -5520,7 +5675,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           trailShown: !!(mi.hint || mi.radio || (mi.checked && mi.checked())),
           checkStyle: "width:20px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:20px;line-height:1;color:var(--accent-d)" +
             (mi.checked && mi.checked() ? "" : ";visibility:hidden"),
-          run: () => { if (!this.ctxArmed()) return; if (!mi.checked || mi.radio) this.closeCtxMenuFocus(); if (mi.run) mi.run(); },
+          run: () => { if (!this.ctxArmed() || (mi.off && mi.off())) return; if (!mi.checked || mi.radio) this.closeCtxMenuFocus(); if (mi.run) mi.run(); },
           /* Enter and Space take an item, the arrow keys walk the items; Escape is the document's. */
           key: (e) => {
             const items = [...document.querySelectorAll("[data-ctx-item]")];
@@ -5531,6 +5686,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
               if (next) next.focus();
             } else if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
+              if (mi.off && mi.off()) return;
               if (!mi.checked || mi.radio) this.closeCtxMenuFocus();
               if (mi.run) mi.run();
             } else if (e.key === "Tab") {
@@ -5540,7 +5696,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             }
           },
           style: "display:flex;align-items:center;gap:11px;border-radius:8px;padding:0 12px;color:" + (mi.danger ? "var(--err-text)" : "var(--text)") +
-            (touch ? ";min-height:48px;font-size:15px" : ";min-height:36px;font-size:14px"),
+            (touch ? ";min-height:48px;font-size:15px" : ";min-height:36px;font-size:14px") +
+            (mi.note && mi.note() ? ";padding-top:6px;padding-bottom:6px" : "") + (mi.off && mi.off() ? ";opacity:0.6;cursor:not-allowed" : ""),
         })),
         ctxMenuStyle: (() => {
           const c = st.ctxMenu || { x: 0, y: 0, items: [] };
@@ -6159,13 +6316,18 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         discoverPlaceholder: isMobile ? "Ask your mail…" : "What do you want to ask your mail?",
         /* The composer's foot under a finger: one 44 row, Send filled, Attach a symbol alone on the phone,
            and Save draft a text action whose target is the row's height rather than its words. */
-        composeSendRefused: this.writeRefused("send"),
-        composeSendTitle: this.writeRefusedTitle("send", st.composeSendAt ? "Send " + this.sendLaterSaid(st.composeSendAt.date, st.composeSendAt.time).long : "Send"),
+        /* An encrypted send that cannot reach every recipient refuses before anything leaves, exactly as offline does:
+           Send is a control that cannot act, named for why, and the line above the foot names who blocks it. */
+        composeSendRefused: this.writeRefused("send") || prot.refused.length > 0,
+        composeSendTitle: prot.refused.length && !this.writeRefused("send")
+          ? "Send - no key for " + (prot.refused.length === 1 ? "1 recipient" : prot.refused.length + " recipients") + ", so it cannot be sent encrypted."
+          : this.writeRefusedTitle("send", st.composeSendAt ? "Send " + this.sendLaterSaid(st.composeSendAt.date, st.composeSendAt.time).long : "Send"),
         composeSaveTitle: this.writeRefusedTitle("save", "Save draft"),
-        askSendNow: this.writeRefused("send") ? this.noop : askSend,
+        askSendNow: this.writeRefused("send") || prot.refused.length ? this.noop : askSend,
         composeSendStyle: (touch
           ? "display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 20px;box-sizing:border-box;font-size:14px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px"
-          : "font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:9px 18px") + this.writeRefusedStyle("send"),
+          : "font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;padding:9px 18px") +
+          (this.writeRefused("send") || prot.refused.length ? ";opacity:0.6;cursor:not-allowed" : ""),
         composeAttachStyle: touch
           ? "display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:0 " + (isMobile ? 0 : 14) + "px;box-sizing:border-box;font-size:14px;color:var(--text2);border:1px solid var(--border2);border-radius:8px"
           : "font-size:13px;color:var(--text2);border:1px solid var(--border2);border-radius:8px;padding:9px 13px",
@@ -6186,7 +6348,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
              schedules a message unaware or sends it at once by mistake. */
           const at = st.composeSendAt;
           const said = at ? this.sendLaterSaid(at.date, at.time) : null;
-          const moreSaid = [at ? "leaves " + said.short : "", on ? "asks for " + what : ""].filter(Boolean).join(", ");
+          const moreSaid = [prot.said, at ? "leaves " + said.short : "", on ? "asks for " + what : ""].filter(Boolean).join(", ");
           const lineBtn = "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:5px;box-sizing:border-box;border-radius:8px;font-size:13px;white-space:nowrap;" +
             (touch ? "min-height:44px;padding:0 12px;" : "height:28px;padding:0 10px;");
           return {
@@ -6199,7 +6361,19 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             composeMoreStyle: "flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;border-radius:8px;" +
               "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;" +
               (touch ? "width:44px;height:44px;font-size:22px;margin-left:auto;" : "width:32px;height:32px;font-size:20px;") +
-              (on || at ? "color:var(--accent-d);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : "color:var(--muted)"),
+              (on || at || prot.said ? "color:var(--accent-d);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)" : "color:var(--muted)"),
+            /* Encrypted or signed, the message says so in a line above the foot, as a request does, so nobody sends it
+               unaware; locked on by a quotation, the line says why and offers to remove it. */
+            composeProtOn: !!prot.said,
+            composeProtGlyph: prot.encOn ? "lock" : "signature",
+            composeProtText: "This message is sent " + prot.said + ".",
+            composeProtNote: prot.encLocked ? "It quotes a message that arrived encrypted, so encryption stays on." : "",
+            composeQuoteShown: prot.encLocked,
+            removeQuote: (e) => { if (e && e.stopPropagation) e.stopPropagation(); if (e && e.type === "keydown") { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); } this.setState({ composeQuoteDropped: true, composeEncrypt: true }); },
+            composeQuoteBtnStyle: lineBtn + "color:var(--text2);border:1px solid var(--border2);background:var(--panel)",
+            composeEncRefused: prot.refused.length > 0,
+            composeEncRefusedText: prot.refusedText,
+            composeUnsigned: prot.unsignedNotice,
             composeReceiptsLineStyle: "display:flex;align-items:flex-start;gap:8px;padding:" + (touch ? "6px 15px" : "7px 15px") + ";" + (touch ? "min-height:44px;box-sizing:border-box;" : "") +
               "border-top:1px solid var(--line);background:var(--panel);font-size:13px;line-height:1.45;color:var(--text2);text-wrap:pretty",
             composeSendAtOn: !!at,
@@ -7978,7 +8152,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         cameFromResult: st.cameFrom,
         fromCitation: st.fromCite || "",
         backToResult: () => this.setState({ screen: "discover", cameFrom: false }),
-        threads: listedThreads.map(t => withReceipt(t, withMark(t, withCategories(t, spamRowOf(t, {
+        threads: listedThreads.map(t => withEnc(t, withReceipt(t, withMark(t, withCategories(t, spamRowOf(t, {
           ...(convMail ? convRowOf(t) : {}),
           msgShown: !convMail,
           convShown: convMail,
@@ -8051,7 +8225,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             rowWash(t.id),
           count: parseInt(((t.meta || "").match(/thread: (\d+)/) || [])[1] || "1", 10),
           multi: parseInt(((t.meta || "").match(/thread: (\d+)/) || [])[1] || "1", 10) > 1,
-        }))))),
+        })))))),
         activeSubject: thread.subject,
         activeMeta: thread.meta,
         activeState: thread.state.map((s, i) => {
@@ -8078,8 +8252,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         composeExpanded: (!!st.compose && !st.composeMin) || composeInPane,
         composeChromeShown: !composeTabActive,
         openCompose: () => (tabsMode
-          ? this.openTab("compose", { compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })
-          : this.setState({ compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })),
+          ? this.openTab("compose", { compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeEncrypt: false, composeSign: false, composeQuoteDropped: false, composeSendAt: null, sendLaterAsk: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })
+          : this.setState({ compose: true, composeDraft: null, composeMin: false, replyMode: null, replyThreadId: null, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeEncrypt: false, composeSign: false, composeQuoteDropped: false, composeSendAt: null, sendLaterAsk: null, composeSubjEdit: undefined, closeAsk: false, sendAsk: null })),
         composeSubjValue: curSubj,
         onComposeSubj: (e) => this.setState({ composeSubjEdit: e.target.value }),
         closeCompose: () => (bodyTxt() || curSubj.trim() ? this.setState({ closeAsk: true }) : finishCompose()),
@@ -8167,7 +8341,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           ? "position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;background:var(--panel)"
           : "position:fixed;right:26px;bottom:0;width:680px;max-width:calc(100vw - 52px);max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(86dvh, 760px)" : "86dvh") + ";z-index:90;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;box-shadow:0 -1px 0 var(--inset) inset,0 18px 44px var(--sh-3)",
         composeTitle: (st.composeMin ? composeKind + " - collapsed" : composeKind),
-        composeToChips: composeTo.map(n => ({ name: n })),
+        composeToChips: composeTo.map(reachChip),
         /* The sending account's footer, under the text and outside it, folded as sent mail folds it: shown on a press,
            never written in. */
         composeFooterShown: composeFooter.length > 0,
@@ -8248,8 +8422,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         composeBodyStyle: "display:flex;flex-direction:column;min-height:0;flex:1;--compose-label:" + (isMobile ? 58 : 88) + "px",
         ccToggleStyle: "flex:0 0 auto;font-size:12px;white-space:nowrap;border-radius:8px;" + (touch ? "display:flex;align-items:center;min-height:44px;padding:0 10px;" : "padding:2px 8px;") + (st.ccOpen ? "color:var(--accent-d);background:var(--accent-soft)" : "color:var(--muted)"),
         toggleCc: () => this.setState(s => ({ ccOpen: !s.ccOpen })),
-        composeCcChips: (st.composeCc || []).map((n, i) => ({ name: n, remove: () => this.setState(s => ({ composeCc: (s.composeCc || []).filter((_, j) => j !== i) })) })),
-        composeBccChips: (st.composeBcc || []).map((n, i) => ({ name: n, remove: () => this.setState(s => ({ composeBcc: (s.composeBcc || []).filter((_, j) => j !== i) })) })),
+        composeCcChips: (st.composeCc || []).map((n, i) => ({ ...reachChip(n), remove: () => this.setState(s => ({ composeCc: (s.composeCc || []).filter((_, j) => j !== i) })) })),
+        composeBccChips: (st.composeBcc || []).map((n, i) => ({ ...reachChip(n), remove: () => this.setState(s => ({ composeBcc: (s.composeBcc || []).filter((_, j) => j !== i) })) })),
         composeReplyToChips: (st.composeReplyTo || []).map((n, i) => ({ name: n, remove: () => this.setState(s => ({ composeReplyTo: (s.composeReplyTo || []).filter((_, j) => j !== i) })) })),
         replyToValue: st.replyToInput || "",
         replyToPlaceholder: (st.composeReplyTo || []).length ? "another address…" : "default " + DEFAULT_REPLY_TO,
@@ -8719,7 +8893,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         closeAllInfo: "Open tabs: " + (st.closeAllAsk ? st.closeAllAsk.count : 0) + ". An unsent draft will be discarded.",
         askCloseAll: () => this.setState({ closeAllAsk: { count: tabItems.length } }),
         cancelCloseAll: () => this.setState({ closeAllAsk: false }),
-        confirmCloseAll: () => this.setState({ tabs: [], activeTab: null, compose: false, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, closeAllAsk: false }),
+        confirmCloseAll: () => this.setState({ tabs: [], activeTab: null, compose: false, composeCtx: [], composeCtxBase: null, composeReceipts: {}, composeEncrypt: false, composeSign: false, composeQuoteDropped: false, composeSendAt: null, sendLaterAsk: null, replyThreadId: null, closeAllAsk: false }),
         tabItems,
         workModeLabel: tabsMode ? "Mode: tabs" : "Mode: classic",
         toggleWorkMode: () => this.setState(s => ({
