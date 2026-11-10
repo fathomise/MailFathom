@@ -13,6 +13,7 @@ namespace MailFathom.Infrastructure.Observability;
 internal sealed class MailRetentionTelemetry : IMailRetentionTelemetry
 {
     private readonly Counter<long> erasedTombstones;
+    private readonly Counter<long> retiredMessages;
     private readonly Counter<long> removedConversations;
     private readonly Histogram<double> accountRunDuration;
 
@@ -23,6 +24,10 @@ internal sealed class MailRetentionTelemetry : IMailRetentionTelemetry
             "mailfathom.mail_retention.tombstones.erased",
             unit: "{message}",
             description: "Stored messages erased because they had been tombstones for longer than their account keeps them.");
+        this.retiredMessages = Telemetry.Meter.CreateCounter<long>(
+            "mailfathom.mail_retention.messages.retired",
+            unit: "{message}",
+            description: "Visible messages retired because they had passed the age their account keeps mail for.");
         this.removedConversations = Telemetry.Meter.CreateCounter<long>(
             "mailfathom.mail_retention.conversations.removed",
             unit: "{conversation}",
@@ -34,11 +39,16 @@ internal sealed class MailRetentionTelemetry : IMailRetentionTelemetry
     }
 
     /// <inheritdoc />
-    public void RecordAccountRun(int erasedTombstones, int removedConversations, TimeSpan duration)
+    public void RecordAccountRun(int erasedTombstones, int retiredMessages, int removedConversations, TimeSpan duration)
     {
         if (erasedTombstones > 0)
         {
             this.erasedTombstones.Add(erasedTombstones);
+        }
+
+        if (retiredMessages > 0)
+        {
+            this.retiredMessages.Add(retiredMessages);
         }
 
         if (removedConversations > 0)

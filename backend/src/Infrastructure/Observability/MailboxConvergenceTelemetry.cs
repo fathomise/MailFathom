@@ -180,6 +180,7 @@ public sealed partial class MailboxConvergenceTelemetry : IMailboxConvergenceDel
         MailboxMutationOrigin.Rule => "rule",
         MailboxMutationOrigin.Command => "command",
         MailboxMutationOrigin.Classification => "classification",
+        MailboxMutationOrigin.Retention => "retention",
         _ => throw new ArgumentOutOfRangeException(nameof(origin), origin, "No metric dimension is defined for this origin."),
     };
 

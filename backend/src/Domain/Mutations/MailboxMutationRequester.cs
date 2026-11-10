@@ -154,6 +154,18 @@ public sealed record MailboxMutationRequester
         MailboxMutationOrigin.Command,
         ValidIdentity(invocationIdentity, nameof(invocationIdentity)));
 
+    /// <summary>Names one night of an account's retention.</summary>
+    /// <param name="occasion">The UTC date the run asks on.</param>
+    /// <returns>A requester naming that night.</returns>
+    /// <remarks>
+    /// The night is the identity so that a run repeated after a crash asks nothing new, and so that a message which came
+    /// back at the same occurrence, once a person removed the <c>\Deleted</c> flag, is a new request on a later night
+    /// instead of reading as a repeat of the delete that already completed.
+    /// </remarks>
+    public static MailboxMutationRequester Retention(DateOnly occasion) => new(
+        MailboxMutationOrigin.Retention,
+        string.Create(CultureInfo.InvariantCulture, $"retention@{occasion:yyyy-MM-dd}"));
+
     /// <summary>Restores a requester from the origin and identity a record holds.</summary>
     /// <param name="origin">The kind of authored act that asked.</param>
     /// <param name="identity">The stored identity.</param>

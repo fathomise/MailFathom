@@ -552,6 +552,7 @@ internal static class HostComposition
         builder.Services.AddScoped<IMailRuleActionPermissionReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.RuleActionPermissions);
         builder.Services.AddScoped<IMailboxMutationAuditSettingsReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.MutationAuditSettings);
         builder.Services.AddScoped<IMailTombstoneRetentionReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.TombstoneRetention);
+        builder.Services.AddScoped<IMailMessageRetentionReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.MessageRetention);
         builder.Services.AddScoped<IMailAnsweringAuditSettingsReader>(provider => provider.GetRequiredService<MailSynchronizationOptions>().Readers.AnsweringAuditSettings);
         // Composed here rather than taken off the snapshot's reader set, because which accounts are served is read from
         // the account records rather than bound from a file; the snapshot contributes only the synchronization switch.
@@ -799,6 +800,7 @@ internal static class HostComposition
         // The nightly retention walk and each account's run of it. One schedule for the deployment, read from the
         // validated settings per pass, so a change to the schedule reaches the next pass as a rule's would.
         builder.Services.AddScoped<IJobHandler, MailRetentionWalkHandler>();
+        builder.Services.AddScoped<MailMessageRetirement>();
         builder.Services.AddScoped<IJobHandler, MailAccountRetentionHandler>();
         builder.Services.AddScoped<IScheduledJobSource>(provider => new MailRetentionScheduleSource(
             provider.GetRequiredService<ISettingsSnapshot<MailSynchronizationOptions>>().Current.Retention.ToRecurrence()));

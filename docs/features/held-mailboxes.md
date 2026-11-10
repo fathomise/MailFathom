@@ -180,6 +180,13 @@ is one of those erasures. The nightly pass reaches no mail server itself, and a 
 leaves a record for the drain, while one the source was seen to have expunged has nothing left to name. The pass does not
 run while the account is being restored.
 
+[`Retention:Messages`](../operations/configuration-mail.md#how-long-an-account-keeps-its-mail--retention) applies on a
+held account too, and that removes the only copy: storage limitation binds hardest where MailFathom alone holds the
+mail, and the export is the copy somebody keeps. A message retired there is an erasure rather than a move to the trash,
+owes the source what any other erasure under the account's `AuthoredDeleteServerDisposition` owes it, and one the drain already took off the source is erased
+with no audit entry, because the trail's occurrence columns are required and it has none. The pass does not run while
+the account is being restored.
+
 ### Mail that was already stored
 
 An account switched on after years of mirroring has a mailbox already stored. It is drained under exactly the same gate

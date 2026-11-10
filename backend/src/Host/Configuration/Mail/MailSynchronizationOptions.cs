@@ -1875,6 +1875,11 @@ internal sealed class MailSynchronizationAccountOptions : IValidatableObject
     internal MailTombstoneRetention CreateTombstoneRetention() =>
         new(this.Retention.Tombstones.Enabled, this.Retention.Tombstones.After, [.. this.Retention.ExcludedFolders]);
 
+    /// <summary>Builds the account's configured message retention.</summary>
+    /// <returns>The retention the account's block names.</returns>
+    internal MailMessageRetention CreateMessageRetention() =>
+        new(this.Retention.Messages.Enabled, this.Retention.Messages.After, [.. this.Retention.ExcludedFolders]);
+
     /// <summary>Builds the account's configured answering record settings.</summary>
     /// <returns>The settings the account's block names.</returns>
     internal MailAnsweringAuditSettings CreateAnsweringAuditSettings() =>

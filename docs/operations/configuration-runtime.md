@@ -389,15 +389,21 @@ hands each account a job of its own, so an account being erased is excluded by t
 account fails alone. An account nobody is served, one withheld on this replica, and one an erasure has taken are not
 reached.
 
-Each account's run has two steps, and neither reaches a mail server. The first erases the tombstones past the age
+Each account's run has three steps. The first erases the tombstones past the age
 [the account's `Retention:Tombstones`](configuration-mail.md#how-long-an-account-keeps-its-mail--retention) states, on
 an account that switched it on, while the account is mirrored or held and not while it is being restored. A row a
 reconciliation changed as the batch read it costs that batch a commit conflict and is reached on the next occasion.
 Nothing is announced to an open client, because a tombstone is already out of every list and every read.
 
-The second removes the conversations no stored row is left in, a tombstone counting as one, with their state,
-statements, title, identifiers, and whatever was folded into them. It runs after the first, so a conversation the
-erasure emptied goes the same night. It runs for every account whatever its retention says, because every kind of
+The second retires the visible mail past the age [`Retention:Messages`](configuration-mail.md#how-long-an-account-keeps-its-mail--retention)
+states, on an account that switched it on and while it is mirrored or held. It is the only step that can reach a mail
+server, and only through the delete the account's own convergence pass carries, so the night's batch records the
+deletes and the next synchronization run issues them. A client with a retired message open or listed is told once the
+batch commits. Nothing is written while a replica of an older build holds a work lease.
+
+The third removes the conversations no stored row is left in, a tombstone counting as one, with their state,
+statements, title, identifiers, and whatever was folded into them. It runs after the other two, so a conversation they
+emptied goes the same night. It runs for every account whatever its retention says, because every kind of
 erasure leaves emptied conversations behind, and it is the same on a mirrored and a held account. A message arriving
 into a conversation as it is removed is not lost and does not fail its run: the write retries and a reply with no
 conversation left starts a new one.

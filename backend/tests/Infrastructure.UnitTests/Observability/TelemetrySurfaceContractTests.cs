@@ -887,7 +887,7 @@ public sealed class TelemetrySurfaceContractTests
         ContentObjectReclamation.RecordErased(reclaimedCount: 3, failedCount: 1);
         ContentObjectReclamation.RecordSwept(reclaimedCount: 7, reclaimedBytes: 61_051, failedCount: 2);
         ContentObjectReclamation.RecordOldestOrphanAge(TimeSpan.FromHours(37));
-        MailRetention.RecordAccountRun(erasedTombstones: 5, removedConversations: 3, TimeSpan.FromSeconds(2));
+        MailRetention.RecordAccountRun(erasedTombstones: 5, retiredMessages: 2, removedConversations: 3, TimeSpan.FromSeconds(2));
     }
 
     private static void DriveObjectStorage()

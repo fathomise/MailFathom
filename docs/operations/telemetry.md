@@ -229,8 +229,8 @@ moment its record was written to the moment it completed or was given up — and
 however many attempts it has spent. That wait is what every other client of the same mailbox, a phone or a desktop mail
 client, goes without the change, and it is bounded by the longest stage of the synchronization run the converger rides
 on rather than by `MailSynchronization:Interval`, because a run already under way converges at its next stage boundary.
-It carries two dimensions and nothing else. `mailfathom.mailbox.mutation.origin` is `command`, `rule`, or
-`classification`: a person in the client and an MCP caller are both `command`, because a change's record stores no
+It carries two dimensions and nothing else. `mailfathom.mailbox.mutation.origin` is `command`, `rule`, `classification`,
+or `retention`: a person in the client and an MCP caller are both `command`, because a change's record stores no
 difference between them — each is somebody asking directly, outside any run — and the records a restore opens to
 carry a held account's changes back to its source are `command` too. `mailfathom.mailbox.mutation.lifecycle` is
 `completed` or `dead-lettered`, so the wait before the mail server had a change is the `completed` half. A local erasure
@@ -687,7 +687,7 @@ is counts, volumes, and MailFathom's own two words for the two mechanisms.
 ### Mail retention
 
 `mailfathom.mail_retention.tombstones.erased` counts the stored messages erased because they had been tombstones for
-longer than their account keeps them, `mailfathom.mail_retention.conversations.removed` counts the conversations removed
+longer than their account keeps them, `mailfathom.mail_retention.messages.retired` counts the visible messages retired or recorded for deletion because they had passed the age their account keeps mail for, `mailfathom.mail_retention.conversations.removed` counts the conversations removed
 because no stored message was left in them, and `mailfathom.mail_retention.account_run.duration` is how long one account's run of the nightly steps took,
 in seconds. A night's count across accounts is what [the nightly retention walk](configuration-runtime.md#the-nightly-retention-walk)
 did; the bound per account means a large backlog shows as the same count night after night until it clears. None of

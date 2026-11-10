@@ -1942,6 +1942,11 @@ this one, and that includes the case where this window would have deleted the em
 
 ### What becomes of a message MailFathom deleted itself
 
+[`Retention:Messages`](../operations/configuration-mail.md#how-long-an-account-keeps-its-mail--retention) issues one of
+these deletes for every message past its account's age, named as retention rather than as a person, so everything below
+holds for it too. It is the one delete MailFathom issues without anybody present, it is recorded nightly rather than as
+somebody acts, and a folder no run schedules takes the local half alone, since no backward pass runs there to finish it.
+
 A deletion the mailbox user authored is a different act from the one above, and it is answered by a different setting.
 `AuthoredDeleteEmailDisposition` decides it, per account, and **takes precedence over `RemotelyDeletedEmailDisposition`
 for every disappearance a mutation record accounts for** — which is to say the setting above is never consulted for one.

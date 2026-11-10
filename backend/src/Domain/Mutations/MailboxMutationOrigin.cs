@@ -6,11 +6,12 @@ namespace MailFathom.Domain.Mutations;
 
 /// <summary>Names what kind of act asked for a mutation.</summary>
 /// <remarks>
-/// The three differ in what makes a request the same request. A rule asks on its own, repeatedly, so its identity has to
+/// They differ in what makes a request the same request. A rule asks on its own, repeatedly, so its identity has to
 /// survive the run it was evaluated in and change when the rule itself changes; an invocation asks once, so its identity
 /// is the invocation; a classification asks on its own and repeatedly like a rule, but nobody authored it, so what stands
-/// in for the rule's name is the stage that decided the verdict. Keeping the kind beside the identity is what lets
-/// an operator read a stuck mutation and know whether to look at a rule, at a spam verdict, or at something they did.
+/// in for the rule's name is the stage that decided the verdict; retention asks once a night, so its identity is the
+/// night. Keeping the kind beside the identity is what lets an operator read a stuck mutation and know whether to look
+/// at a rule, at a spam verdict, at the account's retention, or at something they did.
 /// </remarks>
 public enum MailboxMutationOrigin
 {
@@ -27,4 +28,11 @@ public enum MailboxMutationOrigin
     /// mutation of this kind looks at the classification section rather than at a rule they wrote.
     /// </remarks>
     Classification = 2,
+
+    /// <summary>A message passed the age its account keeps mail for, and the nightly retention run asked for it to go.</summary>
+    /// <remarks>
+    /// Written as text into a column an older build reads back, and an older build cannot parse a value it does not
+    /// declare, so nothing writes this until every replica's work lease says it knows it.
+    /// </remarks>
+    Retention = 3,
 }

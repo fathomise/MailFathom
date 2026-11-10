@@ -285,6 +285,27 @@ public sealed class MirroredMailboxCustodianTests
         Assert.Equal(heldUntil, this.records.HeldUntilOf(DeleteRequest()));
     }
 
+    /// <summary>A local-only message is retired like any other, committed locally with nothing to carry to a server.</summary>
+    [Fact]
+    public async Task SubmitAsync_ARetentionDeleteOfALocalOnlyMessage_OpensAnErasure()
+    {
+        // Arrange
+        this.StoreLocalOnly();
+        var delete = MailboxMutationRequest.Delete(
+            Email,
+            Occurrence,
+            MailboxMutationRequester.Retention(new DateOnly(2026, 11, 10)),
+            AuthoredDeleteEmailDisposition.EraseLocalCopy,
+            AuthoredDeleteServerDisposition.Expunge);
+
+        // Act
+        var submitted = await this.LocalFirstCustodian().SubmitAsync(this.session, Change(delete), Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Recorded, submitted.Outcome);
+        Assert.Equal(MailboxMutationLocalChange.Erasure, submitted.Record!.LocalChange);
+    }
+
     /// <summary>A rule's delete leaves what only a person may end: the message is already gone from the server, so nothing is owed.</summary>
     [Fact]
     public async Task SubmitAsync_ARulesDeleteOfALocalOnlyMessage_LeavesIt()
