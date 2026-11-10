@@ -56,6 +56,9 @@ public sealed record MailResponseDraftRequest
     /// <summary>Gets the people the author named themselves, which is everybody a forward would go to.</summary>
     public IReadOnlyList<NamedRecipient> Recipients { get; init; } = [];
 
+    /// <summary>Gets the addresses the author asks replies to go to, which is ordinarily none.</summary>
+    public IReadOnlyList<string> ReplyTo { get; init; } = [];
+
     /// <summary>Gets the authored act writing the draft down.</summary>
     public required OutgoingEmailRequester Author { get; init; }
 

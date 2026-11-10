@@ -234,10 +234,11 @@ internal sealed class MimeKitAuthoredEmailComposer(
             capabilities,
             requireRecipients,
             out var placements);
+        var replyRefusal = this.ResolveReplyAddresses(authored.ReplyTo, capabilities, out var replyAddresses);
 
-        return recipientRefusal is { } refusal
+        return (recipientRefusal ?? replyRefusal) is { } refusal
             ? MailDraftComposition.Refused(refusal)
-            : this.Build(authored, sender, placements, capabilities);
+            : this.Build(authored, sender, placements, replyAddresses, capabilities);
     }
 
     /// <inheritdoc />
@@ -368,6 +369,13 @@ internal sealed class MimeKitAuthoredEmailComposer(
             return new AuthoredEmailRefusal(
                 AuthoredEmailRefusalReason.HeaderInjected,
                 FieldOf(injectedRecipient.Role));
+        }
+
+        if (authored.ReplyTo.Any(CarriesLineBreak))
+        {
+            return new AuthoredEmailRefusal(
+                AuthoredEmailRefusalReason.HeaderInjected,
+                AuthoredEmailField.ReplyTo);
         }
 
         return authored.Attachments.Any(
@@ -651,11 +659,62 @@ internal sealed class MimeKitAuthoredEmailComposer(
         return null;
     }
 
+    /// <summary>Parses every reply address the author named, or refuses naming the <c>Reply-To</c> header.</summary>
+    /// <remarks>
+    /// They are held to what a recipient is held to — the deployment's count, a usable addr-spec no longer than a
+    /// recipient's, and an internationalized one only where the server carries it — because every recipient's client
+    /// reads the header as it reads an address header. A repeated mention is written once. None of them is placed:
+    /// nobody here is offered the message, so the envelope never learns of them.
+    /// </remarks>
+    private AuthoredEmailRefusal? ResolveReplyAddresses(
+        IReadOnlyList<string> authoredAddresses,
+        MailDeliveryCapabilities capabilities,
+        out IReadOnlyList<EmailAddress> replyAddresses)
+    {
+        replyAddresses = [];
+
+        if (authoredAddresses.Count > bounds.MaxRecipientCount)
+        {
+            return new AuthoredEmailRefusal(
+                AuthoredEmailRefusalReason.BoundExceeded,
+                AuthoredEmailField.ReplyTo,
+                bounds.MaxRecipientCount);
+        }
+
+        var parsed = new List<EmailAddress>(authoredAddresses.Count);
+
+        foreach (var authoredAddress in authoredAddresses)
+        {
+            if (!EmailAddress.TryCreate(null, authoredAddress, out var address)
+                || address.Address.Length > OutgoingRecipient.MaximumAddressLength)
+            {
+                return new AuthoredEmailRefusal(AuthoredEmailRefusalReason.FieldUnusable, AuthoredEmailField.ReplyTo);
+            }
+
+            if (!CarriesInternationalizedAddresses(capabilities) && !Ascii.IsValid(address.Address))
+            {
+                return new AuthoredEmailRefusal(
+                    AuthoredEmailRefusalReason.InternationalizationUnsupported,
+                    AuthoredEmailField.ReplyTo);
+            }
+
+            if (!parsed.Contains(address))
+            {
+                parsed.Add(address);
+            }
+        }
+
+        replyAddresses = parsed;
+
+        return null;
+    }
+
     /// <summary>Assembles the message and measures what it became.</summary>
     private MailDraftComposition Build(
         AuthoredEmail authored,
         OutgoingSenderIdentity sender,
         IReadOnlyList<PlacedRecipient> placements,
+        IReadOnlyList<EmailAddress> replyAddresses,
         MailDeliveryCapabilities capabilities)
     {
         var messageId = InternetMessageId.Mint(sender.Domain);
@@ -668,6 +727,8 @@ internal sealed class MimeKitAuthoredEmailComposer(
             AddresseesOf(message, placement.Recipient.Role)
                 .Add(MailboxOf(placement.DisplayName, placement.Recipient.Address.Address));
         }
+
+        message.ReplyTo.AddRange(replyAddresses.Select(static address => MailboxOf(null, address.Address)));
 
         message.Subject = authored.Subject;
         message.Date = timeProvider.GetUtcNow();
@@ -716,8 +777,11 @@ internal sealed class MimeKitAuthoredEmailComposer(
 
         // Every address was refused above unless the server carries it, so the only question left is whether the
         // message needs the format at all: an all-ASCII message is written the way every server understands.
+        // The reply addresses are read off the message rather than off the author, because an occasion of a recurring
+        // send carries the ones its stored draft was composed with.
         format.International = !Ascii.IsValid(sender.Address.Address)
-            || recipients.Any(static recipient => !Ascii.IsValid(recipient.Recipient.Address.Address));
+            || recipients.Any(static recipient => !Ascii.IsValid(recipient.Recipient.Address.Address))
+            || message.ReplyTo.Mailboxes.Any(static mailbox => !Ascii.IsValid(mailbox.Address));
 
         // Each attempt derives what it transmits from the stored bytes by rewriting header fields in place rather than
         // re-serializing the message, so the stored bytes carry the line ending SMTP requires rather than the platform's.

@@ -919,6 +919,9 @@ export const pl: Catalogue = {
     'compose.addRecipient': 'dodaj odbiorcę…',
     'compose.ccPlaceholder': 'widoczne dla wszystkich…',
     'compose.bccPlaceholder': 'ukryte przed pozostałymi…',
+    'compose.replyTo': 'Odpowiedź do',
+    'compose.replyToPlaceholder': 'odpowiedzi trafią na adres nadawcy…',
+    'compose.replyToMorePlaceholder': 'kolejny adres…',
     'compose.copiesVisible':
         'Każdy odbiorca widzi adresy w polu DW. Aby ukryć odbiorców przed sobą nawzajem, użyj UDW.',
     'compose.suggestedRecipients': 'Proponowani odbiorcy: {header}',

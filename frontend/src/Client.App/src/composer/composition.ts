@@ -100,6 +100,14 @@ export interface Composition {
     readonly bcc: readonly string[];
 
     /**
+     * Where replies should go, which nobody is sent the message at.
+     *
+     * Every message opens with none — a reply, a reply to all, and a forward too — since a reply address is the author's
+     * to choose and the answered message's own one names where answers to it go, not answers to this.
+     */
+    readonly replyTo: readonly string[];
+
+    /**
      * The words themselves, which is the one thing here nothing but the author writes.
      *
      * They are a tree rather than a string because the composer writes rich text, and one tree rather than a pair
@@ -158,6 +166,7 @@ export function nothingWrittenYet(account: string, to: readonly string[] = []): 
         to,
         cc: [],
         bcc: [],
+        replyTo: [],
         words: [],
         pictures: new Map(),
         ...nothingRequested,
@@ -186,6 +195,7 @@ export function answerTo(message: MailMessage, answers: MailDraftAnswer): Compos
         to: answers === 'forward' ? [] : to,
         cc: answers === 'everyone' ? everybody.filter((address) => !to.includes(address)) : [],
         bcc: [],
+        replyTo: [],
         words: [],
         pictures: new Map(),
         ...nothingRequested,
@@ -213,6 +223,7 @@ export function draftContinued(message: MailMessage, body: MailBody | null): Com
         to: addressesOf(message.headers.participants, ['To']),
         cc: addressesOf(message.headers.participants, ['Cc']),
         bcc: addressesOf(message.headers.participants, ['Bcc']),
+        replyTo: addressesOf(message.headers.participants, ['ReplyTo']),
         ...(body === null ? { words: [], pictures: new Map() } : draftWords(body)),
 
         // What a message in a drafts folder would ask for when sent is nothing its reading here carries, so carrying
@@ -240,6 +251,7 @@ export function draftHeld(reading: MailDraftReading): Composition {
         to: addressed('To'),
         cc: addressed('Cc'),
         bcc: addressed('Bcc'),
+        replyTo: reading.replyTo,
         ...draftWords({ document: reading.document, plainText: { text: reading.plainTextBody } }),
         requestsDeliveryNotification: draft.requestsDeliveryNotification,
         requestsReadReceipt: draft.requestsReadReceipt,
@@ -287,7 +299,8 @@ export function anythingWritten(composition: Composition): boolean {
         picturesNamedIn(composition.words).length > 0 ||
         composition.to.length > 0 ||
         composition.cc.length > 0 ||
-        composition.bcc.length > 0
+        composition.bcc.length > 0 ||
+        composition.replyTo.length > 0
     );
 }
 
@@ -314,6 +327,7 @@ export function wireComposition(composition: Composition): MailDraftComposition 
         to: composition.to,
         cc: composition.cc,
         bcc: composition.bcc,
+        replyTo: composition.replyTo,
         requestsDeliveryNotification: composition.requestsDeliveryNotification,
         requestsReadReceipt: composition.requestsReadReceipt,
     };

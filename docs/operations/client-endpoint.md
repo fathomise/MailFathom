@@ -3586,6 +3586,16 @@ somebody says to save, and holds what they are typing until then.
 reply stays a reply. One of that pair without the other names nothing and is refused. Answering stored mail needs
 `mailfathom.mail.read` beneath the drafting grant, because an answer is derived from the message it answers.
 
+**A save may name where replies go, and nobody it names is sent the message.** `replyTo` is an optional list of
+addresses on both the write and the revision, a message of its own and an answer alike, and the message is composed
+with them in its `Reply-To` header; a save naming none composes no such header, so a reply goes back to the sending
+address. They are held to what `to`, `cc`, and `bcc` are held to — at most 256, no blank entry, an address no longer
+than 320 characters, and one outside ASCII only where the submission server carries it — and a refusal names the
+reply-to addresses rather than echoing any of them. None of them reaches the SMTP envelope, the recipient policy, or a
+draft's `recipients`: they live in the stored message alone, so opening a draft reads them back out of it as the
+reading's `replyTo`, and a send of the draft carries them. A revision states the whole draft again, so one that leaves
+`replyTo` out takes them off.
+
 **A save asks for a delivery notification and a read receipt, each on its own and each off unless asked for.**
 `requestsDeliveryNotification` and `requestsReadReceipt` are optional booleans on both the write and the revision, and
 every draft the routes answer with carries both back as `requestsDeliveryNotification` and `requestsReadReceipt`.
@@ -3626,9 +3636,9 @@ the words, so a picture it leaves out is one the revised draft no longer carries
 opened again, its `document` carries each one inlined as a `data:` source, which is what a composer reads it back
 from. **A write's body is bounded by what the largest draft it could save is written as**: both bodies at
 `MailDelivery:MaxBodyCharacters` in JSON's widest escape, every picture the bounds above accept in base64, and 1 MiB
-for the account, the subject, the recipients, and the structure around them. A body one octet past that is answered
-`413` before it is read. Pictures are mail content and none of them, nor their names, reaches a log, an error
-message, or a telemetry event.
+for the account, the subject, the recipients, the reply addresses, and the structure around them. A body one octet
+past that is answered `413` before it is read. Pictures are mail content and none of them, nor their names, reaches a
+log, an error message, or a telemetry event.
 
 **A send may name the time the message leaves.** The send route takes no body for a message sent at once, or a body
 stating `dueAt` — an instant with its offset — and `dueTimeZone`, the IANA zone that time was named in, such as

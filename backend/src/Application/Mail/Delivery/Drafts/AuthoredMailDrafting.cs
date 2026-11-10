@@ -92,6 +92,7 @@ public sealed class AuthoredMailDrafting(
         var authored = new AuthoredEmail
         {
             Recipients = resolution.Recipients,
+            ReplyTo = request.ReplyTo,
             Subject = request.Subject,
             PlainTextBody = request.PlainTextBody,
             HtmlBody = request.HtmlBody,
