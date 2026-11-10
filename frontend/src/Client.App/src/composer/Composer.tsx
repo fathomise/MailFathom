@@ -41,6 +41,7 @@ import { useLocalization } from '../localization/useLocalization';
 import { useReadingZone } from '../localization/useReadingZone';
 import { disconnected, saidByTheStatus, useConnectionStatus } from '../shell/connectionStatus';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
+import { useStandingOnKeyboard } from '../shell/useStandingOnKeyboard';
 import { useWideWorkspace } from '../shell/useWideWorkspace';
 import { useToasts, type Toast } from '../toasts/useToasts';
 import { showOutboxEntry } from '../outbox/showOutboxEntry';
@@ -331,6 +332,9 @@ export function Composer({
     });
     const asked = useRef<HTMLDialogElement>(null);
     const frame = useRef<HTMLElement>(null);
+
+    useStandingOnKeyboard(frame);
+
     const subjectId = useId();
 
     // Whether this composer is still mounted, which is what a send settling after it was closed reads.
@@ -957,15 +961,16 @@ export function Composer({
             onKeyDown={holdTheKeyboard}
             // The scroll padding is the foot's height, and the head's where a low window pins it too: without it the
             // browser counts a field standing under either as on the screen, and focusing it scrolls nothing.
-            className={`flex scroll-pb-18 flex-col overflow-y-auto bg-panel text-text low:scroll-pt-12 ${
+            className={`above-keyboard flex scroll-pb-18 flex-col overflow-y-auto bg-panel text-text low:scroll-pt-12 on-keyboard:scroll-pt-12 ${
                 wide
                     ? 'h-full min-h-0 animate-rise-in'
                     : 'fixed inset-0 z-50 pt-safe-top pb-safe-bottom animate-sheet-in'
             }`}
         >
             {/* A low window shrinks the head to its close control and keeps it at the top, so the fields and the words
-                scroll between it and the foot carrying *Send* however far a keyboard shortens the window. */}
-            <div className="flex shrink-0 items-center gap-3 border-b border-line bg-sunken px-4.25 py-3 low:sticky low:top-0 low:z-10 low:py-0 low:pe-1.5">
+                scroll between it and the foot carrying *Send*. Under a finger the head is that close wherever a
+                keyboard is about to lie over the window, and stays so whether or not one is up. */}
+            <div className="flex shrink-0 items-center gap-3 border-b border-line bg-sunken px-4.25 py-3 low:sticky low:top-0 low:z-10 low:py-0 low:pe-1.5 keyboard-near:py-0 keyboard-near:pe-1.5 on-keyboard:sticky on-keyboard:top-0 on-keyboard:z-10">
                 <h2 className="text-md font-semibold">{title}</h2>
 
                 <div className="ms-auto flex items-center">
@@ -1023,7 +1028,7 @@ export function Composer({
                     )}
 
                     {accounts.length > 1 && composition.answering === null ? (
-                        <div className="flex items-center gap-2.5 border-b border-line-soft px-3.75 py-2.25">
+                        <div className="flex items-center gap-2.5 border-b border-line-soft px-3.75 py-2.25 keyboard-near:min-h-11 keyboard-near:py-0">
                             <label
                                 htmlFor={`${subjectId}-from`}
                                 className="w-14.5 shrink-0 text-sm text-muted workspace:w-22"
@@ -1117,7 +1122,7 @@ export function Composer({
                         </>
                     ) : null}
 
-                    <div className="flex items-center gap-2.5 border-b border-line px-3.75 py-2.25 focus-within:border-b-accent">
+                    <div className="flex items-center gap-2.5 border-b border-line px-3.75 py-2.25 focus-within:border-b-accent keyboard-near:min-h-11 keyboard-near:py-0">
                         {/* Two elements rather than one, because only one of the two things the row holds is labelable:
                             an answer's subject is text the deployment writes, and `for` on a paragraph names nothing a
                             screen reader would follow. So the field takes a label and the paragraph is named by the

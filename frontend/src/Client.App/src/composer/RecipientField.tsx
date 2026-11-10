@@ -218,7 +218,7 @@ export function RecipientField({
     }
 
     return (
-        <div className="relative flex flex-wrap items-center gap-2.5 border-b border-line-soft px-3.75 py-2.25 focus-within:border-b-accent">
+        <div className="relative flex flex-wrap items-center gap-2.5 border-b border-line-soft px-3.75 py-2.25 focus-within:border-b-accent keyboard-near:min-h-11 keyboard-near:py-0">
             <label htmlFor={fieldId} className="w-14.5 shrink-0 text-sm text-muted workspace:w-22">
                 {label}
             </label>

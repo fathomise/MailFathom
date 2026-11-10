@@ -490,6 +490,19 @@ take all but a sliver of the height. From `--window-height-tall` up it is tall, 
 sheet at 640 rather than growing with the window. A stylesheet asks the two as `low:` and `tall:`, and a component that
 has to choose a tree by one asks `src/shell/useWideWorkspace.ts`, as it asks a width.
 
+An **on-screen keyboard** moves none of those axes. The viewport meta in `src/Client.App/index.html` asks for
+`interactive-widget=resizes-visual`, so a keyboard lies over the layout rather than shortening it, and the navigation,
+the panes, and the height bands stay where the screen put them. The one surface that answers it is the one being
+written in: `src/shell/useStandingOnKeyboard.ts` measures how much of the composer the keyboard covers from the visual
+viewport and publishes it on the composer, the `above-keyboard` utility takes that off its height so the caret and
+_Send_ stand above the keyboard, and `on-keyboard:` gives what is left the density a low window gets. A field anywhere
+else is brought into view by the browser. Because a finger brings a keyboard with it, the composer's head is drawn
+close under a coarse pointer below the tall band whether or not one is up — `keyboard-near:` in `styles.css` — with its
+rows at the height of their fields and the AI drafting folded to its prompt line, so nothing in it moves when the
+keyboard comes and goes. The Android head is the exception still standing: its activity pads the page for the keyboard,
+as the table under [the native shell](#the-native-shell-and-why-it-is-not-a-third-package) says, so there the window
+itself gets shorter.
+
 The **back gesture** is answered by the same frame, and on all three heads by one mechanism: `src/shell/screenLayers.ts`
 keeps one stack of everything a press can take away, `src/shellOperations/backNavigation.ts` keeps one history entry
 per thing in it, and `src/App.tsx` unwinds them topmost first before the address moves at all. Two kinds of thing are

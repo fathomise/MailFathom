@@ -195,6 +195,51 @@ describe('DraftingBlock', () => {
 
         expect(screen.getByRole('button', { name: 'Write a draft' })).toHaveProperty('disabled', true);
     });
+
+    // Whether the options are hidden while folded is the stylesheet's, which reads the pointer and the height; what the
+    // block owes is the control that says which way it stands and turns it over.
+    it('starts folded where it folds, and unfolds and folds again from its own control', () => {
+        drawBlock();
+
+        const unfold = screen.getByRole('button', { name: 'Show drafting options' });
+
+        expect(unfold.getAttribute('aria-expanded')).toBe('false');
+
+        fireEvent.click(unfold);
+
+        const fold = screen.getByRole('button', { name: 'Hide drafting options' });
+
+        expect(fold.getAttribute('aria-expanded')).toBe('true');
+
+        fireEvent.click(fold);
+
+        expect(screen.getByRole('button', { name: 'Show drafting options' })).toBeDefined();
+    });
+
+    it('unfolds once something is written, since an act is what sends it', () => {
+        drawBlock();
+
+        fireEvent.change(screen.getByRole('textbox', { name: 'What the draft should say' }), {
+            target: { value: 'Accept the two-hour SLA.' },
+        });
+
+        expect(screen.getByRole('button', { name: 'Hide drafting options' })).toBeDefined();
+    });
+
+    it('keeps the tone and what was written when it is folded again', () => {
+        const { drafted } = drawBlock();
+
+        fireEvent.change(screen.getByRole('textbox', { name: 'What the draft should say' }), {
+            target: { value: 'Accept the two-hour SLA.' },
+        });
+        fireEvent.click(screen.getByRole('radio', { name: 'Formal' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Hide drafting options' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Show drafting options' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Write a draft' }));
+
+        expect(drafted).toHaveBeenCalledWith(expect.stringContaining('Keep the tone formal.'));
+        expect(drafted).toHaveBeenCalledWith(expect.stringContaining('Accept the two-hour SLA.'));
+    });
 });
 
 describe('DraftingStanding', () => {

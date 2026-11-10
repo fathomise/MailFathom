@@ -411,36 +411,62 @@ test.describe('driven by a finger', () => {
         }
     });
 
-    // The viewport meta asks for the on-screen keyboard to shorten the layout rather than cover it, so a phone writing a
-    // message is a phone window little more than half as tall. What the composer owes it is the field being written in
-    // and the send action, both on the screen at once, with nothing it holds above them pushing either off the foot.
-    test('keeps the message being written and its send action on a phone the keyboard has shortened', async ({
+    // The viewport meta has the on-screen keyboard lie over the layout rather than shorten it, so nothing a composition
+    // reads moves when a field takes the keyboard, and the one surface being written in stands on it. No browser this
+    // suite drives raises a keyboard, so the visual viewport is told what one would leave, which is the only thing a
+    // keyboard changes. What the composer owes it is the field being written in and the send action, both above the
+    // keyboard at once, in a window that is as tall as it was.
+    test('stands the composer on the keyboard, with the message being written and its send action above it', async ({
         page,
         deployment,
     }) => {
+        const keyboardTop = 480;
+
         deployment.grant('mailfathom.mail.drafts.write', 'mailfathom.mail.send');
         await page.setViewportSize(phoneWindow);
         await openSignedIn(page, '/#/mail');
+
+        await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
+            'content',
+            /interactive-widget=resizes-visual/u,
+        );
+
         await page.getByRole('button', { name: 'New message', exact: true }).first().click();
 
         const message = page.getByRole('textbox', { name: 'Message' });
 
         await expect(message).toBeVisible();
-        await page.setViewportSize({ width: phoneWindow.width, height: 480 });
 
         // Focused once the composer has arrived, so the field is scrolled into view by what the composer leaves it
-        // rather than by focus landing on a frame of the arrival, which is how this check used to pass on a composer
-        // that left the field under its foot.
+        // rather than by focus landing on a frame of the arrival.
         await settled(page);
         await message.focus();
+
+        await page.evaluate(`(() => {
+            const viewport = window.visualViewport;
+
+            Object.defineProperty(viewport, 'height', { configurable: true, get: () => ${String(keyboardTop)} });
+            viewport.dispatchEvent(new Event('resize'));
+        })()`);
+
         await page.keyboard.type('The racking arrives on the ninth.');
 
+        const send = page.getByRole('button', { name: 'Send', exact: true });
+
+        await expect
+            .poll(async () => {
+                const foot = await boxOf(send);
+
+                return foot.y + foot.height;
+            })
+            .toBeLessThanOrEqual(keyboardTop);
+
         const written = await boxOf(message);
-        const send = await boxOf(page.getByRole('button', { name: 'Send', exact: true }));
+        const foot = await boxOf(send);
 
         expect(written.y).toBeGreaterThanOrEqual(0);
-        expect(written.y + written.height).toBeLessThanOrEqual(send.y);
-        expect(send.y + send.height).toBeLessThanOrEqual(480);
+        expect(written.y + written.height).toBeLessThanOrEqual(foot.y);
+        expect(await page.evaluate('window.innerHeight')).toBe(phoneWindow.height);
     });
 
     // A phone on its side is a window lower than the rail's destinations and its foot together, and it is held to being

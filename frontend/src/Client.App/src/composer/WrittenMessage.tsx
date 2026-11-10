@@ -1326,7 +1326,7 @@ export function WrittenMessage({
                     // A picture is drawn on a line of its own at the width it is written at — the message's, which its grip
                     // sets — fitted to the editor's width with its height scaled, and outlined while it is the one chosen,
                     // the outline rather than the engine's selection tint saying so.
-                    className="min-h-42.5 flex-1 written-region overflow-auto border-s-2 border-transparent px-4.25 py-4 text-lg text-text-soft outline-none focus-visible:border-accent low:min-h-18 [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_img]:selection:bg-transparent [&_img]:cursor-pointer [&_img[data-chosen]]:outline-2 [&_img[data-chosen]]:outline-accent"
+                    className="min-h-42.5 flex-1 written-region overflow-auto border-s-2 border-transparent px-4.25 py-4 text-lg text-text-soft outline-none focus-visible:border-accent low:min-h-18 on-keyboard:min-h-18 [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_img]:selection:bg-transparent [&_img]:cursor-pointer [&_img[data-chosen]]:outline-2 [&_img[data-chosen]]:outline-accent"
                     onInput={() => {
                         unchoosePicture();
                         written();
