@@ -49,7 +49,27 @@ public sealed class OrchestratedAgedMailRetirementTests(MailFathomOrchestrationF
         var localOnly = await StoreAsync(services, account, inbox, 9506, BeforeCutoff, cancellationToken);
         var ownedByASend = await StoreAsync(services, account, inbox, 9507, BeforeCutoff, cancellationToken);
         var ownedByADraft = await StoreAsync(services, account, inbox, 9508, BeforeCutoff, cancellationToken);
+        var agedWithNoDate = await StoreAsync(services, account, inbox, 9509, BeforeCutoff, cancellationToken);
+        var youngWithNoDate = await StoreAsync(services, account, inbox, 9510, BeforeCutoff, cancellationToken);
 
+        await ChangeAsync(
+            services,
+            agedWithNoDate,
+            row =>
+            {
+                row.ReceivedAt = null;
+                row.StoredAt = BeforeCutoff;
+            },
+            cancellationToken);
+        await ChangeAsync(
+            services,
+            youngWithNoDate,
+            row =>
+            {
+                row.ReceivedAt = null;
+                row.StoredAt = AfterCutoff;
+            },
+            cancellationToken);
         await ChangeAsync(services, tombstoned, row => row.RemoteExpungeObservedAt = BeforeCutoff, cancellationToken);
         await ChangeAsync(
             services,
@@ -66,29 +86,39 @@ public sealed class OrchestratedAgedMailRetirementTests(MailFathomOrchestrationF
         await OwnByDraftAsync(services, account, ownedByADraft, cancellationToken);
 
         // Act
-        var read = await services.InScopeAsync(
-            async (scope, token) =>
-            {
-                var factory = scope.GetRequiredService<IPersistenceSessionFactory>();
-                await using var session = await factory.BeginSessionAsync(token);
-
-                return await scope.GetRequiredService<IAgedStoredMailReader>().ReadAsync(
-                    session,
-                    account,
-                    new MailMessageRetention(IsEnabled: true, TimeSpan.FromDays(30), ["aged-mail-kept"]),
-                    Cutoff,
-                    resumeAfter: null,
-                    NoBound,
-                    token);
-            },
-            cancellationToken);
+        var read = await ReadAsync(services, account, resumeAfter: null, NoBound, cancellationToken);
+        var next = await ReadAsync(services, account, read[0].Email, limit: 1, cancellationToken);
 
         // Assert
-        Assert.Equal(new HashSet<StoredEmailId> { aged, localOnly }, read.Select(mail => mail.Email).ToHashSet());
+        Assert.Equal(new HashSet<StoredEmailId> { aged, localOnly, agedWithNoDate }, read.Select(mail => mail.Email).ToHashSet());
         Assert.DoesNotContain(young, read.Select(mail => mail.Email));
         Assert.DoesNotContain(excluded, read.Select(mail => mail.Email));
+        Assert.DoesNotContain(youngWithNoDate, read.Select(mail => mail.Email));
         Assert.All(read, mail => Assert.NotNull(mail.Occurrence));
+        Assert.Equal(read[1].Email, Assert.Single(next).Email);
     }
+
+    private static Task<IReadOnlyList<AgedStoredMail>> ReadAsync(
+        OrchestratedMailFathomServices services,
+        MailAccountId account,
+        StoredEmailId? resumeAfter,
+        int limit,
+        CancellationToken cancellationToken) => services.InScopeAsync(
+        async (scope, token) =>
+        {
+            var factory = scope.GetRequiredService<IPersistenceSessionFactory>();
+            await using var session = await factory.BeginSessionAsync(token);
+
+            return await scope.GetRequiredService<IAgedStoredMailReader>().ReadAsync(
+                session,
+                account,
+                new MailMessageRetention(IsEnabled: true, TimeSpan.FromDays(30), ["aged-mail-kept"]),
+                Cutoff,
+                resumeAfter,
+                limit,
+                token);
+        },
+        cancellationToken);
 
     private static async Task<StoredEmailId> StoreAsync(
         OrchestratedMailFathomServices services,

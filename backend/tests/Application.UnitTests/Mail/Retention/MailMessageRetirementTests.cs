@@ -24,6 +24,8 @@ namespace MailFathom.Application.UnitTests.Mail.Retention;
 /// <summary>Covers which mail a night retires, what it asks the account's own delete to do, and what stops it.</summary>
 public sealed class MailMessageRetirementTests
 {
+    private const int MaximumInspectedLeases = 512;
+
     private static readonly MailAccountId Account = MailAccountId.Create("0199a0c0-0000-7000-8000-000000000001");
 
     private static readonly DateTimeOffset Now = new(2026, 11, 10, 2, 0, 0, TimeSpan.Zero);
@@ -115,6 +117,33 @@ public sealed class MailMessageRetirementTests
 
         // Assert
         Assert.True(Assert.Single(fixture.Records.OpenedRequests).LeavesServerUntouched);
+    }
+
+    /// <summary>The departure for an unscheduled folder is a mirrored account's alone: a held account's drain owes the source what the account's own deletes say.</summary>
+    [Fact]
+    public async Task RetireAsync_AHeldMessageInAFolderNoRunSchedules_CarriesTheAccountsOwnServerDisposition()
+    {
+        // Arrange
+        var fixture = new Fixture(folders: new InMemoryLocalMailFolderStore(Account, MailAccountCustodyPhase.Held));
+        var mail = Scheduled(uid: 7);
+        fixture.States.Store(
+            mail.Email,
+            new LocalEmailState(Inbox, HoldsSourceOccurrence: true, InboxRow, IsSeen: false, IsFlagged: false, EmailKeywords.Create([])));
+        fixture.Mappings.FindFolderNamed(Account, Inbox.Alias).Returns(
+            MailFolderMapping.ToRemotePath(
+                Inbox.Alias,
+                Inbox.RemotePath,
+                MailFolderParticipation.Create(isSynchronized: false, generatesEmbeddings: false, isVisibleToAI: false)));
+        fixture.ReturnsCustody(MailAccountCustodyPhase.Held);
+        fixture.Age([mail]);
+
+        // Act
+        await fixture.Retirement.RetireAsync(Account, Token);
+
+        // Assert
+        var request = Assert.Single(fixture.Records.OpenedRequests);
+        Assert.Equal(AuthoredDeleteServerDisposition.FlagDeleted, request.ServerDisposition);
+        Assert.False(request.LeavesServerUntouched);
     }
 
     /// <summary>A held account's drained message has no occurrence, so it is erased directly and an open client is told once the batch has committed.</summary>
@@ -209,6 +238,32 @@ public sealed class MailMessageRetirementTests
         await fixture.Sessions.DidNotReceive().BeginSessionAsync(Arg.Any<CancellationToken>());
     }
 
+    /// <summary>A page of leases that fills its bound may hide an older build's lease in the part not read, so it answers no; one short of the bound was read whole.</summary>
+    [Theory]
+    [InlineData(MaximumInspectedLeases, false)]
+    [InlineData(MaximumInspectedLeases - 1, true)]
+    public async Task RetireAsync_LeasesThatAllKnowRetention_ProceedsOnlyBelowTheBound(int leases, bool proceeds)
+    {
+        // Arrange
+        var fixture = new Fixture();
+        fixture.Age([]);
+        fixture.Leases.ReadEveryHeldAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(
+            Task.FromResult<IReadOnlyList<WorkLease>>(
+            [
+                .. Enumerable.Range(0, leases).Select(index => new WorkLease(
+                    WorkScope.Create($"mail-account:account-{index}"),
+                    WorkLeaseHolder.ForBuild("0.9.0"),
+                    ReplicaIdentity.Create("replica-2"),
+                    Now.AddMinutes(1))),
+            ]));
+
+        // Act
+        await fixture.Retirement.RetireAsync(Account, Token);
+
+        // Assert
+        await fixture.Sessions.Received(proceeds ? 1 : 0).BeginSessionAsync(Arg.Any<CancellationToken>());
+    }
+
     /// <summary>An account a reload stopped declaring has no answer for what its deletes do, and none invented here would be it.</summary>
     [Fact]
     public async Task RetireAsync_AnAccountNoLongerDeclaringItsDeletes_DoesNothing()
@@ -277,7 +332,7 @@ public sealed class MailMessageRetirementTests
 
     private sealed class Fixture
     {
-        public Fixture(ClientSignals? signals = null)
+        public Fixture(ClientSignals? signals = null, InMemoryLocalMailFolderStore? folders = null)
         {
             this.Sessions.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(this.Session);
             this.Session.CommitAsync(Arg.Any<CancellationToken>()).Returns(PersistenceCommitResult.Committed);
@@ -297,7 +352,7 @@ public sealed class MailMessageRetirementTests
                 this.AgedMail,
                 this.Dispositions,
                 this.Mappings,
-                MailboxChangeSubmissions.Over(this.Records, states: this.States, signals: signals),
+                MailboxChangeSubmissions.Over(this.Records, localFolders: folders, states: this.States, signals: signals),
                 this.States,
                 this.Leases,
                 new FakeTimeProvider(Now));

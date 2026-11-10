@@ -497,8 +497,8 @@ account's custody phase. Both are validated and resolved through a settings poli
 reaches the mail server, which nothing refuses.
 
 With `Messages` on, [the nightly retention run](configuration-runtime.md#the-nightly-retention-walk) retires each visible
-message whose `COALESCE(ReceivedAt, StoredAt)` is older than `After`, the date the list orders by, in every folder the
-account does not exclude. **This erases stored mail**, and on a `Held` account it erases the only copy. It is recorded
+message whose `COALESCE(ReceivedAt, StoredAt)` is older than `After`, in every folder the account does not exclude. A
+message with no received date is aged by when it was stored, although the list sorts it last. **This erases stored mail**, and on a `Held` account it erases the only copy. It is recorded
 as a delete of the account's own, named as retention in the audit trail, so the server's outcome follows
 `AuthoredDeleteServerDisposition` and the local copy follows `AuthoredDeleteEmailDisposition`, each resolved when the delete
 is recorded; the default leaves the mail server untouched. Everything derived goes with the row through the same
