@@ -254,6 +254,40 @@ public sealed class AgentConversationEntrySerializationTests
         Assert.Empty(read.FollowUps);
     }
 
+    /// <summary>A resolution reads back when it was answered and the body a person sent in place of the proposed one, under the names a client reads.</summary>
+    [Fact]
+    public void Serialize_AResolutionSentAsEdited_ReadsBackItsTimeAndBody()
+    {
+        // Arrange
+        var answeredAt = new DateTimeOffset(2026, 9, 22, 9, 42, 0, TimeSpan.Zero);
+        var entry = new AgentProposalResolved(3, AgentProposalState.Accepted, answeredAt, PresentationText.Create("Thursday works."));
+
+        // Act
+        var written = JsonSerializer.Serialize(entry, AgentConversationEntryJsonContext.Default.AgentConversationEntry);
+        var read = Assert.IsType<AgentProposalResolved>(RoundTrip(entry));
+
+        // Assert
+        Assert.Contains("\"answeredAt\":\"2026-09-22T09:42:00+00:00\"", written, StringComparison.Ordinal);
+        Assert.Contains("\"editedBody\":\"Thursday works.\"", written, StringComparison.Ordinal);
+        Assert.Equal(answeredAt, read.AnsweredAt);
+        Assert.Equal(entry.EditedBody, read.EditedBody);
+    }
+
+    /// <summary>A resolution written before it said when, or sent as proposed, carries neither member and is still read.</summary>
+    [Fact]
+    public void Deserialize_AResolutionWrittenWithoutATimeOrABody_ReadsAsSentAsProposed()
+    {
+        // Act
+        var read = Assert.IsType<AgentProposalResolved>(JsonSerializer.Deserialize(
+            """{"entry":"resolution","proposedAt":3,"state":"Accepted"}""",
+            AgentConversationEntryJsonContext.Default.AgentConversationEntry));
+
+        // Assert
+        Assert.Equal(AgentProposalState.Accepted, read.State);
+        Assert.Null(read.AnsweredAt);
+        Assert.Null(read.EditedBody);
+    }
+
     /// <summary>The store stamps a place onto an entry it has just read, through the base type it holds it as.</summary>
     /// <remarks>
     /// A place is derived where the row is written, so an entry is serialized before there is one to serialize and the

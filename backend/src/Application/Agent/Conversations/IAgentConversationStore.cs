@@ -177,11 +177,12 @@ public interface IAgentConversationStore
     /// <param name="user">The person the caller was admitted for, and whose proposal it has to be.</param>
     /// <param name="proposedAt">The place the offer was written at, which is what names it.</param>
     /// <param name="state">Where it stands now, which is never <see cref="AgentProposalState.Pending" />.</param>
-    /// <param name="now">The instant the answer was given, in UTC.</param>
+    /// <param name="editedBody">The body a person sent in place of the proposed one, recorded on the answer, or <see langword="null" /> where it was sent as proposed or nothing was sent.</param>
+    /// <param name="now">The instant the answer was given, in UTC, which the answer records.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>The place the answer was written at, or <see langword="null" /> when the move was refused.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="proposedAt" /> is not a written place, or when <paramref name="state" /> is not a declared member.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="state" /> is <see cref="AgentProposalState.Pending" />.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="state" /> is <see cref="AgentProposalState.Pending" />, or when a decline carries an edited body.</exception>
     /// <remarks>
     /// <para>
     /// The move is judged against where the proposal stands, in the statement that records it: a pending proposal may
@@ -200,6 +201,7 @@ public interface IAgentConversationStore
         UserId user,
         long proposedAt,
         AgentProposalState state,
+        PresentationText? editedBody,
         DateTimeOffset now,
         CancellationToken cancellationToken);
 

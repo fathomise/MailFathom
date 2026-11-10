@@ -11,8 +11,15 @@ import type { ProposalLook } from '../answerCanvas/proposalAnswering';
 // its own controls rather than every proposal in the thread.
 
 export interface ProposalAnswers {
-    /** Records a decision on the proposal written at `proposedAt`, and answers why it was refused, or `null`. */
-    readonly answer: (proposedAt: number, decision: AgentProposalDecision) => Promise<ClientFailureReason | null>;
+    /**
+     * Records a decision on the proposal written at `proposedAt`, with the body a proposed message is sent with in place
+     * of its own where the reader edited it, and answers why it was refused, or `null`.
+     */
+    readonly answer: (
+        proposedAt: number,
+        decision: AgentProposalDecision,
+        editedBody?: string,
+    ) => Promise<ClientFailureReason | null>;
 
     /** Declines it and asks for the same thing at another time, answering as {@link answer} does. */
     readonly askAnotherTime: (proposedAt: number, title: string) => Promise<ClientFailureReason | null>;

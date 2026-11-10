@@ -407,6 +407,7 @@ export function AgentSpace({
     async function answerProposal(
         proposedAt: number,
         decision: AgentProposalDecision,
+        editedBody?: string,
     ): Promise<ClientFailureReason | null> {
         if (session === null) {
             return 'unauthenticated';
@@ -416,7 +417,7 @@ export function AgentSpace({
             return 'missing';
         }
 
-        const answered = await answerAgentProposal(session, transport, current, proposedAt, decision);
+        const answered = await answerAgentProposal(session, transport, current, proposedAt, decision, editedBody);
 
         wrote();
 

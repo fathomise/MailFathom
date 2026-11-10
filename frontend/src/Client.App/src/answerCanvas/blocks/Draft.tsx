@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useId, useState } from 'react';
-import type { AnswerBlock } from '@mailfathom/client-backend';
+import { longestPresentationText, type AnswerBlock } from '@mailfathom/client-backend';
 import { namedZone, sendTimeAt } from '../../composer/sendLater';
 import { useSendTimeWording } from '../../composer/useSendTimeWording';
 import { Icon } from '../../controls/Icon';
@@ -34,9 +34,9 @@ import { draftDispositions } from './blockWording';
 // the paragraphs for a text area.
 //
 // **In a conversation it is a proposal, and sending is how it is accepted.** The conversation answers it with *Send*,
-// *Edit here* and *Discard*, and the service sends what it proposed — which is the whole of what accepting one carries.
-// So an edit that changed the text holds *Send* rather than sending the text the reader moved away from, and says why
-// beside the field: sending what somebody typed needs the route to carry it, which it does not yet.
+// *Edit here* and *Discard*. An edit that changed the text is sent as the reader wrote it: the acceptance carries the
+// body, the service sends that in place of the proposed one, and the record keeps it — so once sent, and on every read
+// after, the letter shows the words that left rather than the ones the agent offered.
 //
 // **A draft the person asked to leave later says when, as the composer does once a time is chosen.** The time is the
 // proposal's, so nothing here clears or moves it: asking the Agent again is how it changes, and *Edit here* keeps it.
@@ -82,9 +82,19 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
     }
 
     const { draft, evidence } = block;
-    const body = typed ?? draft.body;
+    const body = typed ?? answering?.editedBody ?? draft.body;
     const to = addressedTo(draft.recipients, locale);
     const changed = typed !== null && typed !== draft.body;
+
+    // An edit cleared to nothing is not a message, and the service would refuse it, so Send waits for one.
+    const empty = changed && typed.trim() === '';
+    const send = (): void => {
+        if (changed) {
+            answering?.answer('accepted', typed);
+        } else {
+            answering?.answer('accepted');
+        }
+    };
     const leaves = draft.dueAt === null ? null : wordSendTime(sendTimeAt(Date.parse(draft.dueAt), zone));
     const sendSaid = leaves === null ? translate('draft.send') : translate('draft.sendAt', { when: leaves.short });
 
@@ -95,15 +105,14 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
               ? [
                     {
                         said: sendSaid,
-                        name:
-                            leaves === null
-                                ? translate('draft.sendEditedName', { to })
-                                : translate('draft.sendEditedAtName', { to, when: leaves.long }),
+                        name: empty
+                            ? translate('draft.sendEmptyName', { to })
+                            : leaves === null
+                              ? translate('draft.sendEditedName', { to })
+                              : translate('draft.sendEditedAtName', { to, when: leaves.long }),
                         primary: true,
-                        held: changed,
-                        run: () => {
-                            answering.answer('accepted');
-                        },
+                        held: empty,
+                        run: send,
                     },
                     {
                         said: translate('draft.stopEditing'),
@@ -116,15 +125,17 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
               : [
                     {
                         said: sendSaid,
-                        name:
-                            leaves === null
-                                ? translate('draft.sendName', { to })
-                                : translate('draft.sendAtName', { to, when: leaves.long }),
+                        name: empty
+                            ? translate('draft.sendEmptyName', { to })
+                            : leaves === null
+                              ? translate(changed ? 'draft.sendEditedName' : 'draft.sendName', { to })
+                              : translate(changed ? 'draft.sendEditedAtName' : 'draft.sendAtName', {
+                                    to,
+                                    when: leaves.long,
+                                }),
                         primary: true,
-                        held: changed,
-                        run: () => {
-                            answering.answer('accepted');
-                        },
+                        held: empty,
+                        run: send,
                     },
                     {
                         said: translate('draft.editHere'),
@@ -204,6 +215,7 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                             id={written}
                             lang=""
                             autoFocus
+                            maxLength={longestPresentationText}
                             value={body}
                             onChange={(event) => {
                                 setTyped(event.target.value);
@@ -221,10 +233,6 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                     nothing else would say that the text on the screen is not the text the deployment holds. */}
                 {answering === null && (editing || typed !== null) ? (
                     <p className="text-xs text-faint text-pretty">{translate('draft.editKept')}</p>
-                ) : null}
-
-                {answering !== null && editable && changed ? (
-                    <p className="text-xs text-faint text-pretty">{translate('draft.editedUnsendable')}</p>
                 ) : null}
 
                 {evidence.citations.length === 0 ? null : (

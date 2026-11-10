@@ -16,14 +16,20 @@ import { ProposalAnswersContext } from './proposalAnswers';
  *
  * @param proposedAt The sequence the proposal was written at, which is what a decision on it is addressed by.
  * @param phase Where it stands, and `null` where the block proposes nothing.
+ * @param answeredAt When the record last answered it, and `null` where it has not or did not say.
+ * @param editedBody The body the record says was sent in place of the proposed one, or `null`.
  */
 export function AnswerableBlock({
     proposedAt,
     phase,
+    answeredAt,
+    editedBody,
     children,
 }: {
     readonly proposedAt: number;
     readonly phase: ProposalPhase | null;
+    readonly answeredAt: string | null;
+    readonly editedBody: string | null;
     readonly children: ReactNode;
 }) {
     const answers = useContext(ProposalAnswersContext);
@@ -54,8 +60,10 @@ export function AnswerableBlock({
                 phase,
                 answering: pressing || takenAt === phase,
                 refused,
-                answer: (decision) => {
-                    settle(answers.answer(proposedAt, decision));
+                answeredAt,
+                editedBody,
+                answer: (decision, edited) => {
+                    settle(answers.answer(proposedAt, decision, edited));
                 },
                 askAnotherTime: (title) => {
                     settle(answers.askAnotherTime(proposedAt, title));

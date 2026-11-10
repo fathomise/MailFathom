@@ -5,7 +5,7 @@
 import { parseBlock, type AnswerBlock } from './discoveryRun';
 import { failed, failureReasonForStatus, read, type ClientResult } from './failure';
 import { asRecord } from './json';
-import { parseDeclaredSource, type DeclaredSource } from './presentationBlocks';
+import { longestPresentationText, parseDeclaredSource, type DeclaredSource } from './presentationBlocks';
 import type { RunTail } from './runFollowing';
 import { headersFor, routeFor, type ClientSession } from './session';
 import { spanned } from './telemetry';
@@ -124,6 +124,12 @@ export type AgentConversationEntry =
           readonly sequence: number;
           readonly proposedAt: number;
           readonly state: AgentProposalState;
+
+          /** When the answer was recorded, and `null` on one recorded before the service said. */
+          readonly answeredAt: string | null;
+
+          /** The body a person sent in place of the proposed one, and `null` where it was sent as proposed. */
+          readonly editedBody: string | null;
       }
     | { readonly kind: 'other'; readonly sequence: number };
 
@@ -342,6 +348,9 @@ export function restoreAgentConversation(
  * Answers one proposal, named by the place it was written at. Accepting carries out exactly what was proposed, and a
  * proposal whose act failed is accepted again to try it again.
  *
+ * @param editedBody The body a person edited a proposed message to, sent in place of the proposed one; only accepting
+ * carries one.
+ *
  * @returns The place the answer was written at, or why it was not answered. One already decided, or no longer offered,
  * is `missing`: asking again reaches the same refusal, and what the proposal became is what the conversation says.
  */
@@ -351,13 +360,14 @@ export function answerAgentProposal(
     conversationId: string,
     proposedAt: number,
     decision: AgentProposalDecision,
+    editedBody?: string,
 ): Promise<ClientResult<number>> {
     return spanned('PUT /agent/conversations/{conversationId}/proposals/{proposedAt}', async () => {
         const response = await send(transport, {
             method: 'PUT',
             path: routeFor(session, `${agentConversationRoute(conversationId)}/proposals/${String(proposedAt)}`),
             headers: { ...headersFor(session), 'Content-Type': 'application/json' },
-            body: JSON.stringify({ decision }),
+            body: JSON.stringify(editedBody === undefined ? { decision } : { decision, body: editedBody }),
             longestAnswer: longestWriteAnswer,
         });
 
@@ -633,10 +643,25 @@ function parseEntry(value: unknown): AgentConversationEntry | null {
         case 'resolution': {
             const proposedAt = entry['proposedAt'];
             const state = resolutions[String(entry['state'])];
+            const answeredAt = entry['answeredAt'];
+            const editedBody = entry['editedBody'];
 
-            return typeof proposedAt !== 'number' || !Number.isSafeInteger(proposedAt) || state === undefined
+            // An edited body is held to the bound a draft's own body is, which is all the service ever writes.
+            return typeof proposedAt !== 'number' ||
+                !Number.isSafeInteger(proposedAt) ||
+                state === undefined ||
+                (answeredAt !== undefined && typeof answeredAt !== 'string') ||
+                (editedBody !== undefined &&
+                    (typeof editedBody !== 'string' || editedBody.length > longestPresentationText))
                 ? null
-                : { kind: 'resolution', sequence, proposedAt, state };
+                : {
+                      kind: 'resolution',
+                      sequence,
+                      proposedAt,
+                      state,
+                      answeredAt: typeof answeredAt === 'string' ? answeredAt : null,
+                      editedBody: typeof editedBody === 'string' ? editedBody : null,
+                  };
         }
 
         default:

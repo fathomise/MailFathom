@@ -214,7 +214,7 @@ public sealed class AgentConversationControlsTests
         // Arrange
         await using var signals = this.Signals(out var channel);
         this.store
-            .TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, 4, AgentProposalState.Declined, Now, Arg.Any<CancellationToken>())
+            .TryResolveProposalAsync(Conversation, SyntheticUser.Deployment, 4, AgentProposalState.Declined, null, Now, Arg.Any<CancellationToken>())
             .Returns(9L);
 
         // Act

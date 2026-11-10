@@ -1233,6 +1233,12 @@
       },
       "ClientAgentProposalAnswerRequest": {
         "properties": {
+          "body": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "decision": {
             "type": [
               "null",

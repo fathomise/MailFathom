@@ -51,6 +51,8 @@ function pending(answer: (decision: AgentProposalDecision) => void): ProposalAns
         phase: 'pending',
         answering: false,
         refused: null,
+        answeredAt: null,
+        editedBody: null,
         answer,
         askAnotherTime: () => undefined,
         look: null,

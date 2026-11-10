@@ -2,13 +2,15 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { ClientFailureReason } from '@mailfathom/client-backend';
 import { Icon } from '../controls/Icon';
 import type { IconName } from '../controls/icons';
 import { useTip } from '../controls/useTip';
 import type { MessageKey } from '../localization/en';
-import { useLocalization } from '../localization/useLocalization';
+import { wordRecentInstant } from '../localization/instants';
+import { useLocalization, type Translate } from '../localization/useLocalization';
+import { useReadingZone } from '../localization/useReadingZone';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { AnswerBlockCard, type BlockCardTone } from './AnswerBlockCard';
 import type { AnswerBlockState } from './answerBlocks';
@@ -160,9 +162,11 @@ export function ProposalCard({
     readonly outcome?: { readonly done: string; readonly failed: string } | undefined;
     readonly children: ReactNode;
 }) {
-    const { translate } = useLocalization();
+    const { locale, translate } = useLocalization();
     const { sources } = useAnswerSources();
     const answering = useProposalAnswering();
+    const zone = useReadingZone();
+    const [shownAt] = useState(() => Date.now());
     const wording = kindWording[kind];
     const lang = quotesMail ? '' : undefined;
 
@@ -185,8 +189,13 @@ export function ProposalCard({
                           said: translate('proposal.tryAgain'),
                           name: translate('proposal.tryAgainName', { title }),
                           primary: true,
+                          // Tried again with the words it was tried with, which is the body the person edited it to.
                           run: () => {
-                              answering.answer('accepted');
+                              if (answering.editedBody === null) {
+                                  answering.answer('accepted');
+                              } else {
+                                  answering.answer('accepted', answering.editedBody);
+                              }
                           },
                       },
                   ]
@@ -296,15 +305,24 @@ export function ProposalCard({
                                 className={`size-icon-sm shrink-0 ${phase === 'failed' ? 'text-highlight-line' : ''}`}
                                 name={phase === 'accepted' ? 'check_circle' : 'error'}
                             />
-                            {phase === 'accepted'
-                                ? (outcome?.done ?? translate(wording.done))
-                                : (outcome?.failed ?? translate(wording.failed))}
+                            {withAnswerTime(
+                                phase === 'accepted'
+                                    ? (outcome?.done ?? translate(wording.done))
+                                    : (outcome?.failed ?? translate(wording.failed)),
+                                wordRecentInstant(answering?.answeredAt ?? null, locale, shownAt, zone),
+                                translate,
+                            )}
                         </p>
                     ) : null}
                 </>
             )}
         </AnswerBlockCard>
     );
+}
+
+/** The result line, ending in when the proposal was answered where the record says. */
+function withAnswerTime(result: string, when: string | null, translate: Translate): string {
+    return when === null ? result : translate('proposal.resultAt', { result, when });
 }
 
 /**

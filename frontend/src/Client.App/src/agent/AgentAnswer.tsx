@@ -99,7 +99,12 @@ export function AgentAnswer({
                                 className={answered.sequence > settledThrough ? 'animate-block-arrival' : undefined}
                             >
                                 <Containment drawing={String(answered.sequence)} region="answer_block">
-                                    <AnswerableBlock phase={answered.phase} proposedAt={answered.sequence}>
+                                    <AnswerableBlock
+                                        answeredAt={answered.answeredAt}
+                                        editedBody={answered.editedBody}
+                                        phase={answered.phase}
+                                        proposedAt={answered.sequence}
+                                    >
                                         <DrawnBlock block={answered} renderers={answerBlockRenderers} />
                                     </AnswerableBlock>
                                 </Containment>

@@ -409,7 +409,7 @@ const mostParticipants = 30;
 const mostStatements = 25;
 const mostRecipients = 20;
 const mostAnswerLinks = 32;
-const longestText = 4000;
+export const longestPresentationText = 4000;
 const longestCitationId = 32;
 const longestIdentity = 256;
 
@@ -1065,7 +1065,7 @@ function parseFreshness(value: unknown): SourceFreshness | null {
 
 /** An instant as the service wrote it, left as it arrived: what it says is read where it is worded, never here. */
 function parseInstant(value: unknown): string | null {
-    return typeof value === 'string' && value.length > 0 && value.length <= longestText ? value : null;
+    return typeof value === 'string' && value.length > 0 && value.length <= longestPresentationText ? value : null;
 }
 
 /**
@@ -1116,7 +1116,7 @@ function parseIdentity(value: unknown): string | null {
 }
 
 function parseText(value: unknown): string | null {
-    return typeof value === 'string' && value.length > 0 && value.length <= longestText ? value : null;
+    return typeof value === 'string' && value.length > 0 && value.length <= longestPresentationText ? value : null;
 }
 
 function oneOf<TValue extends string>(value: unknown, values: readonly TValue[]): TValue | null {

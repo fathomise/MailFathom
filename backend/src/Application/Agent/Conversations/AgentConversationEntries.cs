@@ -288,7 +288,13 @@ public sealed record AgentAnswerEnded(
 /// <summary>A proposal moved out of the state it was in, and this is where it stands now.</summary>
 /// <param name="ProposedAt">The place the offer was written at, which is what names it.</param>
 /// <param name="State">Where it stands now.</param>
+/// <param name="AnsweredAt">The instant the answer was recorded, in UTC, and <see langword="null" /> only on a resolution recorded before the member existed.</param>
+/// <param name="EditedBody">The body a person edited a proposed message to before sending it, which is what was sent rather than the body proposed, and <see langword="null" /> where it was sent as proposed or the proposal sends nothing.</param>
 /// <remarks>
+/// <para>
+/// An edited body is carried by the acceptance and by the failure that may follow it, so a proposal that failed says
+/// what was tried and the attempt can be made again with the same words. A decline carries none, since nothing was sent.
+/// </para>
 /// <para>
 /// It names no answer, because a person answers a proposal whenever they like — including while a later answer is being
 /// composed, and long after the conversation went quiet. What it is written against is the proposal's own place in the
@@ -300,8 +306,13 @@ public sealed record AgentAnswerEnded(
 /// </para>
 /// </remarks>
 /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="ProposedAt" /> is not a written place, or when <paramref name="State" /> is not a declared member.</exception>
-/// <exception cref="ArgumentException">Thrown when the state is <see cref="AgentProposalState.Pending" />.</exception>
-public sealed record AgentProposalResolved(long ProposedAt, AgentProposalState State) : AgentConversationEntry
+/// <exception cref="ArgumentException">Thrown when the state is <see cref="AgentProposalState.Pending" />, or when a decline carries an edited body.</exception>
+public sealed record AgentProposalResolved(
+    long ProposedAt,
+    AgentProposalState State,
+    DateTimeOffset? AnsweredAt = null,
+    PresentationText? EditedBody = null)
+    : AgentConversationEntry
 {
     /// <summary>The value the type discriminator carries on the wire.</summary>
     public const string Kind = "resolution";
@@ -311,6 +322,11 @@ public sealed record AgentProposalResolved(long ProposedAt, AgentProposalState S
 
     /// <summary>Gets where the proposal stands now, which is never pending.</summary>
     public AgentProposalState State { get; } = Requirement.Resolved(State, nameof(State));
+
+    /// <summary>Gets the body the person sent in place of the proposed one, which only an acceptance and its failure carry.</summary>
+    public PresentationText? EditedBody { get; } = State is AgentProposalState.Declined && EditedBody is not null
+        ? throw new ArgumentException("A declined proposal sent nothing, so it carries no edited body.", nameof(EditedBody))
+        : EditedBody;
 
     /// <inheritdoc />
     [JsonIgnore]
