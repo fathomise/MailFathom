@@ -2290,8 +2290,9 @@ Enqueuing asks the table one question before it writes to it: whether this job t
 [`Jobs:MaxQueueDepthPerType`](../operations/configuration-runtime.md#jobs) allows. That runs on every enqueue rather
 than occasionally, which makes it the second query this table runs at any volume — and it is bounded rather than
 counted, because the read stops at the depth it is comparing against instead of totalling the backlog. It reads the
-waiting rows in the claim's own order, `TurnAt` then `Id`, which the claim index already holds: the count would be the
-same in any order, and an order is what makes the rows the limit keeps the query's choice rather than the plan's. A queue at its
+waiting rows in the claim's own order, `TurnAt` then `Id` — the claim index holds `TurnAt` within a job type, and `Id`
+only breaks a tie between two turns: the count would be the same in any order, and an order is what makes the rows the
+limit keeps the query's choice rather than the plan's. A queue at its
 depth refuses the enqueue and says so, so the caller slows down, asks again later, or stops producing; a request whose
 work is already queued is still answered with that job rather than turned away. Two enqueuers meeting the bound together
 can both pass it and the depth overshoots by as many as raced, because this is backpressure rather than an invariant.

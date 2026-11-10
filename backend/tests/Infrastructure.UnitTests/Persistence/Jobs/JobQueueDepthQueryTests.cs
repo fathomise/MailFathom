@@ -55,8 +55,8 @@ public sealed class JobQueueDepthQueryTests
 
     /// <summary>
     /// The rows the bound stops at are the ones a worker would claim first, so which rows were read is the query's to
-    /// say rather than the plan's. Unordered, EF Core logs the limit as nondeterministic on every deployment, and the
-    /// order is the claim's own so the partial claim index can answer it without sorting the whole queue.
+    /// say rather than the plan's. Unordered, EF Core logs the limit as nondeterministic on every deployment. The order
+    /// is the claim's own: the partial claim index holds its <c>TurnAt</c> half, and <c>Id</c> only breaks a tie.
     /// </summary>
     [Fact]
     public void Compose_ADepthBound_ReadsUpToItInClaimOrder()

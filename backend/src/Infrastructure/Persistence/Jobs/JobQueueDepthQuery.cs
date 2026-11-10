@@ -21,8 +21,9 @@ namespace MailFathom.Infrastructure.Persistence.Jobs;
 /// same on a queue of a thousand and on a queue of a million.
 /// </para>
 /// <para>
-/// The rows read are the first the claim would take, in the claim's own order, which the partial claim index already
-/// holds. The count would come out the same in any order, but a limit nothing orders leaves which rows were read to the
+/// The rows read are the first the claim would take, in the claim's own order: <c>TurnAt</c>, which the partial claim
+/// index holds within a job type, then <c>Id</c>, which the index does not hold and which only breaks a tie between two
+/// turns. The count would come out the same in any order, but a limit nothing orders leaves which rows were read to the
 /// plan, and EF Core reports exactly that on every deployment that compiles the query.
 /// </para>
 /// </remarks>

@@ -189,6 +189,22 @@ public sealed class StoredEmailStaleDerivedDataSelectionTests : IDisposable
         Assert.DoesNotContain("LIMIT", sql, StringComparison.Ordinal);
     }
 
+    /// <summary>The rebuilding walk's own selection answers the same empty set the same way.</summary>
+    [Fact]
+    public void StaleOrReadUnderAnOlderPostureFor_ADeploymentThatScansNoAccount_SelectsNothingWithoutARowLimit()
+    {
+        // Arrange
+        using var context = DesignTimeQueryContext.Create();
+
+        // Act
+        var sql = StoredEmailExtractionBackfillStore
+            .StaleOrReadUnderAnOlderPostureFor(context.StoredEmails.AsNoTracking(), [], unserved: null)
+            .ToQueryString();
+
+        // Assert
+        Assert.DoesNotContain("LIMIT", sql, StringComparison.Ordinal);
+    }
+
     /// <summary>The readings an attachment walk counts are composed the same way, over the readings rather than the messages.</summary>
     [Fact]
     public void StaleReadingsFor_ADeploymentThatScansNoAccount_SelectsNothingWithoutARowLimit()
