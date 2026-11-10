@@ -4344,6 +4344,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
          the thumb. Near square counts because a fold's inner screen is: a browser's own bars take enough height to leave
          the upright fold a little wider than tall, and it is still held upright. */
       const navBottom = isMobile || (narrow && touch && w <= h * 1.15);
+      /* An on-screen keyboard lies over the window and changes none of the three axes: `h` stays the screen's. Only a
+         surface being written in rises to stand on it. The `keyboard` property draws one, so the state can be looked at. */
+      const kb = touch ? Math.max(0, +this.props.keyboard || 0) : 0;
+      /* Under a finger, below the tall band, a keyboard is about to take the lower part of the window, so the
+         composer's head is drawn close: rows at the height of their field, the AI drafting folded to its prompt. */
+      const composeDense = touch && !tall;
+      /* Standing on a keyboard the composer scrolls as it does in a low window, above a foot that stays pinned. */
+      const composeLow = low || kb > 0;
       const railW = navBottom ? 0 : compact ? 66 : 96;
       this._low = low;
       this._isMobile = isMobile;
@@ -6447,7 +6455,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            that. An empty field keeps its placeholder on the one line, cut with an ellipsis. */
         growingFieldStyle: "flex:1;min-width:0;resize:none;border:none;outline:none;background:transparent;font-family:inherit;line-height:1.5;color:var(--text);padding:0;field-sizing:content;max-height:6lh;overflow-y:auto;overflow-wrap:anywhere;",
         composeAiText: st.composeAiText || "",
-        onComposeAiText: (e) => this.setState({ composeAiText: e.target.value }),
+        onComposeAiText: (e) => this.setState(e.target.value ? { composeAiText: e.target.value, composeAiOpen: true } : { composeAiText: e.target.value }),
         askLabel: touch ? "Ask" : "Ask ⏎",
         askBtnStyle: "font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;white-space:nowrap;box-sizing:border-box;display:flex;align-items:center;" +
           (touch ? "min-height:44px;padding:0 18px" : "padding:8px 16px"),
@@ -8336,10 +8344,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         },
         toggleComposeMin: () => (composeInPane ? null : this.setState(s => ({ composeMin: !s.composeMin }))),
         composeShellStyle: composeInPane
-          ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--panel)"
+          ? "flex:1;display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--panel);box-sizing:border-box;padding-bottom:" + Math.max(0, kb - (navBottom ? this.barH() : 0)) + "px"
           : isMobile
-          ? "position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;background:var(--panel)"
-          : "position:fixed;right:26px;bottom:0;width:680px;max-width:calc(100vw - 52px);max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(86dvh, 760px)" : "86dvh") + ";z-index:90;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;box-shadow:0 -1px 0 var(--inset) inset,0 18px 44px var(--sh-3)",
+          ? "position:fixed;inset:0;bottom:" + kb + "px;z-index:90;display:flex;flex-direction:column;background:var(--panel)"
+          : "position:fixed;right:26px;bottom:" + kb + "px;width:680px;max-width:calc(100vw - 52px);max-height:calc(" + (low ? "100dvh - 8px" : tall ? "min(86dvh, 760px)" : "86dvh") + " - " + kb + "px);z-index:90;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;box-shadow:0 -1px 0 var(--inset) inset,0 18px 44px var(--sh-3)",
         composeTitle: (st.composeMin ? composeKind + " - collapsed" : composeKind),
         composeToChips: composeTo.map(reachChip),
         /* The sending account's footer, under the text and outside it, folded as sent mail folds it: shown on a press,
@@ -8410,16 +8418,29 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
            chip keeps one line beside its label. */
         /* A low window lowers the editor's floor so the foot with *Send* stays on screen. The editor and the account's
            footer under it scroll together, so however long the footer is, it never pushes *Send* off the screen. */
-        composeEditorStyle: "flex:1 0 auto;min-height:" + (low ? 72 : 170) + "px;padding:16px 17px;border-left:2px solid transparent;font-size:15px;line-height:1.65;color:var(--text2);outline:none",
-        composeHeadStyle: "display:flex;align-items:center;gap:12px;padding:" + (low ? "0 6px 0 15px" : "11px 15px") + ";background:var(--sub);border-bottom:1px solid var(--line);border-radius:12px 12px 0 0",
+        composeEditorStyle: "flex:1 0 auto;min-height:" + (composeLow ? 72 : 170) + "px;padding:16px 17px;border-left:2px solid transparent;font-size:15px;line-height:1.65;color:var(--text2);outline:none",
+        composeHeadStyle: "display:flex;align-items:center;gap:12px;padding:" + (low || composeDense ? "0 6px 0 15px" : "11px 15px") + ";background:var(--sub);border-bottom:1px solid var(--line);border-radius:12px 12px 0 0",
         /* In a low window the fields, the AI drafting and the editor scroll together and the foot with *Send* stays
            pinned under them; anywhere else the wrapper is not a box at all. */
-        composeScrollStyle: low ? "flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto" : "display:contents",
+        composeScrollStyle: composeLow ? "flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto" : "display:contents",
         /* The writing area gives way to 120 px before the foot does, so the formatting bar and a table's or a picture's
            strip standing over it never push *Send* off a tablet's screen. */
-        composeWritingStyle: low ? "display:contents" : "position:relative;flex:1;min-height:120px;overflow:auto;display:flex;flex-direction:column",
+        composeWritingStyle: composeLow ? "display:contents" : "position:relative;flex:1;min-height:120px;overflow:auto;display:flex;flex-direction:column",
         threadSheetStyle: "display:flex;flex-direction:column;gap:12px;max-height:" + (low ? "calc(100dvh - 8px)" : tall ? "min(82dvh, 640px)" : "82dvh") + ";overflow:auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;padding:10px 16px 20px 16px",
-        composeBodyStyle: "display:flex;flex-direction:column;min-height:0;flex:1;--compose-label:" + (isMobile ? 58 : 88) + "px",
+        composeBodyStyle: "display:flex;flex-direction:column;min-height:0;flex:1;--compose-label:" + (isMobile ? 58 : 88) + "px;--compose-row-pad:" + (composeDense ? 0 : 9) + "px;--compose-row-min:" + (composeDense ? 44 : 0) + "px",
+        /* The AI drafting, folded: the prompt line alone, with a control that unfolds the acts, the tones and the
+           context under it. Writing in the prompt unfolds it, since what is written there is acted on by an act. */
+        composeAiFolds: composeDense,
+        composeAiOpen: !composeDense || !!st.composeAiOpen,
+        toggleComposeAi: () => this.setState(s => ({ composeAiOpen: !s.composeAiOpen })),
+        composeAiFoldGlyph: st.composeAiOpen ? "expand_less" : "expand_more",
+        composeAiFoldTitle: st.composeAiOpen ? "Hide drafting options" : "Show drafting options",
+        composeAiBlockStyle: "display:flex;flex-direction:column;gap:9px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:" + (composeDense ? "8px 15px" : "11px 15px"),
+        composeAiPromptStyle: "display:flex;align-items:center;gap:11px;background:var(--panel);border:2px solid var(--accent);border-radius:8px;padding:" + (composeDense ? "0 0 0 11px" : "8px 11px"),
+        composeAiFoldStyle: "flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:8px;color:var(--accent-d);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1",
+        /* The keyboard the `keyboard` property draws: a stand-in for the system's own, over everything. */
+        keyboardShown: kb > 0,
+        keyboardStyle: "position:fixed;left:0;right:0;bottom:0;height:" + kb + "px;z-index:400;box-sizing:border-box;display:flex;align-items:center;justify-content:center;background:var(--rail);border-top:1px solid var(--line);font-size:12px;color:var(--faint)",
         ccToggleStyle: "flex:0 0 auto;font-size:12px;white-space:nowrap;border-radius:8px;" + (touch ? "display:flex;align-items:center;min-height:44px;padding:0 10px;" : "padding:2px 8px;") + (st.ccOpen ? "color:var(--accent-d);background:var(--accent-soft)" : "color:var(--muted)"),
         toggleCc: () => this.setState(s => ({ ccOpen: !s.ccOpen })),
         composeCcChips: (st.composeCc || []).map((n, i) => ({ ...reachChip(n), remove: () => this.setState(s => ({ composeCc: (s.composeCc || []).filter((_, j) => j !== i) })) })),
