@@ -73,6 +73,11 @@ internal static class MailAccountOutput
         {
             console.WriteLine("    not served until it states an EmailAddress; set one with 'mfctl account edit'");
         }
+
+        if (users is not { Count: > 0 })
+        {
+            console.WriteLine("    unassigned: keeps its mail and does nothing until it is assigned with 'mfctl account assign' or erased with 'mfctl account delete'");
+        }
     }
 
     /// <summary>Reports what one write to an account did, and returns what the command exits with.</summary>

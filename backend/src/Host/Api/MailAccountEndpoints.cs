@@ -7,6 +7,7 @@ using MailFathom.Application.Paging;
 using MailFathom.Domain.Access;
 using MailFathom.Host.Configuration.UserSettings.Administration;
 using MailFathom.Host.Security.Endpoints;
+using MailFathom.Infrastructure.Persistence.Users;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,8 +23,9 @@ namespace MailFathom.Host.Api;
 /// <para>
 /// Reading is <see cref="MailFathomPermission.AdminRead" />, creating, saving, and assigning are
 /// <see cref="MailFathomPermission.AdminConfigurationWrite" />, and erasing and ending an assignment are
-/// <see cref="MailFathomPermission.AdminErase" />: ending the last assignment erases the account and every message this
-/// deployment holds for it.
+/// <see cref="MailFathomPermission.AdminErase" />: erasing takes the account and every message this deployment holds for it,
+/// and ending an assignment takes what that user authored there. Neither erases a mailbox somebody is assigned: erasing
+/// one is refused, and ending its last assignment leaves it unassigned with its mail.
 /// </para>
 /// <para>
 /// No answer carries a password, a token, or a client secret. A declaration is handed over redacted, and a save is read
@@ -196,20 +198,32 @@ internal static class MailAccountEndpoints
             : NotFound(NoSuchAccount);
     }
 
-    /// <summary>Erases one account and everything this deployment stored for it.</summary>
+    /// <summary>Erases one account nobody is assigned to, and everything this deployment stored for it.</summary>
     /// <param name="accountId">The account.</param>
     /// <param name="administration">The account administration.</param>
     /// <param name="cancellationToken">Cancels the erasure before it commits.</param>
-    /// <returns><c>200</c> with whether an account was there to erase.</returns>
-    /// <remarks>An account this deployment does not hold is reported as nothing erased rather than as a refusal, because the caller asked for a state and the deployment is in it.</remarks>
-    internal static async Task<Ok<MailAccountErasureResponse>> EraseAsync(
+    /// <returns><c>200</c> with whether an account was there to erase, or <c>409</c> naming how many users it is still assigned to.</returns>
+    /// <remarks>
+    /// An account this deployment does not hold is reported as nothing erased rather than as a refusal, because the
+    /// caller asked for a state and the deployment is in it. An account somebody is assigned to is <c>409</c> rather
+    /// than <c>400</c>, because nothing about the request has to change: the same request succeeds once every user is
+    /// unassigned from it. Nothing was erased when it is answered.
+    /// </remarks>
+    internal static async Task<Results<Ok<MailAccountErasureResponse>, ProblemHttpResult>> EraseAsync(
         Guid accountId,
         [FromServices] MailAccountAdministration administration,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(administration);
 
-        return TypedResults.Ok(new MailAccountErasureResponse(await administration.EraseAsync(accountId, cancellationToken)));
+        var erasure = await administration.EraseAsync(accountId, cancellationToken);
+
+        return erasure.Result is MailAccountErasureResult.StillAssigned
+            ? TypedResults.Problem(
+                $"Mail account {accountId:D} is assigned to {erasure.AssignedUsers} user(s), so nothing was erased. "
+                + "Unassign every one of them first; an account nobody is assigned to keeps its mail and does nothing until it is erased or assigned again.",
+                statusCode: StatusCodes.Status409Conflict)
+            : TypedResults.Ok(new MailAccountErasureResponse(erasure.Result is MailAccountErasureResult.Erased));
     }
 
     /// <summary>Assigns an account to a user: beside the other members it is assigned to where it belongs to an organization, and to nobody else where it belongs to none.</summary>
@@ -237,7 +251,7 @@ internal static class MailAccountEndpoints
             : NotFound("This deployment holds no such mail account or no such user.");
     }
 
-    /// <summary>Ends one user's assignment to an account, erasing the account and its mail when nobody else is assigned it.</summary>
+    /// <summary>Ends one user's assignment to an account, leaving the account and its mail in place when nobody else is assigned it.</summary>
     /// <param name="accountId">The account.</param>
     /// <param name="administration">The account administration.</param>
     /// <param name="request">The user.</param>
@@ -259,7 +273,7 @@ internal static class MailAccountEndpoints
 
         var unassignment = await administration.UnassignAsync(accountId, UserId.Create(request.UserId), cancellationToken);
 
-        return TypedResults.Ok(new MailAccountUnassignmentResponse(unassignment.Unassigned, unassignment.AccountErased));
+        return TypedResults.Ok(new MailAccountUnassignmentResponse(unassignment.Unassigned, unassignment.LeftUnassigned));
     }
 
     private const string NoSuchAccount = "This deployment holds no such mail account.";

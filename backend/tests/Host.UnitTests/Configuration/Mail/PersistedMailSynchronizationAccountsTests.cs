@@ -9,7 +9,6 @@ using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Mail;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.UserSettings;
-using MailFathom.Host.Hosting.Workers;
 using MailFathom.Host.Signals;
 using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.Infrastructure.Persistence.Policies;
@@ -61,35 +60,6 @@ public sealed class PersistedMailSynchronizationAccountsTests
             [.. firstPage.Concat(secondPage).Select(row => (row.Id.ToString("D"), row.Version))],
             supervised.Select(account => (account.Account.Value, account.Version)));
         await harness.Rows.ReceivedWithAnyArgs(2).ReadServedVersionsAsync(default, default, TestContext.Current.CancellationToken);
-    }
-
-    /// <summary>
-    /// An account an erasure is deciding about is left out of the pass, and the paging still continues after it, so the
-    /// account behind a withheld one on a full page is not lost with it.
-    /// </summary>
-    [Fact]
-    public async Task ReadSupervisedAsync_TheLastAccountOfAFullPageWithheld_LeavesItOutAndReadsTheNextPage()
-    {
-        // Arrange
-        var firstPage = Versions(PersistedMailSynchronizationAccounts.PageSize, offset: 0);
-        var secondPage = Versions(1, offset: PersistedMailSynchronizationAccounts.PageSize);
-        var harness = new SourceHarness();
-        harness.Rows
-            .ReadServedVersionsAsync(null, PersistedMailSynchronizationAccounts.PageSize, Arg.Any<CancellationToken>())
-            .Returns(firstPage);
-        harness.Rows
-            .ReadServedVersionsAsync(firstPage[^1].Id, PersistedMailSynchronizationAccounts.PageSize, Arg.Any<CancellationToken>())
-            .Returns(secondPage);
-        using var withholding = harness.Withheld.Withhold([MailAccountId.Create(firstPage[^1].Id.ToString("D"))]);
-
-        // Act
-        var supervised = await harness.Source.ReadSupervisedAsync(TestContext.Current.CancellationToken)
-            .ToListAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(
-            [.. firstPage.SkipLast(1).Concat(secondPage).Select(row => row.Id.ToString("D"))],
-            supervised.Select(account => account.Account.Value));
     }
 
     /// <summary>
@@ -237,7 +207,7 @@ public sealed class PersistedMailSynchronizationAccountsTests
         Assert.IsType<UserSettingsUnreadableException>(failure);
     }
 
-    /// <summary>An account erased since the last run is assigned to nobody, so its run finds nothing to run.</summary>
+    /// <summary>An account nobody is assigned to any more, whether its last user left it or it was erased, finds nothing to run.</summary>
     [Fact]
     public async Task ReadRunSettingsAsync_AnAccountAssignedToNobody_AnswersNone()
     {
@@ -256,42 +226,18 @@ public sealed class PersistedMailSynchronizationAccountsTests
         Assert.Null(runSettings);
     }
 
-    /// <summary>An account an erasure is deciding about reads nothing, so no run starts writing to what is about to be deleted.</summary>
+    /// <summary>Committing a change wakes the coordinator, which is what lets it act on an account assigned or unassigned at once.</summary>
     [Fact]
-    public async Task ReadRunSettingsAsync_AWithheldAccount_AnswersNoneWithoutReadingAnyRecord()
+    public async Task GetChangeToken_AChangeAnnounced_Changes()
     {
         // Arrange
         var harness = new SourceHarness();
-        harness.Assignments.Assigning(Alex, Account(AlexWork));
-        harness.Holding(HeldRecord(Alex, version: 3, Mailbox(AlexWork, "alex@work.test")));
-        using var withholding = harness.Withheld.Withhold([Account(AlexWork)]);
-
-        // Act
-        var runSettings = await harness.Source.ReadRunSettingsAsync(
-            Account(AlexWork),
-            previous: null,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Null(runSettings);
-        await harness.Documents.DidNotReceiveWithAnyArgs().ReadAsync(default, TestContext.Current.CancellationToken);
-    }
-
-    /// <summary>Withholding an account and committing a change each wake the coordinator, which is what lets it act on either at once.</summary>
-    [Fact]
-    public async Task GetChangeToken_AnAccountWithheldOrAChangeAnnounced_Changes()
-    {
-        // Arrange
-        var harness = new SourceHarness();
-        var beforeWithholding = harness.Source.GetChangeToken();
-
-        // Act
-        using var withholding = harness.Withheld.Withhold([Account(AlexWork)]);
         var beforeAnnouncement = harness.Source.GetChangeToken();
+
+        // Act
         await harness.Announcements.AnnounceAsync();
 
         // Assert
-        Assert.True(beforeWithholding.HasChanged);
         Assert.True(beforeAnnouncement.HasChanged);
     }
 
@@ -403,7 +349,6 @@ public sealed class PersistedMailSynchronizationAccountsTests
                 this.Documents,
                 new ServedUserRecordComposition(binder),
                 this.Announcements,
-                this.Withheld,
                 this.ServedUsers);
         }
 
@@ -415,8 +360,6 @@ public sealed class PersistedMailSynchronizationAccountsTests
 
         internal ConfigurationChangeAnnouncements Announcements { get; } =
             new(connect: null, NullLogger<ConfigurationChangeAnnouncements>.Instance);
-
-        internal WithheldMailAccounts Withheld { get; } = new();
 
         /// <summary>Gets the users this replica holds, read from the records <see cref="Documents" /> answers.</summary>
         internal ServedUsers ServedUsers { get; }

@@ -69,7 +69,8 @@ reader refuses for what it holds — a document past the octets one is bound fro
 with — is left out of the run rather than failing it. A run whose read fails, or that no longer finds its account,
 does not start, and is counted as a failed run and backed off like one rather than ending its supervisor: whether the
 account is still served is the pass's to decide, and the pass stops the supervisor of an account it no longer reads —
-removed, assigned to nobody, or withheld by an erasure.
+removed, or assigned to nobody. An account assigned to nobody keeps its mail and is started again by the first pass
+after it is assigned again, picking up its folders where the last run left them.
 
 Replacing a supervisor cancels its scheduling token and not the work-unit token. A run already writing content and its
 checkpoint therefore finishes against the immutable settings it began with; only work still waiting to start is
@@ -2303,7 +2304,7 @@ Optimistic concurrency is configured once for the whole deployment, outside the 
 }
 ```
 
-The extraction backfill has a section of its own rather than a block inside the synchronization settings, because it reaches no mail server: it reads raw MIME an earlier run already stored, so it needs no account and must not be disabled with synchronization. It shares that feature's extraction limits, which are what decide how a message is read. It is on by default, since a deployment that stored mail before extraction existed would otherwise keep that mail out of search silently and indefinitely; a deployment with nothing to backfill pays one query, because the first run finds no work and the worker stops.
+The extraction backfill has a section of its own rather than a block inside the synchronization settings, because it reaches no mail server: it reads raw MIME an earlier run already stored, so it needs no account and must not be disabled with synchronization. It shares that feature's extraction limits, which are what decide how a message is read. It passes over the mail of an account nobody is assigned, which is out of every flow until it is assigned again; that mail is read on the backfill's next run after the assignment, which is the next start, since a run that finds nothing left to do ends. It is on by default, since a deployment that stored mail before extraction existed would otherwise keep that mail out of search silently and indefinitely; a deployment with nothing to backfill pays one query, because the first run finds no work and the worker stops.
 
 ```json
 {

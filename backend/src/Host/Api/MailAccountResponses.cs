@@ -15,7 +15,7 @@ internal sealed record MailAccountListResponse(IReadOnlyList<MailAccountSummaryR
 /// <summary>One mail account as a listing names it: by the address and the display name an administrator tells accounts apart by.</summary>
 /// <param name="Id">The identifier the deployment generated for the account, which every other act names it by.</param>
 /// <param name="Version">The version a save states.</param>
-/// <param name="Users">The users the account is assigned to.</param>
+/// <param name="Users">The users the account is assigned to, empty for an account nobody is assigned, which is served to nobody and does nothing until somebody is.</param>
 /// <param name="EmailAddress">The address the account holds, or <see langword="null" /> where it holds none and is not served.</param>
 /// <param name="DisplayName">The name the account is shown under.</param>
 /// <param name="OrganizationId">The organization the account belongs to, or <see langword="null" /> for none.</param>
@@ -137,8 +137,8 @@ internal sealed record MailAccountWriteResponse(
 
 /// <summary>What ending an assignment did.</summary>
 /// <param name="Unassigned">Whether the user was assigned the account at all.</param>
-/// <param name="AccountErased">Whether the account and its mail were erased because nobody else is assigned it.</param>
-internal sealed record MailAccountUnassignmentResponse(bool Unassigned, bool AccountErased);
+/// <param name="LeftUnassigned">Whether nobody is assigned the account any more, so it keeps its mail and does nothing until somebody is assigned it again.</param>
+internal sealed record MailAccountUnassignmentResponse(bool Unassigned, bool LeftUnassigned);
 
 /// <summary>What erasing an account did.</summary>
 /// <param name="Erased">Whether this deployment held the account at all.</param>

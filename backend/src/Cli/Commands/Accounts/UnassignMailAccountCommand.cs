@@ -11,8 +11,9 @@ namespace MailFathom.Cli.Commands.Accounts;
 
 /// <summary>Ends one user's assignment to a mail account.</summary>
 /// <remarks>
-/// Confirmed, because ending the last assignment erases the account and every message this deployment stored for it,
-/// and ending any other takes that user's copy of the account's mail with it. Nothing undoes either.
+/// Confirmed, because ending an assignment erases the drafts and standing instructions that user wrote there, and
+/// nothing undoes that. The account and its mail stay, the last assignment included: an account left with nobody
+/// assigned does nothing until it is assigned again or erased with <c>mfctl account delete</c>.
 /// </remarks>
 internal static class UnassignMailAccountCommand
 {
@@ -29,7 +30,7 @@ internal static class UnassignMailAccountCommand
         var userOption = UserOptions.User();
         var confirmationOption = CliOptions.Confirmed("erasure");
 
-        Command command = new("unassign", "End one user's assignment to a mail account, erasing the account when it was their last.")
+        Command command = new("unassign", "End one user's assignment to a mail account, leaving the account and its mail in place.")
         {
             accountOption,
             userOption,
@@ -66,7 +67,7 @@ internal static class UnassignMailAccountCommand
         if (!CliConfirmation.Agreed(
             context,
             confirmedUpFront,
-            $"Ending the assignment of mail account {accountId:D} erases the drafts and standing instructions that user wrote there, and the account and all of its mail when nobody else is assigned it, and there is nobody at the terminal to confirm it. Re-run with --yes to state the agreement in the command.",
+            $"Ending the assignment of mail account {accountId:D} erases the drafts and standing instructions that user wrote there, and there is nobody at the terminal to confirm it. Re-run with --yes to state the agreement in the command.",
             $"End user {user:D}'s assignment to mail account {accountId:D}, erasing what they wrote there? [y/N] "))
         {
             context.Console.WriteError("Nothing was erased.");
@@ -83,7 +84,7 @@ internal static class UnassignMailAccountCommand
         context.Console.WriteLine(unassignment switch
         {
             { Unassigned: false } => $"User {user:D} is not assigned mail account {accountId:D}, so nothing was changed.",
-            { AccountErased: true } => $"Ended the last assignment of mail account {accountId:D}, and erased the account and every message this deployment held for it.",
+            { LeftUnassigned: true } => $"Ended the last assignment of mail account {accountId:D}. Nobody is assigned it now: it keeps its mail and does nothing until it is assigned again with 'mfctl account assign' or erased with 'mfctl account delete'.",
             _ => $"Ended user {user:D}'s assignment to mail account {accountId:D}.",
         });
 

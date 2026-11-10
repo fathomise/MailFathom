@@ -360,13 +360,17 @@ internal sealed class PersistedMailAccountRecordStore(
             {
                 var context = await EfCorePersistenceSessionAccessor.JoinAsync(session, token);
 
+                // Held as an assignment holds it, so the users left are counted after any assignment that committed
+                // first and before any that comes second.
+                await LockAccountAsync(context, accountId, token);
+
                 var ended = await context.Database.ExecuteSqlAsync(
                     $"""DELETE FROM mail_account_assignments WHERE "UserId" = {userId} AND "MailAccountId" = {accountId}""",
                     token);
 
                 if (ended == 0)
                 {
-                    return new MailAccountUnassignment(Unassigned: false, AccountErased: false);
+                    return new MailAccountUnassignment(Unassigned: false, LeftUnassigned: false);
                 }
 
                 // The stamp on the user's endpoint switches moves with the version, as StepUserVersionAsync says.
@@ -374,11 +378,9 @@ internal sealed class PersistedMailAccountRecordStore(
                     $"""UPDATE settings_accounts SET "Version" = "Version" + 1, "EndpointSwitchesVersion" = "EndpointSwitchesVersion" + 1, "UpdatedAt" = {now} WHERE "Id" = {userId}""",
                     token);
 
-                var nobodyElse = !await context.MailAccountAssignments
-                    .AnyAsync(row => row.MailAccountId == accountId, token);
-
-                // The mail is the mailbox's, so an unassignment that leaves somebody else reading it erases none of it.
-                // What goes either way is what this user authored there — a draft only its author reads, and a standing
+                // The mail is the mailbox's, so an unassignment erases none of it, the last one included: the account
+                // stays with its mail, out of every flow, until somebody is assigned it again or it is erased on
+                // purpose. What goes is what this user authored there — a draft only its author reads, and a standing
                 // instruction only its author gave — because neither is readable by anyone once they are not assigned.
                 await UserAccountErasure.EraseAuthoredRowsOfAccountAsync(
                     session,
@@ -386,69 +388,43 @@ internal sealed class PersistedMailAccountRecordStore(
                     userId,
                     token);
 
-                if (nobodyElse)
-                {
-                    await UserAccountErasure.EraseMailOfAccountAsync(session, accountId.ToString("D"), token);
+                var nobodyLeft = !await context.MailAccountAssignments
+                    .AnyAsync(row => row.MailAccountId == accountId, token);
 
-                    await context.Database.ExecuteSqlAsync(
-                        $"""DELETE FROM settings_mail_accounts WHERE "Id" = {accountId}""",
-                        token);
-                }
-
-                return new MailAccountUnassignment(Unassigned: true, AccountErased: nobodyElse);
+                return new MailAccountUnassignment(Unassigned: true, LeftUnassigned: nobodyLeft);
             },
             cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<bool> EraseAsync(Guid accountId, CancellationToken cancellationToken)
-    {
-        var now = timeProvider.GetUtcNow();
-
-        return commitPolicy.CommitAsync(
+    public Task<MailAccountErasure> EraseAsync(Guid accountId, CancellationToken cancellationToken) =>
+        commitPolicy.CommitAsync(
             async (session, token) =>
             {
                 var context = await EfCorePersistenceSessionAccessor.JoinAsync(session, token);
 
-                if (!await context.MailAccountRecords.AnyAsync(account => account.Id == accountId, token))
+                if (await LockAccountAsync(context, accountId, token) is [])
                 {
-                    return false;
+                    return new MailAccountErasure(MailAccountErasureResult.NotFound, 0);
                 }
 
-                await StepAssignedUsersAsync(context, accountId, now, token);
+                var assignedUsers = await context.MailAccountAssignments
+                    .CountAsync(row => row.MailAccountId == accountId, token);
+
+                if (assignedUsers > 0)
+                {
+                    return new MailAccountErasure(MailAccountErasureResult.StillAssigned, assignedUsers);
+                }
+
                 await UserAccountErasure.EraseMailOfAccountAsync(session, accountId.ToString("D"), token);
 
                 await context.Database.ExecuteSqlAsync(
                     $"""DELETE FROM settings_mail_accounts WHERE "Id" = {accountId}""",
                     token);
 
-                return true;
+                return new MailAccountErasure(MailAccountErasureResult.Erased, 0);
             },
             cancellationToken);
-    }
-
-    /// <inheritdoc />
-    /// <remarks>
-    /// The same predicate the erasure's own transaction narrows on, asked ahead of it so the work bound to those
-    /// accounts can be stopped first. Read outside any transaction, so it describes the assignment relation as it
-    /// stood rather than as the erasure will leave it: an assignment written between this read and the erasure makes
-    /// an account shared, and the erasure asks again under its own lock and leaves that account whole.
-    /// </remarks>
-    public async Task<IReadOnlyList<Guid>> ReadSolelyAssignedAsync(
-        UserId user,
-        CancellationToken cancellationToken)
-    {
-        var userId = RequireNamed(user);
-
-        return await dbContext.MailAccountAssignments
-            .AsNoTracking()
-            .Where(assignment => assignment.UserId == userId)
-            .Where(assignment => !dbContext.MailAccountAssignments
-                .Any(other => other.MailAccountId == assignment.MailAccountId && other.UserId != userId))
-            .Select(assignment => assignment.MailAccountId)
-            .OrderBy(accountId => accountId)
-            .ToListAsync(cancellationToken);
-    }
 
     /// <inheritdoc />
     public Task<bool> RecordSettingsAsync(

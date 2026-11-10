@@ -417,12 +417,12 @@ public sealed class MailAccountCommandTests : IDisposable
         Assert.Contains(this.harness.Console.Errors, line => line.Contains("Nothing was erased", StringComparison.Ordinal));
     }
 
-    /// <summary>The last assignment takes the account with it, and the operator is told so rather than left to find it gone.</summary>
+    /// <summary>The last assignment leaves the account unassigned with its mail, and the operator is told what that means and how to act on it.</summary>
     [Fact]
-    public async Task Unassign_TheLastAssignmentConfirmed_SaysTheAccountWasErased()
+    public async Task Unassign_TheLastAssignmentConfirmed_SaysTheAccountIsLeftUnassigned()
     {
         // Arrange
-        using var deployment = FakeMailAccountDeployment.ErasingOnTheLastUnassignment();
+        using var deployment = FakeMailAccountDeployment.LeavingTheAccountUnassignedOnTheLastUnassignment();
 
         // Act
         var exitCode = await this.RunAsync(
@@ -438,7 +438,7 @@ public sealed class MailAccountCommandTests : IDisposable
         // Assert
         Assert.Equal(CliExitCode.Success, exitCode);
         Assert.Single(deployment.UserRequestsTo(HttpMethod.Post, AdminEndpointRoutes.MailAccountAssignmentRemovalPath(Account)));
-        Assert.Contains(this.harness.Console.Lines, line => line.Contains("erased the account", StringComparison.Ordinal));
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains("Nobody is assigned it now", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -476,6 +476,46 @@ public sealed class MailAccountCommandTests : IDisposable
         Assert.Equal(CliExitCode.Success, exitCode);
         Assert.Single(deployment.UserRequestsTo(HttpMethod.Delete, AdminEndpointRoutes.MailAccountPath(Account)));
         Assert.Contains(this.harness.Console.Lines, line => line.Contains("Erased mail account", StringComparison.Ordinal));
+    }
+
+    /// <summary>An account somebody is still assigned to is refused by the deployment, and the operator reads why and what to do.</summary>
+    [Fact]
+    public async Task Delete_AnAccountSomebodyIsAssigned_PrintsTheRefusalAndFails()
+    {
+        // Arrange
+        const string refusal = "Mail account 66666666-6666-6666-6666-666666666666 is assigned to 1 user(s), so nothing was erased.";
+        using var deployment = FakeMailAccountDeployment.RefusingTheErasure(refusal);
+
+        // Act
+        var exitCode = await this.RunAsync(
+            deployment,
+            "account",
+            "delete",
+            "--account",
+            $"{Account:D}",
+            "--yes",
+            "--endpoint",
+            Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Failure, exitCode);
+        Assert.Contains(this.harness.Console.Errors, line => line.Contains(refusal, StringComparison.Ordinal));
+    }
+
+    /// <summary>An account nobody is assigned to is marked in the listing, so a mailbox nobody reads does not sit unnoticed.</summary>
+    [Fact]
+    public async Task List_AnAccountNobodyIsAssigned_MarksItUnassigned()
+    {
+        // Arrange
+        using var deployment = FakeMailAccountDeployment.ListingTheAccountUnassigned();
+
+        // Act
+        var exitCode = await this.RunAsync(deployment, "account", "list", "--endpoint", Endpoint);
+
+        // Assert
+        Assert.Equal(CliExitCode.Success, exitCode);
+        Assert.Contains(this.harness.Console.Lines, line => line.Contains("assigned to: nobody", StringComparison.Ordinal));
+        Assert.Contains(this.harness.Console.Lines, line => line.TrimStart().StartsWith("unassigned:", StringComparison.Ordinal));
     }
 
     /// <summary>What the operator saved is what is committed, over the version the buffer was opened at.</summary>

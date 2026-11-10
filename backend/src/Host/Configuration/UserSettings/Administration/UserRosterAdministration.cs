@@ -6,9 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using MailFathom.Application.Access;
 using MailFathom.Application.Paging;
 using MailFathom.Domain.Access;
-using MailFathom.Domain.Accounts;
 using MailFathom.Host.Configuration.Policies;
-using MailFathom.Host.Hosting.Workers;
 using MailFathom.Host.Signals;
 using MailFathom.Infrastructure.Persistence.Policies;
 using MailFathom.Infrastructure.Persistence.Users;
@@ -35,7 +33,7 @@ namespace MailFathom.Host.Configuration.UserSettings.Administration;
 /// <see cref="MailFathomPermission.AdminRead" />, adding somebody is
 /// <see cref="MailFathomPermission.AdminConfigurationWrite" /> because it changes who this deployment serves rather
 /// than what it does next, and removing somebody is <see cref="MailFathomPermission.AdminErase" /> because it disposes
-/// of every message this deployment holds for them.
+/// of everything this deployment recorded about them.
 /// </para>
 /// <para>
 /// Each of those is held at a scope as well, as ADR 0012 places it. The roster answers with the users the caller's
@@ -50,9 +48,6 @@ internal sealed partial class UserRosterAdministration(
     IUserDirectory directory,
     IUserProvisioning provisioning,
     IUserErasure erasure,
-    IMailAccountRecordStore accounts,
-    IMailAccountWorkQuiescing quiescing,
-    WithheldMailAccounts withheldAccounts,
     IUserSettingsDocumentWriter documents,
     UserAccountDocumentBinder binder,
     ServedUsers servedUsers,
@@ -444,40 +439,28 @@ internal sealed partial class UserRosterAdministration(
         return outcome;
     }
 
-    /// <summary>Erases one user and everything this deployment recorded for them, once their own work has stopped.</summary>
+    /// <summary>Erases one user and everything this deployment recorded for them, leaving every mail account they were assigned in place.</summary>
     /// <param name="user">The user to remove.</param>
     /// <param name="cancellationToken">Cancels the erasure before it commits.</param>
-    /// <returns>What was removed and whether this process was serving the person it removed, or the sentence naming the work that would not stop.</returns>
+    /// <returns>What was removed and whether this process was serving the person it removed.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> names nobody.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller's grant omits <see cref="MailFathomPermission.AdminErase" /> at every scope.</exception>
     /// <remarks>
     /// <para>
-    /// The order here is the whole of what makes an erasure true afterwards, and none of it is bookkeeping. The user
-    /// is withheld from the served-user cache and the accounts they alone were assigned are withheld from synchronization
-    /// <em>first</em>, so this replica's coordinator gives their supervision back — the records it reads them from have
-    /// not changed yet, which is why the withholding is stated rather than read. No other replica is told before the
-    /// deletion commits — the announcement follows a committed erasure and is not made on a refusal — so an account
-    /// one of them still supervises refuses this erasure rather than being deleted under it. Only then are those
-    /// accounts held stopped, and only under that hold is anything deleted —
-    /// because a synchronization run or a job handler writes rows keyed to a mail account rather than to the user, and
-    /// no lock the erasure's own transaction could take reaches such a writer.
+    /// The erasure ends the user's assignments, takes what they authored on each account and everything recorded about
+    /// them, and erases no mail account: one this user alone was assigned is left assigned to nobody, with its mail,
+    /// and out of every flow until somebody is assigned it again. So nothing bound to an account has to be stopped
+    /// first, and nothing the caller's scope does not cover goes with the user.
     /// </para>
     /// <para>
-    /// Work that will not stop within its bound refuses the erasure and deletes nothing. So does the transaction
-    /// itself, on what only it can see: an account that became solely this user's after the set below was read, and a
-    /// job claimed between the wait and the lock the transaction takes over those accounts' job rows. All three answer
-    /// the caller identically, because all three leave the deployment exactly as it was. The user is therefore
-    /// <em>withheld</em> rather than let go of until the deletion has actually committed: refusing to
-    /// erase somebody is not a reason to stop serving them, and putting them back is what a refusal does.
-    /// </para>
-    /// <para>
-    /// Whether the user was served is read before any of that, because the answer must describe the deployment the
-    /// caller asked about rather than the one the erasure left.
+    /// The user is withheld from the served-user cache for as long as the erasure runs, and let go of only once the
+    /// deletion has committed, so a request this replica serves meanwhile no longer reaches them and a failed erasure
+    /// leaves them served exactly as before. Whether the user was served is read before that, because the answer must
+    /// describe the deployment the caller asked about rather than the one the erasure left.
     /// </para>
     /// <para>
     /// A user outside the caller's scope is answered exactly as one this deployment does not hold: nothing erased and
-    /// nothing served. A user inside it who is the only one assigned a mail account outside it is refused instead,
-    /// because the erasure deletes that account with its mail and covering a user is not covering what goes with them.
+    /// nothing served.
     /// </para>
     /// </remarks>
     internal async Task<UserRosterErasureOutcome> EraseAsync(UserId user, CancellationToken cancellationToken)
@@ -494,67 +477,18 @@ internal sealed partial class UserRosterAdministration(
             return new UserRosterErasureOutcome(UserErased: false, WasServed: false);
         }
 
-        var solelyAssigned = await accounts.ReadSolelyAssignedAsync(user, cancellationToken);
-        MailAccountId[] solelyAssignedAccounts = [.. solelyAssigned.Select(static account => MailAccountId.Create(account.ToString("D")))];
-
-        // Covering the user is not covering what goes with them. A mail account in no organization is the deployment's
-        // alone whoever it is assigned to, so a scope naming a user in none covers the user and not that account.
-        var coveredAccounts = await authorization.CoveredMailAccountsAsync(
-            MailFathomPermission.AdminErase,
-            solelyAssignedAccounts,
-            cancellationToken);
-
-        if (coveredAccounts.Count != solelyAssignedAccounts.Length)
-        {
-            this.LogUserErasureRefused();
-
-            return UserRosterErasureOutcome.Refused(
-                $"Erasing this user would delete a mail account assigned to nobody else that the caller's grant of '{MailFathomPermission.AdminErase.Name}' does not cover, so nothing was erased. An administrator whose scope covers that account erases them.");
-        }
-
         var served = await this.IsServedAsync(user, cancellationToken);
-        var erased = false;
-        Guid? unquiesced = null;
-        string? refusal;
+        bool erased;
 
         using (var withheld = servedUsers.Withhold(user))
         {
-            using var unsupervised = withheldAccounts.Withhold(solelyAssignedAccounts);
-
-            refusal = await quiescing.RunQuiescedAsync(
-                solelyAssignedAccounts,
-                async token =>
-                {
-                    var outcome = await erasure.EraseAsync(user, solelyAssigned, token);
-
-                    erased = outcome.UserErased;
-                    unquiesced = outcome.UnquiescedAccount;
-                },
-                cancellationToken);
+            erased = await erasure.EraseAsync(user, cancellationToken);
 
             if (erased)
             {
                 withheld.Erased();
                 this.LogUserErased(served);
             }
-        }
-
-        if (refusal is { } stillRunning)
-        {
-            this.LogUserErasureRefused();
-
-            return UserRosterErasureOutcome.Refused(stillRunning);
-        }
-
-        // The transaction refused on what only it could see: an account that became solely this user's after the set
-        // above was read, or a job claimed between the wait and the lock the transaction takes. Nothing was written,
-        // so it is the same answer to the caller as a wait that ran out.
-        if (unquiesced is { } accountStillBusy)
-        {
-            this.LogUserErasureRefused();
-
-            return UserRosterErasureOutcome.Refused(
-                $"Mail account {accountStillBusy:D} was still being worked on when the erasure reached it, so nothing was erased. Ask again once that has ended.");
         }
 
         if (erased)
@@ -702,16 +636,4 @@ internal sealed partial class UserRosterAdministration(
         Level = LogLevel.Warning,
         Message = "A user and everything recorded for them were erased. This process was serving them: {WasServed}. No replica serves them any more.")]
     private partial void LogUserErased(bool wasServed);
-
-    /// <remarks>
-    /// Named neither by user nor by account, for the reason the line above is: what an operator acts on came back in
-    /// the refusal itself, and this records that the deployment declined to erase rather than failing to. It names no
-    /// cause either, because every refusal reaches it — a wait that ran out of its bound, an account whose assignments
-    /// changed under the request, a job claimed between the wait and the lock, and a supervision hold lost part-way —
-    /// and the sentence the caller was answered with is what says which.
-    /// </remarks>
-    [LoggerMessage(
-        Level = LogLevel.Warning,
-        Message = "An erasure was refused because work bound to the user's own mail accounts was still in flight. Nothing was erased, and this deployment goes on serving them.")]
-    private partial void LogUserErasureRefused();
 }

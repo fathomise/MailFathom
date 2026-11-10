@@ -196,7 +196,7 @@ internal static class UserRecordEndpoints
     /// <param name="userId">The user to remove.</param>
     /// <param name="roster">The roster administration.</param>
     /// <param name="cancellationToken">Cancels the erasure before it commits.</param>
-    /// <returns><c>200</c> with what was removed, <c>409</c> naming the work that would not stop or the mail account the caller's scope does not cover, or <c>400</c> when the request names nobody.</returns>
+    /// <returns><c>200</c> with what was removed, or <c>400</c> when the request names nobody.</returns>
     /// <remarks>
     /// <para>
     /// A user this deployment does not hold is reported as nothing erased rather than as a refusal, because the
@@ -206,11 +206,9 @@ internal static class UserRecordEndpoints
     /// nothing about anybody else's — the sibling relabel withholds the same fact through its own status code.
     /// </para>
     /// <para>
-    /// Work still running against the user's own mail accounts is <c>409</c> rather than <c>400</c>, because nothing
-    /// about the request has to change: it is the deployment that is in the wrong state for it, and the same request
-    /// succeeds once the run or the job it names has ended. Nothing was erased when it is answered. A user the caller's
-    /// scope covers who alone is assigned a mail account it does not cover is the same <c>409</c>: the erasure would
-    /// delete that account with its mail, and the request succeeds under a grant covering it.
+    /// No mail account goes with the user, so nothing about the accounts they were assigned refuses the erasure: an
+    /// account only they were assigned is left assigned to nobody, with its mail, for an administrator to assign
+    /// again or erase on purpose.
     /// </para>
     /// </remarks>
     internal static async Task<Results<Ok<UserErasureResponse>, ProblemHttpResult>> EraseAsync(
@@ -231,9 +229,7 @@ internal static class UserRecordEndpoints
         // later reader of this method could drop.
         var outcome = await roster.EraseAsync(user, cancellationToken);
 
-        return outcome.RefusalMessage is { } stillRunning
-            ? TypedResults.Problem(stillRunning, statusCode: StatusCodes.Status409Conflict)
-            : TypedResults.Ok(new UserErasureResponse(outcome.UserErased, outcome.WasServed));
+        return TypedResults.Ok(new UserErasureResponse(outcome.UserErased, outcome.WasServed));
     }
 
     /// <summary>Replaces the label one user is told apart by.</summary>

@@ -10,9 +10,10 @@ namespace MailFathom.Cli.Commands.Users;
 /// <summary>Erases one user and everything this deployment recorded for them.</summary>
 /// <remarks>
 /// <para>
-/// The one command here that destroys mail. It takes the user's record, their mail accounts, and every message,
-/// folder, attachment, and derived index hanging off them, because that is what erasing a person from a system that
-/// holds their correspondence means — a row left behind would be exactly the copy an erasure was asked to end.
+/// It takes the user's record and every row recorded about them — their assignments, their credentials, and what they
+/// authored in each mail account they were assigned — because that is what erasing a person means. It never erases a
+/// mail account: one they shared stays with its other users, and one they alone were assigned stays unassigned, keeping
+/// its mail and doing nothing until it is assigned again or erased with <c>mfctl account delete</c>.
 /// </para>
 /// <para>
 /// It is confirmed for that reason, and the confirmation names the person rather than only the identifier: an
@@ -34,7 +35,7 @@ internal static class RemoveUserCommand
         var userOption = UserOptions.User();
         var confirmationOption = CliOptions.Confirmed("erasure");
 
-        Command command = new("remove", "Erase one user and every message this deployment holds for them.")
+        Command command = new("remove", "Erase one user and everything recorded about them, leaving their mail accounts in place.")
         {
             userOption,
             confirmationOption,
@@ -83,13 +84,14 @@ internal static class RemoveUserCommand
         }
 
         context.Console.WriteNotice(
-            $"Erasing {held.Describe()} takes their record, their mail accounts, and every message, folder, attachment, "
-            + "and index this deployment holds for them. Nothing here undoes it.");
+            $"Erasing {held.Describe()} takes their record and everything recorded about them. Every mail account "
+            + "they were assigned stays, and one nobody else is assigned keeps its mail and does nothing until it is "
+            + "assigned again or erased with 'mfctl account delete'. Nothing here undoes it.");
 
         if (!CliConfirmation.Agreed(
             context,
             confirmedUpFront,
-            $"Erasing {held.Describe()} destroys every message this deployment holds for them, and there is nobody at the terminal to confirm it. Re-run with --yes to state the agreement in the command.",
+            $"Erasing {held.Describe()} takes everything recorded about them, and there is nobody at the terminal to confirm it. Re-run with --yes to state the agreement in the command.",
             $"Erase {held.Describe()} and everything this deployment holds for them? [y/N] "))
         {
             // Reported on standard error and with a failing code, which is what every other command does when it did
@@ -114,9 +116,8 @@ internal static class RemoveUserCommand
         if (erasure.WasServed)
         {
             context.Console.WriteNotice(
-                "The replica this request reached has stopped serving this user. Their mailboxes were held stopped "
-                + "for the whole erasure, so nothing was still writing to them when it ran. Other replicas pick up "
-                + "the change after their next user write or restart.");
+                "The replica this request reached has stopped serving this user. Other replicas pick up the change "
+                + "after their next user write or restart.");
         }
 
         return CliExitCode.Success;

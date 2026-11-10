@@ -150,21 +150,6 @@ public sealed class MailAccountRetentionHandlerTests
         fixture.Telemetry.Received(1).RecordAccountRun(Arg.Any<int>(), 1, Arg.Any<int>(), Arg.Any<TimeSpan>());
     }
 
-    /// <summary>An account withheld after the walk handed it out is left alone on this replica.</summary>
-    [Fact]
-    public async Task RunAsync_AnAccountBeingWithheld_RemovesNothing()
-    {
-        // Arrange
-        var fixture = new Fixture();
-        fixture.Accounts.IsWithheld(Account).Returns(true);
-
-        // Act
-        await fixture.Handler.RunAsync(Run, TestContext.Current.CancellationToken);
-
-        // Assert
-        await fixture.Sessions.DidNotReceive().BeginSessionAsync(Arg.Any<CancellationToken>());
-    }
-
     /// <summary>An account stating nothing has nothing erased, and its emptied conversations still go.</summary>
     [Fact]
     public async Task RunAsync_TombstoneRetentionSwitchedOff_ErasesNothingAndStillRemovesConversations()
@@ -481,7 +466,6 @@ public sealed class MailAccountRetentionHandlerTests
             this.Sessions.BeginSessionAsync(Arg.Any<CancellationToken>()).Returns(this.Session);
             this.Session.CommitAsync(Arg.Any<CancellationToken>()).Returns(PersistenceCommitResult.Committed);
             this.Handler = new MailAccountRetentionHandler(
-                this.Accounts,
                 this.Sessions,
                 this.Threads,
                 this.RetentionReader,
@@ -506,8 +490,6 @@ public sealed class MailAccountRetentionHandlerTests
             this.Leases.ReadEveryHeldAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult<IReadOnlyList<WorkLease>>([]));
         }
-
-        public IMailRetentionAccounts Accounts { get; } = Substitute.For<IMailRetentionAccounts>();
 
         public IPersistenceSessionFactory Sessions { get; } = Substitute.For<IPersistenceSessionFactory>();
 

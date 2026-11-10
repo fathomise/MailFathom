@@ -105,10 +105,10 @@ internal sealed record MailAccountWriteAnswer(
 
 /// <summary>What ending an assignment did.</summary>
 /// <param name="Unassigned">Whether the user was assigned the account at all.</param>
-/// <param name="AccountErased">Whether the account and its mail were erased because nobody else is assigned it.</param>
+/// <param name="LeftUnassigned">Whether nobody is assigned the account any more, so it keeps its mail and does nothing until somebody is assigned it again.</param>
 internal sealed record MailAccountUnassignment(
     [property: JsonPropertyName("unassigned")] bool Unassigned,
-    [property: JsonPropertyName("accountErased")] bool AccountErased);
+    [property: JsonPropertyName("leftUnassigned")] bool LeftUnassigned);
 
 /// <summary>What erasing an account did.</summary>
 /// <param name="Erased">Whether the deployment held the account at all.</param>

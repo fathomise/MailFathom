@@ -266,44 +266,31 @@ internal sealed class InMemoryMailAccountRecordStore : IMailAccountRecordStore
     {
         if (!this.assignments.TryGetValue(accountId, out var assigned) || !assigned.Remove(user))
         {
-            return Task.FromResult(new MailAccountUnassignment(Unassigned: false, AccountErased: false));
+            return Task.FromResult(new MailAccountUnassignment(Unassigned: false, LeftUnassigned: false));
         }
 
         this.MoveVersionOf(user);
 
-        if (assigned.Count > 0)
-        {
-            return Task.FromResult(new MailAccountUnassignment(Unassigned: true, AccountErased: false));
-        }
-
-        this.Remove(accountId);
-
-        return Task.FromResult(new MailAccountUnassignment(Unassigned: true, AccountErased: true));
+        return Task.FromResult(new MailAccountUnassignment(Unassigned: true, LeftUnassigned: assigned.Count == 0));
     }
 
     /// <inheritdoc />
-    public Task<bool> EraseAsync(Guid accountId, CancellationToken cancellationToken)
+    public Task<MailAccountErasure> EraseAsync(Guid accountId, CancellationToken cancellationToken)
     {
         if (!this.assignments.TryGetValue(accountId, out var assigned))
         {
-            return Task.FromResult(false);
+            return Task.FromResult(new MailAccountErasure(MailAccountErasureResult.NotFound, 0));
         }
 
-        assigned.ForEach(this.MoveVersionOf);
+        if (assigned.Count > 0)
+        {
+            return Task.FromResult(new MailAccountErasure(MailAccountErasureResult.StillAssigned, assigned.Count));
+        }
+
         this.Remove(accountId);
 
-        return Task.FromResult(true);
+        return Task.FromResult(new MailAccountErasure(MailAccountErasureResult.Erased, 0));
     }
-
-    /// <inheritdoc />
-    public Task<IReadOnlyList<Guid>> ReadSolelyAssignedAsync(UserId user, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<Guid>>(
-        [
-            .. this.assignments
-                .Where(assignment => assignment.Value is [var only] && only == user)
-                .Select(static assignment => assignment.Key)
-                .Order(),
-        ]);
 
     /// <inheritdoc />
     public Task<bool> RecordSettingsAsync(

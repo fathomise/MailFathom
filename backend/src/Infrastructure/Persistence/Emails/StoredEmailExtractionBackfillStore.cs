@@ -444,11 +444,17 @@ internal sealed class StoredEmailExtractionBackfillStore(
             .SelectMany(email => email.AttachmentTexts)
             .Where(reading => reading.SensitiveContentStamp != stamp));
 
-    /// <summary>Selects the stored mail any of these queries may reach: not a tombstone, and with its raw MIME still there.</summary>
+    /// <summary>Selects the stored mail any of these queries may reach: not a tombstone, with its raw MIME still there, and in an account somebody is assigned.</summary>
+    /// <remarks>
+    /// An account nobody is assigned to is out of every flow, extraction included, so its mail is neither read nor
+    /// counted as outstanding. It is extracted once somebody is assigned the account and the walk runs again.
+    /// </remarks>
     private IQueryable<StoredEmailEntity> Stored() => dbContext.StoredEmails
         .AsNoTracking()
         .Where(StoredEmailTombstone.IsNotTombstoned)
-        .Where(email => email.ContentAvailability == StoredEmailContentAvailability.Available);
+        .Where(email => email.ContentAvailability == StoredEmailContentAvailability.Available)
+        .Where(email => dbContext.MailAccountAssignments
+            .Any(assignment => assignment.MailAccountId.ToString() == email.MailboxAccountId));
 
     /// <summary>Narrows stored mail to what has actually been derived from, which is what a stamp can be judged on.</summary>
     /// <remarks>

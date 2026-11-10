@@ -682,17 +682,17 @@ and a request with none is refused as any other.
 | `PUT /api/admin/users/{userId}/job-title` | `mailfathom.admin.configuration.write` | Writes the title the user's colleagues read them by in [the member directory](../features/contacts.md#the-organizations-member-directory), from `jobTitle` in the body, trimmed; a blank or `null` title takes it off. It answers `204`, `404` for a user this deployment holds no record for, and `400` for a title past 256 characters. This is what `mfctl user set-job-title` sends. |
 | `PUT /api/admin/users/{userId}/manager` | `mailfathom.admin.configuration.write` | Names the member of the user's organization the user reports to in [the member directory](../features/contacts.md#the-organizations-member-directory), from `managerId` in the body, or nobody where it is `null`; the empty identifier is refused. It answers `204`, `404` for a user this deployment holds no record for, and `400` naming the rule for a manager who is the user, a user in no organization, a manager who is not a member of the user's organization, a manager who is a service account, and a manager who already reports to the user directly or through others. Direct reports are derived from it and never written. This is what `mfctl user set-manager` sends. |
 | `PUT /api/admin/users/{userId}/type` | `mailfathom.admin.configuration.write` | Marks the user `User` or `ServiceAccount`, from `type` in the body, by name and without regard to case; anything else, a number included, is refused `400`. A service account leaves its organization's member directory on the next read, with nothing else written. It answers `204` and `404` for a user this deployment holds no record for. This is what `mfctl user set-type` sends. |
-| `DELETE /api/admin/users/{userId}` | `mailfathom.admin.erase` | Erases the user and every message, folder, attachment, and derived index this deployment holds for them, once [the work bound to their own mailboxes has stopped](#users-and-their-records). **This is the one route here that destroys mail, and it cannot be undone.** A user this deployment does not hold is reported as nothing erased rather than as a refusal, and work that will not stop within its bound is answered `409` naming it, with nothing erased. So is a user who alone is assigned a mail account the caller's scope does not cover — one in no organization, which only the deployment scope covers, under a scope naming the user. |
+| `DELETE /api/admin/users/{userId}` | `mailfathom.admin.erase` | Erases the user, every assignment they held, and every row they authored, [leaving every mail account they were assigned in place](#users-and-their-records) — one nobody else is assigned stays unassigned with its mail. **This cannot be undone.** A user this deployment does not hold is reported as nothing erased rather than as a refusal. |
 | `GET /api/admin/users/{userId}/record` | `mailfathom.admin.read` | Hands over one user's record as the redacted JSON an editing session opens, with the version it was read at. The record carries no mail accounts: [those are read on their own routes](#mail-accounts-and-who-they-are-assigned-to), under `/api/admin/mail-accounts`. |
 | `POST /api/admin/users/{userId}/record` | `mailfathom.admin.configuration.write` | Takes that record back edited and commits it as one change against the version it was opened over. It is what `mfctl user edit` sends when the editor exits, and a record another writer moved past is refused as superseded rather than merged. |
 | `GET /api/admin/mail-accounts` | `mailfathom.admin.read` | Reads [one page](#reading-the-users-mail-accounts-and-organizations-a-page-at-a-time) of [the mail accounts this deployment holds](#mail-accounts-and-who-they-are-assigned-to), each with its identifier, its version, the users it is assigned to, its address, its display name, and the `organizationId` it belongs to or `null` for none, and `nextCursor` naming where the following page continues. The declaration itself is read one account at a time. |
 | `POST /api/admin/mail-accounts` | `mailfathom.admin.configuration.write` | Creates a mail account from the declaration the body carries, in the [organization](#organizations) of the user `userId` names, and assigns it to that user, answering with the identifier it was generated under. An address another account already holds is refused. |
 | `GET /api/admin/mail-accounts/{accountId}` | `mailfathom.admin.read` | Hands over one account's declaration as the redacted JSON an editing session opens, with the version it was read at, the `organizationId` it belongs to, and each of its settings as [the settings policies governing it](configuration-mail.md#how-a-settings-policy-resolves-a-mail-account) resolve it, or `400` naming the row to correct when the stored declaration is not one of settings. |
 | `POST /api/admin/mail-accounts/{accountId}` | `mailfathom.admin.configuration.write` | Takes that declaration back edited and commits it against the version it was opened over, judged against every user the account is assigned to and against the settings policies governing it: a declaration moving a setting a policy forces is refused naming the setting and who holds it. |
-| `DELETE /api/admin/mail-accounts/{accountId}` | `mailfathom.admin.erase` | Erases the account, every assignment to it, and every message this deployment holds for it. **This cannot be undone.** |
+| `DELETE /api/admin/mail-accounts/{accountId}` | `mailfathom.admin.erase` | Erases an account nobody is assigned and every message, folder, attachment, and derived index this deployment holds for it. **This is the one route here that destroys mail, and it cannot be undone.** An account somebody is still assigned is refused with `409` naming how many users, and nothing is erased: [unassign every one of them first](#mail-accounts-and-who-they-are-assigned-to). |
 | `POST /api/admin/mail-accounts/{accountId}/assignments` | `mailfathom.admin.configuration.write` | Assigns the account to the user named by `userId`: beside the other members already assigned it where it belongs to an [organization](#organizations), and to nobody else where it belongs to none. Assigning it to somebody who already holds it writes nothing. An account and a user of different organizations — counting none as one of them — are refused, naming both; so is a second user of an account in no organization, which is one person's; and so is an account already assigned to 256 users. |
 | `POST /api/admin/mail-accounts/{accountId}/organization` | `mailfathom.admin.configuration.write` | Moves the account into the organization the body's `organizationId` names, or out of every organization where the body says `"none": true`. A body stating neither, or both, is refused with `400` rather than read as a move out. This is what `mfctl account set-organization` sends. It answers `204`, `404` for an account this deployment does not hold, `400` for an organization it does not hold, and `409` naming how many of the users it is assigned to the target would not admit — or, for a move out of every organization, how many users it is assigned to when that is more than one — or naming what the settings policy the account would move under refuses about it. |
-| `POST /api/admin/mail-accounts/{accountId}/assignments/removal` | `mailfathom.admin.erase` | Ends one user's assignment and erases what that user authored under the account, their drafts and their standing instructions; the mail itself stays whole while anybody else is assigned. **Ending the last one erases the account and every message this deployment holds for it.** |
+| `POST /api/admin/mail-accounts/{accountId}/assignments/removal` | `mailfathom.admin.erase` | Ends one user's assignment and erases what that user authored under the account, their drafts and their standing instructions; the mail itself stays whole. It answers `unassigned` and `leftUnassigned`, which is `true` when nobody is assigned the account any more: it keeps its mail and does nothing until it is assigned again or erased. |
 | `POST /api/admin/users/{userId}/secrets` | `mailfathom.admin.configuration.write` | Seals the material carried in the body under the active data-encryption key and answers only with its `database:<uuid>` reference. Sending the same declared name for that user rotates the existing row and returns the same reference. It refuses when the user does not exist or the deployment configures no data-encryption key ring. |
 | `GET /api/admin/organizations` | `mailfathom.admin.read` | Reads [one page](#reading-the-users-mail-accounts-and-organizations-a-page-at-a-time) of [the organizations](#organizations) this deployment holds, each with its display name, its short name, how many users belong to it, how many mail accounts belong to it as `mailAccounts`, and when it was recorded, and `nextCursor` naming where the following page continues. A row on the page whose stored short name is not one this build reads is reported beside them under `unreadable`, by identifier, display name, and a `correction` naming what a short name may contain, rather than refusing the listing. The stored short name itself is never echoed. This is what `mfctl organization list` asks. |
 | `POST /api/admin/organizations` | `mailfathom.admin.configuration.write` | Records an organization from the display name and short name the body carries, and answers with the identifier it was minted under. It answers `409` for a short name another organization holds, and `400` naming what was wrong with either name. |
@@ -2080,62 +2080,34 @@ such user exists rather than editing somebody else's mailboxes.
 | `mfctl user set-job-title (--job-title <title> \| --none)` | Writes the title that user's colleagues read them by in the member directory, or takes it off |
 | `mfctl user set-manager (--manager <id> \| --none)` | Names the member of the same organization that user reports to, or nobody |
 | `mfctl user set-type --type User\|ServiceAccount` | Marks that user a person or a technical account; a technical account is never shown in the member directory |
-| `mfctl user remove` | Erases the user and every message this deployment holds for them, which cannot be undone, and which is refused while their own mailboxes are still being written to |
+| `mfctl user remove` | Erases the user and everything recorded about them, which cannot be undone; every mail account they were assigned stays, unassigned where nobody else holds it |
 
 Every command but `list` and `add` takes `--user`, and none of them needs it on a deployment holding one user,
 exactly as the credential commands below: the command reads the roster, acts on the single user there is, and refuses
 rather than guessing where there are several — naming the identifiers to choose from, so the refusal is where an
 operator reads the one to pass.
 
-**An erasure stops that user's own mail work before it deletes anything, and refuses rather than erasing half.** Most
-of what a user's erasure removes is reached from the rows it deletes, but a synchronization run and a job handler write
-rows keyed to a *mail account* rather than to the person — so a deletion racing one of them would answer that this
-deployment holds nothing while it was still being written to. What the request does first is therefore withhold the user
-from everything this replica serves, withhold every mailbox they were the last one assigned from this replica's
-synchronization, and hold the supervision of each of those mailboxes, which is the same lease a replica takes before it
-synchronizes that mailbox: holding it means no replica is running that account, and none starts one until the erasure
-has committed. A mailbox somebody else is also assigned is left running and is not
-held: the mailbox, its mail, and the work going on in it are untouched, because that mail is the other person's. What
-does go from it is what the erased user themselves authored there — their drafts and their standing recurring sends —
-since those are the departing person's rather than the mailbox's, and an erasure that left them would leave that person
-still present in a colleague's mailbox.
-
-**One deadline of 30 seconds covers both waits** — the supervision of every mailbox and then the jobs held for them —
-rather than one each, so a request that spent most of it waiting for a mailbox has that much less left for the queue.
-Four different refusals come back as a `409`, each naming the mailbox it is about, and **nothing at all is erased when
-one answers**: the user goes on being served exactly as before, and the same request is worth repeating.
-
-- **The mailbox is still being synchronized.** The deadline ran out with a run holding it, here or on another replica.
-  Ask again once the run has ended.
-- **A job is still running for the mailbox.** The deadline ran out with a handler holding a job keyed to it. Ask again
-  once it has finished.
-- **The mailbox was still being worked on when the erasure reached it.** Both waits succeeded, and the transaction then
-  found the mailbox in a state neither had covered — an assignment that ended after the request read who holds what,
-  leaving a mailbox solely this user's that nothing was holding, or a job claimed in the moment between the wait and the
-  deletion. Ask again.
-- **The mailbox stopped being held part-way through the erasure.** A supervision hold could not be renewed while the
-  deletion ran, so it was rolled back rather than committed while another replica could take the mailbox back. Ask
-  again.
-
-The first of them reads:
+**An erasure takes the person and never a mail account.** It deletes the user's record, every assignment they held,
+their credentials, and every row they authored — in a mailbox somebody else is also assigned as much as in one they held
+alone: their drafts and their standing recurring sends there go with them, since those are the departing person's
+rather than the mailbox's. A mail account is never erased as a side effect. One somebody else is also assigned goes on
+being served to them exactly as before, and one this user alone was assigned is left **unassigned**: it keeps its mail,
+folders, and indexes, and does nothing until it is assigned again with `mfctl account assign` or erased on purpose with
+`mfctl account delete`, as [Mail accounts](#mail-accounts-and-who-they-are-assigned-to) describes. So no mailbox's work has to be stopped first and
+nothing about one refuses the erasure: the request withholds the user from everything this replica serves while the
+deletion runs, and a user this deployment does not hold is answered as nothing erased.
 
 ```console
 $ mfctl user remove --user 3f1d...
-Erasing 3f1d... (alex) takes their record, their mail accounts, and every message, folder, attachment, and index
-this deployment holds for them. Nothing here undoes it.
+Erasing 3f1d... (alex) takes their record and everything recorded about them. Every mail account they were
+assigned stays, and one nobody else is assigned keeps its mail and does nothing until it is assigned again or
+erased with 'mfctl account delete'. Nothing here undoes it.
 Erase 3f1d... (alex) and everything this deployment holds for them? [y/N] y
-Mail account 1b8e2a40-5c31-4f7a-9d02-6ac41e5b7d10 is still being synchronized, so erasing it now would leave rows
-behind that no deletion here could reach. Nothing was erased; ask again once the run has ended.
+Erased 3f1d... (alex).
 ```
 
 The confirmation is asked before any request is sent, so an answer of anything but `y` reaches the deployment not at
 all. `--yes` states the agreement in the command for a scripted erasure, exactly as it does for the rewind above.
-
-On a deployment of several replicas the mailbox may be held by a replica other than the one the request reached, and
-that replica goes on supervising it — it reads the same account records from the database, which still hold the
-mailbox. Such an erasure is refused for as long as that lasts, and the way through it is to send the request again after
-that replica has moved on, or to reach the replica holding the account. A refusal is the deliberate answer here: an erasure answered as
-done while a run was still writing is the failure this exists to prevent.
 
 **A user is minted with an identifier that says nothing about who they are.** It is a version 7 UUID, like every
 identifier MailFathom mints under [ADR
@@ -2401,8 +2373,8 @@ transaction, under the locks an assignment takes, so an assignment and a move la
 
 **A person and the mailboxes only they hold move together.** Neither move above can take them on its own — the user's
 move is refused over the account and the account's over the user — and unassigning is no way round it, because ending
-an account's last assignment [erases it and every message held for it](#mail-accounts-and-who-they-are-assigned-to). Ask for the
-user's move with their accounts instead:
+an account's last assignment [leaves it unassigned](#mail-accounts-and-who-they-are-assigned-to), doing nothing for
+anybody until it is assigned again. Ask for the user's move with their accounts instead:
 
 ```sh
 mfctl user set-organization --user 7c02... --organization 0197c0de-0000-7000-8000-0000000000a1 --with-accounts
@@ -2841,8 +2813,8 @@ over exactly that set.
 | `mfctl account edit --account <id> [--format json\|yaml]` | Opens that declaration in your `$VISUAL` or `$EDITOR`, as JSON or as YAML, and commits what you saved as one change |
 | `mfctl account assign --account <id> --user <id>` | Assigns an account to that user: beside the other members assigned it where it belongs to an [organization](#organizations), and to nobody else where it belongs to none |
 | `mfctl account set-organization --account <id> (--organization <id> \| --none)` | Moves the account into an [organization](#organizations), or out of every one, which decides who it may be assigned to |
-| `mfctl account unassign --account <id> --user <id>` | Ends one user's assignment, erasing what they authored there, and erasing the account and its mail when it was the last one |
-| `mfctl account delete --account <id>` | Erases the account and every message this deployment holds for it |
+| `mfctl account unassign --account <id> --user <id>` | Ends one user's assignment, erasing what they authored there; ending the last one leaves the account unassigned with its mail |
+| `mfctl account delete --account <id>` | Erases an account nobody is assigned and every message this deployment holds for it, and is refused while anybody is |
 | `mfctl account custody show --account <id>` | Reports which copy of that account's mailbox is the truth, how much of its source server is still to be emptied or filled again, and every append awaiting an operator's verdict |
 | `mfctl account custody switch --account <id> --to <custody>` | Asks for `HoldMailbox` or `MirrorSource`, after a confirmation naming what happens to the mail, and prints every reason a refusal gave |
 | `mfctl account custody settle --account <id> --record <id> --found\|--missing` | Records whether an unanswered append's copy is in the folder, which is what releases an account held in `Restoring` |
@@ -2951,10 +2923,28 @@ breaks: an account no start would serve where it stands is moved wherever the ta
 target leaves served exactly what it was is not asked at all. Nothing is rewritten on the account to make a move pass,
 and a move that commits rewrites the columns the deployment reads across accounts in the same transaction.
 
-**Ending an assignment erases mail, and ending the last one erases the account.** `mfctl account unassign` erases the
-mail this deployment stored for that user under the account. An account nobody is assigned to serves nobody, so ending
-the last assignment also erases the account and every message, folder, attachment, and derived index this deployment
-holds for it, exactly as `mfctl account delete` does.
+**Ending an assignment never erases the account, and erasing one is refused while anybody is assigned it.** `mfctl
+account unassign` erases what that user authored under the account — their drafts and their standing recurring sends —
+and leaves the account and its mail whole. Ending the last assignment leaves the account **unassigned**: it keeps every
+message, folder, attachment, and derived index this deployment holds for it, and does nothing at all until it is
+assigned again or erased. Nothing synchronizes it, no job queued for it is claimed, no retention pass or index
+backfill reaches it, and no read, tool, or route serves it to anybody, because every one of those asks who the account
+is assigned to before it does anything. Work already queued for it — an outgoing message still to be delivered, a
+change still to be carried to the server, a job still pending — stays where it is and resumes once the account is
+assigned again. Erasing the user who was assigned it last does the same, as [Users and their
+records](#users-and-their-records) describes.
+
+`mfctl account delete` is the one way an account and its mail are erased, and it is refused while anybody is assigned
+the account, naming how many, with nothing erased:
+
+```console
+$ mfctl account delete --account 5b0c... --yes
+Mail account 5b0c... is assigned to 2 user(s), so nothing was erased. Unassign every one of them first; an account nobody is assigned to keeps its mail and does nothing until it is erased or assigned again.
+```
+
+The count is taken under the same lock an assignment takes on the account row, so an assignment arriving while the
+erasure runs either lands first and refuses the erasure, or waits and is then answered that the account no longer
+exists.
 
 **A read hands over what it can, and names what it cannot.** `mfctl account list` reads every account the deployment
 holds, [a page at a time](#reading-the-users-mail-accounts-and-organizations-a-page-at-a-time), each as its
@@ -2967,8 +2957,11 @@ A mail account this deployment holds is not a declaration of settings, so it can
 
 ```console
 $ mfctl account unassign --account 5b0c... --user 7c02...
-Ended the last assignment of mail account 5b0c..., and erased the account and every message this deployment held for it.
+Ended the last assignment of mail account 5b0c.... Nobody is assigned it now: it keeps its mail and does nothing until it is assigned again with 'mfctl account assign' or erased with 'mfctl account delete'.
 ```
+
+`mfctl account list` marks such an account with a line of its own, and the listing route answers it with an empty
+`users` list.
 
 **An account holding no address is not served.** A start reports such accounts at `Warning`, naming the user they are
 assigned to, and `mfctl account list` marks each one; `mfctl account edit` is where the address is stated.

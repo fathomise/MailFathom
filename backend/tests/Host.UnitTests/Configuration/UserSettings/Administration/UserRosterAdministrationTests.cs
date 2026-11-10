@@ -6,14 +6,12 @@ using System.Globalization;
 using MailFathom.Application.Access;
 using MailFathom.Application.Paging;
 using MailFathom.Domain.Access;
-using MailFathom.Domain.Accounts;
 using MailFathom.Host.Configuration;
 using MailFathom.Host.Configuration.Decisions;
 using MailFathom.Host.Configuration.Endpoints;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.UserSettings;
 using MailFathom.Host.Configuration.UserSettings.Administration;
-using MailFathom.Host.Hosting.Workers;
 using MailFathom.Host.Signals;
 using MailFathom.Host.UnitTests.TestDoubles;
 using MailFathom.Infrastructure.Persistence.Users;
@@ -680,47 +678,27 @@ public sealed class UserRosterAdministrationTests
     }
 
     /// <summary>
-    /// An erasure deletes the mail accounts assigned to the user alone, and covering the user is not covering those: an
-    /// account the caller's scope does not cover refuses the whole erasure, while one it does cover goes with the user.
+    /// An erasure takes no mail account, so a mailbox assigned to the user alone that the caller's scope does not cover
+    /// refuses nothing: the user goes, and the account stays behind for an administrator whose scope covers it.
     /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task EraseAsync_AUserAloneAssignedAnAccountOutsideTheCallersScope_IsRefusedBeforeAnythingIsErased(bool scopedOverTheOrganization)
+    public async Task EraseAsync_AUserAloneAssignedAnAccountOutsideTheCallersScope_ErasesThemAnyway(bool scopedOverTheOrganization)
     {
         // Arrange
         var scope = scopedOverTheOrganization
             ? AssignmentScope.Organization(AccessAuthorizations.ScopedOrganization)
             : AssignmentScope.User(AccessAuthorizations.ScopedHolder);
-        var coveredAccount = Guid.Parse(AccessAuthorizations.ScopedAccount.Value);
-        var uncoveredAccount = new Guid("63f9d402-1e57-4c8a-a134-5d8f7a9c1e26");
-
-        var covering = HarnessScopedAt(scope, MailFathomPermission.AdminErase);
-        covering.Erasing(AccessAuthorizations.ScopedHolder);
-        covering.MailAccountRecords.HoldUser(
-            AccessAuthorizations.ScopedHolder,
-            "{}",
-            1,
-            new MailAccountRecord(coveredAccount, "covered@roster.test", "covered", "{}", 1));
-
-        var reachingPast = HarnessScopedAt(scope, MailFathomPermission.AdminErase);
-        reachingPast.Erasing(AccessAuthorizations.ScopedHolder);
-        reachingPast.MailAccountRecords.HoldUser(
-            AccessAuthorizations.ScopedHolder,
-            "{}",
-            1,
-            new MailAccountRecord(coveredAccount, "covered@roster.test", "covered", "{}", 1),
-            new MailAccountRecord(uncoveredAccount, "uncovered@roster.test", "uncovered", "{}", 1));
+        var harness = HarnessScopedAt(scope, MailFathomPermission.AdminErase);
+        harness.Erasing(AccessAuthorizations.ScopedHolder);
 
         // Act
-        var erased = await covering.Roster.EraseAsync(AccessAuthorizations.ScopedHolder, TestContext.Current.CancellationToken);
-        var refused = await reachingPast.Roster.EraseAsync(AccessAuthorizations.ScopedHolder, TestContext.Current.CancellationToken);
+        var outcome = await harness.Roster.EraseAsync(AccessAuthorizations.ScopedHolder, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.True(erased.UserErased);
-        Assert.False(refused.UserErased);
-        Assert.Contains(MailFathomPermission.AdminErase.Name, refused.RefusalMessage!, StringComparison.Ordinal);
-        Assert.Empty(reachingPast.Erasure.ReceivedCalls());
+        Assert.True(outcome.UserErased);
+        await harness.Erasure.Received(1).EraseAsync(AccessAuthorizations.ScopedHolder, Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -766,45 +744,23 @@ public sealed class UserRosterAdministrationTests
     }
 
     /// <summary>
-    /// The accounts stopped are the ones the erasure disposes of and no others, and the user is off the roster while
-    /// the deletion runs — which is what has this replica's coordinator give their supervision back rather than write
-    /// into a mailbox being deleted. An account somebody else is also assigned stays running, because erasing this
-    /// user takes nothing of it.
+    /// The user is off this replica's roster while the deletion runs, so a request served meanwhile no longer reaches
+    /// them, and nothing about the mail accounts they were assigned is stopped or held for it.
     /// </summary>
     [Fact]
-    public async Task EraseAsync_AUserSharingOneOfTwoAccounts_StopsOnlyTheirOwnAndIsUnservedWhileItRuns()
+    public async Task EraseAsync_AUserThisProcessIsServing_IsUnservedWhileTheErasureRuns()
     {
         // Arrange
         var harness = new RosterHarness(MailFathomPermission.AdminErase);
-        var ownAccount = new Guid("41d7b2e0-9c35-4a68-8f12-3b6d5e7a9c04");
-        var sharedAccount = new Guid("52e8c3f1-0d46-4b79-9023-4c7e6f8b0d15");
         harness.Serving(SyntheticUser.Deployment);
-        harness.MailAccountRecords.HoldUser(
-            SyntheticUser.Deployment,
-            "{}",
-            1,
-            new MailAccountRecord(ownAccount, "own@roster.test", "own", "{}", 1),
-            new MailAccountRecord(sharedAccount, "shared@roster.test", "shared", "{}", 1));
-        harness.MailAccountRecords.HoldUser(
-            SyntheticUser.Another,
-            "{}",
-            1,
-            new MailAccountRecord(sharedAccount, "shared@roster.test", "shared", "{}", 1));
-
         var servedWhileErasing = true;
-        var withheldWhileErasing = (Own: false, Shared: true);
-        IReadOnlyList<Guid> statedAsQuiesced = [];
         harness.Erasure
-            .EraseAsync(SyntheticUser.Deployment, Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<CancellationToken>())
-            .Returns(call =>
+            .EraseAsync(SyntheticUser.Deployment, Arg.Any<CancellationToken>())
+            .Returns(_ =>
             {
                 servedWhileErasing = harness.ServedUsers.Peek(SyntheticUser.Deployment) is not null;
-                withheldWhileErasing = (
-                    harness.WithheldAccounts.IsWithheld(MailAccountId.Create(ownAccount.ToString("D"))),
-                    harness.WithheldAccounts.IsWithheld(MailAccountId.Create(sharedAccount.ToString("D"))));
-                statedAsQuiesced = call.Arg<IReadOnlyList<Guid>>()!;
 
-                return new UserErasureOutcome(true, null);
+                return true;
             });
 
         // Act
@@ -815,77 +771,26 @@ public sealed class UserRosterAdministrationTests
         // Assert
         Assert.True(outcome.UserErased);
         Assert.False(servedWhileErasing);
-        Assert.Equal((true, false), withheldWhileErasing);
-        Assert.Equal([ownAccount.ToString("D")], [.. harness.Quiescing.Quiesced.Select(account => account.Value)]);
-
-        // The transaction refuses an account it would delete and which the caller did not state, so the same set that
-        // was held is the set it is told about — a shared mailbox being in neither.
-        Assert.Equal([ownAccount], statedAsQuiesced);
     }
 
-    /// <summary>
-    /// Work the deployment could not stop is a refusal rather than a partial erasure, and a person nothing erased goes
-    /// on being served: the roster they were taken off for the attempt has them back.
-    /// </summary>
+    /// <summary>An erasure that fails erased nothing, so the person goes on being served and no replica is told otherwise.</summary>
     [Fact]
-    public async Task EraseAsync_WorkBoundToTheirAccountsWillNotStop_ErasesNothingAndGoesOnServingThem()
-    {
-        // Arrange
-        var harness = new RosterHarness(MailFathomPermission.AdminErase);
-        var ownAccount = new Guid("41d7b2e0-9c35-4a68-8f12-3b6d5e7a9c04");
-        harness.Serving(SyntheticUser.Deployment);
-        harness.MailAccountRecords.HoldUser(
-            SyntheticUser.Deployment,
-            "{}",
-            1,
-            new MailAccountRecord(ownAccount, "own@roster.test", "own", "{}", 1));
-        harness.Erasing(SyntheticUser.Deployment);
-        harness.Quiescing.Refusal = "Mail account 41d7b2e0 is still being synchronized.";
-        var heard = await RosterAnnouncementListener.ListenAsync(harness.Backplane, () => true);
-
-        // Act
-        var outcome = await harness.Roster.EraseAsync(
-            SyntheticUser.Deployment,
-            TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.False(outcome.UserErased);
-        Assert.False(outcome.IsQuiesced);
-        Assert.Equal(harness.Quiescing.Refusal, outcome.RefusalMessage);
-        await harness.Erasure.DidNotReceiveWithAnyArgs().EraseAsync(default, [], CancellationToken.None);
-        Assert.NotNull(harness.ServedUsers.Peek(SyntheticUser.Deployment));
-        Assert.False(harness.WithheldAccounts.IsWithheld(MailAccountId.Create(ownAccount.ToString("D"))));
-        Assert.Empty(heard);
-    }
-
-    /// <summary>
-    /// The transaction refuses on what only it can see — an account that became this user's alone after the holds were
-    /// taken, or a job claimed a moment before the lock. Nothing was written, so the caller is answered as for any
-    /// other refusal rather than told a user was erased.
-    /// </summary>
-    [Fact]
-    public async Task EraseAsync_TheTransactionRefusesOnAnAccountNothingHolds_ReportsARefusalAndAnnouncesNothing()
+    public async Task EraseAsync_TheErasureFails_GoesOnServingThemAndAnnouncesNothing()
     {
         // Arrange
         var harness = new RosterHarness(MailFathomPermission.AdminErase);
         harness.Serving(SyntheticUser.Deployment);
-        var appearedUnheld = Guid.Parse("7d3a9c15-4e28-4b61-9f07-2c8b6d0e5a34");
         harness.Erasure
-            .EraseAsync(SyntheticUser.Deployment, Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<CancellationToken>())
-            .Returns(new UserErasureOutcome(false, appearedUnheld));
+            .EraseAsync(SyntheticUser.Deployment, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("The database went away."));
         var heard = await RosterAnnouncementListener.ListenAsync(harness.Backplane, () => true);
 
         // Act
-        var outcome = await harness.Roster.EraseAsync(
-            SyntheticUser.Deployment,
-            TestContext.Current.CancellationToken);
+        var failure = await Record.ExceptionAsync(
+            () => harness.Roster.EraseAsync(SyntheticUser.Deployment, TestContext.Current.CancellationToken));
 
         // Assert
-        Assert.False(outcome.UserErased);
-        Assert.False(outcome.IsQuiesced);
-        Assert.Contains(appearedUnheld.ToString("D"), outcome.RefusalMessage!, StringComparison.Ordinal);
-
-        // Nothing was erased, so the person goes on being served and no replica is told otherwise.
+        Assert.IsType<InvalidOperationException>(failure);
         Assert.NotNull(harness.ServedUsers.Peek(SyntheticUser.Deployment));
         Assert.Empty(heard);
     }
@@ -915,10 +820,10 @@ public sealed class UserRosterAdministrationTests
         await Assert.ThrowsAsync<ArgumentException>(
             () => harness.Roster.EraseAsync(default, TestContext.Current.CancellationToken));
 
-        await harness.Erasure.DidNotReceiveWithAnyArgs().EraseAsync(default, [], TestContext.Current.CancellationToken);
+        await harness.Erasure.DidNotReceiveWithAnyArgs().EraseAsync(default, TestContext.Current.CancellationToken);
     }
 
-    /// <summary>Erasing somebody disposes of every message this deployment holds for them, which is a grant of its own.</summary>
+    /// <summary>Erasing somebody disposes of everything this deployment recorded about them, which is a grant of its own.</summary>
     [Fact]
     public async Task EraseAsync_ACallerHoldingOnlyTheAdministrativeConfigurationWrite_IsRefused()
     {
@@ -1384,8 +1289,7 @@ public sealed class UserRosterAdministrationTests
                 .Returns(true);
 
             this.Erasure = Substitute.For<IUserErasure>();
-            this.Erasure.EraseAsync(Arg.Any<UserId>(), Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<CancellationToken>())
-                .Returns(new UserErasureOutcome(false, null));
+            this.Erasure.EraseAsync(Arg.Any<UserId>(), Arg.Any<CancellationToken>()).Returns(false);
 
             this.Documents = Substitute.For<IRecordedUserRecordCommits>();
             this.Writer = new ComposingUserRecordWriter(this.Documents);
@@ -1409,9 +1313,6 @@ public sealed class UserRosterAdministrationTests
                 this.Directory,
                 this.Provisioning,
                 this.Erasure,
-                this.MailAccountRecords,
-                this.Quiescing,
-                this.WithheldAccounts,
                 this.Writer,
                 new UserAccountDocumentBinder(
                     new PersistedSecretMaterial(DeclaredSecretScheme.Registered),
@@ -1444,15 +1345,6 @@ public sealed class UserRosterAdministrationTests
 
         /// <summary>Gets the writer the roster commits through, which composes each commit under the policies a test states.</summary>
         internal ComposingUserRecordWriter Writer { get; }
-
-        /// <summary>Gets the accounts and assignments an erasure reads the mailboxes it has to stop out of.</summary>
-        internal InMemoryMailAccountRecordStore MailAccountRecords { get; } = new();
-
-        /// <summary>Gets the quiescing an erasure runs under, which lets the work through unless a test refuses it.</summary>
-        internal RecordedMailAccountWorkQuiescing Quiescing { get; } = new();
-
-        /// <summary>Gets the accounts this replica's synchronization is kept off while an erasure runs.</summary>
-        internal WithheldMailAccounts WithheldAccounts { get; } = new();
 
         /// <summary>Gets the user rows the served users are read from, which hold nobody's record until a test says so.</summary>
         internal IUserSettingsDocumentReader UserRows { get; }
@@ -1487,7 +1379,6 @@ public sealed class UserRosterAdministrationTests
             this.UserRows.ReceivedCalls().Count(call => call.GetMethodInfo().Name == nameof(IUserSettingsDocumentReader.ReadVersionsAsync));
 
         internal void Erasing(UserId user) =>
-            this.Erasure.EraseAsync(user, Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<CancellationToken>())
-                .Returns(new UserErasureOutcome(true, null));
+            this.Erasure.EraseAsync(user, Arg.Any<CancellationToken>()).Returns(true);
     }
 }
