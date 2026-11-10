@@ -6,6 +6,7 @@ using MailFathom.AI.DecisionModels;
 using MailFathom.AI.Decisions;
 using MailFathom.AI.EmailCategorization;
 using MailFathom.AI.Orchestration;
+using MailFathom.AI.ProviderAdapters;
 using MailFathom.AI.UnitTests.SpamClassification;
 using MailFathom.AI.UnitTests.TestDoubles;
 using MailFathom.Application.Categories;
@@ -216,7 +217,7 @@ public sealed class EmailCategoryJudgeTests
             StringComparison.Ordinal);
     }
 
-    /// <summary>The input is cut to what the questions leave, so twenty own categories cannot push a request past the model's bound.</summary>
+    /// <summary>The input is cut to what the questions leave, so as many own categories as an account holds cannot push a request past the model's bound.</summary>
     [Fact]
     public async Task JudgeAsync_ManyOwnCategories_CutsTheInputToWhatTheQuestionsLeave()
     {
@@ -239,6 +240,26 @@ public sealed class EmailCategoryJudgeTests
         // Assert
         var call = Assert.Single(client.Calls);
         Assert.True(Assert.Single(call.Input).Text.Length <= 32_000 - DecisionQuestionSet.ReservedCharactersOf(call.Questions));
+    }
+
+    /// <summary>A message is asked about in one request, so the account limit is held to what the provider's request carries.</summary>
+    [Fact]
+    public async Task JudgeAsync_AsManyOwnCategoriesAsAnAccountHolds_AsksNoMoreQuestionsThanOneRequestCarries()
+    {
+        // Arrange
+        using var client = ScriptedDecisionClient.AnsweringFirstOption();
+        using var composition = Judging(client);
+        OwnMailCategory[] ownCategories =
+        [
+            .. Enumerable.Range(0, OwnMailCategoryBounds.MaximumPerAccount)
+                .Select(static index => new OwnMailCategory($"Subject {index}", "Mail about the subject.")),
+        ];
+
+        // Act
+        await composition.Judge.JudgeAsync(Evidence, ownCategories, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.InRange(Assert.Single(client.Calls).Questions.Count, 1, OpenRouterDecisionClient.MaximumQuestionsPerRequest);
     }
 
     [Fact]

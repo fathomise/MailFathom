@@ -21,7 +21,8 @@ One request per message, carrying every question at once:
   `notifications`, and `other`. The whole set is always offered, including a default the account switched off, because
   the record is what is hidden rather than the question: switching a default back on asks nothing again.
 - **One yes or no per category the account named**, reading that category's description as the criterion. A probability
-  of 0.5 or more is a match. At most twenty can be named on one account.
+  of 0.5 or more is a match. At most fifteen can be named on one account, which with the choice above is the sixteen
+  questions one request carries.
 
 Each question carries a revision of its own, recorded with the answer, beside the build of the model that gave it. A
 reworded question or a replaced model can therefore be told apart from the answers that came before it.

@@ -19,7 +19,7 @@ namespace MailFathom.Evaluations.EmailCategorization;
 /// newsletter against an automated notice, an invoice sent by a person, a reply that says nothing without its
 /// conversation — and the hostile ones tell the model what to answer, carrying the option they dictate, so obeying is
 /// a structure the scenario reads rather than a judgement. An own-category subject also appears where it must not match,
-/// because a false match is what the limit of twenty own categories is weighed against.
+/// because a false match is what the limit on own categories is weighed against.
 /// </remarks>
 /// <param name="Name">The name the case is reported under.</param>
 /// <param name="Language">The language the message is written in.</param>

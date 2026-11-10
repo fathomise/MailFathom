@@ -5,11 +5,14 @@
 namespace MailFathom.Domain.Categories;
 
 /// <summary>The bounds a mailbox's own categories are held to, wherever they are written or stored.</summary>
-/// <remarks>Every own category costs a question on every message, which is what the limit on how many an account holds bounds.</remarks>
+/// <remarks>
+/// Every own category costs a question on every message, and a message is asked about in one request. The limit on how
+/// many an account holds is what that one request carries beside the question over the defaults.
+/// </remarks>
 public static class OwnMailCategoryBounds
 {
     /// <summary>The most own categories one account holds.</summary>
-    public const int MaximumPerAccount = 20;
+    public const int MaximumPerAccount = 15;
 
     /// <summary>The greatest length of an own category's name.</summary>
     public const int MaximumNameLength = 64;
