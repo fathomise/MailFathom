@@ -23,7 +23,7 @@ namespace MailFathom.Host.UnitTests.Configuration.UserSettings.Administration;
 /// Covers what is done to the mail accounts a deployment holds. An administrator creates one, assigns it, changes it,
 /// and ends an assignment, naming the account and the user; a user changes only the folders of an account assigned to
 /// them. So the cases that matter are that an address is held by one account in the whole deployment, that a display
-/// name tells a user's accounts apart, that ending the last assignment erases the account, that a folder write is
+/// name tells a user's accounts apart, that ending the last assignment leaves the account unassigned and only erasing it removes it, that a folder write is
 /// composed over the user's own record version, and that every committed write reaches the roster before it is
 /// announced.
 /// </summary>
@@ -906,8 +906,8 @@ public sealed class MailAccountAdministrationTests
     }
 
     /// <summary>
-    /// Ending an assignment can erase the mailbox, so the scope has to cover the user as well as the account: an account
-    /// in the caller's organization does not carry a user elsewhere into it.
+    /// Ending an assignment erases what the user authored in the mailbox, so the scope has to cover the user as well as
+    /// the account: an account in the caller's organization does not carry a user elsewhere into it.
     /// </summary>
     [Fact]
     public async Task UnassignAsync_AUserOutsideTheCallersOrganization_UnassignsNothing()

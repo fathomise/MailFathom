@@ -116,7 +116,7 @@ public sealed class StoredEmailExtractionBackfillTests
         Assert.Equal(4, store.AppliedExtractions.Count);
     }
 
-    /// <summary>A message nobody can parse is counted and stepped over, and the position moves past it so it blocks nothing.</summary>
+    /// <summary>A message nobody can parse is counted and stepped over, so it blocks nothing behind it.</summary>
     [Fact]
     public async Task RunAsync_UnreadableMime_CountsItAndAdvancesPastIt()
     {
@@ -137,7 +137,7 @@ public sealed class StoredEmailExtractionBackfillTests
         Assert.Equal(0, result.ExtractedEmailCount);
         Assert.Equal(2, result.UnreadableEmailCount);
         Assert.Empty(store.AppliedExtractions);
-        Assert.Equal(awaiting[^1].StoredEmailId, store.SavedResumePosition);
+        Assert.Null(store.SavedResumePosition);
 
         // Such a message never gains an extraction, so it stays in the backlog while the run reports nothing left to
         // attempt. The two figures disagree and both are right, which is why neither is derived from the other.
@@ -174,7 +174,12 @@ public sealed class StoredEmailExtractionBackfillTests
         var awaiting = EmailsAwaitingExtraction(3);
         var store = new FakeBackfillStore(awaiting);
         var contentStore = CreateContentStoreWithReadableMime();
-        var backfill = CreateBackfill(store, contentStore, CreateReaderThatExtractsEverything(), batchSize: 10);
+        var backfill = CreateBackfill(
+            store,
+            contentStore,
+            CreateReaderThatExtractsEverything(),
+            batchSize: 3,
+            maxBatchesPerRun: 1);
 
         // Act
         await backfill.RunAsync(CancellationToken.None);
@@ -183,6 +188,36 @@ public sealed class StoredEmailExtractionBackfillTests
         Assert.Single(store.CommittedSessions.Distinct());
         Assert.Equal(awaiting[^1].StoredEmailId, store.SavedResumePosition);
         Assert.All(store.AppliedExtractions, extraction => Assert.Same(store.CommittedSessions[0], extraction.Session));
+    }
+
+    /// <summary>
+    /// A walk that reached the end leaves no position, so mail that came back into the walk behind where it ended — an
+    /// account nobody was assigned, assigned again — is read by the next run rather than sitting behind the cursor for
+    /// good.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_MailBehindWhereTheLastWalkEnded_IsReadByTheNextRun()
+    {
+        // Arrange
+        List<StoredEmailAwaitingExtraction> awaiting =
+        [
+            EmailAwaitingExtraction(2, Account),
+            EmailAwaitingExtraction(3, Account),
+        ];
+        var store = new FakeBackfillStore(awaiting);
+        var contentStore = CreateContentStoreWithReadableMime();
+        var backfill = CreateBackfill(store, contentStore, CreateReaderThatExtractsEverything(), batchSize: 10);
+        await backfill.RunAsync(CancellationToken.None);
+        var cameBack = EmailAwaitingExtraction(1, AnotherAccount);
+        awaiting.Insert(0, cameBack);
+
+        // Act
+        var result = await backfill.RunAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Equal(1, result.ExtractedEmailCount);
+        Assert.Equal(cameBack.StoredEmailId, store.AppliedExtractions[^1].StoredEmailId);
+        Assert.Null(store.SavedResumePosition);
     }
 
     /// <summary>
@@ -235,7 +270,7 @@ public sealed class StoredEmailExtractionBackfillTests
         // Assert
         Assert.Equal(1, result.ExtractedEmailCount);
         Assert.False(result.EmailsRemain);
-        Assert.Equal(awaiting[0].StoredEmailId, store.SavedResumePosition);
+        Assert.Equal(awaiting[0].StoredEmailId, store.AppliedExtractions.Single().StoredEmailId);
     }
 
     /// <summary>A cancelled run stops rather than finishing the batch budget it was given.</summary>
@@ -469,7 +504,7 @@ public sealed class StoredEmailExtractionBackfillTests
 
         public Task SaveResumePositionAsync(
             IPersistenceSession session,
-            StoredEmailId position,
+            StoredEmailId? position,
             CancellationToken cancellationToken)
         {
             this.SavedResumePosition = position;

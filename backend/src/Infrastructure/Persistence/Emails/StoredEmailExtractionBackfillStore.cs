@@ -267,7 +267,7 @@ internal sealed class StoredEmailExtractionBackfillStore(
     /// <inheritdoc />
     public async Task SaveResumePositionAsync(
         IPersistenceSession session,
-        StoredEmailId position,
+        StoredEmailId? position,
         CancellationToken cancellationToken)
     {
         var sessionContext = await EfCorePersistenceSessionAccessor.JoinAsync(session, cancellationToken);
@@ -279,12 +279,24 @@ internal sealed class StoredEmailExtractionBackfillStore(
             [BackfillPositionEntity.StoredEmailExtractionName],
             cancellationToken);
 
+        // A walk that reached the end removes the row rather than writing a sentinel into it, as the embedding
+        // backfill's does, so "start from the beginning" has one representation.
+        if (position is not { } lastProcessed)
+        {
+            if (storedPosition is not null)
+            {
+                sessionContext.BackfillPositions.Remove(storedPosition);
+            }
+
+            return;
+        }
+
         if (storedPosition is null)
         {
             sessionContext.BackfillPositions.Add(new BackfillPositionEntity
             {
                 Name = BackfillPositionEntity.StoredEmailExtractionName,
-                LastProcessedStoredEmailId = position.Value,
+                LastProcessedStoredEmailId = lastProcessed.Value,
                 UpdatedAt = recordedAt,
                 SensitiveContentStamp = (await this.ReadRebuildTargetAsync(cancellationToken)).Composite?.Value,
             });
@@ -292,7 +304,7 @@ internal sealed class StoredEmailExtractionBackfillStore(
             return;
         }
 
-        storedPosition.LastProcessedStoredEmailId = position.Value;
+        storedPosition.LastProcessedStoredEmailId = lastProcessed.Value;
         storedPosition.UpdatedAt = recordedAt;
 
         // The cursor and the configuration it was reached under move together. A walk that is not rebuilding still
@@ -447,7 +459,8 @@ internal sealed class StoredEmailExtractionBackfillStore(
     /// <summary>Selects the stored mail any of these queries may reach: not a tombstone, with its raw MIME still there, and in an account somebody is assigned.</summary>
     /// <remarks>
     /// An account nobody is assigned to is out of every flow, extraction included, so its mail is neither read nor
-    /// counted as outstanding. It is extracted once somebody is assigned the account and the walk runs again.
+    /// counted as outstanding. A walk that reached the end leaves no position, so the first walk after somebody is
+    /// assigned the account again starts from the beginning and reaches that mail wherever it sits.
     /// </remarks>
     private IQueryable<StoredEmailEntity> Stored() => dbContext.StoredEmails
         .AsNoTracking()

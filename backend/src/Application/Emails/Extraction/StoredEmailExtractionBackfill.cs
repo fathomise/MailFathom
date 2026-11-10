@@ -96,6 +96,11 @@ public sealed class StoredEmailExtractionBackfill
 
             if (batch.Count == 0)
             {
+                if (position is not null)
+                {
+                    await this.CommitBatchAsync([], position: null, cancellationToken);
+                }
+
                 return new StoredEmailExtractionBackfillResult(
                     extractedCount,
                     unreadableCount,
@@ -106,9 +111,14 @@ public sealed class StoredEmailExtractionBackfill
 
             var batchOutcome = await this.ReadBatchAsync(batch, cancellationToken);
 
+            // A short batch means the query found no more work behind this position; a batch the text budget cut short
+            // leaves the rest of its own emails behind. Either way the walk continues only while something is left.
+            emailsRemain = batch.Count == this.options.BatchSize
+                || batchOutcome.ProcessedEmailCount < batch.Count;
+
             await this.CommitBatchAsync(
                 batchOutcome.Extractions,
-                batchOutcome.LastProcessedEmailId,
+                emailsRemain ? batchOutcome.LastProcessedEmailId : null,
                 cancellationToken);
 
             position = batchOutcome.LastProcessedEmailId;
@@ -116,10 +126,6 @@ public sealed class StoredEmailExtractionBackfill
             unreadableCount += batchOutcome.UnreadableEmailCount;
             missingContentCount += batchOutcome.MissingContentEmailCount;
 
-            // A short batch means the query found no more work behind this position; a batch the text budget cut short
-            // leaves the rest of its own emails behind. Either way the walk continues only while something is left.
-            emailsRemain = batch.Count == this.options.BatchSize
-                || batchOutcome.ProcessedEmailCount < batch.Count;
             if (!emailsRemain)
             {
                 break;
@@ -218,10 +224,17 @@ public sealed class StoredEmailExtractionBackfill
     private static int RetainedCharacterCount(ExtractedEmailMetadata metadata) =>
         (metadata.Text.OriginalText?.Length ?? 0) + (metadata.Text.TrimmedText?.Length ?? 0);
 
-    /// <summary>Commits one batch's extractions together with the position they reached.</summary>
+    /// <summary>Commits one batch's extractions together with the position they reached, or with none once the walk reached the end.</summary>
+    /// <remarks>
+    /// A walk that reached the end leaves no position, so the next run walks from the beginning again, as the embedding
+    /// backfill's sweep does. Mail can come back into the walk behind a position the walk already passed — an account
+    /// nobody was assigned is passed over and is read once somebody is assigned it again — and a position left at the
+    /// end would sit past every such message for good. The cost is that a message no reader can parse, which never
+    /// gains an extraction, is read again once per run that reaches it.
+    /// </remarks>
     private Task CommitBatchAsync(
         IReadOnlyList<CompletedExtraction> extractions,
-        StoredEmailId position,
+        StoredEmailId? position,
         CancellationToken cancellationToken) =>
         this.concurrencyRetryPolicy.CommitAsync(
             async (persistenceSession, attemptCancellationToken) =>

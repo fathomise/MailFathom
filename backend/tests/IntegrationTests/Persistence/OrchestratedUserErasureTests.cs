@@ -20,7 +20,7 @@ using Xunit;
 
 namespace MailFathom.IntegrationTests.Persistence;
 
-/// <summary>Proves that erasing a user leaves nothing behind and takes nothing of anybody else's.</summary>
+/// <summary>Proves that erasing a user leaves nothing of theirs behind and takes no mailbox, and that erasing the mailbox afterwards leaves nothing naming it.</summary>
 /// <remarks>
 /// <para>
 /// This is the claim the ownership axis exists to make, and only a real database can settle it: most of the erasure is
@@ -73,10 +73,10 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
     /// <summary>The one address this test adds to the surviving user's book, which stays behind with the rest of it.</summary>
     private const string SurvivingUserContactAddress = "correspondent@user-erasure-bystander.contacts.test";
 
-    /// <summary>The one address in the collected book of the mailbox the erasure takes with the user.</summary>
+    /// <summary>The one address in the collected book of the mailbox the user's erasure leaves unassigned.</summary>
     /// <remarks>
     /// Filed under the account rather than under the user, which is the half of the contact book no cascade from the
-    /// user record reaches: it leaves through the mailbox instead, and only because the mailbox leaves with them.
+    /// user record reaches: it stays with the mailbox when the user goes, and leaves only when the mailbox is erased.
     /// </remarks>
     private const string ErasedAccountCollectedAddress = "collected@user-erasure.contacts.test";
 
@@ -666,12 +666,12 @@ public sealed class OrchestratedUserErasureTests(MailFathomOrchestrationFixture 
         return storedEmail.Id;
     }
 
-    /// <summary>Records one mail account and assigns it to one user, which is what decides whether an erasure takes it.</summary>
+    /// <summary>Records one mail account and assigns it to one user, which is what decides whether the account's own erasure is refused.</summary>
     /// <remarks>
     /// Both rows, because the assignment keys onto the account's record rather than onto the mail graph's own row:
     /// the record is the account as an administrator holds it, and the graph beneath it is keyed by the same
-    /// identifier written as text. Seeding only the graph would leave a mailbox no user is assigned, which the
-    /// erasure reads as nobody's rather than as this user's.
+    /// identifier written as text. Seeding only the graph would leave a mailbox no user is assigned, which reads as
+    /// nobody's rather than as this user's.
     /// </remarks>
     private static void AssignAccountTo(
         MailFathomDbContext context,
