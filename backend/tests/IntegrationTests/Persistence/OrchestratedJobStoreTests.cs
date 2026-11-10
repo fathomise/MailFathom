@@ -41,8 +41,13 @@ public sealed class OrchestratedJobStoreTests(MailFathomOrchestrationFixture orc
     /// <summary>The alias this class binds, so the account row its jobs point at exists without disturbing another test's folder.</summary>
     private const string FolderAlias = "job-store";
 
-    /// <summary>The mailbox of the second user the fairness of the claim is judged against.</summary>
-    private const string SecondAccount = "job-store-second-account";
+    /// <summary>The second mailbox the fairness of the claim, and its passing over a mailbox nobody is assigned, are judged against.</summary>
+    /// <remarks>
+    /// A <c>uuid</c> in the form an account identifier takes, because the claim asks the assignment relation, which keys
+    /// an account by <c>uuid</c>, whether anybody is assigned the mailbox a job names: an identifier of any other shape
+    /// could carry no assignment, and its jobs would never be claimed.
+    /// </remarks>
+    private const string SecondAccount = "3b9d2c71-5e04-4f8a-9c16-0d7e8a2b4f63";
 
     /// <summary>The one instant the fairness test queues everything at, so no turn it asserts depends on the clock.</summary>
     /// <remarks>
@@ -589,6 +594,9 @@ public sealed class OrchestratedJobStoreTests(MailFathomOrchestrationFixture orc
             Assert.Equal(
                 PersistenceCommitResult.Committed,
                 await SeedSecondAccountAsync(services, cancellationToken));
+            Assert.Equal(
+                PersistenceCommitResult.Committed,
+                await AssignSecondAccountAsync(services, cancellationToken));
 
             var otherMailboxesJob = await services.InScopeAsync(
                 (scope, token) => scope.GetRequiredService<IJobStore>().EnqueueAsync(
@@ -622,7 +630,58 @@ public sealed class OrchestratedJobStoreTests(MailFathomOrchestrationFixture orc
         }
     }
 
-    /// <summary>Writes a second mailbox record, which is the least a claim can be judged fair over.</summary>
+    /// <summary>
+    /// A mailbox nobody is assigned is out of every flow, so its job stays pending and is passed over rather than
+    /// claimed, and assigning the mailbox is all it takes for the same job to be claimed. Only a real database settles
+    /// this: the claim compares the assignment's <c>uuid</c>, written as text, with the account column the job carries,
+    /// and a difference in how either spells an identifier would leave every job of every mailbox unclaimed.
+    /// </summary>
+    [Fact]
+    public async Task ClaimAsync_AJobOfAMailboxNobodyIsAssigned_IsPassedOverUntilTheMailboxIsAssigned()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var services = await OrchestratedMailFathomServices.StartAsync(orchestration, cancellationToken);
+        await DrainAsync(services, cancellationToken);
+
+        try
+        {
+            Assert.Equal(
+                PersistenceCommitResult.Committed,
+                await SeedSecondAccountAsync(services, cancellationToken));
+
+            var unassignedMailboxesJob = await services.InScopeAsync(
+                (scope, token) => scope.GetRequiredService<IJobStore>().EnqueueAsync(SecondAccountRequest(), token),
+                cancellationToken);
+
+            Assert.Equal(JobEnqueueOutcome.Created, unassignedMailboxesJob.Outcome);
+
+            // Act
+            var claimedWhileUnassigned = await services.InScopeAsync(
+                (scope, token) => ClaimAsync(scope, batchSize: 10, HeldLease, token),
+                cancellationToken);
+
+            Assert.Equal(
+                PersistenceCommitResult.Committed,
+                await AssignSecondAccountAsync(services, cancellationToken));
+
+            var claimedOnceAssigned = await services.InScopeAsync(
+                (scope, token) => ClaimAsync(scope, batchSize: 10, HeldLease, token),
+                cancellationToken);
+
+            // Assert
+            Assert.DoesNotContain(claimedWhileUnassigned, job => job.AccountId?.Value == SecondAccount);
+            Assert.Equal(
+                unassignedMailboxesJob.JobId,
+                Assert.Single(claimedOnceAssigned, job => job.AccountId?.Value == SecondAccount).JobId);
+        }
+        finally
+        {
+            await EraseSecondAccountAsync(services, CancellationToken.None);
+        }
+    }
+
+    /// <summary>Writes a second mailbox and the account record an assignment of it keys onto, assigning it to nobody.</summary>
     /// <remarks>
     /// Written straight into the model rather than through folder resolution, because resolution arranges the one
     /// account this class's other tests queue against — and a second turn is exactly what has to stand beside it.
@@ -633,15 +692,42 @@ public sealed class OrchestratedJobStoreTests(MailFathomOrchestrationFixture orc
         async (_, session, token) =>
         {
             var context = await EfCorePersistenceSessionAccessor.JoinAsync(session, token);
+            var recordedAt = DateTimeOffset.UnixEpoch;
 
             context.MailboxAccounts.Add(new MailboxAccountEntity { Id = SecondAccount, });
+            context.MailAccountRecords.Add(new MailAccountRecordEntity
+            {
+                Id = Guid.Parse(SecondAccount),
+                DisplayName = "Job store second mailbox",
+                Document = "{}",
+                Version = 1,
+                CreatedAt = recordedAt,
+                UpdatedAt = recordedAt,
+            });
         },
         cancellationToken);
 
-    /// <summary>Removes the second mailbox record, and with it the job the foreign key cascades from.</summary>
+    /// <summary>Assigns the second mailbox to the suite's own user, which is what makes its jobs claimable.</summary>
+    private static Task<PersistenceCommitResult> AssignSecondAccountAsync(
+        OrchestratedMailFathomServices services,
+        CancellationToken cancellationToken) => services.CommitAsync(
+        async (_, session, token) =>
+        {
+            var context = await EfCorePersistenceSessionAccessor.JoinAsync(session, token);
+
+            context.MailAccountAssignments.Add(new MailAccountAssignmentEntity
+            {
+                UserId = SyntheticMailAccount.User.Value,
+                MailAccountId = Guid.Parse(SecondAccount),
+                AssignedAt = DateTimeOffset.UnixEpoch,
+            });
+        },
+        cancellationToken);
+
+    /// <summary>Removes the second mailbox and its account record, and with them its assignment and the job the foreign keys cascade from.</summary>
     /// <remarks>
-    /// The record is assigned to nobody, so no user's erasure names it, and leaving it behind would refuse the insert
-    /// the next run of this test makes against a database that already holds one.
+    /// Leaving either behind would refuse the insert the next run of this test makes against a database that already
+    /// holds one, and an assignment left behind would serve the suite's user a mailbox no other test expects.
     /// </remarks>
     private static Task<PersistenceCommitResult> EraseSecondAccountAsync(
         OrchestratedMailFathomServices services,
@@ -650,6 +736,9 @@ public sealed class OrchestratedJobStoreTests(MailFathomOrchestrationFixture orc
         {
             var context = await EfCorePersistenceSessionAccessor.JoinAsync(session, token);
 
+            await context.MailAccountRecords
+                .Where(record => record.Id == Guid.Parse(SecondAccount))
+                .ExecuteDeleteAsync(token);
             await context.MailboxAccounts
                 .Where(account => account.Id == SecondAccount)
                 .ExecuteDeleteAsync(token);
