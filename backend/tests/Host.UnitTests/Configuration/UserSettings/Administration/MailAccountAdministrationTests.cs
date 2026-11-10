@@ -23,7 +23,7 @@ namespace MailFathom.Host.UnitTests.Configuration.UserSettings.Administration;
 /// Covers what is done to the mail accounts a deployment holds. An administrator creates one, assigns it, changes it,
 /// and ends an assignment, naming the account and the user; a user changes only the folders of an account assigned to
 /// them. So the cases that matter are that an address is held by one account in the whole deployment, that a display
-/// name tells a user's accounts apart, that ending the last assignment erases the account, that a folder write is
+/// name tells a user's accounts apart, that ending the last assignment leaves the account unassigned and only erasing it removes it, that a folder write is
 /// composed over the user's own record version, and that every committed write reaches the roster before it is
 /// announced.
 /// </summary>
@@ -319,9 +319,9 @@ public sealed class MailAccountAdministrationTests
         Assert.Empty(deployment.MailAccountRecords.DocumentOf(Alex)!.MailAccounts);
     }
 
-    /// <summary>An account nobody is assigned any longer is erased with it, because mail nobody is served is mail nobody asked to keep.</summary>
+    /// <summary>Losing its last user only unassigns an account: the account and its mail stay, for an administrator to assign again or erase on purpose.</summary>
     [Fact]
-    public async Task UnassignAsync_TheLastUserAssigned_ErasesTheAccount()
+    public async Task UnassignAsync_TheLastUserAssigned_LeavesTheAccountUnassignedAndKeepsIt()
     {
         // Arrange
         var work = Mailbox("work@example.test", "work");
@@ -332,8 +332,9 @@ public sealed class MailAccountAdministrationTests
         var unassignment = await deployment.MailAccounts.UnassignAsync(work.Id, Alex, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(new MailAccountUnassignment(Unassigned: true, AccountErased: true), unassignment);
-        Assert.Empty(deployment.MailAccountRecords.Accounts);
+        Assert.Equal(new MailAccountUnassignment(Unassigned: true, LeftUnassigned: true), unassignment);
+        Assert.Equal([work.Id], deployment.MailAccountRecords.Accounts.Select(account => account.Id));
+        Assert.Empty(deployment.MailAccountRecords.DocumentOf(Alex)!.MailAccounts);
     }
 
     [Fact]
@@ -349,11 +350,11 @@ public sealed class MailAccountAdministrationTests
         var unassignment = await deployment.MailAccounts.UnassignAsync(shared.Id, Alex, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(new MailAccountUnassignment(Unassigned: true, AccountErased: false), unassignment);
+        Assert.Equal(new MailAccountUnassignment(Unassigned: true, LeftUnassigned: false), unassignment);
         Assert.Equal([shared.Id], deployment.MailAccountRecords.DocumentOf(Sam)!.MailAccounts.Select(account => account.Id));
     }
 
-    /// <summary>Ending an assignment can dispose of every message held for a mailbox, so it is published under the erasure grant rather than the configuration write.</summary>
+    /// <summary>Ending an assignment erases what that user authored on the mailbox, so it is published under the erasure grant rather than the configuration write.</summary>
     [Fact]
     public async Task UnassignAsync_ACallerHoldingOnlyTheConfigurationWrite_IsRefusedNamingTheErasureGrant()
     {
@@ -700,22 +701,40 @@ public sealed class MailAccountAdministrationTests
         Assert.Equal([archive.Id.ToString("D")], Assert.Single(heard));
     }
 
+    /// <summary>An account nobody is assigned to any more is erased whole, as an administrator asked.</summary>
     [Fact]
-    public async Task EraseAsync_AnAccountThisDeploymentHolds_ErasesItAndConvergesTheHeldUserBeforeAnnouncingIt()
+    public async Task EraseAsync_AnAccountNobodyIsAssigned_ErasesIt()
     {
         // Arrange
         var work = Mailbox("work@example.test", "work");
         var deployment = new UserRecordDeployment([MailFathomPermission.AdminErase]);
         deployment.Holding(Alex, EmptyRecord, version: 1, work);
-        await deployment.ServedUsers.ReadAsync(Alex, TestContext.Current.CancellationToken);
-        var heard = await RosterAnnouncementListener.ListenAsync(deployment.Backplane, () => AccountsHeldFor(deployment, Alex));
+        await deployment.MailAccounts.UnassignAsync(work.Id, Alex, TestContext.Current.CancellationToken);
 
         // Act
-        var erased = await deployment.MailAccounts.EraseAsync(work.Id, TestContext.Current.CancellationToken);
+        var erasure = await deployment.MailAccounts.EraseAsync(work.Id, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.True(erased);
-        Assert.Empty(Assert.Single(heard));
+        Assert.Equal(new MailAccountErasure(MailAccountErasureResult.Erased, 0), erasure);
+        Assert.Empty(deployment.MailAccountRecords.Accounts);
+    }
+
+    /// <summary>A mailbox is never taken from the people reading it: an assigned account is refused, naming how many it is assigned to, and kept whole.</summary>
+    [Fact]
+    public async Task EraseAsync_AnAccountSomebodyIsAssigned_IsRefusedNamingHowManyAndErasesNothing()
+    {
+        // Arrange
+        var shared = Mailbox("shared@example.test", "shared");
+        var deployment = new UserRecordDeployment([MailFathomPermission.AdminErase]);
+        deployment.Holding(Alex, EmptyRecord, version: 1, shared);
+        deployment.Holding(Sam, EmptyRecord, version: 1, shared);
+
+        // Act
+        var erasure = await deployment.MailAccounts.EraseAsync(shared.Id, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(new MailAccountErasure(MailAccountErasureResult.StillAssigned, 2), erasure);
+        Assert.Equal([shared.Id], deployment.MailAccountRecords.DocumentOf(Alex)!.MailAccounts.Select(account => account.Id));
     }
 
     /// <summary>The rows are committed whether or not this replica can read them back, so a reading that failed after the commit does not turn the write into a reported failure.</summary>
@@ -859,10 +878,10 @@ public sealed class MailAccountAdministrationTests
         deployment.MailAccountRecords.HoldUser(Sam, EmptyRecord, version: 1, shared);
 
         // Act
-        var erased = await deployment.MailAccounts.EraseAsync(shared.Id, TestContext.Current.CancellationToken);
+        var erasure = await deployment.MailAccounts.EraseAsync(shared.Id, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.False(erased);
+        Assert.Equal(MailAccountErasureResult.NotFound, erasure.Result);
         Assert.Single(deployment.MailAccountRecords.Accounts);
     }
 
@@ -887,8 +906,8 @@ public sealed class MailAccountAdministrationTests
     }
 
     /// <summary>
-    /// Ending an assignment can erase the mailbox, so the scope has to cover the user as well as the account: an account
-    /// in the caller's organization does not carry a user elsewhere into it.
+    /// Ending an assignment erases what the user authored in the mailbox, so the scope has to cover the user as well as
+    /// the account: an account in the caller's organization does not carry a user elsewhere into it.
     /// </summary>
     [Fact]
     public async Task UnassignAsync_AUserOutsideTheCallersOrganization_UnassignsNothing()

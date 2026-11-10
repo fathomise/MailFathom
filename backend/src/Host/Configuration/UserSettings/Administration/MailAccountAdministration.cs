@@ -399,14 +399,14 @@ internal sealed class MailAccountAdministration(
         };
     }
 
-    /// <summary>Ends one user's assignment to an account, erasing the account and its mail when nobody else is assigned it.</summary>
+    /// <summary>Ends one user's assignment to an account, leaving the account and its mail in place even when nobody else is assigned it.</summary>
     /// <param name="accountId">The account.</param>
     /// <param name="user">The user whose assignment ends.</param>
     /// <param name="cancellationToken">Cancels the write before it commits.</param>
     /// <returns>What the write did, which is nothing where the caller's scope does not cover both the account and the user.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> names nobody.</exception>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller's grant omits <see cref="MailFathomPermission.AdminErase" /> at every scope.</exception>
-    /// <remarks>The erasure grant rather than the configuration write, because ending the last assignment disposes of every message the deployment holds for the mailbox.</remarks>
+    /// <remarks>The erasure grant rather than the configuration write, because ending an assignment erases the drafts and standing instructions the user authored there.</remarks>
     internal async Task<MailAccountUnassignment> UnassignAsync(
         Guid accountId,
         UserId user,
@@ -418,7 +418,7 @@ internal sealed class MailAccountAdministration(
         if (!authorization.PermitsOver(MailFathomPermission.AdminErase, await this.ReadTargetAsync(accountId, cancellationToken))
             || !await authorization.PermitsOverAsync(MailFathomPermission.AdminErase, user, cancellationToken))
         {
-            return new MailAccountUnassignment(Unassigned: false, AccountErased: false);
+            return new MailAccountUnassignment(Unassigned: false, LeftUnassigned: false);
         }
 
         var unassignment = await accounts.UnassignAsync(accountId, user, cancellationToken);
@@ -431,28 +431,29 @@ internal sealed class MailAccountAdministration(
         return unassignment;
     }
 
-    /// <summary>Erases an account, every assignment to it, and everything stored for it.</summary>
+    /// <summary>Erases an account nobody is assigned to, and everything stored for it.</summary>
     /// <param name="accountId">The account.</param>
     /// <param name="cancellationToken">Cancels the erasure before it commits.</param>
-    /// <returns>Whether an account the caller's scope covers was there to erase.</returns>
+    /// <returns>What the erasure did, which is <see cref="MailAccountErasureResult.NotFound" /> where the caller's scope does not cover the account.</returns>
     /// <exception cref="PrincipalNotAuthorizedException">Thrown when the caller's grant omits <see cref="MailFathomPermission.AdminErase" /> at every scope.</exception>
-    internal async Task<bool> EraseAsync(Guid accountId, CancellationToken cancellationToken)
+    /// <remarks>An account still assigned to somebody is refused and left whole, naming how many users it is assigned to: a mailbox is never taken from the people reading it by erasing it.</remarks>
+    internal async Task<MailAccountErasure> EraseAsync(Guid accountId, CancellationToken cancellationToken)
     {
         authorization.RequirePermissionAtAnyScope(MailFathomPermission.AdminErase);
 
         if (!authorization.PermitsOver(MailFathomPermission.AdminErase, await this.ReadTargetAsync(accountId, cancellationToken)))
         {
-            return false;
+            return new MailAccountErasure(MailAccountErasureResult.NotFound, 0);
         }
 
-        var erased = await accounts.EraseAsync(accountId, cancellationToken);
+        var erasure = await accounts.EraseAsync(accountId, cancellationToken);
 
-        if (erased)
+        if (erasure.Result is MailAccountErasureResult.Erased)
         {
             await this.PublishAsync(cancellationToken);
         }
 
-        return erased;
+        return erasure;
     }
 
     /// <summary>Declares one more folder in one of the signed-in user's accounts.</summary>

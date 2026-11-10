@@ -9,11 +9,9 @@ using MailFathom.Infrastructure.Persistence.Users.AccountSettings;
 
 namespace MailFathom.Host.Hosting.Workers;
 
-/// <summary>Reads the accounts a retention walk visits from the set this deployment serves, leaving out what is withheld here.</summary>
+/// <summary>Reads the accounts a retention walk visits from the set this deployment serves.</summary>
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "The dependency injection container materializes this source.")]
-internal sealed class ServedMailRetentionAccounts(
-    IServedMailAccountReader servedAccounts,
-    WithheldMailAccounts withheldAccounts) : IMailRetentionAccounts
+internal sealed class ServedMailRetentionAccounts(IServedMailAccountReader servedAccounts) : IMailRetentionAccounts
 {
     /// <inheritdoc />
     public async Task<MailRetentionAccountPage> ReadPageAsync(Guid? after, int limit, CancellationToken cancellationToken)
@@ -21,12 +19,7 @@ internal sealed class ServedMailRetentionAccounts(
         var page = await servedAccounts.ReadServedVersionsAsync(after, limit, cancellationToken);
 
         return new MailRetentionAccountPage(
-            [.. page
-                .Select(static served => MailAccountId.Create(served.Id.ToString("D")))
-                .Where(account => !withheldAccounts.IsWithheld(account))],
+            [.. page.Select(static served => MailAccountId.Create(served.Id.ToString("D")))],
             page.Count == limit ? page[^1].Id : null);
     }
-
-    /// <inheritdoc />
-    public bool IsWithheld(MailAccountId account) => withheldAccounts.IsWithheld(account);
 }

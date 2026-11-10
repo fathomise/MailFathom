@@ -28,7 +28,9 @@ namespace MailFathom.Infrastructure.Persistence.Users.AccountSettings;
 /// </para>
 /// <para>
 /// The served predicate is one fragment every statement shares, which is what keeps every answer about the same set of
-/// accounts.
+/// accounts. Its assignment clause is what keeps an account nobody is assigned to out of every flow that learns its
+/// accounts here — synchronization and everything it runs, retention, retrieval, and every derived index; the two
+/// that take work from tables of their own, the job queue's claim and the extraction backfill, ask the same relation.
 /// </para>
 /// <para>
 /// The pool arrives behind a delegate rather than resolved, because the scanning postures are built while the hosted
@@ -177,9 +179,8 @@ internal sealed class PersistedServedMailAccounts(
     /// leaves one, and an account no user is served with has no rule judged against it.
     /// </para>
     /// <para>
-    /// It takes no ceiling on the number of accounts, for the reason <see cref="IMailAccountRecordStore.ReadSolelyAssignedAsync" />
-    /// takes none: what asks is judging a rule set against every account it could reach, and a truncated answer would
-    /// pass a rule that names an account past the cut. Nothing bounds how many users a deployment records, so nothing
+    /// It takes no ceiling on the number of accounts, deliberately: what asks is judging a rule set against every
+    /// account it could reach, and a truncated answer would pass a rule that names an account past the cut. Nothing bounds how many users a deployment records, so nothing
     /// bounds how many accounts this answers with either; each document is still held to the bound above, and the read
     /// runs once per configuration write or reload rather than per request.
     /// </para>

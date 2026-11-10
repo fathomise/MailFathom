@@ -13,7 +13,6 @@ using MailFathom.Host.Configuration.Endpoints;
 using MailFathom.Host.Configuration.SensitiveContent;
 using MailFathom.Host.Configuration.UserSettings;
 using MailFathom.Host.Configuration.UserSettings.Administration;
-using MailFathom.Host.Hosting.Workers;
 using MailFathom.Host.Signals;
 using MailFathom.Infrastructure.Persistence.Policies;
 using MailFathom.Infrastructure.Persistence.Users;
@@ -112,8 +111,7 @@ internal sealed class UserRecordDeployment
             .Returns(true);
 
         this.Erasure = Substitute.For<IUserErasure>();
-        this.Erasure.EraseAsync(Arg.Any<UserId>(), Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<CancellationToken>())
-            .Returns(new UserErasureOutcome(false, null));
+        this.Erasure.EraseAsync(Arg.Any<UserId>(), Arg.Any<CancellationToken>()).Returns(false);
 
         var authorization = new AccessAuthorization(principals, this.Targets);
         var settings = new ConfigurationBuilder().Build();
@@ -132,9 +130,6 @@ internal sealed class UserRecordDeployment
             this.Directory,
             this.Provisioning,
             this.Erasure,
-            this.MailAccountRecords,
-            this.Quiescing,
-            new WithheldMailAccounts(),
             this.Writer,
             binder,
             this.ServedUsers,
@@ -202,9 +197,6 @@ internal sealed class UserRecordDeployment
 
     /// <summary>Gets the accounts the deployment holds and the user records they are assigned to.</summary>
     internal InMemoryMailAccountRecordStore MailAccountRecords { get; } = new();
-
-    /// <summary>Gets the quiescing an erasure runs under, which lets the work through unless a test refuses it.</summary>
-    internal RecordedMailAccountWorkQuiescing Quiescing { get; } = new();
 
     /// <summary>Gets the users this process holds, read from the rows <see cref="Documents" /> answers, which an account write converges before announcing.</summary>
     internal ServedUsers ServedUsers { get; }

@@ -48,6 +48,13 @@ namespace MailFathom.Infrastructure.Persistence.Jobs;
 /// combine with a window function at all.
 /// </para>
 /// <para>
+/// A job enqueued for a mail account nobody is assigned to is not due, whatever its instants say, because such an
+/// account is out of every flow: no rule, classification, automation, retention, or other handler runs for it. The job
+/// is passed over rather than failed or cancelled, so it stays exactly as it was queued and is claimed again once
+/// somebody is assigned the account, and it goes with the account's mail if the account is erased instead. The test is
+/// the assignment relation itself, the one every other flow reads too, rather than a flag kept beside it.
+/// </para>
+/// <para>
 /// Every value is a parameter. The identifiers are quoted because EF Core names the columns after the properties, which
 /// PostgreSQL would otherwise fold to lower case and fail to find.
 /// </para>
@@ -71,6 +78,10 @@ internal static class JobClaimStatement
         var leaseDuration = request.LeaseDuration;
         var batchSize = request.BatchSize;
 
+        // The jobs of an unassigned account are passed over on every claim rather than set aside, so a backlog of many
+        // thousands of them costs each claim that many index entries. Set them aside in a state of their own if an
+        // unassigned account ever holds a backlog that shows in the claim's duration.
+        //
         // The locking clause follows LIMIT, which is where the standard puts it. The order matters to the plan as well
         // as to the grammar: the limit counts the rows that survived locking, so a batch of one against a row another
         // worker holds takes the next free row rather than coming back empty.
@@ -82,6 +93,9 @@ internal static class JobClaimStatement
                       AND candidate."JobType" = ANY({handledTypeNames})
                       AND ((candidate."State" = {pending} AND candidate."AvailableAt" <= now())
                         OR (candidate."State" = {claimed} AND candidate."LeaseExpiresAt" <= now()))
+                      AND (candidate."MailboxAccountId" IS NULL OR EXISTS (
+                          SELECT 1 FROM mail_account_assignments AS assignment
+                          WHERE assignment."MailAccountId"::text = candidate."MailboxAccountId"))
                     ORDER BY candidate."TurnAt", candidate."Id"
                     LIMIT {batchSize}
                     FOR UPDATE SKIP LOCKED

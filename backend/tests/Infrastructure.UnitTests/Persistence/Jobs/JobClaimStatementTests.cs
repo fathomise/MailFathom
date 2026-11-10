@@ -81,6 +81,28 @@ public sealed class JobClaimStatementTests
     }
 
     /// <summary>
+    /// A mail account nobody is assigned to is out of every flow, so a job queued for one is passed over rather than
+    /// run, and a job that names no account is due as before. The relation itself is read, so assigning the account
+    /// again is what makes its jobs due again.
+    /// </summary>
+    [Fact]
+    public void Compose_AClaim_PassesOverTheJobsOfAMailAccountNobodyIsAssignedTo()
+    {
+        // Act
+        var statement = JobClaimStatement.Compose(Request, ClaimedAt);
+
+        // Assert
+        Assert.Contains(
+            $"candidate.\"{nameof(JobEntity.MailboxAccountId)}\" IS NULL OR EXISTS (",
+            statement.Format,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"assignment.\"{nameof(MailAccountAssignmentEntity.MailAccountId)}\"::text = candidate.\"{nameof(JobEntity.MailboxAccountId)}\"",
+            statement.Format,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Replicas decide whether one job's lease has run out by comparing it with the present, so both due predicates and
     /// the lease the claim stamps are PostgreSQL's <c>now()</c>. A present read from the claiming process would let a
     /// replica running fast take a job its holder is still executing. The only process instant left in the statement

@@ -7,8 +7,12 @@ using MailFathom.Cli.Administration;
 
 namespace MailFathom.Cli.Commands.Accounts;
 
-/// <summary>Erases one mail account, every assignment to it, and every message this deployment stored for it.</summary>
-/// <remarks>Confirmed, and the confirmation names the account by its display name and address rather than only the identifier: an identifier copied out of the wrong listing looks the same either way.</remarks>
+/// <summary>Erases one mail account nobody is assigned to, and every message this deployment stored for it.</summary>
+/// <remarks>
+/// Confirmed, and the confirmation names the account by its display name and address rather than only the identifier:
+/// an identifier copied out of the wrong listing looks the same either way. An account somebody is still assigned to
+/// is refused by the deployment, which says how many users have to be unassigned first.
+/// </remarks>
 internal static class DeleteMailAccountCommand
 {
     /// <summary>Builds the <c>account delete</c> command.</summary>
@@ -23,7 +27,7 @@ internal static class DeleteMailAccountCommand
         var accountOption = MailAccountOptions.Account();
         var confirmationOption = CliOptions.Confirmed("erasure");
 
-        Command command = new("delete", "Erase one mail account and every message this deployment holds for it.")
+        Command command = new("delete", "Erase one mail account nobody is assigned to, and every message this deployment holds for it.")
         {
             accountOption,
             confirmationOption,
@@ -56,8 +60,8 @@ internal static class DeleteMailAccountCommand
 
         MailAccountOutput.WriteHeading(context.Console, account);
         context.Console.WriteNotice(
-            "Erasing this account takes every assignment to it and every message, folder, attachment, and index this "
-            + "deployment holds for it. Nothing here undoes it.");
+            "Erasing this account takes every message, folder, attachment, and index this deployment holds for it. "
+            + "Nothing here undoes it. An account somebody is still assigned to is refused; unassign them first.");
 
         if (!CliConfirmation.Agreed(
             context,

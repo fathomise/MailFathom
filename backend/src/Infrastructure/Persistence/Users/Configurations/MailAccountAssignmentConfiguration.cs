@@ -18,7 +18,7 @@ internal sealed class MailAccountAssignmentConfiguration : IEntityTypeConfigurat
         entity.HasKey(assignment => new { assignment.UserId, assignment.MailAccountId });
 
         // Cascading from both sides: erasing a user ends what they were assigned, and erasing an account ends every
-        // assignment to it. What becomes of an account left with nobody is the erasure's decision rather than a cascade's.
+        // assignment to it. An account left with nobody stays, unassigned, until an administrator erases it.
         entity.HasOne<UserAccountEntity>()
             .WithMany()
             .HasForeignKey(assignment => assignment.UserId)

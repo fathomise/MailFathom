@@ -38,6 +38,9 @@ internal static class FakeMailAccountDeployment
 
         /// <summary>Two pages, the second naming itself again.</summary>
         RepeatingItsCursor = 2,
+
+        /// <summary>Every account on one page, the account assigned to nobody.</summary>
+        Unassigned = 3,
     }
 
     /// <summary>Gets the one user the roster reports.</summary>
@@ -59,7 +62,7 @@ internal static class FakeMailAccountDeployment
             CultureInfo.InvariantCulture,
             $$"""{"committed":true,"version":1,"code":null,"messages":[],"accountId":"{{CreatedAccount:D}}"}"""),
         Committed,
-        """{"unassigned":true,"accountErased":false}""");
+        """{"unassigned":true,"leftUnassigned":false}""");
 
     /// <summary>Builds a deployment whose account a policy this deployment could not read left unresolved.</summary>
     /// <returns>The deployment, whose account read answers no property and the sentence saying why.</returns>
@@ -67,7 +70,7 @@ internal static class FakeMailAccountDeployment
         new((request, _) => Task.FromResult(
             request.Method == HttpMethod.Get && request.RequestUri?.AbsolutePath == AdminEndpointRoutes.MailAccountPath(Account)
                 ? FakeAdminEndpoint.Json(HttpStatusCode.OK, EntryLeftUnresolved())
-                : Answer(request, Committed, Committed, """{"unassigned":true,"accountErased":false}""", ListingShape.OnePage)));
+                : Answer(request, Committed, Committed, """{"unassigned":true,"leftUnassigned":false}""", ListingShape.OnePage)));
 
     /// <summary>Gets the account the second page of a listing spread over two pages holds.</summary>
     internal static Guid SecondAccount { get; } = new("88888888-8888-8888-8888-888888888888");
@@ -77,7 +80,7 @@ internal static class FakeMailAccountDeployment
     internal static FakeHttpMessageHandler HoldingAccountsOnTwoPages() => Answering(
         Committed,
         Committed,
-        """{"unassigned":true,"accountErased":false}""",
+        """{"unassigned":true,"leftUnassigned":false}""",
         ListingShape.TwoPages);
 
     /// <summary>Builds a deployment whose listing answers its second page with the cursor that asked for it, so following it would never end.</summary>
@@ -85,15 +88,33 @@ internal static class FakeMailAccountDeployment
     internal static FakeHttpMessageHandler RepeatingTheListingCursor() => Answering(
         Committed,
         Committed,
-        """{"unassigned":true,"accountErased":false}""",
+        """{"unassigned":true,"leftUnassigned":false}""",
         ListingShape.RepeatingItsCursor);
 
     /// <summary>Builds a deployment whose last assignment to the account is the one being ended.</summary>
     /// <returns>The deployment.</returns>
-    internal static FakeHttpMessageHandler ErasingOnTheLastUnassignment() => Answering(
+    internal static FakeHttpMessageHandler LeavingTheAccountUnassignedOnTheLastUnassignment() => Answering(
         Committed,
         Committed,
-        """{"unassigned":true,"accountErased":true}""");
+        """{"unassigned":true,"leftUnassigned":true}""");
+
+    /// <summary>Builds a deployment listing the account as assigned to nobody.</summary>
+    /// <returns>The deployment.</returns>
+    internal static FakeHttpMessageHandler ListingTheAccountUnassigned() => Answering(
+        Committed,
+        Committed,
+        """{"unassigned":false,"leftUnassigned":false}""",
+        ListingShape.Unassigned);
+
+    /// <summary>Builds a deployment refusing to erase the account because somebody is still assigned it.</summary>
+    /// <param name="refusal">The sentence the refusal carries.</param>
+    /// <returns>The deployment.</returns>
+    internal static FakeHttpMessageHandler RefusingTheErasure(string refusal) => new((request, _) => Task.FromResult(
+        request.Method == HttpMethod.Delete && request.RequestUri?.AbsolutePath == AdminEndpointRoutes.MailAccountPath(Account)
+            ? FakeAdminEndpoint.Json(
+                HttpStatusCode.Conflict,
+                $$"""{"status":409,"detail":{{JsonSerializer.Serialize(refusal)}}}""")
+            : Answer(request, Committed, Committed, """{"unassigned":false,"leftUnassigned":false}""", ListingShape.OnePage)));
 
     /// <summary>Builds a deployment that refuses every write, with the code and the sentence it names.</summary>
     /// <param name="code">The five-digit code the refusal carries.</param>
@@ -105,7 +126,7 @@ internal static class FakeMailAccountDeployment
             CultureInfo.InvariantCulture,
             $$"""{"committed":false,"version":{{AccountVersion}},"code":{{code}},"messages":[{{JsonSerializer.Serialize(message)}}],"accountId":null}""");
 
-        return Answering(refusal, refusal, """{"unassigned":false,"accountErased":false}""");
+        return Answering(refusal, refusal, """{"unassigned":false,"leftUnassigned":false}""");
     }
 
     private static string Committed => string.Create(
@@ -156,6 +177,11 @@ internal static class FakeMailAccountDeployment
         if (shape == ListingShape.OnePage)
         {
             return $$"""{"accounts":[{{Summary()}}],"nextCursor":null}""";
+        }
+
+        if (shape == ListingShape.Unassigned)
+        {
+            return $$"""{"accounts":[{{Summary().Replace($"\"{User:D}\"", string.Empty, StringComparison.Ordinal)}}],"nextCursor":null}""";
         }
 
         if (request.RequestUri?.Query != $"?cursor={SecondPageCursor}")

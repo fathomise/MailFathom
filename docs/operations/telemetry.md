@@ -814,7 +814,8 @@ tag on the attempts.
 
 `mailfathom.jobs.queue.depth` reports how many jobs of each type are waiting to be claimed, as the worker last measured
 it. Waiting is the pending state alone — a job a worker holds is running, and what bounds that is `Jobs:MaxConcurrentJobs`
-rather than the queue's depth — which is the same reading `Jobs:MaxQueueDepthPerType` is applied against, so the depth an
+rather than the queue's depth — and leaves out a job of a mail account nobody is assigned, which no worker will claim
+until the account is assigned again; that is the same reading `Jobs:MaxQueueDepthPerType` is applied against, so the depth an
 operator watches and the depth an enqueue is refused at are one number. Two things follow from that. It **saturates** at
 `Jobs:MaxQueueDepthPerType`, because the count stops there so that measuring costs the same on a queue of a thousand and
 on a queue of a million; a reading sitting at the bound is a queue already refusing work as backpressure. And it is

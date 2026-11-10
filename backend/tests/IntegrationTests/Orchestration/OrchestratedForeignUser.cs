@@ -57,7 +57,7 @@ internal static class OrchestratedForeignUser
             },
             cancellationToken);
 
-    /// <summary>Removes the provisioned user, and everything hung on them with it.</summary>
+    /// <summary>Removes the provisioned user, everything hung on them, and every mailbox their erasure leaves assigned to nobody.</summary>
     /// <param name="services">The orchestrated service graph the erasure is committed through.</param>
     /// <param name="userId">The identifier the caller provisioned.</param>
     /// <returns>What the erasure reported it removed.</returns>
@@ -67,9 +67,9 @@ internal static class OrchestratedForeignUser
     /// sent the test there would leave the deployment holding a second user record.
     /// </para>
     /// <para>
-    /// The accounts the walk refuses to delete unstated are read here rather than passed in, because a teardown is
-    /// answerable for whatever the test it is cleaning up after left assigned. Nothing in this suite runs a
-    /// synchronization pass against a provisioned user's mailbox, so there is no hold for the read to stand in for.
+    /// Erasing a user takes no mailbox, so a teardown answerable for whatever the test left assigned erases each
+    /// account the user held once the user is gone. An account somebody else is still assigned to is refused and left
+    /// whole, which is the same answer the deployment gives an administrator.
     /// </para>
     /// </remarks>
     internal static async Task<UserErasure> EraseAsync(OrchestratedMailFathomServices services, Guid userId)
@@ -83,8 +83,17 @@ internal static class OrchestratedForeignUser
                 .ToListAsync(token),
             CancellationToken.None);
 
-        return await services.CommitProducingAsync(
-            (_, session, token) => UserAccountErasure.EraseAsync(session, userId, assigned, token),
+        var erasure = await services.CommitProducingAsync(
+            (_, session, token) => UserAccountErasure.EraseAsync(session, userId, token),
             CancellationToken.None);
+
+        foreach (var account in assigned)
+        {
+            await services.InScopeAsync(
+                (scope, token) => scope.GetRequiredService<IMailAccountRecordStore>().EraseAsync(account, token),
+                CancellationToken.None);
+        }
+
+        return erasure;
     }
 }

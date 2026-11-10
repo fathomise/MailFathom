@@ -39,7 +39,11 @@ internal sealed class JobQueueDepthReader(MailFathomDbContext dbContext, JobCapa
         foreach (var jobType in jobTypes)
         {
             var waitingCount = await JobQueueDepthQuery
-                .Compose(dbContext.Jobs.AsNoTracking(), jobType.Name, capacity.MaxQueueDepthPerType)
+                .Compose(
+                    dbContext.Jobs.AsNoTracking(),
+                    dbContext.MailAccountAssignments.AsNoTracking(),
+                    jobType.Name,
+                    capacity.MaxQueueDepthPerType)
                 .CountAsync(cancellationToken);
 
             readings.Add(new JobQueueDepthReading(jobType, waitingCount));

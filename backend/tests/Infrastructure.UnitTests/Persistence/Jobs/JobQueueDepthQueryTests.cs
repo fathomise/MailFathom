@@ -3,6 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Jobs;
+using MailFathom.Infrastructure.Persistence;
+using MailFathom.Infrastructure.Persistence.Entities;
 using MailFathom.Infrastructure.Persistence.Jobs;
 using MailFathom.Infrastructure.UnitTests.TestDoubles;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +29,7 @@ public sealed class JobQueueDepthQueryTests
         using var context = DesignTimeQueryContext.Create();
 
         // Act
-        var sql = JobQueueDepthQuery.Compose(context.Jobs.AsNoTracking(), JobTypeName, DepthBound).ToQueryString();
+        var sql = Compose(context).ToQueryString();
 
         // Assert
         Assert.Contains("LIMIT", sql, StringComparison.Ordinal);
@@ -44,7 +46,7 @@ public sealed class JobQueueDepthQueryTests
         using var context = DesignTimeQueryContext.Create();
 
         // Act
-        var sql = JobQueueDepthQuery.Compose(context.Jobs.AsNoTracking(), JobTypeName, DepthBound).ToQueryString();
+        var sql = Compose(context).ToQueryString();
 
         // Assert
         Assert.Contains(nameof(JobState.Pending), sql, StringComparison.Ordinal);
@@ -65,9 +67,33 @@ public sealed class JobQueueDepthQueryTests
         using var context = DesignTimeQueryContext.Create();
 
         // Act
-        var sql = JobQueueDepthQuery.Compose(context.Jobs.AsNoTracking(), JobTypeName, DepthBound).ToQueryString();
+        var sql = Compose(context).ToQueryString();
 
         // Assert
         Assert.Matches(@"ORDER BY \w+\.""TurnAt"", \w+\.""Id""\s+LIMIT", sql);
     }
+
+    /// <summary>
+    /// A job of a mail account nobody is assigned waits for an assignment rather than for a worker, so it does not hold
+    /// the bound against every other mailbox's enqueue, and a job naming no account counts as before.
+    /// </summary>
+    [Fact]
+    public void Compose_AJobType_LeavesOutTheJobsOfAMailAccountNobodyIsAssignedTo()
+    {
+        // Arrange
+        using var context = DesignTimeQueryContext.Create();
+
+        // Act
+        var sql = Compose(context).ToQueryString();
+
+        // Assert
+        Assert.Contains("\"MailboxAccountId\" IS NULL OR EXISTS (", sql, StringComparison.Ordinal);
+        Assert.Contains("mail_account_assignments", sql, StringComparison.Ordinal);
+    }
+
+    private static IQueryable<JobEntity> Compose(MailFathomDbContext context) => JobQueueDepthQuery.Compose(
+        context.Jobs.AsNoTracking(),
+        context.MailAccountAssignments.AsNoTracking(),
+        JobTypeName,
+        DepthBound);
 }

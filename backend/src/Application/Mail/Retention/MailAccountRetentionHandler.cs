@@ -54,7 +54,6 @@ public sealed class MailAccountRetentionHandler : IJobHandler
     /// <summary>How many emptied conversations one transaction removes.</summary>
     public const int ConversationsRemovedPerTransaction = 500;
 
-    private readonly IMailRetentionAccounts accounts;
     private readonly IPersistenceSessionFactory sessions;
     private readonly IEmailThreadStore threads;
     private readonly IMailTombstoneRetentionReader tombstoneRetention;
@@ -66,7 +65,6 @@ public sealed class MailAccountRetentionHandler : IJobHandler
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the handler.</summary>
-    /// <param name="accounts">Says whether the account has been withheld since the walk handed it out.</param>
     /// <param name="sessions">Begins the transaction of each batch.</param>
     /// <param name="threads">Removes the emptied conversations.</param>
     /// <param name="tombstoneRetention">Reads how long the account keeps its tombstones.</param>
@@ -78,7 +76,6 @@ public sealed class MailAccountRetentionHandler : IJobHandler
     /// <param name="timeProvider">Measures the run and a tombstone's age.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
     public MailAccountRetentionHandler(
-        IMailRetentionAccounts accounts,
         IPersistenceSessionFactory sessions,
         IEmailThreadStore threads,
         IMailTombstoneRetentionReader tombstoneRetention,
@@ -89,7 +86,6 @@ public sealed class MailAccountRetentionHandler : IJobHandler
         IMailRetentionTelemetry telemetry,
         TimeProvider timeProvider)
     {
-        ArgumentNullException.ThrowIfNull(accounts);
         ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(threads);
         ArgumentNullException.ThrowIfNull(tombstoneRetention);
@@ -100,7 +96,6 @@ public sealed class MailAccountRetentionHandler : IJobHandler
         ArgumentNullException.ThrowIfNull(telemetry);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
-        this.accounts = accounts;
         this.sessions = sessions;
         this.threads = threads;
         this.tombstoneRetention = tombstoneRetention;
@@ -124,11 +119,6 @@ public sealed class MailAccountRetentionHandler : IJobHandler
             throw new ArgumentException(
                 $"A '{JobType.RetainMailAccount}' job carries a payload naming one mail account.",
                 nameof(payload));
-        }
-
-        if (this.accounts.IsWithheld(run.Account))
-        {
-            return;
         }
 
         var startedAt = this.timeProvider.GetTimestamp();

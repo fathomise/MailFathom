@@ -370,7 +370,51 @@ public sealed class MailAccountEndpointsTests
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.False(result.Value!.Erased);
+        Assert.False(Assert.IsType<Ok<MailAccountErasureResponse>>(result.Result).Value!.Erased);
+    }
+
+    /// <summary>An account somebody is assigned to is a conflict naming how many, and the same request succeeds once they are unassigned.</summary>
+    [Fact]
+    public async Task EraseAsync_AnAccountSomebodyIsAssigned_AnswersAConflictNamingHowManyUsers()
+    {
+        // Arrange
+        var work = new MailAccountRecord(Guid.NewGuid(), "work@example.test", "work", "{}", Version: 1);
+        var deployment = new UserRecordDeployment([MailFathomPermission.AdminErase]);
+        deployment.Holding(SyntheticUser.Deployment, "{}", version: 1, work);
+
+        // Act
+        var result = await MailAccountEndpoints.EraseAsync(
+            work.Id,
+            deployment.MailAccounts,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var conflict = Assert.IsType<ProblemHttpResult>(result.Result);
+        Assert.Equal(StatusCodes.Status409Conflict, conflict.StatusCode);
+        Assert.Contains("is assigned to 1 user(s), so nothing was erased", conflict.ProblemDetails.Detail, StringComparison.Ordinal);
+        Assert.Single(deployment.MailAccountRecords.Accounts);
+    }
+
+    /// <summary>Ending the last assignment says the account is now assigned to nobody, rather than that it was erased.</summary>
+    [Fact]
+    public async Task UnassignAsync_TheLastUserAssigned_AnswersThatTheAccountIsLeftUnassigned()
+    {
+        // Arrange
+        var work = new MailAccountRecord(Guid.NewGuid(), "work@example.test", "work", "{}", Version: 1);
+        var deployment = new UserRecordDeployment([MailFathomPermission.AdminErase]);
+        deployment.Holding(SyntheticUser.Deployment, "{}", version: 1, work);
+
+        // Act
+        var result = await MailAccountEndpoints.UnassignAsync(
+            work.Id,
+            deployment.MailAccounts,
+            new MailAccountAssignmentRequest(SyntheticUser.Deployment.Value),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            new MailAccountUnassignmentResponse(Unassigned: true, LeftUnassigned: true),
+            Assert.IsType<Ok<MailAccountUnassignmentResponse>>(result.Result).Value);
     }
 
     /// <summary>An account whose stored settings are not JSON, which is what a row changed behind MailFathom looks like.</summary>

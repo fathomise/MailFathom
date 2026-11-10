@@ -96,42 +96,28 @@ public interface IMailAccountRecordStore
         long expectedUserVersion,
         CancellationToken cancellationToken);
 
-    /// <summary>Ends one user's assignment to an account, erasing the account and its mail when nobody else is assigned it.</summary>
+    /// <summary>Ends one user's assignment to an account, and erases what that user authored there, leaving the account and its mail in place.</summary>
     /// <param name="accountId">The account.</param>
     /// <param name="user">The user whose assignment ends.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
-    /// <returns>What the write did.</returns>
+    /// <returns>What the write did, including whether the account is now assigned to nobody.</returns>
+    /// <remarks>
+    /// The account's row is held for the rest of the transaction before the remaining users are counted, which is the
+    /// lock an assignment takes, so the answer says whether the account is unassigned as the commit leaves it rather
+    /// than as a concurrent assignment found it.
+    /// </remarks>
     Task<MailAccountUnassignment> UnassignAsync(Guid accountId, UserId user, CancellationToken cancellationToken);
 
-    /// <summary>Erases an account, every assignment to it, and everything stored for it.</summary>
+    /// <summary>Erases an account nobody is assigned to, and everything stored for it.</summary>
     /// <param name="accountId">The account.</param>
     /// <param name="cancellationToken">Cancels the erasure before it commits.</param>
-    /// <returns>Whether an account was there to erase.</returns>
-    Task<bool> EraseAsync(Guid accountId, CancellationToken cancellationToken);
-
-    /// <summary>Reads the accounts one user is assigned and nobody else is.</summary>
-    /// <param name="user">The user asked about.</param>
-    /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The accounts that would be left serving nobody if this user's assignments ended, in ordinal order.</returns>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> names nobody.</exception>
+    /// <returns>Whether the account was erased, was not there to erase, or is still assigned and was left whole.</returns>
     /// <remarks>
-    /// <para>
-    /// It is what an erasure has to know before it begins rather than after: the accounts whose work has to be stopped
-    /// are exactly these. An account somebody else still reads is left running and unheld, because the mailbox and its
-    /// mail are that person's — the erasure still takes what the departing user authored in it, their drafts and their
-    /// recurring sends, and those rows key onto the user rather than needing the mailbox to be still. The set is read
-    /// from the assignment relation rather than from the users a replica has composed, so an account assigned to a user whose record
-    /// this build will not read still counts as shared.
-    /// </para>
-    /// <para>
-    /// It is the one read here that takes no ceiling, and deliberately: a truncated answer would leave an account of
-    /// the user's running while the erasure deleted its mail, which is the failure the caller asks this question to
-    /// avoid. What bounds it instead is the deployment — these are the assignments of one user, the same set the
-    /// erasure's own transaction narrows on — so the alternative to reading all of them is not a smaller read but a
-    /// wrong one.
-    /// </para>
+    /// An account somebody is assigned to is never erased: the erasure counts its assignments while it holds the
+    /// account's row, under the lock an assignment takes, so an assignment that committed first makes it refuse and one
+    /// that comes second finds no account.
     /// </remarks>
-    Task<IReadOnlyList<Guid>> ReadSolelyAssignedAsync(UserId user, CancellationToken cancellationToken);
+    Task<MailAccountErasure> EraseAsync(Guid accountId, CancellationToken cancellationToken);
 
     /// <summary>Records the settings an account is served on, where the account still stands at the version they were read from.</summary>
     /// <param name="accountId">The account.</param>
@@ -163,7 +149,7 @@ public sealed record MailAccountCandidate(MailAccountRecord Account, MailAccount
 
 /// <summary>One account and the users it is assigned to.</summary>
 /// <param name="Account">The account.</param>
-/// <param name="Users">Every user it is assigned to, which may be none only while an erasure is under way.</param>
+/// <param name="Users">Every user it is assigned to, which is none for an account left unassigned: such an account is out of every flow until somebody is assigned it again.</param>
 /// <param name="OrganizationId">The organization the account belongs to, or <see langword="null" /> for none.</param>
 public sealed record MailAccountHolding(MailAccountRecord Account, IReadOnlyList<UserId> Users, Guid? OrganizationId);
 
@@ -229,5 +215,23 @@ public enum MailAccountWriteResult
 
 /// <summary>What ending one assignment did.</summary>
 /// <param name="Unassigned">Whether the user was assigned the account at all.</param>
-/// <param name="AccountErased">Whether the account was erased because nobody else is assigned it.</param>
-public readonly record struct MailAccountUnassignment(bool Unassigned, bool AccountErased);
+/// <param name="LeftUnassigned">Whether nobody is assigned the account once the assignment ended, so it is kept with its mail and is out of every flow until somebody is assigned it again.</param>
+public readonly record struct MailAccountUnassignment(bool Unassigned, bool LeftUnassigned);
+
+/// <summary>What one attempt at erasing an account did.</summary>
+/// <param name="Result">How the erasure ended.</param>
+/// <param name="AssignedUsers">How many users the account is assigned to, which is above zero exactly when <see cref="MailAccountErasureResult.StillAssigned" /> refused it.</param>
+public readonly record struct MailAccountErasure(MailAccountErasureResult Result, int AssignedUsers);
+
+/// <summary>How an attempt at erasing an account ended.</summary>
+public enum MailAccountErasureResult
+{
+    /// <summary>The account and everything stored for it were erased.</summary>
+    Erased = 0,
+
+    /// <summary>The deployment holds no such account.</summary>
+    NotFound = 1,
+
+    /// <summary>The account is assigned to at least one user, so nothing was erased.</summary>
+    StillAssigned = 2,
+}

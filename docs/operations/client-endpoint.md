@@ -2930,7 +2930,8 @@ create the folder its own configuration names, a replacement states that mapping
 held, and a removal takes the mapping out. Renaming, deleting, subscribing, and unsubscribing a folder *on the server*
 are refused outright by [ADR 0007](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0007-remote-mailbox-mutation-boundary-and-write-session.md), which is why a removal here
 stops the deployment reading a folder rather than removing one — the mail already stored stays where it is, and so does
-the folder on the server. That is unlike an administrator ending the last assignment to a whole mailbox, which erases its stored mail. A removal withdraws only the alias
+the folder on the server. That is like an administrator ending the last assignment to a whole mailbox, which leaves its stored mail unassigned
+rather than erasing it. A removal withdraws only the alias
 it names: a folder sitting beneath it stays declared and is read as a folder of its own from then on.
 
 Each of the three takes the account by the identifier the deployment generated for it — the one the account list the

@@ -2070,7 +2070,7 @@ internal sealed class AdminApiClient
             "This deployment holds no mail account or no user under those identifiers. Run 'mfctl account list' and 'mfctl user list' and name ones it holds.");
     }
 
-    /// <summary>Ends one user's assignment to a mail account, which erases the account and its mail when nobody else is assigned it.</summary>
+    /// <summary>Ends one user's assignment to a mail account, which leaves the account and its mail unassigned when nobody else is assigned it.</summary>
     /// <param name="token">The bearer credential to present.</param>
     /// <param name="accountId">The account.</param>
     /// <param name="request">The user.</param>

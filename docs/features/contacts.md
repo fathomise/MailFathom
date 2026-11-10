@@ -91,7 +91,8 @@ Each book keys onto its holder and is erased with it, by the schema rather than 
 write. Erasing a user takes their own book, deleting an organization takes the organization's book, and erasing a mail
 account takes the book it collected, beside that account's folders and mail; `contact_addresses` keys onto `contacts`
 through `(ContactId, BookHolderId)` in every case, so the cascade reaches an address through the person holding it. A
-collected book therefore goes when its account does, which is when the last user assigned it is erased.
+collected book therefore goes when its account does, which is when an administrator erases the account; erasing the
+last user assigned it leaves the account, and its book, unassigned.
 
 ## The organization's book
 
@@ -725,8 +726,8 @@ hops: the asserted half of `contacts` keys onto the user record and `contact_add
 `(ContactId, BookHolderId)`. So a data-subject request against the user discharges the people they wrote down and every
 address beneath them along with the mail, and every photo they gave one of them, which is a stored file of theirs and
 goes with their other stored files. What it leaves is what their mailboxes collected, which belongs to those
-mailboxes and to whoever is still assigned them; a mailbox nobody is left assigned is erased with them, and its
-collected book goes with it.
+mailboxes and to whoever is still assigned them; a mailbox nobody is left assigned stays unassigned with its collected
+book until an administrator erases it.
 
 **Exporting a contact produces everything held about them** as of the instant it was taken: the name, every address,
 which is preferred, every phone number with its label in the user's order, the note, the origin, both timestamps, and the photo where one is held — its kind and its octets,

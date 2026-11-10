@@ -8,7 +8,6 @@ using MailFathom.Application.Accounts;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
 using MailFathom.Host.Configuration.UserSettings;
-using MailFathom.Host.Hosting.Workers;
 using MailFathom.Host.Signals;
 using MailFathom.Infrastructure.Persistence.Users;
 using MailFathom.Infrastructure.Persistence.Users.AccountSettings;
@@ -40,7 +39,6 @@ internal sealed class PersistedMailSynchronizationAccounts(
     IUserSettingsDocumentReader documents,
     ServedUserRecordComposition composition,
     ConfigurationChangeAnnouncements announcements,
-    WithheldMailAccounts withheldAccounts,
     ServedUsers servedUsers) : IMailSynchronizationAccountSource
 {
     /// <summary>How many accounts one statement of a pass reads.</summary>
@@ -67,8 +65,7 @@ internal sealed class PersistedMailSynchronizationAccounts(
             page = await servedAccounts.ReadServedVersionsAsync(after, PageSize, cancellationToken);
 
             foreach (var account in page
-                .Select(static served => new SupervisedMailAccount(MailAccountId.Create(served.Id.ToString("D")), served.Version))
-                .Where(supervised => !withheldAccounts.IsWithheld(supervised.Account)))
+                .Select(static served => new SupervisedMailAccount(MailAccountId.Create(served.Id.ToString("D")), served.Version)))
             {
                 yield return account;
             }
@@ -93,11 +90,6 @@ internal sealed class PersistedMailSynchronizationAccounts(
         MailSynchronizationOptions? previous,
         CancellationToken cancellationToken)
     {
-        if (withheldAccounts.IsWithheld(account))
-        {
-            return null;
-        }
-
         var users = await assignments.ReadUsersAssignedToAsync(account, cancellationToken);
         var records = new List<UserSettingsDocument>(users.Count);
 
@@ -160,15 +152,8 @@ internal sealed class PersistedMailSynchronizationAccounts(
     }
 
     /// <inheritdoc />
-    /// <remarks>
-    /// A committed change to any account is announced, here and to every other replica, and a withholding is this
-    /// replica's own; either may move an account into or out of what a pass reads.
-    /// </remarks>
-    public IChangeToken GetChangeToken() => new CompositeChangeToken(
-    [
-        announcements.GetChangeToken(),
-        withheldAccounts.GetChangeToken(),
-    ]);
+    /// <remarks>A committed change to any account is announced, here and to every other replica, and may move an account into or out of what a pass reads.</remarks>
+    public IChangeToken GetChangeToken() => announcements.GetChangeToken();
 
     /// <summary>Reads one assigned user's record, leaving out one the reader refused for what it holds.</summary>
     /// <remarks>

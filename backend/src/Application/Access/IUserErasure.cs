@@ -16,40 +16,23 @@ namespace MailFathom.Application.Access;
 /// holds is served.
 /// </para>
 /// <para>
-/// It is the whole of the erasure rather than the user row alone. The mail graph hangs on that row through
-/// <c>mailbox_accounts.UserId</c>, so the accounts, the folders, the mail beneath them, everything derived from that
-/// mail, and the contact book this user assembled all go with it — and the rows that name a mail account without
-/// keying onto one are taken by the adapter, since no constraint would have reached them.
+/// It is the whole of the person rather than the user row alone: their assignments, the drafts and recurring sends
+/// they authored in any account, their own contact book, and their credentials and sessions. It is never a mail
+/// account. The mail graph belongs to the account, so an account this user alone was assigned stays with its mail,
+/// assigned to nobody and out of every flow, until somebody is assigned it again or it is erased on purpose.
 /// </para>
 /// </remarks>
 public interface IUserErasure
 {
-    /// <summary>Erases one user and everything this deployment recorded for them.</summary>
+    /// <summary>Erases one user and everything this deployment recorded for them, leaving every mail account in place.</summary>
     /// <param name="user">The user to remove.</param>
-    /// <param name="quiescedAccounts">
-    /// The mail accounts the caller has stopped every writer against and is holding stopped for the whole call. An
-    /// account the transaction finds itself about to delete and which is not among these refuses the erasure.
-    /// </param>
     /// <param name="cancellationToken">Cancels the erasure before it commits, leaving the deployment unchanged.</param>
-    /// <returns>What the attempt removed, or the account that stopped it removing anything.</returns>
+    /// <returns>Whether a user record was there to remove; nothing removed is the repeat of an erasure that already ran.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="user" /> names nobody.</exception>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="quiescedAccounts" /> is <see langword="null" />.</exception>
     /// <remarks>
-    /// <para>
     /// The whole of it commits or none of it does, because a partial erasure is a data-subject request answered with
-    /// half of somebody's mail still stored. An erasure that removed nothing and was not refused is the repeat of one
-    /// that already ran rather than a failure: what the caller asked for is that the deployment hold nothing for this
-    /// user, and it does.
-    /// </para>
-    /// <para>
-    /// The accounts are handed in rather than discovered here because stopping a writer is the caller's act and takes
-    /// a lease no adapter of this port owns. What this port then owes is the other half: the set it is about to delete
-    /// is recomputed inside the transaction, so an account that became solely this user's after the caller read that
-    /// set refuses rather than being deleted with nothing holding it still.
-    /// </para>
+    /// half of somebody's record still stored. An erasure that removed nothing is not a failure: what the caller asked
+    /// for is that the deployment hold nothing for this user, and it does.
     /// </remarks>
-    Task<UserErasureOutcome> EraseAsync(
-        UserId user,
-        IReadOnlyList<Guid> quiescedAccounts,
-        CancellationToken cancellationToken);
+    Task<bool> EraseAsync(UserId user, CancellationToken cancellationToken);
 }

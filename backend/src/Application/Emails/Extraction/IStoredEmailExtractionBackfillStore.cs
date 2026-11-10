@@ -76,7 +76,7 @@ public interface IStoredEmailExtractionBackfillStore
 
     /// <summary>Records how far this run has come, so an interrupted backfill resumes instead of restarting.</summary>
     /// <param name="session">The explicit persistence session this write participates in.</param>
-    /// <param name="position">The last email the batch processed.</param>
+    /// <param name="position">The last email the batch processed, or <see langword="null" /> once the walk reached the end and the next one starts from the beginning.</param>
     /// <param name="cancellationToken">Propagates caller cancellation.</param>
     /// <returns>A task that completes when the write has been staged.</returns>
     /// <remarks>
@@ -85,7 +85,7 @@ public interface IStoredEmailExtractionBackfillStore
     /// </remarks>
     Task SaveResumePositionAsync(
         IPersistenceSession session,
-        StoredEmailId position,
+        StoredEmailId? position,
         CancellationToken cancellationToken);
 
     /// <summary>Counts what was derived under something other than its own user's posture, message text and attachment readings apart.</summary>

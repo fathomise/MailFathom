@@ -16,29 +16,28 @@ public sealed class ServedMailRetentionAccountsTests
     private static readonly Guid First = Guid.Parse("0199a0c0-0000-7000-8000-000000000001");
     private static readonly Guid Second = Guid.Parse("0199a0c0-0000-7000-8000-000000000002");
 
-    /// <summary>A withheld account drops off the page without moving the place the next page begins.</summary>
+    /// <summary>A full page hands out every account it read and resumes after the last of them.</summary>
     [Fact]
-    public async Task ReadPageAsync_AFullPageEndingInAWithheldAccount_LeavesItOutAndResumesAfterIt()
+    public async Task ReadPageAsync_AFullPage_HandsOutEveryAccountAndResumesAfterTheLast()
     {
         // Arrange
-        var withheld = new WithheldMailAccounts();
-        using var holding = withheld.Withhold([MailAccountId.Create(Second.ToString("D"))]);
-        var accounts = new ServedMailRetentionAccounts(Served(First, Second), withheld);
+        var accounts = new ServedMailRetentionAccounts(Served(First, Second));
 
         // Act
         var page = await accounts.ReadPageAsync(after: null, limit: 2, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal([MailAccountId.Create(First.ToString("D"))], page.Accounts);
+        Assert.Equal(
+            [MailAccountId.Create(First.ToString("D")), MailAccountId.Create(Second.ToString("D"))],
+            page.Accounts);
         Assert.Equal(Second, page.ResumeAfter);
-        Assert.True(accounts.IsWithheld(MailAccountId.Create(Second.ToString("D"))));
     }
 
     [Fact]
     public async Task ReadPageAsync_APageShortOfTheLimit_IsTheLast()
     {
         // Arrange
-        var accounts = new ServedMailRetentionAccounts(Served(First), new WithheldMailAccounts());
+        var accounts = new ServedMailRetentionAccounts(Served(First));
 
         // Act
         var page = await accounts.ReadPageAsync(after: null, limit: 2, TestContext.Current.CancellationToken);

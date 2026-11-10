@@ -9379,7 +9379,7 @@
       },
       "MailAccountUnassignmentResponse": {
         "properties": {
-          "accountErased": {
+          "leftUnassigned": {
             "type": "boolean"
           },
           "unassigned": {
@@ -9388,7 +9388,7 @@
         },
         "required": [
           "unassigned",
-          "accountErased"
+          "leftUnassigned"
         ],
         "type": "object"
       },

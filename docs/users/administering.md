@@ -926,17 +926,16 @@ way — the spam classification posture, and the
 [`SensitiveContent`](../features/sensitive-content-scanning.md) block if it stated one, both of which each **mail
 account's** record carries in blocks of its own.
 
-**Taking a mailbox from its last person deletes its mail.** `mfctl account unassign` ends one person's assignment
-without a restart; while somebody else is still assigned the mailbox, its mail stays theirs, and what goes with the
-departing person is only what they wrote there — their drafts and the recurring sends they declared, neither of which
-anybody else could read. Ending the last assignment
-erases the account and everything stored for it, exactly as `mfctl account delete` does, so both show what they are
-about to do and ask. A run already in flight drains against the document version it began with. `mfctl user remove` erases the person and every
-message, folder, attachment, and derived index the deployment holds for them; it shows what it is about to do and asks,
-and nothing puts it back. Before it deletes anything it stops the deployment reading the mailboxes that were only
-theirs, and it waits up to half a minute for a run or a job already going to finish — a mailbox still being written to
-after that refuses the whole erasure, naming what is running, and nothing at all is erased. Run it again once that has
-ended.
+**Taking a mailbox from its last person leaves it unassigned, and only `mfctl account delete` erases one.**
+`mfctl account unassign` ends one person's assignment without a restart, and what goes with the departing person is only
+what they wrote there — their drafts and the recurring sends they declared, neither of which anybody else could read.
+The mailbox and its mail stay. Once nobody is assigned it, it is unassigned: it keeps everything stored for it and does
+nothing — nothing reads it, synchronizes it, or sends from it — until you assign it again with `mfctl account assign`,
+when it picks up where it stopped, or erase it with `mfctl account delete`. That is the one command that erases a
+mailbox and its mail, and it refuses while anybody is still assigned the mailbox, naming how many, so a mailbox in use is
+never erased by accident; `mfctl account list` marks every unassigned one. `mfctl user remove` erases the person and
+everything recorded about them, and never a mailbox: one they shared stays with the others, and one only they held is
+left unassigned with its mail. Both show what they are about to do and ask, and nothing puts either back.
 
 **Nobody adds or removes a mailbox from the client.** `mfctl account add` creates each mailbox and assigns it,
 `mfctl account assign` and `mfctl account unassign` decide who else reads it, and a person signed in to the client
@@ -971,8 +970,8 @@ acts take a scope and which stay with an administrator over the whole deployment
 an organization is assigned only to that organization's members, and one in none only to people in none, so an
 assignment across the two is refused naming both, and a move of a person or an account is refused while it would leave
 an assignment straddling two. To bring somebody in with the mailboxes only they hold, add `--with-accounts` to
-`mfctl user set-organization`: the person and those accounts move together and keep every message. Do not unassign an
-account to get it moving — ending its last assignment erases it and its mail. A mailbox shared with somebody who is not
+`mfctl user set-organization`: the person and those accounts move together and keep every message. Unassigning an
+account is no way to get it moving — ending its last assignment leaves it unassigned and doing nothing. A mailbox shared with somebody who is not
 moving holds the move back, and nothing is unassigned for you. An
 account you create with `mfctl account add` lands in the organization of the person it is created for, and
 `mfctl account list` and `mfctl organization list` show where each account and how many accounts each company holds.
