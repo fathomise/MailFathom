@@ -20,6 +20,11 @@ namespace MailFathom.Infrastructure.Persistence.Jobs;
 /// many</em> rather than <em>how many</em>. That is the whole of what the caller compares, and it keeps the cost the
 /// same on a queue of a thousand and on a queue of a million.
 /// </para>
+/// <para>
+/// The rows read are the first the claim would take, in the claim's own order, which the partial claim index already
+/// holds. The count would come out the same in any order, but a limit nothing orders leaves which rows were read to the
+/// plan, and EF Core reports exactly that on every deployment that compiles the query.
+/// </para>
 /// </remarks>
 internal static class JobQueueDepthQuery
 {
@@ -35,6 +40,8 @@ internal static class JobQueueDepthQuery
 
         return jobs
             .Where(job => job.JobType == jobTypeName && job.State == JobState.Pending)
+            .OrderBy(job => job.TurnAt)
+            .ThenBy(job => job.Id)
             .Take(depthBound);
     }
 }

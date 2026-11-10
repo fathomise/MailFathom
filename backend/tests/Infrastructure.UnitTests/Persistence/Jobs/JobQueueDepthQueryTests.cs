@@ -3,9 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Jobs;
-using MailFathom.Infrastructure.Persistence;
-using MailFathom.Infrastructure.Persistence.Connections;
 using MailFathom.Infrastructure.Persistence.Jobs;
+using MailFathom.Infrastructure.UnitTests.TestDoubles;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -25,7 +24,7 @@ public sealed class JobQueueDepthQueryTests
     public void Compose_ADepthBound_StopsAtItRatherThanCountingTheWholeQueue()
     {
         // Arrange
-        using var context = DesignTimeContext();
+        using var context = DesignTimeQueryContext.Create();
 
         // Act
         var sql = JobQueueDepthQuery.Compose(context.Jobs.AsNoTracking(), JobTypeName, DepthBound).ToQueryString();
@@ -42,7 +41,7 @@ public sealed class JobQueueDepthQueryTests
     public void Compose_AJobType_CountsOnlyThePendingJobsOfThatType()
     {
         // Arrange
-        using var context = DesignTimeContext();
+        using var context = DesignTimeQueryContext.Create();
 
         // Act
         var sql = JobQueueDepthQuery.Compose(context.Jobs.AsNoTracking(), JobTypeName, DepthBound).ToQueryString();
@@ -54,9 +53,21 @@ public sealed class JobQueueDepthQueryTests
         Assert.Contains("\"JobType\"", sql, StringComparison.Ordinal);
     }
 
-    private static MailFathomDbContext DesignTimeContext() => new(
-        MailFathomDbContextDesignTimeFactory.BuildOptions(
-            orchestratedConnectionString: null,
-            designTimeConnectionString: null),
-        PostgresTextSearchConfiguration.Default);
+    /// <summary>
+    /// The rows the bound stops at are the ones a worker would claim first, so which rows were read is the query's to
+    /// say rather than the plan's. Unordered, EF Core logs the limit as nondeterministic on every deployment, and the
+    /// order is the claim's own so the partial claim index can answer it without sorting the whole queue.
+    /// </summary>
+    [Fact]
+    public void Compose_ADepthBound_ReadsUpToItInClaimOrder()
+    {
+        // Arrange
+        using var context = DesignTimeQueryContext.Create();
+
+        // Act
+        var sql = JobQueueDepthQuery.Compose(context.Jobs.AsNoTracking(), JobTypeName, DepthBound).ToQueryString();
+
+        // Assert
+        Assert.Matches(@"ORDER BY \w+\.""TurnAt"", \w+\.""Id""\s+LIMIT", sql);
+    }
 }

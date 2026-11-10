@@ -6,6 +6,7 @@ using MailFathom.Application.Contacts.Collection;
 using MailFathom.CodeCoverage;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace MailFathom.Infrastructure.Persistence.Contacts;
@@ -41,32 +42,51 @@ internal sealed class AuthoredMailTally(MailFathomDbContext readContext) : IAuth
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ceiling);
 
-        var accountValue = account.Value;
-        var normalizedAddress = author.NormalizedAddress;
+        var authored = Authored(readContext.StoredEmails.AsNoTracking(), account, author);
 
-        var authored = readContext.StoredEmails
-            .AsNoTracking()
-            .Where(email =>
-                email.MailboxAccountId == accountValue
-                && email.SenderNormalizedAddress == normalizedAddress);
-
-        var identified = await authored
-            .Where(email => email.InternetMessageId != null)
-            .Select(email => email.InternetMessageId)
-            .Distinct()
-            .Take(ceiling)
-            .CountAsync(cancellationToken);
+        var identified = await IdentifiedUpTo(authored, ceiling).CountAsync(cancellationToken);
 
         if (identified >= ceiling)
         {
             return ceiling;
         }
 
-        var unidentified = await authored
-            .Where(email => email.InternetMessageId == null)
-            .Take(ceiling - identified)
-            .CountAsync(cancellationToken);
+        var unidentified = await UnidentifiedUpTo(authored, ceiling - identified).CountAsync(cancellationToken);
 
         return identified + unidentified;
     }
+
+    /// <summary>Narrows an account's stored mail to what one address wrote.</summary>
+    internal static IQueryable<StoredEmailEntity> Authored(
+        IQueryable<StoredEmailEntity> emails,
+        MailAccountId account,
+        EmailAddress author)
+    {
+        var accountValue = account.Value;
+        var normalizedAddress = author.NormalizedAddress;
+
+        return emails.Where(email =>
+            email.MailboxAccountId == accountValue
+            && email.SenderNormalizedAddress == normalizedAddress);
+    }
+
+    /// <summary>Selects the distinct identifiers the author's messages carry, stopping at the ceiling.</summary>
+    /// <remarks>
+    /// Ordered by the identifier, which <c>Distinct</c> has made unique, so the limit names its rows rather than leaving
+    /// them to the plan; EF Core logs a limit nothing orders on every deployment that compiles it. The ordering follows
+    /// <c>Distinct</c> rather than preceding it, because an ordering placed before it is erased.
+    /// </remarks>
+    internal static IQueryable<string?> IdentifiedUpTo(IQueryable<StoredEmailEntity> authored, int ceiling) => authored
+        .Where(email => email.InternetMessageId != null)
+        .Select(email => email.InternetMessageId)
+        .Distinct()
+        .OrderBy(internetMessageId => internetMessageId)
+        .Take(ceiling);
+
+    /// <summary>Selects the author's stored copies that carry no identifier, stopping at the ceiling.</summary>
+    internal static IQueryable<StoredEmailEntity> UnidentifiedUpTo(IQueryable<StoredEmailEntity> authored, int ceiling) =>
+        authored
+            .Where(email => email.InternetMessageId == null)
+            .OrderBy(email => email.Id)
+            .Take(ceiling);
 }
