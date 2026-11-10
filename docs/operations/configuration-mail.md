@@ -515,8 +515,8 @@ comes back at the same occurrence, a flag removed on the server for one, is reti
 the server has refused for good is not asked for again. A message on a held account the drain has already taken off the
 source has no occurrence for the trail to name, so it is erased without an audit entry and counted beside the others.
 The pass writes nothing while a replica of an older build holds a work lease, so it starts on the first night after a
-rolling upgrade ends, and it passes over an account being restored. An open client is told as it is when a message
-leaves the server.
+rolling upgrade ends, and it passes over an account being restored. An open client is told once the batch that
+retires the message commits, before anything changes on the server.
 
 With `Tombstones` on, [the nightly retention run](configuration-runtime.md#the-nightly-retention-walk) erases each row
 that has been a tombstone for longer than `After`, with its raw MIME and everything derived from it, as `EraseLocalCopy`
