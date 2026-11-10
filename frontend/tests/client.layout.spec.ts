@@ -243,6 +243,47 @@ interface Enclosed {
 test.describe('driven by a finger', () => {
     test.use({ hasTouch: true });
 
+    // Under a finger below the tall band the composer's head is drawn close, because a keyboard is about to take the
+    // lower part of the window: the AI drafting is its prompt line until its own control unfolds it. Whether the acts
+    // are hidden is the stylesheet's, read from the pointer and the height, so only a browser can say they are.
+    for (const size of [
+        { name: 'phone', window: phoneWindow },
+        { name: 'fold', window: foldWindow },
+    ]) {
+        test(`folds the composer's AI drafting to its prompt on a ${size.name}, and unfolds it from its own control`, async ({
+            page,
+            deployment,
+        }) => {
+            deployment.grant('mailfathom.mail.drafts.write', 'mailfathom.mail.send');
+            await page.setViewportSize(size.window);
+            await openSignedIn(page, '/#/mail');
+            await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+
+            const message = page.getByRole('textbox', { name: 'Message' });
+
+            await expect(message).toBeVisible();
+            await settled(page);
+
+            // Focused so the recipient suggestions the composer opens on stand over nothing that is asked about below.
+            await message.focus();
+
+            const act = page.getByRole('button', { name: 'Write a draft', exact: true });
+            const tone = page.getByRole('radio', { name: 'Formal', exact: true });
+
+            await expect(act).toBeHidden();
+            await expect(tone).toBeHidden();
+
+            await page.getByRole('button', { name: 'Show drafting options', exact: true }).click();
+
+            await expect(act).toBeVisible();
+            await expect(tone).toBeVisible();
+
+            await page.getByRole('button', { name: 'Hide drafting options', exact: true }).click();
+
+            await expect(act).toBeHidden();
+        });
+    }
+
     test('draws every control on the mail screens at a size a fingertip can hit', async ({ page }) => {
         await page.setViewportSize(phoneWindow);
         await openSignedIn(page, '/#/mail');
@@ -315,6 +356,10 @@ test.describe('driven by a finger', () => {
             // drawer at a point outside its box, which is the one place this suite reaches for a position.
             await opener.click();
             await expect(drawer.getByRole('tree', { name: 'Mailboxes and folders' })).toBeVisible();
+
+            // Measured once the drawer has arrived: its box travels while it slides in, and a point taken from a frame
+            // of that lands on the drawer rather than beside it.
+            await settled(page);
 
             const drawn = await drawer.boundingBox();
 

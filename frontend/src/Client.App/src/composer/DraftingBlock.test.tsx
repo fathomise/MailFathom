@@ -216,6 +216,14 @@ describe('DraftingBlock', () => {
         expect(screen.getByRole('button', { name: 'Show drafting options' })).toBeDefined();
     });
 
+    it('unfolds when the context is restored, so the chip the keyboard lands on is one that is drawn', () => {
+        drawBlock(false, { changedFrom: { subject: 'Quarterly invoice', more: 0 } });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+
+        expect(screen.getByRole('button', { name: 'Hide drafting options' })).toBeDefined();
+    });
+
     it('unfolds once something is written, since an act is what sends it', () => {
         drawBlock();
 

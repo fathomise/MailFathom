@@ -1221,20 +1221,21 @@
         );
 }
 
-/* A chip in a wrapping group or a segment in its track, under a finger: drawn at 36 rather than lifted to the 44 floor,
-   so a row of them keeps the weight of the text beside it, and still a 44 target, which reaches past its own edge into
-   the gap the group leaves around it. The design's touch table states the pair. A utility, so it outranks the floor the
-   base layer sets on every control. */
 /* A surface being written in, standing on the on-screen keyboard: as much shorter as the keyboard covers of it, which
    `shell/useStandingOnKeyboard.ts` measures and publishes on the surface. Nothing else answers a keyboard. */
 @utility above-keyboard {
     max-height: calc(100% - var(--keyboard-cover, 0px));
 }
 
-/* Inside such a surface while the keyboard covers any of it, which the same hook marks on it. What is left to the
-   surface then is as little as a low window, so it asks for the density `low:` gives without the window being low. */
-@custom-variant on-keyboard (:where([data-on-keyboard]) &);
+/* Such a surface, and anything inside it, while the keyboard covers any of it, which the same hook marks on it. What
+   is left to the surface then is as little as a low window, so it asks for the density `low:` gives without the
+   window being low. */
+@custom-variant on-keyboard (&:where([data-on-keyboard], [data-on-keyboard] *));
 
+/* A chip in a wrapping group or a segment in its track, under a finger: drawn at 36 rather than lifted to the 44 floor,
+   so a row of them keeps the weight of the text beside it, and still a 44 target, which reaches past its own edge into
+   the gap the group leaves around it. The design's touch table states the pair. A utility, so it outranks the floor the
+   base layer sets on every control. */
 @utility touch-extended {
     @media (pointer: coarse) {
         position: relative;

@@ -16,17 +16,27 @@ import { useEffect, type RefObject } from 'react';
 // in `styles.css` takes off its height, and the surface is marked `data-on-keyboard` while it is more than nothing, which
 // the `on-keyboard:` variant reads — so the measurement stays here and the layout stays in the stylesheet.
 //
-// A pinch zoom shrinks the same viewport and is not a keyboard, so a scaled viewport covers nothing.
+// A pinch zoom shrinks the same viewport and is not a keyboard, so a scaled viewport covers nothing. Neither does a
+// viewport as tall as the window: no keyboard is up, and the surface's box is not asked at all — it may be arriving,
+// and a surface travelling up from the foot of the window reports a foot below it. A surface that arrives while a
+// keyboard is already up is measured again once its arrival has ended, for the same reason.
 
 /** How much of the surface the keyboard covers, in CSS pixels. */
-export function keyboardCover(surface: HTMLElement, viewport: VisualViewport, alreadyTakenOff: number): number {
-    if (viewport.scale !== 1) {
+export function keyboardCover(
+    surface: HTMLElement,
+    viewport: VisualViewport,
+    alreadyTakenOff: number,
+    view: Window = window,
+): number {
+    const keyboardTop = viewport.offsetTop + viewport.height;
+
+    if (viewport.scale !== 1 || view.innerHeight - keyboardTop < 1) {
         return 0;
     }
 
     const foot = surface.getBoundingClientRect().bottom + alreadyTakenOff;
 
-    return Math.max(0, Math.round(foot - (viewport.offsetTop + viewport.height)));
+    return Math.max(0, Math.round(foot - keyboardTop));
 }
 
 /** Keeps the surface standing on the on-screen keyboard, and what is being written in it on the screen. */
@@ -68,10 +78,12 @@ export function useStandingOnKeyboard(surface: RefObject<HTMLElement | null>): v
         stand();
         viewport.addEventListener('resize', stand);
         viewport.addEventListener('scroll', stand);
+        element.addEventListener('animationend', stand);
 
         return () => {
             viewport.removeEventListener('resize', stand);
             viewport.removeEventListener('scroll', stand);
+            element.removeEventListener('animationend', stand);
             element.style.removeProperty('--keyboard-cover');
             element.removeAttribute('data-on-keyboard');
         };

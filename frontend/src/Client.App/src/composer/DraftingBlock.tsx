@@ -351,7 +351,9 @@ export function DraftingBlock({
                         type="button"
                         className="flex items-center gap-1.5 rounded-md px-2 py-1 font-semibold transition hover:bg-warning-soft"
                         onClick={() => {
+                            // The chip the keyboard lands on stands among what the fold hides, so restoring unfolds.
                             focusLanding.current = { on: 'firstChip' };
+                            setUnfolded(true);
                             onRestore();
                         }}
                     >
