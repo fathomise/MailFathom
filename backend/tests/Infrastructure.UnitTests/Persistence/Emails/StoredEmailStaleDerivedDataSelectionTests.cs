@@ -11,6 +11,8 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
 using MailFathom.Infrastructure.Persistence.Emails;
 using MailFathom.Infrastructure.Persistence.Entities;
+using MailFathom.Infrastructure.UnitTests.TestDoubles;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace MailFathom.Infrastructure.UnitTests.Persistence.Emails;
@@ -166,6 +168,57 @@ public sealed class StoredEmailStaleDerivedDataSelectionTests : IDisposable
 
         // Assert
         Assert.Empty(stale);
+    }
+
+    /// <summary>
+    /// Nothing to be stale against is said as a predicate rather than as a limit of zero rows: EF Core reads a limit
+    /// nothing orders as a query whose rows are up to the plan, and logs it on every deployment that compiles it.
+    /// </summary>
+    [Fact]
+    public void StaleFor_ADeploymentThatScansNoAccount_SelectsNothingWithoutARowLimit()
+    {
+        // Arrange
+        using var context = DesignTimeQueryContext.Create();
+
+        // Act
+        var sql = StoredEmailExtractionBackfillStore
+            .StaleFor(context.StoredEmails.AsNoTracking(), [], unserved: null)
+            .ToQueryString();
+
+        // Assert
+        Assert.DoesNotContain("LIMIT", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>The rebuilding walk's own selection answers the same empty set the same way.</summary>
+    [Fact]
+    public void StaleOrReadUnderAnOlderPostureFor_ADeploymentThatScansNoAccount_SelectsNothingWithoutARowLimit()
+    {
+        // Arrange
+        using var context = DesignTimeQueryContext.Create();
+
+        // Act
+        var sql = StoredEmailExtractionBackfillStore
+            .StaleOrReadUnderAnOlderPostureFor(context.StoredEmails.AsNoTracking(), [], unserved: null)
+            .ToQueryString();
+
+        // Assert
+        Assert.DoesNotContain("LIMIT", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>The readings an attachment walk counts are composed the same way, over the readings rather than the messages.</summary>
+    [Fact]
+    public void StaleReadingsFor_ADeploymentThatScansNoAccount_SelectsNothingWithoutARowLimit()
+    {
+        // Arrange
+        using var context = DesignTimeQueryContext.Create();
+
+        // Act
+        var sql = StoredEmailExtractionBackfillStore
+            .StaleReadingsFor(context.StoredEmails.AsNoTracking(), [], unserved: null)
+            .ToQueryString();
+
+        // Assert
+        Assert.DoesNotContain("LIMIT", sql, StringComparison.Ordinal);
     }
 
     /// <summary>

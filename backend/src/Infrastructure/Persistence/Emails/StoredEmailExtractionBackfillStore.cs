@@ -322,7 +322,10 @@ internal sealed class StoredEmailExtractionBackfillStore(
     /// <summary>Unions one branch per stamp in force, so every row is judged against the stamp of the account holding it.</summary>
     /// <param name="postures">What each account whose own record asks for more than the deployment has its mail derived under.</param>
     /// <param name="unserved">What the mail of every account <paramref name="postures" /> does not name is judged against, or nothing.</param>
-    /// <param name="nothing">The empty set to answer with where no posture carries a stamp at all.</param>
+    /// <param name="nothing">
+    /// The empty set to answer with where no posture carries a stamp at all, written as a predicate no row satisfies:
+    /// a limit of zero rows is one nothing orders, which EF Core logs as nondeterministic.
+    /// </param>
     /// <param name="ofAccounts">Builds the branch of the accounts deriving under one stamp, from their identifiers and that stamp.</param>
     /// <param name="ofEverythingElse">Builds the branch for every account <paramref name="postures" /> does not name, from the accounts it names and the deployment's stamp.</param>
     /// <returns>The branches concatenated, which stay disjoint because each names a different set of accounts.</returns>
@@ -387,7 +390,7 @@ internal sealed class StoredEmailExtractionBackfillStore(
         SensitiveContentDerivationStamp? unserved) => AcrossPostures(
         postures,
         unserved,
-        derived.Take(0),
+        derived.Where(static _ => false),
         (accounts, stamp) => derived.Where(email =>
             accounts.Contains(email.MailboxAccountId) && email.SearchDocument!.SensitiveContentStamp != stamp),
         (served, stamp) => derived.Where(email =>
@@ -409,7 +412,7 @@ internal sealed class StoredEmailExtractionBackfillStore(
         SensitiveContentDerivationStamp? unserved) => AcrossPostures(
         postures,
         unserved,
-        derived.Take(0),
+        derived.Where(static _ => false),
         (accounts, stamp) => derived.Where(email =>
             accounts.Contains(email.MailboxAccountId)
             && (email.SearchDocument!.SensitiveContentStamp != stamp
@@ -431,7 +434,7 @@ internal sealed class StoredEmailExtractionBackfillStore(
         SensitiveContentDerivationStamp? unserved) => AcrossPostures(
         postures,
         unserved,
-        derived.SelectMany(email => email.AttachmentTexts).Take(0),
+        derived.SelectMany(email => email.AttachmentTexts).Where(static _ => false),
         (accounts, stamp) => derived
             .Where(email => accounts.Contains(email.MailboxAccountId))
             .SelectMany(email => email.AttachmentTexts)
