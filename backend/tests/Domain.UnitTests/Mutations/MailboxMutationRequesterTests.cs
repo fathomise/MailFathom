@@ -25,6 +25,23 @@ public sealed class MailboxMutationRequesterTests
         Assert.Equal(MailboxMutationRequester.Rule("file-newsletters", "3"), third);
     }
 
+    /// <summary>A run repeated on the same night asks nothing new, and a later night is a new request, which is what lets a returned message be retired again.</summary>
+    [Fact]
+    public void Retention_TwoNights_AreDifferentRequestersOfOneOrigin()
+    {
+        // Arrange
+        var first = MailboxMutationRequester.Retention(new DateOnly(2026, 11, 10));
+
+        // Act
+        var second = MailboxMutationRequester.Retention(new DateOnly(2026, 11, 11));
+
+        // Assert
+        Assert.Equal(MailboxMutationOrigin.Retention, first.Origin);
+        Assert.Equal("retention@2026-11-10", first.Identity);
+        Assert.NotEqual(first, second);
+        Assert.Equal(MailboxMutationRequester.Retention(new DateOnly(2026, 11, 10)), first);
+    }
+
     /// <summary>The same verdict reached again asks for nothing new, under the identity the records already written carry.</summary>
     [Fact]
     public void Classification_TheDeterministicStage_IsNamedByTheIdentityEarlierRecordsCarry()

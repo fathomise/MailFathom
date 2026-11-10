@@ -303,9 +303,9 @@ public sealed class LocalMailboxChanges
     /// <remarks>
     /// <para>
     /// A flag or a move is written with its audit entry and no record, because a transaction either happened or it did
-    /// not. A person's delete is a record of a local erasure held for their window, which the converger runs whatever
-    /// the account's phase, and which leaves a tombstone instead where the account's disposition asks for one. A rule or
-    /// a verdict never erases a message an archive kept.
+    /// not. A person's delete is a record of a local erasure held for their window, and retention's one that waits for
+    /// no window; the converger runs either whatever the account's phase, and leaves a tombstone instead where the
+    /// account's disposition asks for one. A rule or a verdict never erases a message an archive kept.
     /// </para>
     /// <para>
     /// A copy is refused: its second message would hold no occurrence at all, and an act addressed by occurrence could
@@ -343,7 +343,7 @@ public sealed class LocalMailboxChanges
 
         if (mutation == MailboxMutation.Delete)
         {
-            if (request.Requester.Origin != MailboxMutationOrigin.Command)
+            if (!MayEraseLocalCopy(request))
             {
                 return SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.AlreadyInDestination);
             }
@@ -393,6 +393,9 @@ public sealed class LocalMailboxChanges
             ? tree.Folders.FirstOrDefault(folder => folder.Role == role)
             : tree.Folders.FirstOrDefault(folder =>
                 folder.SourceFolderAlias == destination.Alias && !tree.IsInTrash(folder.Id));
+
+    private static bool MayEraseLocalCopy(MailboxMutationRequest request) =>
+        request.Requester.Origin is MailboxMutationOrigin.Command or MailboxMutationOrigin.Retention;
 
     private static bool IsFlagChange(MailboxMutation mutation) =>
         mutation == MailboxMutation.SetSeen
@@ -601,11 +604,13 @@ public sealed class LocalMailboxChanges
     {
         var request = change.Request;
 
-        if (state.Folder is { } current && tree.IsInTrash(current))
+        // Retention erases from wherever the message is, because filing it in the trash would keep the copy it asked to be rid of.
+        if (request.Requester.Origin is MailboxMutationOrigin.Retention
+            || (state.Folder is { } current && tree.IsInTrash(current)))
         {
-            // Erasure is the one irreversible act, so it is only ever a person's second delete, held for their
-            // window; a rule or a verdict meeting its own earlier delete again finds nothing left to do.
-            if (request.Requester.Origin != MailboxMutationOrigin.Command)
+            // Erasure is the one irreversible act, so besides retention it is only ever a person's second delete, held
+            // for their window; a rule or a verdict meeting its own earlier delete again finds nothing left to do.
+            if (!MayEraseLocalCopy(request))
             {
                 return SubmittedMailboxChange.NotSubmitted(MailboxChangeSubmissionOutcome.AlreadyInDestination);
             }

@@ -294,9 +294,9 @@ folder's checkpoint stays where the last run left it, so switching the folder ba
 what arrived while it was off and reconciles the retained mail rather than mirroring the folder again. What is kept is
 inert — neither the person in the client nor any AI function lists, searches, reads, or answers from it, nothing of it
 is embedded, and no rule evaluates it — so
-the only thing an operator gives up by leaving the switch off is the storage it occupies. No configuration value erases
-stored mail: taking a folder's local copy away is an act somebody performs, never something a switch performs on their
-behalf. The mapping stays too, so the alias goes on resolving, any role the mapping names goes on being answered, and
+the only thing an operator gives up by leaving the switch off is the storage it occupies. Switching a folder off erases
+nothing: taking a folder's local copy away is an act somebody performs, and the one configuration value that erases
+stored mail is [`Retention:Messages`](#how-long-an-account-keeps-its-mail--retention), which covers such a folder too. The mapping stays too, so the alias goes on resolving, any role the mapping names goes on being answered, and
 the folder stays a destination a rule may file mail into — resolved the first time a change names it, since no run
 schedules it.
 [What a mapping decides beyond where the folder is](../features/imap-synchronization.md#what-a-mapping-decides-beyond-where-the-folder-is)
@@ -492,8 +492,31 @@ stays on the source unflagged, and an account that should have it removed there 
 
 `Retention` states an age for the mail a person sees, `Messages`, and another for the rows kept as tombstones,
 `Tombstones`. Both are off, so an account stating nothing removes nothing under them, and they read the same whatever the
-account's custody phase. **`Tombstones` acts on the account's mail; nothing acts on `Messages` yet, so turning that half on removes
-nothing.** Both are validated and resolved through a settings policy.
+account's custody phase. Both are validated and resolved through a settings policy. **A policy forcing `Messages` should force
+`AuthoredDeleteServerDisposition` beside it:** forcing only the switch leaves each person deciding whether retention
+reaches the mail server, which nothing refuses.
+
+With `Messages` on, [the nightly retention run](configuration-runtime.md#the-nightly-retention-walk) retires each visible
+message whose `COALESCE(ReceivedAt, StoredAt)` is older than `After`, in every folder the account does not exclude. A
+message with no received date is aged by when it was stored, although the list sorts it last. **This erases stored mail**, and on a `Held` account it erases the only copy. It is recorded
+as a delete of the account's own, named as retention in the audit trail, so the server's outcome follows
+`AuthoredDeleteServerDisposition` and the local copy follows `AuthoredDeleteEmailDisposition`, each resolved when the delete
+is recorded; the default leaves the mail server untouched. Everything derived goes with the row through the same
+cascades: raw MIME, extracted and attachment text, the search document, chunks and embeddings, enrichment, spam
+classification and its signals. Under `RetainTombstone` the row stays hidden until `Tombstones` erases it. A task, a
+calendar event, and an audit entry cite a message by value and outlive it. The conversation stays while any of its
+messages is stored, held back and derived again.
+
+A message a standing draft or an unfinished send still owns stays until that record has finished, and one with any
+other change outstanding waits for it. A folder no run schedules, `Synchronize: false` included, is covered, but its
+server copy stays whatever the disposition says: no backward pass runs there to dispose of the row after the server
+removed its message, so the local copy goes and its position is kept, as `mfctl folder erase` leaves it. A message that
+comes back at the same occurrence, a flag removed on the server for one, is retired again on a later night, while a delete
+the server has refused for good is not asked for again. A message on a held account the drain has already taken off the
+source has no occurrence for the trail to name, so it is erased without an audit entry and counted beside the others.
+The pass writes nothing while a replica of an older build holds a work lease, so it starts on the first night after a
+rolling upgrade ends, and it passes over an account being restored. An open client is told once the batch that
+retires the message commits, before anything changes on the server.
 
 With `Tombstones` on, [the nightly retention run](configuration-runtime.md#the-nightly-retention-walk) erases each row
 that has been a tombstone for longer than `After`, with its raw MIME and everything derived from it, as `EraseLocalCopy`

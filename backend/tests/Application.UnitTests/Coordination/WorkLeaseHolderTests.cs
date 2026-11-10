@@ -129,6 +129,32 @@ public sealed class WorkLeaseHolderTests
         Assert.Equal("0.9.0", holder.Build);
     }
 
+    /// <summary>A hold this build takes says it can read a record retention asked for, and still names its build and the overlay.</summary>
+    [Fact]
+    public void KnowsRetentionRequester_AHoldTakenByThisBuild_SaysItKnowsAndKeepsTheOtherReadings()
+    {
+        // Act
+        var holder = WorkLeaseHolder.ForBuild("0.9.0");
+
+        // Assert
+        Assert.True(holder.KnowsRetentionRequester);
+        Assert.True(holder.KnowsMailboxOverlay);
+        Assert.Equal("0.9.0", holder.Build);
+    }
+
+    /// <summary>A build that knew the overlay and predates retention, and one that stamps nothing, both read as not knowing it.</summary>
+    [Theory]
+    [InlineData("0.8.0/overlay/0199c1a2-0000-7000-8000-0000000000a1")]
+    [InlineData("0199c1a2-0000-7000-8000-0000000000a1")]
+    public void KnowsRetentionRequester_AHoldTakenByAnOlderBuild_SaysItDoesNot(string value)
+    {
+        // Act
+        var holder = WorkLeaseHolder.Create(value);
+
+        // Assert
+        Assert.False(holder.KnowsRetentionRequester);
+    }
+
     /// <summary>A build that stamped itself before the overlay existed, and one that stamps nothing, both read as not knowing it.</summary>
     [Theory]
     [InlineData("0.8.0/0199c1a2-0000-7000-8000-0000000000a1")]

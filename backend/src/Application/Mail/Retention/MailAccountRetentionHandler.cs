@@ -26,9 +26,13 @@ namespace MailFathom.Application.Mail.Retention;
 /// same two phases, under what the account states now — whatever its retention says, since no migration can read that.
 /// </para>
 /// <para>
+/// The message step follows the tombstones and retires what an account asked to be rid of; it runs in
+/// <see cref="MailMessageRetirement" />, and only it can reach a mail server, through the delete every other act records.
+/// </para>
+/// <para>
 /// The conversation step runs for every account whatever its retention says, because the emptied conversations it
 /// removes are left behind by every kind of erasure. It writes the database and reaches no mail server, so it is the
-/// same in every custody phase.
+/// same in every custody phase, and it runs last so a conversation the steps before it emptied goes the same night.
 /// </para>
 /// <para>
 /// Each batch is a transaction of its own, so row locks are held for moments rather than for the whole run, and what the
@@ -57,6 +61,7 @@ public sealed class MailAccountRetentionHandler : IJobHandler
     private readonly IMailAccountCustodyStore custody;
     private readonly IStoredTombstoneEraser tombstones;
     private readonly IAuthoredDeleteEmailDispositionReader deleteDispositions;
+    private readonly MailMessageRetirement messageRetirement;
     private readonly IMailRetentionTelemetry telemetry;
     private readonly TimeProvider timeProvider;
 
@@ -68,6 +73,7 @@ public sealed class MailAccountRetentionHandler : IJobHandler
     /// <param name="custody">Reads which copy of the account's mailbox is the truth.</param>
     /// <param name="tombstones">Erases the tombstones past that age.</param>
     /// <param name="deleteDispositions">Reads what the account now states becomes of a message it deleted.</param>
+    /// <param name="messageRetirement">Retires the visible mail past the age the account keeps.</param>
     /// <param name="telemetry">Publishes what the run did.</param>
     /// <param name="timeProvider">Measures the run and a tombstone's age.</param>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null" />.</exception>
@@ -79,6 +85,7 @@ public sealed class MailAccountRetentionHandler : IJobHandler
         IMailAccountCustodyStore custody,
         IStoredTombstoneEraser tombstones,
         IAuthoredDeleteEmailDispositionReader deleteDispositions,
+        MailMessageRetirement messageRetirement,
         IMailRetentionTelemetry telemetry,
         TimeProvider timeProvider)
     {
@@ -89,6 +96,7 @@ public sealed class MailAccountRetentionHandler : IJobHandler
         ArgumentNullException.ThrowIfNull(custody);
         ArgumentNullException.ThrowIfNull(tombstones);
         ArgumentNullException.ThrowIfNull(deleteDispositions);
+        ArgumentNullException.ThrowIfNull(messageRetirement);
         ArgumentNullException.ThrowIfNull(telemetry);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
@@ -99,6 +107,7 @@ public sealed class MailAccountRetentionHandler : IJobHandler
         this.custody = custody;
         this.tombstones = tombstones;
         this.deleteDispositions = deleteDispositions;
+        this.messageRetirement = messageRetirement;
         this.telemetry = telemetry;
         this.timeProvider = timeProvider;
     }
@@ -125,13 +134,14 @@ public sealed class MailAccountRetentionHandler : IJobHandler
         var startedAt = this.timeProvider.GetTimestamp();
         var erased = await this.EraseAgedTombstonesAsync(run.Account, cancellationToken)
             + await this.SettleKeptAfterAuthoredDeleteAsync(run.Account, cancellationToken);
+        var retired = await this.messageRetirement.RetireAsync(run.Account, cancellationToken);
         var removed = await this.TakeInBatchesAsync(
             (session, limit) => this.threads.RemoveEmptiedAsync(session, run.Account, limit, cancellationToken),
             ConversationsRemovedPerTransaction,
             MaximumConversationsRemovedPerNight,
             cancellationToken);
 
-        this.telemetry.RecordAccountRun(erased, removed, this.timeProvider.GetElapsedTime(startedAt));
+        this.telemetry.RecordAccountRun(erased, retired, removed, this.timeProvider.GetElapsedTime(startedAt));
     }
 
     private async Task<int> EraseAgedTombstonesAsync(MailAccountId account, CancellationToken cancellationToken)

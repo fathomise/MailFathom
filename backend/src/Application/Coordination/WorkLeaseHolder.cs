@@ -40,6 +40,8 @@ public sealed record WorkLeaseHolder
 
     private const string MailboxOverlayMarker = "overlay";
 
+    private const string RetentionRequesterMarker = "retention";
+
     private WorkLeaseHolder(string value) => this.Value = value;
 
     /// <summary>Gets the text a stored lease is compared against.</summary>
@@ -66,6 +68,14 @@ public sealed record WorkLeaseHolder
     /// </remarks>
     public bool KnowsMailboxOverlay => this.Value.Split(BuildSeparator) is [_, .. var markers, _]
         && markers.Contains(MailboxOverlayMarker, StringComparer.Ordinal);
+
+    /// <summary>Gets whether the build that took this hold can read a mutation record retention asked for.</summary>
+    /// <remarks>
+    /// The record's origin is written as text and a build reads back only the values it declares, so an older build would
+    /// fail on the record rather than skip it. Retention therefore asks for nothing while any live lease lacks this.
+    /// </remarks>
+    public bool KnowsRetentionRequester => this.Value.Split(BuildSeparator) is [_, .. var markers, _]
+        && markers.Contains(RetentionRequesterMarker, StringComparer.Ordinal);
 
     /// <summary>Creates a holder for one hold.</summary>
     /// <param name="value">The generated identity of the hold.</param>
@@ -131,7 +141,7 @@ public sealed record WorkLeaseHolder
         }
 
         return new WorkLeaseHolder(
-            $"{trimmedBuild}{BuildSeparator}{MailboxOverlayMarker}{BuildSeparator}{Guid.CreateVersion7()}");
+            $"{trimmedBuild}{BuildSeparator}{MailboxOverlayMarker}{BuildSeparator}{RetentionRequesterMarker}{BuildSeparator}{Guid.CreateVersion7()}");
     }
 
     /// <inheritdoc />

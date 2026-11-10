@@ -133,6 +133,38 @@ public sealed class MailSynchronizationSettingsReadersTests
         Assert.Equal(["Archive"], retention.ExcludedFolders);
     }
 
+    [Fact]
+    public void GetMessageRetention_AnAccountStatingIt_AnswersItsSwitchAgeAndExclusions()
+    {
+        // Arrange
+        var account = AccountAt("work", "user@work.example");
+        account.Retention.Messages.Enabled = true;
+        account.Retention.Messages.After = TimeSpan.FromDays(90);
+        account.Retention.ExcludedFolders = ["Archive"];
+        var readers = OptionsFor(account).Readers;
+
+        // Act
+        var retention = readers.MessageRetention.GetMessageRetention(MailAccountId.Create("work"));
+
+        // Assert
+        Assert.True(retention.IsEnabled);
+        Assert.Equal(TimeSpan.FromDays(90), retention.After);
+        Assert.Equal(["Archive"], retention.ExcludedFolders);
+    }
+
+    [Fact]
+    public void GetMessageRetention_AnAccountNoLongerConfigured_IsDisabled()
+    {
+        // Arrange
+        var readers = OptionsFor(AccountAt("work", "user@work.example")).Readers;
+
+        // Act
+        var retention = readers.MessageRetention.GetMessageRetention(MailAccountId.Create("removed"));
+
+        // Assert
+        Assert.False(retention.IsEnabled);
+    }
+
     /// <summary>A reload can remove an account after the walk handed it out, and no operator decision applies to it then.</summary>
     [Fact]
     public void GetTombstoneRetention_AnAccountNoLongerConfigured_IsDisabled()

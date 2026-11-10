@@ -9,7 +9,8 @@ public interface IMailRetentionTelemetry
 {
     /// <summary>Records one account's run of the retention steps.</summary>
     /// <param name="erasedTombstones">How many tombstones the run erased.</param>
+    /// <param name="retiredMessages">How many visible messages the run retired.</param>
     /// <param name="removedConversations">How many emptied conversations the run removed.</param>
     /// <param name="duration">How long the run took.</param>
-    void RecordAccountRun(int erasedTombstones, int removedConversations, TimeSpan duration);
+    void RecordAccountRun(int erasedTombstones, int retiredMessages, int removedConversations, TimeSpan duration);
 }

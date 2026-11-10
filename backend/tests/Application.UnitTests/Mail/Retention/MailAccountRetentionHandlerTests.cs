@@ -3,13 +3,18 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Accounts.Custody;
+using MailFathom.Application.Coordination;
 using MailFathom.Application.Emails.Threads;
+using MailFathom.Application.Folders;
 using MailFathom.Application.Jobs.Payloads;
 using MailFathom.Application.Mail.Mutations;
+using MailFathom.Application.Mail.Mutations.Local;
 using MailFathom.Application.Mail.Retention;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.UnitTests.TestDoubles;
 using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Folders;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -44,7 +49,7 @@ public sealed class MailAccountRetentionHandlerTests
             MailAccountRetentionHandler.ConversationsRemovedPerTransaction,
             Arg.Any<CancellationToken>());
         await fixture.Session.Received(2).CommitAsync(Arg.Any<CancellationToken>());
-        fixture.Telemetry.Received(1).RecordAccountRun(0, 7, Arg.Any<TimeSpan>());
+        fixture.Telemetry.Received(1).RecordAccountRun(0, 0, 7, Arg.Any<TimeSpan>());
     }
 
     /// <summary>The duration published is the run's own, measured across the removal.</summary>
@@ -66,7 +71,7 @@ public sealed class MailAccountRetentionHandlerTests
         await fixture.Handler.RunAsync(Run, TestContext.Current.CancellationToken);
 
         // Assert
-        fixture.Telemetry.Received(1).RecordAccountRun(0, 0, took);
+        fixture.Telemetry.Received(1).RecordAccountRun(0, 0, 0, took);
     }
 
     /// <summary>Each batch is a transaction of its own, and what the night's bound leaves waits for the next occasion.</summary>
@@ -90,6 +95,7 @@ public sealed class MailAccountRetentionHandlerTests
             .RemoveEmptiedAsync(Arg.Any<IPersistenceSession>(), Account, Arg.Any<int>(), Arg.Any<CancellationToken>());
         fixture.Telemetry.Received(1).RecordAccountRun(
             0,
+            0,
             MailAccountRetentionHandler.MaximumConversationsRemovedPerNight,
             Arg.Any<TimeSpan>());
     }
@@ -111,7 +117,37 @@ public sealed class MailAccountRetentionHandlerTests
         // Assert
         await fixture.Threads.Received(1)
             .RemoveEmptiedAsync(Arg.Any<IPersistenceSession>(), Account, Arg.Any<int>(), Arg.Any<CancellationToken>());
-        fixture.Telemetry.Received(1).RecordAccountRun(0, 0, Arg.Any<TimeSpan>());
+        fixture.Telemetry.Received(1).RecordAccountRun(0, 0, 0, Arg.Any<TimeSpan>());
+    }
+
+    /// <summary>What the message step retired reaches the run's published counts.</summary>
+    [Fact]
+    public async Task RunAsync_AnAccountRetiringMail_PublishesHowManyItRetired()
+    {
+        // Arrange
+        var fixture = new Fixture();
+        var email = StoredEmailId.Create(Guid.CreateVersion7());
+        var resolution = MailFolderResolution.FirstBindingOf(MailFolderAlias.Create("INBOX"), RemoteFolderPath.Create("INBOX"));
+        var occurrence = EmailOccurrenceId.Create(Account, resolution.Id, ImapUidValidity.Create(1), ImapUid.Create(9));
+        fixture.MessageRetention.GetMessageRetention(Account)
+            .Returns(new MailMessageRetention(IsEnabled: true, TimeSpan.FromDays(30), []));
+        fixture.ReturnsCustody(MailAccountCustodyPhase.Mirrored);
+        fixture.AgedMail.ReadAsync(
+                Arg.Any<IPersistenceSession>(),
+                Account,
+                Arg.Any<MailMessageRetention>(),
+                Arg.Any<DateTimeOffset>(),
+                Arg.Any<StoredEmailId?>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<AgedStoredMail>>(
+                [new AgedStoredMail(email, MailFolderId.Create(Guid.CreateVersion7()), resolution.Alias, occurrence)]));
+
+        // Act
+        await fixture.Handler.RunAsync(Run, TestContext.Current.CancellationToken);
+
+        // Assert
+        fixture.Telemetry.Received(1).RecordAccountRun(Arg.Any<int>(), 1, Arg.Any<int>(), Arg.Any<TimeSpan>());
     }
 
     /// <summary>An account withheld after the walk handed it out is left alone on this replica.</summary>
@@ -171,7 +207,7 @@ public sealed class MailAccountRetentionHandlerTests
             isSourceDrained: false,
             MailAccountRetentionHandler.TombstonesErasedPerTransaction,
             Arg.Any<CancellationToken>());
-        fixture.Telemetry.Received(1).RecordAccountRun(3, 0, Arg.Any<TimeSpan>());
+        fixture.Telemetry.Received(1).RecordAccountRun(3, 0, 0, Arg.Any<TimeSpan>());
     }
 
     /// <summary>A held account's source still gives up what MailFathom erases, through the drain and never from this pass.</summary>
@@ -260,6 +296,7 @@ public sealed class MailAccountRetentionHandlerTests
         fixture.Telemetry.Received(1).RecordAccountRun(
             MailAccountRetentionHandler.MaximumTombstonesErasedPerNight,
             0,
+            0,
             Arg.Any<TimeSpan>());
     }
 
@@ -287,6 +324,7 @@ public sealed class MailAccountRetentionHandlerTests
             Arg.Any<CancellationToken>());
         fixture.Telemetry.Received(1).RecordAccountRun(
             MailAccountRetentionHandler.TombstonesErasedPerTransaction,
+            0,
             0,
             Arg.Any<TimeSpan>());
     }
@@ -344,7 +382,7 @@ public sealed class MailAccountRetentionHandlerTests
             Account,
             Arg.Any<int>(),
             Arg.Any<CancellationToken>());
-        fixture.Telemetry.Received(1).RecordAccountRun(0, 0, Arg.Any<TimeSpan>());
+        fixture.Telemetry.Received(1).RecordAccountRun(0, 0, 0, Arg.Any<TimeSpan>());
     }
 
     /// <summary>A failure reaches the job's own retry and log rather than being swallowed, so the next occasion repeats the pass.</summary>
@@ -387,7 +425,7 @@ public sealed class MailAccountRetentionHandlerTests
             isSourceDrained,
             Arg.Any<int>(),
             Arg.Any<CancellationToken>());
-        fixture.Telemetry.Received(1).RecordAccountRun(3, 0, Arg.Any<TimeSpan>());
+        fixture.Telemetry.Received(1).RecordAccountRun(3, 0, 0, Arg.Any<TimeSpan>());
     }
 
     /// <summary>What becomes a tombstone was hidden, not erased, so the run's figure of erased rows does not count it.</summary>
@@ -405,7 +443,7 @@ public sealed class MailAccountRetentionHandlerTests
         await fixture.Handler.RunAsync(Run, TestContext.Current.CancellationToken);
 
         // Assert
-        fixture.Telemetry.Received(1).RecordAccountRun(0, 0, Arg.Any<TimeSpan>());
+        fixture.Telemetry.Received(1).RecordAccountRun(0, 0, 0, Arg.Any<TimeSpan>());
     }
 
     /// <summary>A restore is writing to the source, so what it might still need is left alone until it ends.</summary>
@@ -450,9 +488,23 @@ public sealed class MailAccountRetentionHandlerTests
                 this.Custody,
                 this.Eraser,
                 this.DeleteDispositions,
+                new MailMessageRetirement(
+                    this.MessageRetention,
+                    this.Sessions,
+                    this.Custody,
+                    this.AgedMail,
+                    this.DeleteDispositions,
+                    Substitute.For<IMailFolderMappingReader>(),
+                    MailboxChangeSubmissions.Over(new InMemoryMailboxMutationRecordStore()),
+                    Substitute.For<ILocalEmailStateStore>(),
+                    this.Leases,
+                    this.Clock),
                 this.Telemetry,
                 this.Clock);
             this.RetentionReader.GetTombstoneRetention(Account).Returns(this.Retention);
+            this.MessageRetention.GetMessageRetention(Account).Returns(MailMessageRetention.Disabled);
+            this.Leases.ReadEveryHeldAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult<IReadOnlyList<WorkLease>>([]));
         }
 
         public IMailRetentionAccounts Accounts { get; } = Substitute.For<IMailRetentionAccounts>();
@@ -470,6 +522,12 @@ public sealed class MailAccountRetentionHandlerTests
         public MailAccountRetentionHandler Handler { get; }
 
         public IMailTombstoneRetentionReader RetentionReader { get; } = Substitute.For<IMailTombstoneRetentionReader>();
+
+        public IMailMessageRetentionReader MessageRetention { get; } = Substitute.For<IMailMessageRetentionReader>();
+
+        public IAgedStoredMailReader AgedMail { get; } = Substitute.For<IAgedStoredMailReader>();
+
+        public IWorkLeaseStore Leases { get; } = Substitute.For<IWorkLeaseStore>();
 
         public IMailAccountCustodyStore Custody { get; } = Substitute.For<IMailAccountCustodyStore>();
 

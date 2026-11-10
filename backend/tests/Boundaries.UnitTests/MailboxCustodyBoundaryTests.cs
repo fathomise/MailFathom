@@ -33,7 +33,7 @@ public sealed class MailboxCustodyBoundaryTests
         + @"|Application\.Accounts\.Custody\.(MailboxCustodianResolver|IMailAccountCustodyStore|MailAccountCustodySwitch)"
         + @"|Application\.Synchronization\."
         + @"|Application\.Mail\.Mutations\.Convergence\."
-        + @"|Application\.Mail\.Retention\.MailAccountRetentionHandler"
+        + @"|Application\.Mail\.Retention\.(MailAccountRetentionHandler|MailMessageRetirement)"
         + @"|Infrastructure\.Persistence\.(Accounts|Folders|Synchronization|Entities|Migrations)\."
         + @"|Host\.Api\.MailAccountCustodyEndpoints"
         + @")";

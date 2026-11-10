@@ -325,6 +325,28 @@ public sealed class MailboxChangeSubmissionTests
         Assert.Equal(0, this.records.OpenedRecordCount);
     }
 
+    /// <summary>Retention asks to be rid of the only copy, so it opens the erasure from wherever the message is rather than filing it in the trash.</summary>
+    [Fact]
+    public async Task SubmitAsync_ARetentionDeleteOnAHeldAccountOutsideTheTrash_OpensAnErasure()
+    {
+        // Arrange
+        this.Store();
+        var retentionDelete = MailboxMutationRequest.Delete(
+            Email,
+            Occurrence,
+            MailboxMutationRequester.Retention(new DateOnly(2026, 11, 10)),
+            AuthoredDeleteEmailDisposition.EraseLocalCopy,
+            AuthoredDeleteServerDisposition.Expunge);
+
+        // Act
+        var submitted = await this.Submission().SubmitAsync(this.session, retentionDelete, null, null, Token);
+
+        // Assert
+        Assert.Equal(MailboxChangeSubmissionOutcome.Recorded, submitted.Outcome);
+        Assert.Equal(MailboxMutationLocalChange.Erasure, submitted.Record!.LocalChange);
+        Assert.NotEqual(this.FolderWithRole(MailFolderSpecialUse.Trash), this.states.States[Email].Folder);
+    }
+
     /// <summary>A delete inside the trash is an erasure, and its record is what holds it for the window the withdrawal routes act on.</summary>
     [Fact]
     public async Task SubmitAsync_ADeleteOfAHeldMessageAlreadyInTheTrash_OpensAnErasureHeldForTheWindow()
