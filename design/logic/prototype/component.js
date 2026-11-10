@@ -2162,7 +2162,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       /* Nothing that reads mail for the person reads spam, so a spam message offers neither AI act. Its verdict joins
          the header's detail, since a folded row draws no badge and a finger has no hover to ask with. */
       const sp = this.spamOf(id);
-      const ai = !sp.spam;
+      /* Nothing a model could read: spam, and a message that arrived encrypted that no key opened. */
+      const ai = !sp.spam && !(th.encrypted && th.encrypted !== "opened");
       /* A Sent row's receipt mark is reached from the keyboard here, as the sender mark is on a received row. */
       const rcptAny = /·Sent$/.test(this.state.folderKey || "") && receiptOf(id);
       const rcpt = rcptAny && rcptAny.k !== "waiting" ? rcptAny : null;
@@ -4862,6 +4863,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const remoteRefs = m.remoteRefs != null ? m.remoteRefs
           : m.mine || thread.report || thread.encrypted ? 0 : (((m.from || "") + (m.when || "")).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 3 === 0 ? 0 : 3 + (((m.from || "").length * 7 + (m.when || "").length) % 16));
         const remoteOn = !!(st.remoteLoaded || {})[k];
+        const unreadEnc = !!thread.encrypted && thread.encrypted !== "opened";
         const folding = st.histFolding === thread.id;
         /* The original is what went out, footer and quoted conversation included, so nothing in it is folded. */
         const original = Object.assign({}, m, { paras: m.paras
@@ -4973,11 +4975,12 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             (touch ? "width:44px;height:44px;font-size:20px;border:1px solid var(--line);" : "width:28px;height:28px;font-size:18px;"),
           /* Spam never renders its original, even with the HTML view chosen: it keeps the simple view and the
              button that refuses. */
-          showHtmlBtn: !htmlViewMode || threadSpam.spam,
-          simpleView: !htmlViewMode || threadSpam.spam,
-          htmlView: htmlViewMode && !threadSpam.spam,
+          /* An encrypted message nothing opened has no original to show, so it keeps the simple view, as spam does. */
+          showHtmlBtn: (!htmlViewMode || threadSpam.spam) && !unreadEnc,
+          simpleView: !htmlViewMode || threadSpam.spam || unreadEnc,
+          htmlView: htmlViewMode && !threadSpam.spam && !unreadEnc,
           htmlFrameId: "fit:" + thread.id + ":" + i,
-          htmlEmbedSrc: htmlViewMode && !threadSpam.spam ? embedHtml(m.html || htmlFallback(original, thread.subject), "fit:" + thread.id + ":" + i, theme === "dark") : "",
+          htmlEmbedSrc: htmlViewMode && !threadSpam.spam && !unreadEnc ? embedHtml(m.html || htmlFallback(original, thread.subject), "fit:" + thread.id + ":" + i, theme === "dark") : "",
           htmlFrameRef: this.htmlFrameRef,
           htmlRich: !!m.html,
           htmlTitle: m.html ? "Show the original message (rich content)" : "Show the original message",
