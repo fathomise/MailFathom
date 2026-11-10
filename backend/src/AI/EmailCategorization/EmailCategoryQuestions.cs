@@ -23,7 +23,7 @@ namespace MailFathom.AI.EmailCategorization;
 /// </para>
 /// <para>
 /// A decision request has no instruction beside its questions, so every question says the message is data. The yes-or-no
-/// questions say it briefly, because a request carries up to twenty of them and each sentence is paid for on every
+/// questions say it briefly, because a request carries up to fifteen of them and each sentence is paid for on every
 /// message.
 /// </para>
 /// </remarks>

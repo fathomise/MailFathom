@@ -1229,7 +1229,7 @@ reads like this:
 and the trashed ones included, whatever the filters let through. `categories` follows the same rule: every category any
 of those messages holds and the account publishes, each once, read for the page in one query rather than one per row and
 in the order and under the rules [a mail list row's](#the-mail-list-route) follows. An account holds seven defaults and
-twenty categories of its own at most, so a row carries no more than that.
+fifteen categories of its own at most, so a row carries no more than that.
 
 **`unreadCount` counts the received messages nobody has read**: a message the user sent is never unread, whichever
 of their accounts sent it. Who the user is comes from the sending identities of the accounts they are assigned, and

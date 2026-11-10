@@ -296,7 +296,7 @@ internal sealed class StoredEmailThreadListReader(MailFathomDbContext dbContext)
 
     /// <summary>Reads every category the messages of each listed conversation hold, each once, by the rule its counts follow.</summary>
     /// <remarks>
-    /// One read for the page, bounded by the page's length times what one account can hold: seven defaults and twenty own
+    /// One read for the page, bounded by the page's length times what one account can hold: seven defaults and fifteen own
     /// categories, because an own category leaving the account's record takes its rows with it.
     /// </remarks>
     internal static IQueryable<StoredThreadCategoryRow> Categories(
