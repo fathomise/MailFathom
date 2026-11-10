@@ -345,7 +345,11 @@ internal sealed class JobStore(
     private async Task<bool> IsQueueFullAsync(string jobTypeName, CancellationToken cancellationToken)
     {
         var waitingCount = await JobQueueDepthQuery
-            .Compose(dbContext.Jobs.AsNoTracking(), jobTypeName, capacity.MaxQueueDepthPerType)
+            .Compose(
+                dbContext.Jobs.AsNoTracking(),
+                dbContext.MailAccountAssignments.AsNoTracking(),
+                jobTypeName,
+                capacity.MaxQueueDepthPerType)
             .CountAsync(cancellationToken);
 
         return waitingCount >= capacity.MaxQueueDepthPerType;

@@ -2296,7 +2296,9 @@ than occasionally, which makes it the second query this table runs at any volume
 counted, because the read stops at the depth it is comparing against instead of totalling the backlog. It reads the
 waiting rows in the claim's own order, `TurnAt` then `Id` — the claim index holds `TurnAt` within a job type, and `Id`
 only breaks a tie between two turns: the count would be the same in any order, and an order is what makes the rows the
-limit keeps the query's choice rather than the plan's. A queue at its
+limit keeps the query's choice rather than the plan's. It counts no job of an account nobody is assigned, which the
+claim passes over, so a backlog an unassigned mailbox left behind does not hold the bound against every other
+mailbox. A queue at its
 depth refuses the enqueue and says so, so the caller slows down, asks again later, or stops producing; a request whose
 work is already queued is still answered with that job rather than turned away. Two enqueuers meeting the bound together
 can both pass it and the depth overshoots by as many as raced, because this is backpressure rather than an invariant.
