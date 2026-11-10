@@ -3,7 +3,6 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Contacts;
-using MailFathom.Application.Jobs;
 using MailFathom.Application.Persistence;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
