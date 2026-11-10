@@ -125,6 +125,10 @@ export function DraftingBlock({
     const wideWorkspace = useWideWorkspace();
     const [written, setWritten] = useState(asked);
     const [tone, setTone] = useState<Tone>('neutral');
+
+    // Whether the acts, the tones, and the context stand under the prompt where the block folds to its prompt line —
+    // under a finger below the tall band, which is the stylesheet's to know. Folding hides and never clears.
+    const [unfolded, setUnfolded] = useState(false);
     const focusLanding = useRef<FocusLanding | null>(null);
 
     // A ref runs on every render, so the landing is what stops a later render taking the keyboard back from wherever the
@@ -178,8 +182,8 @@ export function DraftingBlock({
     }
 
     return (
-        <div className="flex shrink-0 flex-col gap-2.25 border-b border-accent-line bg-accent-soft px-3.75 py-2.75">
-            <div className="flex items-center gap-2.75 rounded-md border-2 border-accent bg-panel px-2.75 py-2 transition focus-within:ring-3 focus-within:ring-accent-soft">
+        <div className="flex shrink-0 flex-col gap-2.25 border-b border-accent-line bg-accent-soft px-3.75 py-2.75 keyboard-near:py-2">
+            <div className="flex items-center gap-2.75 rounded-md border-2 border-accent bg-panel px-2.75 py-2 transition focus-within:ring-3 focus-within:ring-accent-soft keyboard-near:py-0 keyboard-near:pe-0">
                 <span
                     aria-hidden="true"
                     className="shrink-0 rounded-sm bg-accent px-1.75 py-0.75 text-xs font-semibold text-on-accent"
@@ -200,6 +204,11 @@ export function DraftingBlock({
                     className="min-w-0 flex-1 bg-transparent text-md text-text outline-none placeholder:text-faint"
                     onChange={(event) => {
                         setWritten(event.target.value);
+
+                        // What is written is acted on by an act, so writing brings the acts out.
+                        if (event.target.value !== '') {
+                            setUnfolded(true);
+                        }
                     }}
                 />
 
@@ -213,93 +222,115 @@ export function DraftingBlock({
                         <Icon name="priority_high" className="size-icon-sm" />
                     </span>
                 )}
+
+                <SymbolControl
+                    label={translate(unfolded ? 'compose.aiOptionsHide' : 'compose.aiOptionsShow')}
+                    expanded={unfolded}
+                    className="hidden size-11 shrink-0 items-center justify-center rounded-md text-accent-deep transition hover:bg-hover keyboard-near:flex"
+                    onPress={() => {
+                        setUnfolded(!unfolded);
+                    }}
+                >
+                    <Icon name={unfolded ? 'expand_less' : 'expand_more'} className="size-icon-xl" />
+                </SymbolControl>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.75">
-                {draftingActs.map((act) => (
-                    <button
-                        key={act.key}
-                        type="button"
-                        disabled={busy}
-                        className="touch-extended rounded-full border border-accent-line bg-panel px-3 py-1.5 text-sm whitespace-nowrap text-accent-deep transition hover:bg-accent hover:text-on-accent disabled:opacity-60"
-                        onClick={() => {
-                            askFor(act);
-                        }}
-                    >
-                        {translate(act.named)}
-                    </button>
-                ))}
-
-                <span aria-hidden="true" className="mx-0.75 h-5 w-px bg-accent-line" />
-
-                {/* A radio group rather than four more buttons, because one of the three is always in force and a
-                    reader who cannot see which is shaded has no other way to be told. */}
-                <div role="radiogroup" aria-label={translate('compose.aiTone')} className="flex items-center gap-1.75">
-                    {tones.map((one) => (
+            <div
+                className={`flex flex-col gap-2.25 ${unfolded ? 'keyboard-near:animate-unfold-in' : 'keyboard-near:hidden'}`}
+            >
+                <div className="flex flex-wrap items-center gap-1.75">
+                    {draftingActs.map((act) => (
                         <button
-                            key={one.key}
+                            key={act.key}
                             type="button"
-                            role="radio"
-                            aria-checked={tone === one.key}
-                            // The group is one tab stop: the tone in force is what a Tab lands on, and the arrows
-                            // move within it. Three separate stops would make the keyboard disagree with the role.
-                            tabIndex={tone === one.key ? 0 : -1}
-                            className={`touch-extended rounded-full px-2.75 py-1.25 text-sm whitespace-nowrap transition ${
-                                tone === one.key
-                                    ? 'bg-accent text-on-accent'
-                                    : 'border border-line text-text-soft hover:bg-hover'
-                            }`}
+                            disabled={busy}
+                            className="touch-extended rounded-full border border-accent-line bg-panel px-3 py-1.5 text-sm whitespace-nowrap text-accent-deep transition hover:bg-accent hover:text-on-accent disabled:opacity-60"
                             onClick={() => {
-                                setTone(one.key);
+                                askFor(act);
                             }}
-                            onKeyDown={moveTone}
                         >
-                            {translate(one.named)}
+                            {translate(act.named)}
                         </button>
                     ))}
-                </div>
-            </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-sm text-accent-deep">
-                <span className="font-semibold">{translate('compose.aiContext')}</span>
+                    <span aria-hidden="true" className="mx-0.75 h-5 w-px bg-accent-line" />
 
-                {context.map((message, at) => (
-                    <span
-                        key={message.storedEmailId}
-                        className="flex max-w-65 min-w-0 items-center gap-1.5 rounded-sm border border-accent-line bg-panel py-0.5 ps-1.5 pe-0.5 max-workspace:max-w-55 pointer-coarse:min-h-9"
+                    {/* A radio group rather than four more buttons, because one of the three is always in force and a
+                    reader who cannot see which is shaded has no other way to be told. */}
+                    <div
+                        role="radiogroup"
+                        aria-label={translate('compose.aiTone')}
+                        className="flex items-center gap-1.75"
                     >
-                        <Icon name="mail" className="size-icon-sm shrink-0" />
-                        <span className="min-w-0 truncate">{message.subject}</span>
+                        {tones.map((one) => (
+                            <button
+                                key={one.key}
+                                type="button"
+                                role="radio"
+                                aria-checked={tone === one.key}
+                                // The group is one tab stop: the tone in force is what a Tab lands on, and the arrows
+                                // move within it. Three separate stops would make the keyboard disagree with the role.
+                                tabIndex={tone === one.key ? 0 : -1}
+                                className={`touch-extended rounded-full px-2.75 py-1.25 text-sm whitespace-nowrap transition ${
+                                    tone === one.key
+                                        ? 'bg-accent text-on-accent'
+                                        : 'border border-line text-text-soft hover:bg-hover'
+                                }`}
+                                onClick={() => {
+                                    setTone(one.key);
+                                }}
+                                onKeyDown={moveTone}
+                            >
+                                {translate(one.named)}
+                            </button>
+                        ))}
+                    </div>
+                </div>
 
-                        <SymbolControl
-                            ref={(element) => {
-                                landHere(
-                                    element,
-                                    (landing) =>
-                                        (landing.on === 'chip' && landing.storedEmailId === message.storedEmailId) ||
-                                        (landing.on === 'firstChip' && at === 0),
-                                );
-                            }}
-                            label={translate('compose.aiContextRemove', { subject: message.subject })}
-                            className="flex shrink-0 items-center justify-center rounded-xs text-muted transition hover:bg-hover hover:text-text pointer-coarse:size-8"
-                            onPress={() => {
-                                const neighbour = context[at + 1] ?? context[at - 1];
+                <div className="flex flex-wrap items-center gap-2 text-sm text-accent-deep">
+                    <span className="font-semibold">{translate('compose.aiContext')}</span>
 
-                                focusLanding.current =
-                                    neighbour === undefined
-                                        ? { on: 'field' }
-                                        : { on: 'chip', storedEmailId: neighbour.storedEmailId };
-                                onRemove(message.storedEmailId);
-                            }}
+                    {context.map((message, at) => (
+                        <span
+                            key={message.storedEmailId}
+                            className="flex max-w-65 min-w-0 items-center gap-1.5 rounded-sm border border-accent-line bg-panel py-0.5 ps-1.5 pe-0.5 max-workspace:max-w-55 pointer-coarse:min-h-9"
                         >
-                            <Icon name="close" className="size-icon-xs" />
-                        </SymbolControl>
-                    </span>
-                ))}
+                            <Icon name="mail" className="size-icon-sm shrink-0" />
+                            <span className="min-w-0 truncate">{message.subject}</span>
 
-                {context.length === 0 ? <span className="text-muted">{translate(noContextSaid)}</span> : null}
+                            <SymbolControl
+                                ref={(element) => {
+                                    landHere(
+                                        element,
+                                        (landing) =>
+                                            (landing.on === 'chip' &&
+                                                landing.storedEmailId === message.storedEmailId) ||
+                                            (landing.on === 'firstChip' && at === 0),
+                                    );
+                                }}
+                                label={translate('compose.aiContextRemove', { subject: message.subject })}
+                                className="flex shrink-0 items-center justify-center rounded-xs text-muted transition hover:bg-hover hover:text-text pointer-coarse:size-8"
+                                onPress={() => {
+                                    const neighbour = context[at + 1] ?? context[at - 1];
 
-                {changedFrom === null ? <span className="text-muted">{translate('compose.aiStaysLocal')}</span> : null}
+                                    focusLanding.current =
+                                        neighbour === undefined
+                                            ? { on: 'field' }
+                                            : { on: 'chip', storedEmailId: neighbour.storedEmailId };
+                                    onRemove(message.storedEmailId);
+                                }}
+                            >
+                                <Icon name="close" className="size-icon-xs" />
+                            </SymbolControl>
+                        </span>
+                    ))}
+
+                    {context.length === 0 ? <span className="text-muted">{translate(noContextSaid)}</span> : null}
+
+                    {changedFrom === null ? (
+                        <span className="text-muted">{translate('compose.aiStaysLocal')}</span>
+                    ) : null}
+                </div>
             </div>
 
             {changedFrom === null ? null : (
@@ -320,7 +351,9 @@ export function DraftingBlock({
                         type="button"
                         className="flex items-center gap-1.5 rounded-md px-2 py-1 font-semibold transition hover:bg-warning-soft"
                         onClick={() => {
+                            // The chip the keyboard lands on stands among what the fold hides, so restoring unfolds.
                             focusLanding.current = { on: 'firstChip' };
+                            setUnfolded(true);
                             onRestore();
                         }}
                     >

@@ -943,6 +943,8 @@ export const pl: Catalogue = {
     'compose.aiShorten': 'Skr\u00f3\u0107',
     'compose.aiExpand': 'Rozwi\u0144',
     'compose.aiFixLanguage': 'Popraw j\u0119zyk',
+    'compose.aiOptionsShow': 'Poka\u017c opcje szkicu',
+    'compose.aiOptionsHide': 'Ukryj opcje szkicu',
     'compose.aiTone': 'Ton',
     'compose.aiToneFormal': 'Formalny',
     'compose.aiToneNeutral': 'Neutralny',

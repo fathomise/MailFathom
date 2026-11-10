@@ -929,6 +929,8 @@ export const en = {
     'compose.aiShorten': 'Shorten',
     'compose.aiExpand': 'Expand',
     'compose.aiFixLanguage': 'Fix the language',
+    'compose.aiOptionsShow': 'Show drafting options',
+    'compose.aiOptionsHide': 'Hide drafting options',
     'compose.aiTone': 'Tone',
     'compose.aiToneFormal': 'Formal',
     'compose.aiToneNeutral': 'Neutral',

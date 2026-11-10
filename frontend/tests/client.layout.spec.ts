@@ -243,6 +243,47 @@ interface Enclosed {
 test.describe('driven by a finger', () => {
     test.use({ hasTouch: true });
 
+    // Under a finger below the tall band the composer's head is drawn close, because a keyboard is about to take the
+    // lower part of the window: the AI drafting is its prompt line until its own control unfolds it. Whether the acts
+    // are hidden is the stylesheet's, read from the pointer and the height, so only a browser can say they are.
+    for (const size of [
+        { name: 'phone', window: phoneWindow },
+        { name: 'fold', window: foldWindow },
+    ]) {
+        test(`folds the composer's AI drafting to its prompt on a ${size.name}, and unfolds it from its own control`, async ({
+            page,
+            deployment,
+        }) => {
+            deployment.grant('mailfathom.mail.drafts.write', 'mailfathom.mail.send');
+            await page.setViewportSize(size.window);
+            await openSignedIn(page, '/#/mail');
+            await page.getByRole('button', { name: 'New message', exact: true }).first().click();
+
+            const message = page.getByRole('textbox', { name: 'Message' });
+
+            await expect(message).toBeVisible();
+            await settled(page);
+
+            // Focused so the recipient suggestions the composer opens on stand over nothing that is asked about below.
+            await message.focus();
+
+            const act = page.getByRole('button', { name: 'Write a draft', exact: true });
+            const tone = page.getByRole('radio', { name: 'Formal', exact: true });
+
+            await expect(act).toBeHidden();
+            await expect(tone).toBeHidden();
+
+            await page.getByRole('button', { name: 'Show drafting options', exact: true }).click();
+
+            await expect(act).toBeVisible();
+            await expect(tone).toBeVisible();
+
+            await page.getByRole('button', { name: 'Hide drafting options', exact: true }).click();
+
+            await expect(act).toBeHidden();
+        });
+    }
+
     test('draws every control on the mail screens at a size a fingertip can hit', async ({ page }) => {
         await page.setViewportSize(phoneWindow);
         await openSignedIn(page, '/#/mail');
@@ -315,6 +356,10 @@ test.describe('driven by a finger', () => {
             // drawer at a point outside its box, which is the one place this suite reaches for a position.
             await opener.click();
             await expect(drawer.getByRole('tree', { name: 'Mailboxes and folders' })).toBeVisible();
+
+            // Measured once the drawer has arrived: its box travels while it slides in, and a point taken from a frame
+            // of that lands on the drawer rather than beside it.
+            await settled(page);
 
             const drawn = await drawer.boundingBox();
 
@@ -411,36 +456,62 @@ test.describe('driven by a finger', () => {
         }
     });
 
-    // The viewport meta asks for the on-screen keyboard to shorten the layout rather than cover it, so a phone writing a
-    // message is a phone window little more than half as tall. What the composer owes it is the field being written in
-    // and the send action, both on the screen at once, with nothing it holds above them pushing either off the foot.
-    test('keeps the message being written and its send action on a phone the keyboard has shortened', async ({
+    // The viewport meta has the on-screen keyboard lie over the layout rather than shorten it, so nothing a composition
+    // reads moves when a field takes the keyboard, and the one surface being written in stands on it. No browser this
+    // suite drives raises a keyboard, so the visual viewport is told what one would leave, which is the only thing a
+    // keyboard changes. What the composer owes it is the field being written in and the send action, both above the
+    // keyboard at once, in a window that is as tall as it was.
+    test('stands the composer on the keyboard, with the message being written and its send action above it', async ({
         page,
         deployment,
     }) => {
+        const keyboardTop = 480;
+
         deployment.grant('mailfathom.mail.drafts.write', 'mailfathom.mail.send');
         await page.setViewportSize(phoneWindow);
         await openSignedIn(page, '/#/mail');
+
+        await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
+            'content',
+            /interactive-widget=resizes-visual/u,
+        );
+
         await page.getByRole('button', { name: 'New message', exact: true }).first().click();
 
         const message = page.getByRole('textbox', { name: 'Message' });
 
         await expect(message).toBeVisible();
-        await page.setViewportSize({ width: phoneWindow.width, height: 480 });
 
         // Focused once the composer has arrived, so the field is scrolled into view by what the composer leaves it
-        // rather than by focus landing on a frame of the arrival, which is how this check used to pass on a composer
-        // that left the field under its foot.
+        // rather than by focus landing on a frame of the arrival.
         await settled(page);
         await message.focus();
+
+        await page.evaluate(`(() => {
+            const viewport = window.visualViewport;
+
+            Object.defineProperty(viewport, 'height', { configurable: true, get: () => ${String(keyboardTop)} });
+            viewport.dispatchEvent(new Event('resize'));
+        })()`);
+
         await page.keyboard.type('The racking arrives on the ninth.');
 
+        const send = page.getByRole('button', { name: 'Send', exact: true });
+
+        await expect
+            .poll(async () => {
+                const foot = await boxOf(send);
+
+                return foot.y + foot.height;
+            })
+            .toBeLessThanOrEqual(keyboardTop);
+
         const written = await boxOf(message);
-        const send = await boxOf(page.getByRole('button', { name: 'Send', exact: true }));
+        const foot = await boxOf(send);
 
         expect(written.y).toBeGreaterThanOrEqual(0);
-        expect(written.y + written.height).toBeLessThanOrEqual(send.y);
-        expect(send.y + send.height).toBeLessThanOrEqual(480);
+        expect(written.y + written.height).toBeLessThanOrEqual(foot.y);
+        expect(await page.evaluate('window.innerHeight')).toBe(phoneWindow.height);
     });
 
     // A phone on its side is a window lower than the rail's destinations and its foot together, and it is held to being

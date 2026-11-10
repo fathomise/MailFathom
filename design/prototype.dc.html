@@ -1540,6 +1540,9 @@ Project repository: https://github.com/fathomise/MailFathom
           </div>
         </div>
       </sc-if>
+      <sc-if value="{{ keyboardShown }}" hint-placeholder-val="{{ false }}">
+        <div aria-hidden="true" style="{{ keyboardStyle }}">On-screen keyboard</div>
+      </sc-if>
       <sc-if value="{{ composeOpen }}" hint-placeholder-val="{{ false }}">
         <div data-motion="{{ moCompose }}" data-phase="{{ mo.compose }}" style="{{ composeShellStyle }}">
           <sc-if value="{{ composeChromeShown }}" hint-placeholder-val="{{ true }}">
@@ -1559,7 +1562,7 @@ Project repository: https://github.com/fathomise/MailFathom
               <sc-if value="{{ composeNoServerCopy }}" hint-placeholder-val="{{ false }}">
                 <div role="status" style="{{ composeNoCopyStyle }}"><span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:18px;line-height:1.1">cloud_off</span><span style="flex:1;min-width:0;text-wrap:pretty">Your mail server's copy of this draft may be missing or out of date, so another mail app may not show what you see here. It is kept in MailFathom.</span></div>
               </sc-if>
-              <div style="display:flex;align-items:center;gap:10px;padding:9px 15px;border-bottom:1px solid var(--line2)">
+              <div style="display:flex;align-items:center;gap:10px;box-sizing:border-box;min-height:var(--compose-row-min);padding:var(--compose-row-pad) 15px;border-bottom:1px solid var(--line2)">
                 <span style="font-size:12px;color:var(--muted);width:var(--compose-label)">To</span>
                 <sc-for list="{{ composeToChips }}" as="ct" hint-placeholder-count="1">
                   <span style="{{ ct.chipStyle }}"><sc-if value="{{ ct.reachShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" title="{{ ct.reachTitle }}" style="{{ ct.reachStyle }}">{{ ct.reachGlyph }}</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ ct.reachTitle }}</span></sc-if>{{ ct.name }} <span style="color:var(--faint)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span></span></span>
@@ -1598,7 +1601,7 @@ Project repository: https://github.com/fathomise/MailFathom
                 </sc-for>
               </sc-if>
               <sc-if value="{{ ccOpen }}" hint-placeholder-val="{{ false }}">
-                <div style="display:flex;align-items:center;gap:10px;padding:9px 15px;border-bottom:1px solid var(--line2)">
+                <div style="display:flex;align-items:center;gap:10px;box-sizing:border-box;min-height:var(--compose-row-min);padding:var(--compose-row-pad) 15px;border-bottom:1px solid var(--line2)">
                   <span style="font-size:12px;color:var(--muted);width:var(--compose-label)">Cc</span>
                   <sc-for list="{{ composeCcChips }}" as="cc" hint-placeholder-count="0">
                     <span style="{{ cc.chipStyle }}"><sc-if value="{{ cc.reachShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" title="{{ cc.reachTitle }}" style="{{ cc.reachStyle }}">{{ cc.reachGlyph }}</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ cc.reachTitle }}</span></sc-if>{{ cc.name }} <span onClick="{{ cc.remove }}" style="color:var(--faint)" style-hover="cursor:pointer;color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span></span></span>
@@ -1609,14 +1612,14 @@ Project repository: https://github.com/fathomise/MailFathom
                   <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--warn-text);width:var(--compose-label);box-sizing:border-box;padding-left:1px">visibility</span>
                   <span style="flex:1;min-width:0;font-size:12px;line-height:1.45;color:var(--text2);text-wrap:pretty">Every recipient can see CC addresses. To hide recipients from each other, use BCC.</span>
                 </div>
-                <div style="display:flex;align-items:center;gap:10px;padding:9px 15px;border-bottom:1px solid var(--line2)">
+                <div style="display:flex;align-items:center;gap:10px;box-sizing:border-box;min-height:var(--compose-row-min);padding:var(--compose-row-pad) 15px;border-bottom:1px solid var(--line2)">
                   <span style="font-size:12px;color:var(--muted);width:var(--compose-label)">Bcc</span>
                   <sc-for list="{{ composeBccChips }}" as="bc" hint-placeholder-count="0">
                     <span style="{{ bc.chipStyle }}"><sc-if value="{{ bc.reachShown }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" title="{{ bc.reachTitle }}" style="{{ bc.reachStyle }}">{{ bc.reachGlyph }}</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">{{ bc.reachTitle }}</span></sc-if>{{ bc.name }} <span onClick="{{ bc.remove }}" style="color:var(--faint)" style-hover="cursor:pointer;color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span></span></span>
                   </sc-for>
                   <input value="{{ bccValue }}" onChange="{{ onBccInput }}" onKeyDown="{{ onBccKey }}" placeholder="hidden from the others…" style="flex:1;min-width:80px;font-family:inherit;font-size:13px;color:var(--text);background:transparent;border:none;outline:none;padding:0" />
                 </div>
-                <div style="display:flex;align-items:center;gap:10px;padding:9px 15px;border-bottom:1px solid var(--line2)">
+                <div style="display:flex;align-items:center;gap:10px;box-sizing:border-box;min-height:var(--compose-row-min);padding:var(--compose-row-pad) 15px;border-bottom:1px solid var(--line2)">
                   <span style="font-size:12px;color:var(--muted);width:var(--compose-label);white-space:nowrap">Reply-to</span>
                   <sc-for list="{{ composeReplyToChips }}" as="rt" hint-placeholder-count="0">
                     <span style="display:flex;align-items:center;gap:7px;font-size:13px;background:var(--rail);border:1px solid var(--line);border-radius:12px;padding:3px 10px">{{ rt.name }} <span onClick="{{ rt.remove }}" style="color:var(--faint)" style-hover="cursor:pointer;color:var(--text)"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1">close</span></span></span>
@@ -1624,26 +1627,31 @@ Project repository: https://github.com/fathomise/MailFathom
                   <input value="{{ replyToValue }}" onChange="{{ onReplyToInput }}" onKeyDown="{{ onReplyToKey }}" placeholder="{{ replyToPlaceholder }}" style="flex:1;min-width:80px;font-family:inherit;font-size:13px;color:var(--text);background:transparent;border:none;outline:none;padding:0" />
                 </div>
               </sc-if>
-              <div style="display:flex;align-items:center;gap:10px;padding:9px 15px;border-bottom:1px solid var(--line)">
+              <div style="display:flex;align-items:center;gap:10px;box-sizing:border-box;min-height:var(--compose-row-min);padding:var(--compose-row-pad) 15px;border-bottom:1px solid var(--line)">
                 <span style="font-size:12px;color:var(--muted);width:var(--compose-label)">Subject</span>
                 <input value="{{ composeSubjValue }}" onChange="{{ onComposeSubj }}" placeholder="Subject" style="flex:1;min-width:0;font-family:inherit;font-size:14px;color:var(--text);background:transparent;border:none;outline:none;padding:0" />
               </div>
               <sc-if value="{{ composeHasAtts }}" hint-placeholder-val="{{ false }}">
-                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 15px;border-bottom:1px solid var(--line)">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-sizing:border-box;min-height:var(--compose-row-min);padding:9px 15px;border-bottom:1px solid var(--line)">
                   <span style="font-size:12px;color:var(--muted);width:var(--compose-label)">Files</span>
                   <sc-for list="{{ composeDraftAtts }}" as="da" hint-placeholder-count="1">
                     <span style="{{ composeAttChipStyle }}"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:var(--muted)">description</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ da.name }}</span><span style="flex:0 0 auto;font-size:12px;color:var(--muted)">{{ da.meta }}</span></span>
                   </sc-for>
                 </div>
               </sc-if>
-              <div style="display:flex;flex-direction:column;gap:9px;background:var(--accent-soft);border-bottom:1px solid var(--accent-line);padding:11px 15px">
-                <div style="display:flex;align-items:center;gap:11px;background:var(--panel);border:2px solid var(--accent);border-radius:8px;padding:8px 11px">
+              <div style="{{ composeAiBlockStyle }}">
+                <div style="{{ composeAiPromptStyle }}">
                   <span style="font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--onaccent);background:var(--accent);border-radius:4px;padding:3px 7px;font-weight:600">AI</span>
                   <textarea rows="1" value="{{ composeAiText }}" onChange="{{ onComposeAiText }}" placeholder="{{ composeAiPlaceholder }}" aria-label="What the draft should say" style="{{ growingFieldStyle }}font-size:14px"></textarea>
                   <sc-if value="{{ composeCtxChanged }}" hint-placeholder-val="{{ false }}">
                     <span data-motion="pop" role="img" aria-label="The context changed since you started" title="The context changed since you started" style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--warn-soft);color:var(--warn-text);box-shadow:inset 0 0 0 1px var(--warn);font-family:'Material Symbols Rounded';font-variation-settings:'wght' 600;font-size:15px;line-height:1">priority_high</span>
                   </sc-if>
+                  <sc-if value="{{ composeAiFolds }}" hint-placeholder-val="{{ false }}">
+                    <span role="button" tabIndex="0" onClick="{{ toggleComposeAi }}" title="{{ composeAiFoldTitle }}" aria-label="{{ composeAiFoldTitle }}" aria-expanded="{{ composeAiOpen }}" style="{{ composeAiFoldStyle }}" style-hover="cursor:pointer;background:var(--hover)">{{ composeAiFoldGlyph }}</span>
+                  </sc-if>
                 </div>
+                <sc-if value="{{ composeAiOpen }}" hint-placeholder-val="{{ true }}">
+                <div data-motion="disclose" style="display:flex;flex-direction:column;gap:9px">
                 <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
                   <sc-for list="{{ aiActions }}" as="aa" hint-placeholder-count="4">
                     <div onClick="{{ aa.run }}" style="{{ aa.style }}" style-hover="cursor:pointer;background:var(--accent);color:var(--onaccent);border-color:var(--accent)">{{ aa.label }}</div>
@@ -1665,6 +1673,8 @@ Project repository: https://github.com/fathomise/MailFathom
                     <span style="color:var(--muted)">the draft stays local until you send it</span>
                   </sc-if>
                 </div>
+                </div>
+                </sc-if>
                 <sc-if value="{{ composeCtxChanged }}" hint-placeholder-val="{{ false }}">
                   <div data-motion="disclose" role="status" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;line-height:1.45;color:var(--warn-text)">
                     <span style="flex:1;min-width:0;text-wrap:pretty">This message started from “{{ composeCtxBaseLabel }}” - the context has changed since. Check it before the AI drafts.</span>
@@ -4173,7 +4183,7 @@ Project repository: https://github.com/fathomise/MailFathom
     <div data-motion="pop" data-phase="{{ mo.agentReturn }}" role="button" tabIndex="0" aria-label="Back to the agent conversation you came from" onClick="{{ backToConv }}" onKeyDown="{{ backToConvKey }}" style="{{ convReturnStyle }}" style-hover="cursor:pointer;opacity:0.92" style-focus="outline:2px solid var(--accent);outline-offset:3px"><span style="{{ convReturnIconStyle }}">arrow_back</span>{{ convReturnLabel }}</div>
   </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;inOrganization&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;signEverything&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;raise&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;send&quot;,&quot;change&quot;,&quot;changePermanent&quot;,&quot;changeBoth&quot;,&quot;draft&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;connection&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;connecting&quot;,&quot;online&quot;,&quot;delayed&quot;,&quot;delayedMailServer&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;freshness&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;current&quot;,&quot;waiting&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;inOrganization&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;signEverything&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;raise&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;send&quot;,&quot;change&quot;,&quot;changePermanent&quot;,&quot;changeBoth&quot;,&quot;draft&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;connection&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;connecting&quot;,&quot;online&quot;,&quot;delayed&quot;,&quot;delayedMailServer&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;keyboard&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:0,&quot;min&quot;:0,&quot;max&quot;:420,&quot;step&quot;:10,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;freshness&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;current&quot;,&quot;waiting&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
 const Component = MailFathomDesign.artboards.prototype(DCLogic, React);
 </script>
 </body>
