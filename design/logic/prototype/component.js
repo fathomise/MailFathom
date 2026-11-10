@@ -1282,7 +1282,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     startReply = (mode, ids) => {
       const id = this.opTargets(ids)[0];
       if (this.refuseSpam(id, mode === "fwd" ? "Spam cannot be forwarded." : "Spam cannot be answered.")) return;
-      const patch = { compose: true, composeDraft: null, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], composeReceipts: {}, composeEncrypt: false, composeSign: false, composeQuoteDropped: false, composeSendAt: null, sendLaterAsk: null, threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
+      const patch = { compose: true, composeDraft: null, composeMin: false, replyMode: mode, replyThreadId: id, composeCtx: [id], composeCtxBase: [id], composeReceipts: {}, composeEncrypt: !!(THREADS.find(t => t.id === id) || {}).encrypted, composeSign: false, composeQuoteDropped: false, composeSendAt: null, sendLaterAsk: null, threadId: id, mailPane: "thread", threadOpen: true, sel: [] };
       if (this.state.workMode === "tabs") this.openTab("compose", patch);
       else this.setState(patch);
     };
@@ -3742,7 +3742,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       const prot = b.type === "draft" ? protectionOf({
         acc: b.acc || "acc1", to: b.to ? [b.to] : [], cc: b.cc || [], bcc: [],
         quotes: !!answers && answers.encrypted === "opened" && !bp.quoteDropped,
-        encrypt: bp.encrypt, sign: bp.sign, signAll: !!this.props.signEverything,
+        encrypt: bp.encrypt ?? !!(answers && answers.encrypted), sign: bp.sign, signAll: !!this.props.signEverything,
       }) : null;
       const setBp = (patch) => this.setState(s2 => ({ bkProtect: Object.assign({}, s2.bkProtect, { [key]: Object.assign({}, (s2.bkProtect || {})[key], patch) }) }));
       const sendBlocked = !!prot && prot.refused.length > 0;
@@ -3759,7 +3759,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           { label: "Decline", aria: "Decline the task “" + b.title + "”", run: () => this.declineBk(key) },
         ];
         else if (b.type === "draft") raw = editing
-          ? [{ label: sendSaid, aria: "Send the edited draft to " + b.to + sendWhen, primary: true, run: () => this.acceptBk(key, b) },
+          ? [{ label: sendSaid, aria: sendBlocked ? "Send - no key for " + prot.refused.length + (prot.refused.length > 1 ? " recipients" : " recipient") + ", so it cannot be sent encrypted" : "Send the edited draft to " + b.to + sendWhen, primary: true, off: sendBlocked, run: () => { if (!sendBlocked) this.acceptBk(key, b); } },
              { label: "Stop editing", aria: "Stop editing the draft to " + b.to, run: () => this.editBk(key, false) }]
           : [{ label: sendSaid, aria: sendBlocked ? "Send - no key for " + prot.refused.length + (prot.refused.length > 1 ? " recipients" : " recipient") + ", so it cannot be sent encrypted" : "Send the draft to " + b.to + sendWhen, primary: true, off: sendBlocked, run: () => { if (!sendBlocked) this.acceptBk(key, b); } },
              { label: "Edit here", aria: "Edit the draft to " + b.to + " inside the conversation", run: () => this.editBk(key, true, (b.paras || []).join("\n\n")) },
@@ -3777,7 +3777,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         (on ? "color:var(--accent-d);background:var(--accent-soft);border:1px solid var(--accent-line);font-weight:600" : "color:var(--text2);background:var(--panel);border:1px solid var(--border2)") +
         (off ? ";opacity:0.6;cursor:not-allowed" : "");
       const protChoices = !prot ? [] : [
-        { glyph: "lock", label: "Encrypt", on: prot.encOn, off: prot.encLocked || !!prot.encOff, note: prot.encNote, run: () => setBp({ encrypt: !bp.encrypt }) },
+        { glyph: "lock", label: "Encrypt", on: prot.encOn, off: prot.encLocked || !!prot.encOff, note: prot.encNote, run: () => setBp({ encrypt: !(bp.encrypt ?? !!(answers && answers.encrypted)) }) },
       ].concat(prot.canSign ? [{ glyph: "signature", label: "Sign", on: prot.signOn, off: prot.signLocked, note: prot.signNote, run: () => setBp({ sign: !bp.sign }) }] : []).map(c => ({
         label: c.label, glyph: c.glyph, state: c.on ? "On" : "Off", pressed: c.on, off: c.off,
         title: c.label + " - " + (c.on ? "on" : "off") + (c.note ? ". " + c.note : ""),
