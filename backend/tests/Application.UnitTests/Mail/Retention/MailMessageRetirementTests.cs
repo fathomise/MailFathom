@@ -215,7 +215,7 @@ public sealed class MailMessageRetirementTests
     {
         // Arrange
         var fixture = new Fixture();
-        fixture.Dispositions.GetAuthoredDeleteDisposition(Account).Returns<AuthoredDeleteEmailDisposition>(
+        fixture.Dispositions.GetAuthoredDeleteDisposition(Account).Returns(
             _ => throw new InvalidOperationException("No such account."));
 
         // Act
