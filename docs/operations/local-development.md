@@ -2370,11 +2370,13 @@ that file. The other mirrors stay below it, so the failure fallback still holds,
 serves the archives changes nothing about what is installed, because apt checks every archive against
 Ubuntu's signed index. The choice ordinarily takes under half a minute and is bounded at two minutes
 of its own. The desktop installs still run their own `apt-get update`, as `install-deps` does: the
-action refreshes the lists on every path it takes, but a refresh that failed halfway is one it does
-not repeat, and a second one over lists that are already current costs a second or two. The choice
-runs on an exact restore too, where the install then asks no mirror: the restore happens inside the
-action, after the step that chooses, so nothing can skip the choice for it, and a choice that finds no
-mirror reports that and leaves the file as it was rather than failing the job.
+mirror choice refreshes the system's lists on every path it takes, but a refresh that failed halfway
+is one it does not repeat, and a second one over lists that are already current costs a second or
+two. On an exact restore of an entry with lists that update refreshes nothing: the install reads the
+entry's own lists, apt is told not to download, and no mirror is asked. The choice runs there too,
+because the restore happens inside `cached-apt-install`, after the step that chooses, so nothing can
+skip the choice for it, and a choice that finds no mirror reports that and leaves the file as it was
+rather than failing the job.
 
 **Caches are restored everywhere and saved on `main` alone.** An entry saved on the default branch is
 readable by every run, while one saved by a pull request, a merge-queue entry, or a release tag is
