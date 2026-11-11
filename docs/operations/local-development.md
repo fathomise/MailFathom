@@ -1470,6 +1470,10 @@ either, so a change breaking the Android build alone still merges green and fail
 `pnpm android:build` by hand is therefore what a change reaching `frontend/src-tauri/` owes, and the nightly is what
 catches a break in the toolchain itself rather than in this repository.
 
+Where no machine at hand carries the prerequisites, the same workflow is started by hand against the branch —
+`gh workflow run build-android-client.yml --ref <branch>` — and leaves the same two files on that run. It takes no
+input, so the APK reports the declared version, as a local build does, rather than a nightly identifier.
+
 Of the four prerequisites above the workflow installs one. The GitHub-hosted runner image already carries the SDK,
 several NDK versions, several JDKs, and rustup, so the job only says which of them to use — which is why it pins the
 runner image rather than tracking `ubuntu-latest`: that image is the toolchain pin. What it does add is the Rust

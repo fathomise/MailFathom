@@ -7,6 +7,7 @@ import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
+import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
@@ -69,8 +70,8 @@ class MainActivity : TauriActivity() {
   }
 
   /**
-   * Pads the activity's content by whatever the status bar, the navigation bar, a display cutout and the keyboard
-   * occupy, so the page is laid out in the space actually left to it.
+   * Pads the activity's content by whatever the status bar, the navigation bar and a display cutout occupy, so the
+   * page is laid out in the space actually left to it — and leaves the keyboard to the page.
    *
    * The client already asks for this the way the web platform offers it — `viewport-fit=cover` on the document and
    * `env(safe-area-inset-*)` behind the `--spacing-safe-*` tokens in `Client.App/src/styles.css`. Android's WebView
@@ -83,8 +84,16 @@ class MainActivity : TauriActivity() {
    * learns that a third head exists, and a desktop or web window keeps reading the same tokens for the case they were
    * written for.
    *
-   * The insets are consumed rather than passed on, because this view is the root the page is laid out inside and
-   * anything below it would be padding a second time for the same bars.
+   * The keyboard is the one occupant not padded for. Padding for it shortens the window the page is laid out in, so
+   * every rule reading a height or an aspect recomposes the moment a field takes focus. Left alone it lies over the
+   * page, and the WebView — from Chromium 139 — answers its inset by shortening the page's visual viewport, which is
+   * the signal a browser gives and the one `Client.App/src/shell/useStandingOnKeyboard.ts` already reads. An older
+   * WebView reports nothing, so there the keyboard simply covers what is under it. `adjustResize` on the activity in
+   * the manifest is what has the platform deliver that inset instead of panning the window.
+   *
+   * The insets padded for are zeroed rather than everything being consumed, because this view is the root the page is
+   * laid out inside and anything below it would be padding a second time for the same bars — while consuming the lot
+   * would stop the keyboard's inset here, above the WebView that has to hear it.
    *
    * What padding costs is the strip behind each bar, which the window's own background paints rather than the page —
    * so a head whose theme is set against the system's shows the system's colour there. Lifting that means handing the
@@ -94,14 +103,11 @@ class MainActivity : TauriActivity() {
    */
   private fun keepThePageClearOfTheSystemBars() {
     ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content)) { view, insets ->
-      val occupied = insets.getInsets(
-        WindowInsetsCompat.Type.systemBars() or
-          WindowInsetsCompat.Type.displayCutout() or
-          WindowInsetsCompat.Type.ime(),
-      )
+      val paddedFor = WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+      val occupied = insets.getInsets(paddedFor)
       view.setPadding(occupied.left, occupied.top, occupied.right, occupied.bottom)
 
-      WindowInsetsCompat.CONSUMED
+      WindowInsetsCompat.Builder(insets).setInsets(paddedFor, Insets.NONE).build()
     }
   }
 }
