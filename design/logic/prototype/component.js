@@ -4174,8 +4174,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
        that crosses two scopes, offers nothing. */
     /* A touch selection is made by a long press and its handles, which end in no mouseup or touchend the
        conversation hears, and a mouse drag may end outside it. So the bar also follows the document's selection:
-       a mouse opens it on release, anything else once the selection settles. That path only opens or updates the
-       bar - focusing its own field collapses the selection, so emptying it never closes the bar from here. */
+       a mouse opens it on release, anything else once the selection settles. */
     onSelPointer = (e) => {
       if (e.pointerType !== "mouse") return;
       this._mouseHeld = e.type === "pointerdown";
@@ -4192,7 +4191,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         const sel = window.getSelection ? window.getSelection() : null;
         const text = sel && !sel.isCollapsed ? sel.toString().replace(/\s+/g, " ").trim() : "";
         const cur = this.state.selBar;
-        if (!text) { if (!openOnly && cur) this.setState({ selBar: null }); return; }
+        /* An emptied selection takes the button with it. The open bar stays on the document's own events, since
+           focusing its field is what empties the selection; a release or a key inside the scope closes that too. */
+        if (!text) { if (cur && (!openOnly || !cur.open)) this.setState({ selBar: null }); return; }
         if (this.composeSelect(sel, text, cur, openOnly)) return;
         const scopeOf = (n) => { const el = n && (n.nodeType === 1 ? n : n.parentElement); return el && el.closest ? el.closest("[data-sel]") : null; };
         const a = scopeOf(sel.anchorNode), f = scopeOf(sel.focusNode);

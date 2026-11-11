@@ -1558,7 +1558,7 @@ Project repository: https://github.com/fathomise/MailFathom
           </sc-if>
           <sc-if value="{{ composeExpanded }}" hint-placeholder-val="{{ true }}">
             <div data-motion="fade" data-compose-fields style="{{ composeBodyStyle }}">
-              <div style="{{ composeScrollStyle }}">
+              <div onScroll="{{ composeEditorScroll }}" style="{{ composeScrollStyle }}">
               <sc-if value="{{ composeNoServerCopy }}" hint-placeholder-val="{{ false }}">
                 <div role="status" style="{{ composeNoCopyStyle }}"><span aria-hidden="true" style="flex:0 0 auto;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:18px;line-height:1.1">cloud_off</span><span style="flex:1;min-width:0;text-wrap:pretty">Your mail server's copy of this draft may be missing or out of date, so another mail app may not show what you see here. It is kept in MailFathom.</span></div>
               </sc-if>
@@ -1822,8 +1822,8 @@ Project repository: https://github.com/fathomise/MailFathom
                   <span onClick="{{ acceptDraft }}" style="font-size:12px;color:var(--muted)" style-hover="cursor:pointer;color:var(--text)">Accept</span>
                 </div>
               </sc-if>
-              <div data-compose-writing style="{{ composeWritingStyle }}">
-              <div contentEditable="{{ composeEditable }}" suppressContentEditableWarning="{{ true }}" ref="{{ bodyRef }}" onKeyDown="{{ composeKeyDown }}" onScroll="{{ composeEditorScroll }}" aria-label="Message" onPaste="{{ composePaste }}" onInput="{{ composeEditorInput }}" onClick="{{ composeEditorPress }}" style="{{ composeEditorStyle }}"></div>
+              <div data-compose-writing onScroll="{{ composeEditorScroll }}" style="{{ composeWritingStyle }}">
+              <div contentEditable="{{ composeEditable }}" suppressContentEditableWarning="{{ true }}" ref="{{ bodyRef }}" onKeyDown="{{ composeKeyDown }}" onMouseUp="{{ onAgentSelect }}" onKeyUp="{{ onAgentSelect }}" onTouchEnd="{{ onAgentSelect }}" aria-label="Message" onPaste="{{ composePaste }}" onInput="{{ composeEditorInput }}" onClick="{{ composeEditorPress }}" style="{{ composeEditorStyle }}"></div>
               <sc-if value="{{ pictureStripShown }}" hint-placeholder-val="{{ false }}">
                 <div data-compose-picture-grip role="separator" tabindex="0" aria-label="Resize picture" title="Resize picture" aria-valuenow="{{ pictureGripWidth }}" onPointerDown="{{ pictureGripDown }}" onPointerMove="{{ pictureGripMove }}" onPointerUp="{{ pictureGripUp }}" onPointerCancel="{{ pictureGripUp }}" onKeyDown="{{ pictureGripKey }}" onDoubleClick="{{ pictureGripWidest }}" style="{{ pictureGripStyle }}"><span aria-hidden="true" style="{{ pictureGripDotStyle }}"></span></div>
               </sc-if>
@@ -4198,7 +4198,7 @@ Project repository: https://github.com/fathomise/MailFathom
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--accent-d)">{{ passageBarIcon }}</span>
         <div style="flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--text)">{{ passageBarTitle }}</div>
-        <div role="button" tabIndex="0" aria-label="Close" onClick="{{ passageCloseBar }}" style="display:flex;align-items:center;justify-content:center;{{ passageCloseSize }}border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
+        <div role="button" tabIndex="0" aria-label="Close" title="Close" onClick="{{ passageCloseBar }}" style="display:flex;align-items:center;justify-content:center;{{ passageCloseSize }}border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
       </div>
       <div style="font-size:12.5px;line-height:1.45;color:var(--muted);border-left:2px solid var(--accent-line);padding-left:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ passageBarQuote }}</div>
         <div style="{{ passageRowStyle }}">
