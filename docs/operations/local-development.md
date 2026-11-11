@@ -1140,7 +1140,7 @@ The repository provisions no development environment, so install the SDK and any
 Two tools are installed globally when their workflows are needed:
 
 ```bash
-dotnet tool install --global Aspire.Cli --version 13.6.1
+dotnet tool install --global Aspire.Cli --version 13.6.5
 dotnet tool install --global csharp-ls --version 0.26.0
 ```
 
