@@ -1573,7 +1573,7 @@ a failure banner. Worth carrying out of it:
 
 ## A report's page — `report-page.html`
 
-A static page with no runtime, like the mail search specimen: three A4 pages of one sample report, side by side, under
+A static page with no runtime, like the mail search specimen: three A4 pages of one sample report, one under another at the sizes it is drawn for, under
 three notes naming what the page is set in. A report is Markdown the Agent writes and the service sets as a PDF, so
 this is a document rather than a screen: **the paper is white with dark ink in both themes**, and only the desk it
 lies on follows the theme — `?theme=light` or `?theme=dark` pins it. The pages scale to the width they are given, so a
