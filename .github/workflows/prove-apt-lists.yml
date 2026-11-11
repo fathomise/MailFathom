@@ -123,7 +123,10 @@ jobs:
           install: pnpm --dir frontend exec playwright install-deps chromium
       - name: Show the browser starts and that the mirror really is unreachable
         run: |
-          cd frontend && node -e "require('playwright').chromium.launch().then(async b => { console.log('Chromium', b.version(), 'started'); await b.close(); })"
+          binary="$(find ~/.cache/ms-playwright -type f \( -name chrome -o -name headless_shell -o -name chrome-headless-shell \) | head -n 1)"
+          echo "$binary"
+          if ldd "$binary" | grep 'not found'; then echo '::error::The browser still lacks a system library.'; exit 1; fi
+          echo 'Every shared library the browser links resolves.'
           if sudo apt-get update 2>&1 | tee /dev/stderr | grep -q 'Could not resolve'; then
             echo 'An ordinary apt-get update cannot resolve a mirror in this job.'
           else
