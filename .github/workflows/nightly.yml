@@ -159,7 +159,7 @@ jobs:
           {
             printf '### No nightly published\n\n'
             printf 'main is still at `%s`, which is what `%s:nightly` already carries. ' "$REVISION" "$image"
-            printf 'It was verified and built again, and nothing was pushed to a registry.\n'
+            printf 'This run verifies and builds it again, and pushes nothing to a registry.\n'
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
   # Everything a nightly builds waits behind this, on every night rather than only on one that publishes, for the reason `Release` states at greater length: a gate belonging
