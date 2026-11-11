@@ -15,14 +15,14 @@
     <AspireUseCliBundle>false</AspireUseCliBundle>
     <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
   </PropertyGroup>
-  <Sdk Name="Aspire.AppHost.Sdk" Version="13.6.1" />
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.6.5" />
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" />
     <PackageReference Include="Aspire.Hosting.EntityFrameworkCore" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
     <PackageReference Include="Aspire.Hosting.Valkey" />
-    <!-- Named so the central pin replaces the vulnerable version Aspire's hosting packages would otherwise resolve. -->
+    <!-- Named so the central pin decides the version rather than the floor Aspire's hosting packages declare. -->
     <PackageReference Include="MessagePack" />
   </ItemGroup>
 

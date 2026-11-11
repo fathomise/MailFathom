@@ -4,19 +4,19 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.6.1" />
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.6.5" />
     <!-- The only prerelease pin in the repository. AddEFMigrations is the sole supported way to run dotnet-ef against
          the orchestration on Aspire 13: the aspire exec command that earlier versions offered no longer exists, and the
          package ships no stable build. It is referenced by AppHost alone, so nothing it carries reaches a deployed
          assembly. -->
-    <PackageVersion Include="Aspire.Hosting.EntityFrameworkCore" Version="13.6.1-preview.1.26506.6" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.1" />
-    <PackageVersion Include="Aspire.Hosting.Testing" Version="13.6.1" />
+    <PackageVersion Include="Aspire.Hosting.EntityFrameworkCore" Version="13.6.5-preview.1.26559.7" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.5" />
+    <PackageVersion Include="Aspire.Hosting.Testing" Version="13.6.5" />
     <!-- The Valkey hosting integration, which is what lets a developer's orchestration and the integration suite start
          the RESP server the client signal backplane crosses. Referenced by AppHost alone, so nothing it carries reaches
          a deployed assembly; what a deployment runs beside MailFathom is the server rather than this package. -->
-    <PackageVersion Include="Aspire.Hosting.Valkey" Version="13.6.1" />
-    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.6.1" />
+    <PackageVersion Include="Aspire.Hosting.Valkey" Version="13.6.5" />
+    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.6.5" />
     <!-- The non-interactive Microsoft Entra credentials an Azure OpenAI endpoint is reached with where no key exists to
          provision. Referenced by AI alone, and only for the four credential types a background service can hold; the
          chain is composed explicitly rather than through DefaultAzureCredential, which would reach a developer tool. -->
@@ -42,7 +42,7 @@
          framework, because it exists on one platform. The command uses it to bind its credential key to the current
          Windows user, and guards the call with a runtime platform check, so a Linux build carries it and never enters
          it. -->
-    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.15" />
     <!-- The YAML parser and emitter. Referenced by Host, which reads a provisioned configuration file written in YAML,
          and by Cli, which offers a YAML view of a document it opens in the operator's editor. Both use only the
          event-level parser and emitter in YamlDotNet.Core, never the reflection-based serializer, which is what keeps
@@ -94,7 +94,7 @@
     <!-- MimeKit brings this in transitively at 10.0.0, inside the range two .NET denial-of-service advisories cover.
          Pinned at the fixed release so the version every mail project resolves is decided here rather than by
          MimeKit's dependency floor. -->
-    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
     <!-- The iCalendar (RFC 5545) reader an imported `.ics` file is parsed by. The base class library carries none, and
          the format is exactly the kind nobody hand-rolls safely: lines are folded at 75 octets, values escape their own
          separators, every property carries parameters, and a date names a zone, a UTC instant, or neither. Referenced
@@ -103,40 +103,40 @@
          in this repository; both are recorded in THIRD_PARTY_LICENSES.md. -->
     <PackageVersion Include="Ical.Net" Version="5.2.3" />
     <PackageVersion Include="Microsoft.Agents.AI" Version="1.24.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.15" />
     <!-- The OpenAPI document generator, which ships outside the shared framework. It builds the HTTP contract from the
          routes the host already mapped rather than from a second description somebody keeps in step. Referenced by Host
          alone, where the document is registered only when the environment is Development. -->
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.15" />
     <!-- The SignalR backplane, which ships outside the shared framework the hub itself is part of. It is what carries a
          client signal from the replica that raised it to the replica holding that client's connection, and it is
          registered only where a deployment declared a RESP endpoint to carry it over — so a single-replica deployment
          restores it and connects to nothing. Referenced by Host alone. -->
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.12" />
-    <!-- The backplane brings this in transitively at 2.5.302, below the release that fixes a buffer-limit advisory against
-         nested arrays. Pinned at the fixed release so the version the host resolves is decided here rather than by the
-         backplane's dependency floor. -->
-    <PackageVersion Include="MessagePack" Version="2.5.303" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.15" />
+    <!-- The backplane and Aspire's hosting packages each bring this in transitively at their own floor, and the host and
+         the AppHost resolve it. Pinned at the release past the buffer-limit advisories against nested arrays so the
+         version both resolve is decided here rather than by whichever dependency floor is higher. -->
+    <PackageVersion Include="MessagePack" Version="2.5.307" />
     <!-- The .NET SignalR client, referenced by the integration suite alone: the claim that a signal crosses replicas is
          only observable from a connection somebody is holding, and holding one means speaking the hub protocol over a
          real WebSocket. Nothing under backend/src references it — the client a deployment serves is the browser's
          @microsoft/signalr, pinned in the client workspace. -->
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.15" />
     <!-- The OpenAPI object model, brought in transitively by the generator above and pinned directly for the reason
          BouncyCastle.Cryptography is: the document and operation transformers name its types, so the version this
          repository compiles against is decided here rather than inherited from another package's dependency range.
          That range is also the ceiling: the generator declares [2.12.0, 3.0.0), so this pin moves inside the 2.x line
          and takes the next major when the generator does. A 3.x version here fails the restore with NU1608. -->
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.401" />
     <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.12.1" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15" />
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.15" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.10.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
@@ -153,11 +153,11 @@
          guidance shows; Azure.AI.OpenAI would be a second client construction and has published no stable release
          since 2.1.0. -->
     <PackageVersion Include="OpenAI" Version="2.14.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
-    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.15" />
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.10.0" />
     <PackageVersion Include="Microsoft.Security.Utilities.Core" Version="1.21.0" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.10.0" />
@@ -191,7 +191,7 @@
     <PackageVersion Include="Polly.Core" Version="8.8.0" />
     <PackageVersion Include="Polly.Extensions" Version="8.8.0" />
     <PackageVersion Include="Polly.RateLimiting" Version="8.8.0" />
-    <PackageVersion Include="System.Threading.RateLimiting" Version="10.0.12" />
+    <PackageVersion Include="System.Threading.RateLimiting" Version="10.0.15" />
     <!-- The API explorer the generated document is read in. It carries no package dependency of its own and serves its
          own script bundle out of the assembly, so a running instance fetches nothing from a content delivery network.
          Referenced by Host alone, and mapped only when the environment is Development — the assembly is redistributed
