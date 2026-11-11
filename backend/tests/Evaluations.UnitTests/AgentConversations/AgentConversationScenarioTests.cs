@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using MailFathom.AI.AgentConversations;
 using MailFathom.AI.Chat;
 using MailFathom.AI.Retrieval;
 using MailFathom.Evaluations.AgentConversations;
@@ -485,6 +486,24 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.CalledTheToolsAskedForMetricName).Value);
     }
 
+    /// <summary>A question about the latest mail is answered from the timeline, so a run that only searched the mail is caught by the tool check.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RunAsync_AQuestionAboutTheLatestMailListedOrOnlySearched_PassesTheToolCheckOnlyWhereItListed(bool lists)
+    {
+        // Arrange
+        var scenario = Named("Agent.Listing.LatestMail");
+        var call = lists ? List(pageSize: 5) : Search("latest email");
+        using var model = new ScriptedAgentChatClient([call], "Tomas Ferreira wrote twice, about the pallets and the archive shelving, and Piotr Wawrzyniak sent a price list.");
+
+        // Act
+        var verdict = await this.RunAsync(scenario, model);
+
+        // Assert
+        Assert.Equal(lists, verdict.Get<BooleanMetric>(AgentConversationScenario.CalledTheToolsAskedForMetricName).Value);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -802,6 +821,9 @@ public sealed class AgentConversationScenarioTests : IDisposable
 
     private static AgentConversationScenario Named(string name) =>
         AgentConversationScenario.All.Single(scenario => scenario.Name == name);
+
+    private static (string Tool, IDictionary<string, object?> Arguments) List(int pageSize) =>
+        (AgentConversationTools.ListMailToolName, new Dictionary<string, object?> { ["pageSize"] = pageSize });
 
     private static (string Tool, IDictionary<string, object?> Arguments) Search(string query) =>
         (ScopedMailKnowledgeRetrieval.SearchToolName, new Dictionary<string, object?> { [ScopedMailKnowledgeRetrieval.QueryArgumentName] = query });

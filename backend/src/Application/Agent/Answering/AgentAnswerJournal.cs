@@ -264,6 +264,7 @@ public sealed class AgentAnswerJournal : IDisposable
         AgentActivity.ReadingTasks => ApplicationText.AgentStatusReadingTasks,
         AgentActivity.PreparingProposal => ApplicationText.AgentStatusPreparingProposal,
         AgentActivity.ComposingAnswer => ApplicationText.AgentStatusComposingAnswer,
+        AgentActivity.ListingMail => ApplicationText.AgentStatusListingMail,
         _ => throw new ArgumentOutOfRangeException(nameof(activity), activity, "A run reports a declared activity."),
     };
 

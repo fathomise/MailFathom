@@ -276,7 +276,7 @@ provider call rather than reported after the run.
 
 | Ceiling | Key | Default | What happens when it is reached |
 | --- | --- | --- | --- |
-| Retrieved characters per run | `MailAnswering:MaxRetrievedCharactersPerRun` | 20 000 | The lookup is cut and the run continues, told there is no more mail |
+| Retrieved characters per run | `MailAnswering:MaxRetrievedCharactersPerRun` | 20 000 | The lookup or the listed page is cut and the run continues, told there is no more mail |
 | Provider calls per run | `MailAnswering:MaxProviderCallsPerRun` | 8 | The run stops with `57001` |
 | Tokens per run | `MailAnswering:MaxTokensPerRun` | 80 000 | The run stops with `57001` |
 
@@ -288,7 +288,9 @@ operator agreed to on the other.
 
 Three numbers because they fail in three different ways. The retrieved-character ceiling is the privacy one — the total
 amount of somebody's mail that may leave the process to answer one question, whatever the model asks for. It counts
-each passage's extract and the sender's name and address written beside it. The token
+each passage's extract and the sender's name and address written beside it, and each message an Agent's `list_mail`
+page shows by its subject and its sender, so a run cannot page through a mailbox beside the ceiling on searching it. A
+page the ceiling cut keeps the messages that fit, says more mail matches, and offers no cursor to continue from. The token
 ceiling is the cost one, and the only one stated in the unit a provider bills by. The call ceiling is the one that
 always works: a token count is what the provider *reported*, and an endpoint that reports none would leave the cost
 ceiling unreachable while a tool loop went round.
@@ -550,7 +552,7 @@ written here for the same reason `search_emails` publishes the mode in every res
 Nothing a message contains can end an element or open one. The turns and tool results that carry text somebody else
 wrote on this path are composed by one writer, `AgentTurnDocument` in `backend/src/AI/Orchestration/`: `ask_mail`'s
 question turn, the `<retrieved-mail>` envelope, the relevance judgement below, the Agent's question turn and its
-`read_thread`, `read_calendar`, and `read_tasks` results, the Agent's earlier turns where they are not plain text the
+`list_mail`, `read_thread`, `read_calendar`, and `read_tasks` results, the Agent's earlier turns where they are not plain text the
 person or the Agent wrote, the turn a compaction of an Agent conversation reads,
 [reply drafting](reply-drafting.md#what-reaches-the-provider-and-what-does-not)'s turn, and the turns of enrichment, a
 conversation's state, contact relationships, calendar-event extraction, the day layout, and Discover's composition. Only
@@ -589,7 +591,7 @@ before any of those documents is written around it.
 A message does not need to give an order to do harm. It only has to state something false as fact — that a supplier's
 bank account changed, that a colleague needs a payment approved today — and an answer that restates it hands the claim to
 the person in the assistant's voice. So the operations that quote a message to a model write where the message came
-from as attributes of the element the writer wrote for it: `ask_mail`, the Agent's `search_mail` and `read_thread`,
+from as attributes of the element the writer wrote for it: `ask_mail`, the Agent's `search_mail`, `list_mail`, and `read_thread`,
 enrichment, a conversation's state, and Discover. Reply drafting, contact relationships, and calendar-event extraction
 quote mail too and carry no provenance yet; their turns carry the clause below, which applies only where a
 turn carries the attributes. The attributes are these:

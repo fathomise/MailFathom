@@ -165,6 +165,20 @@ public sealed class AgentConversationInstructionsTests
         Assert.Contains("never write headings, links, images, or HTML", text, StringComparison.Ordinal);
     }
 
+    /// <summary>A search ranks words rather than arrival, so a question about the timeline is listed, a subject is still searched, and a listing cut short is not passed off as the whole.</summary>
+    [Fact]
+    public void TextFor_TheInstruction_ListsTheTimelineAndSearchesASubject()
+    {
+        // Act
+        var text = string.Join(' ', AgentConversationInstructions.TextFor(UserLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains($"is answered by listing the mail with {AgentConversationTools.ListMailToolName}", text, StringComparison.Ordinal);
+        Assert.Contains($"A question about a subject is searched with {ScopedMailKnowledgeRetrieval.SearchToolName}, whatever period it names.", text, StringComparison.Ordinal);
+        Assert.Contains("never present what a search found as the latest mail", text, StringComparison.Ordinal);
+        Assert.Contains("say how many messages you read and that more exist", text, StringComparison.Ordinal);
+    }
+
     /// <summary>A later message correcting a date seldom repeats the words the first was found by, so the Agent reads the whole conversation first.</summary>
     [Fact]
     public void TextFor_TheInstruction_ReadsTheConversationForALaterCorrection()

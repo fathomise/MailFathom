@@ -4,6 +4,7 @@
 
 using MailFathom.AI.AgentConversations;
 using MailFathom.Application.Emails.GetEmailContent;
+using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Application.Emails.Provenance;
 using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Domain.Access;
@@ -90,6 +91,38 @@ public sealed class CorpusReadersTests
         Assert.Equal(
             [UnsentEmailState.Scheduled, UnsentEmailState.Draft, UnsentEmailState.Sending, UnsentEmailState.Failed],
             replies.Select(reply => provenance[reply.Message.Id].Unsent));
+    }
+
+    /// <summary>The listing reads the corpus newest first through the deployment's own use case, so a recency case measures the Agent rather than a timeline that holds nothing.</summary>
+    [Fact]
+    public async Task Timeline_TheNewestPage_ReadsTheCorpusNewestFirst()
+    {
+        // Act
+        var page = await Readers().Timeline.ListEmailsAsync(
+            new ListEmailsRequest { Reader = MailboxReaderKind.ConversationAgent, PageSize = 5 },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var received = page.Emails.Select(static summary => summary.ReceivedAt).ToArray();
+
+        Assert.Equal((5, true), (page.Emails.Count, page.HasMore));
+        Assert.Equal(received.OrderDescending(), received);
+    }
+
+    /// <summary>A reply the person has not sent is in the person's own Agent's listing, marked as a draft as a deployment stores it, so a case about one can list it.</summary>
+    [Fact]
+    public async Task Timeline_AReplyNotSent_IsListedForThePersonsOwnAgentAsADraft()
+    {
+        // Arrange
+        var reply = UnsentMail.ScheduledConfirmation.Message;
+
+        // Act
+        var page = await Readers().Timeline.ListEmailsAsync(
+            new ListEmailsRequest { Reader = MailboxReaderKind.ConversationAgent, PageSize = 100 },
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(page.Emails.Single(summary => summary.StoredEmailId == reply.Id).Flags.IsDraft);
     }
 
     [Fact]

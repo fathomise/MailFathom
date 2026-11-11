@@ -32,4 +32,7 @@ public enum AgentActivity
 
     /// <summary>The run is writing the answer itself.</summary>
     ComposingAnswer = 6,
+
+    /// <summary>The run is listing the person's mail in the order it arrived.</summary>
+    ListingMail = 7,
 }

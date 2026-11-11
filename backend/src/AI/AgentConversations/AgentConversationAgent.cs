@@ -137,7 +137,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             () => !tools.HasProposed,
             cancellationToken);
 
-        await tools.DeclareSearchedAsync(cancellationToken);
+        await tools.DeclareSearchedAndListedAsync(cancellationToken);
 
         if (!await journal.ReportAsync(AgentActivity.ComposingAnswer, cancellationToken))
         {

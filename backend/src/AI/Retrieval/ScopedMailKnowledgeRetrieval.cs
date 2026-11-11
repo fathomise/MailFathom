@@ -173,6 +173,12 @@ internal sealed class ScopedMailKnowledgeRetrieval
         }
     }
 
+    /// <summary>Gets the ledger this run's ceiling on retrieved mail is kept in, which every other tool handing a provider mail spends from too.</summary>
+    internal MailAnsweringRunLedger RunLedger => this.runLedger;
+
+    /// <summary>Gets the instant the run's turn stated, which a received bound the model writes is read against.</summary>
+    internal DateTimeOffset AskedAt => this.askedAt;
+
     /// <summary>Gets whether a lookup found mail this run's ceiling would not let it send.</summary>
     internal bool WasTruncated => this.runLedger.RetrievalWasTruncated;
 

@@ -63,6 +63,14 @@ public sealed record ListEmailsRequest
     /// <remarks>A default's published identity or an own category's name. It constrains which emails are eligible and never how they rank.</remarks>
     public string? Category { get; init; }
 
+    /// <summary>Gets who the listing is answering for, which decides the folders it reaches and whether mail the mailbox has not sent is in it.</summary>
+    /// <remarks>
+    /// It defaults to <see cref="MailboxReaderKind.Agent" />, so a caller that never names its reader lists what an agent
+    /// may read. The Agent the person converses with names <see cref="MailboxReaderKind.ConversationAgent" />, so its
+    /// listing reaches the mail its search and its conversation readings reach.
+    /// </remarks>
+    public MailboxReaderKind Reader { get; init; }
+
     /// <summary>Gets the end of the timeline to read from.</summary>
     public EmailTimelineDirection Direction { get; init; } = EmailTimelineDirection.NewestFirst;
 
