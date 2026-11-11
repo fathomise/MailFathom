@@ -171,7 +171,7 @@ internal sealed class ScopedMailKnowledgeRetrieval
         }
     }
 
-    /// <summary>Gets the ledger this run's ceiling on retrieved mail is kept in, which every other tool handing a provider mail spends from too.</summary>
+    /// <summary>Gets the ledger this run's ceiling on retrieved mail is kept in, which a search and a listing both spend from.</summary>
     internal MailAnsweringRunLedger RunLedger { get; }
 
     /// <summary>Gets the instant the run's turn stated, which a received bound the model writes is read against.</summary>
