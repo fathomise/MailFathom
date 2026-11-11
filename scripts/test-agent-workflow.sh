@@ -10197,6 +10197,55 @@ no_channel_builds_an_artifact_before_the_commit_has_verified() {
   fi
 }
 
+# A nightly verifies and builds every night, and only its publication waits for `main` to have moved.
+# The run is what writes the day's apt cache entries, and a pull request installs without asking a
+# mirror only when it restores that day's entry exactly, so a condition on any other job would put
+# every pull request back on the mirror after a night nothing merged. `prune` follows `publish` and
+# so needs no condition of its own.
+only_a_nightly_publication_waits_for_main_to_move() {
+  python3 - "$source_repository_root/.github/workflows/nightly.yml" <<'PYTHON'
+import sys
+import yaml
+
+jobs = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))["jobs"]
+waiting = sorted(job_id for job_id, job in jobs.items() if "decide.outputs.publish" in str(job.get("if", "")))
+problems = []
+if waiting != ["publish"]:
+    problems.append(f"the jobs waiting on the publication decision are {waiting}, not publish alone")
+if jobs["prune"].get("needs") != ["publish"]:
+    problems.append("prune does not follow publish alone")
+if problems:
+    print("nightly.yml: " + "; ".join(problems), file=sys.stderr)
+sys.exit(1 if problems else 0)
+PYTHON
+}
+
+# An apt cache entry holds the package lists beside the downloads they were resolved from, in the one
+# directory the entry is restored into and saved from, and apt is kept off the network only on an
+# exact restore — the one case in which the lists and the files are known to be from the same run.
+apt_lists_travel_in_the_cache_entry_with_the_downloads() {
+  python3 - "$source_repository_root/.github/actions/cached-apt-install/action.yml" <<'PYTHON'
+import sys
+import yaml
+
+steps = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))["runs"]["steps"]
+paths = {step["with"]["path"] for step in steps if step.get("uses", "").startswith("actions/cache/")}
+install = next(step for step in steps if step.get("name") == "Install")
+problems = []
+if len(paths) != 1:
+    problems.append(f"the entry is restored and saved from different paths: {sorted(paths)}")
+elif f'downloads={next(iter(paths))}\n' not in install["run"] or 'Dir::State::lists "%s/lists/"' not in install["run"]:
+    problems.append("apt's lists are not kept inside the cached directory")
+if install["env"].get("RESTORED_EXACTLY") != "${{ steps.restore.outputs.cache-hit }}":
+    problems.append("the install does not read whether the restore was exact")
+if '"$RESTORED_EXACTLY" == \'true\' && "$carries_lists" == \'true\'' not in install["run"]:
+    problems.append("apt is kept off the network on something other than an exact restore of an entry with lists")
+if problems:
+    print("cached-apt-install: " + "; ".join(problems), file=sys.stderr)
+sys.exit(1 if problems else 0)
+PYTHON
+}
+
 # The desktop client is the one artifact whose version is stamped by a tool of its own rather than by
 # MSBuild, and the tool would happily resolve a number itself: `frontend/src-tauri/run-tauri.ts` reads
 # `Version.props` when nothing hands it one. That is right for a development build and wrong for a
@@ -13262,6 +13311,8 @@ run_test every_workflow_job_declares_its_timeout
 run_test every_apt_step_declares_its_timeout
 run_test every_apt_step_follows_a_bounded_mirror_choice
 run_test every_cache_is_saved_from_main_alone
+run_test apt_lists_travel_in_the_cache_entry_with_the_downloads
+run_test only_a_nightly_publication_waits_for_main_to_move
 run_test every_write_scope_is_one_the_policy_records
 run_test every_checkout_refuses_to_persist_credentials
 run_test the_release_restores_the_annotated_tag_before_asserting_it

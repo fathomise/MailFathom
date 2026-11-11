@@ -290,7 +290,12 @@ before anything is built.
 
 `Nightly` runs at 00:00 UTC — 02:00 in Europe/Warsaw under CEST, 01:00 under CET — and **publishes nothing when `main`
 has not moved since the last published nightly**. It reads that from the revision the published `nightly` image itself
-carries, so a deleted tag or a pruned package leaves it right rather than stuck. A `workflow_dispatch` builds a snapshot
+carries, so a deleted tag or a pruned package leaves it right rather than stuck. Only the publication waits on that:
+every verifying and building job runs on every scheduled night, because the toolchains and the package mirrors under
+the tree move when `main` does not, and because the run is what writes the day's apt cache entries every pull request
+installs from. A quiet night therefore pushes nothing to either registry and leaves a run whose artifacts — the schema
+script, the command binaries, the desktop bundles, the APK — were built from a revision an earlier night already built;
+the ones that belong to a published nightly are on the run that published it. A `workflow_dispatch` publishes a snapshot
 whether or not `main` moved, and refuses a ref that is not reachable from `main`.
 
 The newest 30 nightly versions are kept and older ones are deleted, so a channel that publishes every night does not

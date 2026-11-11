@@ -85,8 +85,9 @@ on:
     branches:
       - main
   # A weekly analysis of `main`, and the reason it is not a job of `nightly.yml`. That workflow
-  # publishes an image and deliberately does nothing when `main` has not moved; this has to run
-  # exactly when `main` has not moved, because what changed is the query pack rather than the code.
+  # publishes an image and verifies the tree every night, which is a different question on a
+  # different schedule; this has to run when `main` has not moved, because what changed is the
+  # query pack rather than the code.
   schedule:
     - cron: '0 3 * * 1'
   workflow_dispatch:

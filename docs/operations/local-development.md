@@ -2351,10 +2351,14 @@ waits on the runner's package mirror and nothing else, it ordinarily takes about
 slow mirror has held one for its job's whole thirty minutes. A step bound ends that as
 a red step naming the install, and leaves the job's budget to the work after it. The ten-minute floor
 above is for jobs and does not reach a step. Every such install goes through
-`.github/actions/cached-apt-install`, which restores apt's downloaded `.deb` files before the install
-and runs `apt-get update` regardless, so the mirror is asked only for what the cache lacks and a stale
-entry costs a download rather than an outdated package; the desktop head's package list lives once, in
-`.github/actions/install-desktop-linux-dependencies`, for both jobs that install it.
+`.github/actions/cached-apt-install`, which restores apt's downloaded `.deb` files and the package
+lists they were resolved from, written together by one run. A job that restores the day's entry on its
+exact key installs from it alone: apt is told not to download, so `apt-get update` fetches nothing —
+Playwright's own included — and no mirror is asked, which is what lets the install survive a mirror
+nobody can reach. What it installs is the versions the nightly resolved, up to a day behind the mirror.
+Any other restore runs `apt-get update` as before, so the mirror is asked only for what the entry lacks
+and a stale entry costs a download rather than an outdated package. The desktop head's package list
+lives once, in `.github/actions/install-desktop-linux-dependencies`, for both jobs that install it.
 
 **The step before it chooses the mirror.** The runner image puts `azure.archive.ubuntu.com` first in
 `/etc/apt/apt-mirrors.txt`, and on a bad day that mirror stalls rather than fails, which apt's own
@@ -2367,7 +2371,10 @@ serves the archives changes nothing about what is installed, because apt checks 
 Ubuntu's signed index. The choice ordinarily takes under half a minute and is bounded at two minutes
 of its own. The desktop installs still run their own `apt-get update`, as `install-deps` does: the
 action refreshes the lists on every path it takes, but a refresh that failed halfway is one it does
-not repeat, and a second one over lists that are already current costs a second or two.
+not repeat, and a second one over lists that are already current costs a second or two. The choice
+runs on an exact restore too, where the install then asks no mirror: the restore happens inside the
+action, after the step that chooses, so nothing can skip the choice for it, and a choice that finds no
+mirror reports that and leaves the file as it was rather than failing the job.
 
 **Caches are restored everywhere and saved on `main` alone.** An entry saved on the default branch is
 readable by every run, while one saved by a pull request, a merge-queue entry, or a release tag is
@@ -2377,8 +2384,8 @@ which in practice is the nightly. Each key changes exactly when its content does
 where one fixes the content, the Playwright version for the browser and its system libraries, the
 proxy's version beside `Cargo.lock` for the desktop suite's crates, and the runner image beside the
 package list for apt — plus the day, because Ubuntu republishes packages between images and an entry
-is never written twice, so the nightly writes a fresh apt entry each day and every run restores the
-newest one. Where several jobs restore one key, one of them is named as its writer, so jobs
+is never written twice, so the nightly writes a fresh apt entry each day, on a night `main` did not
+move as much as on one it did, and every run restores the newest one. Where several jobs restore one key, one of them is named as its writer, so jobs
 running at once never race to save it — for apt, through the `save` input of
 `.github/actions/cached-apt-install`, which only the desktop build and the browser suite pass. Nothing caches `~/.nuget/packages`: restoring 1.2 GB took as
 long as fetching the same packages from nuget.org, and the key moved with nearly every merge.

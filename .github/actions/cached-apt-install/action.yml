@@ -2,23 +2,40 @@
 # Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 # Project repository: https://github.com/fathomise/MailFathom
 
-name: Install apt packages from a cache of their downloads
+name: Install apt packages from a cache of their downloads and their index
 description: >-
-  Runs an apt install with apt's download directory restored from the Actions cache, so the runner's package mirror is
-  asked only for what the cache does not already hold.
+  Runs an apt install with apt's download directory and package lists restored from the Actions cache, so a job that
+  restores the day's entry installs from it alone and any other asks the runner's package mirror only for what the
+  entry does not already hold.
 
-# What is cached is the downloaded `.deb` files and never an installed tree. `apt-get update` still runs in every job,
-# and apt takes a file from its download directory only when its size and hash match the index it just fetched — so a
-# stale entry costs a download and can never install a version the current index does not name. The mirror is what has
-# held these installs for minutes at a time, while unpacking what it sends is a matter of seconds.
+# What is cached is the downloaded `.deb` files and the package lists apt resolved them from, both written by the same
+# run, and never an installed tree. The lists travel with the downloads because the index is what decides which
+# versions an install asks for: with the downloads alone, a job that could not reach a mirror resolved against the
+# index the runner image shipped with, which names versions the entry may no longer hold.
+#
+# **A job that restores an entry on its exact key installs from it and makes no request to any mirror.** The lists and
+# the files are from the same moment, so nothing is missing and nothing has to be refreshed: apt is told not to
+# download, which turns `apt-get update` into a no-op and makes the install take every file from the entry — for the
+# command's own apt calls and for the ones a tool issues itself, as Playwright's `install-deps` does with an update of
+# its own that no option leaves out. What such a job installs is therefore the versions the entry's writer resolved,
+# up to a day behind the mirror, and the nightly's fresh entry is what bounds that at a day. Should the entry prove
+# not to hold everything after all, the install runs again the ordinary way and the step says so in a warning.
+#
+# **Any other restore keeps `apt-get update`** — a prefix match, another image, a changed package set, an entry written
+# before the lists were part of one — because nothing then says the lists and the files belong together. apt takes a
+# file from its download directory only when its size and hash match the index it just fetched, so a stale entry costs
+# a download and can never install a version the current index does not name. An entry that carries no lists starts
+# from the ones the runner image shipped with, which is where every install started before the lists were cached. The
+# mirror is what has held these installs for minutes at a time, while unpacking what it sends is a matter of seconds.
 #
 # The key carries the runner image, because the image decides which packages are already present and therefore which
 # ones apt downloads, the caller's own discriminator for what is installed, and the day. The day is there because an
 # entry is never written twice: without it a package Ubuntu republishes mid-image — a WebKitGTK security fix, which is
 # most of the desktop's bytes — would be fetched again by every run until the image moved, so the nightly saves a fresh
-# entry each day instead. The prefixes restore the newest entry for the same image and package set first and any entry
-# of the name after that, and apt fetches only what the restored entry lacks. An entry nothing restores any more ages
-# out after seven days, so a name holds at most a week of them.
+# entry each day instead, and runs every night for that reason whether or not `main` moved. The prefixes restore the
+# newest entry for the same image and package set first and any entry of the name after that, and apt fetches only what
+# the restored entry lacks. An entry nothing restores any more ages out after seven days, so a name holds at most a
+# week of them.
 #
 # Only a run on `main` saves, which in practice is the nightly: an entry saved by a pull request or a merge-queue entry
 # is readable by that ref's later runs alone, and every such copy spends the repository's cache budget on nothing. Even
@@ -34,7 +51,7 @@ inputs:
     description: 'What changes exactly when the installed set does: a hash of the package list, or the version of the tool that chooses it.'
     required: true
   install:
-    description: 'The command that runs `apt-get update` and installs, with `sudo` where it needs it.'
+    description: 'The command that runs `apt-get update` and installs, with `sudo` where it needs it. On an exact restore the update it runs fetches nothing.'
     required: true
   save:
     description: "`true` on the one call site that writes this entry on `main`; every other call site only restores it."
@@ -44,7 +61,8 @@ runs:
   using: composite
   steps:
     # Beside apt's own cache rather than in the home directory, because apt drops to its unprivileged `_apt` user to
-    # download and that user has to reach the directory. The runner owns it so the cache can restore into it.
+    # download and that user has to reach the directory. The runner owns it so the cache can restore into it, which is
+    # also why the lists are kept inside it rather than cached from `/var/lib/apt/lists`, where the runner cannot write.
     - name: Prepare apt's download directory
       id: prepare
       shell: bash
@@ -56,7 +74,7 @@ runs:
         printf 'image=%s-%s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
         printf 'day=%s\n' "$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
-    - name: Restore apt's downloads
+    - name: Restore apt's downloads and lists
       id: restore
       uses: actions/cache/restore@v6
       with:
@@ -67,21 +85,48 @@ runs:
           apt-${{ inputs.name }}-
 
     # The configuration reaches every apt call the command makes, including one a tool issues itself under `sudo`, which
-    # is why the directory is set here rather than passed on a command line. `autoclean` drops every file the current
-    # index no longer offers, so the entry holds what the next run can use rather than everything it ever downloaded.
+    # is why the directories are set here rather than passed on a command line. The setting that keeps apt off the
+    # network is a file of its own, removed once the install is over, so an apt call later in the job is an ordinary
+    # one. `autoclean` drops every file the current index no longer offers, so the entry holds what the next run can use
+    # rather than everything it ever downloaded.
     - name: Install
       shell: bash
       env:
         INSTALL: ${{ inputs.install }}
+        RESTORED_EXACTLY: ${{ steps.restore.outputs.cache-hit }}
       run: |
         set -euo pipefail
-        mkdir -p /var/cache/apt-downloads/partial
-        printf 'Dir::Cache::Archives "/var/cache/apt-downloads/";\n' | sudo tee /etc/apt/apt.conf.d/90-cached-downloads > /dev/null
-        bash -euo pipefail -c "$INSTALL"
-        sudo apt-get autoclean
-        sudo chown -R "$(id -u):$(id -g)" /var/cache/apt-downloads
+        downloads=/var/cache/apt-downloads
+        offline=/etc/apt/apt.conf.d/91-cached-lists-alone
 
-    - name: Save apt's downloads
+        carries_lists=true
+        if [[ ! -d "$downloads/lists" ]]; then
+          carries_lists=false
+          sudo cp --archive /var/lib/apt/lists "$downloads/lists"
+        fi
+        sudo mkdir -p "$downloads/partial" "$downloads/lists/partial"
+        printf 'Dir::Cache::Archives "%s/";\nDir::State::lists "%s/lists/";\n' "$downloads" "$downloads" |
+          sudo tee /etc/apt/apt.conf.d/90-cached-downloads > /dev/null
+
+        installed=false
+        if [[ "$RESTORED_EXACTLY" == 'true' && "$carries_lists" == 'true' ]]; then
+          printf 'APT::Get::Download "false";\n' | sudo tee "$offline" > /dev/null
+          if bash -euo pipefail -c "$INSTALL"; then
+            installed=true
+            echo 'Installed from the restored entry alone: no package list was refreshed and no mirror was asked.'
+          else
+            echo "::warning::The entry restored on its exact key did not hold everything this install needs, so the install runs again against the mirror."
+          fi
+          sudo rm --force "$offline"
+        fi
+        if [[ "$installed" != 'true' ]]; then
+          bash -euo pipefail -c "$INSTALL"
+        fi
+
+        sudo apt-get autoclean
+        sudo chown -R "$(id -u):$(id -g)" "$downloads"
+
+    - name: Save apt's downloads and lists
       if: >-
         inputs.save == 'true' && github.ref == 'refs/heads/main'
         && steps.restore.outputs.cache-hit != 'true'
