@@ -33,6 +33,9 @@ namespace MailFathom.Host.UnitTests.Api;
 /// </remarks>
 public sealed class ClientReplyDraftingEndpointTests
 {
+    /// <summary>Forty characters: a greeting line of eleven, and one sentence of twenty-nine after it.</summary>
+    private const string RewritingDraft = "Dear Anna,\nTuesday would be fine for us.";
+
     private static readonly MailAccountId Account = MailAccountId.Create("work");
 
     private static readonly StoredEmailId Answered = StoredEmailId.Create(Guid.CreateVersion7());
@@ -365,6 +368,148 @@ public sealed class ClientReplyDraftingEndpointTests
         Assert.Equal(
             StatusCodes.Status429TooManyRequests,
             Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+    }
+
+    /// <summary>The path a client appends to the address it was configured with, pinned for the reason the drafting route's is.</summary>
+    [Fact]
+    public void PassageRewritingRoute_IsThePathAClientComposes() =>
+        Assert.Equal("/replies/drafting/passages", ClientReplyDraftingEndpoint.PassageRewritingRoute);
+
+    /// <summary>Gets the name of every request the rewriting route refuses, each breaking one rule.</summary>
+    public static TheoryData<string> RefusedRewritings => [.. RefusedRewritingRequests.Keys];
+
+    /// <summary>A value this deployment cannot honour is refused in the words of the rule, and what somebody is writing is never quoted back.</summary>
+    /// <param name="caseName">The request, as <see cref="RefusedRewritingRequests" /> names it.</param>
+    [Theory]
+    [MemberData(nameof(RefusedRewritings))]
+    public async Task RewritePassagesAsync_ARequestBreakingARule_IsRefusedWithoutQuotingIt(string caseName)
+    {
+        // Arrange
+        var writer = WriterRewriting(PassageRewrite.Written(["Tuesday suits us."]));
+
+        // Act
+        var result = await ClientReplyDraftingEndpoint.RewritePassagesAsync(
+            RefusedRewritingRequests[caseName],
+            Drafting(writer),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var refusal = Assert.IsType<ProblemHttpResult>(result.Result);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, refusal.StatusCode);
+        Assert.DoesNotContain("Tuesday", refusal.ProblemDetails.Detail!, StringComparison.Ordinal);
+        Assert.Empty(writer.ReceivedCalls());
+    }
+
+    /// <summary>A deployment that drafts nothing leaves the draft as it was, which is not a mistake a client made.</summary>
+    [Fact]
+    public async Task RewritePassagesAsync_ADeploymentThatDraftsNone_AnswersThatNothingWasRewritten()
+    {
+        // Act
+        var result = await ClientReplyDraftingEndpoint.RewritePassagesAsync(
+            RewritingRequest(),
+            drafting: null,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var answered = Assert.IsType<Ok<ClientPassageRewriteResponse>>(result.Result).Value;
+
+        Assert.False(answered?.Rewritten);
+        Assert.Empty(answered!.Passages);
+    }
+
+    /// <summary>A provider that wrote nothing is answered as a deployment that rewrites nothing, because what follows either is the same draft.</summary>
+    [Fact]
+    public async Task RewritePassagesAsync_ARewritingThatProducedNothing_AnswersThatNothingWasRewritten()
+    {
+        // Act
+        var result = await ClientReplyDraftingEndpoint.RewritePassagesAsync(
+            RewritingRequest(),
+            Drafting(WriterRewriting(PassageRewrite.Nothing)),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(Assert.IsType<Ok<ClientPassageRewriteResponse>>(result.Result).Value?.Rewritten);
+    }
+
+    [Fact]
+    public async Task RewritePassagesAsync_ARewrittenPassage_PublishesItAndHandsTheUseCaseThePassagesAsTheyWereNamed()
+    {
+        // Arrange
+        var writer = WriterRewriting(PassageRewrite.Written(["Tuesday suits us."]));
+
+        // Act
+        var result = await ClientReplyDraftingEndpoint.RewritePassagesAsync(
+            RewritingRequest(),
+            Drafting(writer),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var answered = Assert.IsType<Ok<ClientPassageRewriteResponse>>(result.Result).Value;
+        var asked = (PassageRewriteRequest)writer.ReceivedCalls().Single().GetArguments()[0]!;
+
+        Assert.True(answered?.Rewritten);
+        Assert.Equal(["Tuesday suits us."], answered!.Passages);
+        Assert.Equal([new DraftPassage(11, 29)], asked.Passages);
+        Assert.Equal("Shorter", asked.Instruction);
+    }
+
+    /// <summary>A person pressing a button the allowance is spent on is told so rather than left with the draft unchanged and no word why.</summary>
+    [Fact]
+    public async Task RewritePassagesAsync_ADeploymentThatHasSpentItsAllowance_ReportsTheCeiling()
+    {
+        // Arrange
+        var writer = Substitute.For<IReplyDraftWriter>();
+        writer
+            .RewritePassagesAsync(Arg.Any<PassageRewriteRequest>(), Arg.Any<CancellationToken>())
+            .Returns<Task<PassageRewrite>>(_ => throw MailAnsweringBudgetExhaustedException.PeriodSpent());
+
+        // Act
+        var result = await ClientReplyDraftingEndpoint.RewritePassagesAsync(
+            RewritingRequest(),
+            Drafting(writer),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            StatusCodes.Status429TooManyRequests,
+            Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+    }
+
+    /// <summary>Every request the rewriting route refuses, each breaking one rule and named for it.</summary>
+    private static Dictionary<string, ClientPassageRewriteRequest?> RefusedRewritingRequests => new()
+    {
+        ["no body"] = null,
+        ["no text"] = new(null, [new ClientDraftPassage(0, 4)], "Shorter"),
+        ["text past its bound"] = new($"Tuesday {new string('a', PassageRewriteRequest.MaximumTextLength)}", [new ClientDraftPassage(0, 7)], "Shorter"),
+        ["no passages"] = new(RewritingDraft, null, "Shorter"),
+        ["an empty list of passages"] = new(RewritingDraft, [], "Shorter"),
+        ["passages past their bound"] = new(
+            RewritingDraft,
+            [.. Enumerable.Range(0, PassageRewriteRequest.MaximumPassages + 1).Select(static start => new ClientDraftPassage(start, 1))],
+            "Shorter"),
+        ["an empty passage"] = new(RewritingDraft, [new ClientDraftPassage(11, 0)], "Shorter"),
+        ["a negative start"] = new(RewritingDraft, [new ClientDraftPassage(-1, 5)], "Shorter"),
+        ["a passage outside the text"] = new(RewritingDraft, [new ClientDraftPassage(11, 30)], "Shorter"),
+        ["overlapping passages"] = new(RewritingDraft, [new ClientDraftPassage(0, 12), new ClientDraftPassage(11, 7)], "Shorter"),
+        ["passages out of order"] = new(RewritingDraft, [new ClientDraftPassage(11, 7), new ClientDraftPassage(0, 4)], "Shorter"),
+        ["no instruction"] = new(RewritingDraft, [new ClientDraftPassage(11, 29)], null),
+        ["a blank instruction"] = new(RewritingDraft, [new ClientDraftPassage(11, 29)], "  "),
+        ["an instruction past its bound"] = new(
+            RewritingDraft,
+            [new ClientDraftPassage(11, 29)],
+            $"Tuesday {new string('i', ReplyDraftRequest.MaximumInstructionLength)}"),
+    };
+
+    private static ClientPassageRewriteRequest RewritingRequest() =>
+        new(RewritingDraft, [new ClientDraftPassage(11, 29)], "Shorter");
+
+    private static IReplyDraftWriter WriterRewriting(PassageRewrite rewrite)
+    {
+        var writer = Substitute.For<IReplyDraftWriter>();
+        writer.RewritePassagesAsync(Arg.Any<PassageRewriteRequest>(), Arg.Any<CancellationToken>()).Returns(rewrite);
+
+        return writer;
     }
 
     private static EmailAddress Recipient()

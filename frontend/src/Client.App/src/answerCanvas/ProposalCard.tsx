@@ -134,6 +134,7 @@ const looks: Readonly<Record<ProposalLook['kind'], { readonly icon: IconName; re
  * @param onRetry What the way out of a failed block does.
  * @param outcome What it says once answered, where this proposal says more than its kind does — a send held until a
  *   time names the time.
+ * @param meta What the block says about itself beside its name, where it says anything.
  */
 export function ProposalCard({
     kind,
@@ -146,6 +147,8 @@ export function ProposalCard({
     state = 'ready',
     onRetry,
     outcome,
+    trayNote,
+    meta,
     children,
 }: {
     readonly kind: ProposalKind;
@@ -158,6 +161,10 @@ export function ProposalCard({
     readonly state?: AnswerBlockState;
     readonly onRetry?: (() => void) | undefined;
     readonly outcome?: { readonly done: string; readonly failed: string } | undefined;
+
+    /** A line standing at the head of the tray, saying what the block is busy with where its controls wait on it. */
+    readonly trayNote?: ReactNode;
+    readonly meta?: string | undefined;
     readonly children: ReactNode;
 }) {
     const { translate } = useLocalization();
@@ -205,10 +212,12 @@ export function ProposalCard({
     // The tray at the card's foot holds the controls, what the deployment refused, and the way out to what the
     // proposal is about. A declined proposal offers none of them.
     const tray =
-        phase === 'declined' || (offered.length === 0 && refused === null && leadsTo.length === 0) ? null : (
+        phase === 'declined' ||
+        (offered.length === 0 && refused === null && leadsTo.length === 0 && trayNote === undefined) ? null : (
             <>
-                {offered.length === 0 ? null : (
+                {offered.length === 0 && trayNote === undefined ? null : (
                     <div className="flex flex-wrap items-center gap-2 pointer-coarse:flex-col pointer-coarse:items-stretch">
+                        {trayNote}
                         {offered.map((control) => (
                             <ProposalButton
                                 key={control.said}
@@ -265,6 +274,7 @@ export function ProposalCard({
             emptyIcon={wording.emptyIcon}
             icon={kindIcons[kind]}
             label={label}
+            meta={meta}
             note={
                 state === 'empty' ? translate(wording.empty) : state === 'error' ? translate(wording.error) : undefined
             }

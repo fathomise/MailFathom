@@ -113,6 +113,7 @@ AppHost provisions its synthetic credential after the service reports ready;
 | `POST /api/client/drafts/{draftId}/send` | `mailfathom.mail.send` |
 | `GET /api/client/replies/drafting` | `mailfathom.assistant.use` |
 | `POST /api/client/replies/drafting` | `mailfathom.assistant.use` with `mailfathom.mail.read` |
+| `POST /api/client/replies/drafting/passages` | `mailfathom.assistant.use` with `mailfathom.mail.read` |
 | `GET /api/client/outbox` | `mailfathom.mail.read` and `mailfathom.mail.send` |
 | `GET /api/client/outbox/{outgoingEmailId}` | `mailfathom.mail.send`; the preview needs `mailfathom.mail.read` too |
 | `POST /api/client/outbox/cancellation` | `mailfathom.mail.send` |
@@ -3817,12 +3818,50 @@ that reaches an access log by default, here and on every proxy in front of this 
 refused before it is read, a request naming no message and an over-long `selection` or `instruction` are refused with
 `400`, and a refusal never echoes what was sent.
 
-**Both routes are published under `mailfathom.assistant.use`** rather than under the reading grant, because that is what
-drafting does: the conversation and a sample of the account's own sent mail leave this deployment for a chat provider,
-and the call is charged to the same allowance a question is. A credential holding only `mailfathom.mail.read` is
-answered `403`, and so is one holding only the asking grant on `POST`: a draft is written from the conversation it
-answers, which is mail, so drafting asks for `mailfathom.mail.read` beneath the grant the route is published under.
-`GET` reads no mail and answers on the asking grant alone. Nothing about a draft reaches a log or telemetry on either
+**Rewriting a selected part of a draft is the drafting's second act**, on a route of its own beneath the same address:
+
+```http
+POST /api/client/replies/drafting/passages
+Content-Type: application/json
+
+{
+  "text": "Dear Anna,\nI was wondering if you could maybe confirm the racking is still 4 200 net, if that is all right.\nBest, Ola",
+  "passages": [ { "start": 11, "length": 96 } ],
+  "instruction": "Firmer"
+}
+```
+
+```json
+{ "rewritten": true, "passages": [ "Please confirm that the racking is still 4 200 net." ] }
+```
+
+`text` is the draft as plain text, each paragraph on a line of its own, at most 8 000 characters. `passages` names the
+stretches of it to rewrite by `start` and `length`, counted in UTF-16 code units as a browser's string counts them —
+the whole sentences a selection touched, one stretch for each paragraph it reaches — at least one and at most 16, each
+holding words, each inside the text, in the order they stand and none overlapping another; two stretches may meet edge
+to edge. `instruction` is how they should change: one of the composer's own asks — shorter, more formal, softer,
+firmer — or whatever was typed, at most 4 000 characters and not blank. A request breaking any of those rules is
+refused with `400` naming the rule, a body over 64 KiB is refused before it is read, and a refusal never echoes what
+was sent.
+
+**The draft is the whole of what a rewriting is grounded in.** No message is named and nothing is read out of a
+mailbox, so the route has no `404`. What reaches the provider is the draft's own text with the passages marked in it,
+so each one is rewritten to read in place between the words around it, and the ask; each is guarded before it leaves,
+as everything sent to a provider is. **What comes back is one text for each passage, in the order they were named**,
+for the client to show beside the passage it would replace and the person to keep or undo — nothing is written into
+the draft, sent, or stored here. Each text is one paragraph, trimmed, and at most 8 000 characters.
+`rewritten: false` with no passages is what a deployment drafting no reply answers, and what this one answers while
+its provider is unreachable or answered anything but one text per passage; a client leaves the draft as it was and
+reports nothing. A spend ceiling answers `429`, as a drafting does. The read above answers for this route too: a
+deployment that drafts replies rewrites passages, under the same switch and the same allowance.
+
+**All three routes are published under `mailfathom.assistant.use`** rather than under the reading grant, because that
+is what drafting does: the conversation and a sample of the account's own sent mail, or the draft being rewritten, leave
+this deployment for a chat provider, and the call is charged to the same allowance a question is. A credential holding
+only `mailfathom.mail.read` is answered `403`, and so is one holding only the asking grant on either `POST`: a draft is
+written from the conversation it answers, which is mail, so drafting asks for `mailfathom.mail.read` beneath the grant
+the route is published under — and rewriting asks for it too, because it is the same act published under the same pair
+of grants, and a draft may quote the mail it answers. `GET` reads no mail and answers on the asking grant alone. Nothing about a draft reaches a log or telemetry on either
 route.
 [Drafting a reply](../features/reply-drafting.md) holds what a draft is written from and what never leaves.
 

@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 
 namespace MailFathom.AI.ReplyDrafts;
 
-/// <summary>Composes the agent that writes a reply out of the conversation it answers.</summary>
+/// <summary>Composes the agent that writes a reply out of the conversation it answers, and the one that rewrites passages of a draft.</summary>
 /// <remarks>
 /// It is composed the way every agent in this product is: one instruction carried as the agent's own, one declared tool
 /// set, one name, and the registered instruction envelope wrapped around it. The tool set is empty, and that is the
@@ -23,6 +23,9 @@ internal static class ReplyDraftAgentComposition
 {
     /// <summary>The name this agent is composed under.</summary>
     internal const string AgentName = "mailfathom-reply-draft";
+
+    /// <summary>The name the agent rewriting passages of a draft is composed under.</summary>
+    internal const string RewritingAgentName = "mailfathom-passage-rewrite";
 
     /// <summary>Composes the reply-drafting agent over a chat client.</summary>
     /// <param name="chatClient">The client the one call is made through.</param>
@@ -53,6 +56,34 @@ internal static class ReplyDraftAgentComposition
             ReplyDraftInstructions.TextFor(language, plan.StructuredOutputs),
             [],
             plan.StructuredOutputs ? ReplyDraftSchema.For(turn) : null);
+
+        return AgentComposition.Compose(chatClient, plan, operation, instructionEnvelope, loggerFactory);
+    }
+
+    /// <summary>Composes the agent that rewrites selected passages of a draft over a chat client.</summary>
+    /// <param name="chatClient">The client the one call is made through.</param>
+    /// <param name="plan">The generation parameters this deployment configured.</param>
+    /// <param name="instructionEnvelope">The preamble and postamble every agent here carries.</param>
+    /// <param name="loggerFactory">The factory the agent logs through.</param>
+    /// <returns>The composed agent.</returns>
+    /// <remarks>
+    /// A second agent of the same capability rather than the drafting agent asked differently, because its instruction and
+    /// its answer are its own: one composed under its own name is one a trace, an evaluation, and a reader can tell apart.
+    /// Its tool set is empty for the reason the drafting agent's is.
+    /// </remarks>
+    internal static ChatClientAgent ComposeRewriting(
+        IChatClient chatClient,
+        ChatGenerationPlan plan,
+        IAgentInstructionEnvelope instructionEnvelope,
+        ILoggerFactory loggerFactory)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+
+        var operation = new AgentOperation(
+            RewritingAgentName,
+            PassageRewriteInstructions.TextFor(plan.StructuredOutputs),
+            [],
+            plan.StructuredOutputs ? PassageRewriteSchema.ResponseFormat() : null);
 
         return AgentComposition.Compose(chatClient, plan, operation, instructionEnvelope, loggerFactory);
     }

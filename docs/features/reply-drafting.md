@@ -221,6 +221,51 @@ Asking a provider to write a reply to a conversation this deployment stored no t
 on its own: a model given nothing writes a fluent message resting on nothing at all, so the drafting answers with
 nothing instead.
 
+## Rewriting a selected part of a draft
+
+A draft that is nearly right is usually wrong in one place: a sentence too long, a paragraph too blunt. **Somebody
+selects that part — in the Agent's draft widget or in the composer — and asks for it shorter, more formal, softer,
+firmer, or rewritten as they type**, and only that part changes. It is this feature's second act rather than a feature of
+its own: the same switch turns it on, the same allowance pays for it, and the same refusals answer it.
+
+**The client widens the selection to the whole sentences it touches**, one stretch for each paragraph it reaches, so
+what is rewritten is always sentences that can stand on their own. It sends the draft as plain text with those
+stretches named by their offsets, and what comes back is one rewritten text for each stretch, which the client shows as
+a difference the person keeps or undoes. Nothing is sent, stored, or written into the draft until they keep it.
+
+**What reaches the provider is the draft and the ask, and nothing else.** No message is named and nothing is read out of
+a mailbox — no conversation, no participants, no sent mail — and no address is published, because none is in play: the
+draft's own text is the whole of what a rewriting is grounded in. The turn is written by the same writer a drafting's
+is: the draft in a `<draft>` element with each stretch inline where it stands, in a numbered `<passage>` element, so a
+model reads every passage between the words around it, and the ask in the `<ask>` element and nowhere else. A draft may
+quote the mail it answers, and a quoted message asking for something cannot speak with the person's authority for the
+reason it cannot in a drafting. The turn is never cut: a cut draft would lose a passage the answer is ordered by, so a
+turn wider than a model accepts is refused for that model, which the bounded draft and ask keep far below any model's
+own bound.
+
+The instruction asks for each passage rewritten as the ask says and nothing else: in the language the draft is written
+in, whatever language the ask is in, unless the ask names one; keeping every fact, name, number, amount, date, and
+commitment the passage states unless the ask says to change it; as whole sentences that read in place; and as one
+paragraph each, with no quotation marks around it and no comment on it. A passage the ask leaves nothing to change in
+comes back as it was.
+
+**Each stretch of the draft is scanned on its own before it leaves**, at `ChatPrompt` like every other text sent to a
+provider — the text between the passages and each passage separately, because a redaction is not the length of what it
+replaced and the passages have to stay where they stood. What comes back is scanned at the drafting's own egress point
+before it reaches the client, as a draft is.
+
+**An answer is one text for every passage or nothing.** A text too few or too many, or a blank one, is read as nothing
+rather than guessed at, because nothing would say which passage a text belongs to; each text kept is trimmed, has any
+line break inside it read as a space, and is held to 8 000 characters. Nothing about a rewriting reaches a log, a span
+attribute, or a telemetry event beyond how many passages it rewrote and the alias of the endpoint that wrote them.
+
+| What happened | What comes back |
+|---|---|
+| This deployment drafts no reply | `rewritten: false` |
+| The provider was unreachable, refused, or answered anything but one text per passage | `rewritten: false` |
+| A draft blank or over 8 000 characters, no passage or more than 16, a passage empty, outside the draft, out of order, or overlapping another, or an ask blank or over 4 000 characters | `400` |
+| The deployment has spent what its operator allows a provider for the period | `429` |
+
 ## Turning it off
 
 On wherever a chat endpoint is declared, and read nowhere else: a deployment with no endpoint drafts nothing whatever
@@ -229,7 +274,8 @@ every reply is written by hand exactly as before. What it costs where it is on i
 deliberately asked for.
 
 [AI configuration § `Chat:ReplyDrafting`](../operations/configuration-ai.md#drafting-a-reply--chatreplydrafting) holds
-the two keys, and [the client endpoint](../operations/client-endpoint.md#the-reply-drafting-routes) the two routes it is
-published on. Both are published under `mailfathom.assistant.use` rather than under the reading grant, because that is what
-drafting does: mail leaves this deployment for a chat provider. The one that drafts asks for `mailfathom.mail.read`
-beneath it as well, because the messages it is written from are mail the caller has to be allowed to read before a model is.
+the two keys, and [the client endpoint](../operations/client-endpoint.md#the-reply-drafting-routes) the three routes it is
+published on. All three are published under `mailfathom.assistant.use` rather than under the reading grant, because that is what
+drafting does: mail leaves this deployment for a chat provider. The two that write ask for `mailfathom.mail.read`
+beneath it as well, because the messages a draft is written from are mail the caller has to be allowed to read before a
+model is, and a rewriting is the same act published under the same pair of grants.

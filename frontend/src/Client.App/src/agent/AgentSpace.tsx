@@ -26,6 +26,7 @@ import { Control } from '../controls/Control';
 import { WidthGrip } from '../controls/WidthGrip';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
+import { RewriteDockContext } from '../rewriting/passageRewriting';
 import type { AgentHandOver } from '../routing/agentHandOver';
 import { useScreenLayer } from '../shell/screenLayers';
 import { useDesktopComposition, useWideWorkspace } from '../shell/useWideWorkspace';
@@ -218,6 +219,7 @@ export function AgentSpace({
     }
 
     const asked = useRef<HTMLDialogElement>(null);
+    const fieldColumn = useRef<HTMLDivElement>(null);
     const drawer = useRef<HTMLDialogElement>(null);
 
     // What the screen shows, read by a write that resolves after the reader may have moved on — so what it adopts and
@@ -635,16 +637,18 @@ export function AgentSpace({
 
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                     <ProposalAnswersContext value={{ answer: answerProposal, askAnotherTime, look: onLook }}>
-                        <ConversationThread
-                            turns={turns}
-                            reading={followed.reading}
-                            failure={followed.failure}
-                            status={inFlight === null ? undefined : inFlight.status}
-                            settledThrough={followed.settledThrough}
-                            following={following}
-                            onAsk={send}
-                            onFollowSource={followSource}
-                        />
+                        <RewriteDockContext value={fieldColumn}>
+                            <ConversationThread
+                                turns={turns}
+                                reading={followed.reading}
+                                failure={followed.failure}
+                                status={inFlight === null ? undefined : inFlight.status}
+                                settledThrough={followed.settledThrough}
+                                following={following}
+                                onAsk={send}
+                                onFollowSource={followSource}
+                            />
+                        </RewriteDockContext>
                     </ProposalAnswersContext>
 
                     {undeleted === null ? null : (
@@ -675,6 +679,7 @@ export function AgentSpace({
                         onClearContext={() => {
                             setContext(null);
                         }}
+                        dock={fieldColumn}
                     />
                 </div>
 

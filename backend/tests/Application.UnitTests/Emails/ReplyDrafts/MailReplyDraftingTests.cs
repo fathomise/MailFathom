@@ -576,7 +576,114 @@ public sealed class MailReplyDraftingTests
         Assert.False(Brief(writer).ClosesWithFooter);
     }
 
+    /// <summary>A rewriting is the drafting's second half, so a caller granted only the asking half is refused naming the reading one.</summary>
+    [Fact]
+    public async Task RewritePassagesAsync_ACallerGrantedOnlyAsking_IsRefusedBeforeTheWriterIsAsked()
+    {
+        // Arrange
+        var writer = WriterRewriting(PassageRewrite.Written(["Shorter."]));
+        var drafting = CreateDrafting(
+            SourceReaderReturning(Sources()),
+            writer,
+            authorization: AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse));
+
+        // Act and assert
+        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
+            drafting.RewritePassagesAsync(RewriteRequest(), TestContext.Current.CancellationToken));
+
+        Assert.Equal(MailFathomPermission.MailRead, refusal.RequiredPermission);
+        Assert.Empty(writer.ReceivedCalls());
+    }
+
+    /// <summary>A rewriting puts a draft in front of a provider, so it is behind the grant that governs doing so.</summary>
+    [Fact]
+    public async Task RewritePassagesAsync_ACallerWithoutTheAssistantGrant_IsRefusedBeforeTheWriterIsAsked()
+    {
+        // Arrange
+        var writer = WriterRewriting(PassageRewrite.Written(["Shorter."]));
+        var drafting = CreateDrafting(
+            SourceReaderReturning(Sources()),
+            writer,
+            authorization: AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead));
+
+        // Act and assert
+        var refusal = await Assert.ThrowsAsync<PrincipalNotAuthorizedException>(() =>
+            drafting.RewritePassagesAsync(RewriteRequest(), TestContext.Current.CancellationToken));
+
+        Assert.Equal(MailFathomPermission.AssistantUse, refusal.RequiredPermission);
+        Assert.Empty(writer.ReceivedCalls());
+    }
+
+    /// <summary>The draft is the whole of what a rewriting is grounded in, so the writer is handed the request and no mailbox is read.</summary>
+    [Fact]
+    public async Task RewritePassagesAsync_AnyRequest_AsksTheWriterWithItAndReadsNoMail()
+    {
+        // Arrange
+        var request = RewriteRequest();
+        var sourceReader = SourceReaderReturning(Sources());
+        var writer = WriterRewriting(PassageRewrite.Written(["Tuesday suits us."]));
+        var drafting = CreateDrafting(sourceReader, writer);
+
+        // Act
+        var rewrite = await drafting.RewritePassagesAsync(request, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["Tuesday suits us."], rewrite.Passages);
+        await writer.Received(1).RewritePassagesAsync(request, Arg.Any<CancellationToken>());
+        Assert.Empty(sourceReader.ReceivedCalls());
+    }
+
+    /// <summary>A rewritten passage is part of a draft and carries whatever the draft carried, so it is scanned on its way to a client as a draft is.</summary>
+    [Fact]
+    public async Task RewritePassagesAsync_ADeploymentThatScans_ScansEveryPassageWhereADraftIsRead()
+    {
+        // Arrange
+        using var egress = ScanningSensitiveContentEgress.Finding(Marker, TimeProvider.System);
+        var drafting = CreateDrafting(
+            SourceReaderReturning(Sources()),
+            WriterRewriting(PassageRewrite.Written([$"The key is {Marker}.", "Thanks."])),
+            egressGuard: egress.Guard);
+
+        // Act
+        var rewrite = await drafting.RewritePassagesAsync(RewriteRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(rewrite.WasWritten);
+        Assert.Equal(2, rewrite.Passages.Count);
+        Assert.DoesNotContain(rewrite.Passages, passage => passage.Contains(Marker, StringComparison.Ordinal));
+        Assert.Equal("Thanks.", rewrite.Passages[1]);
+        Assert.Equal(
+            [SensitiveContentEgressPoint.ClientReplyDraft],
+            egress.Telemetry.Operations.Select(static operation => operation.EgressPoint));
+    }
+
+    /// <summary>A provider that wrote nothing leaves the draft as it was, which is not a failure the use case raises.</summary>
+    [Fact]
+    public async Task RewritePassagesAsync_AWriterThatRewroteNothing_AnswersNothing()
+    {
+        // Arrange
+        var drafting = CreateDrafting(SourceReaderReturning(Sources()), WriterRewriting(PassageRewrite.Nothing));
+
+        // Act
+        var rewrite = await drafting.RewritePassagesAsync(RewriteRequest(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(rewrite.WasWritten);
+        Assert.Empty(rewrite.Passages);
+    }
+
     private static ReplyDraftRequest Request() => new() { ContextEmailIds = [Answered] };
+
+    private static PassageRewriteRequest RewriteRequest() =>
+        new("Dear Anna,\nTuesday would be fine for us, if that works.", [new DraftPassage(11, 44)], "Shorter");
+
+    private static IReplyDraftWriter WriterRewriting(PassageRewrite rewrite)
+    {
+        var writer = Substitute.For<IReplyDraftWriter>();
+        writer.RewritePassagesAsync(Arg.Any<PassageRewriteRequest>(), Arg.Any<CancellationToken>()).Returns(rewrite);
+
+        return writer;
+    }
 
     private static ReplyDraftBrief Brief(IReplyDraftWriter writer) =>
         (ReplyDraftBrief)writer.ReceivedCalls().Single().GetArguments()[0]!;

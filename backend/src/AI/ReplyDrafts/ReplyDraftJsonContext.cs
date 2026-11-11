@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 
 namespace MailFathom.AI.ReplyDrafts;
 
-/// <summary>Reads a reply-drafting agent's answer without reflection, as everything serialized in this repository is.</summary>
+/// <summary>Reads a reply-drafting or a passage-rewriting agent's answer without reflection, as everything serialized in this repository is.</summary>
 /// <remarks>
 /// The options are deliberately forgiving about case, about a field nobody declared, and about a number written as a
 /// string, as in <c>"messages": ["0"]</c>, because the text being read was written by a model rather than by a program.
@@ -21,4 +21,5 @@ namespace MailFathom.AI.ReplyDrafts;
     AllowTrailingCommas = true,
     NumberHandling = JsonNumberHandling.AllowReadingFromString)]
 [JsonSerializable(typeof(ReplyDraftDocument))]
+[JsonSerializable(typeof(PassageRewriteDocument))]
 internal sealed partial class ReplyDraftJsonContext : JsonSerializerContext;

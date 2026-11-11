@@ -298,6 +298,11 @@ public sealed class AgentCompositionTests
             new ReplyDraftTurn("a turn", [], [], []),
             new EmptyAgentInstructionEnvelope(),
             NullLoggerFactory.Instance),
+        ["passage rewrite"] = static chatClient => ReplyDraftAgentComposition.ComposeRewriting(
+            chatClient,
+            ChatDeclarations.Plan(),
+            new EmptyAgentInstructionEnvelope(),
+            NullLoggerFactory.Instance),
         ["thread state"] = static chatClient => ThreadStateAgentComposition.Compose(
             chatClient,
             ChatDeclarations.Plan(),

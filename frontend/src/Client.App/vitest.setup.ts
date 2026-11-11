@@ -139,3 +139,18 @@ if (typeof Element.prototype.scrollIntoView !== 'function') {
         value: () => undefined,
     });
 }
+
+// jsdom lays nothing out, so a range has no geometry to report and may not offer the two calls that read it. The
+// rewrite bar places itself by where a selection stands; an empty box is where a layout-free selection stands.
+for (const method of ['getBoundingClientRect', 'getClientRects'] as const) {
+    if (typeof Range.prototype[method] !== 'function') {
+        Object.defineProperty(Range.prototype, method, {
+            configurable: true,
+            writable: true,
+            value:
+                method === 'getBoundingClientRect'
+                    ? () => ({ top: 0, right: 0, bottom: 0, left: 0, width: 0, height: 0, x: 0, y: 0 })
+                    : () => [],
+        });
+    }
+}

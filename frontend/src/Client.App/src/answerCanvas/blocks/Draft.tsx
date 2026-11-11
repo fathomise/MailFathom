@@ -2,15 +2,22 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useId, useState } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import type { AnswerBlock } from '@mailfathom/client-backend';
 import { namedZone, sendTimeAt } from '../../composer/sendLater';
 import { useSendTimeWording } from '../../composer/useSendTimeWording';
+import { useCoarsePointer } from '../../shell/useWideWorkspace';
 import { Icon } from '../../controls/Icon';
 import { FoldedFooter } from '../../footers/FoldedFooter';
 import { useFooterOf } from '../../footers/footersInForce';
 import { useLocalization } from '../../localization/useLocalization';
 import { useReadingZone } from '../../localization/useReadingZone';
+import { PassageRewriteBar } from '../../rewriting/PassageRewriteBar';
+import { RewriteNote } from '../../rewriting/RewriteNote';
+import { usePassageRewriter, useRewriteDock } from '../../rewriting/passageRewriting';
+import { linePoint, passagesTouched, withPassagesRewritten } from '../../rewriting/passages';
+import { usePassageChange, type PassageChange, type RewriteHow } from '../../rewriting/usePassageChange';
+import { useSelectedPassage } from '../../rewriting/useSelectedPassage';
 import { UnrecognisedAnswerBlock } from '../AnswerBlockCard';
 import { ProposalCard, type ProposalControl } from '../ProposalCard';
 import { useProposalAnswering } from '../proposalAnswering';
@@ -38,6 +45,11 @@ import { draftDispositions } from './blockWording';
 // So an edit that changed the text holds *Send* rather than sending the text the reader moved away from, and says why
 // beside the field: sending what somebody typed needs the route to carry it, which it does not yet.
 //
+// **Part of it is rewritten where it stands.** Selecting text in a pending draft nobody is editing by hand raises the
+// AI button, and the rewrite comes back as the old sentences struck beside the new ones, with *Keep the change*, *Try
+// again* and *Undo* in place of *Send* until one of them is pressed — nothing is sent while a rewrite waits. A kept
+// rewrite is an edit like any other, so it holds *Send* for the reason an edit does.
+//
 // **A draft the person asked to leave later says when, as the composer does once a time is chosen.** The time is the
 // proposal's, so nothing here clears or moves it: asking the Agent again is how it changes, and *Edit here* keeps it.
 //
@@ -59,6 +71,60 @@ function addressedTo(recipients: readonly string[], locale: string): string {
     return new Intl.ListFormat(locale).format(recipients);
 }
 
+/** Where a place in the document stands in the letter's text, which is the one text node the letter holds. */
+function placeIn(letter: HTMLElement | null, node: Node, offset: number): number | null {
+    if (!letter?.contains(node)) {
+        return null;
+    }
+
+    const before = document.createRange();
+    before.setStart(letter, 0);
+    before.setEnd(node, offset);
+
+    return before.toString().length;
+}
+
+/**
+ * The letter while a rewrite is in hand: each passage pulsing while it is written, then struck beside what came back.
+ * The struck words are a `del` and the new ones an `ins`, so what changed is said by the markup as well as the colour.
+ */
+function changedLetter(body: string, change: PassageChange): ReactNode[] {
+    const lines = body.split('\n');
+    const lineStart = (line: number) => lines.slice(0, line).reduce((total, text) => total + text.length + 1, 0);
+    const drawn: ReactNode[] = [];
+    let at = 0;
+
+    change.passages.forEach((passage, index) => {
+        const start = lineStart(passage.paragraph) + passage.start;
+        const end = lineStart(passage.paragraph) + passage.end;
+        const rewritten = change.rewritten?.[index];
+
+        drawn.push(body.slice(at, start));
+        drawn.push(
+            rewritten === undefined ? (
+                <mark
+                    key={start}
+                    className="rounded-xs bg-accent-soft text-inherit animate-working motion-reduce:animate-none"
+                >
+                    {body.slice(start, end)}
+                </mark>
+            ) : (
+                <span key={start}>
+                    <del className="text-muted decoration-faint">{body.slice(start, end)}</del>{' '}
+                    <ins className="rounded-xs bg-accent-soft px-px text-text no-underline shadow-rewritten">
+                        {rewritten}
+                    </ins>
+                </span>
+            ),
+        );
+        at = end;
+    });
+
+    drawn.push(body.slice(at));
+
+    return drawn;
+}
+
 export function Draft({ block }: { readonly block: AnswerBlock }) {
     const { locale, translate } = useLocalization();
     const answering = useProposalAnswering();
@@ -76,6 +142,18 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
     const [editing, setEditing] = useState(false);
     const [typed, setTyped] = useState<string | null>(null);
     const footer = useFooterOf(block.type === 'draft' ? block.draft.account : null);
+    const rewriter = usePassageRewriter();
+    const dock = useRewriteDock();
+    const letter = useRef<HTMLParagraphElement>(null);
+    const rewriting = usePassageChange(rewriter);
+    const [rewrittenKept, setRewrittenKept] = useState(false);
+    const coarse = useCoarsePointer();
+    const change = rewriting.change;
+
+    // A draft's letter is a place to select from only while the proposal waits, nobody is editing it by hand, and no
+    // rewrite is already in hand — and only where the deployment rewrites at all.
+    const rewritable = rewriter !== null && answering?.phase === 'pending' && !editing && change === null;
+    const selection = useSelectedPassage((node, offset) => placeIn(letter.current, node, offset), rewritable, coarse);
 
     if (block.type !== 'draft') {
         return <UnrecognisedAnswerBlock />;
@@ -88,59 +166,118 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
     const leaves = draft.dueAt === null ? null : wordSendTime(sendTimeAt(Date.parse(draft.dueAt), zone));
     const sendSaid = leaves === null ? translate('draft.send') : translate('draft.sendAt', { when: leaves.short });
 
+    function rewrite(how: RewriteHow): void {
+        const selected = selection.selected;
+
+        if (selected === null) {
+            return;
+        }
+
+        const lines = body.split('\n');
+        const passages = passagesTouched(lines, linePoint(body, selected.from), linePoint(body, selected.to));
+
+        selection.close();
+
+        if (passages.length > 0) {
+            void rewriting.rewrite(lines, passages, how);
+        }
+    }
+
+    function keepTheChange(kept: PassageChange): void {
+        const before = typed;
+
+        setTyped(withPassagesRewritten(body.split('\n'), kept.passages, kept.rewritten ?? []).join('\n'));
+        setRewrittenKept(true);
+        rewriting.settle();
+        rewriting.sayKept(kept, false, () => {
+            setTyped(before);
+            setRewrittenKept(false);
+        });
+    }
+
     const controls: readonly ProposalControl[] =
         answering === null
             ? []
-            : editing
-              ? [
-                    {
-                        said: sendSaid,
-                        name:
-                            leaves === null
-                                ? translate('draft.sendEditedName', { to })
-                                : translate('draft.sendEditedAtName', { to, when: leaves.long }),
-                        primary: true,
-                        held: changed,
-                        run: () => {
-                            answering.answer('accepted');
+            : change !== null
+              ? change.rewritten === null
+                  ? []
+                  : [
+                        {
+                            said: translate('rewrite.keep'),
+                            name: translate('rewrite.keepDraftName', { to }),
+                            primary: true,
+                            run: () => {
+                                keepTheChange(change);
+                            },
                         },
-                    },
-                    {
-                        said: translate('draft.stopEditing'),
-                        name: translate('draft.stopEditingName', { to }),
-                        run: () => {
-                            setEditing(false);
+                        {
+                            said: translate('rewrite.again'),
+                            name: translate('rewrite.againName'),
+                            run: () => {
+                                void rewriting.rewrite(
+                                    body.split('\n'),
+                                    change.passages,
+                                    rewriting.howAgain(change),
+                                    true,
+                                );
+                            },
                         },
-                    },
-                ]
-              : [
-                    {
-                        said: sendSaid,
-                        name:
-                            leaves === null
-                                ? translate('draft.sendName', { to })
-                                : translate('draft.sendAtName', { to, when: leaves.long }),
-                        primary: true,
-                        held: changed,
-                        run: () => {
-                            answering.answer('accepted');
+                        {
+                            said: translate('rewrite.undo'),
+                            name: translate('rewrite.undoDraftName'),
+                            run: rewriting.settle,
                         },
-                    },
-                    {
-                        said: translate('draft.editHere'),
-                        name: translate('draft.editHereName', { to }),
-                        run: () => {
-                            setEditing(true);
-                        },
-                    },
-                    {
-                        said: translate('draft.discard'),
-                        name: translate('draft.discardName', { to }),
-                        run: () => {
-                            answering.answer('declined');
-                        },
-                    },
-                ];
+                    ]
+              : editing
+                ? [
+                      {
+                          said: sendSaid,
+                          name:
+                              leaves === null
+                                  ? translate('draft.sendEditedName', { to })
+                                  : translate('draft.sendEditedAtName', { to, when: leaves.long }),
+                          primary: true,
+                          held: changed,
+                          run: () => {
+                              answering.answer('accepted');
+                          },
+                      },
+                      {
+                          said: translate('draft.stopEditing'),
+                          name: translate('draft.stopEditingName', { to }),
+                          run: () => {
+                              setEditing(false);
+                          },
+                      },
+                  ]
+                : [
+                      {
+                          said: sendSaid,
+                          name:
+                              leaves === null
+                                  ? translate('draft.sendName', { to })
+                                  : translate('draft.sendAtName', { to, when: leaves.long }),
+                          primary: true,
+                          held: changed,
+                          run: () => {
+                              answering.answer('accepted');
+                          },
+                      },
+                      {
+                          said: translate('draft.editHere'),
+                          name: translate('draft.editHereName', { to }),
+                          run: () => {
+                              setEditing(true);
+                          },
+                      },
+                      {
+                          said: translate('draft.discard'),
+                          name: translate('draft.discardName', { to }),
+                          run: () => {
+                              answering.answer('declined');
+                          },
+                      },
+                  ];
 
     // The field is open only while the proposal can still be answered: a draft already sent or discarded keeps the
     // text the reader last saw as a paragraph rather than inviting an edit nothing could use.
@@ -152,8 +289,14 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
             controls={controls}
             kind="draft"
             label={translate('draft.label')}
+            meta={rewrittenKept ? translate('draft.rewritten') : undefined}
             quotesMail
             title={draft.subject}
+            trayNote={
+                change === null ? undefined : (
+                    <RewriteNote said={rewriting.noteOf(change)} busy={change.rewritten === null} />
+                )
+            }
             outcome={
                 leaves === null
                     ? undefined
@@ -211,8 +354,12 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                         />
                     </>
                 ) : (
-                    <p className="text-sm leading-relaxed whitespace-pre-line text-text-soft text-pretty" lang="">
-                        {body}
+                    <p
+                        ref={letter}
+                        className="text-sm leading-relaxed whitespace-pre-line text-text-soft text-pretty"
+                        lang=""
+                    >
+                        {change === null ? body : changedLetter(body, change)}
                     </p>
                 )}
 
@@ -226,6 +373,25 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                 {answering !== null && editable && changed ? (
                     <p className="text-xs text-faint text-pretty">{translate('draft.editedUnsendable')}</p>
                 ) : null}
+
+                {rewritable ? (
+                    <p className="flex items-center gap-1.75 text-sm text-muted">
+                        <Icon className="size-icon-xs text-faint" name="ink_highlighter" />
+                        {translate('rewrite.hint')}
+                    </p>
+                ) : null}
+
+                {selection.selected === null ? null : (
+                    <PassageRewriteBar
+                        selected={selection.selected}
+                        open={selection.open}
+                        inMessage={false}
+                        dock={dock}
+                        onOpen={selection.openBar}
+                        onClose={selection.close}
+                        onRewrite={rewrite}
+                    />
+                )}
 
                 {evidence.citations.length === 0 ? null : (
                     <p className="flex flex-wrap items-center gap-1.5">

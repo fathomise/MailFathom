@@ -14,6 +14,7 @@ import {
     type CSSProperties,
     type KeyboardEvent,
     type ReactNode,
+    type RefObject,
 } from 'react';
 import { newIdentifier } from '../agent/newIdentifier';
 import { Icon } from '../controls/Icon';
@@ -299,6 +300,9 @@ export function WrittenMessage({
     onSendAsked,
     beforeTheWords,
     linkHostsShown = false,
+    region,
+    held = false,
+    rewritesPassages = false,
 }: {
     /** What the region opens holding, read once: a message this tab was already writing, or nothing. */
     readonly opened: readonly WrittenNode[];
@@ -335,6 +339,18 @@ export function WrittenMessage({
      * shown before the draft becomes theirs.
      */
     readonly linkHostsShown?: boolean;
+
+    /**
+     * Takes the editable region, which the composer reads a selected passage out of and lays a rewrite over: what the
+     * region holds is the document's, so a rewrite is made there rather than written back from state.
+     */
+    readonly region?: RefObject<HTMLDivElement | null>;
+
+    /** Whether the words take no input, which they do not while a rewrite of part of them waits to be kept or undone. */
+    readonly held?: boolean;
+
+    /** Whether part of the words can be selected and rewritten, which the hint at the bar's end then says. */
+    readonly rewritesPassages?: boolean;
 }) {
     const { locale, translate } = useLocalization();
     const coarse = useCoarsePointer();
@@ -352,7 +368,8 @@ export function WrittenMessage({
         readonly image: HTMLImageElement;
         readonly width: number;
     } | null>(null);
-    const words = useRef<HTMLDivElement>(null);
+    const ownRegion = useRef<HTMLDivElement>(null);
+    const words = region ?? ownRegion;
     const bar = useRef<HTMLDivElement>(null);
     const holding = useRef<Range | null>(null);
     const pastingPlain = useRef(false);
@@ -396,7 +413,7 @@ export function WrittenMessage({
         return () => {
             document.removeEventListener('selectionchange', caretMoved);
         };
-    }, []);
+    }, [words]);
 
     // The host is an attribute on the link, drawn by the stylesheet beside its words, rather than an element of its
     // own: `writtenIn` reads a link's address and nothing else of it, so the host never becomes words in the message,
@@ -1064,7 +1081,7 @@ export function WrittenMessage({
         return () => {
             region?.removeEventListener('beforeinput', listener);
         };
-    }, []);
+    }, [words]);
 
     return (
         <>
@@ -1104,7 +1121,9 @@ export function WrittenMessage({
                         ))}
 
                         {coarse ? null : (
-                            <p className="ms-auto ps-3 text-xs text-faint">{translate('compose.formattingHint')}</p>
+                            <p className="ms-auto ps-3 text-xs text-faint">
+                                {translate(rewritesPassages ? 'rewrite.hintInline' : 'compose.formattingHint')}
+                            </p>
                         )}
                     </div>
 
@@ -1319,7 +1338,8 @@ export function WrittenMessage({
                     aria-multiline="true"
                     aria-label={translate('compose.words')}
                     data-placeholder={translate('compose.wordsPlaceholder')}
-                    contentEditable
+                    contentEditable={!held}
+                    aria-readonly={held ? true : undefined}
                     suppressContentEditableWarning
                     tabIndex={0}
                     // A low window lowers the floor so the foot carrying *Send* stays on the screen above a keyboard.

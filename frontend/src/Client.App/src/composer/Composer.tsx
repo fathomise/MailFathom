@@ -42,10 +42,16 @@ import { useReadingZone } from '../localization/useReadingZone';
 import { disconnected, saidByTheStatus, useConnectionStatus } from '../shell/connectionStatus';
 import { useWriteRefusal } from '../shell/useWriteRefusal';
 import { useStandingOnKeyboard } from '../shell/useStandingOnKeyboard';
-import { useWideWorkspace } from '../shell/useWideWorkspace';
+import { useCoarsePointer, useWideWorkspace } from '../shell/useWideWorkspace';
 import { useToasts, type Toast } from '../toasts/useToasts';
 import { showOutboxEntry } from '../outbox/showOutboxEntry';
 import { useWorkspace } from '../workspace/useWorkspace';
+import { PassageRewriteBar } from '../rewriting/PassageRewriteBar';
+import { usePassageRewriter } from '../rewriting/passageRewriting';
+import { linePoint, passagesTouched, type TouchedPassage } from '../rewriting/passages';
+import { regionText } from '../rewriting/regionText';
+import { usePassageChange, type PassageChange, type RewriteHow } from '../rewriting/usePassageChange';
+import { useSelectedPassage } from '../rewriting/useSelectedPassage';
 import {
     anythingWritten,
     answerTo,
@@ -89,6 +95,7 @@ import {
 import { useDraftAtDeployment, type AttachedFile, type DraftStanding } from './useDraftAtDeployment';
 import { useSendingOptions } from './useSendingOptions';
 import { useSendTimeWording } from './useSendTimeWording';
+import { RewriteFoot } from './RewriteFoot';
 import { WrittenMessage } from './WrittenMessage';
 import { picturesNamedIn } from './writtenText';
 
@@ -243,6 +250,25 @@ export function Composer({
     const { disconnectedNow } = useConnectionStatus();
     const draft = useDraftAtDeployment(session, transport);
     const zone = useReadingZone();
+
+    // Part of the message rewritten where it stands. The words are the region's own, so the passages are marked in
+    // the region, the rewrite is laid over them there, and what the region held before is kept as nodes to put back —
+    // formatting, pictures and tables included — rather than as a reading of it that would lose whatever the closed
+    // set does not carry.
+    const rewriter = usePassageRewriter();
+    const rewritesPassages = drafts && rewriter !== null;
+    const region = useRef<HTMLDivElement>(null);
+    const foot = useRef<HTMLDivElement>(null);
+    const rewriting = usePassageChange(rewritesPassages ? rewriter : null);
+    const rewriteChange = rewriting.change;
+    const beforeTheRewrite = useRef<readonly Node[] | null>(null);
+    const rewriteAsked = useRef(0);
+    const coarse = useCoarsePointer();
+    const passageSelection = useSelectedPassage(
+        (node, offset) => (region.current === null ? null : regionText(region.current).offsetOf(node, offset)),
+        rewritesPassages && rewriteChange === null,
+        coarse,
+    );
 
     // When the message leaves, which belongs to the send rather than to the draft: it is held here and nowhere else,
     // so a draft saved with a time keeps none and one opened again sends at once until a time is chosen.
@@ -581,7 +607,7 @@ export function Composer({
     // guard lives — a second drafting while the first is in flight would spend the allowance twice and put whichever
     // answered last on the screen.
     function askForADraft(instruction: string, passage: string | null = null): void {
-        if (composition === null || drafting) {
+        if (composition === null || drafting || rewriteChange !== null) {
             return;
         }
 
@@ -949,6 +975,145 @@ export function Composer({
     const copiesShown = copiesChosen ?? (composition !== null && composition.cc.length + composition.bcc.length > 0);
     const footer = useFooterOf(composition?.account ?? null);
 
+    // Where each passage stands in the region's text, which is the line it is on counted from the region's start.
+    function placesOf(text: string, passages: readonly TouchedPassage[]): readonly (readonly [number, number])[] {
+        const lines = text.split('\n');
+        const lineStart = (line: number) => lines.slice(0, line).reduce((total, words) => total + words.length + 1, 0);
+
+        return passages.map(({ paragraph, start, end }) => [lineStart(paragraph) + start, lineStart(paragraph) + end]);
+    }
+
+    // The words as they were before the rewrite, put back: as fresh copies, so *Try again* can put them back again.
+    function putTheWordsBack(): void {
+        const before = beforeTheRewrite.current;
+
+        if (before !== null) {
+            region.current?.replaceChildren(...before.map((node) => node.cloneNode(true)));
+        }
+    }
+
+    // A change to the words that the region did not make itself, told to the composer the way a keystroke is.
+    function wordsChanged(words: HTMLElement): void {
+        words.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    async function rewritePassages(
+        passages: readonly TouchedPassage[],
+        how: RewriteHow,
+        again: boolean,
+    ): Promise<void> {
+        const words = region.current;
+
+        if (words === null) {
+            return;
+        }
+
+        const read = regionText(words);
+        const lines = read.text.split('\n');
+        const ask = ++rewriteAsked.current;
+
+        // From the last to the first, so marking one passage does not move where the passages before it stand.
+        placesOf(read.text, passages)
+            .map((place, index) => ({ place, index }))
+            .reverse()
+            .forEach(({ place: [start, end], index }) => {
+                const range = read.rangeOf(start, end);
+
+                if (range !== null) {
+                    const mark = document.createElement('span');
+
+                    mark.dataset['rewrite'] = String(index);
+                    mark.className = 'rounded-xs bg-accent-soft animate-working motion-reduce:animate-none';
+                    mark.append(range.extractContents());
+                    range.insertNode(mark);
+                }
+            });
+
+        const rewritten = await rewriting.rewrite(lines, passages, how, again);
+
+        if (ask !== rewriteAsked.current || region.current !== words) {
+            return;
+        }
+
+        if (rewritten === null) {
+            putTheWordsBack();
+            beforeTheRewrite.current = null;
+
+            return;
+        }
+
+        // The old words struck, formatting and all, beside the new ones: a `del` and an `ins`, so what changed is said
+        // by the markup as well as by the colour.
+        for (const mark of words.querySelectorAll<HTMLElement>('[data-rewrite]')) {
+            const struck = document.createElement('del');
+            const written = document.createElement('ins');
+
+            struck.className = 'text-muted decoration-faint';
+            struck.append(...mark.childNodes);
+            written.className = 'rounded-xs bg-accent-soft px-px text-text no-underline shadow-rewritten';
+            written.textContent = rewritten[Number(mark.dataset['rewrite'])] ?? '';
+            mark.className = '';
+            mark.replaceChildren(struck, ' ', written);
+        }
+    }
+
+    function rewriteTheSelection(how: RewriteHow): void {
+        const selected = passageSelection.selected;
+        const words = region.current;
+
+        if (selected === null || words === null) {
+            return;
+        }
+
+        const read = regionText(words);
+        const lines = read.text.split('\n');
+        const passages = passagesTouched(lines, linePoint(read.text, selected.from), linePoint(read.text, selected.to));
+
+        passageSelection.close();
+
+        if (passages.length > 0) {
+            beforeTheRewrite.current = [...words.childNodes].map((node) => node.cloneNode(true));
+            void rewritePassages(passages, how, false);
+        }
+    }
+
+    function keepTheRewrite(kept: PassageChange): void {
+        const words = region.current;
+        const before = beforeTheRewrite.current;
+
+        if (words === null || kept.rewritten === null) {
+            return;
+        }
+
+        for (const mark of words.querySelectorAll<HTMLElement>('[data-rewrite]')) {
+            mark.replaceWith(kept.rewritten[Number(mark.dataset['rewrite'])] ?? '');
+        }
+
+        rewriteAsked.current++;
+        beforeTheRewrite.current = null;
+        rewriting.settle();
+        wordsChanged(words);
+        rewriting.sayKept(kept, true, () => {
+            if (before !== null && region.current === words) {
+                words.replaceChildren(...before);
+                wordsChanged(words);
+            }
+        });
+    }
+
+    function undoTheRewrite(): void {
+        rewriteAsked.current++;
+        putTheWordsBack();
+        beforeTheRewrite.current = null;
+        rewriting.settle();
+        region.current?.focus();
+    }
+
+    function rewriteAgain(standing: PassageChange): void {
+        putTheWordsBack();
+        void rewritePassages(standing.passages, rewriting.howAgain(standing), true);
+    }
+
     return (
         <section
             ref={frame}
@@ -1191,6 +1356,9 @@ export function Composer({
                         addresses={issuedAddresses}
                         picturesKeptHereOnly={picturesOnlyHere}
                         linkHostsShown={beforeDrafting !== null}
+                        region={region}
+                        held={rewriteChange !== null}
+                        rewritesPassages={rewritesPassages}
                         onWritten={(words) => {
                             revise({ words });
                         }}
@@ -1200,7 +1368,7 @@ export function Composer({
                             );
                         }}
                         onSendAsked={() => {
-                            if (sendable && sendRefused === null) {
+                            if (sendable && sendRefused === null && rewriteChange === null) {
                                 asked.current?.showModal();
                             }
                         }}
@@ -1218,6 +1386,18 @@ export function Composer({
                             ) : null
                         }
                     />
+
+                    {passageSelection.selected === null ? null : (
+                        <PassageRewriteBar
+                            selected={passageSelection.selected}
+                            open={passageSelection.open}
+                            inMessage
+                            dock={foot}
+                            onOpen={passageSelection.openBar}
+                            onClose={passageSelection.close}
+                            onRewrite={rewriteTheSelection}
+                        />
+                    )}
 
                     {/* The footer the account the message goes out from adds, under the words and outside them: it is
                         shown and never written in, so no draft saves it and the service appends it on sending. It
@@ -1254,72 +1434,93 @@ export function Composer({
                         {sendingOptions.line}
                         {sendingOptions.timeLine}
 
-                        <div className="flex flex-wrap items-center gap-2.5 border-t border-line bg-sunken px-3.75 py-2.75">
-                            <SendConfirmation
-                                asked={asked}
-                                composition={sentAs(composition, copiesShown)}
-                                draftUnaccepted={beforeDrafting !== null}
-                                disabled={!sendable}
-                                refused={sendRefused}
-                                leaves={leaves === null ? null : { ...leaves, zone: namedZone(zone) }}
-                                onSend={() => {
-                                    sendAsked(sentAs(composition, copiesShown), composition);
-                                }}
-                            />
+                        <div
+                            ref={foot}
+                            className="flex flex-wrap items-center gap-2.5 border-t border-line bg-sunken px-3.75 py-2.75"
+                        >
+                            {rewriteChange === null ? (
+                                <>
+                                    <SendConfirmation
+                                        asked={asked}
+                                        composition={sentAs(composition, copiesShown)}
+                                        draftUnaccepted={beforeDrafting !== null}
+                                        disabled={!sendable}
+                                        refused={sendRefused}
+                                        leaves={leaves === null ? null : { ...leaves, zone: namedZone(zone) }}
+                                        onSend={() => {
+                                            sendAsked(sentAs(composition, copiesShown), composition);
+                                        }}
+                                    />
 
-                            <button
-                                {...(wide ? { onClick: attachName.anchor.onClick } : attachName.anchor)}
-                                type="button"
-                                disabled={!stillBeingWritten}
-                                className="flex items-center justify-center gap-1.5 rounded-md border border-line-strong px-3.25 py-2.25 text-base text-text-soft transition hover:bg-hover disabled:opacity-60 max-workspace:px-2 pointer-coarse:text-md"
-                            >
-                                <Icon name="attach_file" className="size-icon-md" />
-                                <span className="max-workspace:sr-only">{translate('compose.attach')}</span>
-                            </button>
-                            {wide ? null : attachName.tip}
+                                    <button
+                                        {...(wide ? { onClick: attachName.anchor.onClick } : attachName.anchor)}
+                                        type="button"
+                                        disabled={!stillBeingWritten}
+                                        className="flex items-center justify-center gap-1.5 rounded-md border border-line-strong px-3.25 py-2.25 text-base text-text-soft transition hover:bg-hover disabled:opacity-60 max-workspace:px-2 pointer-coarse:text-md"
+                                    >
+                                        <Icon name="attach_file" className="size-icon-md" />
+                                        <span className="max-workspace:sr-only">{translate('compose.attach')}</span>
+                                    </button>
+                                    {wide ? null : attachName.tip}
 
-                            {/* The platform's own file picker, kept out of the accessible tree because the control above is
+                                    {/* The platform's own file picker, kept out of the accessible tree because the control above is
                             what carries the name and the keyboard path. */}
-                            <input
-                                ref={files}
-                                type="file"
-                                multiple
-                                tabIndex={-1}
-                                aria-hidden="true"
-                                className="hidden"
-                                onChange={(event) => {
-                                    const chosen = [...(event.target.files ?? [])];
+                                    <input
+                                        ref={files}
+                                        type="file"
+                                        multiple
+                                        tabIndex={-1}
+                                        aria-hidden="true"
+                                        className="hidden"
+                                        onChange={(event) => {
+                                            const chosen = [...(event.target.files ?? [])];
 
-                                    event.target.value = '';
+                                            event.target.value = '';
 
-                                    for (const file of chosen) {
-                                        draft.attach(file);
-                                    }
-                                }}
-                            />
+                                            for (const file of chosen) {
+                                                draft.attach(file);
+                                            }
+                                        }}
+                                    />
 
-                            <button
-                                {...(saveRefused === null
-                                    ? {
-                                          onClick: () => {
-                                              void draft.save(sentAs(composition, copiesShown));
-                                          },
-                                      }
-                                    : saveName.anchor)}
-                                type="button"
-                                disabled={!sendable && saveRefused === null}
-                                aria-disabled={saveRefused === null ? undefined : true}
-                                className="rounded-md py-2 text-sm text-muted pointer-coarse:px-1.5 transition hover:bg-hover hover:text-text disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:text-base"
-                            >
-                                {translate('compose.saveDraft')}
-                            </button>
-                            {saveRefused === null ? null : saveName.tip}
+                                    <button
+                                        {...(saveRefused === null
+                                            ? {
+                                                  onClick: () => {
+                                                      void draft.save(sentAs(composition, copiesShown));
+                                                  },
+                                              }
+                                            : saveName.anchor)}
+                                        type="button"
+                                        disabled={!sendable && saveRefused === null}
+                                        aria-disabled={saveRefused === null ? undefined : true}
+                                        className="rounded-md py-2 text-sm text-muted pointer-coarse:px-1.5 transition hover:bg-hover hover:text-text disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:text-base"
+                                    >
+                                        {translate('compose.saveDraft')}
+                                    </button>
+                                    {saveRefused === null ? null : saveName.tip}
 
-                            <p className="ms-auto text-xs text-faint pointer-coarse:hidden">
-                                {translate(sendAt === null ? 'compose.shortcutSends' : 'compose.shortcutSchedules')}
-                            </p>
+                                    <p className="ms-auto text-xs text-faint pointer-coarse:hidden">
+                                        {translate(
+                                            sendAt === null ? 'compose.shortcutSends' : 'compose.shortcutSchedules',
+                                        )}
+                                    </p>
 
-                            {sendingOptions.control}
+                                    {sendingOptions.control}
+                                </>
+                            ) : (
+                                <RewriteFoot
+                                    note={rewriting.noteOf(rewriteChange)}
+                                    busy={rewriteChange.rewritten === null}
+                                    onKeep={() => {
+                                        keepTheRewrite(rewriteChange);
+                                    }}
+                                    onAgain={() => {
+                                        rewriteAgain(rewriteChange);
+                                    }}
+                                    onUndo={undoTheRewrite}
+                                />
+                            )}
                         </div>
                     </div>
 

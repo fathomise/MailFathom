@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 import type {
     ClientRequest,
     ClientSession,
+    DraftPassageRewriteRequest,
     MailAccount,
     MailDocument,
     MailFathomTransport,
@@ -24,6 +25,7 @@ import { LocalizationProvider } from '../localization/Localization';
 import { ReadingZoneContext } from '../localization/useReadingZone';
 import { TelemetryContext, noTelemetry, type ClientTelemetry } from '../telemetry/clientTelemetry';
 import { recordingTelemetry, recordsOf } from '../telemetry/telemetry.harness';
+import { PassageRewritingContext, type PassageRewriter } from '../rewriting/passageRewriting';
 import { ToastsProvider } from '../toasts/Toasts';
 import { WorkspaceProvider } from '../workspace/Workspace';
 import { useWorkspace, type Workspace } from '../workspace/useWorkspace';
@@ -432,6 +434,7 @@ function drawComposer(
     showsOutbox = false,
     status: ConnectionStatus | null = null,
     zone: string | null = null,
+    rewriter: PassageRewriter | null = null,
 ): {
     closed: ReturnType<typeof vi.fn>;
     asked: ClientRequest[];
@@ -478,16 +481,18 @@ function drawComposer(
                                         <FootersInForceContext value={answers.footers ?? new Map()}>
                                             <Framed>
                                                 {(onClosed) => (
-                                                    <Composer
-                                                        session={session}
-                                                        transport={transport}
-                                                        accounts={accounts}
-                                                        opening={opening}
-                                                        online={online}
-                                                        drafts={drafts}
-                                                        showsOutbox={showsOutbox}
-                                                        onClosed={onClosed}
-                                                    />
+                                                    <PassageRewritingContext value={rewriter}>
+                                                        <Composer
+                                                            session={session}
+                                                            transport={transport}
+                                                            accounts={accounts}
+                                                            opening={opening}
+                                                            online={online}
+                                                            drafts={drafts}
+                                                            showsOutbox={showsOutbox}
+                                                            onClosed={onClosed}
+                                                        />
+                                                    </PassageRewritingContext>
                                                 )}
                                             </Framed>
                                         </FootersInForceContext>
@@ -3229,5 +3234,169 @@ describe('Composer, the footer its account adds', () => {
         await screen.findByText('Half a thought');
 
         expect(await screen.findAllByRole('group', { name: 'Footer added when you send' })).toHaveLength(1);
+    });
+});
+
+describe('Composer, rewriting a selected part of the message', () => {
+    const written = 'Thanks for the offer. We accept the price, but not the date.';
+
+    /** A deployment that rewrites each ask into the next of these, and remembers what it was asked. */
+    function rewritingInto(...answers: (readonly string[])[]) {
+        const asked: DraftPassageRewriteRequest[] = [];
+        const rewriter: PassageRewriter = (request) => {
+            asked.push(request);
+
+            const passages = answers.shift();
+
+            return Promise.resolve(
+                passages === undefined
+                    ? { outcome: 'read', value: { outcome: 'notRewritten' } }
+                    : { outcome: 'read', value: { outcome: 'rewritten', passages } },
+            );
+        };
+
+        return { asked, rewriter };
+    }
+
+    /** Selects the given words in the message as a mouse would, and lets the mouse go. */
+    function selectInTheWords(words: string): void {
+        const region = screen.getByRole('textbox', { name: 'Message' });
+        const walker = document.createTreeWalker(region, NodeFilter.SHOW_TEXT);
+        const range = document.createRange();
+
+        for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+            const at = node.textContent?.indexOf(words) ?? -1;
+
+            if (at >= 0) {
+                range.setStart(node, at);
+                range.setEnd(node, at + words.length);
+            }
+        }
+
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+
+        const released = new Event('pointerup', { bubbles: true });
+        Object.defineProperty(released, 'pointerType', { value: 'mouse' });
+        fireEvent(document, released);
+    }
+
+    function rewriteShorter(words: string): void {
+        selectInTheWords(words);
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite this part with AI' }));
+        fireEvent.click(
+            within(screen.getByRole('dialog', { name: 'Rewrite the selected part of the message' })).getByRole(
+                'button',
+                {
+                    name: 'Rewrite the selection: shorter',
+                },
+            ),
+        );
+    }
+
+    function drawRewriting(rewriter: PassageRewriter): void {
+        drawComposer(
+            { kind: 'new' },
+            {},
+            [work],
+            true,
+            uploadsOneFile,
+            true,
+            noTelemetry,
+            takesNothing,
+            false,
+            null,
+            null,
+            rewriter,
+        );
+    }
+
+    afterEach(() => {
+        window.getSelection()?.removeAllRanges();
+    });
+
+    it('says at the formatting bar’s end that a part can be rewritten', () => {
+        drawRewriting(rewritingInto().rewriter);
+
+        expect(screen.getByText('select any part and the agent rewrites just that')).toBeDefined();
+    });
+
+    it('rewrites the whole sentence a selection touches, struck beside the new one, with the foot standing in for Send', async () => {
+        const deployment = rewritingInto(['We accept the price.']);
+
+        drawRewriting(deployment.rewriter);
+        writeWords(written);
+        rewriteShorter('the price');
+
+        expect(await screen.findByText('We accept the price.')).toBeDefined();
+        expect(deployment.asked).toStrictEqual([
+            {
+                text: written,
+                passages: [{ start: 22, length: 38 }],
+                instruction: 'Make it shorter, keeping everything it says.',
+            },
+        ]);
+        expect(screen.getByText('We accept the price, but not the date.').tagName).toBe('DEL');
+        expect(screen.getByRole('textbox', { name: 'Message' }).getAttribute('contenteditable')).toBe('false');
+        expect(screen.getByRole('button', { name: 'Keep the rewritten text in the message' })).toBeDefined();
+        expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
+    });
+
+    it('keeps the change as the message’s words', async () => {
+        drawRewriting(rewritingInto(['We accept the price.']).rewriter);
+        writeWords(written);
+        rewriteShorter('the price');
+        fireEvent.click(await screen.findByRole('button', { name: 'Keep the rewritten text in the message' }));
+
+        expect(wordsWritten()).toBe('Thanks for the offer. We accept the price.');
+        expect(screen.getByRole('textbox', { name: 'Message' }).getAttribute('contenteditable')).toBe('true');
+        expect(screen.getByRole('button', { name: 'Send' })).toBeDefined();
+    });
+
+    it('puts the words back exactly as they were on Undo, formatting included', async () => {
+        drawRewriting(rewritingInto(['We accept the price.']).rewriter);
+
+        const region = screen.getByRole('textbox', { name: 'Message' });
+        const paragraph = document.createElement('p');
+        const bold = document.createElement('b');
+        bold.append('accept');
+        paragraph.append('Thanks for the offer. We ', bold, ' the price, but not the date.');
+        region.replaceChildren(paragraph);
+        fireEvent.input(region);
+
+        const before = region.cloneNode(true);
+
+        rewriteShorter('the price');
+        fireEvent.click(await screen.findByRole('button', { name: 'Leave the message as it was' }));
+
+        expect(region.isEqualNode(before)).toBe(true);
+    });
+
+    it('asks again under the next preset on Try again', async () => {
+        const deployment = rewritingInto(['We accept the price.'], ['We are pleased to accept the price only.']);
+
+        drawRewriting(deployment.rewriter);
+        writeWords(written);
+        rewriteShorter('the price');
+        fireEvent.click(
+            await screen.findByRole('button', { name: 'Ask the agent for another version of the same sentences' }),
+        );
+
+        expect(await screen.findByText('We are pleased to accept the price only.')).toBeDefined();
+        expect(deployment.asked.map(({ instruction }) => instruction)).toStrictEqual([
+            'Make it shorter, keeping everything it says.',
+            'Make it more formal.',
+        ]);
+        expect(deployment.asked[1]?.passages).toStrictEqual([{ start: 22, length: 38 }]);
+    });
+
+    it('leaves the words as they were where the deployment rewrote nothing, and says so', async () => {
+        drawRewriting(rewritingInto().rewriter);
+        writeWords(written);
+        rewriteShorter('the price');
+
+        expect(await screen.findByText('The server rewrote nothing this time. The text is as it was.')).toBeDefined();
+        expect(wordsWritten()).toBe(written);
+        expect(screen.getByRole('button', { name: 'Send' })).toBeDefined();
     });
 });

@@ -2,10 +2,13 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
     AgentProposalDecision,
+    ClientResult,
+    DraftPassageRewriteRequest,
+    DraftPassageRewriting,
     AnswerBlock,
     BlockEvidence,
     ComposedDraft,
@@ -16,6 +19,8 @@ import type {
 import { FootersInForceContext, type FootersInForce } from '../../footers/footersInForce';
 import { LocalizationProvider } from '../../localization/Localization';
 import { ReadingZoneContext } from '../../localization/useReadingZone';
+import { PassageRewritingContext, type PassageRewriter } from '../../rewriting/passageRewriting';
+import { ToastsProvider } from '../../toasts/Toasts';
 import { AnswerSourcesContext } from '../answerSources';
 import { ProposalAnsweringContext, type ProposalAnswering, type ProposalPhase } from '../proposalAnswering';
 import { Draft } from './Draft';
@@ -95,20 +100,25 @@ function renderDraft(
     block: AnswerBlock,
     answering: ProposalAnswering | null = null,
     footers: FootersInForce = new Map(),
+    rewriter: PassageRewriter | null = null,
 ) {
     const declared = new Map([[addendum.id, addendum]]);
 
     return render(
         <LocalizationProvider>
-            {/* A citation is given somewhere to follow to, as the canvas gives every block one: a chip with nowhere to
-                go says so in its own name, which is `Citation`'s behaviour rather than this block's. */}
-            <AnswerSourcesContext value={{ sources: declared, follow: () => undefined }}>
-                <FootersInForceContext value={footers}>
-                    <ProposalAnsweringContext value={answering}>
-                        <Draft block={block} />
-                    </ProposalAnsweringContext>
-                </FootersInForceContext>
-            </AnswerSourcesContext>
+            <ToastsProvider>
+                {/* A citation is given somewhere to follow to, as the canvas gives every block one: a chip with nowhere
+                    to go says so in its own name, which is `Citation`'s behaviour rather than this block's. */}
+                <AnswerSourcesContext value={{ sources: declared, follow: () => undefined }}>
+                    <FootersInForceContext value={footers}>
+                        <PassageRewritingContext value={rewriter}>
+                            <ProposalAnsweringContext value={answering}>
+                                <Draft block={block} />
+                            </ProposalAnsweringContext>
+                        </PassageRewritingContext>
+                    </FootersInForceContext>
+                </AnswerSourcesContext>
+            </ToastsProvider>
         </LocalizationProvider>,
     );
 }
@@ -339,13 +349,15 @@ describe('Draft', () => {
         function renderInWarsaw(phase: ProposalPhase) {
             return render(
                 <LocalizationProvider>
-                    <ReadingZoneContext value="Europe/Warsaw">
-                        <AnswerSourcesContext value={{ sources: new Map(), follow: () => undefined }}>
-                            <ProposalAnsweringContext value={inConversation(phase)}>
-                                <Draft block={draftedToLeaveLater()} />
-                            </ProposalAnsweringContext>
-                        </AnswerSourcesContext>
-                    </ReadingZoneContext>
+                    <ToastsProvider>
+                        <ReadingZoneContext value="Europe/Warsaw">
+                            <AnswerSourcesContext value={{ sources: new Map(), follow: () => undefined }}>
+                                <ProposalAnsweringContext value={inConversation(phase)}>
+                                    <Draft block={draftedToLeaveLater()} />
+                                </ProposalAnsweringContext>
+                            </AnswerSourcesContext>
+                        </ReadingZoneContext>
+                    </ToastsProvider>
                 </LocalizationProvider>,
             );
         }
@@ -451,5 +463,240 @@ describe('Draft', () => {
 
             expect(screen.queryByRole('button', { name: 'Your footer is hidden' })).toBeNull();
         });
+    });
+});
+
+describe('Draft, rewriting a selected part', () => {
+    const twoSentences = 'We accept the two-hour response time. We need the signed addendum by Friday.';
+
+    function withTwoSentences(): AnswerBlock {
+        return { type: 'draft', named: 'draft', evidence: backed, draft: { ...composed, body: twoSentences } };
+    }
+
+    /** A deployment that answers each ask with the next of these, and remembers what it was asked. */
+    function answeringWith(...answers: ClientResult<DraftPassageRewriting>[]) {
+        const asked: DraftPassageRewriteRequest[] = [];
+        const rewriter: PassageRewriter = (request) => {
+            asked.push(request);
+
+            return Promise.resolve(answers.shift() ?? { outcome: 'read', value: { outcome: 'notRewritten' } });
+        };
+
+        return { asked, rewriter };
+    }
+
+    function rewritten(...passages: string[]): ClientResult<DraftPassageRewriting> {
+        return { outcome: 'read', value: { outcome: 'rewritten', passages } };
+    }
+
+    /** Selects the given words of the letter as a mouse would, and lets the mouse go. */
+    function select(words: string): void {
+        const letter = screen.getByText(
+            (_, element) => element?.tagName === 'P' && element.textContent === twoSentences,
+        );
+        const text = letter.firstChild;
+        const start = twoSentences.indexOf(words);
+
+        if (text === null) {
+            throw new Error('The letter holds no text to select.');
+        }
+
+        const range = document.createRange();
+        range.setStart(text, start);
+        range.setEnd(text, start + words.length);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+
+        const released = new Event('pointerup', { bubbles: true });
+        Object.defineProperty(released, 'pointerType', { value: 'mouse' });
+        fireEvent(document, released);
+    }
+
+    function openTheBar(words: string): void {
+        select(words);
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite this part with AI' }));
+    }
+
+    afterEach(() => {
+        window.getSelection()?.removeAllRanges();
+    });
+
+    it('says a part can be rewritten under a pending draft, where the deployment rewrites at all', () => {
+        renderDraft(withTwoSentences(), inConversation('pending'), new Map(), answeringWith().rewriter);
+
+        expect(screen.getByText('Select any part and the agent rewrites just that')).toBeDefined();
+    });
+
+    it('offers nothing to rewrite where the deployment rewrites none', () => {
+        renderDraft(withTwoSentences(), inConversation('pending'));
+        select('signed addendum');
+
+        expect(screen.queryByText('Select any part and the agent rewrites just that')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Rewrite this part with AI' })).toBeNull();
+    });
+
+    it('raises the AI button by a selection, and its press opens the bar with the four presets and a field', () => {
+        renderDraft(withTwoSentences(), inConversation('pending'), new Map(), answeringWith().rewriter);
+        openTheBar('signed addendum');
+
+        const bar = screen.getByRole('dialog', { name: 'Rewrite the selected part of the draft' });
+
+        expect(within(bar).getByText('“signed addendum”')).toBeDefined();
+        expect(
+            ['Shorter', 'More formal', 'Softer', 'Firmer'].map(
+                (preset) =>
+                    within(bar).getByRole('button', { name: `Rewrite the selection: ${preset.toLowerCase()}` })
+                        .textContent,
+            ),
+        ).toStrictEqual(['Shorter', 'More formal', 'Softer', 'Firmer']);
+        expect(within(bar).getByRole('textbox', { name: 'Say how to rewrite the selection' })).toBeDefined();
+        expect(document.activeElement).toBe(
+            within(bar).getByRole('button', { name: 'Rewrite the selection: shorter' }),
+        );
+    });
+
+    it('rewrites the whole sentence the selection touches and shows it struck beside the new one, holding Send', async () => {
+        const deployment = answeringWith(rewritten('The signed addendum is needed by Friday.'));
+
+        renderDraft(withTwoSentences(), inConversation('pending'), new Map(), deployment.rewriter);
+        openTheBar('signed addendum');
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite the selection: shorter' }));
+
+        expect(await screen.findByText('The signed addendum is needed by Friday.')).toBeDefined();
+        expect(deployment.asked).toStrictEqual([
+            {
+                text: twoSentences,
+                passages: [{ start: 38, length: 38 }],
+                instruction: 'Make it shorter, keeping everything it says.',
+            },
+        ]);
+        expect(screen.getByText('We need the signed addendum by Friday.').tagName).toBe('DEL');
+        expect(screen.getByText('Shorter · the struck text stays until you keep the change')).toBeDefined();
+        expect(controlsOffered()).toEqual(
+            expect.arrayContaining([
+                'Keep the rewritten text in the draft to anna@contoso.example',
+                'Ask the agent for another version of the same sentences',
+                'Leave the draft as it was',
+            ]),
+        );
+        expect(screen.queryByRole('button', { name: 'Send the draft to anna@contoso.example' })).toBeNull();
+    });
+
+    it('keeps the change as the draft’s text, and the toast’s Undo puts the text before it back', async () => {
+        renderDraft(
+            withTwoSentences(),
+            inConversation('pending'),
+            new Map(),
+            answeringWith(rewritten('The signed addendum is needed by Friday.')).rewriter,
+        );
+        openTheBar('signed addendum');
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite the selection: shorter' }));
+        fireEvent.click(await screen.findByRole('button', { name: /^Keep the rewritten text/ }));
+
+        expect(
+            screen.getByText('We accept the two-hour response time. The signed addendum is needed by Friday.'),
+        ).toBeDefined();
+        expect(screen.getByText('rewritten with the agent')).toBeDefined();
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+
+        expect(screen.getByText(twoSentences)).toBeDefined();
+        expect(screen.queryByText('rewritten with the agent')).toBeNull();
+    });
+
+    it('leaves the draft as it was on Undo', async () => {
+        renderDraft(
+            withTwoSentences(),
+            inConversation('pending'),
+            new Map(),
+            answeringWith(rewritten('The signed addendum is needed by Friday.')).rewriter,
+        );
+        openTheBar('signed addendum');
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite the selection: shorter' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Leave the draft as it was' }));
+
+        expect(screen.getByText(twoSentences)).toBeDefined();
+        expect(screen.getByRole('button', { name: 'Send the draft to anna@contoso.example' })).toBeDefined();
+    });
+
+    it('asks for another version of the same sentences under the next preset on Try again', async () => {
+        const deployment = answeringWith(
+            rewritten('The signed addendum is needed by Friday.'),
+            rewritten('We kindly ask for the signed addendum by Friday.'),
+        );
+
+        renderDraft(withTwoSentences(), inConversation('pending'), new Map(), deployment.rewriter);
+        openTheBar('signed addendum');
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite the selection: shorter' }));
+        fireEvent.click(
+            await screen.findByRole('button', { name: 'Ask the agent for another version of the same sentences' }),
+        );
+
+        expect(await screen.findByText('We kindly ask for the signed addendum by Friday.')).toBeDefined();
+        expect(deployment.asked.map(({ instruction }) => instruction)).toStrictEqual([
+            'Make it shorter, keeping everything it says.',
+            'Make it more formal.',
+        ]);
+        expect(
+            screen.getByText('More formal · another version · the struck text stays until you keep the change'),
+        ).toBeDefined();
+    });
+
+    it('asks with the words somebody typed into the bar', async () => {
+        const deployment = answeringWith(rewritten('We need the signed 2023 addendum by Friday.'));
+
+        renderDraft(withTwoSentences(), inConversation('pending'), new Map(), deployment.rewriter);
+        openTheBar('signed addendum');
+        fireEvent.change(screen.getByRole('textbox', { name: 'Say how to rewrite the selection' }), {
+            target: { value: 'mention the 2023 addendum' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite' }));
+
+        expect(await screen.findByText('We need the signed 2023 addendum by Friday.')).toBeDefined();
+        expect(deployment.asked[0]?.instruction).toBe('mention the 2023 addendum');
+    });
+
+    it('says the agent found nothing to change where every sentence came back the same, and leaves the text', async () => {
+        renderDraft(
+            withTwoSentences(),
+            inConversation('pending'),
+            new Map(),
+            answeringWith(rewritten('We need the signed addendum by Friday.')).rewriter,
+        );
+        openTheBar('signed addendum');
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite the selection: softer' }));
+
+        expect(await screen.findByText('The agent found nothing to change there.')).toBeDefined();
+        expect(screen.getByText(twoSentences)).toBeDefined();
+    });
+
+    it('says the allowance is spent rather than rewriting, and leaves the text', async () => {
+        renderDraft(
+            withTwoSentences(),
+            inConversation('pending'),
+            new Map(),
+            answeringWith({ outcome: 'read', value: { outcome: 'allowanceSpent' } }).rewriter,
+        );
+        openTheBar('signed addendum');
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite the selection: firmer' }));
+
+        expect(await screen.findByText(/has spent what it allows its writer for now/)).toBeDefined();
+        expect(screen.getByText(twoSentences)).toBeDefined();
+    });
+
+    it('says a request that failed failed, and leaves the text', async () => {
+        renderDraft(
+            withTwoSentences(),
+            inConversation('pending'),
+            new Map(),
+            answeringWith({ outcome: 'failed', failure: { reason: 'unavailable', status: null } }).rewriter,
+        );
+        openTheBar('signed addendum');
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite the selection: firmer' }));
+
+        expect(
+            await screen.findByText('The server did not answer. What you wrote is kept here; try again.'),
+        ).toBeDefined();
+        expect(screen.getByText(twoSentences)).toBeDefined();
     });
 });

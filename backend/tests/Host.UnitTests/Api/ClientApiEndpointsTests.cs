@@ -258,6 +258,7 @@ public sealed class ClientApiEndpointsTests
                 $"{ClientEndpointOptions.RoutePrefix}{ClientUserRecordEndpoint.FolderReplacementRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientReplyDraftingEndpoint.ReplyDraftingRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientReplyDraftingEndpoint.ReplyDraftingRoute}",
+                $"{ClientEndpointOptions.RoutePrefix}{ClientReplyDraftingEndpoint.PassageRewritingRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientApiEndpoints.SessionRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientSessionTokenEndpoints.OpeningRoute}",
                 $"{ClientEndpointOptions.RoutePrefix}{ClientSessionTokenEndpoints.ExchangeRoute}",
@@ -436,6 +437,7 @@ public sealed class ClientApiEndpointsTests
                 $"POST {prefix}{ClientUserRecordEndpoint.FolderRemovalRoute} -> {MailFathomPermission.MailAccountsWrite.Name}",
                 $"POST {prefix}{ClientUserRecordEndpoint.FolderReplacementRoute} -> {MailFathomPermission.MailAccountsWrite.Name}",
                 $"POST {prefix}{ClientReplyDraftingEndpoint.ReplyDraftingRoute} -> {MailFathomPermission.AssistantUse.Name}",
+                $"POST {prefix}{ClientReplyDraftingEndpoint.PassageRewritingRoute} -> {MailFathomPermission.AssistantUse.Name}",
                 $"POST {prefix}{ClientSessionTokenEndpoints.OpeningRoute} -> {MailFathomPermission.ProfileWrite.Name}",
                 $"POST {prefix}{ClientSessionTokenEndpoints.ExchangeRoute} -> none",
                 $"POST {prefix}{ClientSessionTokenEndpoints.RevocationRoute} -> none",
@@ -629,7 +631,9 @@ public sealed class ClientApiEndpointsTests
     /// revealing as the mail that arranged it. Arranging a day is the sixth and changes nothing either: it answers
     /// with an arrangement drawn beside the list the person already holds, no task is moved and no event is written by
     /// asking, and it is a <c>POST</c> because the window and what it is arranged around are the caller's own day.
-    /// Naming the six keeps the claim narrow.
+    /// Rewriting the passages of a draft is the drafting's own second half and belongs here on the drafting's reading: it
+    /// answers with text the person keeps or undoes, and the draft it carries is what they are writing. Naming the six,
+    /// and the drafting's second half beside it, keeps the claim narrow.
     /// </remarks>
     private static bool AsksAQuestionOfTheCallersOwnMail(Endpoint endpoint) =>
         endpoint is RouteEndpoint route
@@ -639,6 +643,7 @@ public sealed class ClientApiEndpointsTests
             || path == $"{ClientEndpointOptions.RoutePrefix}{ClientMailSearchPhraseEndpoint.MailSearchPhrasingRoute}"
             || path == $"{ClientEndpointOptions.RoutePrefix}{ClientCalendarEventDraftEndpoint.CalendarEventDraftRoute}"
             || path == $"{ClientEndpointOptions.RoutePrefix}{ClientReplyDraftingEndpoint.ReplyDraftingRoute}"
+            || path == $"{ClientEndpointOptions.RoutePrefix}{ClientReplyDraftingEndpoint.PassageRewritingRoute}"
             || path == $"{ClientEndpointOptions.RoutePrefix}{ClientTaskEndpoints.TodayLayoutRoute}");
 
     /// <summary>Reports whether a route writes into, stops, answers, or deletes the caller's own conversation with the Agent, by the prefix they are served beneath.</summary>

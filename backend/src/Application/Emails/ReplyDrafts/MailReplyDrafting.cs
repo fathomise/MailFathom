@@ -58,6 +58,13 @@ namespace MailFathom.Application.Emails.ReplyDrafts;
 /// the writer at the prompt; what comes back is guarded here before it reaches a client, because a draft is written out
 /// of somebody's correspondence and carries whatever that correspondence carried.
 /// </para>
+/// <para>
+/// <b>Rewriting passages of a draft is this use case's second act</b>, for the reason a request naming no message is
+/// answered here: the permission, the allowance, the egress guard, and the registration that turns a deployment on are
+/// the same decisions. It reads nothing at all — no message, no conversation, no sent mail — because the draft's own text
+/// is the whole of what the passages are rewritten from, and what comes back is guarded on its way to a client exactly
+/// as a draft is.
+/// </para>
 /// </remarks>
 public sealed class MailReplyDrafting
 {
@@ -222,6 +229,36 @@ public sealed class MailReplyDrafting
         return draft.WasWritten ? await this.GuardedAsync(draft, cancellationToken) : draft;
     }
 
+    /// <summary>Rewrites the passages of a draft the acting user selected, as they asked.</summary>
+    /// <param name="request">The draft as plain text, the passages of it to rewrite, and how they should change.</param>
+    /// <param name="cancellationToken">Propagates caller cancellation.</param>
+    /// <returns>One rewritten passage for each passage asked about, or <see cref="PassageRewrite.Nothing" /> where none could be written.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="request" /> is <see langword="null" />.</exception>
+    /// <exception cref="MailAnsweringBudgetExhaustedException">Thrown when this deployment has spent what it allows a provider for the period.</exception>
+    /// <exception cref="SensitiveContentScannerUnavailableException">Thrown when a switched-on scanner could not establish what the rewriting carries, which withholds it rather than publishing it unscanned.</exception>
+    /// <exception cref="PrincipalNotAuthorizedException">Thrown when the use case was reached by anything but a caller granted both <see cref="MailFathomPermission.AssistantUse" /> and <see cref="MailFathomPermission.MailRead" />.</exception>
+    /// <remarks>
+    /// The request's own type holds every invariant a rewriting needs — passages inside the draft, in order, and none
+    /// overlapping — so a request that reached here is one the writer can answer and nothing is checked twice.
+    /// </remarks>
+    public async Task<PassageRewrite> RewritePassagesAsync(PassageRewriteRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Both grants, as a drafting asks for them, although nothing here reads mail: a draft is written out of mail
+        // and may quote it, and one act published under one pair of grants is what keeps the composer's two buttons
+        // from admitting different callers.
+        this.authorization.RequirePermission(MailFathomPermission.AssistantUse);
+        this.authorization.RequirePermission(MailFathomPermission.MailRead);
+
+        using var actingFor = this.egressGuard.ActingFor(
+            await this.egressGuard.ReadPostureAcrossAccountsOfAsync(this.scopeResolver.User, cancellationToken));
+
+        var rewrite = await this.writer.RewritePassagesAsync(request, cancellationToken);
+
+        return rewrite.WasWritten ? await this.GuardedAsync(rewrite, cancellationToken) : rewrite;
+    }
+
     /// <summary>Reads the correspondence one drafting is written from, or nothing where this user does not hold every one of its messages.</summary>
     /// <remarks>
     /// A scope holding no account and a message the scope does not admit are the same answer on purpose, which is what
@@ -353,5 +390,28 @@ public sealed class MailReplyDrafting
         scan.Completed();
 
         return ReplyDraft.Written(document, claims, draft.ProposedRecipients);
+    }
+
+    /// <summary>Scans every rewritten passage under the point a draft is read on, because a passage is part of one.</summary>
+    /// <remarks>One report for the rewriting rather than one per passage, because the passages are one answer a composer waits for.</remarks>
+    private async Task<PassageRewrite> GuardedAsync(PassageRewrite rewrite, CancellationToken cancellationToken)
+    {
+        if (!await this.egressGuard.IsActiveAsync(cancellationToken))
+        {
+            return rewrite;
+        }
+
+        using var scan = this.egressGuard.BeginGuardedOperation(
+            SensitiveContentEgressPoint.ClientReplyDraft,
+            cancellationToken);
+
+        var passages = await this.egressGuard.GuardAllAsync(
+            SensitiveContentEgressPoint.ClientReplyDraft,
+            rewrite.Passages,
+            cancellationToken);
+
+        scan.Completed();
+
+        return PassageRewrite.Written(passages);
     }
 }
