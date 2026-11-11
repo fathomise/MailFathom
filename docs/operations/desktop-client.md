@@ -42,8 +42,9 @@ Nothing is published for macOS, and iOS is not a head this project builds at all
 [ADR 0027](https://github.com/fathomise/MailFathom/blob/main/docs/decisions/0027-an-android-head-built-every-night-and-supported-by-nothing.md) the same shell builds one
 debug-signed APK left on the run that built it: there is no release asset, no store listing, no update channel, and no
 download address that outlives a run's artifact retention. It is a build somebody tries rather than a client they live
-in, and nothing about it is supported. **Every nightly run produces one**, from the same revision the image on that run
-was built from, and it expires with the run's own artifact retention rather than being published anywhere. What the
+in, and nothing about it is supported. **Every nightly run produces one**, from the revision that run previews — the
+one its image is built from on a night that publishes an image, and one an earlier run already built on a night `main`
+did not move — and it expires with the run's own artifact retention rather than being published anywhere. What the
 head is, in full, is that record; how one is built is
 [building the Android head](local-development.md#building-the-android-head).
 

@@ -12,10 +12,19 @@ name: Nightly
 # It runs at 00:00 UTC, which is 02:00 in Europe/Warsaw under CEST and 01:00 under CET; GitHub schedules are expressed
 # in UTC only, and a run may start later than asked when the hosted queue is busy.
 #
-# **A run publishes nothing when `main` has not moved since the last published nightly.** The check reads the revision
-# the published `nightly` image itself carries rather than any state stored beside it, so it stays right after a deleted
-# tag, a re-run, or a package that was pruned. A `workflow_dispatch` is exempt: asking for a snapshot explicitly is a
-# reason to build one.
+# **Every scheduled run verifies and builds, and a run publishes nothing when `main` has not moved since the last
+# published nightly.** Only `publish`, the job that pushes the image and its tags to the registries, waits on that
+# decision, and `prune` follows it. Everything else runs every night, for two reasons that hold on a night nothing
+# merged. What a nightly exists to exercise is the toolchains and the mirrors under the tree as much as the tree, and
+# those move without `main` moving. And this workflow is what writes the day's apt cache entries, which a pull request
+# installs from without asking a mirror only when it restores that day's entry exactly — see
+# `.github/actions/cached-apt-install`. So a quiet night leaves a run whose artifacts — the schema script, the command
+# binaries, the desktop bundles, the APK — were built from a revision an earlier night already built, under a new
+# nightly identifier nothing was published as; whoever tries a nightly image takes them from the run that published it.
+#
+# The check reads the revision the published `nightly` image itself carries rather than any state stored beside it, so
+# it stays right after a deleted tag, a re-run, or a package that was pruned. A `workflow_dispatch` is exempt: asking
+# for a snapshot explicitly is a reason to publish one.
 on:
   schedule:
     - cron: '0 0 * * *'
@@ -40,6 +49,8 @@ env:
   DOCKER_HUB_REPOSITORY: fathomise/mailfathom
 
 jobs:
+  # Decides one thing, which is whether `publish` runs, and resolves the commit and the identifier every other job
+  # builds from. No job but `publish` reads the decision.
   decide:
     name: Decide whether to publish
     runs-on: ubuntu-latest
@@ -117,7 +128,7 @@ jobs:
           }
 
           if [[ "$IS_DISPATCH" == 'true' ]]; then
-            publish 'Dispatched explicitly, so the snapshot is built whether or not main has moved.'
+            publish 'Dispatched explicitly, so the snapshot is published whether or not main has moved.'
           fi
 
           # One registry answers this, because both carry the same digest under the same tag and a run that reached only
@@ -148,10 +159,10 @@ jobs:
           {
             printf '### No nightly published\n\n'
             printf 'main is still at `%s`, which is what `%s:nightly` already carries. ' "$REVISION" "$image"
-            printf 'Nothing was built.\n'
+            printf 'This run verifies and builds it again, and pushes nothing to a registry.\n'
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
-  # Everything a nightly builds waits behind this, for the reason `Release` states at greater length: a gate belonging
+  # Everything a nightly builds waits behind this, on every night rather than only on one that publishes, for the reason `Release` states at greater length: a gate belonging
   # to the image would gate the image, leaving the schema script and the command binaries to be built beside it from a
   # commit whose unit tests had not run. It is the same definition a pull request is verified by, against the revision
   # being previewed rather than against a branch. A publication skips nothing on the grounds `CI` skips things — it
@@ -169,7 +180,6 @@ jobs:
     name: Build, test, and migrations
     needs:
       - decide
-    if: needs.decide.outputs.publish == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/build-test-format-and-migrations.yml
@@ -192,7 +202,6 @@ jobs:
     name: Build and test the client
     needs:
       - decide
-    if: needs.decide.outputs.publish == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/build-test-frontend.yml
@@ -214,7 +223,6 @@ jobs:
     name: Repository contracts
     needs:
       - decide
-    if: needs.decide.outputs.publish == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/repository-contracts.yml
@@ -235,7 +243,6 @@ jobs:
     needs:
       - decide
       - verify
-    if: needs.decide.outputs.publish == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/build-schema-artifact.yml
@@ -254,7 +261,6 @@ jobs:
     needs:
       - decide
       - verify
-    if: needs.decide.outputs.publish == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/build-cli-binaries.yml
@@ -274,7 +280,6 @@ jobs:
       # commit either one rejects is not worth two platform builds.
       - verify
       - verify-client
-    if: needs.decide.outputs.publish == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/build-desktop-client.yml
@@ -299,7 +304,6 @@ jobs:
       # The channel's gate and its own stack's, for the reason the desktop client waits for both.
       - verify
       - verify-client
-    if: needs.decide.outputs.publish == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/build-android-client.yml
@@ -315,6 +319,7 @@ jobs:
       # The client's own gate, which is where a client that does not lint, type-check, test, or build is answered
       # rather than twenty minutes into a multi-platform image build.
       - verify-client
+    # The one job that waits for `main` to have moved, with `prune` behind it.
     if: needs.decide.outputs.publish == 'true'
     permissions:
       contents: read
