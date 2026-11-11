@@ -28,6 +28,13 @@ description: >-
 # from the ones the runner image shipped with, which is where every install started before the lists were cached. The
 # mirror is what has held these installs for minutes at a time, while unpacking what it sends is a matter of seconds.
 #
+# **Every install has one mirror whose name does not hang on `ubuntu.com`.** The runner lists three mirrors and the
+# mirror choice before this action can only put a fourth from the same domain in front of them, so a day on which no
+# name under `ubuntu.com` resolves — which is what an outage looked like from a runner that still resolved everything
+# else — leaves apt nothing to fall back to. The last line this action adds to the runner's mirror list is a mirror in
+# another domain, tried after every other. Which mirror serves a file changes nothing about what is installed, because
+# apt checks each one against Ubuntu's signed index.
+#
 # The key carries the runner image, because the image decides which packages are already present and therefore which
 # ones apt downloads, the caller's own discriminator for what is installed, and the day. The day is there because an
 # entry is never written twice: without it a package Ubuntu republishes mid-image — a WebKitGTK security fix, which is
@@ -107,6 +114,15 @@ runs:
         sudo mkdir -p "$downloads/partial" "$downloads/lists/partial"
         printf 'Dir::Cache::Archives "%s/";\nDir::State::lists "%s/lists/";\n' "$downloads" "$downloads" |
           sudo tee /etc/apt/apt.conf.d/90-cached-downloads > /dev/null
+
+        # Behind the runner's own mirrors and the chosen one, which keep the lower priority numbers, and only where
+        # the runner keeps its mirrors in this file.
+        mirrors=/etc/apt/apt-mirrors.txt
+        fallback=https://mirrors.edge.kernel.org/ubuntu/
+        if [[ -f "$mirrors" ]] && ! grep --quiet --fixed-strings "$fallback" "$mirrors"; then
+          sudo sed --in-place '$a\' "$mirrors"
+          printf '%s\tpriority:9\n' "$fallback" | sudo tee --append "$mirrors" > /dev/null
+        fi
 
         installed=false
         if [[ "$RESTORED_EXACTLY" == 'true' && "$carries_lists" == 'true' ]]; then
