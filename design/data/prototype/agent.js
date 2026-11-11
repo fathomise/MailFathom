@@ -397,6 +397,91 @@
         next: ["Draft a reminder to Fabrikam", "Turn this into a task", "Show me the invoices"],
       },
     },
+    /* The effort a question was asked with, and the effort it ran with (`mode.asked`, `mode.ran`): the line above an
+       answer says both, so an `auto` run that went deep reads apart from one somebody asked to go deep, and says why. */
+    {
+      id: "c-agreed", title: "What Contoso and I agreed this year", when: "11:20",
+      msgs: [
+        { role: "user", text: "When is the Contoso addendum due back?", ts: atToday(11, 2) },
+        {
+          role: "bot", ts: atToday(11, 2), scope: "thread · 6 messages", mode: { asked: "auto", ran: "fast" },
+          text: "Anna Kowalska asked for the signed addendum by **28 August**, tomorrow.",
+          blocks: [],
+        },
+        { role: "user", text: "Summarise everything Contoso and I agreed since January.", ts: atToday(11, 14) },
+        {
+          role: "bot", ts: atToday(11, 20), scope: "86 messages · 9 attachments", mode: { asked: "auto", ran: "deep", took: "5 min 40 s", why: "It reaches back eight months and 86 messages - more than a fast answer reads, so it went deep on its own." },
+          text: "Four things were agreed and one is still open.\n\n1. **The rollout** moved from June to September, agreed on 14 May.\n2. **The SLA** for critical incidents drops to 2 hours, agreed in the addendum on 18 August.\n3. **Invoices** are paid in 30 days instead of 14, agreed on 3 March.\n4. **The trade-show stand** is shared, agreed on 22 July.\n\nStill open: *the CPI cap*. Contoso has not answered the 5% proposal.",
+          blocks: [],
+        },
+      ],
+    },
+    /* A fast answer that stopped at its ceiling says so, with how much it read, and offers the same question in deep. */
+    {
+      id: "c-ceiling", title: "Every invoice Fabrikam sent this year", when: "09:05",
+      msgs: [
+        { role: "user", text: "List every invoice Fabrikam sent this year, with what is still unpaid.", ts: atToday(9, 4) },
+        {
+          role: "bot", ts: atToday(9, 5), scope: "Fabrikam · 200 messages", mode: { asked: "fast", ran: "fast" },
+          ceiling: { read: "200", of: "612", said: "January to April" },
+          text: "From what I read, Fabrikam sent **11 invoices** between January and April, and two of them are unpaid: *02/2026* and *04/2026*.",
+          blocks: [],
+        },
+      ],
+    },
+    /* A deep run in progress. It does not end on its own, so the state stays to be looked at: what it says while it
+       works, that the conversation can be left and come back to, and that Cancel beside Send is how it is stopped. */
+    {
+      id: "c-deep", title: "Supplier price changes this year", when: "now",
+      running: "Deep · reading 312 of 1,240 messages",
+      deep: { said: "Reading supplier mail from January onwards", read: 312, of: 1240, started: "13:02", ran: "4 min" },
+      msgs: [
+        { role: "user", text: "Which suppliers changed their prices last quarter?", ts: atToday(12, 40) },
+        {
+          role: "bot", ts: atToday(12, 47), scope: "418 messages · 3 accounts", mode: { asked: "deep", ran: "deep", took: "6 min 10 s" },
+          text: "Three suppliers changed prices last quarter: **Northwind** (+4% on licences from July), **Fabrikam** (+2.5% on deliveries from August), and **Tailspin** (a new minimum order, not a price).",
+          blocks: [],
+        },
+        { role: "user", text: "Now every supplier price change this year, with the message each one was announced in.", ts: atToday(13, 2) },
+        { role: "bot", ts: atToday(13, 2), scope: "3 accounts · deep", mode: { asked: "deep", ran: "deep" }, working: true, text: "", blocks: [] },
+      ],
+    },
+    /* Files in both directions: a question that carried two, and an answer whose files come from the three places a
+       file can - an attachment of a message, a file the person attached, and a report the agent wrote - and one that
+       is no longer held. */
+    {
+      id: "c-files", title: "Compare my offer with Contoso's", when: "10:40",
+      msgs: [
+        { role: "user", text: "Write up the Q2 delivery summary for the board, from these figures.", ts: atToday(9, 30), files: [{ name: "Q2 figures.xlsx", kind: "XLSX", size: "96 kB" }] },
+        {
+          role: "bot", ts: atToday(9, 31), scope: "report · 34 messages", mode: { asked: "auto", ran: "fast" },
+          text: "Here it is, with the delivery plan it compares your figures against.",
+          outFiles: [
+            { origin: "report", name: "Q2 delivery summary.pdf", kind: "PDF", size: "184 kB", pages: "2 pages", gone: true },
+            { origin: "message", name: "Q2 delivery plan.xlsx", kind: "XLSX", size: "140 kB", from: "Piotr Zieliński · 2 Jul", gone: true },
+            { origin: "attached", name: "Q2 figures.xlsx", kind: "XLSX", size: "96 kB", gone: true },
+          ],
+          blocks: [],
+        },
+        {
+          role: "user", text: "Compare the offer I attached with what Contoso sent, and write it up so I can forward it.", ts: atToday(10, 36),
+          files: [
+            { name: "Offer v3 - rollout.pdf", kind: "PDF", size: "1.2 MB" },
+            { name: "Site photo.jpg", kind: "JPEG", size: "2.4 MB", image: true },
+          ],
+        },
+        {
+          role: "bot", ts: atToday(10, 40), scope: "2 files you attached · 6 messages", mode: { asked: "auto", ran: "fast" },
+          text: "Your offer is **€8,400 lower** over three years and has the shorter SLA; Contoso's carries the CPI cap you asked for. The comparison is in the report, and the two offers it compares are beside it.",
+          outFiles: [
+            { origin: "report", name: "Offer comparison - Contoso.pdf", kind: "PDF", size: "212 kB", pages: "3 pages" },
+            { origin: "message", name: "Contoso offer 2026.pdf", kind: "PDF", size: "860 kB", from: "Anna Kowalska · 14 Aug" },
+            { origin: "attached", name: "Offer v3 - rollout.pdf", kind: "PDF", size: "1.2 MB" },
+          ],
+          blocks: [],
+        },
+      ],
+    },
     {
       id: "c-invoice", title: "Invoice 08/2026 - what is missing", when: "Monday", archived: true,
       msgs: [
@@ -632,3 +717,37 @@ MailFathomDesign.data.rewritePresets = [
   { key: "softer", label: "Softer", icon: "sentiment_satisfied", words: /soft|warm|friend|gentle|kind/i },
   { key: "firmer", label: "Firmer", icon: "front_hand", words: /firm|strong|direct|insist|clear/i },
 ];
+
+// How hard the agent works on a question. `auto` is what nobody chose: every new conversation starts on it. Each
+// mode says what it does in words, under the control, so a finger reads it as a mouse does.
+MailFathomDesign.data.agentModes = [
+  { key: "auto", label: "Auto", icon: "auto_mode", says: "Starts fast, and goes deep when the question needs it." },
+  { key: "fast", label: "Fast", icon: "bolt", says: "Answers in under a minute from what it reads in that time." },
+  { key: "deep", label: "Deep", icon: "manage_search", says: "Reads everything the question needs - it can take several minutes." },
+];
+
+// What a question can carry, and the three reasons the service refuses a file. The kinds are matched on the file's
+// extension here; the service decides on what the file is.
+MailFathomDesign.data.agentFileLimits = {
+  maxFiles: 10,
+  maxBytes: 20 * 1024 * 1024,
+  maxSaid: "20 MB",
+  kinds: ["pdf", "docx", "xlsx", "pptx", "odt", "ods", "txt", "csv", "md", "eml", "png", "jpg", "jpeg", "webp", "gif"],
+  kindsSaid: "PDF, Office, OpenDocument and text files, saved messages, and pictures",
+};
+
+// The files waiting under the field when the artboard's `agentFiles` property is `waiting`: one sent up, one on its
+// way, one that failed, and a refusal for each of the three reasons.
+MailFathomDesign.data.agentFileSamples = {
+  tray: [
+    { name: "Offer v3 - rollout.pdf", kind: "PDF", size: "1.2 MB", state: "done" },
+    { name: "Site photo.jpg", kind: "JPEG", size: "2.4 MB", state: "uploading", pct: 42, image: true },
+    { name: "Price list 2027.xlsx", kind: "XLSX", size: "310 kB", state: "failed" },
+    { name: "Pasted image 13.42.png", kind: "PNG", size: "380 kB", state: "done", image: true, pasted: true },
+  ],
+  refused: [
+    { reason: "large", name: "Board pack - full.pdf", size: "48 MB" },
+    { reason: "kind", name: "Floor plan.dwg" },
+    { reason: "many", count: 3 },
+  ],
+};

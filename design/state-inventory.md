@@ -7,7 +7,7 @@ is invisible until something reveals it — which is exactly the reading a scree
 It is written in this repository beside the artboards it describes, so a change that adds, removes, or re-gates a
 state in an artboard changes this file in the same pull request. `design/README.md` says what else lives in `design/`.
 
-## What the seven artboards are
+## What the eight artboards are
 
 | Artboard | What it settles |
 |---|---|
@@ -18,6 +18,7 @@ state in an artboard changes this file in the same pull request. `design/README.
 | `notification-gesture.dc.html` | The phone's notification-panel gesture, as four frames plus the numbers behind them |
 | `ai-blocks.dc.html` | The block catalogue both AI surfaces draw: the nine types Discover renders read-only, and the four the Agent renders with controls, each in its three phases |
 | `mail-search.html` | Mail search: results, empty, waiting, lexical-only, failure |
+| `report-page.html` | The page of a report the Agent writes: an A4 PDF's title block, running foot, every element its Markdown may carry, the list of sources, and the typeface |
 
 ## How a state is named here
 
@@ -1035,7 +1036,7 @@ menu's *Tab mode* switch is turned on at a width of at least 1180 px**.
 | History by day | `convHistoryGroups` | the rows fall under *Today*, *Yesterday* and *Earlier*, newest first, read off each conversation's `when`; an empty group is not drawn and a row under *Yesterday* repeats no date |
 | A history row | `h.style` / `h.titleStyle` | the title, the time in tabular figures, and one line of the last message under it; the open conversation carries `--accent-soft` and an accent title — no left edge, no card |
 | An unread conversation | `c.unread` | a run that ended while its conversation was not in front of the reader (`markUnreadAway`, `finishBackgroundRuns`) — as unread mail is, the title is 700 in `--text`, the time 600 in `--text`, and the preview `--text2`; no dot and no tint. Opening it reads it. Seeded on *Where are the Northwind reports?* (`c-links`) |
-| A conversation running in the background | `c.running` | a run the agent is still working on — its preview line is what the agent is doing right now, in `--accent-d`. Seeded on *Which invoices are overdue?* (`c-overdue`), which ends 40 s after the prototype opens and turns unread unless it is the one in front |
+| A conversation running in the background | `c.running` | a run the agent is still working on — its preview line is what the agent is doing right now, in `--accent-d`. Seeded on *Which invoices are overdue?* (`c-overdue`), which ends 40 s after the prototype opens and turns unread unless it is the one in front, and on *Supplier price changes this year* (`c-deep`), a deep run that never ends on its own — its preview reads *Deep · reading 312 of 1,240 messages…*. Only a seeded run carrying its `finish` ends on the 40 s timer (`finishBackgroundRuns`); a deep run ends on its own timer or when it is stopped |
 | Row actions | `h.openMenu` | one `more_horiz` control per row opening the same menu as a right-click or a long press — *Select*, *Open*, *Archive* or *Restore*, *Delete* — instead of an archive and a delete glyph on every row |
 | **Archive section exists** | `hasArchived` | at least one conversation is archived |
 | Archive open | `archiveSectionOpen` | pressing the archive section |
@@ -1210,11 +1211,58 @@ with its own `aria-label` naming the object, and on touch they stack full width 
 user's own line into the conversation, and comes back with the same proposal at a new hour, pending
 again.
 
-**The starter chips open a seeded conversation** rather than asking the question (`agentChips`). Eight conversations are seeded, and three exist for states nothing else reaches:
+**The starter chips open a seeded conversation** rather than asking the question (`agentChips`). Twelve conversations are seeded, and seven exist for states nothing else reaches:
 `c-states`, whose blocks came back loading, error, empty, partial and failed, `c-invoice`, which
 is archived, and `c-links`, *Where are the Northwind reports?*, whose answer carries one link the cited
-mail carries and one it does not — opened from the history. Three chips open one of them; the fourth is *Real example*, which carries `play_arrow` and
+mail carries and one it does not, and the four the next two sections name — `c-agreed`, `c-ceiling`, `c-deep` and `c-files` — all opened from the history. Three chips open one of them; the fourth is *Real example*, which carries `play_arrow` and
 plays the script above instead of opening anything.
+
+### How hard the agent works on a question — the mode
+
+**The mode is chosen where the question is asked.** Under the Agent's field, a segmented control holds *Auto*,
+*Fast* and *Deep* (`agentModes`, from `agentModes` in `data/prototype/agent.js`), and beside it — under it on the
+phone — the chosen mode's sentence in 12 px `--muted` (`agentModeSays`), so what a mode does is read rather than
+hovered. *Auto* is the value nobody chose: the prototype opens on it, and *New conversation* puts it back. The mode
+stays as chosen for the questions that follow in the conversation until it is changed. The Agent's field is the one
+place a question is asked of the Agent — the thread's *Go to the agent* opens it — so it is the one place the control
+stands; Discover's field asks the mail, not the Agent, and carries none.
+
+| State | Flag | Reveal |
+|---|---|---|
+| The mode control | `agentModes` / `agentModeSays` | always, under the field: a `role="radiogroup"` on the `--rail` track, the chosen segment raised on `--panel` with a `--line` ring and its glyph in `--accent-d` — `auto_mode`, `bolt`, `manage_search`. Segments are 28 px under a mouse; under a finger 36 px in a track padded to 44, and on the phone they share the track's whole width. Each segment's accessible name carries its sentence |
+| The mode an answer ran in | `m.hasMode` / `m.modeText` | every answer that carries `mode`: after `AI ·` in the line above the reply, a glyph and the words — *Fast*, *Deep*, *Auto · fast*, or *Auto · went deep* — with how long a deep answer took (*Deep · 6 min 10 s*). Deep answers take `--accent-d`, fast ones `--muted`. An answer from before this line was drawn carries none |
+| An `auto` run that went deep | `m.hasDeepWhy` / `m.deepWhy` | `mode.asked` is `auto` and `mode.ran` is `deep`: *Auto · went deep* in the line, and under it one sentence in 13 px `--muted` saying why — *It reaches back eight months and 86 messages - more than a fast answer reads, so it went deep on its own.* A run somebody asked to go deep reads *Deep* and says no why. Seeded in *What Contoso and I agreed this year* (`c-agreed`), beside an `auto` answer that stayed fast |
+| A deep run in progress | `m.deepNow` | the open conversation carries `deep` and the reply is still `working`: in place of *The agent is going through your mail…*, a turning `progress_activity` beside what it is doing (`deepSaid`, *Reading supplier mail from January onwards*, in the `role="status"` region), a 4 px determinate bar on `--line` filling in `--accent` as it reads, *312 of 1,240 messages read · started 13:02 · running for 4 min* in 12 px `--faint`, and, under `directions_walk`, *You can leave this conversation: it keeps working, and History marks it when the answer is in. Cancel stops it - what it found so far stays.* Seeded in *Supplier price changes this year* (`c-deep`), which never ends on its own |
+| Leaving a deep run and coming back | `c.running` | the conversation keeps running while another is open or the Agent is left: its History row reads *Deep · reading N of M messages…* in `--accent-d`, the rail's Agent tile pulses as for any run, and a run that ends while the conversation is not in front leaves it unread (`markUnreadAway`). Opening it again shows the run where it stands |
+| Stopping a deep run | `agentCancelActive` | a deep run is a run of the conversation in front, so *Cancel* beside *Send* is filled `--err` and named *Stop what the agent is doing* while it goes; pressed, the run stops, nothing is rolled back, and the reply *Stopped. What arrived so far stays - tell me where to pick it up.* is written. The same holds for any run of the conversation in front, `c-overdue`'s included |
+| A fast answer stopped at its ceiling | `m.hasCeiling` / `m.ceilingText` | the answer carries `ceiling`: under its prose, a `--panel` box on a `--line` edge, radius 10, with `hourglass_bottom` in `--warn-text` and *Stopped at the fast limit: it read 200 of the 612 messages that match, January to April. The rest may change the answer.*, and **Ask again in Deep** on `--accent-soft` (32 px, 44 under a finger), which asks the question before it again in `deep` and leaves the control on *Deep*. Seeded in *Every invoice Fabrikam sent this year* (`c-ceiling`) |
+
+**What a typed question does in the prototype.** `agentAsk` reads the mode: *Deep* always starts a deep run
+(`startDeepRun`), *Auto* starts one when the question's words reach across the mailbox (*every*, *all*, *whole*,
+*since*, *each*, *this year*), and otherwise answers fast. *Fast* with such words answers with the ceiling box. A live
+deep run reads 860 messages in about ten seconds (`deepTick`) and ends with an answer marked as the mode it ran in.
+
+### Files in the conversation
+
+**A question carries files, and an answer hands them back.** What a question may carry is `agentFileLimits` in
+`data/prototype/agent.js` — at most 10 files of at most 20 MB each, of the kinds it names — and every way in, the
+control, a drop and a paste, goes through one check (`addAgentFiles`), so a refusal reads the same however the file
+arrived.
+
+| State | Flag | Reveal |
+|---|---|---|
+| The attach control | `agentAttachStyle` | always, at the start of the field: `attach_file` alone, named *Attach files*, 34 px under a mouse and 44 under a finger. It opens the system's file chooser, which on a phone is the system's own sheet of camera, photos and files — nothing in the design stands in front of it |
+| Dropping files onto the conversation | `agentDropShown` | a drag carrying files over the conversation column — the thread and the field, never the history — raises a surface 10 px inside it: a 2 px dashed `--accent` edge at radius 16 on `--accent-soft`, `upload_file` at 40 px in `--accent-d`, *Drop to attach to your question*, and *Up to 10 files, 20 MB each* in `--muted`. A drag of text or a link raises nothing (`dragHasFiles`); leaving takes it down, and a drop adds the files |
+| Pasting a file | `onAgentPaste` | a file pasted into the field is attached rather than typed; a picture pasted with no name of its own is named *Pasted image 13.42.png* by the time it was pasted, and its line reads *Pasted · 380 kB* |
+| Files waiting to be sent | `agentTrayShown` / `agentTray` | above the field, one card per file: a 32 px `--sub` tile holding the kind (*PDF*, *XLSX*) in 11 px — or `image` for a picture — then the name, one line with an ellipsis, over the size in 12 px `--faint`, and × named *Remove <name>* (26 px under a mouse, 44 under a finger). Under a mouse the cards wrap; under a finger they stand in one row that scrolls sideways, its end faded over 28 px |
+| A file uploading | `f.uploading` | the line reads *Uploading · 42%* and a 3 px `--accent` bar runs along the card's foot as it goes |
+| A file uploaded | the card at rest | the size alone, and nothing else on the card |
+| A file that failed to upload | `f.failed` | the card's edge and tile take `--err` and `--err-soft`, the line reads *Did not upload* in `--err-text`, and `refresh`, named *Try uploading <name> again*, stands before × |
+| Send held by the files | `agentSendDisabled` / `agentSendTitle` | while any file uploads, or any failed: *Send* at 45 % and `aria-disabled`, its name saying why — *Send - wait for 1 file to finish uploading*, *Send - 1 file did not upload. Try again, or remove it.* — which a tap shows |
+| A file refused | `agentRefusedShown` / `agentRefused` | above the waiting files, one `--warn-soft` notice at radius 10 with `block` in `--warn-text`, one line per refusal of the last attempt, and × to dismiss: *Board pack - full.pdf was not attached: at 48 MB it is over the 20 MB a file can be.* — *Floor plan.dwg was not attached: the agent does not read DWG files. It reads PDF, Office, OpenDocument and text files, saved messages, and pictures.* — *3 files were not attached: a question carries at most 10 files.* The next attempt replaces it |
+| A sent question's files | `m.hasFiles` / `m.files` | the reader's turn carries the files it was sent with under its words: one chip each on `--panel` inside an `--accent-line` edge, the kind tile, the name and the size. Only uploaded files leave with the question |
+| An answer's file | `m.hasOut` / `o.held` | one card for every origin, up to 400 px wide (the whole width on the phone): a 38 px tile with the kind, the name at 14 px, and a line in 12 px `--faint` that says where it came from with its glyph — `auto_awesome` *Report the agent wrote · 3 pages · 212 kB* (its tile on `--accent-soft`), `mail` *From Anna Kowalska · 14 Aug · 860 kB*, `attach_file` *You attached it · 1.2 MB* — and `download` at its end in `--accent-d`. The whole card is one control, named *Download <name>, <size>*, 34 px at its end under a mouse and 44 under a finger. Seeded in *Compare my offer with Contoso's* (`c-files`) |
+| An answer's file no longer held | `o.gone` | a dashed `--border2` edge on no fill, the name in `--muted`, `cloud_off` in place of `download`, nothing to press, and the line saying what to do by origin: *No longer held - ask the agent to write it again*, *No longer held here - it is still in the message from Piotr Zieliński · 2 Jul*, *No longer held - attach it again to use it*. The first answer in `c-files` carries all three |
 
 ### States the blocks screen holds and the prototype does not
 
@@ -1523,6 +1571,28 @@ a failure banner. Worth carrying out of it:
   for*, and the ranking row never appears. The file points at `m_search` in the Client States file for
   both, which is where they are drawn.
 
+## A report's page — `report-page.html`
+
+A static page with no runtime, like the mail search specimen: three A4 pages of one sample report, side by side, under
+three notes naming what the page is set in. A report is Markdown the Agent writes and the service sets as a PDF, so
+this is a document rather than a screen: **the paper is white with dark ink in both themes**, and only the desk it
+lies on follows the theme — `?theme=light` or `?theme=dark` pins it. The pages scale to the width they are given, so a
+phone sees whole pages rather than a corner of one. The sample is in Polish, because a report is written in the
+language it was asked in, and it holds every Polish letter.
+
+| What | Where | What it settles |
+|---|---|---|
+| The paper | `.page` | A4, 595 × 842 pt; 57 pt at the sides, 56 at the top, 72 at the foot |
+| The typeface | the notes | Body, lists and quotations in **Source Serif 4**, 10.5 pt on 1.5 lines, with its true italic for emphasis; headings, the title block, tables, the running foot and the sources in **Geist**, the client's own. Both are under the SIL Open Font License 1.1, which permits embedding the font, subset, in a document the service hands out, and both cover every Polish letter. Geist has no italic, so emphasis inside a table takes its medium weight |
+| The title block | `.title-block`, page 1 alone | *Raport · <topic>* in 8 pt uppercase `--mark` blue, the report's title at 22 pt, and *Napisany 27 sierpnia 2026, 10:40 · na podstawie 6 wiadomości i 2 załączonych plików* — when it was written and what it was written from — over a 1.5 pt rule |
+| The running foot | `.foot`, every page | the report's title at the start and *Strona 1 z 3* at the end, 8 pt in tabular figures, over a hairline, inside the bottom margin |
+| Three levels of heading | `h2`, `h3`, `h4` | 15, 12 and 10 pt in Geist 600; a heading is never the last line of a page |
+| A paragraph, emphasis | `p`, `strong`, `em` | the body face; bold is its 600, emphasis its italic; a citation is a superscript number in Geist pointing into the sources |
+| Bulleted and numbered lists | `ul`, `ol` | 16 pt indent, 3 pt between items, markers in the third ink |
+| A table that runs across a page | `table` | Geist 8.5 pt in tabular figures, the header row on a tint over a 1 pt rule, figures right-aligned. Page 1 ends inside *Tabela 1*; page 2 opens with the same caption followed by *(ciąg dalszy)* and the header row repeated |
+| A quotation of mail | `blockquote` | a 2 pt rule at its start, the quoted words in the body face, and under them who wrote it, when, and the message's subject, in Geist 8.5 pt, cited like any other source |
+| The list of sources | `.sources` | closes the report under *Źródła*: numbered in the order first cited, each message by its subject over its sender and its date and time, a hairline between them; files the question carried follow under their own heading, numbered on |
+
 ## Client states — `client-states.dc.html`
 
 It draws the states the client renders and the prototype does not: refusals, failures, waits, empties,
@@ -1620,6 +1690,11 @@ clicking a preview.
 - **A category that draws nothing** (§ *Categories*). A message nothing has categorized yet and one the model gave no
   answer about are drawn only by what is absent, and a default a mailbox switched off and a mailbox that does not
   categorize have no sample at all: the rows look as a row with neither would.
+- **Files waiting under the Agent's field, and the drop surface** (`agentFiles`). Attaching real files reaches the
+  waiting, uploading and refused states, but an upload in the prototype never fails, a drop needs a file dragged in
+  from outside the page, and no sample file is too large. The artboard's `agentFiles` property reaches all of it:
+  `waiting` seeds one file uploaded, one uploading and held at 42 %, one that failed, one pasted picture, and a
+  refusal for each of the three reasons; `dropping` holds the drop surface up. `none` clears both.
 - **A rejected profile photo** (`photoError`). Set only by choosing a file over 1 MB; no control in
   the prototype can produce one.
 - **Every tab state** (`tabsBarShown`, `noTabsOpen`, `convBarShown`, `closeAllAsk`). Two conditions at
