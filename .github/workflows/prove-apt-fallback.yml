@@ -15,40 +15,37 @@ permissions:
   contents: read
 
 jobs:
-  uncached:
+  miss-with-ordinary-mirrors:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Make every listed mirror unresolvable
-        run: |
-          cat /etc/apt/apt-mirrors.txt
-          sudo sed -i -E 's#https?://[^/]+#http://mirror.invalid#' /etc/apt/apt-mirrors.txt
-          cat /etc/apt/apt-mirrors.txt
       - timeout-minutes: 5
         uses: ./.github/actions/cached-apt-install
         with:
-          name: proof-${{ github.run_id }}
+          name: proof-a-${{ github.run_id }}
           content: none
           install: |
-            date -u +%T
             sudo apt-get update
-            date -u +%T
             sudo apt-get install --yes --no-install-recommends webkit2gtk-driver xvfb libxdo-dev
-            date -u +%T
-      - run: cat /etc/apt/apt-mirrors.txt; command -v WebKitWebDriver
 
-  desktop:
+  miss-with-fallback-only:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Make every listed mirror unresolvable
-        run: sudo sed -i -E 's#https?://[^/]+#http://mirror.invalid#' /etc/apt/apt-mirrors.txt
-      - timeout-minutes: 5
-        uses: ./.github/actions/install-desktop-linux-dependencies
-      - run: cat /etc/apt/apt-mirrors.txt; command -v WebKitWebDriver
+      - run: sudo sed -i -E 's#https?://[^/]+#http://mirror.invalid#' /etc/apt/apt-mirrors.txt
+      - timeout-minutes: 8
+        uses: ./.github/actions/cached-apt-install
+        with:
+          name: proof-b-${{ github.run_id }}
+          content: none
+          install: |
+            ls -la /var/cache/apt-downloads /var/cache/apt-downloads/lists | head -30
+            sudo timeout 150 apt-get update -o Debug::Acquire::http=true -o Debug::Acquire::https=true -o Debug::pkgAcquire::Worker=true 2>&1 | grep -v "Ign:" | tail -150 || echo "update exit $?"
+            ps aux | grep -E "apt|methods" | head
+            sudo apt-get install --yes --no-install-recommends webkit2gtk-driver xvfb libxdo-dev
