@@ -12,13 +12,14 @@ namespace MailFathom.Application.Retrieval.AskMail;
 /// <remarks>
 /// <para>
 /// One instance serves one run, for the reason the run's retrieval does: a ceiling on a question is meaningless if two
-/// questions share it. It is nevertheless internally synchronized, because a tool loop may answer several lookups of one
-/// run at once, a streamed run reads its counts from a connection other than the one executing it, and both halves of a
-/// check-then-take have to happen together.
+/// questions share it. It is nevertheless internally synchronized, because a tool loop may answer several lookups or
+/// listings of one run at once, a streamed run reads its counts from a connection other than the one executing it, and
+/// both halves of a check-then-take have to happen together.
 /// </para>
 /// <para>
-/// The two kinds of refusal are deliberately unequal. Retrieval is trimmed to what the run may still send and the run
-/// continues, because a question with some mail already retrieved is answerable and the model is told there is no more.
+/// The two kinds of refusal are deliberately unequal. Retrieval — a lookup's passages or a listed page — is trimmed to
+/// what the run may still send and the run continues, because a question with some mail already retrieved is answerable
+/// and the model is told there is no more.
 /// A provider call is refused outright, because a run with no allowance for another call has no answer to trim.
 /// </para>
 /// <para>
@@ -55,7 +56,7 @@ public sealed class MailAnsweringRunLedger
     /// <summary>Gets what this run may send, call, and consume, which is what its counts are read against.</summary>
     public MailAnsweringRunBounds Bounds { get; }
 
-    /// <summary>Gets whether a lookup found mail this run's ceiling would not let it send.</summary>
+    /// <summary>Gets whether a lookup or a listed page found mail this run's ceiling would not let it send.</summary>
     /// <remarks>The setter is written only from inside this type's lock, which is why it does not take one of its own; the getter does, because a reader outside the run holds nothing.</remarks>
     public bool RetrievalWasTruncated
     {
