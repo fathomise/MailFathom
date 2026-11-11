@@ -10223,8 +10223,8 @@ PYTHON
 # An apt cache entry holds the package lists beside the downloads they were resolved from, in the one
 # directory the entry is restored into and saved from, and apt is kept off the network only on an
 # exact restore — the one case in which the lists and the files are known to be from the same run.
-# Every other install can reach a mirror whose name is outside `ubuntu.com`, since the runner's own
-# mirrors and everything the mirror choice can pick share that one domain.
+# Every other install falls back to a mirror whose name is outside `ubuntu.com`, since the runner's
+# own mirrors and everything the mirror choice can pick share that one domain.
 apt_lists_travel_in_the_cache_entry_with_the_downloads() {
   python3 - "$source_repository_root/.github/actions/cached-apt-install/action.yml" <<'PYTHON'
 import re
@@ -10243,9 +10243,9 @@ if install["env"].get("RESTORED_EXACTLY") != "${{ steps.restore.outputs.cache-hi
     problems.append("the install does not read whether the restore was exact")
 if '"$RESTORED_EXACTLY" == \'true\' && "$carries_lists" == \'true\'' not in install["run"]:
     problems.append("apt is kept off the network on something other than an exact restore of an entry with lists")
-fallback = re.search(r"^fallback=https?://([^/\s]+)/", install["run"], re.MULTILINE)
+fallback = re.search(r"^\s*fallback=https?://([^/\s]+)/", install["run"], re.MULTILINE)
 if not fallback or fallback.group(1).endswith("ubuntu.com"):
-    problems.append("no mirror outside ubuntu.com is appended to the runner's mirror list")
+    problems.append("no mirror outside ubuntu.com stands behind the runner's mirror list")
 if problems:
     print("cached-apt-install: " + "; ".join(problems), file=sys.stderr)
 sys.exit(1 if problems else 0)
