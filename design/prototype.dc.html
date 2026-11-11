@@ -4200,18 +4200,18 @@ Project repository: https://github.com/fathomise/MailFathom
         <div style="flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--text)">{{ passageBarTitle }}</div>
         <div role="button" tabIndex="0" aria-label="Close" title="Close" onClick="{{ passageCloseBar }}" style="display:flex;align-items:center;justify-content:center;{{ passageCloseSize }}border-radius:8px;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:18px;line-height:1;color:var(--muted)" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
       </div>
-      <div style="font-size:12.5px;line-height:1.45;color:var(--muted);border-left:2px solid var(--accent-line);padding-left:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ passageBarQuote }}</div>
+      <div style="font-size:12px;line-height:1.45;color:var(--muted);border-left:2px solid var(--accent-line);padding-left:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ passageBarQuote }}</div>
         <div style="{{ passageRowStyle }}">
           <sc-for list="{{ passagePresets }}" as="sp" hint-placeholder-count="4">
             <div role="button" tabIndex="0" aria-label="{{ sp.aria }}" onClick="{{ sp.run }}" onKeyDown="{{ sp.key }}" style="{{ sp.style }}" style-hover="cursor:pointer;border-color:var(--accent);color:var(--accent-d)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span style="{{ sp.iconStyle }}">{{ sp.icon }}</span>{{ sp.label }}</div>
           </sc-for>
         </div>
         <div style="{{ passageAskRowStyle }}">
-          <input value="{{ passageAskValue }}" onChange="{{ passageOnAsk }}" onKeyDown="{{ passageAskKey }}" placeholder="{{ passageAskPlaceholder }}" aria-label="Say how to rewrite the selection" style="flex:1;min-width:0;border:none;outline:none;background:transparent;font-family:inherit;font-size:13.5px;color:var(--text)" />
+          <input value="{{ passageAskValue }}" onChange="{{ passageOnAsk }}" onKeyDown="{{ passageAskKey }}" placeholder="{{ passageAskPlaceholder }}" aria-label="Say how to rewrite the selection" style="flex:1;min-width:0;border:none;outline:none;background:transparent;font-family:inherit;font-size:13px;color:var(--text)" />
           <div role="button" tabIndex="0" onClick="{{ passageAskRun }}" onKeyDown="{{ passageAskRunKey }}" style="{{ passageAskBtnStyle }}" style-hover="cursor:pointer;opacity:0.9" style-focus="outline:2px solid var(--accent);outline-offset:2px">Rewrite</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <div style="flex:1 1 200px;min-width:0;font-family:'Geist',system-ui,sans-serif;font-size:11.5px;line-height:1.4;color:var(--faint);text-wrap:pretty">Whole sentences are rewritten, and you see the change before it is kept.</div>
+          <div style="flex:1 1 200px;min-width:0;font-family:'Geist',system-ui,sans-serif;font-size:12px;line-height:1.4;color:var(--faint);text-wrap:pretty">Whole sentences are rewritten, and you see the change before it is kept.</div>
         </div>
     </div>
   </sc-if>

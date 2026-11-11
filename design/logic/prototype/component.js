@@ -3779,7 +3779,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         passageAskPlaceholder: touch && r.width < 700 ? "Or say how…" : "Or say how - e.g. mention the 2023 addendum",
         passageCloseSize: touch ? "width:44px;height:44px;margin:-10px -8px -10px 0;" : "width:28px;height:28px;",
         passageAskBtnStyle: "font-size:13px;font-weight:600;color:var(--onaccent);background:var(--accent);border-radius:8px;white-space:nowrap;box-sizing:border-box;display:inline-flex;align-items:center;" + (touch ? "min-height:44px;padding:0 14px" : "padding:6px 12px"),
-        passageRowStyle: "display:flex;gap:" + (touch ? 8 : 6) + "px;" + (touch && r.width < 700 ? "overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none" : "flex-wrap:wrap"),
+        passageRowStyle: "display:flex;gap:" + (touch ? 8 : 6) + "px;" + (touch && r.width < 700 ? "overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;padding-right:36px;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)" : "flex-wrap:wrap"),
       };
     };
 
