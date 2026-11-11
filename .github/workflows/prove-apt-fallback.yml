@@ -1,0 +1,54 @@
+# Copyright © 2026 Krzysztof Kasprowicz
+# Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
+# Project repository: https://github.com/fathomise/MailFathom
+
+name: Prove the apt fallback mirror serves an install
+
+# A one-off demonstration for issue 3176, on this branch alone and never merged. Every mirror the runner lists is
+# pointed at a host that does not resolve, so only the line the action appends can serve the install.
+on:
+  push:
+    branches:
+      - agent/apt-fallback-mirror-proof
+
+permissions:
+  contents: read
+
+jobs:
+  uncached:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Make every listed mirror unresolvable
+        run: |
+          cat /etc/apt/apt-mirrors.txt
+          sudo sed -i -E 's#https?://[^/]+#http://mirror.invalid#' /etc/apt/apt-mirrors.txt
+          cat /etc/apt/apt-mirrors.txt
+      - timeout-minutes: 5
+        uses: ./.github/actions/cached-apt-install
+        with:
+          name: proof-${{ github.run_id }}
+          content: none
+          install: |
+            date -u +%T
+            sudo apt-get update
+            date -u +%T
+            sudo apt-get install --yes --no-install-recommends webkit2gtk-driver xvfb libxdo-dev
+            date -u +%T
+      - run: cat /etc/apt/apt-mirrors.txt; command -v WebKitWebDriver
+
+  desktop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Make every listed mirror unresolvable
+        run: sudo sed -i -E 's#https?://[^/]+#http://mirror.invalid#' /etc/apt/apt-mirrors.txt
+      - timeout-minutes: 5
+        uses: ./.github/actions/install-desktop-linux-dependencies
+      - run: cat /etc/apt/apt-mirrors.txt; command -v WebKitWebDriver
