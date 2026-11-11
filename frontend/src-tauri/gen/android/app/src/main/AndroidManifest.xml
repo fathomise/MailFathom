@@ -13,6 +13,10 @@
      width and a pointer, and neither describes a television; and the `FileProvider` over the whole cache and external
      root, which nothing shares a file through today, so what it would buy is a grantable handle over the WebView's own
      mail-derived cache. Whatever first needs to share a file declares the one directory it shares.
+
+     `adjustResize` on the activity is what has the platform report the keyboard as an inset rather than pan the window
+     out from under it. The window is edge to edge, so nothing is resized by it: `MainActivity.kt` passes that inset on
+     to the WebView, which shortens the page's visual viewport and leaves its layout alone.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
@@ -37,6 +41,7 @@
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
             android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
             android:label="@string/main_activity_title"
             android:name=".MainActivity"
             android:exported="true">

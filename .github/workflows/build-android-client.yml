@@ -4,8 +4,10 @@
 
 name: Build the Android client
 
-# The one place MailFathom's Android head is built at all. A nightly calls it and leaves the result on the run; nothing
-# else calls it, and nothing ever will attach it to anything — under
+# The one place MailFathom's Android head is built at all. A nightly calls it and leaves the result on the run, and a
+# person may start it by hand against a branch, which is how a change to the head is tried on a device before it merges
+# — no pull request check builds the head, so without that the first APK carrying a change is the night after its
+# merge. Nothing else calls it, and nothing ever will attach it to anything — under
 # docs/decisions/0027-an-android-head-built-every-night-and-supported-by-nothing.md this artifact has no release page,
 # no store listing, no update channel, and no address outliving a run's artifact retention. It gates nothing, on the
 # same terms the desktop bundles and the command binaries already sit on that channel: the client's own gate has
@@ -39,6 +41,10 @@ name: Build the Android client
 # pays the compilation alone. The APK the run uploads is around 240 MB, because a debug build keeps the JNI debug
 # symbols for both architectures — a property of the build type ADR 0027 fixed rather than one this job chose.
 on:
+  # Started by hand it takes no input: it builds the branch it was started on, and the build reads the declared version
+  # for itself, exactly as `pnpm android:build` does on somebody's own machine. Such an APK is a development build of
+  # that branch and carries no nightly identifier, so it installs over a nightly only after that one is uninstalled.
+  workflow_dispatch:
   workflow_call:
     inputs:
       ref:
@@ -197,6 +203,9 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
+
+          # A run started by hand was handed no version, so the file is named after the one the build itself read.
+          VERSION="${VERSION:-$(bash scripts/read-declared-version.sh)}"
 
           mkdir -p artifacts/android
 

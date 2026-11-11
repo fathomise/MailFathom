@@ -221,7 +221,8 @@ What belongs here is the rule that follows from that, because no tool enforces i
 - **The head is exempt from no rule and gated by nothing at all.** No verification gate and no pull request check
   reaches it; the one thing that builds it is the nightly job ADR 0027 describes, `Build the Android client`, and that
   job gates nothing either. A change that breaks the Android toolchain alone therefore merges green and fails a
-  nightly, so running `pnpm android:build` by hand is what a change reaching this crate owes.
+  nightly, so running `pnpm android:build` by hand is what a change reaching this crate owes — or, on a machine
+  without the Android toolchain, starting that workflow by hand against the branch.
 - **Nothing Android's belongs above the shell.** The credential store, the system notification, and the back gesture are
   shell operations resolved at the composition root, and `frontend/src/AGENTS.md` § _The two heads_ is the rule that
   keeps a component from asking which head it is on. A third head does not widen that permission.
