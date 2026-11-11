@@ -1,0 +1,131 @@
+# Copyright © 2026 Krzysztof Kasprowicz
+# Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
+# Project repository: https://github.com/fathomise/MailFathom
+
+name: Prove the apt cache installs without a mirror
+
+# A one-off demonstration for issue 3173, on this branch alone and never merged. Each `write` job installs the ordinary
+# way and saves the entry under the key the action computes; each `read` job then restores it exactly with every
+# package mirror made unresolvable, and has to install regardless.
+on:
+  push:
+    branches:
+      - agent/cache-apt-lists-proof
+
+permissions:
+  contents: read
+
+jobs:
+  write-desktop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - timeout-minutes: 5
+        uses: ./.github/actions/install-desktop-linux-dependencies
+      - run: |
+          du -sh /var/cache/apt-downloads /var/cache/apt-downloads/lists
+          tar -C /var/cache/apt-downloads -cf - lists | zstd -T0 -q -c | wc -c
+      - id: key
+        run: printf 'key=apt-desktop-%s-%s-%s-%s\n' "$ImageOS" "$ImageVersion" "$CONTENT" "$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+        env:
+          CONTENT: ${{ hashFiles('.github/actions/install-desktop-linux-dependencies/action.yml') }}
+      - uses: actions/cache/save@v6
+        with:
+          path: /var/cache/apt-downloads
+          key: ${{ steps.key.outputs.key }}
+
+  read-desktop:
+    needs: write-desktop
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Make every package mirror unresolvable
+        run: |
+          cat /etc/apt/apt-mirrors.txt
+          printf 'http://mirror.invalid/ubuntu/\n' | sudo tee /etc/apt/apt-mirrors.txt
+          sudo sed -i -E 's#https?://[^/ ]+#http://mirror.invalid#g' /etc/apt/sources.list.d/*
+          cat /etc/apt/sources.list.d/*
+      - timeout-minutes: 5
+        uses: ./.github/actions/install-desktop-linux-dependencies
+      - name: Show what was installed and that the mirror really is unreachable
+        run: |
+          command -v Xvfb WebKitWebDriver
+          dpkg -s libwebkit2gtk-4.1-dev | grep -E '^(Status|Version)'
+          if sudo apt-get update 2>&1 | tee /dev/stderr | grep -q 'Could not resolve'; then
+            echo 'An ordinary apt-get update cannot resolve a mirror in this job.'
+          else
+            echo '::error::The mirror was reachable, so this run proves nothing.'; exit 1
+          fi
+
+  write-playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/package.json
+      - run: npm install --global "$(jq --raw-output .packageManager frontend/package.json)"
+      - run: pnpm --dir frontend install --frozen-lockfile
+      - id: playwright
+        run: echo "version=$(pnpm --dir frontend exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+      - timeout-minutes: 5
+        uses: ./.github/actions/cached-apt-install
+        with:
+          name: playwright
+          content: ${{ steps.playwright.outputs.version }}
+          install: pnpm --dir frontend exec playwright install-deps chromium
+      - run: |
+          du -sh /var/cache/apt-downloads /var/cache/apt-downloads/lists
+          tar -C /var/cache/apt-downloads -cf - lists | zstd -T0 -q -c | wc -c
+      - id: key
+        run: printf 'key=apt-playwright-%s-%s-%s-%s\n' "$ImageOS" "$ImageVersion" "$CONTENT" "$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+        env:
+          CONTENT: ${{ steps.playwright.outputs.version }}
+      - uses: actions/cache/save@v6
+        with:
+          path: /var/cache/apt-downloads
+          key: ${{ steps.key.outputs.key }}
+
+  read-playwright:
+    needs: write-playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/package.json
+      - run: npm install --global "$(jq --raw-output .packageManager frontend/package.json)"
+      - run: pnpm --dir frontend install --frozen-lockfile
+      - id: playwright
+        run: echo "version=$(pnpm --dir frontend exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+      - run: pnpm --dir frontend exec playwright install chromium
+      - name: Make every package mirror unresolvable
+        run: |
+          printf 'http://mirror.invalid/ubuntu/\n' | sudo tee /etc/apt/apt-mirrors.txt
+          sudo sed -i -E 's#https?://[^/ ]+#http://mirror.invalid#g' /etc/apt/sources.list.d/*
+      - timeout-minutes: 5
+        uses: ./.github/actions/cached-apt-install
+        with:
+          name: playwright
+          content: ${{ steps.playwright.outputs.version }}
+          install: pnpm --dir frontend exec playwright install-deps chromium
+      - name: Show the browser starts and that the mirror really is unreachable
+        run: |
+          cd frontend && node -e "require('playwright').chromium.launch().then(async b => { console.log('Chromium', b.version(), 'started'); await b.close(); })"
+          if sudo apt-get update 2>&1 | tee /dev/stderr | grep -q 'Could not resolve'; then
+            echo 'An ordinary apt-get update cannot resolve a mirror in this job.'
+          else
+            echo '::error::The mirror was reachable, so this run proves nothing.'; exit 1
+          fi
