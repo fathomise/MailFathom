@@ -333,6 +333,24 @@ public sealed class MailboxTimelineReaderTests
             Assert.Single(timeline.Calls).Filter.Selection.Scope.AccountIds);
     }
 
+    /// <summary>A listing reads as the reader its request names, which is what admits the person's own Agent to the mail the mailbox has not sent, and an unnamed reader reads as an agent.</summary>
+    [Theory]
+    [InlineData(null, MailboxReaderKind.Agent)]
+    [InlineData(MailboxReaderKind.ConversationAgent, MailboxReaderKind.ConversationAgent)]
+    public async Task ListEmailsAsync_TheReaderTheRequestNames_IsTheReaderTheTimelineIsReadFor(MailboxReaderKind? named, MailboxReaderKind expected)
+    {
+        // Arrange
+        var timeline = new InMemoryStoredEmailTimeline().WithAll(SyntheticEmailSummaries.CreateDailyRun(1, FirstJuly));
+        var reader = ReaderOver(timeline);
+        var request = named is { } kind ? new ListEmailsRequest { Reader = kind } : new ListEmailsRequest();
+
+        // Act
+        await reader.ListEmailsAsync(request, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(expected, Assert.Single(timeline.Calls).Filter.Selection.Scope.Reader);
+    }
+
     /// <summary>Configuration allows serving no account while a local copy still exists, and none of it is readable.</summary>
     [Fact]
     public async Task ListEmailsAsync_NoAccountServedAtAll_ReturnsAnEmptyPageWithoutReadingAnything()

@@ -49,6 +49,10 @@ Project repository: https://github.com/fathomise/MailFathom
     <value>Writing the answer</value>
     <comment>The status line while the Agent writes the answer itself.</comment>
   </data>
+  <data name="AgentStatusListingMail" xml:space="preserve">
+    <value>Going through the mailbox</value>
+    <comment>The status line while the Agent lists the person's mail in the order it arrived.</comment>
+  </data>
   <data name="DiscoveryMailDoesNotAnswer" xml:space="preserve">
     <value>The mail this run read does not answer the question.</value>
     <comment>What a Discover result says in place of an answer when the mail the run read does not answer the question.</comment>

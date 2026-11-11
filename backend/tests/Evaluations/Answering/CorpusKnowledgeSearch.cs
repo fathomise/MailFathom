@@ -11,6 +11,7 @@ using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Search;
 using MailFathom.Application.Emails.Search.Attachments;
 using MailFathom.Application.Emails.SearchEmails;
+using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Synchronization.Checkpoints;
@@ -47,6 +48,10 @@ namespace MailFathom.Evaluations.Answering;
 /// <para>
 /// The corpus carries no server state, so every message reads as unread, unflagged, and carrying no keyword.
 /// </para>
+/// <para>
+/// The same rows answer <see cref="Timeline" />, which is what the Agent's listing reads: narrowed by the same predicate
+/// and ordered by <see cref="EmailTimelinePosition.ComparerFor" />, the total order a deployment's query reproduces.
+/// </para>
 /// </remarks>
 /// <param name="corpus">The messages the inbox holds.</param>
 internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage> corpus) : IEmailKnowledgeSearch
@@ -79,6 +84,9 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
     private readonly ConcurrentQueue<string> narrowedBy = new();
 
     private readonly MailboxKnowledgeSearch search = SearchOver(corpus);
+
+    /// <summary>Gets the corpus as the stored timeline a listing reads, newest or oldest first, a page at a time.</summary>
+    public IStoredEmailTimelineReader Timeline { get; } = new CorpusSearchIndex(corpus);
 
     /// <summary>Gets the scope every lookup of a run is answered from: the one inbox, admitted as a deployment's folder mapping admits it.</summary>
     public static MailboxScope Scope { get; } = MailboxScope.Create([Account], [InboxFolder.Id]).RestrictedTo([InboxIdentity]);
@@ -145,7 +153,7 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
     private static partial Regex Word();
 
     /// <summary>The full-text index a deployment keeps in PostgreSQL, over the corpus held as the rows it would have stored.</summary>
-    private sealed class CorpusSearchIndex(IReadOnlyList<CorpusMessage> corpus) : IEmailSearchIndexReader
+    private sealed class CorpusSearchIndex(IReadOnlyList<CorpusMessage> corpus) : IEmailSearchIndexReader, IStoredEmailTimelineReader
     {
         private readonly IReadOnlyList<StoredEmailEntity> rows = [.. corpus.Select(RowOf)];
 
@@ -311,6 +319,28 @@ internal sealed partial class CorpusKnowledgeSearch(IReadOnlyList<CorpusMessage>
             var after = text[position..].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Take(words - (words / 3));
 
             return string.Join(' ', before.Concat(after));
+        }
+
+        public Task<IReadOnlyList<EmailSummary>> ReadPageAsync(
+            EmailTimelineFilter filter,
+            EmailTimelinePosition? continueAfter,
+            int limit,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(filter);
+
+            var order = EmailTimelinePosition.ComparerFor(filter.Direction);
+
+            IReadOnlyList<EmailSummary> page =
+            [
+                .. this.Selected(filter.Selection)
+                    .Select(static message => CorpusReaders.SummaryOf(message, thread: null))
+                    .Order(Comparer<EmailSummary>.Create((first, second) => order.Compare(first.Position, second.Position)))
+                    .Where(summary => continueAfter is not { } boundary || order.Compare(summary.Position, boundary) > 0)
+                    .Take(limit),
+            ];
+
+            return Task.FromResult(page);
         }
 
         /// <summary>Reads the mail a selection admits, through the predicate a deployment's query narrows by.</summary>

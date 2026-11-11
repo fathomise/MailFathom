@@ -107,9 +107,7 @@ internal sealed class ScopedMailKnowledgeRetrieval
 
     private readonly IEmailKnowledgeSearch knowledgeSearch;
     private readonly MailboxScope scope;
-    private readonly MailAnsweringRunLedger runLedger;
     private readonly SensitiveContentEgressGuard egressGuard;
-    private readonly DateTimeOffset askedAt;
     private readonly Lock gate = new();
     private readonly List<EmailKnowledgePassage> retrieved = [];
     private int candidateCount;
@@ -137,9 +135,9 @@ internal sealed class ScopedMailKnowledgeRetrieval
 
         this.knowledgeSearch = knowledgeSearch;
         this.scope = scope;
-        this.runLedger = runLedger;
+        this.RunLedger = runLedger;
         this.egressGuard = egressGuard;
-        this.askedAt = askedAt;
+        this.AskedAt = askedAt;
     }
 
     /// <summary>Gets what this run's retrieval has reached so far, across every lookup it has made.</summary>
@@ -160,7 +158,7 @@ internal sealed class ScopedMailKnowledgeRetrieval
         {
             // Read before the gate is taken, so this type never holds its own lock while asking for the ledger's. The
             // only other path between the two runs the same way round, which is what keeps the pair deadlock-free.
-            var truncated = this.runLedger.RetrievalWasTruncated;
+            var truncated = this.RunLedger.RetrievalWasTruncated;
 
             lock (this.gate)
             {
@@ -173,8 +171,14 @@ internal sealed class ScopedMailKnowledgeRetrieval
         }
     }
 
-    /// <summary>Gets whether a lookup found mail this run's ceiling would not let it send.</summary>
-    internal bool WasTruncated => this.runLedger.RetrievalWasTruncated;
+    /// <summary>Gets the ledger this run's ceiling on retrieved mail is kept in, which a search and a listing both spend from.</summary>
+    internal MailAnsweringRunLedger RunLedger { get; }
+
+    /// <summary>Gets the instant the run's turn stated, which a received bound the model writes is read against.</summary>
+    internal DateTimeOffset AskedAt { get; }
+
+    /// <summary>Gets whether a lookup or a listed page found mail this run's ceiling would not let it send.</summary>
+    internal bool WasTruncated => this.RunLedger.RetrievalWasTruncated;
 
     /// <summary>Builds the one tool the run is composed with.</summary>
     /// <returns>The tool, which searches only when the model calls it.</returns>
@@ -248,8 +252,8 @@ internal sealed class ScopedMailKnowledgeRetrieval
             SenderAddress = senderAddress,
             RecipientAddress = recipientAddress,
             SubjectFragment = subjectFragment,
-            ReceivedOnOrAfter = AnchoredInstant.Read(receivedOnOrAfter, this.askedAt),
-            ReceivedBefore = AnchoredInstant.Read(receivedBefore, this.askedAt),
+            ReceivedOnOrAfter = AnchoredInstant.Read(receivedOnOrAfter, this.AskedAt),
+            ReceivedBefore = AnchoredInstant.Read(receivedBefore, this.AskedAt),
             IsMarkedSeen = isMarkedSeen,
             IsFlagged = isFlagged,
             Keyword = keyword,
@@ -268,7 +272,7 @@ internal sealed class ScopedMailKnowledgeRetrieval
             return RetrievedMailContextFormatter.FormatRefusal(refusal.FilterName, refusal.Message);
         }
 
-        var admitted = this.runLedger.AdmitPassages(found.Passages);
+        var admitted = this.RunLedger.AdmitPassages(found.Passages);
 
         lock (this.gate)
         {
@@ -296,7 +300,7 @@ internal sealed class ScopedMailKnowledgeRetrieval
     /// and quoting it back would put an unbounded string into a document composed for a model to read.
     /// </remarks>
     private string? RefusedBound(string? written, string filterName) =>
-        !string.IsNullOrWhiteSpace(written) && AnchoredInstant.Read(written, this.askedAt) is null
+        !string.IsNullOrWhiteSpace(written) && AnchoredInstant.Read(written, this.AskedAt) is null
             ? RetrievedMailContextFormatter.FormatRefusal(
                 filterName,
                 $"Write this bound as {AnchoredInstant.WrittenForm} against the date and time the turn states, with no zone and no Z.")

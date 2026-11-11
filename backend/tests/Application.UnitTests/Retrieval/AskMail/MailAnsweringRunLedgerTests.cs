@@ -3,6 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Chat;
+using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.UnitTests.TestDoubles;
@@ -102,6 +103,53 @@ public sealed class MailAnsweringRunLedgerTests
         Assert.True(ledger.RetrievalWasTruncated);
     }
 
+    /// <summary>A listing hands a provider the subject and the sender somebody wrote, so a page spends the allowance a lookup does, and is cut where it runs out.</summary>
+    [Fact]
+    public void AdmitSummaries_APagePastTheRunsCeiling_HandsOverTheLeadingSummariesThatFitAndSaysItCut()
+    {
+        // Arrange
+        var ledger = LedgerAllowing(retrievedCharacters: 250);
+        var page = SummariesOf(100, 100, 100);
+
+        // Act
+        var admitted = ledger.AdmitSummaries(page);
+
+        // Assert
+        Assert.Equal(
+            (2, true, 200, 2),
+            (admitted.Count, ledger.RetrievalWasTruncated, ledger.Read().RetrievedCharacters, ledger.Read().MessagesRetrieved));
+    }
+
+    /// <summary>One allowance covers searching and listing together, so a run cannot page through the mailbox beside the ceiling on searching it.</summary>
+    [Fact]
+    public void AdmitSummaries_AfterALookupSpentTheCeiling_HandsOverNothing()
+    {
+        // Arrange
+        var ledger = LedgerAllowing(retrievedCharacters: 250);
+        ledger.AdmitPassages(PassagesOf(100, 100));
+
+        // Act
+        var admitted = ledger.AdmitSummaries(SummariesOf(100));
+
+        // Assert
+        Assert.Empty(admitted);
+    }
+
+    /// <summary>A summary spends only what its author wrote: a subject and a sender, never the dates, flags, and identity this deployment recorded.</summary>
+    [Fact]
+    public void AdmitSummaries_ASummary_SpendsItsSubjectAndItsSender()
+    {
+        // Arrange
+        var ledger = LedgerAllowing();
+        var summary = SyntheticEmailSummaries.Create(subject: "Quote", senderAddress: "ada@example.org") with { SenderDisplayName = "Ada" };
+
+        // Act
+        ledger.AdmitSummaries([summary]);
+
+        // Assert
+        Assert.Equal("Quote".Length + "Ada".Length + "ada@example.org".Length, ledger.Read().RetrievedCharacters);
+    }
+
     [Fact]
     public void AdmitPassages_WithoutALookupResult_IsRefused()
     {
@@ -188,6 +236,9 @@ public sealed class MailAnsweringRunLedgerTests
         int providerCalls = 8,
         long tokens = 80_000) =>
         new(MailAnsweringRunBounds.Create(retrievedCharacters, providerCalls, tokens));
+
+    private static IReadOnlyList<EmailSummary> SummariesOf(params int[] subjectLengths) =>
+        [.. subjectLengths.Select(length => SyntheticEmailSummaries.Create(subject: new string('s', length)))];
 
     private static IReadOnlyList<EmailKnowledgePassage> PassagesOf(params int[] lengths) =>
         [.. lengths.Select(length => ScriptedEmailKnowledgeSearch.Passage(new string('a', length)))];

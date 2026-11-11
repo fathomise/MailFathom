@@ -12,7 +12,7 @@ using MailFathom.Domain.Tasks;
 
 namespace MailFathom.AI.AgentConversations;
 
-/// <summary>Writes what the Agent's reading tools return: a conversation, a stretch of the calendar, and the task list.</summary>
+/// <summary>Writes what the Agent's reading tools return: a conversation, a page of the mailbox, a stretch of the calendar, and the task list.</summary>
 /// <remarks>
 /// <para>
 /// Each is a document written through <see cref="AgentTurnDocument" />, because each carries text somebody else wrote
@@ -62,6 +62,39 @@ internal static class AgentConversationReadings
 
     /// <summary>Names the element carrying a message's body.</summary>
     internal const string BodyElementName = "body";
+
+    /// <summary>Names the element a page of the mailbox's timeline is read into.</summary>
+    internal const string MailboxElementName = "mailbox";
+
+    /// <summary>Names the attribute carrying which end of the timeline a page was read from.</summary>
+    internal const string OrderAttributeName = "order";
+
+    /// <summary>The value <see cref="OrderAttributeName" /> carries for a page read from the newest mail back.</summary>
+    internal const string NewestFirstOrder = "newest-first";
+
+    /// <summary>The value <see cref="OrderAttributeName" /> carries for a page read from the oldest mail on.</summary>
+    internal const string OldestFirstOrder = "oldest-first";
+
+    /// <summary>Names the attribute saying more mail matches than the page shows, written only where it does.</summary>
+    internal const string MoreAttributeName = "more";
+
+    /// <summary>Names the attribute carrying what the next page continues from, written only where one can be read.</summary>
+    internal const string CursorAttributeName = "cursor";
+
+    /// <summary>Names the attribute saying the run may read no more mail, written only where the page was cut by that ceiling.</summary>
+    internal const string CeilingReachedAttributeName = "ceiling-reached";
+
+    /// <summary>Names the attribute carrying when a message arrived.</summary>
+    internal const string ReceivedAttributeName = "received";
+
+    /// <summary>Names the attribute carrying whether the mailbox has opened a message.</summary>
+    internal const string ReadAttributeName = "read";
+
+    /// <summary>Names the attribute marking a flagged message, written only where it is.</summary>
+    internal const string FlaggedAttributeName = "flagged";
+
+    /// <summary>Names the attribute marking a message carrying attachments, written only where it does.</summary>
+    internal const string AttachmentsAttributeName = "attachments";
 
     /// <summary>Names the element a stretch of the calendar is read into.</summary>
     internal const string CalendarElementName = "calendar";
@@ -161,6 +194,56 @@ internal static class AgentConversationReadings
         return document.Complete();
     }
 
+    /// <summary>Writes one page of the mailbox's timeline: each message's headers and state, and nothing of its body.</summary>
+    /// <param name="messages">The messages, in the order the page was read in.</param>
+    /// <param name="newestFirst">Whether the page was read from the newest mail back rather than from the oldest on.</param>
+    /// <param name="hasMore">Whether more mail matches than the page shows.</param>
+    /// <param name="cursor">What the next page continues from, or <see langword="null" /> where none can be read.</param>
+    /// <param name="ceilingReached">Whether the page was cut because the run may read no more mail.</param>
+    /// <returns>The document.</returns>
+    /// <remarks>
+    /// That more mail exists is written on the page rather than left to the cursor, because a model handed a page with
+    /// nothing saying it is one answers about the page as though it were the mailbox.
+    /// </remarks>
+    internal static string Listing(
+        IReadOnlyList<GuardedListedReading> messages,
+        bool newestFirst,
+        bool hasMore,
+        string? cursor,
+        bool ceilingReached)
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+
+        using var document = new AgentTurnDocument();
+
+        document.StartElement(MailboxElementName);
+        document.WriteAttribute(OrderAttributeName, newestFirst ? NewestFirstOrder : OldestFirstOrder);
+        WriteTrue(document, MoreAttributeName, hasMore);
+        WriteOptional(document, CursorAttributeName, cursor);
+        WriteTrue(document, CeilingReachedAttributeName, ceilingReached);
+
+        foreach (var message in messages)
+        {
+            document.StartElement(MessageElementName);
+            document.WriteAttribute(MessageIdAttributeName, message.Id.ToString());
+            document.WriteAuthor(message.SenderName, message.SenderAddress);
+            WriteOptional(document, ReceivedAttributeName, Instant(message.ReceivedAt));
+            document.WriteAttribute(ReadAttributeName, message.IsRead ? "true" : "false");
+            WriteTrue(document, FlaggedAttributeName, message.IsFlagged);
+            WriteTrue(document, AttachmentsAttributeName, message.HasAttachments);
+            document.WriteProvenance(message.Provenance);
+
+            if (message.Subject is { } subject)
+            {
+                document.WriteQuoted(SubjectElementName, subject);
+            }
+
+            document.EndElement();
+        }
+
+        return document.Complete();
+    }
+
     /// <summary>Writes one window of the calendar.</summary>
     /// <param name="opens">Where the window opens.</param>
     /// <param name="closes">Where the window closes.</param>
@@ -231,6 +314,15 @@ internal static class AgentConversationReadings
         }
     }
 
+    /// <summary>Writes a mark only where it holds, so the model reads what a record is rather than a false to tell apart from it.</summary>
+    private static void WriteTrue(AgentTurnDocument document, string attributeName, bool holds)
+    {
+        if (holds)
+        {
+            document.WriteAttribute(attributeName, "true");
+        }
+    }
+
     private static string Instant(DateTimeOffset instant) => instant.ToString("O", CultureInfo.InvariantCulture);
 
     private static string? Instant(DateTimeOffset? instant) => instant is { } known ? Instant(known) : null;
@@ -258,6 +350,27 @@ internal sealed record GuardedThreadReading(
     bool BodyCut,
     OutgoingEmailReceipts? Receipts = null,
     bool AnsweredWithFooter = false);
+
+/// <summary>One message of a page of the mailbox as the Agent is shown it, every text of it already guarded.</summary>
+/// <param name="Id">The message's identifier, which a conversation reading and a proposal name it by.</param>
+/// <param name="SenderName">The guarded name its sender goes by, or <see langword="null" /> where it named none.</param>
+/// <param name="SenderAddress">The guarded address it was sent from, or <see langword="null" /> where it named none.</param>
+/// <param name="ReceivedAt">When it arrived, where that is known.</param>
+/// <param name="IsRead">Whether the mailbox has opened it.</param>
+/// <param name="IsFlagged">Whether it is flagged.</param>
+/// <param name="HasAttachments">Whether it carries attachments.</param>
+/// <param name="Provenance">Where it came from as this deployment recorded it, which the reading states as attributes the message cannot write.</param>
+/// <param name="Subject">The guarded subject, or <see langword="null" /> where it carried none.</param>
+internal sealed record GuardedListedReading(
+    StoredEmailId Id,
+    string? SenderName,
+    string? SenderAddress,
+    DateTimeOffset? ReceivedAt,
+    bool IsRead,
+    bool IsFlagged,
+    bool HasAttachments,
+    EmailProvenance Provenance,
+    string? Subject);
 
 /// <summary>One calendar event as the Agent is shown it, its title already guarded.</summary>
 /// <param name="Start">When it begins.</param>

@@ -3,6 +3,8 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 using MailFathom.Application.Chat;
+using MailFathom.Application.Emails.Summaries;
+using MailFathom.Domain.Emails;
 
 namespace MailFathom.Application.Retrieval.AskMail;
 
@@ -10,13 +12,14 @@ namespace MailFathom.Application.Retrieval.AskMail;
 /// <remarks>
 /// <para>
 /// One instance serves one run, for the reason the run's retrieval does: a ceiling on a question is meaningless if two
-/// questions share it. It is nevertheless internally synchronized, because a tool loop may answer several lookups of one
-/// run at once, a streamed run reads its counts from a connection other than the one executing it, and both halves of a
-/// check-then-take have to happen together.
+/// questions share it. It is nevertheless internally synchronized, because a tool loop may answer several lookups or
+/// listings of one run at once, a streamed run reads its counts from a connection other than the one executing it, and
+/// both halves of a check-then-take have to happen together.
 /// </para>
 /// <para>
-/// The two kinds of refusal are deliberately unequal. Retrieval is trimmed to what the run may still send and the run
-/// continues, because a question with some mail already retrieved is answerable and the model is told there is no more.
+/// The two kinds of refusal are deliberately unequal. Retrieval — a lookup's passages or a listed page — is trimmed to
+/// what the run may still send and the run continues, because a question with some mail already retrieved is answerable
+/// and the model is told there is no more.
 /// A provider call is refused outright, because a run with no allowance for another call has no answer to trim.
 /// </para>
 /// <para>
@@ -53,7 +56,7 @@ public sealed class MailAnsweringRunLedger
     /// <summary>Gets what this run may send, call, and consume, which is what its counts are read against.</summary>
     public MailAnsweringRunBounds Bounds { get; }
 
-    /// <summary>Gets whether a lookup found mail this run's ceiling would not let it send.</summary>
+    /// <summary>Gets whether a lookup or a listed page found mail this run's ceiling would not let it send.</summary>
     /// <remarks>The setter is written only from inside this type's lock, which is why it does not take one of its own; the getter does, because a reader outside the run holds nothing.</remarks>
     public bool RetrievalWasTruncated
     {
@@ -81,27 +84,50 @@ public sealed class MailAnsweringRunLedger
     {
         ArgumentNullException.ThrowIfNull(found);
 
+        return this.Admit(found, static passage => passage.StoredEmailId, RetrievedCharactersOf);
+    }
+
+    /// <summary>Takes the summaries of one listed page that still fit inside what this run may send.</summary>
+    /// <param name="listed">The page, in the timeline order it was read in.</param>
+    /// <returns>The leading summaries that fit, which is every one of them until the ceiling is approached and none once it is reached.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="listed" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// A listing spends the same allowance a lookup does rather than one of its own, because both hand a provider mail
+    /// somebody else wrote, and a run that could page through a mailbox beside the ceiling on searching it would have
+    /// no ceiling at all. What a summary spends is what its author wrote: the subject and the sender. Its dates, flags,
+    /// and identity are this deployment's own and count for nothing, which is what lets a page of a hundred headers cost
+    /// a fraction of one lookup.
+    /// </remarks>
+    public IReadOnlyList<EmailSummary> AdmitSummaries(IReadOnlyList<EmailSummary> listed)
+    {
+        ArgumentNullException.ThrowIfNull(listed);
+
+        return this.Admit(listed, static summary => summary.StoredEmailId, ListedCharactersOf);
+    }
+
+    private List<T> Admit<T>(IReadOnlyList<T> found, Func<T, StoredEmailId> messageOf, Func<T, int> charactersOf)
+    {
         lock (this.gate)
         {
-            List<EmailKnowledgePassage> admitted = [];
+            List<T> admitted = [];
 
-            foreach (var passage in found)
+            foreach (var item in found)
             {
-                var characters = RetrievedCharactersOf(passage);
+                var characters = charactersOf(item);
 
                 if (this.retrievedCharacters + characters > this.Bounds.MaximumRetrievedCharacters)
                 {
-                    // Stopping at the first passage that does not fit rather than searching the rest for a smaller one:
-                    // retrieval handed these over in relevance order, and skipping ahead would silently prefer short
-                    // messages to relevant ones the moment a run approached its ceiling.
+                    // Stopping at the first item that does not fit rather than searching the rest for a smaller one:
+                    // the items arrived in relevance or timeline order, and skipping ahead would silently prefer short
+                    // messages to the ones that order put first the moment a run approached its ceiling.
                     this.RetrievalWasTruncated = true;
 
                     break;
                 }
 
                 this.retrievedCharacters += characters;
-                this.retrievedMessages.Add(passage.StoredEmailId.Value);
-                admitted.Add(passage);
+                this.retrievedMessages.Add(messageOf(item).Value);
+                admitted.Add(item);
             }
 
             return admitted;
@@ -115,6 +141,9 @@ public sealed class MailAnsweringRunLedger
     /// </remarks>
     private static int RetrievedCharactersOf(EmailKnowledgePassage passage) =>
         passage.Text.Length + (passage.SenderDisplayName?.Length ?? 0) + (passage.SenderAddress?.Length ?? 0);
+
+    private static int ListedCharactersOf(EmailSummary summary) =>
+        (summary.Subject?.Length ?? 0) + (summary.SenderDisplayName?.Length ?? 0) + (summary.SenderAddress?.Length ?? 0);
 
     /// <summary>Takes this run's allowance for one more provider call.</summary>
     /// <exception cref="MailAnsweringBudgetExhaustedException">Thrown when the run has made every call it may make, or has consumed every token it may consume.</exception>

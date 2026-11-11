@@ -13,6 +13,7 @@ using MailFathom.Application.EmailContent.Repair;
 using MailFathom.Application.EmailContent.Storage;
 using MailFathom.Application.Emails.Extraction;
 using MailFathom.Application.Emails.GetEmailContent;
+using MailFathom.Application.Emails.ListEmails;
 using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Emails.Threads;
@@ -23,8 +24,8 @@ using MailFathom.Application.Mail.Delivery.Composition;
 using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
-using MailFathom.Application.Retrieval;
 using MailFathom.Application.StoredFiles;
+using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Application.Tasks;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Accounts;
@@ -91,13 +92,13 @@ internal static class CorpusReaders
 
     /// <summary>Composes the readers a deployment would hand one person's run, under the grant they hold.</summary>
     /// <param name="authorization">The grant the run acts under.</param>
-    /// <param name="search">The search the run's lookups reach.</param>
+    /// <param name="search">The search the run's lookups reach, whose corpus the run's listings read as well.</param>
     /// <param name="clock">The person's clock, standing at the instant the question is asked, in their zone.</param>
     /// <param name="footers">The footers the person's accounts append, or <see langword="null" /> for a mailbox where none appends one.</param>
     /// <returns>The readers.</returns>
     public static AgentConversationReaders For(
         AccessAuthorization authorization,
-        IEmailKnowledgeSearch search,
+        CorpusKnowledgeSearch search,
         UserClock clock,
         MailFootersInForce? footers = null)
     {
@@ -110,6 +111,14 @@ internal static class CorpusReaders
         return new AgentConversationReaders(
             scope,
             search,
+            new MailboxTimelineReader(
+                search.Timeline,
+                new NotSynchronized(),
+                scope,
+                SensitiveContentEgressGuards.Inactive(),
+                new UnrecordedReads(),
+                authorization,
+                StubMailCategories.OfferingNothing),
             ContentReaderOver(scope, authorization),
             Provenance.Value,
             new MailThreadStateBrowser(PersonalAgenda.ThreadStateReader(), scope, SensitiveContentEgressGuards.Inactive(), authorization),
@@ -279,6 +288,12 @@ internal static class CorpusReaders
 
         public Task<StoredEmailContent?> FindMailDraftContentAsync(MailDraftId draftId, CancellationToken cancellationToken) =>
             throw new NotSupportedException("The Agent never reads a draft.");
+    }
+
+    private sealed class NotSynchronized : ISynchronizationFreshnessReader
+    {
+        public Task<IReadOnlyList<MailboxFolderFreshness>> ReadAsync(MailboxScope scope, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<MailboxFolderFreshness>>([]);
     }
 
     private sealed class NoRepairs : IEmailContentRepairRequestStore

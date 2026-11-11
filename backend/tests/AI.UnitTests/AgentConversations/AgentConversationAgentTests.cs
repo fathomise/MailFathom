@@ -159,6 +159,26 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             (block.Evidence.Support, block.Confidence, block.Evidence.Citations.Count));
     }
 
+    /// <summary>A bound the model writes is the person's own wall clock, because that is the clock the turn stated to it.</summary>
+    [Fact]
+    public async Task ComposeAsync_ABoundWrittenForAPersonEastOfUtc_IsReadAtTheirZonesOffset()
+    {
+        // Arrange
+        var search = new RecordingEmailKnowledgeSearch();
+        using var provider = new ScriptedProvider(
+            answering: [Searching("bays", receivedOnOrAfter: "2026-09-22T00:00"), Answering("Nothing came in about the bays today.")],
+            standby: []);
+
+        // Act
+        await provider.AgentOver(ChatDeclarations.Plan(maximumRequestCharacters: 100_000), search, zoneId: "Europe/Warsaw")
+            .ComposeAsync(this.Brief(), this.journal, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            new DateTimeOffset(2026, 9, 22, 0, 0, 0, TimeSpan.FromHours(2)),
+            Assert.Single(search.Calls).Query.ReceivedOnOrAfter);
+    }
+
     /// <summary>A control character between a mark and its bracket, or inside a tag, cannot rebuild what the neutralising passed over.</summary>
     [Theory]
     [InlineData("See !\u0001[x](https://stranger.example.test/p.png).", "See [x](https://stranger.example.test/p.png).")]
@@ -294,11 +314,13 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
         + "\"type\":\"function\",\"function\":{\"name\":\"rate_confidence\","
         + "\"arguments\":\"{\\\"band\\\":\\\"" + band + "\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}";
 
-    private static string Searching(string query) =>
+    private static string Searching(string query, string? receivedOnOrAfter = null) =>
         "{\"id\":\"chatcmpl-4\",\"object\":\"chat.completion\",\"created\":1,\"model\":\"a-chat-model\","
         + "\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call-3\","
         + "\"type\":\"function\",\"function\":{\"name\":\"search_mail\","
-        + "\"arguments\":\"{\\\"" + ScopedMailKnowledgeRetrieval.QueryArgumentName + "\\\":\\\"" + query + "\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}";
+        + "\"arguments\":\"{\\\"" + ScopedMailKnowledgeRetrieval.QueryArgumentName + "\\\":\\\"" + query + "\\\""
+        + (receivedOnOrAfter is null ? string.Empty : ",\\\"receivedOnOrAfter\\\":\\\"" + receivedOnOrAfter + "\\\"")
+        + "}\"}}]},\"finish_reason\":\"tool_calls\"}]}";
 
     private static string Answering(string text) =>
         "{\"id\":\"chatcmpl-2\",\"object\":\"chat.completion\",\"created\":1,\"model\":\"a-chat-model\","
@@ -373,7 +395,8 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
             ChatGenerationPlan plan,
             IEmailKnowledgeSearch? search = null,
             MailFolderIdentity[]? foldersWithheldFromAI = null,
-            IMailAccountLanguages? accountLanguages = null)
+            IMailAccountLanguages? accountLanguages = null,
+            string zoneId = "UTC")
         {
             var transportFactory = Substitute.For<IHttpClientFactory>();
             transportFactory
@@ -407,6 +430,7 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
                     StubDeploymentMailFolders.Of(participation),
                     StubMailFolderMappings.ResolvingNothing),
                 search ?? Substitute.For<IEmailKnowledgeSearch>(),
+                Timeline: null!,
                 ContentReader: null!,
                 ProvenanceReader: StubEmailProvenanceReader.AllKnownCorrespondents,
                 StateBrowser: null!,
@@ -416,7 +440,7 @@ public sealed class AgentConversationAgentTests : IAsyncDisposable
                 search is null
                     ? AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse)
                     : AccessAuthorizations.ForCallerGranted(MailFathomPermission.AssistantUse, MailFathomPermission.MailRead),
-                UserClocks.Reading(Now),
+                UserClocks.Reading(Now, zoneId),
                 MailFootings.SendingNone());
 
             return new AgentConversationAgent(

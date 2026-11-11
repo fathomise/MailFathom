@@ -13,7 +13,10 @@ using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
 using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Application.Emails.GetEmailContent;
+using MailFathom.Application.Emails.ListEmails;
+using MailFathom.Application.Emails.Mailboxes;
 using MailFathom.Application.Emails.Provenance;
+using MailFathom.Application.Emails.Summaries;
 using MailFathom.Application.Emails.Threads;
 using MailFathom.Application.Emails.ThreadStates;
 using MailFathom.Application.Mail.Delivery.Addressing;
@@ -24,6 +27,7 @@ using MailFathom.Domain.Accounts;
 using MailFathom.Domain.Calendar;
 using MailFathom.Domain.Delivery;
 using MailFathom.Domain.Emails;
+using MailFathom.Domain.Failures;
 using MailFathom.Domain.Folders;
 using MailFathom.Domain.Tasks;
 using Microsoft.Extensions.AI;
@@ -71,6 +75,19 @@ internal sealed class AgentConversationTools
     /// <summary>The longest window of the calendar one reading covers.</summary>
     internal static readonly TimeSpan MaximumCalendarWindow = TimeSpan.FromDays(62);
 
+    /// <summary>Names the tool that reads the mailbox in the order mail arrived.</summary>
+    internal const string ListMailToolName = "list_mail";
+
+    /// <summary>What the model is told the listing does, and when it is the tool to reach for rather than the search.</summary>
+    private const string ListMailDescription =
+        "Lists the mailbox in the order mail arrived, newest first unless you ask for oldest first, one page at a time: "
+        + "each message's id, sender, when it arrived, subject, and whether it is read, flagged, and carries attachments, "
+        + "and nothing of its body. Use it when the question is about the timeline rather than a subject — the latest "
+        + "mail, what came in during a period, what is unread or flagged, everything from one sender — and search_mail "
+        + "to find mail about a subject. Narrow with the filters for what the question states, as you would a search. "
+        + "A page whose mailbox element says more=\"true\" is not the whole of what matches: call again with its cursor "
+        + "and the same filters to read the next page. Read a listed message's body with read_thread.";
+
     /// <summary>What both proposing tools say of the send time they take, which only a person's own ask may supply.</summary>
     private const string SendAtDescription =
         "When it is to leave, as an ISO 8601 instant with an offset, in the person's time zone the turn names. Give one only "
@@ -83,6 +100,7 @@ internal sealed class AgentConversationTools
     private readonly SensitiveContentEgressGuard egressGuard;
     private readonly IReadOnlyList<MailAccountId> accounts;
     private readonly Dictionary<StoredEmailId, PresentationCitation> cited = [];
+    private readonly Dictionary<StoredEmailId, string?> listed = [];
     private readonly List<string> readBodies = [];
     private IReadOnlySet<MailAccountId>? footedAccounts;
 
@@ -110,8 +128,8 @@ internal sealed class AgentConversationTools
     internal IReadOnlyList<PresentationCitation> Cited => [.. this.cited.Values];
 
     /// <summary>Gets the text of every message the run has shown the model, cut where it was cut for the model, which is what an answer's links are traced to.</summary>
-    /// <remarks>Every source the run shows is one its answer cites, so this is the cited mail's text: what a search returned and what a thread reading showed.</remarks>
-    internal IEnumerable<string> ShownMail => [.. AnswerMarkup.TextOf(this.retrieval.Report.Passages), .. this.readBodies];
+    /// <remarks>Every source the run shows is one its answer cites, so this is the cited mail's text: what a search returned, what a thread reading showed, and the subjects a listing showed.</remarks>
+    internal IEnumerable<string> ShownMail => [.. AnswerMarkup.TextOf(this.retrieval.Report.Passages), .. this.readBodies, .. this.listed.Values.OfType<string>()];
 
     /// <summary>Gets whether a proposal is on record from this run, which no later model may be asked to answer beside.</summary>
     internal bool HasProposed { get; private set; }
@@ -164,6 +182,7 @@ internal sealed class AgentConversationTools
         if (this.readers.Authorization.Permits(MailFathomPermission.MailRead))
         {
             tools.Add(new ReportingFunction(this.retrieval.CreateSearchTool(), this.journal, AgentActivity.SearchingMail));
+            tools.Add(AIFunctionFactory.Create(this.ListMailAsync, ListMailToolName, ListMailDescription));
             tools.Add(AIFunctionFactory.Create(this.ReadThreadAsync, "read_thread", $"Reads the email conversation a message belongs to, up to its {MaximumThreadMessages} newest messages: each one's sender, date, subject, and body. Pass the id of any message in it, or of the conversation; where the message is older than those, the reading ends at it instead. The reading says how many earlier or later messages it left out. A conversation past {IEmailThreadReader.MaximumAssembledEmails} messages is read from its first {IEmailThreadReader.MaximumAssembledEmails} only."));
             tools.Add(AIFunctionFactory.Create(this.ShowThreadStateAsync, "show_thread_state", "Shows the person where the conversation a message belongs to stands — what was agreed, what is still open, what somebody owes — exactly as it was already derived. Use it only when the person asks where a conversation stands or what is open in it; to read, summarise, or retell a conversation, use read_thread. The reading is placed in the conversation for them; do not restate it."));
         }
@@ -208,14 +227,29 @@ internal sealed class AgentConversationTools
         this.ReportedConfidence = null;
     }
 
-    /// <summary>Declares every message the search showed the model as a source, which is what an answer resting on a search cites.</summary>
+    /// <summary>Declares every message the search showed the model as a source, which is what an answer resting on a search cites, and then the messages a listing showed.</summary>
     /// <param name="cancellationToken">Cancels the writes.</param>
     /// <returns>A task that completes once every source is declared.</returns>
-    internal async Task DeclareSearchedAsync(CancellationToken cancellationToken)
+    /// <remarks>
+    /// A listed message is declared only while the answer could still cite it. A page holds up to a hundred messages
+    /// and an answer cites at most <see cref="PresentationEvidence.MaxCitations" />, which it takes in the order the
+    /// sources were declared, so declaring the rest would write sources nothing can ever name.
+    /// </remarks>
+    internal async Task DeclareSearchedAndListedAsync(CancellationToken cancellationToken)
     {
         foreach (var passage in this.retrieval.Report.Passages.DistinctBy(static passage => passage.StoredEmailId))
         {
             await this.CiteAsync(passage.StoredEmailId, passage.Subject, cancellationToken);
+        }
+
+        foreach (var (message, subject) in this.listed.Where(entry => !this.cited.ContainsKey(entry.Key)).ToArray())
+        {
+            if (this.cited.Count >= PresentationEvidence.MaxCitations)
+            {
+                break;
+            }
+
+            await this.CiteAsync(message, subject, cancellationToken);
         }
     }
 
@@ -253,6 +287,179 @@ internal sealed class AgentConversationTools
         this.ReportedConfidence = rated;
 
         return "Noted. It is shown beside your answer.";
+    }
+
+    [Description("Lists mail in the order it arrived.")]
+    private async Task<string> ListMailAsync(
+        [Description("newestFirst for the latest mail, oldestFirst to start from the earliest. Omit for newestFirst.")] string? direction = null,
+        [Description("How many messages one page holds, from 1 to 100. Omit for 25.")] int? pageSize = null,
+        [Description("The cursor a previous page's mailbox element carried, to read the page after it with the same filters and direction. Omit for the first page.")] string? cursor = null,
+        [Description("Return only mail sent from this whole mail address, without regard to case. Omit to match any sender.")] string? senderAddress = null,
+        [Description("Return only mail addressed to this whole mail address in its To or Cc header. Omit to match any recipient.")] string? recipientAddress = null,
+        [Description("Return only mail whose subject contains this text, without regard to case. Omit to match any subject.")] string? subjectFragment = null,
+        [Description("Return only mail received at or after this moment, written as yyyy-MM-ddTHH:mm against the date and time the turn states, with no zone and no Z. Omit for no lower bound.")] string? receivedOnOrAfter = null,
+        [Description("Return only mail received strictly before this moment, written as yyyy-MM-ddTHH:mm against the date and time the turn states, with no zone and no Z. Omit for no upper bound.")] string? receivedBefore = null,
+        [Description("Return only mail this mailbox has opened (true) or not opened (false). Mail whose state nobody has observed yet counts as not opened. Listing never changes this state. Omit to match either.")] bool? isMarkedSeen = null,
+        [Description("Return only mail flagged (true) or unflagged (false), which is the star most mail clients show. Omit to match either.")] bool? isFlagged = null,
+        [Description("Return only mail carrying this keyword, a flag a mail client or server set such as $Junk or a label. Omit to match any keyword.")] string? keyword = null,
+        [Description("Return only mail that carries attachments (true) or carries none (false). Omit to match either.")] bool? hasAttachments = null,
+        [Description("Return only mail sorted into this category, under the same rule a search's category follows. Omit to match any category.")] string? category = null,
+        [Description("Return only mail in the folder playing this role in each account: Inbox, Sent, Archive, Drafts, Trash, Flagged, or Important. Omit to list every folder.")] string? folder = null,
+        CancellationToken cancellationToken = default)
+    {
+        await this.ReportAsync(AgentActivity.ListingMail, cancellationToken);
+
+        if (this.ListingRequestOf(direction, receivedOnOrAfter, receivedBefore, folder, out var request) is { } refusal)
+        {
+            return refusal;
+        }
+
+        request = request with
+        {
+            PageSize = pageSize,
+            Cursor = cursor,
+            SenderAddress = senderAddress,
+            RecipientAddress = recipientAddress,
+            SubjectFragment = subjectFragment,
+            IsMarkedSeen = isMarkedSeen,
+            IsFlagged = isFlagged,
+            Keyword = keyword,
+            HasAttachments = hasAttachments,
+            Category = category,
+        };
+
+        ListEmailsResult page;
+
+        try
+        {
+            page = await this.readers.Timeline.ListEmailsAsync(request, cancellationToken);
+        }
+        catch (MailFathomException refused) when (refused is MailboxQueryFilterInvalidException
+            or MailboxQueryPageSizeOutOfRangeException
+            or MailboxQueryCursorMalformedException
+            or MailboxQueryCursorFilterMismatchException)
+        {
+            // Told rather than raised, because the caller is a tool loop and a model that wrote an unusable value can
+            // write a usable one. Each of these messages names the argument and never what was in it.
+            return refused.Message;
+        }
+
+        var admitted = this.retrieval.RunLedger.AdmitSummaries(page.Emails);
+        var ceilingReached = admitted.Count < page.Emails.Count;
+
+        var shown = await this.GuardedListingOfAsync(admitted, cancellationToken);
+
+        // Only what the page shows may be cited, under the subject the model was shown.
+        foreach (var reading in shown)
+        {
+            this.listed.TryAdd(reading.Id, reading.Subject);
+        }
+
+        // Once the ceiling cut the page, no cursor is offered: it would continue after the messages the ceiling left
+        // out, and the run may read no more mail anyway.
+        return AgentConversationReadings.Listing(
+            shown,
+            request.Direction is EmailTimelineDirection.NewestFirst,
+            page.HasMore || ceilingReached,
+            ceilingReached ? null : page.NextCursor,
+            ceilingReached);
+    }
+
+    /// <summary>Reads the arguments a listing takes in a form of the model's own, or says which one to write again.</summary>
+    /// <remarks>
+    /// The scope is not among them. The listing names no account, so it reads every account the run's scope was
+    /// resolved over, under the reader the run reads as, which is what keeps the model from reaching past the mail its
+    /// search and its conversation readings reach.
+    /// </remarks>
+    private string? ListingRequestOf(
+        string? direction,
+        string? receivedOnOrAfter,
+        string? receivedBefore,
+        string? folder,
+        out ListEmailsRequest request)
+    {
+        request = new ListEmailsRequest { Reader = MailboxReaderKind.ConversationAgent };
+
+        EmailTimelineDirection? order = direction?.Trim() switch
+        {
+            null or "" => EmailTimelineDirection.NewestFirst,
+            var named when named.Equals("newestFirst", StringComparison.OrdinalIgnoreCase) => EmailTimelineDirection.NewestFirst,
+            var named when named.Equals("oldestFirst", StringComparison.OrdinalIgnoreCase) => EmailTimelineDirection.OldestFirst,
+            _ => null,
+        };
+
+        if (order is not { } timelineOrder)
+        {
+            return "Give the direction as newestFirst or oldestFirst, or leave it out.";
+        }
+
+        var opens = AnchoredInstant.Read(receivedOnOrAfter, this.retrieval.AskedAt);
+        var closes = AnchoredInstant.Read(receivedBefore, this.retrieval.AskedAt);
+
+        if ((!string.IsNullOrWhiteSpace(receivedOnOrAfter) && opens is null)
+            || (!string.IsNullOrWhiteSpace(receivedBefore) && closes is null))
+        {
+            return $"Write each received bound as {AnchoredInstant.WrittenForm} against the date and time the turn states, with no zone and no Z.";
+        }
+
+        IReadOnlyList<MailFolderReference> folders = [];
+
+        if (!string.IsNullOrWhiteSpace(folder))
+        {
+            if (!MailFolderReference.TryCreateNamedByCaller(MailFolderReference.RoleScheme + folder.Trim(), out var role))
+            {
+                return "Give the folder as one of the roles Inbox, Sent, Archive, Drafts, Trash, Flagged, or Important, or leave it out.";
+            }
+
+            folders = [role];
+        }
+
+        request = request with
+        {
+            Direction = timelineOrder,
+            ReceivedOnOrAfter = opens,
+            ReceivedBefore = closes,
+            Folders = folders,
+        };
+
+        return null;
+    }
+
+    /// <summary>Reads where each listed message came from and guards every value its author wrote, before the page is written around them.</summary>
+    /// <remarks>
+    /// A message whose provenance is gone was removed after the page was read, and is not shown rather than shown
+    /// without saying where it came from — which is also what marks a message the mailbox has not sent as unsent.
+    /// </remarks>
+    private async Task<IReadOnlyList<GuardedListedReading>> GuardedListingOfAsync(
+        IReadOnlyList<EmailSummary> page,
+        CancellationToken cancellationToken)
+    {
+        if (page.Count is 0)
+        {
+            return [];
+        }
+
+        var provenance = await this.readers.ProvenanceReader.ReadAsync(
+            [.. page.Select(static summary => summary.StoredEmailId)],
+            cancellationToken);
+
+        List<GuardedListedReading> readings = [];
+
+        foreach (var summary in page.Where(summary => provenance.ContainsKey(summary.StoredEmailId)))
+        {
+            readings.Add(new GuardedListedReading(
+                summary.StoredEmailId,
+                await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, summary.SenderDisplayName, cancellationToken),
+                await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, summary.SenderAddress, cancellationToken),
+                summary.ReceivedAt,
+                summary.Flags.IsSeen,
+                summary.Flags.IsFlagged,
+                summary.Attachments.HasAttachments,
+                provenance[summary.StoredEmailId],
+                await this.egressGuard.GuardOptionalAsync(SensitiveContentEgressPoint.ChatPrompt, summary.Subject, cancellationToken)));
+        }
+
+        return readings;
     }
 
     [Description("Reads one email conversation.")]
@@ -713,9 +920,9 @@ internal sealed class AgentConversationTools
     /// becoming a source a reader is invited to follow.
     /// </para>
     /// <para>
-    /// A message the search showed is declared here rather than left to <see cref="DeclareSearchedAsync" />, which runs
-    /// once the run has ended: searching and then proposing out of what was found is the ordinary path, and waiting for
-    /// the end would leave every such proposal uncited.
+    /// A message the search or a listing showed is declared here rather than left to
+    /// <see cref="DeclareSearchedAndListedAsync" />, which runs once the run has ended: finding mail and then proposing
+    /// out of what was found is the ordinary path, and waiting for the end would leave every such proposal uncited.
     /// </para>
     /// </remarks>
     private async Task<(StoredEmailId Message, PresentationCitationId Citation)?> SourceOfAsync(
@@ -734,12 +941,18 @@ internal sealed class AgentConversationTools
             return (message, known.Id);
         }
 
-        if (this.retrieval.Report.Passages.FirstOrDefault(passage => passage.StoredEmailId == message) is not { } searched)
+        string? subject;
+
+        if (this.retrieval.Report.Passages.FirstOrDefault(passage => passage.StoredEmailId == message) is { } searched)
+        {
+            subject = searched.Subject;
+        }
+        else if (!this.listed.TryGetValue(message, out subject))
         {
             return null;
         }
 
-        var citation = await this.CiteAsync(message, searched.Subject, cancellationToken);
+        var citation = await this.CiteAsync(message, subject, cancellationToken);
 
         return (message, citation.Id);
     }

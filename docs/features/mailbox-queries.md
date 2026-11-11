@@ -50,6 +50,7 @@ divergence neither copy would look wrong for on its own.
 | `HasAttachments` | Whether attachments are required | either |
 | `Category` | One category the email must be recorded under, a default's identifier or an account's own name, compared without regard to case | any category, and mail with none |
 | `Mark` | The reading an enrichment must have left, and the range a commitment falls due in | any reading, and mail with none |
+| `Reader` | Who the listing answers for: `ConversationAgent` for the person's own Agent, which reaches [mail nobody received](#mail-nobody-received-read-by-the-persons-own-agent-alone) | `Agent`, the MCP caller's reading |
 | `Direction` | Which end of the timeline to read from | `NewestFirst` |
 | `PageSize` | How many emails the page returns | the default of 25 |
 | `Cursor` | The cursor a previous page returned | the first page |
@@ -255,7 +256,8 @@ layout arranges comes from it, no spam stage judges it, and no conversation's st
 
 The Agent reads it under a reader of its own, `ConversationAgent`, which sees the folders an agent sees and admits
 this mail where an agent's scope does not, so it can answer what the person wrote and has not sent. Its `search_mail`
-reaches such mail lexically — it carries no vector — and `read_thread` reads it in a conversation, each message marked
+reaches such mail lexically — it carries no vector — `list_mail` lists it in the order mail arrived, and `read_thread`
+reads it in a conversation, each message marked
 with the state it is in, as [where a message came from](mail-answering.md#where-a-message-came-from) describes. The
 Agent's thread state and reply proposal still read as an agent does.
 

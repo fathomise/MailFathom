@@ -13,7 +13,6 @@ using MailFathom.Application.SensitiveContent.Egress;
 using MailFathom.Application.Synchronization.Checkpoints;
 using MailFathom.Domain.Access;
 using MailFathom.Domain.Emails;
-using MailFathom.Domain.Folders;
 
 namespace MailFathom.Application.Emails.ListEmails;
 
@@ -208,7 +207,7 @@ public sealed class MailboxTimelineReader
     private async Task<EmailTimelineFilter> ReadableFilterAsync(ListEmailsRequest request, CancellationToken cancellationToken)
     {
         var scope = await this.scopeResolver.ReadableScopeAsync(
-            MailboxReaderKind.Agent,
+            request.Reader,
             request.Accounts,
             request.Folders,
             JunkMailInclusion.Excluded,

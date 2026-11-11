@@ -118,16 +118,18 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
 
         var scope = await this.readers.ScopeResolver.ReadableScopeAsync(MailboxReaderKind.ConversationAgent, [], [], JunkMailInclusion.Excluded, cancellationToken);
         var runLedger = new MailAnsweringRunLedger(this.runBounds);
+        var zone = this.readers.Clock.Zone();
+
+        // The turn states the person's own wall clock, so a bound the model writes back is read at that zone's offset.
         var retrieval = new ScopedMailKnowledgeRetrieval(
             this.readers.KnowledgeSearch,
             scope,
             runLedger,
             this.egressGuard,
-            brief.Question.AskedAt);
+            zone.Reading(brief.Question.AskedAt));
         var tools = new AgentConversationTools(journal, retrieval, this.readers, this.egressGuard, scope.AccountIds);
         var accounts = await tools.NameAccountsAsync(cancellationToken);
         var languages = MailboxLanguages.Of(accounts.Select(static account => account.Id), this.accountLanguages);
-        var zone = this.readers.Clock.Zone();
         var stickySession = StickySessionOf(brief.Question.Conversation);
 
         var answer = await ChatModelFallThrough.RunAsync(
@@ -137,7 +139,7 @@ internal sealed class AgentConversationAgent : IAgentAnswerComposer
             () => !tools.HasProposed,
             cancellationToken);
 
-        await tools.DeclareSearchedAsync(cancellationToken);
+        await tools.DeclareSearchedAndListedAsync(cancellationToken);
 
         if (!await journal.ReportAsync(AgentActivity.ComposingAnswer, cancellationToken))
         {

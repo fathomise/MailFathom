@@ -61,4 +61,7 @@ public enum ApplicationText
 
     /// <summary>The words a read receipt the reader chose to send carries for the person who asked for it.</summary>
     ReadReceiptDisplayed = 17,
+
+    /// <summary>The status line while the Agent lists the person's mail in the order it arrived.</summary>
+    AgentStatusListingMail = 18,
 }

@@ -130,7 +130,7 @@ internal sealed record AgentConversationScenario(
 
     /// <summary>The tools that read something, one of which an answer resting on evidence has to have called.</summary>
     private static readonly HashSet<string> ReadingTools =
-        [ScopedMailKnowledgeRetrieval.SearchToolName, "read_thread", "show_thread_state", "read_calendar", "read_tasks"];
+        [ScopedMailKnowledgeRetrieval.SearchToolName, AgentConversationTools.ListMailToolName, "read_thread", "show_thread_state", "read_calendar", "read_tasks"];
 
     /// <summary>Gets every question the Agent is measured on.</summary>
     public static IReadOnlyList<AgentConversationScenario> All { get; } =
@@ -1186,6 +1186,41 @@ internal sealed record AgentConversationScenario(
             Unsent = UnsentMail.FailedAcceptance,
         },
 
+        // Questions about the mailbox's timeline, which a listing answers in the order mail arrived and a search, ranking
+        // words, never does. The newest mail from anybody else arrived this morning: Tomas Ferreira at 10:50 and 10:15,
+        // the second about the archive shelving, and Piotr Wawrzyniak's price list at 10:00. The corpus carries no server
+        // state, so every message reads as not opened.
+        new(
+            "Agent.Listing.LatestMail",
+            "What are the three most recent emails I received?",
+            UserLanguage.English,
+            ["Wawrzyniak", "archive shelving"],
+            [.. TimelineSubject, "Tomas", "Ferreira", "Piotr", "pallet", "shelving", "cennik", "price"])
+        {
+            Calls = [AgentConversationTools.ListMailToolName],
+        },
+        new(
+            "Agent.Listing.UnreadToday",
+            "Which of today's emails have I not opened yet?",
+            UserLanguage.English,
+            ["Wawrzyniak"],
+            [.. TimelineSubject, "Tomas", "Ferreira", "Piotr", "Oskar", "Petra", "Priya", "Jonas", "pallet", "shelving", "cennik", "price"])
+        {
+            Calls = [AgentConversationTools.ListMailToolName],
+        },
+
+        // Asks for "the latest" about a subject, which is still a search: the timeline holds every message about every
+        // matter, and only a search reaches the one about the access cards, whenever it arrived.
+        new(
+            "Agent.Listing.LatestOnASubjectIsStillSearched",
+            "What is the latest on collecting the access cards for the new building on Wrzosowa Street?",
+            UserLanguage.English,
+            ["9:00", "15:00"],
+            ["access", "card", "Wrzosow", "building", "reception", "collect", "move", "office", "pick", "latest"])
+        {
+            Calls = [ScopedMailKnowledgeRetrieval.SearchToolName],
+        },
+
         // The rest read a category this service recorded: asked about, wrong about the message wanted, and forged.
         new(
             "Agent.Category.AskedByCategory",
@@ -1416,6 +1451,9 @@ internal sealed record AgentConversationScenario(
 
     private static IReadOnlyList<string> TaskSubject =>
         ["task", "due", "list", "Gdańsk", "Gdansk", "train", "Atlas", "chair", "Brightwater", "Quayside", "paper", "overdue", "week", "mail"];
+
+    private static IReadOnlyList<string> TimelineSubject =>
+        ["mail", "email", "message", "inbox", "latest", "recent", "newest", "today", "morning", "unread", "opened", "sender", "earlier", "more"];
 
     /// <summary>Asks the question of one model, checks the answer, the tools, and the proposals, has the judge grade it, and files the verdict.</summary>
     /// <param name="reporting">The run's store, judge, and name.</param>
