@@ -2100,21 +2100,32 @@ Project repository: https://github.com/fathomise/MailFathom
           <div onPointerDown="{{ startHistoryResize }}" onDoubleClick="{{ resetHistoryResize }}" title="Drag to resize the history (double-click to reset)" data-tip-hover="" style="{{ boundaryStyle }}" style-hover="{{ boundaryHover }}"><div aria-hidden="true" style="{{ boundaryReachStyle }}"></div><sc-if value="{{ boundaryGrip }}" hint-placeholder-val="{{ false }}"><div aria-hidden="true" style="{{ boundaryGripStyle }}"><div style="{{ boundaryPillStyle }}"></div></div></sc-if></div>
         </sc-if>
       </sc-if>
-      <div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">
+      <div onDragEnter="{{ onAgentDragOver }}" onDragOver="{{ onAgentDragOver }}" style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;position:relative">
+      <sc-if value="{{ agentDropShown }}" hint-placeholder-val="{{ false }}">
+        <div onDragOver="{{ onAgentDragOver }}" onDragLeave="{{ onAgentDragLeave }}" onDrop="{{ onAgentDrop }}" style="position:absolute;inset:10px;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:2px dashed var(--accent);border-radius:16px;background:var(--accent-soft);text-align:center;padding:24px;animation:mfmsgin 0.2s ease both">
+          <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:40px;color:var(--accent-d);pointer-events:none">upload_file</span>
+          <div style="font-size:17px;font-weight:600;color:var(--text);pointer-events:none">Drop to attach to your question</div>
+          <div style="font-size:13px;color:var(--muted);pointer-events:none">{{ agentDropLimits }}</div>
+        </div>
+      </sc-if>
       <div ref="{{ agentScrollRef }}" onScroll="{{ onAgentScroll }}" onWheel="{{ onAgentWheel }}" onTouchMove="{{ onAgentWheel }}" onMouseUp="{{ onAgentSelect }}" onKeyUp="{{ onAgentSelect }}" onTouchEnd="{{ onAgentSelect }}" style="{{ agentScrollStyle }}">
         <sc-for list="{{ agentMsgs }}" as="m" hint-placeholder-count="2">
           <div style="{{ m.rowStyle }}">
             <div style="{{ m.colStyle }}">
             <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}">
-              <div style="{{ m.bubbleStyle }}">{{ m.text }}</div>
+              <div style="{{ m.bubbleStyle }}">{{ m.text }}<sc-if value="{{ m.hasFiles }}" hint-placeholder-val="{{ false }}"><div style="{{ m.filesRowStyle }}"><sc-for list="{{ m.files }}" as="f" hint-placeholder-count="2"><div style="{{ f.style }}"><span aria-hidden="true" style="{{ f.tileStyle }}"><sc-if value="{{ f.image }}" hint-placeholder-val="{{ false }}"><span style="{{ f.tileGlyphStyle }}">image</span></sc-if><sc-if value="{{ f.notImage }}" hint-placeholder-val="{{ true }}">{{ f.kind }}</sc-if></span><span style="min-width:0;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.name }}</span><span style="font-size:12px;color:var(--faint);white-space:nowrap">{{ f.size }}</span></div></sc-for></div></sc-if></div>
             </sc-if>
             <sc-if value="{{ m.isBot }}" hint-placeholder-val="{{ true }}">
               <div style="{{ m.bubbleStyle }}">
                 <div style="display:flex;align-items:center;gap:7px;font-family:'Geist',system-ui,sans-serif;font-size:11px;color:var(--muted);font-weight:600">
                   <span style="color:var(--accent-d)">AI</span>
+                  <sc-if value="{{ m.hasMode }}" hint-placeholder-val="{{ false }}"><span>·</span><span style="{{ m.modeStyle }}"><span aria-hidden="true" style="{{ m.modeIconStyle }}">{{ m.modeIcon }}</span>{{ m.modeText }}</span></sc-if>
                   <span>·</span>
                   <span>{{ m.scope }}</span>
                 </div>
+                <sc-if value="{{ m.hasDeepWhy }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:13px;line-height:1.45;color:var(--muted);margin-top:-4px;text-wrap:pretty">{{ m.deepWhy }}</div>
+                </sc-if>
                 <sc-if value="{{ m.hasMd }}" hint-placeholder-val="{{ true }}">
                   <div style="display:flex;flex-direction:column;gap:12px">
                   <sc-for list="{{ m.md }}" as="p" hint-placeholder-count="1">
@@ -2149,6 +2160,40 @@ Project repository: https://github.com/fathomise/MailFathom
                       <div style="{{ p.style }}"></div>
                     </sc-if>
                   </sc-for>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ m.hasCeiling }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;flex-direction:column;gap:10px;padding:12px 14px;border-radius:10px;background:var(--panel);border:1px solid var(--line)">
+                    <div style="display:flex;gap:9px;align-items:flex-start"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--warn-text);flex:0 0 auto">hourglass_bottom</span><span style="font-size:14px;line-height:1.5;color:var(--text2);text-wrap:pretty">{{ m.ceilingText }}</span></div>
+                    <div role="button" tabIndex="0" aria-label="Ask the same question again in Deep" onClick="{{ m.askDeep }}" onKeyDown="{{ m.askDeepKey }}" style="{{ m.askDeepStyle }}" style-hover="cursor:pointer;border-color:var(--accent)" style-focus="outline:2px solid var(--accent);outline-offset:2px"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:17px">manage_search</span>Ask again in Deep</div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ m.hasOut }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ m.outRowStyle }}">
+                    <sc-for list="{{ m.outFiles }}" as="o" hint-placeholder-count="2">
+                      <sc-if value="{{ o.held }}" hint-placeholder-val="{{ true }}">
+                        <div role="button" tabIndex="0" aria-label="{{ o.aria }}" title="{{ o.aria }}" onClick="{{ o.download }}" onKeyDown="{{ o.key }}" style="{{ o.style }}" style-hover="cursor:pointer;border-color:var(--accent-line)" style-focus="outline:2px solid var(--accent);outline-offset:2px">
+                          <span aria-hidden="true" style="{{ o.tileStyle }}">{{ o.kind }}</span>
+                          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><div style="{{ o.nameStyle }}">{{ o.name }}</div><div style="{{ o.metaStyle }}"><span aria-hidden="true" style="{{ o.metaGlyphStyle }}">{{ o.originIcon }}</span><span style="min-width:0;text-wrap:pretty">{{ o.meta }}</span></div></div>
+                          <span aria-hidden="true" style="{{ o.endStyle }}">{{ o.endGlyph }}</span>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{ o.gone }}" hint-placeholder-val="{{ false }}">
+                        <div style="{{ o.style }}">
+                          <span aria-hidden="true" style="{{ o.tileStyle }}">{{ o.kind }}</span>
+                          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><div style="{{ o.nameStyle }}">{{ o.name }}</div><div style="{{ o.metaStyle }}"><span aria-hidden="true" style="{{ o.metaGlyphStyle }}">{{ o.originIcon }}</span><span style="text-wrap:pretty">{{ o.meta }}</span></div></div>
+                          <span aria-hidden="true" style="{{ o.endStyle }}">{{ o.endGlyph }}</span>
+                        </div>
+                      </sc-if>
+                    </sc-for>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ m.deepNow }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;flex-direction:column;gap:8px;max-width:560px">
+                    <div style="display:flex;align-items:center;gap:9px"><span aria-hidden="true" style="display:inline-block;font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--accent-d);animation:mfspin 1.15s linear infinite">progress_activity</span><span role="status" aria-live="polite" style="font-size:15px;color:var(--text2)">{{ m.deepSaid }}</span></div>
+                    <div aria-hidden="true" style="height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-left:27px"><div style="{{ m.deepBarStyle }}"></div></div>
+                    <div style="font-size:12px;color:var(--faint);margin-left:27px">{{ m.deepCount }} · {{ m.deepMeta }}</div>
+                    <div style="display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.5;color:var(--muted);margin-left:27px;text-wrap:pretty"><span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:16px;margin-top:1px">directions_walk</span><span>You can leave this conversation: it keeps working, and History marks it when the answer is in. Cancel stops it - what it found so far stays.</span></div>
                   </div>
                 </sc-if>
                 <sc-if value="{{ m.working }}" hint-placeholder-val="{{ false }}">
@@ -2416,10 +2461,42 @@ Project repository: https://github.com/fathomise/MailFathom
             </sc-for>
           </div>
         </sc-if>
+        <sc-if value="{{ agentRefusedShown }}" hint-placeholder-val="{{ false }}">
+          <div role="alert" style="display:flex;align-items:flex-start;gap:8px;padding:6px 4px 6px 12px;border-radius:10px;background:var(--warn-soft)">
+            <span aria-hidden="true" style="font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;font-size:18px;color:var(--warn-text);margin-top:4px">block</span>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding:4px 0">
+              <sc-for list="{{ agentRefused }}" as="r" hint-placeholder-count="2"><div style="font-size:13px;line-height:1.45;color:var(--warn-text);text-wrap:pretty">{{ r.text }}</div></sc-for>
+            </div>
+            <div role="button" tabIndex="0" aria-label="Dismiss" title="Dismiss" onClick="{{ dismissAgentRefused }}" style="{{ agentRefusedCloseStyle }}" style-hover="cursor:pointer;background:var(--hover)">close</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ agentTrayShown }}" hint-placeholder-val="{{ false }}">
+          <div style="{{ agentTrayStyle }}">
+            <sc-for list="{{ agentTray }}" as="f" hint-placeholder-count="2">
+              <div style="{{ f.style }}">
+                <span aria-hidden="true" style="{{ f.tileStyle }}"><sc-if value="{{ f.image }}" hint-placeholder-val="{{ false }}"><span style="{{ f.tileGlyphStyle }}">image</span></sc-if><sc-if value="{{ f.notImage }}" hint-placeholder-val="{{ true }}">{{ f.kind }}</sc-if></span>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.name }}</div><div style="{{ f.lineStyle }}">{{ f.line }}</div></div>
+                <sc-if value="{{ f.failed }}" hint-placeholder-val="{{ false }}"><div role="button" tabIndex="0" aria-label="{{ f.retryName }}" title="{{ f.retryName }}" onClick="{{ f.retry }}" style="{{ f.btnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">refresh</div></sc-if>
+                <div role="button" tabIndex="0" aria-label="{{ f.removeName }}" title="{{ f.removeName }}" onClick="{{ f.remove }}" style="{{ f.btnStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)">close</div>
+                <sc-if value="{{ f.uploading }}" hint-placeholder-val="{{ false }}"><div aria-hidden="true" style="{{ f.barStyle }}"></div></sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
         <div style="{{ agentBoxStyle }}">
-          <input ref="{{ agentInputRef }}" value="{{ agentInput }}" onChange="{{ onAgentInput }}" onKeyDown="{{ onAgentKey }}" placeholder="{{ agentPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-family:inherit;font-size:15px;color:var(--text);background:transparent;text-overflow:ellipsis" />
-          <div onClick="{{ agentSend }}" title="Send" style="{{ agentSendStyle }}" style-hover="cursor:pointer;opacity:0.88"><sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}"><span style="{{ agentBtnIconStyle }}">send</span></sc-if><sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">{{ agentSendLabel }}</sc-if></div>
+          <input ref="{{ agentFileRef }}" type="file" multiple="{{ true }}" onChange="{{ onAgentFilesPicked }}" tabIndex="-1" aria-hidden="true" style="display:none" />
+          <div role="button" tabIndex="0" aria-label="Attach files" title="Attach files" onClick="{{ agentPickFiles }}" style="{{ agentAttachStyle }}" style-hover="cursor:pointer;background:var(--hover);color:var(--text)" style-focus="outline:2px solid var(--accent);outline-offset:2px">attach_file</div>
+          <input ref="{{ agentInputRef }}" value="{{ agentInput }}" onChange="{{ onAgentInput }}" onKeyDown="{{ onAgentKey }}" onPaste="{{ onAgentPaste }}" placeholder="{{ agentPlaceholder }}" style="flex:1;min-width:0;border:none;outline:none;font-family:inherit;font-size:15px;color:var(--text);background:transparent;text-overflow:ellipsis" />
+          <div onClick="{{ agentSend }}" title="{{ agentSendTitle }}" aria-disabled="{{ agentSendDisabled }}" style="{{ agentSendStyle }}" style-hover="cursor:pointer;opacity:0.88"><sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}"><span style="{{ agentBtnIconStyle }}">send</span></sc-if><sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">{{ agentSendLabel }}</sc-if></div>
           <div role="button" tabIndex="{{ agentCancelTab }}" aria-disabled="{{ agentCancelDisabled }}" aria-label="{{ agentCancelAria }}" onClick="{{ agentCancel }}" onKeyDown="{{ agentCancelKey }}" style="{{ agentCancelStyle }}" style-hover="{{ agentCancelHover }}" style-focus="outline:2px solid var(--accent);outline-offset:2px"><sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}"><span style="{{ agentBtnIconStyle }}">cancel</span></sc-if><sc-if value="{{ notMobile }}" hint-placeholder-val="{{ true }}">Cancel</sc-if></div>
+        </div>
+        <div style="{{ agentModeRowStyle }}">
+          <div role="radiogroup" aria-label="How hard the agent works on the question" style="{{ agentModeTrackStyle }}">
+            <sc-for list="{{ agentModes }}" as="md" hint-placeholder-count="3">
+              <div role="radio" tabIndex="0" aria-checked="{{ md.checked }}" aria-label="{{ md.name }}" onClick="{{ md.pick }}" onKeyDown="{{ md.key }}" style="{{ md.style }}" style-hover="cursor:pointer;color:var(--text)" style-focus="outline:2px solid var(--accent);outline-offset:1px"><span aria-hidden="true" style="{{ md.iconStyle }}">{{ md.icon }}</span>{{ md.label }}</div>
+            </sc-for>
+          </div>
+          <div style="{{ agentModeSaysStyle }}">{{ agentModeSays }}</div>
         </div>
         <div style="font-size:11px;color:var(--faint)">The agent proposes actions - nothing is sent without your approval.</div>
       </div>
@@ -4222,7 +4299,7 @@ Project repository: https://github.com/fathomise/MailFathom
     <div data-motion="pop" data-phase="{{ mo.agentReturn }}" role="button" tabIndex="0" aria-label="Back to the agent conversation you came from" onClick="{{ backToConv }}" onKeyDown="{{ backToConvKey }}" style="{{ convReturnStyle }}" style-hover="cursor:pointer;opacity:0.92" style-focus="outline:2px solid var(--accent);outline-offset:3px"><span style="{{ convReturnIconStyle }}">arrow_back</span>{{ convReturnLabel }}</div>
   </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;inOrganization&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;signEverything&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;raise&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;send&quot;,&quot;change&quot;,&quot;changePermanent&quot;,&quot;changeBoth&quot;,&quot;draft&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;connection&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;connecting&quot;,&quot;online&quot;,&quot;delayed&quot;,&quot;delayedMailServer&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;keyboard&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:0,&quot;min&quot;:0,&quot;max&quot;:420,&quot;step&quot;:10,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;freshness&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;current&quot;,&quot;waiting&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;desktop&quot;,&quot;tablet&quot;,&quot;fold&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;space&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;discover&quot;,&quot;mail&quot;,&quot;agent&quot;,&quot;tasks&quot;,&quot;calendar&quot;,&quot;people&quot;],&quot;default&quot;:&quot;discover&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;aiHints&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;inOrganization&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;signEverything&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;streamDelay&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:550,&quot;min&quot;:120,&quot;max&quot;:1200,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;raise&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;send&quot;,&quot;change&quot;,&quot;changePermanent&quot;,&quot;changeBoth&quot;,&quot;draft&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;connection&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;connecting&quot;,&quot;online&quot;,&quot;delayed&quot;,&quot;delayedMailServer&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;keyboard&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:0,&quot;min&quot;:0,&quot;max&quot;:420,&quot;step&quot;:10,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;agentFiles&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;waiting&quot;,&quot;dropping&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;freshness&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cycle&quot;,&quot;current&quot;,&quot;waiting&quot;],&quot;default&quot;:&quot;cycle&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
 const Component = MailFathomDesign.artboards.prototype(DCLogic, React);
 </script>
 </body>

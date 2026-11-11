@@ -1,0 +1,176 @@
+<!--
+Copyright © 2026 Krzysztof Kasprowicz
+Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
+Project repository: https://github.com/fathomise/MailFathom
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MailFathom - A report's page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400;1,8..60,600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles/base.css" />
+<link rel="stylesheet" href="styles/report-page.css" />
+<script>
+  /* `?theme=light` or `?theme=dark` pins the desk; without it the desk follows the browser. The paper never changes. */
+  (function () {
+    var theme = new URLSearchParams(location.search).get("theme");
+    if (theme === "light" || theme === "dark") document.documentElement.setAttribute("data-theme", theme);
+    function fit() {
+      var room = Math.min(document.documentElement.clientWidth - 32, 1340);
+      document.documentElement.style.setProperty("--page-scale", String(Math.min(1, room / (595 * 4 / 3))));
+    }
+    addEventListener("resize", fit);
+    fit();
+  })();
+</script>
+</head>
+<body>
+<div class="desk">
+
+  <header style="display:flex;flex-direction:column;gap:10px">
+    <h1>A report's page</h1>
+    <p class="lede">
+      A report is Markdown the Agent writes, set by the service as an A4 PDF and handed back in the conversation as a
+      file. This is what every page of one looks like: the title block on the first, the running foot on each, every
+      element the Markdown may carry, and the list of sources that closes it. The sample is a Polish report, because a
+      report is written in the language it was asked in and the page has to hold every Polish letter.
+    </p>
+  </header>
+
+  <section class="notes" aria-label="What the page is set in">
+    <div class="note">
+      <h2>Body - Source Serif 4</h2>
+      <p class="specimen-serif">Zażółć gęślą jaźń. <em>Zażółć gęślą jaźń.</em></p>
+      <p class="specimen-serif">ZAŻÓŁĆ GĘŚLĄ JAŹŃ · ĄĆĘŁŃÓŚŹŻ ąćęłńóśźż</p>
+      <p>Paragraphs, lists and quotations, at 10.5 pt on 1.5 lines, with a true italic for emphasis. SIL Open Font License 1.1, which permits embedding the font, subset, in a document the service hands out.</p>
+    </div>
+    <div class="note">
+      <h2>Headings, tables and the frame - Geist</h2>
+      <p class="specimen-sans">Zażółć gęślą jaźń · ZAŻÓŁĆ GĘŚLĄ JAŹŃ</p>
+      <p class="specimen-sans" style="font-variant-numeric:tabular-nums">1 234,50 € · 27.08.2026</p>
+      <p>The client's own typeface: headings, the title block, tables in tabular figures, the running foot and the sources. SIL Open Font License 1.1, under the same terms. Geist has no italic, so emphasis inside a table is set in weight.</p>
+    </div>
+    <div class="note">
+      <h2>The paper</h2>
+      <p>A4, 595 x 842 pt, margins of 57 pt at the sides, 56 pt at the top and 72 pt at the foot. White with dark ink in both themes: the PDF has one face, and only the desk around it follows the theme.</p>
+      <p>A table that runs past a page repeats its header row on the next and says it continues. A heading is never the last line of a page.</p>
+    </div>
+  </section>
+
+  <div class="pages">
+
+    <div>
+      <p class="page-label">Page 1 - the title block, headings, a paragraph, a bulleted list, and a table that runs on</p>
+      <div class="page-frame">
+        <article class="page" lang="pl" aria-label="Page 1 of 3">
+          <header class="title-block">
+            <div class="kind">Raport · wdrożenie Contoso</div>
+            <h1 class="title">Porównanie ofert na wdrożenie: Contoso i oferta własna</h1>
+            <div class="written">Napisany 27 sierpnia 2026, 10:40 · na podstawie 6 wiadomości i 2 załączonych plików</div>
+          </header>
+
+          <h2>Podsumowanie</h2>
+          <p>Oferta własna jest <strong>o 8 400 € tańsza</strong> w ciągu trzech lat i ma krótszy czas reakcji na zgłoszenia krytyczne. Oferta Contoso zawiera natomiast <em>górny limit indeksacji CPI</em>, o który prosiliśmy w sierpniu, i gwarancję ceny do końca 2027 roku.<sup class="cite">1</sup><sup class="cite">2</sup></p>
+
+          <h3>Co przemawia za każdą z ofert</h3>
+          <ul>
+            <li><strong>Oferta własna:</strong> niższy koszt, czas reakcji dwóch godzin w dni robocze i wdrożenie już we wrześniu.</li>
+            <li><strong>Contoso:</strong> indeksacja ograniczona do 5% rocznie, wsparcie przez całą dobę i stała cena licencji.</li>
+            <li><strong>Obie:</strong> płatność w ciągu 30 dni i wspólne stoisko na jesiennych targach.<sup class="cite">3</sup></li>
+          </ul>
+
+          <h3>Zestawienie kosztów</h3>
+          <table>
+            <caption>Tabela 1. Koszty w euro netto, w ciągu trzech lat</caption>
+            <thead><tr><th>Pozycja</th><th class="num">Oferta własna</th><th class="num">Contoso</th><th class="num">Różnica</th></tr></thead>
+            <tbody>
+              <tr><td>Licencje, rok pierwszy</td><td class="num">42 000</td><td class="num">44 500</td><td class="num">−2 500</td></tr>
+              <tr><td>Licencje, rok drugi</td><td class="num">43 700</td><td class="num">46 300</td><td class="num">−2 600</td></tr>
+              <tr><td>Licencje, rok trzeci</td><td class="num">45 400</td><td class="num">48 100</td><td class="num">−2 700</td></tr>
+              <tr><td>Wdrożenie i migracja danych</td><td class="num">18 000</td><td class="num">17 200</td><td class="num">+800</td></tr>
+              <tr><td>Szkolenia dla zespołów</td><td class="num">6 400</td><td class="num">6 400</td><td class="num">0</td></tr>
+              <tr><td>Integracja z systemem płatności</td><td class="num">4 800</td><td class="num">5 200</td><td class="num">−400</td></tr>
+              <tr><td>Audyt bezpieczeństwa</td><td class="num">3 500</td><td class="num">3 500</td><td class="num">0</td></tr>
+              <tr><td>Kopie zapasowe i archiwum poczty</td><td class="num">2 900</td><td class="num">3 300</td><td class="num">−400</td></tr>
+              <tr><td>Dostęp z urządzeń mobilnych</td><td class="num"><em>w cenie</em></td><td class="num">1 900</td><td class="num">−1 900</td></tr>
+              <tr><td>Wsparcie w godzinach pracy</td><td class="num">15 300</td><td class="num">—</td><td class="num">+15 300</td></tr>
+            </tbody>
+          </table>
+
+          <footer class="foot"><span>Porównanie ofert na wdrożenie: Contoso i oferta własna</span><span>Strona 1 z 3</span></footer>
+        </article>
+      </div>
+    </div>
+
+    <div>
+      <p class="page-label">Page 2 - the table continued, a quotation of mail, a numbered list, and a third-level heading</p>
+      <div class="page-frame">
+        <article class="page" lang="pl" aria-label="Page 2 of 3">
+          <table>
+            <caption>Tabela 1. Koszty w euro netto, w ciągu trzech lat (ciąg dalszy)</caption>
+            <thead><tr><th>Pozycja</th><th class="num">Oferta własna</th><th class="num">Contoso</th><th class="num">Różnica</th></tr></thead>
+            <tbody>
+              <tr><td>Wsparcie całodobowe</td><td class="num">—</td><td class="num">14 800</td><td class="num">−14 800</td></tr>
+              <tr><td>Indeksacja CPI, prognoza 4,1%</td><td class="num">7 200</td><td class="num">6 100</td><td class="num">+1 100</td></tr>
+              <tr><td>Rezerwa na zmiany zakresu</td><td class="num">5 000</td><td class="num">5 300</td><td class="num">−300</td></tr>
+              <tr><td><strong>Razem</strong></td><td class="num"><strong>194 200</strong></td><td class="num"><strong>202 600</strong></td><td class="num"><strong>−8 400</strong></td></tr>
+            </tbody>
+          </table>
+
+          <h2>Co napisała Contoso</h2>
+          <blockquote>
+            <p>Akceptujemy skrócenie czasu reakcji do dwóch godzin, ale wyłącznie przy indeksacji ograniczonej do 5% rocznie. Zależy nam na zamknięciu decyzji do 28 sierpnia, żeby zdążyć z wdrożeniem przed końcem września.</p>
+            <span class="from">Anna Kowalska, Contoso · 14 sierpnia 2026 · „Oferta na wdrożenie 2026”<sup class="cite">2</sup></span>
+          </blockquote>
+
+          <h2>Zalecenie</h2>
+          <ol>
+            <li>Przyjąć ofertę własną jako podstawę dalszych negocjacji.</li>
+            <li>Poprosić o dopisanie limitu indeksacji także do oferty własnej; Jacek Wrona potwierdził, że taki zapis jest dopuszczalny.<sup class="cite">4</sup></li>
+            <li>Zamknąć decyzję do piątku, 28 sierpnia, i wysłać odpowiedź do Anny Kowalskiej.</li>
+          </ol>
+
+          <h3>Ryzyka</h3>
+          <p>Jeżeli inflacja przekroczy prognozę 4,1%, różnica w cenie zmaleje, a przy 6% zniknie w trzecim roku.<sup class="cite">5</sup> Harmonogram wdrożenia zakłada też, że migracja danych zakończy się w ciągu dwóch tygodni; <em>dłuższa przerwa podniosłaby koszt wdrożenia w obu ofertach</em>.<sup class="cite">6</sup></p>
+
+          <h4>Czego ten raport nie rozstrzyga</h4>
+          <p>Żadna z wiadomości nie mówi, czy Contoso zgodzi się na krótszy okres wypowiedzenia. To pytanie warto zadać przed podpisaniem.</p>
+
+          <footer class="foot"><span>Porównanie ofert na wdrożenie: Contoso i oferta własna</span><span>Strona 2 z 3</span></footer>
+        </article>
+      </div>
+    </div>
+
+    <div>
+      <p class="page-label">Page 3 - the list of sources that closes a report</p>
+      <div class="page-frame">
+        <article class="page" lang="pl" aria-label="Page 3 of 3">
+          <h2>Źródła</h2>
+          <p style="font-size:9.5pt;color:var(--ink3)">Wiadomości, na których opiera się raport, w kolejności pierwszego odwołania, oraz pliki dołączone do pytania.</p>
+          <ol class="sources">
+            <li><span class="subject">Re: Aneks do umowy - podpisy</span><span class="who">Anna Kowalska · 18 sierpnia 2026, 09:12</span></li>
+            <li><span class="subject">Oferta na wdrożenie 2026</span><span class="who">Anna Kowalska · 14 sierpnia 2026, 16:40</span></li>
+            <li><span class="subject">Targi - wspólne stoisko</span><span class="who">Zofia Krawczyk · 22 lipca 2026, 13:15</span></li>
+            <li><span class="subject">Opinia prawna - limit indeksacji</span><span class="who">Jacek Wrona · 20 sierpnia 2026, 11:05</span></li>
+            <li><span class="subject">Kalkulacja CPI 2027</span><span class="who">Marta Nowak · 26 sierpnia 2026, 17:58</span></li>
+            <li><span class="subject">Harmonogram wdrożenia - wrzesień</span><span class="who">Piotr Zieliński · 2 lipca 2026, 08:30</span></li>
+          </ol>
+          <h4 style="margin-top:10pt">Pliki dołączone do pytania</h4>
+          <ol class="sources" style="counter-reset:src 6">
+            <li><span class="subject">Oferta v3 - wdrożenie.pdf</span><span class="who">dołączony przez Ciebie · 27 sierpnia 2026, 10:36</span></li>
+            <li><span class="subject">Zdjęcie lokalizacji.jpg</span><span class="who">dołączony przez Ciebie · 27 sierpnia 2026, 10:36</span></li>
+          </ol>
+
+          <footer class="foot"><span>Porównanie ofert na wdrożenie: Contoso i oferta własna</span><span>Strona 3 z 3</span></footer>
+        </article>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

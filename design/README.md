@@ -14,6 +14,7 @@ loop that judges a client screen runs in any clone.
 | `prototype.dc.html` | The main artboard — the whole signed-in client, every screen in one component |
 | `sign-in.dc.html`, `client-states.dc.html`, `ai-blocks.dc.html`, `toasts.dc.html`, `notification-gesture.dc.html` | The other artboards, one each |
 | `mail-search.html` | The mail search specimen, a static page with no runtime |
+| `report-page.html` | The page of a report the Agent writes, as the A4 PDF the service sets it in — a static page with no runtime |
 | `design.js` | The one global the other files share, `MailFathomDesign`: sample data under `data`, each artboard's component under `artboards` |
 | `styles/` | `base.css`, which every page links first and which holds what the whole design shares — the palette, the typeface, how a control answers a press, a keyboard focus, and a request for less motion, and the one motion vocabulary every surface arrives and leaves by — and then one stylesheet per artboard, linked from the page's `<helmet>` |
 | `logic/` | Each artboard's component. The prototype's is split into `markdown.js` (the Markdown renderer message bodies use), `mail-html.js` (the shell and the measuring script an original message is shown in), and `component.js` |

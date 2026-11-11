@@ -19,6 +19,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     timelineToday: BK_TIMELINE_TODAY, draftContoso: BK_DRAFT_CONTOSO, demoConversationId: DEMO_CONV_ID, demoScript: DEMO_SCRIPT,
     nextDefault: NEXT_DEFAULT, seedConversations: SEED_CONVS, agentReplies: AGENT_REPLIES, agentFallback: AGENT_FALLBACK,
     agentDraftHtml: AGENT_DRAFT_HTML, draftRewrites: DRAFT_REWRITES, rewritePresets: REWRITE_PRESETS,
+    agentModes: AGENT_MODES, agentFileLimits: FILE_LIMITS, agentFileSamples: FILE_SAMPLES,
     notifications: NOTIFS, incomingNotifications: INCOMING, demoBatches: DEMO_BATCHES,
     senderMarks: SENDER_MARKS, categories: CATEGORIES, receipts: RECEIPTS, receiptRequests: RECEIPT_REQUESTS, encryption: ENCRYPTION, trustedLinkDomains: TRUSTED_LINK_DOMAINS, messageSources: MESSAGE_SOURCES,
   } = MailFathomDesign.data;
@@ -800,6 +801,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
     railRef = React.createRef();
     agentInputRef = React.createRef();
+    agentFileRef = React.createRef();
     photoRef = React.createRef();
     historySearchRef = React.createRef();
     listSearchRef = React.createRef();
@@ -841,6 +843,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       this.timers.push(setTimeout(() => this.simulateNotif(), 14000));
       /* Its own timer: Discover's run() clears `timers`, and the background run must still end. */
       this.bgRunT = setTimeout(this.finishBackgroundRuns, 40000);
+      this.seedAgentFiles();
       if (this.props.raise && this.props.raise !== "none") this.timers.push(setTimeout(() => this.raiseFailure(this.props.raise), 1200));
       this.connTickFrom();
     }
@@ -3586,7 +3589,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     markUnreadAway = (s2, id) => (s2.convs || []).map(c => c.id === id && !(s2.screen === "agent" && s2.convId === id) ? Object.assign({}, c, { unread: true }) : c);
 
     finishBackgroundRuns = () => this.setState(s2 => ({
-      convs: (s2.convs || []).map(c => !c.running ? c : Object.assign({}, c, {
+      /* Only a run seeded with its ending ends here: a deep run ends on its own timer, or when it is stopped. */
+      convs: (s2.convs || []).map(c => !c.running || !c.finish ? c : Object.assign({}, c, {
         running: null, when: "now",
         msgs: c.msgs.filter(m => !m.working).concat([Object.assign({ role: "bot", ts: Date.now(), anim: true, bullets: [] }, c.finish)]),
         unread: !(s2.screen === "agent" && s2.convId === c.id),
@@ -3613,15 +3617,22 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     /* Cancel stops the playback or a pending reply where it stands — nothing is rolled back,
        what already arrived stays, and the thread says the run was stopped. */
     agentCancel = () => {
-      if (!this.state.agentThinking && !this.state.demoRun) return;
+      const run = (this.state.convs || []).find(c => c.id === this.state.convId && c.running);
+      if (!this.state.agentThinking && !this.state.demoRun && !run) return;
       this.stopAgentPin();
       clearTimeout(this.demoT);
       clearTimeout(this._askT);
+      if (run && this._deepT) clearInterval(this._deepT[run.id]);
       this.demoAt = DEMO_SCRIPT.length;
-      this.setState(s2 => Object.assign(
-        { agentThinking: false, agentStatus: "", demoRun: false },
-        this.pushMsg(s2, [{ role: "bot", anim: true, scope: "stopped by you", text: "Stopped. What arrived so far stays - tell me where to pick it up.", bullets: [], blocks: [] }])
-      ));
+      this.setState(s2 => {
+        const out = Object.assign(
+          { agentThinking: false, agentStatus: "", demoRun: false },
+          this.pushMsg(s2, [{ role: "bot", anim: true, scope: "stopped by you", text: "Stopped. What arrived so far stays - tell me where to pick it up.", bullets: [], blocks: [] }])
+        );
+        /* A run of this conversation - a deep one, or one that was going on in the background - stops here too. */
+        if (run) out.convs = out.convs.map(c => c.id !== run.id ? c : Object.assign({}, c, { running: null, deep: null, msgs: c.msgs.filter(m => !m.working) }));
+        return out;
+      });
       this.scrollAgentDown();
     };
 
@@ -3688,21 +3699,29 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       if (el.scrollHeight - el.clientHeight - el.scrollTop < 40) this._agAway = false;
     };
 
-    agentAsk = (text) => {
+    /* A question asks with the mode chosen under the field. `auto` goes deep where the words reach across the mailbox,
+       `deep` always does, and `fast` answers from what it reads in its time and says where it stopped. */
+    agentAsk = (text, modeOverride) => {
       const q = (text || "").trim();
-      if (!q) return;
+      if (!q || this.agentSendBlocked(this.state)) return;
       this.demoStop();
+      const asked = modeOverride || this.state.agentMode || "auto";
+      const wide = /\b(every|all|whole|since|each|this year)\b/i.test(q);
+      const files = (this.state.agentTray || []).filter(f => f.state === "done").map(f => ({ name: f.name, kind: f.kind, size: f.size, image: f.image }));
+      const userMsg = Object.assign({ role: "user", anim: true, text: q }, files.length ? { files } : {});
+      if (asked === "deep" || (asked === "auto" && wide)) return this.startDeepRun(userMsg, asked);
       this.setState(s2 => Object.assign(
-        { screen: "agent", agentInput: "", agentThinking: true },
-        this.pushMsg(s2, [{ role: "user", anim: true, text: q }])
+        { screen: "agent", agentInput: "", agentThinking: true, agentTray: [], agentRefused: [], agentMode: asked },
+        this.pushMsg(s2, [userMsg])
       ));
       this.startAgentPin();
       this._askT = setTimeout(() => {
         const hit = AGENT_REPLIES.find(r => r.match.test(q)) || AGENT_FALLBACK;
+        const ceiling = asked === "fast" && wide ? { read: "200", of: "1,240", said: "the newest 200" } : null;
         this.setState(s2 => {
           const out = Object.assign(
             { agentThinking: false },
-            this.pushMsg(s2, [{ role: "bot", anim: true, scope: hit.scope, text: hit.text, bullets: hit.bullets || [], blocks: hit.blocks || [], next: hit.next || NEXT_DEFAULT }])
+            this.pushMsg(s2, [{ role: "bot", anim: true, scope: hit.scope, mode: { asked, ran: "fast" }, ceiling, text: hit.text, bullets: hit.bullets || [], blocks: hit.blocks || [], next: hit.next || NEXT_DEFAULT }])
           );
           out.convs = this.markUnreadAway(Object.assign({}, s2, { convs: out.convs }), out.convId);
           return out;
@@ -3710,6 +3729,280 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         this.stopAgentPin();
       }, Math.max(500, (this.props.streamDelay ?? 550) * 1.1));
       this.timers.push(this._askT);
+    };
+
+    /* A deep run lives on its conversation, not on the screen: `running` is what History shows for it, `deep` what the
+       thread shows, so the person can leave, come back, and find it where it was. Cancel beside Send stops it. */
+    startDeepRun = (userMsg, asked) => {
+      const now = new Date();
+      const started = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+      this.setState(s2 => {
+        const out = this.pushMsg(s2, [userMsg, { role: "bot", anim: true, scope: "all your mail · deep", mode: { asked, ran: "deep" }, working: true, text: "", blocks: [] }]);
+        out.convs = out.convs.map(c => c.id !== out.convId ? c : Object.assign({}, c, {
+          running: "Deep · reading 0 of 860 messages",
+          deep: { said: asked === "auto" ? "This needs more than a fast answer - reading all of the mail it reaches" : "Reading all of the mail the question reaches", read: 0, of: 860, started, ran: "under a minute" },
+        }));
+        return Object.assign(out, { screen: "agent", agentInput: "", agentTray: [], agentRefused: [], agentMode: asked });
+      }, () => this.deepTick(this.state.convId, asked));
+      this.scrollAgentDown();
+    };
+
+    deepTick = (id, asked) => {
+      this._deepT = this._deepT || {};
+      clearInterval(this._deepT[id]);
+      let ticks = 0;
+      this._deepT[id] = setInterval(() => {
+        ticks++;
+        this.setState(s2 => {
+          const c = (s2.convs || []).find(x => x.id === id);
+          if (!c || !c.deep) { clearInterval(this._deepT[id]); return null; }
+          const read = Math.min(c.deep.of, c.deep.read + 43);
+          if (read < c.deep.of) return { convs: s2.convs.map(x => x.id !== id ? x : Object.assign({}, x, {
+            running: "Deep · reading " + read.toLocaleString("en-US") + " of " + c.deep.of.toLocaleString("en-US") + " messages",
+            deep: Object.assign({}, c.deep, { read, ran: ticks < 6 ? "under a minute" : Math.floor(ticks / 6) + " min" }),
+          })) };
+          clearInterval(this._deepT[id]);
+          const hit = AGENT_FALLBACK;
+          const fin = {
+            role: "bot", ts: Date.now(), anim: true, scope: "860 messages · 3 accounts",
+            mode: { asked, ran: "deep", took: "5 min 10 s", why: asked === "auto" ? "It reaches across all of your mail - more than a fast answer reads, so it went deep on its own." : "" },
+            text: hit.text, bullets: [], blocks: hit.blocks || [], next: NEXT_DEFAULT,
+          };
+          return { convs: s2.convs.map(x => x.id !== id ? x : Object.assign({}, x, {
+            running: null, deep: null, when: "now",
+            msgs: x.msgs.filter(m => !m.working).concat([fin]),
+            unread: !(s2.screen === "agent" && s2.convId === id),
+          })) };
+        });
+      }, 500);
+    };
+
+    /* The files under the Agent's field are reached by the `agentFiles` property as well as by attaching: `waiting`
+       seeds one of each upload state and a refusal for each reason, `dropping` holds the drop surface up. */
+    seedAgentFiles = () => {
+      const waiting = this.props.agentFiles === "waiting";
+      this.setState({
+        agentTray: waiting ? FILE_SAMPLES.tray.map((f, i) => Object.assign({ id: "sample" + i, sample: true }, f)) : [],
+        agentRefused: waiting ? FILE_SAMPLES.refused.slice() : [],
+      });
+    };
+
+    /* Send waits for every file to be up: one on its way, or one that failed, holds it, and says which. */
+    agentSendBlocked = (st) => {
+      const tray = st.agentTray || [];
+      const up = tray.filter(f => f.state === "uploading").length;
+      const bad = tray.filter(f => f.state === "failed").length;
+      return up ? "Send - wait for " + (up === 1 ? "1 file" : up + " files") + " to finish uploading"
+        : bad ? "Send - " + (bad === 1 ? "1 file" : bad + " files") + " did not upload. Try again, or remove it."
+        : "";
+    };
+
+    fileSize = (n) => n >= 1048576 ? (n / 1048576).toFixed(1).replace(/\.0$/, "") + " MB" : Math.max(1, Math.round(n / 1024)) + " kB";
+
+    /* Every way in - the control, a drop, a paste - lands here, and the limits are checked once. */
+    addAgentFiles = (list, pasted) => {
+      const files = Array.from(list || []);
+      if (!files.length) return;
+      const now = new Date();
+      const stamp = String(now.getHours()).padStart(2, "0") + "." + String(now.getMinutes()).padStart(2, "0");
+      this.setState(s2 => {
+        const tray = (s2.agentTray || []).slice();
+        const refused = [];
+        let over = 0;
+        files.forEach((f, i) => {
+          let name = f.name || "";
+          let ext = (name.indexOf(".") >= 0 ? name.split(".").pop() : "").toLowerCase();
+          if (pasted && (!name || /^image\.\w+$/i.test(name))) { ext = ext || "png"; name = "Pasted image " + stamp + "." + ext; }
+          if (FILE_LIMITS.kinds.indexOf(ext) < 0) refused.push({ reason: "kind", name });
+          else if (f.size > FILE_LIMITS.maxBytes) refused.push({ reason: "large", name, size: this.fileSize(f.size) });
+          else if (tray.length >= FILE_LIMITS.maxFiles) over++;
+          else tray.push({ id: "f" + Date.now() + "-" + i, name, kind: ext === "jpg" ? "JPEG" : ext.toUpperCase(), size: this.fileSize(f.size), state: "uploading", pct: 0, image: /^image\//.test(f.type || ""), pasted: !!pasted });
+        });
+        if (over) refused.push({ reason: "many", count: over });
+        return { agentTray: tray, agentRefused: refused, agentDrag: false };
+      }, this.tickUploads);
+    };
+
+    tickUploads = () => {
+      clearInterval(this._upT);
+      this._upT = setInterval(() => this.setState(s2 => {
+        let busy = false;
+        const tray = (s2.agentTray || []).map(f => {
+          if (f.state !== "uploading" || f.sample) return f;
+          busy = true;
+          const pct = Math.min(100, (f.pct || 0) + 17);
+          return Object.assign({}, f, { pct, state: pct >= 100 ? "done" : "uploading" });
+        });
+        if (!busy) clearInterval(this._upT);
+        return { agentTray: tray };
+      }), 260);
+    };
+
+    removeAgentFile = (id) => this.setState(s2 => ({ agentTray: (s2.agentTray || []).filter(f => f.id !== id) }));
+    retryAgentFile = (id) => this.setState(s2 => ({ agentTray: (s2.agentTray || []).map(f => f.id !== id ? f : Object.assign({}, f, { state: "uploading", pct: 0, sample: false })) }), this.tickUploads);
+
+    /* Only a drag that carries files raises the drop surface; text or a link dragged over the conversation does not. */
+    dragHasFiles = (e) => !!(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") >= 0);
+    onAgentDragOver = (e) => {
+      if (!this.dragHasFiles(e)) return;
+      e.preventDefault();
+      if (!this.state.agentDrag) this.setState({ agentDrag: true });
+    };
+    onAgentDragLeave = (e) => {
+      if (e.currentTarget.contains(e.relatedTarget)) return;
+      this.setState({ agentDrag: false });
+    };
+    onAgentDrop = (e) => {
+      e.preventDefault();
+      this.setState({ agentDrag: false });
+      this.addAgentFiles(e.dataTransfer && e.dataTransfer.files);
+    };
+    onAgentPaste = (e) => {
+      const files = e.clipboardData && e.clipboardData.files;
+      if (!files || !files.length) return;
+      e.preventDefault();
+      this.addAgentFiles(files, true);
+    };
+
+    /* The mode control under the field: a segmented control, and the chosen mode's sentence beside it, so what each
+       mode does is read rather than hovered. */
+    agentModeView = (st, touch, isMobile) => {
+      const cur = st.agentMode || "auto";
+      const mode = AGENT_MODES.find(m => m.key === cur) || AGENT_MODES[0];
+      return {
+        agentModeRowStyle: "display:flex;align-items:center;flex-wrap:wrap;gap:" + (isMobile ? "8px 12px" : "8px 14px"),
+        agentModeTrackStyle: "display:flex;align-items:center;gap:2px;background:var(--rail);border-radius:10px;padding:" + (touch ? "4px" : "3px") + (isMobile ? ";flex:1 1 100%;box-sizing:border-box" : ""),
+        agentModes: AGENT_MODES.map(m => ({
+          label: m.label, icon: m.icon,
+          checked: m.key === cur ? "true" : "false",
+          name: m.label + " - " + m.says,
+          pick: () => this.setState({ agentMode: m.key }),
+          key: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.setState({ agentMode: m.key }); } },
+          style: "display:flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;border-radius:7px;font-size:13px;white-space:nowrap;height:" + (touch ? 36 : 28) + "px;padding:0 " + (touch ? 14 : 11) + "px" + (isMobile ? ";flex:1" : "") + ";" +
+            (m.key === cur ? "background:var(--panel);color:var(--text);font-weight:600;box-shadow:0 1px 2px var(--sh-1),0 0 0 1px var(--line)" : "color:var(--muted)"),
+          iconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;font-size:16px;line-height:1;color:" + (m.key === cur ? "var(--accent-d)" : "inherit"),
+        })),
+        agentModeSays: mode.says,
+        agentModeSaysStyle: "font-size:12px;color:var(--muted);min-width:0" + (isMobile ? ";flex:1 1 100%" : ""),
+      };
+    };
+
+    /* The files waiting under the field, the refusals above them, and the surface a drag of files raises. */
+    agentFilesView = (st, touch, isMobile) => {
+      const tray = st.agentTray || [];
+      const refused = st.agentRefused || [];
+      const glyph = "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;";
+      const btn = (n) => "display:flex;align-items:center;justify-content:center;flex:0 0 " + n + "px;width:" + n + "px;height:" + n + "px;border-radius:8px;color:var(--muted)";
+      const said = (r) => r.reason === "large" ? r.name + " was not attached: at " + r.size + " it is over the " + FILE_LIMITS.maxSaid + " a file can be."
+        : r.reason === "kind" ? r.name + " was not attached: the agent does not read " + ((r.name.split(".").pop() || "this kind of").toUpperCase()) + " files. It reads " + FILE_LIMITS.kindsSaid + "."
+        : (r.count === 1 ? "1 file was" : r.count + " files were") + " not attached: a question carries at most " + FILE_LIMITS.maxFiles + " files.";
+      return {
+        agentFileRef: this.agentFileRef,
+        agentPickFiles: () => { const el = this.agentFileRef.current; if (el) { el.value = ""; el.click(); } },
+        onAgentFilesPicked: (e) => this.addAgentFiles(e.target.files),
+        onAgentPaste: this.onAgentPaste,
+        onAgentDragOver: this.onAgentDragOver,
+        onAgentDragLeave: this.onAgentDragLeave,
+        onAgentDrop: this.onAgentDrop,
+        agentDropShown: !!st.agentDrag || this.props.agentFiles === "dropping",
+        agentDropLimits: "Up to " + FILE_LIMITS.maxFiles + " files, " + FILE_LIMITS.maxSaid + " each",
+        agentAttachStyle: btn(touch ? 44 : 34) + ";font-size:" + (touch ? 22 : 20) + "px;" + glyph,
+        agentTrayShown: tray.length > 0,
+        agentTrayStyle: "display:flex;gap:8px;" + (touch ? "overflow-x:auto;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);padding-right:28px" : "flex-wrap:wrap"),
+        agentTray: tray.map(f => {
+          const failed = f.state === "failed";
+          const up = f.state === "uploading";
+          return {
+            name: f.name, kind: f.kind, image: !!f.image, notImage: !f.image,
+            uploading: up, failed,
+            line: failed ? "Did not upload" : up ? "Uploading · " + (f.pct || 0) + "%" : (f.pasted ? "Pasted · " : "") + f.size,
+            lineStyle: "font-size:12px;white-space:nowrap;color:" + (failed ? "var(--err-text)" : "var(--faint)"),
+            barStyle: "position:absolute;left:0;bottom:0;height:3px;border-radius:0 2px 2px 0;background:var(--accent);width:" + (f.pct || 0) + "%",
+            remove: () => this.removeAgentFile(f.id),
+            removeName: "Remove " + f.name,
+            retry: () => this.retryAgentFile(f.id),
+            retryName: "Try uploading " + f.name + " again",
+            style: "position:relative;overflow:hidden;flex:0 0 auto;display:flex;align-items:center;gap:10px;box-sizing:border-box;max-width:" + (isMobile ? 240 : 260) + "px;min-height:" + (touch ? 52 : 46) + "px;padding:6px 4px 6px 7px;border-radius:10px;background:var(--panel);border:1px solid " + (failed ? "var(--err)" : "var(--line)"),
+            tileStyle: "flex:0 0 32px;width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:" + (failed ? "var(--err-text)" : "var(--muted)") + ";background:" + (failed ? "var(--err-soft)" : "var(--sub)"),
+            tileGlyphStyle: glyph + "font-size:18px",
+            btnStyle: btn(touch ? 44 : 26) + ";font-size:" + (touch ? 20 : 17) + "px;" + glyph,
+          };
+        }),
+        agentRefusedShown: refused.length > 0,
+        agentRefused: refused.map(r => ({ text: said(r) })),
+        dismissAgentRefused: () => this.setState({ agentRefused: [] }),
+        agentRefusedCloseStyle: btn(touch ? 44 : 26) + ";font-size:" + (touch ? 20 : 17) + "px;color:var(--warn-text);" + glyph,
+      };
+    };
+
+    /* What an answer says about the effort it ran with, and - for a fast answer that stopped at its ceiling - where it
+       stopped, with the same question offered in deep. */
+    agentMsgModeView = (m, conv, mi, msgs, touch) => {
+      const md = m.mode;
+      const deepNow = !!(m.working && conv && conv.deep);
+      const d = deepNow ? conv.deep : null;
+      const label = !md ? "" : md.asked === "auto" ? (md.ran === "deep" ? "Auto · went deep" : "Auto · fast") : md.asked === "deep" ? "Deep" : "Fast";
+      const ask = (() => { for (let i = mi - 1; i >= 0; i--) if (msgs[i].role === "user") return msgs[i].text; return ""; })();
+      return {
+        hasMode: !!md,
+        modeIcon: !md ? "" : md.ran === "deep" ? "manage_search" : md.asked === "auto" ? "auto_mode" : "bolt",
+        modeText: label + (md && md.took && !m.working ? " · " + md.took : ""),
+        modeStyle: "display:inline-flex;align-items:center;gap:4px;color:" + (md && md.ran === "deep" ? "var(--accent-d)" : "var(--muted)"),
+        modeIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:14px;line-height:1",
+        hasDeepWhy: !!(md && md.why && !m.working),
+        deepWhy: md && md.why ? md.why : "",
+        deepNow,
+        deepSaid: d ? d.said : "",
+        deepCount: d ? d.read.toLocaleString("en-US") + " of " + d.of.toLocaleString("en-US") + " messages read" : "",
+        deepMeta: d ? "started " + d.started + " · running for " + d.ran : "",
+        deepBarStyle: "height:100%;border-radius:2px;background:var(--accent);width:" + (d ? Math.max(2, Math.round(d.read / d.of * 100)) : 0) + "%",
+        hasCeiling: !!m.ceiling,
+        ceilingText: m.ceiling ? "Stopped at the fast limit: it read " + m.ceiling.read + " of the " + m.ceiling.of + " messages that match, " + m.ceiling.said + ". The rest may change the answer." : "",
+        askDeep: () => ask && this.agentAsk(ask, "deep"),
+        askDeepKey: (e) => { if ((e.key === "Enter" || e.key === " ") && ask) { e.preventDefault(); this.agentAsk(ask, "deep"); } },
+        askDeepStyle: "display:inline-flex;align-items:center;gap:6px;box-sizing:border-box;align-self:flex-start;font-size:13px;font-weight:600;color:var(--accent-d);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:8px;white-space:nowrap;" + (touch ? "min-height:44px;padding:0 14px" : "height:32px;padding:0 12px"),
+      };
+    };
+
+    /* The files a question carried, and the files an answer hands back: one card for all three origins. */
+    agentMsgFilesView = (m, touch, isMobile) => {
+      const glyph = "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 300;line-height:1;";
+      const origin = (f) => f.origin === "report"
+        ? { icon: "auto_awesome", said: "Report the agent wrote · " + f.pages, gone: "No longer held - ask the agent to write it again" }
+        : f.origin === "message"
+          ? { icon: "mail", said: "From " + f.from, gone: "No longer held here - it is still in the message from " + f.from }
+          : { icon: "attach_file", said: "You attached it", gone: "No longer held - attach it again to use it" };
+      return {
+        hasFiles: (m.files || []).length > 0,
+        files: (m.files || []).map(f => ({
+          name: f.name, kind: f.kind, size: f.size, image: !!f.image, notImage: !f.image,
+          style: "display:inline-flex;align-items:center;gap:8px;max-width:100%;box-sizing:border-box;padding:5px 10px 5px 5px;border-radius:8px;background:var(--panel);border:1px solid var(--accent-line)",
+          tileStyle: "flex:0 0 26px;width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--muted);background:var(--sub)",
+          tileGlyphStyle: glyph + "font-size:16px",
+        })),
+        filesRowStyle: "display:flex;flex-wrap:wrap;gap:6px;margin-top:9px",
+        hasOut: (m.outFiles || []).length > 0,
+        outFiles: (m.outFiles || []).map(f => {
+          const o = origin(f);
+          return {
+            name: f.name, kind: f.kind, held: !f.gone, gone: !!f.gone,
+            originIcon: o.icon,
+            meta: f.gone ? o.gone : o.said + " · " + f.size,
+            aria: "Download " + f.name + ", " + f.size,
+            download: () => this.notify("Downloading " + f.name),
+            key: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.notify("Downloading " + f.name); } },
+            style: "display:flex;align-items:center;gap:12px;box-sizing:border-box;min-width:0;width:" + (isMobile ? "100%" : "min(100%, 400px)") + ";padding:" + (touch ? "8px 6px 8px 10px" : "9px 8px 9px 10px") + ";border-radius:12px;" +
+              (f.gone ? "border:1px dashed var(--border2);background:transparent" : "border:1px solid var(--line);background:var(--panel);box-shadow:0 1px 2px var(--sh-1)"),
+            tileStyle: "flex:0 0 38px;width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:" + (f.gone ? "var(--faint)" : f.origin === "report" ? "var(--accent-d)" : "var(--muted)") + ";background:" + (!f.gone && f.origin === "report" ? "var(--accent-soft)" : "var(--sub)"),
+            nameStyle: "font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:" + (f.gone ? "var(--muted)" : "var(--text)"),
+            metaStyle: "display:flex;align-items:center;gap:5px;font-size:12px;min-width:0;color:var(--faint)",
+            metaGlyphStyle: glyph + "font-size:14px;flex:0 0 auto",
+            endStyle: "display:flex;align-items:center;justify-content:center;flex:0 0 " + (touch ? 44 : 34) + "px;height:" + (touch ? 44 : 34) + "px;border-radius:8px;font-size:20px;color:" + (f.gone ? "var(--faint)" : "var(--accent-d)") + ";" + glyph,
+            endGlyph: f.gone ? "cloud_off" : "download",
+          };
+        }),
+        outRowStyle: "display:flex;flex-wrap:wrap;gap:8px",
+      };
     };
 
     /* The bar a selection opens. It stands over the passage on a fine pointer and docks above the field on touch,
@@ -4556,6 +4849,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
     };
 
     componentDidUpdate(prevProps) {
+      if (this.props.agentFiles !== (prevProps || {}).agentFiles) this.seedAgentFiles();
       /* `space` opens a space the way its rail item does, so a capture reaches it in one step at every
          composition - on a phone Tasks, Calendar and People sit behind More. */
       const space = this.props.space;
@@ -4645,6 +4939,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
       (w) => this.setState({ listW: Math.max(232, Math.min(560, w)) }));
 
     componentWillUnmount() {
+      clearInterval(this._upT);
+      Object.keys(this._deepT || {}).forEach(k => clearInterval(this._deepT[k]));
       document.removeEventListener("mousedown", this.onDocDown, true);
       document.removeEventListener("keydown", this.onDocKey);
       document.removeEventListener("selectionchange", this.noteEditorCaret);
@@ -5509,7 +5805,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           /* The group already says yesterday; the row repeats only what the group does not. */
           when: day === "Yesterday" && !isArchivedList ? "" : when,
           day: day,
-          preview: c.running ? c.running + "…" : lastMsg ? lastMsg.text : "no messages",
+          preview: c.running ? c.running + "…" : lastMsg ? mdPlain(lastMsg.text || "") : "no messages",
           activate: this.rowTap("convs", c.id, openConv),
           press: rowPress,
           /* One quiet control instead of an archive and a delete glyph on every row: it opens the
@@ -6539,7 +6835,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         agentScrollStyle: isMobile
           ? "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:16px 14px"
           : "flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:16px;padding:22px max(26px, calc((100% - 1290px) / 2))",
-        agentBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 8 : 12) + "px;background:var(--panel);border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px 6px 6px 14px" : "padding:10px 13px"),
+        agentBoxStyle: "display:flex;align-items:center;gap:" + (isMobile ? 6 : 10) + "px;background:var(--panel);border:2px solid var(--accent);border-radius:12px;" + (touch ? "padding:6px" : "padding:10px 13px 10px 8px"),
+        ...this.agentFilesView(st, touch, isMobile),
+        ...this.agentModeView(st, touch, isMobile),
         agentInputWrapStyle: isMobile
           ? "display:flex;flex-direction:column;gap:9px;background:var(--panel);border-top:1px solid var(--line);padding:12px 14px"
           : "display:flex;flex-direction:column;gap:10px;background:var(--panel);border-top:1px solid var(--line);padding:14px max(26px, calc((100% - 1290px) / 2)) 16px",
@@ -6552,10 +6850,10 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         /* What the agent is doing right now — it changes as the work moves on, it is not one fixed line. */
         agentStatus: st.agentStatus || "Going through your mail",
         /* Cancel sits next to Send at all times, greyed out until there is work to stop. */
-        agentCancelActive: !!(st.agentThinking || st.demoRun),
-        agentCancelDisabled: !(st.agentThinking || st.demoRun),
-        agentCancelTab: (st.agentThinking || st.demoRun) ? 0 : -1,
-        agentCancelAria: (st.agentThinking || st.demoRun) ? "Stop what the agent is doing" : "Cancel - nothing is running",
+        agentCancelActive: !!(st.agentThinking || st.demoRun || (activeConv && activeConv.running)),
+        agentCancelDisabled: !(st.agentThinking || st.demoRun || (activeConv && activeConv.running)),
+        agentCancelTab: (st.agentThinking || st.demoRun || (activeConv && activeConv.running)) ? 0 : -1,
+        agentCancelAria: (st.agentThinking || st.demoRun || (activeConv && activeConv.running)) ? "Stop what the agent is doing" : "Cancel - nothing is running",
         /* Under a finger the field's two buttons reach the 44 px floor, the phone draws them as glyphs so the field keeps
            the width its prompt needs, and no button names a key a touch screen has no keyboard to press. */
         notTouch: !touch,
@@ -6563,13 +6861,14 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         agentSendLabel: touch ? "Send" : "Send ⏎",
         agentBtnIconStyle: "font-family:'Material Symbols Rounded';font-variation-settings:'wght' 400;font-size:22px;line-height:1;display:block",
         agentSendStyle: "font-size:13px;color:var(--onaccent);background:var(--accent);border-radius:8px;white-space:nowrap;box-sizing:border-box;display:flex;align-items:center;justify-content:center;" +
-          (isMobile ? "width:44px;height:44px;padding:0;flex:0 0 44px" : touch ? "min-height:44px;padding:0 18px" : "padding:8px 16px"),
+          (isMobile ? "width:44px;height:44px;padding:0;flex:0 0 44px" : touch ? "min-height:44px;padding:0 18px" : "padding:8px 16px") +
+          (this.agentSendBlocked(st) ? ";opacity:0.45" : ""),
         agentCancelStyle: "font-size:13px;border-radius:8px;white-space:nowrap;box-sizing:border-box;display:flex;align-items:center;justify-content:center;" +
           (isMobile ? "width:44px;height:44px;padding:0;flex:0 0 44px;" : touch ? "min-height:44px;padding:0 16px;" : "padding:8px 14px;") + "border:1px solid " +
-          ((st.agentThinking || st.demoRun)
+          ((st.agentThinking || st.demoRun || (activeConv && activeConv.running))
             ? "var(--err);color:var(--onaccent);background:var(--err);font-weight:600;"
             : "var(--line);color:var(--faint);background:transparent;"),
-        agentCancelHover: (st.agentThinking || st.demoRun)
+        agentCancelHover: (st.agentThinking || st.demoRun || (activeConv && activeConv.running))
           ? "cursor:pointer;opacity:0.88"
           : "cursor:default",
         agentCancel: this.agentCancel,
@@ -6590,7 +6889,7 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
             (c.id === (activeConv || {}).id ? "var(--line);border-bottom-color:var(--sub);background:var(--panel);color:var(--text);" : "transparent;background:transparent;color:var(--muted);"),
           titleStyle: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" + (c.id === (activeConv || {}).id ? "font-weight:600;" : ""),
         })),
-        agentNewConv: () => this.setState(isMobile ? { convId: null, agentInput: "", agentThinking: false, history: false } : { convId: null, agentInput: "", agentThinking: false }),
+        agentNewConv: () => this.setState(isMobile ? { convId: null, agentInput: "", agentThinking: false, agentMode: "auto", history: false } : { convId: null, agentInput: "", agentThinking: false, agentMode: "auto" }),
         historyOpen: st.history == null ? !isMobile : !!st.history,
         historyLabel: isMobile ? "" : "History",
         toggleHistory: () => this.setState(s2 => ({ history: !s2.history })),
@@ -6653,6 +6952,8 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
         onAgentInput: (e) => this.setState({ agentInput: e.target.value }),
         onAgentKey: (e) => { if (e.key === "Enter") this.agentAsk(st.agentInput); },
         agentSend: () => this.agentAsk(st.agentInput),
+        agentSendTitle: this.agentSendBlocked(st) || "Send",
+        agentSendDisabled: !!this.agentSendBlocked(st),
 
         agentMsgs: (convMsgs.length ? convMsgs : [{
           role: "bot",
@@ -6672,7 +6973,9 @@ MailFathomDesign.artboards.prototype = (DCLogic, React) => {
           }))), [])),
           hasMd: !!m.text || (m.paras || []).length > 0,
           scope: m.scope || "",
-          working: !!m.working,
+          working: !!m.working && !(activeConv && activeConv.deep),
+          ...this.agentMsgModeView(m, activeConv, mi, convMsgs, touch),
+          ...this.agentMsgFilesView(m, touch, isMobile),
           hasParas: (m.paras || []).length > 0,
           paras: (m.paras || []).map(p => ({
             t: p.t,
