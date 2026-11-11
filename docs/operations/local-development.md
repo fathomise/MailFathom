@@ -2378,12 +2378,16 @@ because the restore happens inside `cached-apt-install`, after the step that cho
 skip the choice for it, and a choice that finds no mirror reports that and leaves the file as it was
 rather than failing the job.
 
-**The last mirror in that file is outside `ubuntu.com`.** The runner's three mirrors, the list the choice
-reads its candidates from, and the addresses it falls back to are all names in that one domain, and a
-day on which none of them resolved left apt nothing to try. So `cached-apt-install` appends
-`mirrors.edge.kernel.org` to the end of `/etc/apt/apt-mirrors.txt` before it installs, behind every
-other line, where apt reaches it only after the others failed. It matters most to the nightly, which
-writes the day's entry and therefore cannot install from one.
+**One mirror outside `ubuntu.com` stands behind all of that.** The runner's three mirrors, the list the
+choice reads its candidates from, and the addresses it falls back to are all names in that one domain,
+and a day on which none of them resolved left apt nothing to try. So before an install that needs a
+mirror, `cached-apt-install` asks the first mirror in `/etc/apt/apt-mirrors.txt` for the release's
+index, with a ten-second bound, and when it does not answer replaces the file's content with
+`mirrors.edge.kernel.org` and says so in a warning. It replaces rather than appends because apt does
+not get past mirrors that fail to resolve in any useful time: with a working mirror listed behind three
+dead ones, an update outlived the step's five minutes every time it was tried. An exact restore asks
+no mirror and makes no such check. It matters most to the nightly, which writes the day's entry and
+therefore cannot install from one.
 
 **Caches are restored everywhere and saved on `main` alone.** An entry saved on the default branch is
 readable by every run, while one saved by a pull request, a merge-queue entry, or a release tag is

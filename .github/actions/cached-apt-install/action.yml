@@ -31,9 +31,12 @@ description: >-
 # **Every install has one mirror whose name does not hang on `ubuntu.com`.** The runner lists three mirrors and the
 # mirror choice before this action can only put a fourth from the same domain in front of them, so a day on which no
 # name under `ubuntu.com` resolves — which is what an outage looked like from a runner that still resolved everything
-# else — leaves apt nothing to fall back to. The last line this action adds to the runner's mirror list is a mirror in
-# another domain, tried after every other. Which mirror serves a file changes nothing about what is installed, because
-# apt checks each one against Ubuntu's signed index.
+# else — leaves apt nothing to fall back to. So before an install that needs a mirror, this action asks the first one
+# in the runner's list for the release's index, and when it does not answer replaces the list with one mirror in
+# another domain. It is a replacement rather than a last line because apt does not walk past mirrors that fail to
+# resolve in any useful time: with a working mirror listed behind three dead ones, an update outlived its five-minute
+# bound every time it was tried. Which mirror serves a file changes nothing about what is installed, because apt
+# checks each one against Ubuntu's signed index.
 #
 # The key carries the runner image, because the image decides which packages are already present and therefore which
 # ones apt downloads, the caller's own discriminator for what is installed, and the day. The day is there because an
@@ -115,15 +118,6 @@ runs:
         printf 'Dir::Cache::Archives "%s/";\nDir::State::lists "%s/lists/";\n' "$downloads" "$downloads" |
           sudo tee /etc/apt/apt.conf.d/90-cached-downloads > /dev/null
 
-        # Behind the runner's own mirrors and the chosen one, which keep the lower priority numbers, and only where
-        # the runner keeps its mirrors in this file.
-        mirrors=/etc/apt/apt-mirrors.txt
-        fallback=https://mirrors.edge.kernel.org/ubuntu/
-        if [[ -f "$mirrors" ]] && ! grep --quiet --fixed-strings "$fallback" "$mirrors"; then
-          sudo sed --in-place '$a\' "$mirrors"
-          printf '%s\tpriority:9\n' "$fallback" | sudo tee --append "$mirrors" > /dev/null
-        fi
-
         installed=false
         if [[ "$RESTORED_EXACTLY" == 'true' && "$carries_lists" == 'true' ]]; then
           printf 'APT::Get::Download "false";\n' | sudo tee "$offline" > /dev/null
@@ -136,6 +130,18 @@ runs:
           sudo rm --force "$offline"
         fi
         if [[ "$installed" != 'true' ]]; then
+          # Only where the runner keeps its mirrors in this file, and only when the one apt would ask first — the
+          # runner's own, or the one the step before chose — does not answer for this release at all.
+          mirrors=/etc/apt/apt-mirrors.txt
+          fallback=https://mirrors.edge.kernel.org/ubuntu/
+          if [[ -f "$mirrors" ]]; then
+            first="$(awk 'NR == 1 { print $1 }' "$mirrors")"
+            release="$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")"
+            if ! curl --silent --fail --head --max-time 10 --output /dev/null "${first%/}/dists/${release}/InRelease"; then
+              echo "::warning::${first} does not answer, so this install uses ${fallback} instead."
+              printf '%s\n' "$fallback" | sudo tee "$mirrors" > /dev/null
+            fi
+          fi
           bash -euo pipefail -c "$INSTALL"
         fi
 
