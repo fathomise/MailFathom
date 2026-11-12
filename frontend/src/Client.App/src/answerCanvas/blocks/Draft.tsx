@@ -146,7 +146,8 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
     const dock = useRewriteDock();
     const letter = useRef<HTMLParagraphElement>(null);
     const rewriting = usePassageChange(rewriter);
-    const [rewrittenKept, setRewrittenKept] = useState(false);
+    // The text a rewrite left the letter holding, so the meta and the toast's *Undo* each ask whether it still does.
+    const [keptAs, setKeptAs] = useState<string | null>(null);
     const coarse = useCoarsePointer();
     const change = rewriting.change;
 
@@ -185,13 +186,15 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
 
     function keepTheChange(kept: PassageChange): void {
         const before = typed;
+        const after = withPassagesRewritten(body.split('\n'), kept.passages, kept.rewritten ?? []).join('\n');
 
-        setTyped(withPassagesRewritten(body.split('\n'), kept.passages, kept.rewritten ?? []).join('\n'));
-        setRewrittenKept(true);
+        setTyped(after);
+        setKeptAs(after);
         rewriting.settle();
+        letter.current?.closest('article')?.focus();
+        // An edit made since the keep is somebody's own words, which *Undo* of the rewrite does not reach.
         rewriting.sayKept(kept, false, () => {
-            setTyped(before);
-            setRewrittenKept(false);
+            setTyped((current) => (current === after ? before : current));
         });
     }
 
@@ -225,7 +228,10 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                         {
                             said: translate('rewrite.undo'),
                             name: translate('rewrite.undoDraftName'),
-                            run: rewriting.settle,
+                            run: () => {
+                                rewriting.settle();
+                                letter.current?.closest('article')?.focus();
+                            },
                         },
                     ]
               : editing
@@ -289,7 +295,7 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
             controls={controls}
             kind="draft"
             label={translate('draft.label')}
-            meta={rewrittenKept ? translate('draft.rewritten') : undefined}
+            meta={keptAs !== null && typed === keptAs ? translate('draft.rewritten') : undefined}
             quotesMail
             title={draft.subject}
             trayNote={
@@ -388,7 +394,10 @@ export function Draft({ block }: { readonly block: AnswerBlock }) {
                         inMessage={false}
                         dock={dock}
                         onOpen={selection.openBar}
-                        onClose={selection.close}
+                        onClose={() => {
+                            selection.close();
+                            letter.current?.closest('article')?.focus();
+                        }}
                         onRewrite={rewrite}
                     />
                 )}

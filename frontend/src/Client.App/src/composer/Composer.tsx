@@ -65,7 +65,8 @@ import {
 import { DiscardConfirmation } from './DiscardConfirmation';
 import { DraftingBlock, DraftingStanding, type DraftingContextStart } from './DraftingBlock';
 import { contextPointedAt, sameMessages, type ListPointer } from './draftingContext';
-import { draftingRead, failureSaid } from './draftingRead';
+import { failureSaid } from '../localization/writingFailures';
+import { draftingRead } from './draftingRead';
 import { draftWords } from './draftWords';
 import {
     forgetComposition,
@@ -264,11 +265,6 @@ export function Composer({
     const beforeTheRewrite = useRef<readonly Node[] | null>(null);
     const rewriteAsked = useRef(0);
     const coarse = useCoarsePointer();
-    const passageSelection = useSelectedPassage(
-        (node, offset) => (region.current === null ? null : regionText(region.current).offsetOf(node, offset)),
-        rewritesPassages && rewriteChange === null,
-        coarse,
-    );
 
     // When the message leaves, which belongs to the send rather than to the draft: it is held here and nowhere else,
     // so a draft saved with a time keeps none and one opened again sends at once until a time is chosen.
@@ -305,6 +301,13 @@ export function Composer({
     const [drafting, setDrafting] = useState(false);
     const [beforeDrafting, setBeforeDrafting] = useState(() =>
         keptFor(opening) === null ? null : rememberedReplacedByDraft(),
+    );
+
+    // A selection is a place to rewrite only while neither a drafting nor another rewrite is writing over the words.
+    const passageSelection = useSelectedPassage(
+        (node, offset) => (region.current === null ? null : regionText(region.current).offsetOf(node, offset)),
+        rewritesPassages && rewriteChange === null && !drafting,
+        coarse,
     );
 
     // What the AI drafts from, as messages: a reply starts with the one it answers and a new message with none. The
@@ -679,7 +682,7 @@ export function Composer({
     // Putting back what the draft replaced, which is the one act that has to work whatever the draft turned out to be:
     // somebody who asked for one and did not want it is owed their own words rather than an undo they have to find.
     function restoreWhatWasWritten(): void {
-        if (beforeDrafting === null) {
+        if (beforeDrafting === null || rewriteChange !== null) {
             return;
         }
 
@@ -987,8 +990,11 @@ export function Composer({
     function putTheWordsBack(): void {
         const before = beforeTheRewrite.current;
 
-        if (before !== null) {
-            region.current?.replaceChildren(...before.map((node) => node.cloneNode(true)));
+        const words = region.current;
+
+        if (before !== null && words !== null) {
+            words.replaceChildren(...before.map((node) => node.cloneNode(true)));
+            wordsChanged(words);
         }
     }
 
@@ -1093,8 +1099,13 @@ export function Composer({
         beforeTheRewrite.current = null;
         rewriting.settle();
         wordsChanged(words);
+        words.focus();
+
+        // Words written since the keep are somebody's own, which *Undo* of the rewrite does not reach.
+        const keptWords = regionText(words).text;
+
         rewriting.sayKept(kept, true, () => {
-            if (before !== null && region.current === words) {
+            if (before !== null && region.current === words && regionText(words).text === keptWords) {
                 words.replaceChildren(...before);
                 wordsChanged(words);
             }
@@ -1394,7 +1405,10 @@ export function Composer({
                             inMessage
                             dock={foot}
                             onOpen={passageSelection.openBar}
-                            onClose={passageSelection.close}
+                            onClose={() => {
+                                passageSelection.close();
+                                region.current?.focus();
+                            }}
                             onRewrite={rewriteTheSelection}
                         />
                     )}

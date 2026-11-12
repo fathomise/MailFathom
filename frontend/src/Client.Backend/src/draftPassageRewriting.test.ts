@@ -3,7 +3,12 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { describe, expect, it } from 'vitest';
-import { draftPassageRewritingRoute, longestRewriteInstruction, rewriteDraftPassages } from './draftPassageRewriting';
+import {
+    draftPassageRewritingRoute,
+    longestRewriteInstruction,
+    longestRewrittenDraft,
+    rewriteDraftPassages,
+} from './draftPassageRewriting';
 import type { ClientSession } from './session';
 import type { ClientRequest, ClientResponse, MailFathomTransport } from './transport';
 
@@ -118,6 +123,38 @@ describe('rewriteDraftPassages', () => {
         );
 
         expect(result).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
+
+    it.each([
+        [
+            'a passage longer than a draft can be',
+            { rewritten: true, passages: ['Fine.', 'x'.repeat(longestRewrittenDraft + 1)] },
+        ],
+        ['a passage that is not text', { rewritten: true, passages: ['Fine.', 42] }],
+        ['passages that are not a list', { rewritten: true, passages: 'Fine. Fine.' }],
+        ['no word on whether anything was rewritten', { passages: ['Fine.', 'Also fine.'] }],
+        ['a word on it that is not true or false', { rewritten: 'yes', passages: ['Fine.', 'Also fine.'] }],
+    ])('refuses an answer carrying %s', async (_, body) => {
+        const result = await rewriteDraftPassages(
+            session,
+            answering({ status: 200, body: JSON.stringify(body) }),
+            asked,
+        );
+
+        expect(result).toStrictEqual({ outcome: 'failed', failure: { reason: 'unreadable', status: 200 } });
+    });
+
+    it('reports a deployment that failed while it rewrote', async () => {
+        const result = await rewriteDraftPassages(session, answering({ status: 503, body: '' }), asked);
+
+        expect(result).toStrictEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: 503 } });
+    });
+
+    it('reports a deployment nothing could be sent to', async () => {
+        const unreachable: MailFathomTransport = () => Promise.reject(new TypeError('Failed to fetch'));
+        const result = await rewriteDraftPassages(session, unreachable, asked);
+
+        expect(result).toStrictEqual({ outcome: 'failed', failure: { reason: 'unavailable', status: null } });
     });
 
     it('refuses an answer that is not JSON at all', async () => {

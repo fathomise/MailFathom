@@ -489,6 +489,7 @@ public sealed class ClientReplyDraftingEndpointTests
             [.. Enumerable.Range(0, PassageRewriteRequest.MaximumPassages + 1).Select(static start => new ClientDraftPassage(start, 1))],
             "Shorter"),
         ["an empty passage"] = new(RewritingDraft, [new ClientDraftPassage(11, 0)], "Shorter"),
+        ["a passage that is null"] = new(RewritingDraft, [null!], "Shorter"),
         ["a negative start"] = new(RewritingDraft, [new ClientDraftPassage(-1, 5)], "Shorter"),
         ["a passage outside the text"] = new(RewritingDraft, [new ClientDraftPassage(11, 30)], "Shorter"),
         ["overlapping passages"] = new(RewritingDraft, [new ClientDraftPassage(0, 12), new ClientDraftPassage(11, 7)], "Shorter"),

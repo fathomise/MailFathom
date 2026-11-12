@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { useEffect, useRef, useState } from 'react';
-import { failureSaid } from '../composer/draftingRead';
+import { failureSaid } from '../localization/writingFailures';
 import type { MessageKey } from '../localization/en';
 import { useLocalization } from '../localization/useLocalization';
 import { useToasts } from '../toasts/useToasts';
@@ -58,6 +58,8 @@ export function usePassageChange(rewriter: PassageRewriter | null) {
     const { locale, translate } = useLocalization();
     const toasts = useToasts();
     const [change, setChange] = useState<PassageChange | null>(null);
+    // Whether a rewrite is in hand now, for the toast's *Undo*, which is pressed long after the render that raised it.
+    const inHand = useRef(false);
     const asked = useRef(0);
     const present = useRef(true);
 
@@ -68,6 +70,11 @@ export function usePassageChange(rewriter: PassageRewriter | null) {
             present.current = false;
         };
     }, []);
+
+    function standWith(next: PassageChange | null): void {
+        inHand.current = next !== null;
+        setChange(next);
+    }
 
     /** What a rewrite is called where it is named: its preset, or the words somebody typed, quoted. */
     function howSaid(how: RewriteHow, again: boolean): string {
@@ -126,7 +133,7 @@ export function usePassageChange(rewriter: PassageRewriter | null) {
 
         const ask = ++asked.current;
 
-        setChange({ passages, how, again, rewritten: null });
+        standWith({ passages, how, again, rewritten: null });
 
         const answer = await rewriter(request);
 
@@ -136,14 +143,14 @@ export function usePassageChange(rewriter: PassageRewriter | null) {
         }
 
         if (answer.outcome === 'failed') {
-            setChange(null);
+            standWith(null);
             refused(failureSaid[answer.failure.reason], 'error');
 
             return null;
         }
 
         if (answer.value.outcome !== 'rewritten') {
-            setChange(null);
+            standWith(null);
             refused(
                 answer.value.outcome === 'allowanceSpent' ? 'compose.draftAllowanceSpent' : 'rewrite.notRewritten',
                 'warning',
@@ -155,13 +162,13 @@ export function usePassageChange(rewriter: PassageRewriter | null) {
         const rewritten = answer.value.passages;
 
         if (rewritten.every((words, at) => words.trim() === passages[at]?.words.trim())) {
-            setChange(null);
+            standWith(null);
             toasts.raise({ kind: 'neutral', title: howSaid(how, again), body: translate('rewrite.nothingToChange') });
 
             return null;
         }
 
-        setChange({ passages, how, again, rewritten });
+        standWith({ passages, how, again, rewritten });
 
         return rewritten;
     }
@@ -169,7 +176,7 @@ export function usePassageChange(rewriter: PassageRewriter | null) {
     /** Lets go of the change in hand, and of any answer still on its way for it. */
     function settle(): void {
         asked.current++;
-        setChange(null);
+        standWith(null);
     }
 
     /**
@@ -186,7 +193,16 @@ export function usePassageChange(rewriter: PassageRewriter | null) {
             kind: 'success',
             title: translate('rewrite.keptTitle'),
             body: translate(inMessage ? 'rewrite.keptInMessage' : 'rewrite.keptInDraft', { how }),
-            action: { label: translate('rewrite.undo'), take: undo },
+            // A second rewrite in hand stands over the kept words, so undoing the first under it would leave the
+            // second's marks over nothing.
+            action: {
+                label: translate('rewrite.undo'),
+                take: () => {
+                    if (!inHand.current) {
+                        undo();
+                    }
+                },
+            },
         });
     }
 

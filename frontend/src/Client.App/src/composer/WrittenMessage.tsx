@@ -437,7 +437,9 @@ export function WrittenMessage({
     }, [linkHostsShown, translate]);
 
     function written(): void {
-        if (words.current !== null) {
+        // A rewrite in hand marks its passages in the words, the struck beside the new; nothing is read out of them
+        // until it is kept or undone, or what is saved would carry both.
+        if (words.current !== null && words.current.querySelector('[data-rewrite]') === null) {
             showTheLinksHosts();
             onWritten(writtenIn(words.current, addresses.pictureAt, drawingOfRegion(words.current)));
         }

@@ -2,7 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
-import { useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from 'react';
 import { Icon } from '../controls/Icon';
 import { useLocalization } from '../localization/useLocalization';
 import { useCoarsePointer, useWideWorkspace } from '../shell/useWideWorkspace';
@@ -44,6 +44,23 @@ function buttonPlace(box: SelectionBox, coarse: boolean, dockTop: number): CSSPr
         left: Math.max(edge, Math.min(box.endRight - size / 2, window.innerWidth - size - edge)),
         top: above < edge ? box.bottom + 4 : above,
     };
+}
+
+/**
+ * Keeps Tab inside the bar while it is open, from its last control round to its first and back. It is a dialog the
+ * page stays usable beside — the passage has to stay selected under it — so nothing makes the page inert, and the
+ * keyboard is kept by hand instead.
+ */
+function keepTheKeyboardInside(bar: HTMLElement, event: KeyboardEvent<HTMLElement>): void {
+    const controls = [...bar.querySelectorAll<HTMLElement>('button, input')];
+    const first = controls.at(0);
+    const last = controls.at(-1);
+    const leaving = event.shiftKey ? document.activeElement === first : document.activeElement === last;
+
+    if (leaving) {
+        event.preventDefault();
+        (event.shiftKey ? last : first)?.focus();
+    }
 }
 
 /** Where the bar stands: over the passage, above or below it by where it is, or docked across the surface's width. */
@@ -147,6 +164,10 @@ export function PassageRewriteBar({
                 if (event.key === 'Escape') {
                     event.stopPropagation();
                     onClose();
+                }
+
+                if (event.key === 'Tab') {
+                    keepTheKeyboardInside(event.currentTarget, event);
                 }
             }}
         >

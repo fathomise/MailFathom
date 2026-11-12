@@ -217,6 +217,13 @@ internal static class ClientReplyDraftingEndpoint
         [FromServices] MailReplyDrafting? drafting,
         CancellationToken cancellationToken)
     {
+        // The serializer leaves a list's elements as JSON wrote them, so a `null` among them is refused here rather
+        // than met as a fault while the passages are read.
+        if (request?.Passages?.Any(static passage => passage is null) is true)
+        {
+            return Refuse("Every passage names where it starts and how long it is.");
+        }
+
         DraftPassage[]? passages = request?.Passages is { } named
             ? [.. named.Select(static passage => new DraftPassage(passage.Start, passage.Length))]
             : null;

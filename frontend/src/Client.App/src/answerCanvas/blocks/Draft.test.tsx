@@ -604,6 +604,29 @@ describe('Draft, rewriting a selected part', () => {
         expect(screen.queryByText('rewritten with the agent')).toBeNull();
     });
 
+    it('leaves an edit made after the keep alone when the toast’s Undo is pressed', async () => {
+        renderDraft(
+            withTwoSentences(),
+            inConversation('pending'),
+            new Map(),
+            answeringWith(rewritten('The signed addendum is needed by Friday.')).rewriter,
+        );
+        openTheBar('signed addendum');
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite the selection: shorter' }));
+        fireEvent.click(await screen.findByRole('button', { name: /^Keep the rewritten text/ }));
+        fireEvent.click(screen.getByRole('button', { name: /^Edit here/ }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'Draft text' }), {
+            target: { value: 'We accept. The signed addendum is needed by Thursday.' },
+        });
+        fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+
+        expect(screen.getByRole('textbox', { name: 'Draft text' })).toHaveProperty(
+            'value',
+            'We accept. The signed addendum is needed by Thursday.',
+        );
+        expect(screen.queryByText('rewritten with the agent')).toBeNull();
+    });
+
     it('leaves the draft as it was on Undo', async () => {
         renderDraft(
             withTwoSentences(),

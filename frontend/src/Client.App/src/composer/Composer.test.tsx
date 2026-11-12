@@ -3294,8 +3294,8 @@ describe('Composer, rewriting a selected part of the message', () => {
         );
     }
 
-    function drawRewriting(rewriter: PassageRewriter): void {
-        drawComposer(
+    function drawRewriting(rewriter: PassageRewriter): ReturnType<typeof drawComposer> {
+        return drawComposer(
             { kind: 'new' },
             {},
             [work],
@@ -3342,8 +3342,10 @@ describe('Composer, rewriting a selected part of the message', () => {
         expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
     });
 
-    it('keeps the change as the message’s words', async () => {
-        drawRewriting(rewritingInto(['We accept the price.']).rewriter);
+    it('keeps the change as the message’s words, which are what a save then carries', async () => {
+        const { asked } = drawRewriting(rewritingInto(['We accept the price.']).rewriter);
+
+        address('ada@example.invalid');
         writeWords(written);
         rewriteShorter('the price');
         fireEvent.click(await screen.findByRole('button', { name: 'Keep the rewritten text in the message' }));
@@ -3351,6 +3353,72 @@ describe('Composer, rewriting a selected part of the message', () => {
         expect(wordsWritten()).toBe('Thanks for the offer. We accept the price.');
         expect(screen.getByRole('textbox', { name: 'Message' }).getAttribute('contenteditable')).toBe('true');
         expect(screen.getByRole('button', { name: 'Send' })).toBeDefined();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+        await waitFor(() => {
+            expect(asked.some((request) => request.method === 'POST')).toBe(true);
+        });
+        expect(
+            (JSON.parse(asked.find((request) => request.method === 'POST')?.body ?? '{}') as Record<string, unknown>)[
+                'plainTextBody'
+            ],
+        ).toBe('Thanks for the offer. We accept the price.');
+    });
+
+    it('puts the words before the rewrite back from the toast’s Undo', async () => {
+        drawRewriting(rewritingInto(['We accept the price.']).rewriter);
+        writeWords(written);
+        rewriteShorter('the price');
+        fireEvent.click(await screen.findByRole('button', { name: 'Keep the rewritten text in the message' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+
+        expect(wordsWritten()).toBe(written);
+    });
+
+    it('leaves words written since the keep alone when the toast’s Undo is pressed', async () => {
+        drawRewriting(rewritingInto(['We accept the price.']).rewriter);
+        writeWords(written);
+        rewriteShorter('the price');
+        fireEvent.click(await screen.findByRole('button', { name: 'Keep the rewritten text in the message' }));
+        writeWords('Thanks for the offer. We accept the price. See you on Tuesday.');
+        fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+
+        expect(wordsWritten()).toBe('Thanks for the offer. We accept the price. See you on Tuesday.');
+    });
+
+    it('says the allowance is spent rather than rewriting, and leaves the words as they were', async () => {
+        drawRewriting(() => Promise.resolve({ outcome: 'read', value: { outcome: 'allowanceSpent' } }));
+        writeWords(written);
+        rewriteShorter('the price');
+
+        expect(await screen.findByText(/The server has spent what it allows its writer for now/u)).toBeDefined();
+        expect(wordsWritten()).toBe(written);
+        expect(screen.getByRole('textbox', { name: 'Message' }).getAttribute('contenteditable')).toBe('true');
+    });
+
+    it('says a request that failed failed, and leaves the words as they were', async () => {
+        drawRewriting(() => Promise.resolve({ outcome: 'failed', failure: { reason: 'unavailable', status: 503 } }));
+        writeWords(written);
+        rewriteShorter('the price');
+
+        expect(
+            await screen.findByText('The server did not answer. What you wrote is kept here; try again.'),
+        ).toBeDefined();
+        expect(wordsWritten()).toBe(written);
+        expect(screen.getByRole('button', { name: 'Send' })).toBeDefined();
+    });
+
+    it('hands the keyboard back to the message when the bar is closed', () => {
+        drawRewriting(rewritingInto().rewriter);
+        writeWords(written);
+        selectInTheWords('the price');
+        fireEvent.click(screen.getByRole('button', { name: 'Rewrite this part with AI' }));
+        fireEvent.keyDown(screen.getByRole('dialog', { name: 'Rewrite the selected part of the message' }), {
+            key: 'Escape',
+        });
+
+        expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
     });
 
     it('puts the words back exactly as they were on Undo, formatting included', async () => {

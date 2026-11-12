@@ -7,8 +7,8 @@
 // The words are the document's rather than React's, so a rewrite cannot be laid over them from state without throwing
 // their formatting away. What it needs instead is to count: where a selection stands in the text, which whole sentences
 // it touches there, and which stretch of the document each of those sentences is — however many runs of bold, links
-// and colour it crosses. Every block — a paragraph, a list item, a quote, a table cell — and every line break starts a
-// line, so the sentences of two paragraphs are never read as one.
+// and colour it crosses. Every block — a paragraph, a list item, a quote, a table cell — every line break, and every
+// picture starts a line, so the sentences of two paragraphs are never read as one and no sentence holds a picture.
 
 const blocks = new Set([
     'P',
@@ -69,6 +69,14 @@ export function regionText(region: HTMLElement): RegionText {
         }
 
         if (node instanceof HTMLBRElement) {
+            text += '\n';
+
+            return;
+        }
+
+        // A picture stands on a line of its own here, so no sentence read around it can take it into a rewrite.
+        if (node instanceof HTMLImageElement) {
+            breakLine();
             text += '\n';
 
             return;
