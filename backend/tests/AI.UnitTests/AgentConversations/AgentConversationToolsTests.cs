@@ -38,6 +38,7 @@ using MailFathom.Application.Mail.Delivery.Authoring;
 using MailFathom.Application.Mail.Delivery.Footers;
 using MailFathom.Application.Observability;
 using MailFathom.Application.Persistence;
+using MailFathom.Application.Retrieval;
 using MailFathom.Application.Retrieval.AskMail;
 using MailFathom.Application.SensitiveContent;
 using MailFathom.Application.SensitiveContent.Egress;
@@ -1639,6 +1640,68 @@ public sealed class AgentConversationToolsTests : IAsyncDisposable
         // Assert
         Assert.Equal("That file is already in your answer.", answer?.ToString());
         Assert.Single(this.written.OfType<AgentBlockComposed>());
+    }
+
+    /// <summary>A file a search returned an extract from was shown as surely as one a reading named, so it may be handed over too.</summary>
+    [Fact]
+    public async Task OfferAttachment_AFileOnlyASearchShowed_PlacesThatFile()
+    {
+        // Arrange
+        var (reader, message) = ReadingOneMessage("The lease and its schedule.", Pdf("lease.pdf"), Pdf("schedule.pdf"));
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            contentReader: reader);
+        await this.SearchingFindsAnExtractOf(message, 1);
+
+        // Act
+        await this.CreatedTool(AgentConversationTools.OfferAttachmentToolName)
+            .InvokeAsync(OfferingAttachment(message, 1), TestContext.Current.CancellationToken);
+
+        // Assert
+        var block = Assert.IsType<FileBlock>(Assert.Single(this.written.OfType<AgentBlockComposed>()).Block);
+
+        Assert.Equal((1, "schedule.pdf"), (block.AttachmentPosition, block.Name?.Value));
+    }
+
+    /// <summary>
+    /// A file a search showed on a message the person can no longer read is answered as unreadable and placed nowhere,
+    /// so the offer is held to the grant at the moment it is made rather than to what the run saw earlier.
+    /// </summary>
+    [Fact]
+    public async Task OfferAttachment_AShownFileOnAMessageNoLongerReadable_AnswersUnreadableAndPlacesNothing()
+    {
+        // Arrange
+        var (reader, _) = ReadingOneMessage("Another message entirely.", Pdf("contract.pdf"));
+        this.tools = this.Tools(
+            AccessAuthorizations.ForCallerGranted(MailFathomPermission.MailRead),
+            SensitiveContentEgressGuards.Inactive(),
+            contentReader: reader);
+        var withdrawn = StoredEmailId.Create(Guid.CreateVersion7());
+        await this.SearchingFindsAnExtractOf(withdrawn, 0);
+
+        // Act
+        var answer = await this.CreatedTool(AgentConversationTools.OfferAttachmentToolName)
+            .InvokeAsync(OfferingAttachment(withdrawn, 0), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("No message with that id is readable here.", answer?.ToString());
+        Assert.Empty(this.written.OfType<AgentBlockComposed>());
+    }
+
+    /// <summary>Runs a search whose one passage carries an extract of the file at the given position on the given message.</summary>
+    private async Task SearchingFindsAnExtractOf(StoredEmailId message, int position)
+    {
+        this.knowledgeSearch.Returning(
+            "lease schedule",
+            KnowledgePassages.Create(
+                "The schedule lists the parking bays.",
+                Guid.Parse(message.ToString()),
+                attachmentExtracts: new EmailKnowledgeAttachmentExtract(position, "schedule.pdf", AttachmentTextKind.Document, Segment: null, "parking bays")));
+
+        await this.CreatedTool(ScopedMailKnowledgeRetrieval.SearchToolName).InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?> { [ScopedMailKnowledgeRetrieval.QueryArgumentName] = "lease schedule" }),
+            TestContext.Current.CancellationToken);
     }
 
     private static AIFunctionArguments ReadingMessage(StoredEmailId message, int? from = null) =>
