@@ -51,7 +51,7 @@ public sealed record PresentationPlan
     /// version instead, which is why the two numbers exist separately. It moves independently of the application's
     /// version, and a release that changes neither leaves it where it is.
     /// </remarks>
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
 
     /// <summary>The greatest number of blocks one plan may hold.</summary>
     /// <remarks>

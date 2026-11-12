@@ -30,7 +30,14 @@ import { deploymentCredentials } from './sendToDeployment';
 
 /** What happened to a download, where an expected failure is a value rather than an exception. */
 export type AttachmentDeliveryOutcome =
-    'delivered' | 'abandoned' | 'unauthenticated' | 'unauthorized' | 'unavailable' | 'screened' | 'largerThanDescribed';
+    | 'delivered'
+    | 'abandoned'
+    | 'unauthenticated'
+    | 'unauthorized'
+    | 'missing'
+    | 'unavailable'
+    | 'screened'
+    | 'largerThanDescribed';
 
 /**
  * Why a file could not be shown.
@@ -108,7 +115,7 @@ export interface AttachmentExchange {
 /**
  * Which failure a download amounts to, for the record `Client.Backend` keeps of the request it composed.
  *
- * Three of the seven are not failures of the request. A delivered file plainly is not, and neither is a download
+ * Three of the eight are not failures of the request. A delivered file plainly is not, and neither is a download
  * somebody stopped: it ended because the person asked it to, and recording that as `unavailable` would put their change
  * of mind in the dimension an operator reads for a deployment that is not answering. Nor is a file the deployment
  * screened: it answered exactly as it meant to, and counting a working policy as a fault would report a deployment as
@@ -125,6 +132,7 @@ export function deliveryFailureOf(outcome: AttachmentDeliveryOutcome): ClientFai
             return 'unreadable';
         case 'unauthenticated':
         case 'unauthorized':
+        case 'missing':
         case 'unavailable':
             return outcome;
     }

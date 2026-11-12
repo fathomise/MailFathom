@@ -85,7 +85,7 @@ describe('attachmentRefusalForStatus', () => {
     it.each([
         [401, 'unauthenticated'],
         [403, 'unauthorized'],
-        [404, 'unavailable'],
+        [404, 'missing'],
         [409, 'screened'],
         [500, 'unavailable'],
         [503, 'unavailable'],

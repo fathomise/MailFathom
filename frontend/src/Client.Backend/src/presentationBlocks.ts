@@ -235,6 +235,36 @@ export interface AttachmentEntry {
     readonly availability: AttachmentAvailability;
 }
 
+/**
+ * One file an answer hands the person, named by the message it arrived on and its place among that message's files.
+ *
+ * Nothing of the file travels with it. What a screen downloads is the message's own attachment, asked for under the
+ * reader's grant at the moment they ask, so a message removed or withheld since the answer was written answers as no
+ * file at all — which is a reading the download makes rather than one this description could.
+ */
+export interface AnswerFile {
+    /** The source resolving to the message the file arrived on, as the answer declared it. */
+    readonly source: string;
+
+    /** The file's place in the order the message's attachments are read in, counted from zero. */
+    readonly attachmentPosition: number;
+
+    /** The name the sender gave the file, and `null` where they gave it none. */
+    readonly name: string | null;
+
+    /** The media type the message declared. It chooses a word, never a way to open. */
+    readonly mediaType: string;
+
+    /** How large the message says the file is, which is the bound a download of it is read under. */
+    readonly sizeOctets: number;
+
+    /** Who sent the message, by the name its sender header carries or else the address, and `null` where it names nobody. */
+    readonly sender: string | null;
+
+    /** When the message says it was sent, as the service wrote the instant, and `null` where it says nothing. */
+    readonly sentAt: string | null;
+}
+
 /** Somebody the correspondence names, by the name a reader recognizes and the address a client may act on. */
 export interface BlockParticipant {
     /** The name a reader recognizes them by, which is never used as an identity. */
@@ -818,6 +848,38 @@ function parseAttachmentEntry(value: unknown): AttachmentEntry | null {
         : null;
 }
 
+/** A file an answer hands the person, or `null` where what arrived is not one this client can offer. */
+export function parseAnswerFile(value: unknown): AnswerFile | null {
+    const record = asRecord(value);
+    if (record === null) {
+        return null;
+    }
+
+    const source = parseCitationId(record['source']);
+    const mediaType = parseText(record['mediaType']);
+    const name = parseStatedText(record['name']);
+    const sender = parseStatedText(record['sender']);
+    const sentAt = parseStatedInstant(record['sentAt']);
+    const attachmentPosition = record['attachmentPosition'];
+    const sizeOctets = record['sizeOctets'];
+
+    if (source === null || mediaType === null || name === null || sender === null || sentAt === null) {
+        return null;
+    }
+
+    return isCount(attachmentPosition) && isCount(sizeOctets)
+        ? {
+              source,
+              attachmentPosition,
+              name: name.text,
+              mediaType,
+              sizeOctets,
+              sender: sender.text,
+              sentAt: sentAt.at,
+          }
+        : null;
+}
+
 function parsePersonEntry(value: unknown): PersonEntry | null {
     const record = asRecord(value);
     if (record === null) {
@@ -1084,6 +1146,21 @@ function parseStatedInstant(value: unknown): { readonly at: string | null } | nu
     const at = parseInstant(value);
 
     return at === null ? null : { at };
+}
+
+/** A text the correspondence may legitimately not have stated, told apart from one stated wrongly as `parseStatedInstant` does. */
+function parseStatedText(value: unknown): { readonly text: string | null } | null {
+    if (value === undefined || value === null) {
+        return { text: null };
+    }
+
+    const text = parseText(value);
+
+    return text === null ? null : { text };
+}
+
+function isCount(value: unknown): value is number {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 function parseCitationIds(value: unknown, most: number): readonly string[] | null {

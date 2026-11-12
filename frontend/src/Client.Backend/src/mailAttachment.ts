@@ -86,7 +86,7 @@ export function readMailAttachment<TOutcome>(
  * an answer that did not hold what the message said it would.
  */
 export type MailAttachmentRefusal =
-    'unauthenticated' | 'unauthorized' | 'unavailable' | 'screened' | 'largerThanDescribed';
+    'unauthenticated' | 'unauthorized' | 'missing' | 'unavailable' | 'screened' | 'largerThanDescribed';
 
 /**
  * The refusal an HTTP status stands for, for a status this package did not expect to succeed.
@@ -97,6 +97,11 @@ export type MailAttachmentRefusal =
  * reached — so a way to ask again belongs on the screen, and a second attempt may well be served. Nothing about which
  * of the four it was is on the wire and nothing is read off the body: the deployment deliberately says only that it
  * screened the file.
+ *
+ * `404` is `missing` rather than `unavailable` for the reason this route names one file: it is the deployment's single
+ * answer for a message this reader does not hold, one removed since it was described, and a position naming no file —
+ * none of which a second attempt changes — while `unavailable` is a deployment that did not answer and may next time.
+ * A surface describing a file it cannot re-read, such as an answer handing one over, lets go of it on `missing`.
  */
 export function attachmentRefusalForStatus(status: number): MailAttachmentRefusal {
     switch (status) {
@@ -104,6 +109,8 @@ export function attachmentRefusalForStatus(status: number): MailAttachmentRefusa
             return 'unauthenticated';
         case 403:
             return 'unauthorized';
+        case 404:
+            return 'missing';
         case 409:
             return 'screened';
         default:

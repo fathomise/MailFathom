@@ -4,7 +4,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AnswerBlock, BlockEvidence } from '@mailfathom/client-backend';
+import { understoodPlanSchemaVersion, type AnswerBlock, type BlockEvidence } from '@mailfathom/client-backend';
 import { LocalizationProvider } from '../localization/Localization';
 import { ToastsProvider } from '../toasts/Toasts';
 import { AnswerCanvas } from './AnswerCanvas';
@@ -231,7 +231,7 @@ describe('AnswerCanvas', () => {
     });
 
     it('says a plan written against a newer revision was drawn as far as it went', () => {
-        renderCanvas([arrival(1, 'evidenceList')], { planSchemaVersion: 4 });
+        renderCanvas([arrival(1, 'evidenceList')], { planSchemaVersion: understoodPlanSchemaVersion + 1 });
 
         expect(
             screen.getByText(
@@ -241,7 +241,7 @@ describe('AnswerCanvas', () => {
         expect(screen.getByText('evidenceList')).toBeDefined();
     });
 
-    it.each([3, 2, 1, null])('says nothing about a plan at revision %s', (planSchemaVersion) => {
+    it.each([understoodPlanSchemaVersion, 1, null])('says nothing about a plan at revision %s', (planSchemaVersion) => {
         renderCanvas([arrival(1, 'evidenceList')], { planSchemaVersion });
 
         expect(screen.queryByText(/needs a newer version of the app/u)).toBeNull();

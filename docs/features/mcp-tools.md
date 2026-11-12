@@ -2047,7 +2047,7 @@ goes to, the `host` as a person reads it and `asciiHost` where its ASCII form di
 words the link shows name a different host, and `appearsInCitedEmails`, which is false where no retrieved email carries
 the address — a link the model wrote, or one a message asked it to write. A caller showing the answer to a person shows
 those facts beside the link. A link past the thirty-second, or one written in a form the service's reading does not
-recognise, has no entry, and the client draws such a link as the least trusted it can: as one no cited email carries. [The presentation plan § The eleven block types](presentation-plan.md#the-eleven-block-types)
+recognise, has no entry, and the client draws such a link as the least trusted it can: as one no cited email carries. [The presentation plan § The twelve block types](presentation-plan.md#the-twelve-block-types)
 holds the rule, which Discover and the Agent apply to their answers too.
 
 Each citation carries the `storedEmailId` a content read is performed by, the account identifier and the display name it

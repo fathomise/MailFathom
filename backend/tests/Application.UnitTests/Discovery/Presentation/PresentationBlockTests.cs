@@ -4,6 +4,7 @@
 
 using MailFathom.Application.Discovery.Presentation;
 using MailFathom.Application.Discovery.Presentation.Blocks;
+using MailFathom.Application.Discovery.Presentation.Citations;
 using MailFathom.Domain.Emails;
 using Xunit;
 
@@ -326,4 +327,42 @@ public sealed class PresentationBlockTests
         // Act, Assert
         Assert.Equal([PresentationPlanExample.SecondCitation], block.ReferencedCitations);
     }
+
+    /// <summary>A file names the message it arrived on, or there is nothing a download could be held to.</summary>
+    [Fact]
+    public void FileBlock_AnUnspecifiedSource_IsRefused()
+    {
+        // Act, Assert
+        Assert.Throws<ArgumentException>(() => FileFrom(source: default, attachmentPosition: 0));
+    }
+
+    /// <summary>A position counts a message's attachments from zero, so one below it names no file.</summary>
+    [Fact]
+    public void FileBlock_ANegativePosition_IsRefused()
+    {
+        // Act, Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => FileFrom(PresentationPlanExample.FirstCitation, attachmentPosition: -1));
+    }
+
+    /// <summary>A file names the message it arrived on beside what the block rests on, and the plan checks both.</summary>
+    [Fact]
+    public void ReferencedCitations_AFile_IncludesTheMessageItArrivedOn()
+    {
+        // Arrange
+        var block = FileFrom(PresentationPlanExample.SecondCitation, attachmentPosition: 2);
+
+        // Act, Assert
+        Assert.Equal([PresentationPlanExample.SecondCitation], block.ReferencedCitations);
+    }
+
+    private static FileBlock FileFrom(PresentationCitationId source, int attachmentPosition) =>
+        new(
+            PresentationEvidence.Unsupported(PresentationFreshness.Unknown),
+            source,
+            attachmentPosition,
+            name: null,
+            PresentationPlanExample.Text("application/pdf"),
+            sizeOctets: 1L,
+            sender: null,
+            sentAt: null);
 }

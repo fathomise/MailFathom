@@ -2281,6 +2281,14 @@ and so is one whose stored content is missing or damaged: nothing in the answer 
 that never existed or from this deployment's own defect. A credential whose grant does not carry `mailfathom.mail.read`
 is answered `403`, as everywhere else on this surface.
 
+**A file the Agent hands over is downloaded through this same route.** An Agent answer's `file` block names the message
+a file arrived on and its position there, and nothing else about the file was kept when the answer was written — so the
+client asks here, under the reader's grant at the moment they press, exactly as the mail screen does. The `404` above is
+what lets the card turn to its gone state: a message removed since the answer, one no longer the reader's to open, and a
+file no longer stored all answer it, and pressing again would change none of them, while every other refusal leaves the
+card offered. [The presentation plan](../features/presentation-plan.md#the-twelve-block-types) holds what the block
+carries.
+
 **It is served from the local copy.** Nothing here contacts a mail server, so downloading a file cannot fetch a message
 and cannot set the remote `\Seen` flag.
 

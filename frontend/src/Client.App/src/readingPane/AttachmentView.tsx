@@ -50,6 +50,7 @@ const failureMessages: Readonly<Record<ShowingRefusal, MessageKey>> = {
     abandoned: 'attachment.notShownUnavailable',
     unauthenticated: 'attachment.notShownUnauthenticated',
     unauthorized: 'attachment.notShownUnauthorized',
+    missing: 'attachment.notShownUnavailable',
     unavailable: 'attachment.notShownUnavailable',
     screened: 'attachment.notShownScreened',
     largerThanDescribed: 'attachment.notShownUnreadable',
@@ -277,8 +278,9 @@ function Inside({
                     attempt. A screened refusal is the second because two of the four causes behind it are transient —
                     a read that ran past the extraction timeout, and a scanner that could not answer — and the service
                     deliberately does not say which of the four it was, so a person meeting a momentary one with no
-                    way on would be told to stop over something that would work in a minute. */}
-                {answer.refusal === 'unavailable' || answer.refusal === 'screened' ? (
+                    way on would be told to stop over something that would work in a minute. A file the deployment no
+                    longer holds is worded and offered as it was before a download could tell it apart. */}
+                {answer.refusal === 'unavailable' || answer.refusal === 'missing' || answer.refusal === 'screened' ? (
                     <SecondaryButton
                         label={translate('connection.retry')}
                         onActivate={() => {

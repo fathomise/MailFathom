@@ -3,7 +3,7 @@
 // Project repository: https://github.com/fathomise/MailFathom
 
 import { workAccount } from './deployment';
-import { newsletterId } from './messages';
+import { attachedOctets, newsletterId } from './messages';
 
 // Two conversations with the Agent, as `/api/client` serves them: the history listing both, one conversation that was
 // asked something and answered, and one whose answer is still being composed. It is what the Agent screen is looked at
@@ -12,7 +12,8 @@ import { newsletterId } from './messages';
 // **The answered conversation cites a message this corpus already holds**, so following its citation reaches the
 // reading pane rather than a message nothing can read. It also proposes an event, a task, a reply and a step in the
 // mailbox — every kind of proposal the client draws — the task already accepted, so the proposal cards are looked at
-// both waiting on somebody and answered. The one still composing has said what it is doing and drawn nothing yet, which
+// both waiting on somebody and answered — and it hands over the one file that message carries, so the card an answer's
+// file is drawn as can be looked at and pressed. The one still composing has said what it is doing and drawn nothing yet, which
 // is the state the status line exists for and none of the other screens can show.
 //
 // **Its answer is Markdown, and part of it is somebody else's.** A model writes structure — a list, an emphasis — and it
@@ -246,13 +247,31 @@ const answeredEntries = [
     {
         sequence: 10,
         entry: {
+            entry: 'block',
+            messageId: answeredQuestionId,
+            block: {
+                type: 'file',
+                evidence: { support: 'Cited', citations: ['c-1'], freshness: current },
+                source: 'c-1',
+                attachmentPosition: 0,
+                name: 'orders.csv',
+                mediaType: 'text/csv',
+                sizeOctets: attachedOctets.length,
+                sender: 'Example',
+                sentAt: '2026-08-31T09:41:00+00:00',
+            },
+        },
+    },
+    {
+        sequence: 11,
+        entry: {
             entry: 'answerEnded',
             messageId: answeredQuestionId,
             outcome: 'Completed',
             followUps: ['Who confirmed the bays?', 'Draft a reply asking to hold them another week'],
         },
     },
-    { sequence: 11, entry: { entry: 'resolution', proposedAt: 7, state: 'Accepted' } },
+    { sequence: 12, entry: { entry: 'resolution', proposedAt: 7, state: 'Accepted' } },
 ];
 
 const composingEntries = [

@@ -13,12 +13,12 @@ namespace MailFathom.Application.UnitTests.Discovery.Presentation;
 /// <summary>Covers the closed catalogue of block types, and that the wire and the code agree about it.</summary>
 public sealed class PresentationBlockTypeTests
 {
-    /// <summary>Eleven is the catalogue, and a twelfth is a decision rather than an addition somebody made in passing.</summary>
+    /// <summary>Twelve is the catalogue, and a thirteenth is a decision rather than an addition somebody made in passing.</summary>
     [Fact]
-    public void All_TheCatalogue_HoldsTheElevenDeclaredTypes()
+    public void All_TheCatalogue_HoldsTheTwelveDeclaredTypes()
     {
         // Act, Assert
-        Assert.Equal(11, PresentationBlockType.All.Count);
+        Assert.Equal(12, PresentationBlockType.All.Count);
     }
 
     [Fact]

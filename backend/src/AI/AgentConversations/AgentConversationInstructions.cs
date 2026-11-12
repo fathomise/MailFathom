@@ -109,6 +109,14 @@ internal static class AgentConversationInstructions
         model's account of a picture, so say so where your answer rests on one. A spreadsheet is read as its leading
         rows: say that your answer covers the rows you read, and never total or average its columns.
 
+        When the person asks for a file a message carries — a document somebody sent, an invoice, the signed copy — or
+        your answer rests on one, hand it to them with {AgentConversationTools.OfferAttachmentToolName}, so they download
+        it from your answer rather than going to find the message. Offer only a file a conversation reading, a search, or
+        a reading of the file showed you, and only the one meant: where a message carries several, offer the file the
+        person asked about, not all of them. Offering a file is not a statement about its contents: say what it holds
+        only from what you read of it, and never say you read a file you only offered. Where no message you were shown
+        carries the file asked for, say so rather than offering another.
+
         A message marked {AgentTurnDocument.UnsentAttributeName} is not known to have reached anybody, whatever it says:
         {AgentTurnDocument.UnsentAttributeName}="{AgentTurnDocument.DraftUnsent}" is a draft nobody has asked to send,
         "{AgentTurnDocument.ScheduledUnsent}" is a send held until a time still ahead,

@@ -2,6 +2,7 @@
 // Licensed under the GNU Affero General Public License, Version 3. See LICENSE in the project root for license information.
 // Project repository: https://github.com/fathomise/MailFathom
 
+using System.Globalization;
 using MailFathom.AI.AgentConversations;
 using MailFathom.AI.Chat;
 using MailFathom.AI.Retrieval;
@@ -671,6 +672,50 @@ public sealed class AgentConversationScenarioTests : IDisposable
         Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.CarriesEvidenceMetricName).Value);
     }
 
+    /// <summary>A message carrying three files means one of them, so a run handing over another, or all three, or none, is caught by the file check.</summary>
+    [Theory]
+    [InlineData("2", true)]
+    [InlineData("0", false)]
+    [InlineData("0 1 2", false)]
+    [InlineData("", false)]
+    public async Task RunAsync_OneOfSeveralFilesOfferedOrNot_PassesTheFileCheckOnlyWhereItOfferedTheOneMeant(string positions, bool passes)
+    {
+        // Arrange
+        var documents = LongMail.CompletionDocuments[0].Id.ToString();
+        using var model = new ScriptedAgentChatClient(
+            [
+                ReadThread(documents),
+                .. positions.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(position => Offer(documents, int.Parse(position, CultureInfo.InvariantCulture))),
+            ],
+            "Here is the buildings insurance certificate Clara sent with the completion documents.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.File.OneOfSeveral"), model);
+
+        // Assert
+        Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.OffersTheFileMeantMetricName).Value);
+    }
+
+    /// <summary>No message holds the signed copy, so a run handing over the unsigned lease in its place is caught by the file check.</summary>
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task RunAsync_AFileNoMessageCarries_PassesTheFileCheckOnlyWhereNothingIsOffered(bool offersTheLease, bool passes)
+    {
+        // Arrange
+        var lease = LongMail.Lease[0].Id.ToString();
+        using var model = new ScriptedAgentChatClient(
+            [ReadThread(lease), .. offersTheLease ? new[] { Offer(lease, 0) } : []],
+            "No message carries a signed copy of the Harbour Lane lease: Clara sent the final text for signature and asked for the signed copy back.");
+
+        // Act
+        var verdict = await this.RunAsync(Named("Agent.File.NoMessageCarriesIt"), model);
+
+        // Assert
+        Assert.Equal(passes, verdict.Get<BooleanMetric>(AgentConversationScenario.OffersTheFileMeantMetricName).Value);
+    }
+
     /// <summary>A question about the latest mail is answered from the timeline, so a run that only searched the mail is caught by the tool check.</summary>
     [Theory]
     [InlineData(true)]
@@ -1033,6 +1078,9 @@ public sealed class AgentConversationScenarioTests : IDisposable
             ["allDay"] = allDay,
             ["messageId"] = null,
         });
+
+    private static (string Tool, IDictionary<string, object?> Arguments) Offer(string messageId, int attachment) =>
+        (AgentConversationTools.OfferAttachmentToolName, new Dictionary<string, object?> { ["messageId"] = messageId, ["attachment"] = attachment });
 
     private static (string Tool, IDictionary<string, object?> Arguments) ReadThread(string messageId) =>
         ("read_thread", new Dictionary<string, object?> { ["messageId"] = messageId });

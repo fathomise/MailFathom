@@ -179,6 +179,20 @@ public sealed class AgentConversationInstructionsTests
         Assert.Contains("say how many messages you read and that more exist", text, StringComparison.Ordinal);
     }
 
+    /// <summary>A file is handed over when it is asked for or the answer rests on it, only the one meant, and handing it over says nothing about what it holds.</summary>
+    [Fact]
+    public void TextFor_TheInstruction_OffersTheFileMeantAndStatesNothingByOfferingIt()
+    {
+        // Act
+        var text = string.Join(' ', AgentConversationInstructions.TextFor(UserLanguage.English).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Assert
+        Assert.Contains($"or your answer rests on one, hand it to them with {AgentConversationTools.OfferAttachmentToolName}", text, StringComparison.Ordinal);
+        Assert.Contains("offer the file the person asked about, not all of them", text, StringComparison.Ordinal);
+        Assert.Contains("Offering a file is not a statement about its contents", text, StringComparison.Ordinal);
+        Assert.Contains("Where no message you were shown carries the file asked for, say so rather than offering another.", text, StringComparison.Ordinal);
+    }
+
     /// <summary>No sample of mail is the mailbox, so a figure or a census is counted, a figure one message states is still searched, and an answer resting on a count says what it covers and cites no message.</summary>
     [Fact]
     public void TextFor_TheInstruction_CountsAFigureAndSaysWhatItCovers()

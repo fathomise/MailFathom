@@ -95,6 +95,9 @@ internal sealed record AgentConversationScenario(
     /// <summary>The check that the run proposed exactly what was asked, and nothing where nothing was.</summary>
     public const string ProposesOnlyWhatWasAskedMetricName = "Proposes only what was asked";
 
+    /// <summary>The check that the run handed the person exactly the files the question meant, and none where it meant none.</summary>
+    public const string OffersTheFileMeantMetricName = "Offers the file meant";
+
     /// <summary>The check that the answer carries what only the conversation itself settled.</summary>
     public const string KeepsWhatTheConversationSettledMetricName = "Keeps what the conversation settled";
 
@@ -148,6 +151,7 @@ internal sealed record AgentConversationScenario(
             AgentConversationTools.ReadThreadToolName,
             AgentConversationTools.ReadMessageToolName,
             AgentConversationTools.ReadAttachmentToolName,
+            AgentConversationTools.OfferAttachmentToolName,
             "show_thread_state",
             "read_calendar",
             "read_tasks",
@@ -1374,7 +1378,11 @@ internal sealed record AgentConversationScenario(
             "How much notice does the break clause in the Harbour Lane lease Clara sent require, and on what date can we break?",
             UserLanguage.English,
             ["nine months", "31 March 2029"],
-            LeaseSubject),
+            LeaseSubject)
+        {
+            // Nobody asked for the file, but the answer rests on it, so the lease is handed over beside the answer.
+            Offers = [LongMail.LeaseFile],
+        },
         new(
             "Agent.Long.WholeDocumentPastTheCeiling",
 
@@ -1386,6 +1394,7 @@ internal sealed record AgentConversationScenario(
         {
             Conversation = LongMail.Lease,
             Calls = [AgentConversationTools.ReadAttachmentToolName],
+            Offers = [LongMail.LeaseFile],
         },
         new(
             "Agent.Long.UnreadAttachmentIsNamed",
@@ -1405,7 +1414,48 @@ internal sealed record AgentConversationScenario(
             "How many cartons did the signed delivery note for order QS-30418 record, and who signed for them?",
             UserLanguage.English,
             ["42", "Okafor"],
-            ["QS-30418", "delivery", "note", "carton", "Quayside", "paper", "damage", "sign", "Okafor", "DN-58213"]),
+            ["QS-30418", "delivery", "note", "carton", "Quayside", "paper", "damage", "sign", "Okafor", "DN-58213"])
+        {
+            Offers = [LongMail.DeliveryNotePhoto],
+        },
+
+        // These ask for a file itself: one named outright, one of three a message carries, and one no message holds.
+        new(
+            "Agent.File.NamedDocument",
+
+            // The person asks for the document rather than about it, so the answer is the file and little else.
+            "Can you give me the Harbour Lane lease Clara sent? I need the file itself.",
+            UserLanguage.English,
+            [],
+            LeaseSubject)
+        {
+            Calls = [AgentConversationTools.OfferAttachmentToolName],
+            Offers = [LongMail.LeaseFile],
+        },
+        new(
+            "Agent.File.OneOfSeveral",
+
+            // The message carries the completion statement, the key schedule, and the certificate; only one is meant.
+            "Send me the insurance certificate from Clara's Harbour Lane completion documents.",
+            UserLanguage.English,
+            [],
+            [.. LeaseSubject, "completion", "insurance", "certificate", "key", "statement"])
+        {
+            Calls = [AgentConversationTools.OfferAttachmentToolName],
+            Offers = [LongMail.InsuranceCertificate],
+        },
+        new(
+            "Agent.File.NoMessageCarriesIt",
+
+            // Clara asked for the signed copy back and nobody sent one, so the unsigned final text is not a stand-in.
+            "Give me the signed copy of the Harbour Lane lease.",
+            UserLanguage.English,
+            [],
+            [.. LeaseSubject, "signed", "copy", "final"])
+        {
+            Offers = [],
+        },
+
         // How far a run goes. An automatic run answers a question a few messages settle without going deep; goes deep
         // when the person asks for a complete answer, or when the reading turns out to need more than a quick answer
         // reads; and never ends at the fast limit without having asked. A fast run that cannot read enough stops and
@@ -1486,6 +1536,10 @@ internal sealed record AgentConversationScenario(
 
     /// <summary>Gets the proposals the question asks for, each as <see cref="DescriptionOf" /> states it, in any order; none where it asks for none.</summary>
     public IReadOnlyList<string> Proposes { get; init; } = [];
+
+    /// <summary>Gets the names of the files the answer has to hand the person, in any order; none where it must hand over none, and <see langword="null" /> where the case holds the run to nothing about files.</summary>
+    /// <remarks>Read off the file blocks the run placed rather than off its prose, because the card is the handing over: an answer that names a file without placing it has given the person nothing to download.</remarks>
+    public IReadOnlyList<string>? Offers { get; init; }
 
     /// <summary>Gets phrases no proposal may carry, because a later turn took them out of the request.</summary>
     /// <remarks>Read off the proposals alone: an answer may well name what it left out, and saying so is no shortfall.</remarks>
@@ -2088,6 +2142,25 @@ internal sealed record AgentConversationScenario(
                 LookedUpMetricName,
                 lookups > 0,
                 lookups > 0 ? $"The Agent made {lookups} lookup(s)." : "The Agent answered without looking anything up.");
+        }
+
+        if (this.Offers is { } meant)
+        {
+            var offered = written.OfType<AgentBlockComposed>()
+                .Select(static composed => composed.Block)
+                .OfType<FileBlock>()
+                .Select(static file => file.Name?.Value ?? string.Empty)
+                .Order(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var offeredAsMeant = offered.SequenceEqual(meant.Order(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+
+            EvaluationMetrics.Record(
+                verdict,
+                OffersTheFileMeantMetricName,
+                offeredAsMeant,
+                offeredAsMeant
+                    ? $"The Agent offered {(offered.Count is 0 ? "no file" : string.Join(", ", offered))}, as the question meant."
+                    : $"The Agent offered {(offered.Count is 0 ? "no file" : string.Join(", ", offered))}, where the question meant {(meant.Count is 0 ? "none" : string.Join(", ", meant))}.");
         }
 
         if (this.Withdrawn.Count > 0)

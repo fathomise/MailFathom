@@ -290,6 +290,23 @@ top, and the Agent is told to say its answer covers the rows it read and never t
 page is scanned at `ChatPrompt` before it leaves, is declared as mail the answer was shown so it can be cited, and is
 spent from the run's retrieved-character ceiling below; a page past what the run may still send is cut there and says so.
 
+### The Agent hands a file to the person
+
+`offer_attachment` places a file a message carries in the answer as a card the person downloads it from, so they get
+the document rather than being told where to find it. It names a message and the file's position on it, and it is
+refused unless the run was shown that very file — by `read_thread`'s `<attached-file>`, by `read_attachment`, or by an
+extract a search returned from it — so a position the model guessed places nothing. A message the person can no longer
+read is answered as unreadable, and the same file offered twice is one card.
+
+What it writes is a `file` block citing the message, carrying the name, the type, the size, the sender, and when it was
+sent as the message stated them, and nothing of the file itself: the person downloads it through
+[the client's attachment route](../operations/client-endpoint.md#the-attachment-route) under their own grant when they
+press, so a message removed or withheld since answers as gone rather than as a copy the answer kept. The tool reads no
+file, so offering one says nothing about what it holds, and the instruction tells the Agent so: it offers a file when
+the person asked for it or the answer rests on it, offers only the one meant where a message carries several, says
+what a file holds only from what it read of it, and says no message it was shown carries a file rather than offering
+another.
+
 ## What one question may spend
 
 A run is a conversation rather than a call, and its length is the model's decision: it asks for mail, reads what comes
@@ -782,7 +799,7 @@ The answer text, the links it writes, and the passages the run retrieved. The pa
 what make it checkable: each names a message that can then be fetched whole.
 
 The text is published with its picture markup neutralised and every link in it judged, on the rule
-[the presentation plan](presentation-plan.md#the-eleven-block-types) states for an answer block: a link carries what
+[the presentation plan](presentation-plan.md#the-twelve-block-types) states for an answer block: a link carries what
 `MailLinkReader` established about it and whether any retrieved passage or attachment extract carries its address. The
 pictures are neutralised after the sensitive-content scanner below, because its placeholder opens with a bracket and a
 mark the model wrote in front of a detected value would otherwise make it a picture, and before the cut to what one

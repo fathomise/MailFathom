@@ -127,6 +127,9 @@ internal sealed class AgentConversationTools
     /// <summary>Names the tool that reads a conversation.</summary>
     internal const string ReadThreadToolName = "read_thread";
 
+    /// <summary>Names the tool that hands the person one file a message carries.</summary>
+    internal const string OfferAttachmentToolName = "offer_attachment";
+
     /// <summary>What the model is told once the run's ceiling on retrieved mail leaves nothing for another page.</summary>
     private const string CeilingReachedStatement =
         "This run may read no more mail: its ceiling on retrieved text is spent. Answer from what you have read, and say "
@@ -168,6 +171,18 @@ internal sealed class AgentConversationTools
         + "read answers with the reason instead. To find one clause in a long file, search the message with "
         + $"{ScopedMailKnowledgeRetrieval.MessageSearchToolName} first and read from the page it names.";
 
+    /// <summary>What the model is told offering a file does, which files it may offer, and what the card already says.</summary>
+    private const string OfferAttachmentDescription =
+        "Places one file a message carries in your answer as a card the person downloads the whole file from, under "
+        + "their own access to the message. Offer a file when the person asks for it, or when your answer rests on it. "
+        + "Name the message and the file's position exactly as a conversation reading, a search, or read_attachment "
+        + "showed them: a file this conversation has not shown you cannot be offered, so read the message's "
+        + "conversation first. The card names the file, its type, its size, and the message it came from, so do not "
+        + "repeat them. Offering a file says nothing about what it holds.";
+
+    /// <summary>The media type a file is described as where the type its message declared is not one a presentation text holds.</summary>
+    private const string GeneralBinaryMediaType = "application/octet-stream";
+
     private readonly AgentAnswerJournal journal;
     private readonly ScopedMailKnowledgeRetrieval retrieval;
     private readonly AgentConversationReaders readers;
@@ -176,6 +191,8 @@ internal sealed class AgentConversationTools
     private readonly Dictionary<StoredEmailId, PresentationCitation> cited = [];
     private readonly Dictionary<StoredEmailId, string?> listed = [];
     private readonly List<string> readBodies = [];
+    private readonly HashSet<(StoredEmailId Message, int Position)> shownFiles = [];
+    private readonly HashSet<(StoredEmailId Message, int Position)> offeredFiles = [];
     private IReadOnlySet<MailAccountId>? footedAccounts;
 
     /// <summary>Initializes the tools of one run.</summary>
@@ -262,6 +279,7 @@ internal sealed class AgentConversationTools
             tools.Add(AIFunctionFactory.Create(this.ReadThreadAsync, ReadThreadToolName, ReadThreadDescription));
             tools.Add(AIFunctionFactory.Create(this.ReadMessageAsync, ReadMessageToolName, ReadMessageDescription));
             tools.Add(AIFunctionFactory.Create(this.ReadAttachmentAsync, ReadAttachmentToolName, ReadAttachmentDescription));
+            tools.Add(AIFunctionFactory.Create(this.OfferAttachmentAsync, OfferAttachmentToolName, OfferAttachmentDescription));
             tools.Add(AIFunctionFactory.Create(this.ShowThreadStateAsync, "show_thread_state", "Shows the person where the conversation a message belongs to stands — what was agreed, what is still open, what somebody owes — exactly as it was already derived. Use it only when the person asks where a conversation stands or what is open in it; to read, summarise, or retell a conversation, use read_thread. The reading is placed in the conversation for them; do not restate it."));
         }
 
@@ -764,6 +782,7 @@ internal sealed class AgentConversationTools
 
         foreach (var (attachment, position) in message.Attachments.Select(static (attachment, position) => (attachment, position)))
         {
+            this.shownFiles.Add((message.StoredEmailId, position));
             attachments.Add(await this.GuardedAttachmentOfAsync(attachment, position, byPosition.GetValueOrDefault(position), cancellationToken));
         }
 
@@ -844,6 +863,8 @@ internal sealed class AgentConversationTools
         {
             return string.Create(CultureInfo.InvariantCulture, $"That message carries {message.Attachments.Count} files, at positions counted from 0; a conversation reading names each.");
         }
+
+        this.shownFiles.Add((message.StoredEmailId, attachment));
 
         var content = await this.readers.AttachmentTexts.ReadTextAsync(message.StoredEmailId, attachment, cancellationToken);
         var citation = await this.CiteAsync(message.StoredEmailId, message.Headers.Subject, cancellationToken);
@@ -1039,6 +1060,70 @@ internal sealed class AgentConversationTools
         await this.WriteAsync(this.journal.ComposeAsync(block, cancellationToken));
 
         return "The person now sees this conversation's state as it was derived. Do not restate or translate it; refer to it.";
+    }
+
+    [Description("Hands the person one file a message carries.")]
+    private async Task<string> OfferAttachmentAsync(
+        [Description("The id of the message carrying the file, as a conversation reading or a search showed it.")] string messageId,
+        [Description("The file's position, the attachment attribute a conversation reading or a search showed for it.")] int attachment,
+        CancellationToken cancellationToken)
+    {
+        await this.ReportAsync(AgentActivity.ComposingAnswer, cancellationToken);
+
+        if (!Guid.TryParse(messageId, out var named) || !this.WasShown(StoredEmailId.Create(named), attachment))
+        {
+            return $"That file is not one this conversation has shown you. Read the message's conversation with {ReadThreadToolName}, which names every file it carries, and offer one of those.";
+        }
+
+        if (await this.ReadOneMessageAsync(messageId, cancellationToken) is not { } message || attachment >= message.Attachments.Count)
+        {
+            return "No message with that id is readable here.";
+        }
+
+        if (!this.offeredFiles.Add((message.StoredEmailId, attachment)))
+        {
+            return "That file is already in your answer.";
+        }
+
+        var citation = await this.CiteAsync(message.StoredEmailId, message.Headers.Subject, cancellationToken);
+        var block = FileBlockOf(message, attachment, citation.Id);
+
+        await this.WriteAsync(this.journal.ComposeAsync(block, cancellationToken));
+
+        return "Offered. The person downloads the whole file from the card in your answer; refer to it rather than repeating its name, type, or size. Offering it says nothing about what it holds.";
+    }
+
+    /// <summary>Reads whether a conversation reading, a file reading, or a search showed the model this file.</summary>
+    /// <remarks>
+    /// Only a file the run was shown may be offered, so a model cannot hand the person a file by guessing a position on
+    /// a message it was only told carries attachments; the read that follows then holds the offer to the person's grant.
+    /// </remarks>
+    private bool WasShown(StoredEmailId message, int position) =>
+        this.shownFiles.Contains((message, position))
+        || this.retrieval.Report.Passages.Any(passage =>
+            passage.StoredEmailId == message
+            && passage.AttachmentExtracts.Any(extract => extract.AttachmentPosition == position));
+
+    /// <summary>Describes one file as the message says it, beside the citation of the message it arrived on.</summary>
+    /// <remarks>
+    /// Written for the person rather than for the model, so the sender's name for the file is kept as it was given
+    /// rather than guarded; a media type a presentation text refuses reads as the general binary type, which is what a
+    /// download of it is served as.
+    /// </remarks>
+    private static FileBlock FileBlockOf(ReadEmailContent message, int position, PresentationCitationId citation)
+    {
+        var description = message.Attachments[position].Description;
+        var sender = SenderOf(message);
+
+        return new FileBlock(
+            EvidenceOf((message.StoredEmailId, citation)),
+            citation,
+            position,
+            PresentationText.TryCreate(description.FileName?.Value, out var name) ? name : null,
+            PresentationText.TryCreate(description.MediaType, out var mediaType) ? mediaType : PresentationText.Create(GeneralBinaryMediaType),
+            description.DecodedSizeOctets,
+            PresentationText.TryCreate(sender?.DisplayName ?? sender?.Address, out var from) ? from : null,
+            message.Headers.SentAt);
     }
 
     [Description("Reads the person's calendar.")]

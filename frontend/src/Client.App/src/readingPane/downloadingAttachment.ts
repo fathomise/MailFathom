@@ -31,6 +31,7 @@ const refusalMessages: Readonly<Record<Exclude<AttachmentDeliveryOutcome, 'deliv
     abandoned: 'attachment.abandoned',
     unauthenticated: 'attachment.refusedUnauthenticated',
     unauthorized: 'attachment.refusedUnauthorized',
+    missing: 'attachment.refusedUnavailable',
     unavailable: 'attachment.refusedUnavailable',
     screened: 'attachment.refusedScreened',
     largerThanDescribed: 'attachment.refusedLargerThanDescribed',
@@ -74,8 +75,11 @@ export interface AttachmentDownloads {
     /** Whether the file at that position is on its way, which is what refuses a second press. */
     readonly arriving: (position: number) => boolean;
 
-    /** Asks for one file, and does nothing where it is already arriving. Settles when that file has. */
-    readonly start: (attachment: MailAttachment) => Promise<void>;
+    /**
+     * Asks for one file, and does nothing where it is already arriving. Settles when that file has, with what happened
+     * to it, or with `null` where nothing was asked because it was already arriving or its surface had gone.
+     */
+    readonly start: (attachment: MailAttachment) => Promise<AttachmentDeliveryOutcome | null>;
 }
 
 /**
@@ -135,7 +139,7 @@ export function useAttachmentDownloads(session: ClientSession, storedEmailId: st
             // A file already arriving is left to arrive. The control refuses a second press for the same reason, and a
             // caller asking for every file reaches ones somebody may already have asked for one at a time.
             if (!opened.current || running.current.has(attachment.position)) {
-                return;
+                return null;
             }
 
             const named = attachment.fileName ?? translate('attachment.unnamed');
@@ -163,7 +167,7 @@ export function useAttachmentDownloads(session: ClientSession, storedEmailId: st
             // is not said a second time. A file that arrived before the stop took hold is still reported, and so is one
             // abandoned because the viewer closed, which no notice has spoken for.
             if (outcome === 'abandoned' && abandoning.signal.reason === stoppedByTheReader) {
-                return;
+                return outcome;
             }
 
             settled(
@@ -175,6 +179,8 @@ export function useAttachmentDownloads(session: ClientSession, storedEmailId: st
                           body: translate(refusalMessages[outcome]),
                       },
             );
+
+            return outcome;
         },
     };
 }
