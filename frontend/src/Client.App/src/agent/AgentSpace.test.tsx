@@ -1279,10 +1279,10 @@ describe('AgentSpace files', () => {
         const uploads: ClientRequest[] = [];
         render(
             drawn(transport, null, null, {
-                upload: (request, file) => {
+                upload: (request, file, abandoned) => {
                     uploads.push(request);
 
-                    return takesEveryFile(request, file);
+                    return takesEveryFile(request, file, abandoned);
                 },
             }),
         );
@@ -1309,10 +1309,10 @@ describe('AgentSpace files', () => {
         const uploads: string[] = [];
         render(
             drawn(transport, null, null, {
-                upload: (request, file) => {
+                upload: (request, file, abandoned) => {
                     uploads.push(request.path);
 
-                    return takesEveryFile(request, file);
+                    return takesEveryFile(request, file, abandoned);
                 },
             }),
         );
@@ -1338,7 +1338,9 @@ describe('AgentSpace files', () => {
         expect(
             within(refused).getByText('3 files were not attached: a question carries at most 10 files.'),
         ).toBeDefined();
-        expect(within(await screen.findByRole('list', { name: 'Files for your question' })).getAllByRole('listitem')).toHaveLength(10);
+        expect(
+            within(await screen.findByRole('list', { name: 'Files for your question' })).getAllByRole('listitem'),
+        ).toHaveLength(10);
         expect(uploads).toHaveLength(10);
 
         fireEvent.click(within(refused).getByRole('button', { name: 'Dismiss' }));
